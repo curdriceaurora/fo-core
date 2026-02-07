@@ -9,6 +9,7 @@ Components:
 - config: Configuration management for PARA categorization
 - detection: Heuristic-based detection algorithms
 - rules: Rule engine for custom categorization logic
+- ai: AI-powered smart suggestions, feedback, and file organization
 
 Author: File Organizer v2.0
 License: MIT
