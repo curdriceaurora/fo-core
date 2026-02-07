@@ -7,14 +7,12 @@ including automatic number assignment, validation, and conflict detection.
 
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any
 
 from .categories import (
-    AreaDefinition,
     CategoryDefinition,
     JohnnyDecimalNumber,
     NumberingScheme,
-    NumberingResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,7 +92,7 @@ class JohnnyDecimalGenerator:
 
         return True
 
-    def get_next_available_area(self, preferred_area: Optional[int] = None) -> int:
+    def get_next_available_area(self, preferred_area: int | None = None) -> int:
         """
         Get the next available area number.
 
@@ -176,7 +174,7 @@ class JohnnyDecimalGenerator:
         self,
         name: str,
         description: str = "",
-        preferred_area: Optional[int] = None,
+        preferred_area: int | None = None,
     ) -> JohnnyDecimalNumber:
         """
         Generate a new area number.
@@ -208,7 +206,7 @@ class JohnnyDecimalGenerator:
         area: int,
         name: str,
         description: str = "",
-        preferred_category: Optional[int] = None,
+        preferred_category: int | None = None,
     ) -> JohnnyDecimalNumber:
         """
         Generate a new category number within an area.
@@ -247,7 +245,7 @@ class JohnnyDecimalGenerator:
         category: int,
         name: str,
         description: str = "",
-        preferred_id: Optional[int] = None,
+        preferred_id: int | None = None,
     ) -> JohnnyDecimalNumber:
         """
         Generate a new ID number within a category.
@@ -291,7 +289,7 @@ class JohnnyDecimalGenerator:
         content: str,
         filename: str = "",
         prefer_category: bool = True,
-    ) -> Tuple[JohnnyDecimalNumber, float, list[str]]:
+    ) -> tuple[JohnnyDecimalNumber, float, list[str]]:
         """
         Suggest a Johnny Decimal number based on content analysis.
 
@@ -304,8 +302,8 @@ class JohnnyDecimalGenerator:
             Tuple of (suggested_number, confidence, reasons)
         """
         reasons: list[str] = []
-        best_area: Optional[int] = None
-        best_category: Optional[CategoryDefinition] = None
+        best_area: int | None = None
+        best_category: CategoryDefinition | None = None
         max_matches = 0
 
         # Analyze content against area definitions
@@ -381,7 +379,7 @@ class JohnnyDecimalGenerator:
 
         return number, confidence, reasons
 
-    def validate_number(self, number: JohnnyDecimalNumber) -> Tuple[bool, list[str]]:
+    def validate_number(self, number: JohnnyDecimalNumber) -> tuple[bool, list[str]]:
         """
         Validate a Johnny Decimal number against the scheme.
 
@@ -420,7 +418,7 @@ class JohnnyDecimalGenerator:
 
     def find_conflicts(
         self, number: JohnnyDecimalNumber
-    ) -> list[Tuple[str, Path]]:
+    ) -> list[tuple[str, Path]]:
         """
         Find all numbers that conflict with the given number.
 
@@ -430,7 +428,7 @@ class JohnnyDecimalGenerator:
         Returns:
             list of (conflicting_number, file_path) tuples
         """
-        conflicts: list[Tuple[str, Path]] = []
+        conflicts: list[tuple[str, Path]] = []
         number_str = number.formatted_number
 
         # Check exact match
@@ -473,6 +471,7 @@ class JohnnyDecimalGenerator:
         if strategy == "increment":
             # Try incrementing at the lowest level
             if number.item_id is not None:
+                assert number.category is not None
                 # Increment ID
                 return self.generate_id_number(
                     area=number.area,
@@ -497,6 +496,7 @@ class JohnnyDecimalGenerator:
         elif strategy == "skip":
             # Skip to next available in range
             if number.item_id is not None:
+                assert number.category is not None
                 item_id = self.get_next_available_id(number.area, number.category)
                 return JohnnyDecimalNumber(
                     area=number.area,
@@ -528,7 +528,7 @@ class JohnnyDecimalGenerator:
                 description=number.description,
             )
 
-    def get_usage_statistics(self) -> dict[str, any]:
+    def get_usage_statistics(self) -> dict[str, Any]:
         """
         Get statistics about number usage.
 
@@ -537,16 +537,16 @@ class JohnnyDecimalGenerator:
         """
         stats = {
             "total_numbers": len(self._used_numbers),
-            "areas_used": len(set(
+            "areas_used": len({
                 JohnnyDecimalNumber.from_string(n).area
                 for n in self._used_numbers
-            )),
-            "categories_used": len(set(
+            }),
+            "categories_used": len({
                 n for n in self._used_numbers if "." in n and n.count(".") == 1
-            )),
-            "ids_used": len(set(
+            }),
+            "ids_used": len({
                 n for n in self._used_numbers if n.count(".") == 2
-            )),
+            }),
             "reserved_numbers": len(self.scheme.reserved_numbers),
         }
 

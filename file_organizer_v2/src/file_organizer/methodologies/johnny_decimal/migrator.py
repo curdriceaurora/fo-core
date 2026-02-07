@@ -11,12 +11,11 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from .categories import NumberingScheme, get_default_scheme
 from .numbering import JohnnyDecimalGenerator
 from .scanner import FolderScanner, ScanResult
-from .transformer import FolderTransformer, TransformationPlan, TransformationRule
+from .transformer import FolderTransformer, TransformationPlan
 from .validator import MigrationValidator, ValidationResult
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ class MigrationResult:
     transformed_paths: list[Path] = field(default_factory=list)
     failed_paths: list[tuple[Path, str]] = field(default_factory=list)
     skipped_paths: list[Path] = field(default_factory=list)
-    backup_path: Optional[Path] = None
+    backup_path: Path | None = None
 
 
 @dataclass
@@ -44,7 +43,7 @@ class RollbackInfo:
     migration_id: str
     timestamp: datetime
     original_structure: dict[str, tuple[str, str]]  # original_path -> (target_path, original_name)
-    backup_path: Optional[Path]
+    backup_path: Path | None
 
 
 class JohnnyDecimalMigrator:
@@ -57,7 +56,7 @@ class JohnnyDecimalMigrator:
 
     def __init__(
         self,
-        scheme: Optional[NumberingScheme] = None,
+        scheme: NumberingScheme | None = None,
         preserve_original_names: bool = True,
     ):
         """
@@ -147,8 +146,8 @@ class JohnnyDecimalMigrator:
         transformed_paths: list[Path] = []
         failed_paths: list[tuple[Path, str]] = []
         skipped_paths: list[Path] = []
-        backup_path: Optional[Path] = None
-        rollback_info: Optional[RollbackInfo] = None
+        backup_path: Path | None = None
+        rollback_info: RollbackInfo | None = None
 
         # Create backup if requested
         if create_backup and not dry_run:
@@ -174,8 +173,9 @@ class JohnnyDecimalMigrator:
                     failed_paths=[(plan.root_path, f"Backup failed: {e}")],
                 )
 
-        # Execute transformations
-        for rule in plan.rules:
+        # Execute transformations (deepest first to avoid path conflicts)
+        sorted_rules = sorted(plan.rules, key=lambda r: len(r.source_path.parts), reverse=True)
+        for rule in sorted_rules:
             try:
                 # Compute target path for both dry run and real execution
                 target_path = rule.source_path.parent / rule.target_name
@@ -239,7 +239,7 @@ class JohnnyDecimalMigrator:
 
         return result
 
-    def rollback(self, migration_id: Optional[str] = None) -> bool:
+    def rollback(self, migration_id: str | None = None) -> bool:
         """
         Rollback a migration to original state.
 
@@ -334,7 +334,7 @@ class JohnnyDecimalMigrator:
         self,
         plan: TransformationPlan,
         scan_result: ScanResult,
-        validation: Optional[ValidationResult] = None,
+        validation: ValidationResult | None = None,
     ) -> str:
         """
         Generate comprehensive preview of migration.

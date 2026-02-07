@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from .categories import JohnnyDecimalNumber, NumberLevel
 from .config import JohnnyDecimalConfig, PARAIntegrationConfig
@@ -103,7 +103,7 @@ class PARAJohnnyDecimalBridge:
         mapping = self.mappings[para_category]
         return mapping.jd_area_start + index
 
-    def jd_area_to_para(self, area_number: int) -> Optional[PARACategory]:
+    def jd_area_to_para(self, area_number: int) -> PARACategory | None:
         """
         Convert JD area number to PARA category.
 
@@ -188,12 +188,11 @@ class CompatibilityAnalyzer:
             config: Johnny Decimal configuration
         """
         self.config = config
+        self.bridge: PARAJohnnyDecimalBridge | None = None
         if config.compatibility.para_integration.enabled:
             self.bridge = PARAJohnnyDecimalBridge(config.compatibility.para_integration)
-        else:
-            self.bridge = None
 
-    def detect_para_structure(self, root_path: Path) -> dict[PARACategory, Optional[Path]]:
+    def detect_para_structure(self, root_path: Path) -> dict[PARACategory, Path | None]:
         """
         Detect existing PARA structure.
 
@@ -203,9 +202,7 @@ class CompatibilityAnalyzer:
         Returns:
             Dictionary mapping PARA categories to their paths (None if not found)
         """
-        detected: dict[PARACategory, Optional[Path]] = {
-            category: None for category in PARACategory
-        }
+        detected: dict[PARACategory, Path | None] = dict.fromkeys(PARACategory)
 
         if not root_path.exists() or not root_path.is_dir():
             logger.warning(f"Path does not exist or is not a directory: {root_path}")
@@ -269,7 +266,7 @@ class CompatibilityAnalyzer:
 
     def suggest_migration_strategy(
         self, root_path: Path
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Suggest migration strategy for existing structure.
 
@@ -282,47 +279,49 @@ class CompatibilityAnalyzer:
         para_detected = self.detect_para_structure(root_path)
         is_mixed = self.is_mixed_structure(root_path)
 
-        strategy = {
+        recommendations: list[str] = []
+
+        # Add recommendations
+        if any(para_detected.values()):
+            if self.config.compatibility.para_integration.enabled:
+                recommendations.append(
+                    "Use PARA-to-JD mapping to integrate existing PARA structure"
+                )
+                recommendations.append(
+                    f"Projects -> Areas {self.config.compatibility.para_integration.projects_area}-{self.config.compatibility.para_integration.projects_area + 9}"
+                )
+                recommendations.append(
+                    f"Areas -> Areas {self.config.compatibility.para_integration.areas_area}-{self.config.compatibility.para_integration.areas_area + 9}"
+                )
+                recommendations.append(
+                    f"Resources -> Areas {self.config.compatibility.para_integration.resources_area}-{self.config.compatibility.para_integration.resources_area + 9}"
+                )
+                recommendations.append(
+                    f"Archive -> Areas {self.config.compatibility.para_integration.archive_area}-{self.config.compatibility.para_integration.archive_area + 9}"
+                )
+            else:
+                recommendations.append(
+                    "Enable PARA integration in config for better compatibility"
+                )
+
+        if is_mixed:
+            recommendations.append(
+                "Mixed structure detected - consider consolidating to JD or keeping PARA at top level"
+            )
+
+        if not any(para_detected.values()) and not is_mixed:
+            recommendations.append(
+                "Clean structure - can apply JD directly without special handling"
+            )
+
+        strategy: dict[str, Any] = {
             "detected_para": {
                 cat.value: str(path) if path else None
                 for cat, path in para_detected.items()
             },
             "is_mixed_structure": is_mixed,
-            "recommendations": [],
+            "recommendations": recommendations,
         }
-
-        # Add recommendations
-        if any(para_detected.values()):
-            if self.config.compatibility.para_integration.enabled:
-                strategy["recommendations"].append(
-                    "Use PARA-to-JD mapping to integrate existing PARA structure"
-                )
-                strategy["recommendations"].append(
-                    f"Projects → Areas {self.config.compatibility.para_integration.projects_area}-{self.config.compatibility.para_integration.projects_area + 9}"
-                )
-                strategy["recommendations"].append(
-                    f"Areas → Areas {self.config.compatibility.para_integration.areas_area}-{self.config.compatibility.para_integration.areas_area + 9}"
-                )
-                strategy["recommendations"].append(
-                    f"Resources → Areas {self.config.compatibility.para_integration.resources_area}-{self.config.compatibility.para_integration.resources_area + 9}"
-                )
-                strategy["recommendations"].append(
-                    f"Archive → Areas {self.config.compatibility.para_integration.archive_area}-{self.config.compatibility.para_integration.archive_area + 9}"
-                )
-            else:
-                strategy["recommendations"].append(
-                    "Enable PARA integration in config for better compatibility"
-                )
-
-        if is_mixed:
-            strategy["recommendations"].append(
-                "Mixed structure detected - consider consolidating to JD or keeping PARA at top level"
-            )
-
-        if not any(para_detected.values()) and not is_mixed:
-            strategy["recommendations"].append(
-                "Clean structure - can apply JD directly without special handling"
-            )
 
         return strategy
 
@@ -440,7 +439,7 @@ class HybridOrganizer:
         elif jd_number.level == NumberLevel.CATEGORY:
             jd_name = f"{jd_number.area:02d}.{jd_number.category:02d}"
         else:  # ID
-            jd_name = f"{jd_number.area:02d}.{jd_number.category:02d}.{jd_number.id_number:03d}"
+            jd_name = f"{jd_number.area:02d}.{jd_number.category:02d}.{jd_number.item_id:03d}"
 
         # Add item name if provided
         if item_name:

@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .categories import JohnnyDecimalNumber, NumberingScheme, NumberLevel
+from .categories import JohnnyDecimalNumber, NumberingScheme
 from .numbering import JohnnyDecimalGenerator
 from .scanner import FolderInfo
 

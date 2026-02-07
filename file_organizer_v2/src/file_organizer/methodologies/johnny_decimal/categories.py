@@ -15,7 +15,7 @@ Based on the Johnny Decimal system by Johnny Noble.
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 class NumberLevel(str, Enum):
@@ -48,8 +48,8 @@ class JohnnyDecimalNumber:
     """
 
     area: int
-    category: Optional[int] = None
-    item_id: Optional[int] = None
+    category: int | None = None
+    item_id: int | None = None
     name: str = ""
     description: str = ""
 
@@ -99,7 +99,7 @@ class JohnnyDecimalNumber:
             return f"{self.area:02d}"
 
     @property
-    def parent_number(self) -> Optional[str]:
+    def parent_number(self) -> str | None:
         """Return the parent number in the hierarchy."""
         if self.item_id is not None:
             return f"{self.area:02d}.{self.category:02d}"
@@ -352,11 +352,11 @@ class NumberingScheme:
         key = f"{category_def.area:02d}.{category_def.category:02d}"
         self.categories[key] = category_def
 
-    def get_area(self, area_number: int) -> Optional[AreaDefinition]:
+    def get_area(self, area_number: int) -> AreaDefinition | None:
         """Get the area definition for a given area number."""
         return self.areas.get(area_number)
 
-    def get_category(self, area: int, category: int) -> Optional[CategoryDefinition]:
+    def get_category(self, area: int, category: int) -> CategoryDefinition | None:
         """Get the category definition for a given area and category."""
         key = f"{area:02d}.{category:02d}"
         return self.categories.get(key)

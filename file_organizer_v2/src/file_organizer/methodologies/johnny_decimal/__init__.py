@@ -29,6 +29,14 @@ Author: File Organizer v2.0
 License: MIT
 """
 
+from .adapters import (
+    AdapterRegistry,
+    FileSystemAdapter,
+    MethodologyAdapter,
+    OrganizationItem,
+    PARAAdapter,
+    create_default_registry,
+)
 from .categories import (
     AreaDefinition,
     CategoryDefinition,
@@ -38,66 +46,49 @@ from .categories import (
     NumberLevel,
     get_default_scheme,
 )
-
-from .numbering import (
-    JohnnyDecimalGenerator,
-    NumberConflictError,
-    InvalidNumberError,
+from .compatibility import (
+    CompatibilityAnalyzer,
+    HybridOrganizer,
+    PARACategory,
+    PARAJohnnyDecimalBridge,
+    PARAMapping,
 )
-
-from .system import (
-    JohnnyDecimalSystem,
+from .config import (
+    CompatibilityConfig,
+    ConfigBuilder,
+    JohnnyDecimalConfig,
+    MigrationConfig,
+    PARAIntegrationConfig,
+    create_default_config,
+    create_para_compatible_config,
 )
-
-from .scanner import (
-    FolderScanner,
-    FolderInfo,
-    ScanResult,
-)
-
-from .transformer import (
-    FolderTransformer,
-    TransformationRule,
-    TransformationPlan,
-)
-
-from .validator import (
-    MigrationValidator,
-    ValidationIssue,
-    ValidationResult,
-)
-
 from .migrator import (
     JohnnyDecimalMigrator,
     MigrationResult,
     RollbackInfo,
 )
-
-from .config import (
-    JohnnyDecimalConfig,
-    MigrationConfig,
-    PARAIntegrationConfig,
-    CompatibilityConfig,
-    ConfigBuilder,
-    create_default_config,
-    create_para_compatible_config,
+from .numbering import (
+    InvalidNumberError,
+    JohnnyDecimalGenerator,
+    NumberConflictError,
 )
-
-from .compatibility import (
-    PARACategory,
-    PARAMapping,
-    PARAJohnnyDecimalBridge,
-    CompatibilityAnalyzer,
-    HybridOrganizer,
+from .scanner import (
+    FolderInfo,
+    FolderScanner,
+    ScanResult,
 )
-
-from .adapters import (
-    OrganizationItem,
-    MethodologyAdapter,
-    PARAAdapter,
-    FileSystemAdapter,
-    AdapterRegistry,
-    create_default_registry,
+from .system import (
+    JohnnyDecimalSystem,
+)
+from .transformer import (
+    FolderTransformer,
+    TransformationPlan,
+    TransformationRule,
+)
+from .validator import (
+    MigrationValidator,
+    ValidationIssue,
+    ValidationResult,
 )
 
 __all__ = [

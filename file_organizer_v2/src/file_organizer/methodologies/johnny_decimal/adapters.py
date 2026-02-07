@@ -10,7 +10,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
 from .categories import JohnnyDecimalNumber, NumberLevel
 from .compatibility import PARACategory, PARAJohnnyDecimalBridge
@@ -146,8 +146,6 @@ class PARAAdapter(MethodologyAdapter):
         return JohnnyDecimalNumber(
             area=base_area,
             category=subcategory,
-            id_number=None,
-            level=NumberLevel.CATEGORY,
         )
 
     def adapt_from_jd(
@@ -227,33 +225,27 @@ class FileSystemAdapter(MethodologyAdapter):
         item_name_lower = item.name.lower()
         if item_name_lower in self.config.custom_mappings:
             area = self.config.custom_mappings[item_name_lower]
-            return JohnnyDecimalNumber(
-                area=area, category=None, id_number=None, level=NumberLevel.AREA
-            )
+            return JohnnyDecimalNumber(area=area)
 
         # Fallback: use depth to determine level
         depth = len(item.path.parts)
 
         if depth <= 1:
-            # Top level → Area
+            # Top level -> Area
             area = self._suggest_area_from_name(item.name)
-            return JohnnyDecimalNumber(
-                area=area, category=None, id_number=None, level=NumberLevel.AREA
-            )
+            return JohnnyDecimalNumber(area=area)
         elif depth == 2:
-            # Second level → Category
+            # Second level -> Category
             area = self._suggest_area_from_name(item.path.parts[0])
             category = self._suggest_category_from_name(item.name)
-            return JohnnyDecimalNumber(
-                area=area, category=category, id_number=None, level=NumberLevel.CATEGORY
-            )
+            return JohnnyDecimalNumber(area=area, category=category)
         else:
-            # Third level → ID
+            # Third level -> ID
             area = self._suggest_area_from_name(item.path.parts[0])
             category = self._suggest_category_from_name(item.path.parts[1])
             id_num = self._suggest_id_from_index(depth - 3)
             return JohnnyDecimalNumber(
-                area=area, category=category, id_number=id_num, level=NumberLevel.ID
+                area=area, category=category, item_id=id_num
             )
 
     def adapt_from_jd(
@@ -279,7 +271,7 @@ class FileSystemAdapter(MethodologyAdapter):
         else:  # ID
             area_name = f"{jd_number.area:02d} Area"
             cat_name = f"{jd_number.area:02d}.{jd_number.category:02d} Category"
-            id_name = f"{jd_number.area:02d}.{jd_number.category:02d}.{jd_number.id_number:03d} {item_name}"
+            id_name = f"{jd_number.area:02d}.{jd_number.category:02d}.{jd_number.item_id:03d} {item_name}"
             path = Path(area_name) / cat_name / id_name
 
         return OrganizationItem(
@@ -347,7 +339,7 @@ class AdapterRegistry:
         self._adapters.append(adapter)
         logger.info(f"Registered adapter: {adapter.__class__.__name__}")
 
-    def get_adapter(self, item: OrganizationItem) -> Optional[MethodologyAdapter]:
+    def get_adapter(self, item: OrganizationItem) -> MethodologyAdapter | None:
         """
         Get appropriate adapter for item.
 
@@ -362,7 +354,7 @@ class AdapterRegistry:
                 return adapter
         return None
 
-    def adapt_to_jd(self, item: OrganizationItem) -> Optional[JohnnyDecimalNumber]:
+    def adapt_to_jd(self, item: OrganizationItem) -> JohnnyDecimalNumber | None:
         """
         Adapt item to JD using registered adapters.
 
@@ -379,7 +371,7 @@ class AdapterRegistry:
 
     def adapt_from_jd(
         self, jd_number: JohnnyDecimalNumber, item_name: str, methodology: str = "para"
-    ) -> Optional[OrganizationItem]:
+    ) -> OrganizationItem | None:
         """
         Adapt JD number to specified methodology.
 

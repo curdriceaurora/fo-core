@@ -10,7 +10,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .categories import NumberingScheme, AreaDefinition, CategoryDefinition
+from .categories import AreaDefinition, CategoryDefinition, NumberingScheme
 
 logger = logging.getLogger(__name__)
 

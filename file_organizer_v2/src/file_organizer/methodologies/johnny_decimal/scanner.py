@@ -8,7 +8,6 @@ Detects current organization patterns and suggests appropriate JD mappings.
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from .categories import JohnnyDecimalNumber, NumberingScheme
 
@@ -25,7 +24,7 @@ class FolderInfo:
     children: list["FolderInfo"] = field(default_factory=list)
     file_count: int = 0
     total_size: int = 0  # bytes
-    suggested_number: Optional[JohnnyDecimalNumber] = None
+    suggested_number: JohnnyDecimalNumber | None = None
     confidence: float = 0.0
     reasoning: list[str] = field(default_factory=list)
 
@@ -54,7 +53,7 @@ class FolderScanner:
 
     def __init__(
         self,
-        scheme: Optional[NumberingScheme] = None,
+        scheme: NumberingScheme | None = None,
         max_depth: int = 10,
         skip_hidden: bool = True,
     ):

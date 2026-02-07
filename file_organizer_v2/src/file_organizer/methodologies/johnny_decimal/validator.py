@@ -223,13 +223,13 @@ class MigrationValidator:
                     )
 
             # Check ID range if present (001-999)
-            if jd_num.id_number is not None:
-                if not (1 <= jd_num.id_number <= 999):
+            if jd_num.item_id is not None:
+                if not (1 <= jd_num.item_id <= 999):
                     result.add_issue(
                         ValidationIssue(
                             severity="error",
                             rule_index=idx,
-                            message=f"ID number out of range: {jd_num.id_number} (must be 001-999)",
+                            message=f"ID number out of range: {jd_num.item_id} (must be 001-999)",
                             suggestion="Use ID numbers between 001 and 999",
                         )
                     )

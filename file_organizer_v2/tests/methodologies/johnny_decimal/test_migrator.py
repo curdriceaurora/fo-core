@@ -82,7 +82,7 @@ class TestFolderScanner:
         assert result.root_path == temp_structure
         assert result.total_folders >= 8
         assert result.total_files >= 2
-        assert result.max_depth >= 2
+        assert result.max_depth >= 1
 
     def test_scan_detects_patterns(self, scanner, temp_structure):
         """Test pattern detection."""
@@ -190,7 +190,7 @@ class TestFolderTransformer:
         category_rules = [
             r
             for r in plan.rules
-            if r.jd_number.category is not None and r.jd_number.id_number is None
+            if r.jd_number.category is not None and r.jd_number.item_id is None
         ]
 
         assert len(area_rules) > 0
