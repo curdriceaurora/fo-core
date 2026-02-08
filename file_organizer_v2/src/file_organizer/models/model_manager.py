@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import logging
 import subprocess
-from typing import Optional
 
 from rich.console import Console
 from rich.table import Table
@@ -26,7 +25,7 @@ class ModelManager:
     ``ollama pull`` for downloading new models.
     """
 
-    def __init__(self, console: Optional[Console] = None) -> None:
+    def __init__(self, console: Console | None = None) -> None:
         self._console = console or Console()
 
     # ------------------------------------------------------------------
@@ -85,7 +84,7 @@ class ModelManager:
     # List
     # ------------------------------------------------------------------
 
-    def list_models(self, type_filter: Optional[str] = None) -> list[ModelInfo]:
+    def list_models(self, type_filter: str | None = None) -> list[ModelInfo]:
         """Return available models with live installed status.
 
         Args:
@@ -103,7 +102,7 @@ class ModelManager:
             models.append(m)
         return models
 
-    def display_models(self, type_filter: Optional[str] = None) -> None:
+    def display_models(self, type_filter: str | None = None) -> None:
         """Print a Rich table of available models.
 
         Args:

@@ -6,8 +6,7 @@ a unified configuration interface across all modules.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -61,11 +60,11 @@ class AppConfig:
 
     # Module-specific config overrides stored as dicts.
     # Delegated to module config constructors by ConfigManager.
-    watcher: Optional[dict[str, Any]] = None
-    daemon: Optional[dict[str, Any]] = None
-    parallel: Optional[dict[str, Any]] = None
-    pipeline: Optional[dict[str, Any]] = None
-    events: Optional[dict[str, Any]] = None
-    deploy: Optional[dict[str, Any]] = None
-    para: Optional[dict[str, Any]] = None
-    johnny_decimal: Optional[dict[str, Any]] = None
+    watcher: dict[str, Any] | None = None
+    daemon: dict[str, Any] | None = None
+    parallel: dict[str, Any] | None = None
+    pipeline: dict[str, Any] | None = None
+    events: dict[str, Any] | None = None
+    deploy: dict[str, Any] | None = None
+    para: dict[str, Any] | None = None
+    johnny_decimal: dict[str, Any] | None = None

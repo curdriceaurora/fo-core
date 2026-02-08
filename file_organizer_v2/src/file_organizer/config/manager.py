@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict, fields
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -32,7 +32,7 @@ class ConfigManager:
             Defaults to ``~/.config/file-organizer``.
     """
 
-    def __init__(self, config_dir: Optional[str | Path] = None) -> None:
+    def __init__(self, config_dir: str | Path | None = None) -> None:
         self._config_dir = Path(config_dir) if config_dir else DEFAULT_CONFIG_DIR
 
     @property
@@ -80,7 +80,7 @@ class ConfigManager:
 
         return self._dict_to_config(data, profile)
 
-    def save(self, config: AppConfig, profile: Optional[str] = None) -> None:
+    def save(self, config: AppConfig, profile: str | None = None) -> None:
         """Save a configuration profile to disk.
 
         Creates the config directory and file if they don't exist.
