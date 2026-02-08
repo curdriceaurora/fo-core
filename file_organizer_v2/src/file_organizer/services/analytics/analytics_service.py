@@ -5,22 +5,19 @@ Main service that coordinates storage analysis, metrics calculation,
 chart generation, and dashboard creation.
 """
 
-from pathlib import Path
-from typing import Optional, List, Dict
-from datetime import datetime
 import logging
+from datetime import datetime
+from pathlib import Path
 
 from ...models.analytics import (
     AnalyticsDashboard,
-    StorageStats,
-    FileDistribution,
     DuplicateStats,
     QualityMetrics,
+    StorageStats,
     TimeSavings,
-    TrendData,
 )
-from .storage_analyzer import StorageAnalyzer
 from .metrics_calculator import MetricsCalculator
+from .storage_analyzer import StorageAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +36,8 @@ class AnalyticsService:
 
     def __init__(
         self,
-        storage_analyzer: Optional[StorageAnalyzer] = None,
-        metrics_calculator: Optional[MetricsCalculator] = None,
+        storage_analyzer: StorageAnalyzer | None = None,
+        metrics_calculator: MetricsCalculator | None = None,
     ):
         """
         Initialize analytics service.
@@ -55,8 +52,8 @@ class AnalyticsService:
     def generate_dashboard(
         self,
         directory: Path,
-        duplicate_groups: Optional[List[Dict]] = None,
-        max_depth: Optional[int] = None,
+        duplicate_groups: list[dict] | None = None,
+        max_depth: int | None = None,
     ) -> AnalyticsDashboard:
         """
         Generate complete analytics dashboard.
@@ -105,7 +102,7 @@ class AnalyticsService:
         return dashboard
 
     def get_storage_stats(
-        self, directory: Path, max_depth: Optional[int] = None
+        self, directory: Path, max_depth: int | None = None
     ) -> StorageStats:
         """
         Get storage usage statistics.
@@ -122,7 +119,7 @@ class AnalyticsService:
         return stats
 
     def get_duplicate_stats(
-        self, duplicate_groups: List[Dict], total_size: int
+        self, duplicate_groups: list[dict], total_size: int
     ) -> DuplicateStats:
         """
         Get duplication statistics.
@@ -145,8 +142,9 @@ class AnalyticsService:
             )
 
         total_duplicates = 0
+        actual_duplicate_groups = 0
         space_wasted = 0
-        by_type: Dict[str, int] = {}
+        by_type: dict[str, int] = {}
         largest_group = None
         max_group_size = 0
 
@@ -155,7 +153,10 @@ class AnalyticsService:
             group_count = len(files)
 
             if group_count > 1:
-                total_duplicates += group_count
+                # Count only the extra copies (exclude one original per group)
+                extra_copies = group_count - 1
+                total_duplicates += extra_copies
+                actual_duplicate_groups += 1
 
                 # Calculate wasted space
                 first_file = Path(files[0]) if isinstance(files[0], str) else files[0]
@@ -180,7 +181,7 @@ class AnalyticsService:
 
         return DuplicateStats(
             total_duplicates=total_duplicates,
-            duplicate_groups=len(duplicate_groups),
+            duplicate_groups=actual_duplicate_groups,
             space_wasted=space_wasted,
             space_recoverable=space_wasted,
             by_type=by_type,
