@@ -4,10 +4,10 @@ Semantic similarity analysis module.
 Computes cosine similarity between document embeddings and identifies similar documents.
 """
 
-from typing import List, Dict, Optional, Tuple
-from pathlib import Path
-import numpy as np
 import logging
+from pathlib import Path
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,9 @@ class SemanticAnalyzer:
     def find_similar_documents(
         self,
         embeddings: np.ndarray,
-        paths: List[Path],
-        min_similarity: Optional[float] = None
-    ) -> Dict[Path, List[Tuple[Path, float]]]:
+        paths: list[Path],
+        min_similarity: float | None = None
+    ) -> dict[Path, list[tuple[Path, float]]]:
         """
         Find similar documents based on embeddings.
 
@@ -89,13 +89,16 @@ class SemanticAnalyzer:
 
         logger.info(f"Finding similar documents among {len(paths)} documents")
 
-        similar_docs: Dict[Path, List[Tuple[Path, float]]] = {path: [] for path in paths}
+        similar_docs: dict[Path, list[tuple[Path, float]]] = {path: [] for path in paths}
 
-        # Compute pairwise similarities
-        for i in range(len(paths)):
-            for j in range(i + 1, len(paths)):
-                similarity = self.compute_similarity(embeddings[i], embeddings[j])
+        # Compute full similarity matrix using vectorized operations
+        sim_matrix = self.compute_similarity_matrix(embeddings)
 
+        # Extract pairs above threshold from upper triangle
+        n = len(paths)
+        for i in range(n):
+            for j in range(i + 1, n):
+                similarity = float(sim_matrix[i, j])
                 if similarity >= min_similarity:
                     similar_docs[paths[i]].append((paths[j], similarity))
                     similar_docs[paths[j]].append((paths[i], similarity))
@@ -114,10 +117,10 @@ class SemanticAnalyzer:
         self,
         query_embedding: np.ndarray,
         document_embeddings: np.ndarray,
-        paths: List[Path],
-        top_k: Optional[int] = None,
-        min_similarity: Optional[float] = None
-    ) -> List[Tuple[Path, float]]:
+        paths: list[Path],
+        top_k: int | None = None,
+        min_similarity: float | None = None
+    ) -> list[tuple[Path, float]]:
         """
         Find documents similar to a query document.
 
@@ -155,8 +158,8 @@ class SemanticAnalyzer:
 
     def cluster_by_similarity(
         self,
-        similar_docs: Dict[Path, List[Tuple[Path, float]]]
-    ) -> List[List[Path]]:
+        similar_docs: dict[Path, list[tuple[Path, float]]]
+    ) -> list[list[Path]]:
         """
         Cluster documents by similarity into groups.
 
@@ -226,9 +229,9 @@ class SemanticAnalyzer:
     def get_duplicate_groups(
         self,
         embeddings: np.ndarray,
-        paths: List[Path],
-        min_similarity: Optional[float] = None
-    ) -> List[Dict]:
+        paths: list[Path],
+        min_similarity: float | None = None
+    ) -> list[dict]:
         """
         Get groups of duplicate/similar documents with metadata.
 
@@ -304,7 +307,7 @@ class SemanticAnalyzer:
     def get_statistics(
         self,
         similarity_matrix: np.ndarray
-    ) -> Dict:
+    ) -> dict:
         """
         Compute statistics from similarity matrix.
 
