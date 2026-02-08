@@ -5,7 +5,7 @@ github_issue: 11
 github_url: https://github.com/curdriceaurora/Local-File-Organizer/issues/11
 status: open
 created: 2026-01-20T23:30:00Z
-updated: 2026-01-26T00:52:32Z
+updated: 2026-02-08T05:40:26Z
 labels: [enhancement, epic, phase-2]
 github: https://github.com/curdriceaurora/Local-File-Organizer/issues/11
 last_sync: 2026-01-26T00:52:32Z
@@ -18,7 +18,7 @@ last_sync: 2026-01-26T00:52:32Z
 **Priority:** High
 
 ## Overview
-Improve the user interface and experience with interactive features, better CLI, and easier installation.
+Improve the user interface and experience with interactive features, better CLI, and easier installation. Phase 2 builds the user-facing layer on top of the Phase 3-5 backend (audio, dedup, intelligence, daemon, parallel processing, undo/redo, analytics).
 
 ## Key Features
 
@@ -46,16 +46,18 @@ Terminal user interface with Textual
 ### 4. Improved CLI ⌨️
 Enhanced command-line with Typer
 - Subcommands: organize, preview, undo, config
+- Integrate existing Phase 4 CLI modules (dedupe, autotag, profile, analytics)
 - Auto-completion support
 - Better help text
 - Interactive prompts
 
 ### 5. Configuration System ⚙️
-YAML-based configuration
+YAML-based unified configuration
 - User preferences
 - Default options
 - Exclusion patterns
 - Multiple profiles
+- Wraps existing Phase 5 module configs (watcher, daemon, parallel, events)
 
 ### 6. Cross-Platform Executables 📦
 Pre-built binaries for easy installation
@@ -73,13 +75,17 @@ Pre-built binaries for easy installation
 - [ ] Cross-platform executables available
 
 ## Technical Requirements
-- Typer 0.9+ (CLI framework)
-- Textual 0.50+ (TUI framework)
-- PyYAML 6.0+ (config files)
+- Python 3.9+ (project minimum, set in Phase 5)
+- Typer >=0.12.0 (CLI framework)
+- Textual >=0.50.0 (TUI framework)
+- PyYAML >=6.0.0 (config files)
 - PyInstaller (executables)
 
 ## Dependencies
 - Phase 1 complete ✅
+- Phase 3 (audio, PARA, JD) - partially complete, integration tasks depend on it
+- Phase 4 (dedup, intelligence, undo, analytics) - complete ✅
+- Phase 5 (events, daemon, parallel, docker) - complete ✅
 
 ## Related
 - GitHub Issue: #11
@@ -88,8 +94,8 @@ Pre-built binaries for easy installation
 ## Tasks Created
 
 ### Foundation & Configuration (2 tasks)
-- [ ] #18 - Set up development environment and dependencies (parallel: false)
-- [ ] #22 - Design and implement configuration system (parallel: false)
+- [x] #18 - Set up development environment and dependencies (CLOSED)
+- [ ] #22 - Design and implement unified configuration system (parallel: false)
 
 ### Copilot Mode & Model Switching (3 tasks)
 - [ ] #26 - Implement copilot mode - chat interface (parallel: true)
@@ -103,7 +109,7 @@ Pre-built binaries for easy installation
 - [ ] #15 - Add TUI live organization preview (parallel: false)
 
 ### CLI Improvements (2 tasks)
-- [ ] #19 - Migrate to Typer CLI framework (parallel: true)
+- [ ] #19 - Migrate to Typer CLI framework + integrate Phase 4 commands (parallel: true)
 - [ ] #25 - Add CLI auto-completion and interactive prompts (parallel: false)
 
 ### Cross-Platform Executables (5 tasks)
@@ -113,11 +119,21 @@ Pre-built binaries for easy installation
 - [ ] #20 - Create Linux AppImage (parallel: true)
 - [ ] #23 - Implement auto-update mechanism (parallel: false)
 
+### Phase 3-5 Integration (6 tasks)
+- [ ] #30 - Integrate audio features in TUI (parallel: false)
+- [ ] #31 - Add deduplication and intelligence CLI commands (parallel: true)
+- [ ] #32 - Add daemon and pipeline CLI commands (parallel: true)
+- [ ] #33 - Integrate PARA and Johnny Decimal methodology selectors in TUI (parallel: false)
+- [ ] #34 - Integrate undo/redo and operation history in TUI (parallel: false) **NEW**
+- [ ] #35 - Integrate analytics dashboard in TUI (parallel: false) **NEW**
+
 ### Testing & Documentation (2 tasks)
-- [ ] #12 - Write comprehensive tests for Phase 2 features (parallel: false)
+- [ ] #12 - Write comprehensive tests for Phase 2 + integration points (parallel: false)
 - [ ] #13 - Update documentation and create user guide (parallel: false)
 
-**Total tasks:** 18
-**Parallel tasks:** 12
-**Sequential tasks:** 6
-**Estimated total effort:** 256 hours (~6-7 weeks with 1 developer, ~2-3 weeks with 3-4 parallel developers)
+**Total tasks:** 24
+**Completed:** 1 (#18)
+**Remaining:** 23
+**Parallel tasks:** 13
+**Sequential tasks:** 11
+**Estimated total effort:** ~296 hours
