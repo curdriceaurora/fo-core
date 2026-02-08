@@ -54,14 +54,15 @@ class MetricsCalculator:
     def measure_naming_compliance(
         self,
         files: List[Path],
-        pattern: Optional[Dict] = None
     ) -> float:
         """
         Measure naming convention compliance.
 
+        Checks files against simple heuristics: lowercase names,
+        proper delimiters (underscore/hyphen), and no spaces.
+
         Args:
             files: List of file paths
-            pattern: Expected naming pattern
 
         Returns:
             Compliance score (0-1)
