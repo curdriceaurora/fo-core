@@ -13,6 +13,7 @@ from .dedupe import dedupe_command
 from .dedupe_v2 import dedupe_app
 from .interactive import confirm_action, create_progress, prompt_choice, prompt_directory
 from .profile import profile_command
+from .rules import rules_app
 from .suggest import suggest_app
 from .undo_redo import history_command, redo_command, undo_command
 
@@ -31,6 +32,7 @@ __all__ = [
     "prompt_choice",
     "prompt_directory",
     "redo_command",
+    "rules_app",
     "setup_autotag_parser",
     "handle_autotag_command",
     "suggest_app",

@@ -68,6 +68,15 @@ class TestHelpOutputs:
             ["copilot", "--help"],
             ["copilot", "chat", "--help"],
             ["copilot", "status", "--help"],
+            ["rules", "--help"],
+            ["rules", "list", "--help"],
+            ["rules", "sets", "--help"],
+            ["rules", "add", "--help"],
+            ["rules", "remove", "--help"],
+            ["rules", "toggle", "--help"],
+            ["rules", "preview", "--help"],
+            ["rules", "export", "--help"],
+            ["rules", "import", "--help"],
         ],
     )
     def test_help(self, cmd: list[str]) -> None:

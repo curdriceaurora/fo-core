@@ -13,6 +13,7 @@ from rich.console import Console
 from file_organizer.cli.copilot import copilot_app
 from file_organizer.cli.daemon import daemon_app
 from file_organizer.cli.dedupe_v2 import dedupe_app
+from file_organizer.cli.rules import rules_app
 from file_organizer.cli.suggest import suggest_app
 
 console = Console()
@@ -254,6 +255,7 @@ def model_cache() -> None:
 app.add_typer(copilot_app, name="copilot")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(dedupe_app, name="dedupe")
+app.add_typer(rules_app, name="rules")
 app.add_typer(suggest_app, name="suggest")
 
 
