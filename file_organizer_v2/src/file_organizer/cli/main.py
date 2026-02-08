@@ -1,0 +1,362 @@
+"""Main Typer CLI application for File Organizer.
+
+Provides the unified entry point with all commands and sub-apps.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Optional
+
+import typer
+from rich.console import Console
+
+console = Console()
+
+# ---------------------------------------------------------------------------
+# Main app
+# ---------------------------------------------------------------------------
+
+app = typer.Typer(
+    name="file-organizer",
+    help="AI-powered local file management with privacy-first architecture.",
+    no_args_is_help=True,
+    rich_markup_mode="rich",
+)
+
+# ---------------------------------------------------------------------------
+# State / callbacks
+# ---------------------------------------------------------------------------
+
+_verbose = False
+_dry_run = False
+_json_output = False
+
+
+@app.callback()
+def main_callback(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without executing."),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON."),
+) -> None:
+    """Global options applied to all commands."""
+    global _verbose, _dry_run, _json_output
+    _verbose = verbose
+    _dry_run = dry_run
+    _json_output = json_output
+
+
+# ---------------------------------------------------------------------------
+# Top-level commands
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def version() -> None:
+    """Show the application version."""
+    from file_organizer.version import __version__
+
+    console.print(f"file-organizer {__version__}")
+
+
+@app.command()
+def organize(
+    input_dir: Path = typer.Argument(..., help="Directory containing files to organize."),
+    output_dir: Path = typer.Argument(..., help="Destination directory for organized files."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without moving files."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+) -> None:
+    """Organize files in a directory using AI models."""
+    console.print(f"[bold]Organizing[/bold] {input_dir} -> {output_dir}")
+    if dry_run or _dry_run:
+        console.print("[yellow]Dry run mode — no files will be moved.[/yellow]")
+
+    try:
+        from file_organizer.core.organizer import FileOrganizer
+
+        organizer = FileOrganizer(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            dry_run=dry_run or _dry_run,
+        )
+        organizer.run()
+    except Exception as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def preview(
+    input_dir: Path = typer.Argument(..., help="Directory to preview."),
+) -> None:
+    """Preview how files would be organized (dry-run)."""
+    console.print(f"[bold]Previewing[/bold] {input_dir}")
+    try:
+        from file_organizer.core.organizer import FileOrganizer
+
+        organizer = FileOrganizer(input_dir=input_dir, dry_run=True)
+        organizer.run()
+    except Exception as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+
+@app.command(name="tui")
+def launch_tui() -> None:
+    """Launch the interactive terminal UI."""
+    from file_organizer.tui import run_tui
+
+    run_tui()
+
+
+# ---------------------------------------------------------------------------
+# Config sub-app
+# ---------------------------------------------------------------------------
+
+config_app = typer.Typer(help="Configuration management.")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command(name="show")
+def config_show(
+    profile: str = typer.Option("default", help="Profile name."),
+) -> None:
+    """Show current configuration."""
+    from file_organizer.config import ConfigManager
+
+    mgr = ConfigManager()
+    cfg = mgr.load(profile=profile)
+    console.print(f"[bold]Profile:[/bold] {cfg.profile_name}")
+    console.print(f"[bold]Methodology:[/bold] {cfg.default_methodology}")
+    console.print(f"[bold]Text model:[/bold] {cfg.models.text_model}")
+    console.print(f"[bold]Vision model:[/bold] {cfg.models.vision_model}")
+    console.print(f"[bold]Temperature:[/bold] {cfg.models.temperature}")
+    console.print(f"[bold]Device:[/bold] {cfg.models.device}")
+
+
+@config_app.command(name="list")
+def config_list() -> None:
+    """List available configuration profiles."""
+    from file_organizer.config import ConfigManager
+
+    mgr = ConfigManager()
+    profiles = mgr.list_profiles()
+    if not profiles:
+        console.print("No profiles found. Run [bold]config edit[/bold] to create one.")
+        return
+    for name in profiles:
+        console.print(f"  {name}")
+
+
+@config_app.command(name="edit")
+def config_edit(
+    profile: str = typer.Option("default", help="Profile name to edit."),
+    text_model: Optional[str] = typer.Option(None, help="Set text model name."),
+    vision_model: Optional[str] = typer.Option(None, help="Set vision model name."),
+    temperature: Optional[float] = typer.Option(None, help="Set temperature (0.0-1.0)."),
+    device: Optional[str] = typer.Option(None, help="Set device (auto, cpu, cuda, mps, metal)."),
+    methodology: Optional[str] = typer.Option(None, help="Set default methodology (none, para, jd)."),
+) -> None:
+    """Edit a configuration profile."""
+    from file_organizer.config import ConfigManager
+
+    mgr = ConfigManager()
+    cfg = mgr.load(profile=profile)
+
+    if text_model is not None:
+        cfg.models.text_model = text_model
+    if vision_model is not None:
+        cfg.models.vision_model = vision_model
+    if temperature is not None:
+        cfg.models.temperature = temperature
+    if device is not None:
+        cfg.models.device = device
+    if methodology is not None:
+        cfg.default_methodology = methodology
+
+    mgr.save(cfg, profile=profile)
+    console.print(f"[green]Saved profile '{profile}'[/green]")
+
+
+# ---------------------------------------------------------------------------
+# Model sub-app
+# ---------------------------------------------------------------------------
+
+model_app = typer.Typer(help="AI model management.")
+app.add_typer(model_app, name="model")
+
+
+@model_app.command(name="list")
+def model_list(
+    type_filter: Optional[str] = typer.Option(
+        None, "--type", help="Filter by model type (text, vision, audio)."
+    ),
+) -> None:
+    """List available AI models with install status."""
+    from file_organizer.models.model_manager import ModelManager
+
+    mgr = ModelManager(console=console)
+    mgr.display_models(type_filter=type_filter)
+
+
+@model_app.command(name="pull")
+def model_pull(
+    name: str = typer.Argument(..., help="Model name to download (e.g. qwen2.5:3b-instruct-q4_K_M)."),
+) -> None:
+    """Download an AI model via Ollama."""
+    from file_organizer.models.model_manager import ModelManager
+
+    mgr = ModelManager(console=console)
+    success = mgr.pull_model(name)
+    if not success:
+        raise typer.Exit(code=1)
+
+
+@model_app.command(name="cache")
+def model_cache() -> None:
+    """Show model cache statistics."""
+    from file_organizer.models.model_manager import ModelManager
+
+    mgr = ModelManager(console=console)
+    info = mgr.cache_info()
+    if not info:
+        console.print("[dim]No cache data available.[/dim]")
+        return
+    for key, value in info.items():
+        console.print(f"[bold]{key}:[/bold] {value}")
+
+
+# ---------------------------------------------------------------------------
+# Legacy command wrappers
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def dedupe(
+    directory: Path = typer.Argument(..., help="Directory to scan for duplicates."),
+    algorithm: str = typer.Option("sha256", help="Hash algorithm (md5, sha256)."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without deleting."),
+    strategy: str = typer.Option("manual", help="Strategy (manual, oldest, newest, largest, smallest)."),
+    batch: bool = typer.Option(False, help="Apply strategy without per-group confirmation."),
+    recursive: bool = typer.Option(True, help="Scan subdirectories."),
+) -> None:
+    """Find and remove duplicate files."""
+    from file_organizer.cli.dedupe import dedupe_command
+
+    args = [str(directory)]
+    if algorithm != "sha256":
+        args.extend(["--algorithm", algorithm])
+    if dry_run or _dry_run:
+        args.append("--dry-run")
+    if strategy != "manual":
+        args.extend(["--strategy", strategy])
+    if batch:
+        args.append("--batch")
+    if not recursive:
+        args.append("--no-recursive")
+
+    code = dedupe_command(args)
+    raise typer.Exit(code=code)
+
+
+@app.command()
+def undo(
+    operation_id: Optional[int] = typer.Option(None, help="Specific operation ID to undo."),
+    transaction_id: Optional[str] = typer.Option(None, help="Transaction ID to undo."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without executing."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+) -> None:
+    """Undo file operations."""
+    from file_organizer.cli.undo_redo import undo_command as _undo
+
+    code = _undo(
+        operation_id=operation_id,
+        transaction_id=transaction_id,
+        dry_run=dry_run or _dry_run,
+        verbose=verbose or _verbose,
+    )
+    raise typer.Exit(code=code)
+
+
+@app.command()
+def redo(
+    operation_id: Optional[int] = typer.Option(None, help="Specific operation ID to redo."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without executing."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+) -> None:
+    """Redo file operations."""
+    from file_organizer.cli.undo_redo import redo_command as _redo
+
+    code = _redo(
+        operation_id=operation_id,
+        dry_run=dry_run or _dry_run,
+        verbose=verbose or _verbose,
+    )
+    raise typer.Exit(code=code)
+
+
+@app.command()
+def history(
+    limit: int = typer.Option(10, help="Maximum number of operations to show."),
+    operation_type: Optional[str] = typer.Option(None, "--type", help="Filter by type."),
+    status: Optional[str] = typer.Option(None, help="Filter by status."),
+    stats: bool = typer.Option(False, help="Show statistics."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+) -> None:
+    """View operation history."""
+    from file_organizer.cli.undo_redo import history_command as _history
+
+    code = _history(
+        limit=limit,
+        operation_type=operation_type,
+        status=status,
+        stats=stats,
+        verbose=verbose or _verbose,
+    )
+    raise typer.Exit(code=code)
+
+
+@app.command()
+def analytics(
+    directory: Optional[Path] = typer.Argument(None, help="Directory to analyze."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+) -> None:
+    """Display storage analytics dashboard."""
+    from file_organizer.cli.analytics import analytics_command
+
+    args: list[str] = []
+    if directory is not None:
+        args.append(str(directory))
+    if verbose or _verbose:
+        args.append("--verbose")
+
+    code = analytics_command(args)
+    raise typer.Exit(code=code)
+
+
+# ---------------------------------------------------------------------------
+# Profile sub-app — Click interop
+# ---------------------------------------------------------------------------
+
+# The existing profile module uses Click. Typer is built on Click,
+# so we can attach the Click group directly as a sub-command.
+
+try:
+    from file_organizer.cli.profile import profile_command as _profile_click_group
+
+    typer_click_object = typer.main.get_group(app)
+    typer_click_object.add_command(_profile_click_group, "profile")
+except Exception:
+    # Profile module may fail to import if intelligence services
+    # are not installed; we degrade gracefully.
+    pass
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    """Entry point for ``file-organizer`` / ``fo`` console scripts."""
+    app()

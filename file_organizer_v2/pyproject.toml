@@ -137,8 +137,8 @@ all = [
 ]
 
 [project.scripts]
-file-organizer = "file_organizer.cli:app"
-fo = "file_organizer.cli:app"  # Short alias
+file-organizer = "file_organizer.cli:main"
+fo = "file_organizer.cli:main"  # Short alias
 
 [project.urls]
 Homepage = "https://github.com/yourusername/file-organizer-v2"
