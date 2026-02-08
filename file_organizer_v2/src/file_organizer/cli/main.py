@@ -31,6 +31,8 @@ app = typer.Typer(
 _verbose = False
 _dry_run = False
 _json_output = False
+_yes = False
+_no_interactive = False
 
 
 @app.callback()
@@ -38,12 +40,22 @@ def main_callback(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without executing."),
     json_output: bool = typer.Option(False, "--json", help="Output results as JSON."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Auto-confirm all prompts."),
+    no_interactive: bool = typer.Option(
+        False, "--no-interactive", help="Disable interactive prompts."
+    ),
 ) -> None:
     """Global options applied to all commands."""
-    global _verbose, _dry_run, _json_output
+    global _verbose, _dry_run, _json_output, _yes, _no_interactive
     _verbose = verbose
     _dry_run = dry_run
     _json_output = json_output
+    _yes = yes
+    _no_interactive = no_interactive
+
+    from file_organizer.cli.interactive import set_flags
+
+    set_flags(yes=yes, no_interactive=no_interactive)
 
 
 # ---------------------------------------------------------------------------
@@ -231,32 +243,21 @@ def model_cache() -> None:
 # ---------------------------------------------------------------------------
 
 
-@app.command()
-def dedupe(
-    directory: Path = typer.Argument(..., help="Directory to scan for duplicates."),
-    algorithm: str = typer.Option("sha256", help="Hash algorithm (md5, sha256)."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview without deleting."),
-    strategy: str = typer.Option("manual", help="Strategy (manual, oldest, newest, largest, smallest)."),
-    batch: bool = typer.Option(False, help="Apply strategy without per-group confirmation."),
-    recursive: bool = typer.Option(True, help="Scan subdirectories."),
-) -> None:
-    """Find and remove duplicate files."""
-    from file_organizer.cli.dedupe import dedupe_command
+# ---------------------------------------------------------------------------
+# Dedupe sub-app (replaces legacy argparse dedupe command)
+# ---------------------------------------------------------------------------
 
-    args = [str(directory)]
-    if algorithm != "sha256":
-        args.extend(["--algorithm", algorithm])
-    if dry_run or _dry_run:
-        args.append("--dry-run")
-    if strategy != "manual":
-        args.extend(["--strategy", strategy])
-    if batch:
-        args.append("--batch")
-    if not recursive:
-        args.append("--no-recursive")
+from file_organizer.cli.dedupe_v2 import dedupe_app
 
-    code = dedupe_command(args)
-    raise typer.Exit(code=code)
+app.add_typer(dedupe_app, name="dedupe")
+
+# ---------------------------------------------------------------------------
+# Suggest sub-app
+# ---------------------------------------------------------------------------
+
+from file_organizer.cli.suggest import suggest_app
+
+app.add_typer(suggest_app, name="suggest")
 
 
 @app.command()

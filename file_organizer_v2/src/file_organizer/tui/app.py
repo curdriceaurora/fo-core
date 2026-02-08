@@ -8,6 +8,7 @@ from __future__ import annotations
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.widget import Widget
 from textual.widgets import Footer, Header, Static
 
 
@@ -117,7 +118,7 @@ class FileOrganizerApp(App[None]):
         with Horizontal():
             yield Sidebar()
             with Vertical(id="main-content"):
-                yield PlaceholderView(self._view_content("files"), id="view")
+                yield self._create_view("files")
         yield StatusBar()
         yield Footer()
 
@@ -128,12 +129,18 @@ class FileOrganizerApp(App[None]):
     def action_switch_view(self, name: str) -> None:
         """Switch the main content area to the named view.
 
+        Removes the current ``#view`` widget and mounts a new one
+        created by ``_create_view()``.
+
         Args:
             name: View identifier (files, organized, settings).
         """
         self._current_view = name
-        view = self.query_one("#view", PlaceholderView)
-        view.update(self._view_content(name))
+        old = self.query_one("#view")
+        new_view = self._create_view(name)
+        container = self.query_one("#main-content")
+        old.remove()
+        container.mount(new_view)
         status = self.query_one(StatusBar)
         status.set_status(f"View: {name.capitalize()}")
 
@@ -144,21 +151,28 @@ class FileOrganizerApp(App[None]):
         )
 
     @staticmethod
-    def _view_content(name: str) -> str:
-        """Return placeholder text for a view.
+    def _create_view(name: str) -> Widget:
+        """Create and return the widget for a named view.
 
         Args:
-            name: View identifier.
+            name: View identifier (files, organized, settings).
 
         Returns:
-            Renderable string for the view area.
+            Widget to mount as ``#view`` in the main content area.
         """
+        if name == "files":
+            from file_organizer.tui.file_preview import FilePreviewView
+
+            return FilePreviewView(id="view")
+
+        # Organized / Settings remain placeholders for now
         titles = {
-            "files": "[b]Files[/b]\n\nBrowse and select files to organize.",
             "organized": "[b]Organized[/b]\n\nView organized file results.",
             "settings": "[b]Settings[/b]\n\nConfigure models, paths, and preferences.",
         }
-        return titles.get(name, f"[b]{name.capitalize()}[/b]")
+        return PlaceholderView(
+            titles.get(name, f"[b]{name.capitalize()}[/b]"), id="view"
+        )
 
 
 def run_tui() -> None:
