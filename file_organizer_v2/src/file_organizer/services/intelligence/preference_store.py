@@ -10,11 +10,11 @@ Schema Version: 1.0
 import json
 import shutil
 import threading
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
 
 class SchemaVersion(Enum):
@@ -25,22 +25,22 @@ class SchemaVersion(Enum):
 @dataclass
 class DirectoryPreference:
     """Preference data for a specific directory"""
-    folder_mappings: Dict[str, str]
-    naming_patterns: Dict[str, str]
-    category_overrides: Dict[str, str]
+    folder_mappings: dict[str, str]
+    naming_patterns: dict[str, str]
+    category_overrides: dict[str, str]
     created: str
     updated: str
     confidence: float
     correction_count: int = 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DirectoryPreference':
+    def from_dict(cls, data: dict[str, Any]) -> 'DirectoryPreference':
         """Create from dictionary"""
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        now = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
         return cls(
             folder_mappings=data.get('folder_mappings', {}),
             naming_patterns=data.get('naming_patterns', {}),
@@ -69,7 +69,7 @@ class PreferenceStore:
     DEFAULT_FILENAME = "preferences.json"
     BACKUP_EXTENSION = ".backup"
 
-    def __init__(self, storage_path: Optional[Path] = None):
+    def __init__(self, storage_path: Path | None = None):
         """
         Initialize preference store.
 
@@ -89,14 +89,14 @@ class PreferenceStore:
         self._lock = threading.RLock()
 
         # In-memory cache
-        self._preferences: Dict[str, Any] = {}
+        self._preferences: dict[str, Any] = {}
         self._loaded = False
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format"""
-        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
 
-    def _create_empty_preferences(self) -> Dict[str, Any]:
+    def _create_empty_preferences(self) -> dict[str, Any]:
         """Create empty preference structure"""
         return {
             "version": self.SCHEMA_VERSION,
@@ -109,7 +109,7 @@ class PreferenceStore:
             "directory_preferences": {}
         }
 
-    def _validate_schema(self, data: Dict[str, Any]) -> bool:
+    def _validate_schema(self, data: dict[str, Any]) -> bool:
         """
         Validate preference schema.
 
@@ -141,7 +141,7 @@ class PreferenceStore:
                 return False
 
             # Validate each directory preference
-            for path, pref in dir_prefs.items():
+            for _path, pref in dir_prefs.items():
                 if not isinstance(pref, dict):
                     return False
                 required_dir_fields = ["folder_mappings", "naming_patterns", "category_overrides",
@@ -154,7 +154,7 @@ class PreferenceStore:
         except (KeyError, TypeError, AttributeError):
             return False
 
-    def _migrate_schema(self, data: Dict[str, Any], from_version: str) -> Dict[str, Any]:
+    def _migrate_schema(self, data: dict[str, Any], from_version: str) -> dict[str, Any]:
         """
         Migrate preference data from older schema version.
 
@@ -187,7 +187,7 @@ class PreferenceStore:
             try:
                 # Try loading primary file
                 if self.preference_file.exists():
-                    with open(self.preference_file, 'r', encoding='utf-8') as f:
+                    with open(self.preference_file, encoding='utf-8') as f:
                         data = json.load(f)
 
                     # Validate schema
@@ -205,11 +205,11 @@ class PreferenceStore:
 
                 # No primary file, try backup
                 if self.backup_file.exists():
-                    print(f"Primary file not found, trying backup...")
+                    print("Primary file not found, trying backup...")
                     return self._try_load_backup()
 
                 # No files exist, use defaults
-                print(f"No preference files found, using defaults...")
+                print("No preference files found, using defaults...")
                 self._preferences = self._create_empty_preferences()
                 self._loaded = True
                 return False
@@ -233,7 +233,7 @@ class PreferenceStore:
                 self._loaded = True
                 return False
 
-            with open(self.backup_file, 'r', encoding='utf-8') as f:
+            with open(self.backup_file, encoding='utf-8') as f:
                 data = json.load(f)
 
             if not self._validate_schema(data):
@@ -290,7 +290,7 @@ class PreferenceStore:
                 print(f"Error saving preferences: {e}")
                 return False
 
-    def add_preference(self, path: Path, preference_data: Dict[str, Any]) -> None:
+    def add_preference(self, path: Path, preference_data: dict[str, Any]) -> None:
         """
         Add or update preference for a directory.
 
@@ -328,7 +328,7 @@ class PreferenceStore:
                 )
                 self._preferences["directory_preferences"][path_str] = dir_pref.to_dict()
 
-    def get_preference(self, path: Path, fallback_to_parent: bool = True) -> Optional[Dict[str, Any]]:
+    def get_preference(self, path: Path, fallback_to_parent: bool = True) -> dict[str, Any] | None:
         """
         Get preference for a directory with optional parent fallback.
 
@@ -391,7 +391,7 @@ class PreferenceStore:
                 pref["confidence"] = max(0.0, min(1.0, new_confidence))
                 pref["updated"] = self._get_current_timestamp()
 
-    def resolve_conflicts(self, preference_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def resolve_conflicts(self, preference_list: list[dict[str, Any]]) -> dict[str, Any]:
         """
         Resolve conflicting preferences using recency and frequency weighting.
 
@@ -419,7 +419,7 @@ class PreferenceStore:
         # Return highest scored preference
         return scored_prefs[0][1].copy()
 
-    def _score_preference(self, pref: Dict[str, Any]) -> float:
+    def _score_preference(self, pref: dict[str, Any]) -> float:
         """
         Calculate score for a preference based on multiple factors.
 
@@ -439,7 +439,7 @@ class PreferenceStore:
             # Parse ISO format and make timezone aware for comparison
             updated_dt = datetime.fromisoformat(updated.replace('Z', '+00:00'))
             # Make now timezone aware as well
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             days_old = (now - updated_dt).days
             recency_score = 1.0 / (1.0 + days_old / 30.0)  # Decay over 30 days
         except (ValueError, AttributeError):
@@ -503,12 +503,12 @@ class PreferenceStore:
                     print(f"Error: Import file not found: {input_path}")
                     return False
 
-                with open(input_path, 'r', encoding='utf-8') as f:
+                with open(input_path, encoding='utf-8') as f:
                     data = json.load(f)
 
                 # Validate schema
                 if not self._validate_schema(data):
-                    print(f"Error: Invalid schema in import file")
+                    print("Error: Invalid schema in import file")
                     return False
 
                 # Migrate if needed
@@ -517,7 +517,7 @@ class PreferenceStore:
 
                 # Create backup before importing
                 if self.preference_file.exists():
-                    backup_timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                    backup_timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
                     backup_path = self.storage_path / f"{self.DEFAULT_FILENAME}.{backup_timestamp}.backup"
                     shutil.copy2(self.preference_file, backup_path)
 
@@ -536,7 +536,7 @@ class PreferenceStore:
                 print(f"Error importing preferences: {e}")
                 return False
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about stored preferences.
 
@@ -567,7 +567,7 @@ class PreferenceStore:
             self._loaded = True
             self.save_preferences()
 
-    def list_directory_preferences(self) -> List[Tuple[str, Dict[str, Any]]]:
+    def list_directory_preferences(self) -> list[tuple[str, dict[str, Any]]]:
         """
         List all directory preferences.
 

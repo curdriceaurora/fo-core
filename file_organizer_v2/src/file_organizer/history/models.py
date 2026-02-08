@@ -4,15 +4,15 @@ Data models for operation history tracking.
 This module defines the data structures for operations and transactions.
 """
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
-from typing import Optional, Dict, Any
-from enum import Enum
-import json
+from typing import Any
 
 
-class OperationType(str, Enum):
+class OperationType(StrEnum):
     """Types of file operations that can be tracked."""
     MOVE = "move"
     RENAME = "rename"
@@ -21,7 +21,7 @@ class OperationType(str, Enum):
     CREATE = "create"
 
 
-class OperationStatus(str, Enum):
+class OperationStatus(StrEnum):
     """Status of an operation."""
     PENDING = "pending"
     COMPLETED = "completed"
@@ -29,7 +29,7 @@ class OperationStatus(str, Enum):
     ROLLED_BACK = "rolled_back"
 
 
-class TransactionStatus(str, Enum):
+class TransactionStatus(StrEnum):
     """Status of a transaction."""
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -58,16 +58,16 @@ class Operation:
     operation_type: OperationType
     timestamp: datetime
     source_path: Path
-    id: Optional[int] = None
-    destination_path: Optional[Path] = None
-    file_hash: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    transaction_id: Optional[str] = None
+    id: int | None = None
+    destination_path: Path | None = None
+    file_hash: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    transaction_id: str | None = None
     status: OperationStatus = OperationStatus.COMPLETED
-    error_message: Optional[str] = None
-    created_at: Optional[datetime] = None
+    error_message: str | None = None
+    created_at: datetime | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert operation to dictionary.
 
@@ -89,7 +89,7 @@ class Operation:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Operation':
+    def from_dict(cls, data: dict[str, Any]) -> 'Operation':
         """
         Create operation from dictionary.
 
@@ -173,11 +173,11 @@ class Transaction:
     transaction_id: str
     started_at: datetime
     status: TransactionStatus = TransactionStatus.IN_PROGRESS
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
     operation_count: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert transaction to dictionary.
 
@@ -194,7 +194,7 @@ class Transaction:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Transaction':
+    def from_dict(cls, data: dict[str, Any]) -> 'Transaction':
         """
         Create transaction from dictionary.
 

@@ -12,30 +12,25 @@ Tests cover:
 - Edge cases (missing metadata, illegal characters)
 """
 
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
 
 import pytest
 
 from file_organizer.services.audio.classifier import AudioType
 from file_organizer.services.audio.metadata_extractor import AudioMetadata
 from file_organizer.services.audio.organizer import (
-    AudioOrganizer,
-    OrganizationRules,
-    OrganizationPlan,
-    OrganizationResult,
-    FileMove,
-    sanitize_path_component,
-    _resolve_conflict,
-    _safe_value,
-    _format_track_number,
     DEFAULT_MUSIC_TEMPLATE,
     DEFAULT_PODCAST_TEMPLATE,
-    DEFAULT_AUDIOBOOK_TEMPLATE,
-    DEFAULT_RECORDING_TEMPLATE,
+    AudioOrganizer,
+    OrganizationPlan,
+    OrganizationRules,
+    _format_track_number,
+    _resolve_conflict,
+    _safe_value,
+    sanitize_path_component,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

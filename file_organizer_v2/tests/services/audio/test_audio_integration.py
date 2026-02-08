@@ -5,9 +5,9 @@ Tests the complete pipeline: metadata -> classification -> content analysis -> o
 All tests use mock data (no actual audio files or AI models required).
 """
 
-from pathlib import Path
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -24,14 +24,12 @@ from file_organizer.services.audio.metadata_extractor import AudioMetadata
 from file_organizer.services.audio.organizer import (
     AudioOrganizer,
     OrganizationRules,
-    OrganizationResult,
 )
 from file_organizer.services.audio.transcriber import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

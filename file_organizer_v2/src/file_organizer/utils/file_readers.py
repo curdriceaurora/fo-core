@@ -3,7 +3,7 @@
 from pathlib import Path
 
 try:
-    from PIL import Image
+    from PIL import Image  # noqa: F401
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
@@ -46,8 +46,8 @@ except ImportError:
     EZDXF_AVAILABLE = False
 
 # Archive format support (built-in)
-import zipfile
 import tarfile
+import zipfile
 
 try:
     import py7zr
@@ -340,7 +340,7 @@ def read_zip_file(file_path: str | Path, max_files: int = 50) -> str:
                 f"Uncompressed size: {total_uncompressed / 1024:.2f} KB",
                 f"Compression ratio: {compression_ratio:.1f}%",
                 f"Encrypted: {'Yes' if encrypted else 'No'}",
-                "\nFiles (first {}):" .format(min(max_files, total_files)),
+                f"\nFiles (first {min(max_files, total_files)}):" ,
             ]
 
             # List files
@@ -401,11 +401,11 @@ def read_7z_file(file_path: str | Path, max_files: int = 50) -> str:
                 f"Uncompressed size: {total_uncompressed / 1024:.2f} KB",
                 f"Compression ratio: {compression_ratio:.1f}%",
                 f"Encrypted: {'Yes' if encrypted else 'No'}",
-                "\nFiles (first {}):" .format(min(max_files, total_files)),
+                f"\nFiles (first {min(max_files, total_files)}):" ,
             ]
 
             # List files
-            for idx, file_info in enumerate(all_files[:max_files]):
+            for _idx, file_info in enumerate(all_files[:max_files]):
                 size_kb = file_info.uncompressed / 1024
                 compressed_kb = file_info.compressed / 1024
                 lines.append(
@@ -524,7 +524,7 @@ def read_rar_file(file_path: str | Path, max_files: int = 50) -> str:
                 f"Uncompressed size: {total_uncompressed / 1024:.2f} KB",
                 f"Compression ratio: {compression_ratio:.1f}%",
                 f"Encrypted: {'Yes' if encrypted else 'No'}",
-                "\nFiles (first {}):" .format(min(max_files, total_files)),
+                f"\nFiles (first {min(max_files, total_files)}):" ,
             ]
 
             # List files
@@ -641,7 +641,7 @@ def read_netcdf_file(file_path: str | Path) -> str:
             lines.append("\nVariables:")
 
             # List variables (first 20)
-            for idx, (var_name, var) in enumerate(list(nc.variables.items())[:20]):
+            for _idx, (var_name, var) in enumerate(list(nc.variables.items())[:20]):
                 shape_str = 'x'.join(str(var.shape[i]) for i in range(len(var.shape)))
                 lines.append(f"  - {var_name} ({var.dtype}): {shape_str}")
 
@@ -815,14 +815,14 @@ def read_dxf_file(file_path: str | Path, max_layers: int = 20) -> str:
                 title = doc.header.get('$TITLE', 'Untitled')
                 if title:
                     metadata_parts.append(f"Title: {title}")
-            except:
+            except Exception:
                 pass
 
             try:
                 author = doc.header.get('$AUTHOR', 'Unknown')
                 if author:
                     metadata_parts.append(f"Author: {author}")
-            except:
+            except Exception:
                 pass
 
         # DXF version
@@ -852,7 +852,7 @@ def read_dxf_file(file_path: str | Path, max_layers: int = 20) -> str:
             entity_types[entity_type] = entity_types.get(entity_type, 0) + 1
 
         if entity_types:
-            metadata_parts.append(f"\n=== Entities ===")
+            metadata_parts.append("\n=== Entities ===")
             metadata_parts.append(f"Total entities: {sum(entity_types.values())}")
 
             # List entity types
@@ -863,7 +863,7 @@ def read_dxf_file(file_path: str | Path, max_layers: int = 20) -> str:
         if doc.blocks:
             block_count = len([b for b in doc.blocks if not b.name.startswith('*')])
             if block_count > 0:
-                metadata_parts.append(f"\n=== Blocks ===")
+                metadata_parts.append("\n=== Blocks ===")
                 metadata_parts.append(f"Block definitions: {block_count}")
 
         text = '\n'.join(metadata_parts)
@@ -897,7 +897,7 @@ def read_dwg_file(file_path: str | Path) -> str:
     file_path = Path(file_path)
     try:
         # Try to read with ezdxf (limited support)
-        doc = ezdxf.readfile(file_path)
+        ezdxf.readfile(file_path)
         return read_dxf_file(file_path)  # Process as DXF
 
     except Exception as e:
@@ -934,7 +934,7 @@ def read_step_file(file_path: str | Path, max_lines: int = 100) -> str:
     """
     file_path = Path(file_path)
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(file_path, encoding='utf-8', errors='ignore') as f:
             content = f.read(10000)  # Read first 10KB
 
         metadata_parts = ["=== STEP File Information ==="]
@@ -1005,7 +1005,7 @@ def read_iges_file(file_path: str | Path, max_lines: int = 50) -> str:
     """
     file_path = Path(file_path)
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(file_path, encoding='utf-8', errors='ignore') as f:
             lines = [f.readline() for _ in range(max_lines)]
 
         metadata_parts = ["=== IGES File Information ==="]
@@ -1049,7 +1049,7 @@ def read_iges_file(file_path: str | Path, max_lines: int = 50) -> str:
                 "Native system ID"
             ]
 
-            for i, (name, value) in enumerate(zip(param_names, params)):
+            for _i, (name, value) in enumerate(zip(param_names, params, strict=False)):
                 if value.strip():
                     metadata_parts.append(f"{name}: {value.strip()}")
 

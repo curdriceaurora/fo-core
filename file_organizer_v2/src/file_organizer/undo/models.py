@@ -6,11 +6,10 @@ and conflict detection.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
-from enum import Enum
+from enum import StrEnum
 
 
-class ConflictType(str, Enum):
+class ConflictType(StrEnum):
     """Types of conflicts that can occur during undo/redo."""
     FILE_MODIFIED = "file_modified"  # File was modified after operation
     FILE_MISSING = "file_missing"  # Expected file doesn't exist
@@ -36,8 +35,8 @@ class Conflict:
     conflict_type: ConflictType
     path: str
     description: str
-    expected: Optional[str] = None
-    actual: Optional[str] = None
+    expected: str | None = None
+    actual: str | None = None
 
     def __str__(self) -> str:
         """String representation of conflict."""
@@ -59,9 +58,9 @@ class ValidationResult:
         error_message: Primary error message if validation failed
     """
     can_proceed: bool
-    conflicts: List[Conflict] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    error_message: Optional[str] = None
+    conflicts: list[Conflict] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    error_message: str | None = None
 
     def __bool__(self) -> bool:
         """Allow ValidationResult to be used in boolean context."""
@@ -99,8 +98,8 @@ class RollbackResult:
     success: bool
     operations_rolled_back: int = 0
     operations_failed: int = 0
-    errors: List[Tuple[int, str]] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    errors: list[tuple[int, str]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def __bool__(self) -> bool:
         """Allow RollbackResult to be used in boolean context."""

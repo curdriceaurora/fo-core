@@ -5,10 +5,9 @@ This module provides command-line interface for undoing and redoing
 file operations.
 """
 
-import sys
 import logging
+import sys
 from pathlib import Path
-from typing import Optional
 
 from ..undo.undo_manager import UndoManager
 from ..undo.viewer import HistoryViewer
@@ -17,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 def undo_command(
-    operation_id: Optional[int] = None,
-    transaction_id: Optional[str] = None,
+    operation_id: int | None = None,
+    transaction_id: str | None = None,
     dry_run: bool = False,
     verbose: bool = False
 ) -> int:
@@ -121,7 +120,7 @@ def undo_command(
 
 
 def redo_command(
-    operation_id: Optional[int] = None,
+    operation_id: int | None = None,
     dry_run: bool = False,
     verbose: bool = False
 ) -> int:
@@ -208,13 +207,13 @@ def redo_command(
 
 def history_command(
     limit: int = 10,
-    operation_type: Optional[str] = None,
-    status: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
-    search: Optional[str] = None,
-    transaction: Optional[str] = None,
-    operation_id: Optional[int] = None,
+    operation_type: str | None = None,
+    status: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    search: str | None = None,
+    transaction: str | None = None,
+    operation_id: int | None = None,
     stats: bool = False,
     verbose: bool = False
 ) -> int:

@@ -6,14 +6,12 @@ Integrates with smart suggestions infrastructure.
 """
 
 import logging
-from pathlib import Path
-from typing import List, Dict, Optional
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
-import hashlib
+from pathlib import Path
 
 from .content_analyzer import ContentTagAnalyzer
-from .tag_learning import TagLearningEngine, TagPattern
+from .tag_learning import TagLearningEngine
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,7 @@ class TagSuggestion:
     reasoning: str
     metadata: dict = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             'tag': self.tag,
@@ -72,7 +70,7 @@ class TagRecommendation:
             if 40 <= s.confidence < 70
         ]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             'file_path': str(self.file_path),
@@ -97,8 +95,8 @@ class TagRecommender:
 
     def __init__(
         self,
-        content_analyzer: Optional[ContentTagAnalyzer] = None,
-        learning_engine: Optional[TagLearningEngine] = None,
+        content_analyzer: ContentTagAnalyzer | None = None,
+        learning_engine: TagLearningEngine | None = None,
         min_confidence: float = 40.0
     ):
         """
@@ -125,7 +123,7 @@ class TagRecommender:
     def recommend_tags(
         self,
         file_path: Path,
-        existing_tags: Optional[list[str]] = None,
+        existing_tags: list[str] | None = None,
         top_n: int = 10
     ) -> TagRecommendation:
         """
@@ -277,7 +275,7 @@ class TagRecommender:
             confidence_scores.append(70.0)
 
         # Behavior-based confidence
-        file_ext = file_path.suffix.lower()
+        file_path.suffix.lower()
         predicted_tags = self.learning_engine.predict_tags(file_path)
         for predicted_tag, conf in predicted_tags:
             if predicted_tag == tag:
@@ -293,7 +291,7 @@ class TagRecommender:
         self,
         tag: str,
         file_path: Path,
-        existing_tags: Optional[list[str]] = None
+        existing_tags: list[str] | None = None
     ) -> str:
         """
         Generate detailed explanation for why a tag was suggested.
@@ -312,7 +310,7 @@ class TagRecommender:
         content_tags = self.content_analyzer.analyze_file(file_path)
         if tag in content_tags:
             explanations.append(
-                f"Found in file content or metadata"
+                "Found in file content or metadata"
             )
 
         # Check file type patterns
@@ -476,4 +474,4 @@ class TagRecommender:
 
     def _generate_hybrid_reasoning(self, tag: str, file_path: Path) -> str:
         """Generate reasoning for hybrid suggestion."""
-        return f"Found in content and matches your usage patterns"
+        return "Found in content and matches your usage patterns"

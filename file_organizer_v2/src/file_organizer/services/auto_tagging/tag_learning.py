@@ -5,13 +5,12 @@ Learns from user tagging patterns to improve tag suggestions over time.
 Tracks tag usage, co-occurrences, and builds personalized tag models.
 """
 
-import logging
-from pathlib import Path
-from typing import List, Dict, Set, Optional, Tuple
-from collections import defaultdict, Counter
-from datetime import datetime, timedelta
 import json
-from dataclasses import dataclass, field, asdict
+import logging
+from collections import Counter, defaultdict
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +19,13 @@ logger = logging.getLogger(__name__)
 class TagPattern:
     """Represents a learned tag pattern."""
     pattern_type: str  # co-occurrence, frequency, context
-    tags: List[str]
+    tags: list[str]
     frequency: float
     confidence: float
-    contexts: List[str] = field(default_factory=list)
-    last_seen: Optional[datetime] = None
+    contexts: list[str] = field(default_factory=list)
+    last_seen: datetime | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         data = asdict(self)
         if self.last_seen:
@@ -34,7 +33,7 @@ class TagPattern:
         return data
 
     @staticmethod
-    def from_dict(data: Dict) -> 'TagPattern':
+    def from_dict(data: dict) -> 'TagPattern':
         """Create from dictionary."""
         if 'last_seen' in data and data['last_seen']:
             data['last_seen'] = datetime.fromisoformat(data['last_seen'])
@@ -46,12 +45,12 @@ class TagUsage:
     """Tracks usage statistics for a tag."""
     tag: str
     count: int = 0
-    first_used: Optional[datetime] = None
-    last_used: Optional[datetime] = None
-    file_types: Set[str] = field(default_factory=set)
-    contexts: List[str] = field(default_factory=list)
+    first_used: datetime | None = None
+    last_used: datetime | None = None
+    file_types: set[str] = field(default_factory=set)
+    contexts: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             'tag': self.tag,
@@ -63,7 +62,7 @@ class TagUsage:
         }
 
     @staticmethod
-    def from_dict(data: Dict) -> 'TagUsage':
+    def from_dict(data: dict) -> 'TagUsage':
         """Create from dictionary."""
         return TagUsage(
             tag=data['tag'],
@@ -87,7 +86,7 @@ class TagLearningEngine:
     - User preferences
     """
 
-    def __init__(self, storage_path: Optional[Path] = None):
+    def __init__(self, storage_path: Path | None = None):
         """
         Initialize the tag learning engine.
 
@@ -101,10 +100,10 @@ class TagLearningEngine:
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Learning data structures
-        self.tag_usage: Dict[str, TagUsage] = {}
-        self.tag_cooccurrence: Dict[str, Counter] = defaultdict(Counter)
-        self.file_type_tags: Dict[str, Counter] = defaultdict(Counter)
-        self.directory_tags: Dict[str, Counter] = defaultdict(Counter)
+        self.tag_usage: dict[str, TagUsage] = {}
+        self.tag_cooccurrence: dict[str, Counter] = defaultdict(Counter)
+        self.file_type_tags: dict[str, Counter] = defaultdict(Counter)
+        self.directory_tags: dict[str, Counter] = defaultdict(Counter)
 
         # Load existing data
         self._load_data()
@@ -114,8 +113,8 @@ class TagLearningEngine:
     def record_tag_application(
         self,
         file_path: Path,
-        tags: List[str],
-        context: Optional[Dict] = None
+        tags: list[str],
+        context: dict | None = None
     ) -> None:
         """
         Record when a user applies tags to a file.
@@ -170,7 +169,7 @@ class TagLearningEngine:
         # Save data
         self._save_data()
 
-    def get_tag_patterns(self, file_type: Optional[str] = None) -> List[TagPattern]:
+    def get_tag_patterns(self, file_type: str | None = None) -> list[TagPattern]:
         """
         Get learned tag patterns.
 
@@ -201,7 +200,7 @@ class TagLearningEngine:
 
         # Co-occurrence patterns
         for tag1, cooccur_tags in self.tag_cooccurrence.items():
-            for tag2, _count in cooccur_tags.most_common(5):
+            for tag2, count in cooccur_tags.most_common(5):
                 if count < 2:  # Need at least 2 co-occurrences
                     continue
 
@@ -222,7 +221,7 @@ class TagLearningEngine:
         self,
         file_path: Path,
         max_predictions: int = 5
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Predict tags for a file based on learned patterns.
 
@@ -262,7 +261,7 @@ class TagLearningEngine:
 
         return sorted_predictions[:max_predictions]
 
-    def get_related_tags(self, tag: str, max_related: int = 5) -> List[str]:
+    def get_related_tags(self, tag: str, max_related: int = 5) -> list[str]:
         """
         Get tags that are frequently used with the given tag.
 
@@ -279,7 +278,7 @@ class TagLearningEngine:
         related = self.tag_cooccurrence[tag].most_common(max_related)
         return [t for t, _ in related]
 
-    def update_model(self, feedback: List[Dict]) -> None:
+    def update_model(self, feedback: list[dict]) -> None:
         """
         Update the learning model based on user feedback.
 
@@ -315,7 +314,7 @@ class TagLearningEngine:
 
         self._save_data()
 
-    def get_popular_tags(self, limit: int = 20) -> List[Tuple[str, int]]:
+    def get_popular_tags(self, limit: int = 20) -> list[tuple[str, int]]:
         """
         Get most popular tags by usage count.
 
@@ -333,7 +332,7 @@ class TagLearningEngine:
         tag_counts.sort(key=lambda x: x[1], reverse=True)
         return tag_counts[:limit]
 
-    def get_recent_tags(self, days: int = 30, limit: int = 20) -> List[str]:
+    def get_recent_tags(self, days: int = 30, limit: int = 20) -> list[str]:
         """
         Get recently used tags.
 
@@ -357,11 +356,11 @@ class TagLearningEngine:
 
     def get_tag_suggestions_for_context(
         self,
-        file_type: Optional[str] = None,
-        directory: Optional[str] = None,
-        existing_tags: Optional[List[str]] = None,
+        file_type: str | None = None,
+        directory: str | None = None,
+        existing_tags: list[str] | None = None,
         limit: int = 10
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Get tag suggestions based on context.
 
@@ -483,7 +482,7 @@ class TagLearningEngine:
             return
 
         try:
-            with open(self.storage_path, 'r') as f:
+            with open(self.storage_path) as f:
                 data = json.load(f)
 
             # Load tag usage

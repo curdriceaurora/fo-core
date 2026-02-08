@@ -13,11 +13,10 @@ Features:
 """
 
 import json
-import shutil
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
 
@@ -26,9 +25,9 @@ from file_organizer.services.intelligence.profile_manager import Profile, Profil
 class ValidationResult:
     """Result of import validation."""
     valid: bool
-    errors: List[str]
-    warnings: List[str]
-    profile_data: Optional[Dict[str, Any]] = None
+    errors: list[str]
+    warnings: list[str]
+    profile_data: dict[str, Any] | None = None
 
     def __str__(self) -> str:
         """String representation."""
@@ -64,7 +63,7 @@ class ProfileImporter:
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
-        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
 
     def validate_import_file(self, file_path: Path) -> ValidationResult:
         """
@@ -95,7 +94,7 @@ class ProfileImporter:
 
             # Load and parse JSON
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, encoding='utf-8') as f:
                     profile_data = json.load(f)
             except json.JSONDecodeError as e:
                 errors.append(f"Invalid JSON format: {e}")
@@ -168,7 +167,7 @@ class ProfileImporter:
             errors.append(f"Validation error: {e}")
             return ValidationResult(False, errors, warnings)
 
-    def preview_import(self, file_path: Path) -> Optional[Dict[str, Any]]:
+    def preview_import(self, file_path: Path) -> dict[str, Any] | None:
         """
         Preview what would be imported from a file.
 
@@ -183,7 +182,7 @@ class ProfileImporter:
             validation = self.validate_import_file(file_path)
 
             if not validation.valid:
-                print(f"Cannot preview invalid import file:")
+                print("Cannot preview invalid import file:")
                 print(validation)
                 return None
 
@@ -230,7 +229,7 @@ class ProfileImporter:
             print(f"Error creating import preview: {e}")
             return None
 
-    def import_profile(self, file_path: Path, new_name: Optional[str] = None) -> Optional[Profile]:
+    def import_profile(self, file_path: Path, new_name: str | None = None) -> Profile | None:
         """
         Import a profile from a JSON file.
 
@@ -246,7 +245,7 @@ class ProfileImporter:
             validation = self.validate_import_file(file_path)
 
             if not validation.valid:
-                print(f"Cannot import invalid file:")
+                print("Cannot import invalid file:")
                 print(validation)
                 return None
 
@@ -284,7 +283,7 @@ class ProfileImporter:
 
             # Validate profile
             if not profile.validate():
-                print(f"Error: Imported profile failed validation")
+                print("Error: Imported profile failed validation")
                 return None
 
             # Save profile using profile manager
@@ -325,7 +324,7 @@ class ProfileImporter:
             print(f"Error importing profile: {e}")
             return None
 
-    def _import_selective_profile(self, data: Dict[str, Any], profile_name: str) -> Optional[Profile]:
+    def _import_selective_profile(self, data: dict[str, Any], profile_name: str) -> Profile | None:
         """
         Import selective preferences and merge with existing profile.
 
@@ -389,7 +388,7 @@ class ProfileImporter:
             profile: Profile to backup
         """
         try:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             backup_name = f"{profile.profile_name}.{timestamp}.backup"
 
             # Export profile to backup
@@ -410,9 +409,9 @@ class ProfileImporter:
     def import_selective(
         self,
         file_path: Path,
-        preferences_list: List[str],
-        target_profile: Optional[str] = None
-    ) -> Optional[Profile]:
+        preferences_list: list[str],
+        target_profile: str | None = None
+    ) -> Profile | None:
         """
         Import only selected preferences from a file.
 
@@ -429,7 +428,7 @@ class ProfileImporter:
             validation = self.validate_import_file(file_path)
 
             if not validation.valid:
-                print(f"Cannot import from invalid file:")
+                print("Cannot import from invalid file:")
                 print(validation)
                 return None
 

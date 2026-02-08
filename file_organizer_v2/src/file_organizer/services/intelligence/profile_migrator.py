@@ -12,10 +12,10 @@ Features:
 """
 
 import json
-import shutil
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Optional, Any, Callable
+from typing import Any
 
 from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
 
@@ -43,14 +43,14 @@ class ProfileMigrator:
             profile_manager: ProfileManager instance
         """
         self.profile_manager = profile_manager
-        self._migration_functions: Dict[str, Callable] = {
+        self._migration_functions: dict[str, Callable] = {
             # Future migrations will be registered here
             # e.g., '1.0->2.0': self._migrate_v1_to_v2
         }
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
-        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
 
     def migrate_version(
         self,
@@ -93,7 +93,7 @@ class ProfileMigrator:
             if backup:
                 backup_path = self.backup_before_migration(profile)
                 if backup_path is None:
-                    print(f"Error: Failed to create backup")
+                    print("Error: Failed to create backup")
                     return False
 
             # Find and execute migration path
@@ -134,7 +134,7 @@ class ProfileMigrator:
             # Validate migrated profile
             migrated_profile = Profile.from_dict(migrated_data)
             if not migrated_profile.validate():
-                print(f"Error: Migrated profile failed validation")
+                print("Error: Migrated profile failed validation")
                 if backup_path:
                     self.rollback_migration(profile_name, backup_path)
                 return False
@@ -149,7 +149,7 @@ class ProfileMigrator:
             )
 
             if not success:
-                print(f"Error: Failed to save migrated profile")
+                print("Error: Failed to save migrated profile")
                 if backup_path:
                     self.rollback_migration(profile_name, backup_path)
                 return False
@@ -165,7 +165,7 @@ class ProfileMigrator:
         self,
         from_version: str,
         to_version: str
-    ) -> Optional[list]:
+    ) -> list | None:
         """
         Find migration path between versions.
 
@@ -190,7 +190,7 @@ class ProfileMigrator:
 
         return None  # No migration path available yet
 
-    def backup_before_migration(self, profile: Profile) -> Optional[Path]:
+    def backup_before_migration(self, profile: Profile) -> Path | None:
         """
         Create backup of profile before migration.
 
@@ -201,7 +201,7 @@ class ProfileMigrator:
             Path to backup file or None on failure
         """
         try:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
             backup_name = f"{profile.profile_name}.{timestamp}.migration_backup"
 
             backup_dir = self.profile_manager.storage_path / "migration_backups"
@@ -241,14 +241,14 @@ class ProfileMigrator:
                 return False
 
             # Load backup data
-            with open(backup_path, 'r', encoding='utf-8') as f:
+            with open(backup_path, encoding='utf-8') as f:
                 backup_data = json.load(f)
 
             # Restore profile
             restored_profile = Profile.from_dict(backup_data)
 
             if not restored_profile.validate():
-                print(f"Error: Backup data is invalid")
+                print("Error: Backup data is invalid")
                 return False
 
             # Save restored profile
@@ -261,9 +261,9 @@ class ProfileMigrator:
             )
 
             if success:
-                print(f"Successfully rolled back migration")
+                print("Successfully rolled back migration")
             else:
-                print(f"Error: Failed to save rolled back profile")
+                print("Error: Failed to save rolled back profile")
 
             return success
 
@@ -290,7 +290,7 @@ class ProfileMigrator:
 
             # Validate profile structure
             if not profile.validate():
-                print(f"Error: Profile validation failed")
+                print("Error: Profile validation failed")
                 return False
 
             # Check version is supported
@@ -301,21 +301,21 @@ class ProfileMigrator:
             # Additional validation checks
             # Check preferences structure
             if not isinstance(profile.preferences, dict):
-                print(f"Error: Invalid preferences structure")
+                print("Error: Invalid preferences structure")
                 return False
 
             if 'global' not in profile.preferences or 'directory_specific' not in profile.preferences:
-                print(f"Error: Missing required preference keys")
+                print("Error: Missing required preference keys")
                 return False
 
-            print(f"Profile validation successful")
+            print("Profile validation successful")
             return True
 
         except Exception as e:
             print(f"Error validating migration: {e}")
             return False
 
-    def get_migration_history(self, profile_name: str) -> Optional[list]:
+    def get_migration_history(self, profile_name: str) -> list | None:
         """
         Get migration history for a profile.
 
@@ -339,7 +339,7 @@ class ProfileMigrator:
             print(f"Error getting migration history: {e}")
             return None
 
-    def list_backups(self, profile_name: Optional[str] = None) -> list:
+    def list_backups(self, profile_name: str | None = None) -> list:
         """
         List available migration backups.
 
@@ -372,7 +372,7 @@ class ProfileMigrator:
 
     # Migration functions for future versions
 
-    def _migrate_v1_to_v2(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _migrate_v1_to_v2(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Migrate profile from version 1.0 to 2.0.
 

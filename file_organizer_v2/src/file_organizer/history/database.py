@@ -5,11 +5,10 @@ This module provides database connection management, schema creation,
 and migration support for the operation history system.
 """
 
-import sqlite3
 import logging
-from pathlib import Path
-from typing import Optional, Any, Tuple, List
+import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
 from threading import Lock
 
 logger = logging.getLogger(__name__)
@@ -58,7 +57,7 @@ class DatabaseManager:
     CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         """
         Initialize database manager.
 
@@ -72,7 +71,7 @@ class DatabaseManager:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self._connection: Optional[sqlite3.Connection] = None
+        self._connection: sqlite3.Connection | None = None
         self._lock = Lock()
         self._initialized = False
 
@@ -180,7 +179,7 @@ class DatabaseManager:
                 logger.error(f"Transaction failed: {e}")
                 raise
 
-    def execute_query(self, query: str, params: Optional[Tuple] = None) -> sqlite3.Cursor:
+    def execute_query(self, query: str, params: tuple | None = None) -> sqlite3.Cursor:
         """
         Execute a SQL query with optional parameters.
 
@@ -198,7 +197,7 @@ class DatabaseManager:
             else:
                 return conn.execute(query, params)
 
-    def execute_many(self, query: str, params_list: List[Tuple]) -> None:
+    def execute_many(self, query: str, params_list: list[tuple]) -> None:
         """
         Execute a SQL query with multiple parameter sets (batch insert).
 
@@ -209,7 +208,7 @@ class DatabaseManager:
         with self.transaction() as conn:
             conn.executemany(query, params_list)
 
-    def fetch_one(self, query: str, params: Optional[Tuple] = None) -> Optional[sqlite3.Row]:
+    def fetch_one(self, query: str, params: tuple | None = None) -> sqlite3.Row | None:
         """
         Execute query and fetch one result.
 
@@ -223,7 +222,7 @@ class DatabaseManager:
         cursor = self.execute_query(query, params)
         return cursor.fetchone()
 
-    def fetch_all(self, query: str, params: Optional[Tuple] = None) -> List[sqlite3.Row]:
+    def fetch_all(self, query: str, params: tuple | None = None) -> list[sqlite3.Row]:
         """
         Execute query and fetch all results.
 

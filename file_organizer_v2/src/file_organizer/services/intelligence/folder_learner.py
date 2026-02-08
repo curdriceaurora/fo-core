@@ -5,12 +5,11 @@ Learns user folder preferences based on file type, naming patterns, and user cor
 Maps file types to preferred folders and detects organization workflows.
 """
 
-from pathlib import Path
-from typing import Optional, Dict, List, Tuple
-from collections import defaultdict
-from datetime import datetime
 import json
 import logging
+from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class FolderPreferenceLearner:
     - Context-aware folder suggestions
     """
 
-    def __init__(self, storage_path: Optional[Path] = None):
+    def __init__(self, storage_path: Path | None = None):
         """
         Initialize the folder preference learner.
 
@@ -40,13 +39,13 @@ class FolderPreferenceLearner:
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Structure: {file_type: {folder: count}}
-        self.type_folder_map: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self.type_folder_map: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
         # Structure: {pattern: {folder: count}}
-        self.pattern_folder_map: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self.pattern_folder_map: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
 
         # Structure: {folder: {metadata}}
-        self.folder_metadata: Dict[str, Dict] = {}
+        self.folder_metadata: dict[str, dict] = {}
 
         # Total choices tracked
         self.total_choices: int = 0
@@ -57,7 +56,7 @@ class FolderPreferenceLearner:
         self,
         file_type: str,
         folder: Path,
-        context: Optional[Dict] = None
+        context: dict | None = None
     ) -> None:
         """
         Track a user's folder choice for a file type.
@@ -101,7 +100,7 @@ class FolderPreferenceLearner:
         self,
         file_type: str,
         confidence_threshold: float = 0.6
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Get the preferred folder for a file type.
 
@@ -159,7 +158,7 @@ class FolderPreferenceLearner:
 
         return folder_counts.get(folder_str, 0) / total_for_type
 
-    def analyze_organization_patterns(self) -> Dict:
+    def analyze_organization_patterns(self) -> dict:
         """
         Analyze overall organization patterns.
 
@@ -202,9 +201,9 @@ class FolderPreferenceLearner:
 
     def suggest_folder_structure(
         self,
-        file_info: Dict,
+        file_info: dict,
         min_confidence: float = 0.5
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Suggest a folder based on file information and learned patterns.
 
@@ -236,7 +235,7 @@ class FolderPreferenceLearner:
 
         return None
 
-    def get_folder_stats(self, folder: Path) -> Dict:
+    def get_folder_stats(self, folder: Path) -> dict:
         """
         Get statistics for a specific folder.
 
@@ -325,7 +324,7 @@ class FolderPreferenceLearner:
             return
 
         try:
-            with open(self.storage_path, 'r') as f:
+            with open(self.storage_path) as f:
                 data = json.load(f)
 
             # Load type_folder_map

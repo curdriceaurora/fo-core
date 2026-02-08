@@ -11,9 +11,7 @@ Features:
 - Template customization options
 """
 
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
 
@@ -250,7 +248,7 @@ class TemplateManager:
         """
         self.profile_manager = profile_manager
 
-    def list_templates(self) -> List[str]:
+    def list_templates(self) -> list[str]:
         """
         List all available template names.
 
@@ -259,7 +257,7 @@ class TemplateManager:
         """
         return list(self.TEMPLATES.keys())
 
-    def get_template(self, template_name: str) -> Optional[Dict[str, Any]]:
+    def get_template(self, template_name: str) -> dict[str, Any] | None:
         """
         Get template data by name.
 
@@ -274,7 +272,7 @@ class TemplateManager:
             return self.TEMPLATES[template_name_lower].copy()
         return None
 
-    def preview_template(self, template_name: str) -> Optional[Dict[str, Any]]:
+    def preview_template(self, template_name: str) -> dict[str, Any] | None:
         """
         Preview template details before applying.
 
@@ -310,8 +308,8 @@ class TemplateManager:
         self,
         template_name: str,
         profile_name: str,
-        customize: Optional[Dict[str, Any]] = None
-    ) -> Optional[Profile]:
+        customize: dict[str, Any] | None = None
+    ) -> Profile | None:
         """
         Create a new profile from a template.
 
@@ -369,9 +367,9 @@ class TemplateManager:
 
     def _apply_customizations(
         self,
-        template: Dict[str, Any],
-        customize: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        template: dict[str, Any],
+        customize: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Apply customizations to a template.
 
@@ -451,7 +449,7 @@ class TemplateManager:
             self.TEMPLATES[template_name.lower()] = template_data
 
             print(f"Created custom template '{template_name}' from profile '{from_profile}'")
-            print(f"Note: Custom templates are not persisted and will be lost on restart")
+            print("Note: Custom templates are not persisted and will be lost on restart")
 
             return True
 
@@ -461,9 +459,9 @@ class TemplateManager:
 
     def get_template_recommendations(
         self,
-        file_types: Optional[List[str]] = None,
-        use_case: Optional[str] = None
-    ) -> List[str]:
+        file_types: list[str] | None = None,
+        use_case: str | None = None
+    ) -> list[str]:
         """
         Get template recommendations based on file types or use case.
 
@@ -527,8 +525,8 @@ class TemplateManager:
 
     def compare_templates(
         self,
-        template_names: List[str]
-    ) -> Optional[Dict[str, Any]]:
+        template_names: list[str]
+    ) -> dict[str, Any] | None:
         """
         Compare multiple templates side by side.
 

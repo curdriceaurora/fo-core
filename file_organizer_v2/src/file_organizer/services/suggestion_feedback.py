@@ -7,11 +7,10 @@ through pattern refinement.
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional
-from dataclasses import dataclass, field, asdict
-from datetime import datetime
 from collections import defaultdict
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pathlib import Path
 
 from ..models.suggestion_types import Suggestion, SuggestionType
 
@@ -25,12 +24,12 @@ class FeedbackEntry:
     suggestion_type: SuggestionType
     action: str  # 'accepted', 'rejected', 'ignored', 'modified'
     file_path: str
-    target_path: Optional[str]
+    target_path: str | None
     confidence: float
     timestamp: datetime = field(default_factory=datetime.now)
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             'suggestion_id': self.suggestion_id,
@@ -44,7 +43,7 @@ class FeedbackEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> 'FeedbackEntry':
+    def from_dict(cls, data: dict) -> 'FeedbackEntry':
         """Create from dictionary."""
         return cls(
             suggestion_id=data['suggestion_id'],
@@ -70,9 +69,9 @@ class LearningStats:
     rejection_rate: float = 0.0
     avg_accepted_confidence: float = 0.0
     avg_rejected_confidence: float = 0.0
-    by_type: Dict[str, Dict] = field(default_factory=dict)
+    by_type: dict[str, dict] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return asdict(self)
 
@@ -82,7 +81,7 @@ class SuggestionFeedback:
     Manages feedback collection and learning from user actions.
     """
 
-    def __init__(self, feedback_file: Optional[Path] = None):
+    def __init__(self, feedback_file: Path | None = None):
         """
         Initialize the feedback system.
 
@@ -90,8 +89,8 @@ class SuggestionFeedback:
             feedback_file: Path to store feedback data
         """
         self.feedback_file = feedback_file or Path.home() / '.file_organizer' / 'suggestion_feedback.json'
-        self.feedback_entries: List[FeedbackEntry] = []
-        self.pattern_adjustments: Dict[str, float] = {}
+        self.feedback_entries: list[FeedbackEntry] = []
+        self.pattern_adjustments: dict[str, float] = {}
 
         # Ensure directory exists
         self.feedback_file.parent.mkdir(parents=True, exist_ok=True)
@@ -103,7 +102,7 @@ class SuggestionFeedback:
         self,
         suggestion: Suggestion,
         action: str,
-        metadata: Optional[Dict] = None
+        metadata: dict | None = None
     ) -> None:
         """
         Record user action on a suggestion.
@@ -131,7 +130,7 @@ class SuggestionFeedback:
         # Update pattern adjustments
         self._update_patterns(entry)
 
-    def get_acceptance_rate(self, suggestion_type: Optional[str] = None) -> float:
+    def get_acceptance_rate(self, suggestion_type: str | None = None) -> float:
         """
         Get acceptance rate for suggestions.
 
@@ -155,7 +154,7 @@ class SuggestionFeedback:
         accepted = sum(1 for e in entries if e.action == 'accepted')
         return (accepted / len(entries)) * 100
 
-    def get_rejection_rate(self, suggestion_type: Optional[str] = None) -> float:
+    def get_rejection_rate(self, suggestion_type: str | None = None) -> float:
         """
         Get rejection rate for suggestions.
 
@@ -229,7 +228,7 @@ class SuggestionFeedback:
                 by_type[type_key]['rejected'] += 1
 
         # Calculate acceptance rates by type
-        for type_key, type_stats in by_type.items():
+        for _type_key, type_stats in by_type.items():
             if type_stats['total'] > 0:
                 type_stats['acceptance_rate'] = (
                     type_stats['accepted'] / type_stats['total']
@@ -239,7 +238,7 @@ class SuggestionFeedback:
 
         return stats
 
-    def update_patterns(self, feedback: List[FeedbackEntry]) -> None:
+    def update_patterns(self, feedback: list[FeedbackEntry]) -> None:
         """
         Update patterns based on feedback.
 
@@ -274,7 +273,7 @@ class SuggestionFeedback:
         # Default: no adjustment
         return 0.0
 
-    def get_user_history(self) -> Dict:
+    def get_user_history(self) -> dict:
         """
         Get user action history for pattern matching.
 
@@ -358,7 +357,7 @@ class SuggestionFeedback:
             return
 
         try:
-            with open(self.feedback_file, 'r') as f:
+            with open(self.feedback_file) as f:
                 data = json.load(f)
 
             self.feedback_entries = [

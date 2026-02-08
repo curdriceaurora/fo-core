@@ -4,20 +4,20 @@ Tests for Johnny Decimal PARA Compatibility
 Tests PARA integration, compatibility analyzer, and hybrid organizer.
 """
 
-import pytest
 from pathlib import Path
 
+import pytest
+
 from file_organizer.methodologies.johnny_decimal import (
-    PARACategory,
-    PARAMapping,
-    PARAJohnnyDecimalBridge,
     CompatibilityAnalyzer,
     HybridOrganizer,
-    PARAAdapter,
-    OrganizationItem,
-    create_para_compatible_config,
     JohnnyDecimalNumber,
     NumberLevel,
+    OrganizationItem,
+    PARAAdapter,
+    PARACategory,
+    PARAJohnnyDecimalBridge,
+    create_para_compatible_config,
 )
 
 

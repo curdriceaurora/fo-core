@@ -4,16 +4,16 @@ Unit tests for HistoryViewer.
 Tests history viewing and filtering functionality.
 """
 
-import unittest
-import tempfile
 import shutil
-from pathlib import Path
+import sys
+import tempfile
+import unittest
 from datetime import datetime, timedelta
 from io import StringIO
-import sys
+from pathlib import Path
 
+from file_organizer.history.models import OperationStatus, OperationType
 from file_organizer.history.tracker import OperationHistory
-from file_organizer.history.models import OperationType, OperationStatus
 from file_organizer.undo.viewer import HistoryViewer
 
 
@@ -204,10 +204,10 @@ class TestHistoryViewer(unittest.TestCase):
 
     def test_filter_operations_with_date_range(self):
         """Test filtering with date range."""
-        # Use recent dates
-        today = datetime.now()
-        yesterday = today - timedelta(days=1)
-        tomorrow = today + timedelta(days=1)
+        # Use UTC dates to match stored timestamps (which use utcnow)
+        today = datetime.utcnow()
+        yesterday = today - timedelta(days=2)
+        tomorrow = today + timedelta(days=2)
 
         operations = self.viewer.filter_operations(
             since=yesterday.strftime("%Y-%m-%d"),

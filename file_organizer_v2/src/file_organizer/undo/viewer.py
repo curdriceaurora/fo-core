@@ -7,11 +7,10 @@ for viewing operation history.
 
 import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any
 
+from ..history.models import Operation, OperationStatus, OperationType
 from ..history.tracker import OperationHistory
-from ..history.models import Operation, OperationType, OperationStatus, Transaction
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class HistoryViewer:
     various filters and formatting options.
     """
 
-    def __init__(self, history: Optional[OperationHistory] = None):
+    def __init__(self, history: OperationHistory | None = None):
         """
         Initialize history viewer.
 
@@ -70,14 +69,14 @@ class HistoryViewer:
         print(f"Operations: {transaction.operation_count}")
 
         if transaction.metadata:
-            print(f"\nMetadata:")
+            print("\nMetadata:")
             for key, value in transaction.metadata.items():
                 print(f"  {key}: {value}")
 
         # Show operations in this transaction
         operations = self.history.get_operations(transaction_id=transaction_id)
         if operations:
-            print(f"\nOperations in this transaction:\n")
+            print("\nOperations in this transaction:\n")
             self._print_operations_table(operations)
 
     def show_operation_details(self, operation_id: int) -> None:
@@ -109,19 +108,19 @@ class HistoryViewer:
             print(f"Error: {operation.error_message}")
 
         if operation.metadata:
-            print(f"\nMetadata:")
+            print("\nMetadata:")
             for key, value in operation.metadata.items():
                 if key != 'metadata':  # Skip nested metadata field
                     print(f"  {key}: {value}")
 
     def filter_operations(
         self,
-        operation_type: Optional[str] = None,
-        status: Optional[str] = None,
-        since: Optional[str] = None,
-        until: Optional[str] = None,
+        operation_type: str | None = None,
+        status: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
         limit: int = 100
-    ) -> List[Operation]:
+    ) -> list[Operation]:
         """
         Filter operations with various criteria.
 
@@ -168,7 +167,7 @@ class HistoryViewer:
 
         return operations
 
-    def search_by_path(self, path: str) -> List[Operation]:
+    def search_by_path(self, path: str) -> list[Operation]:
         """
         Search for operations affecting a specific path.
 
@@ -193,11 +192,11 @@ class HistoryViewer:
 
     def display_filtered_operations(
         self,
-        operation_type: Optional[str] = None,
-        status: Optional[str] = None,
-        since: Optional[str] = None,
-        until: Optional[str] = None,
-        search: Optional[str] = None,
+        operation_type: str | None = None,
+        status: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+        search: str | None = None,
         limit: int = 100
     ) -> None:
         """
@@ -233,7 +232,7 @@ class HistoryViewer:
 
         self._print_operations_table(operations)
 
-    def _print_operations_table(self, operations: List[Operation]) -> None:
+    def _print_operations_table(self, operations: list[Operation]) -> None:
         """
         Print operations in a formatted table.
 
@@ -285,7 +284,7 @@ class HistoryViewer:
         """Format datetime in short format."""
         return dt.strftime("%Y-%m-%d %H:%M:%S")
 
-    def _parse_date(self, date_str: str) -> Optional[datetime]:
+    def _parse_date(self, date_str: str) -> datetime | None:
         """
         Parse date string to datetime.
 
@@ -320,7 +319,7 @@ class HistoryViewer:
         print(f"Warning: Could not parse date: {date_str}")
         return None
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about operation history.
 

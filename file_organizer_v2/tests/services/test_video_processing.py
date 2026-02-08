@@ -1,7 +1,7 @@
 """Tests for video processing service - Phase 3."""
 
+
 import pytest
-from pathlib import Path
 
 # Phase 3 placeholder tests for video processing
 

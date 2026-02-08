@@ -6,20 +6,19 @@ including score normalization, ranking, and comparison operations.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple, Callable
-from datetime import datetime
+from typing import Any
 
 
 @dataclass
 class ScoredPattern:
     """A pattern with its calculated confidence score."""
     pattern_id: str
-    pattern_data: Dict
+    pattern_data: dict
     confidence: float
     frequency_score: float
     recency_score: float
     consistency_score: float
-    metadata: Dict = None
+    metadata: dict = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -55,10 +54,10 @@ class PatternScorer:
 
     @staticmethod
     def rank_patterns(
-        patterns: List[ScoredPattern],
+        patterns: list[ScoredPattern],
         key: str = 'confidence',
         reverse: bool = True
-    ) -> List[ScoredPattern]:
+    ) -> list[ScoredPattern]:
         """
         Rank patterns by a given score attribute.
 
@@ -74,10 +73,10 @@ class PatternScorer:
 
     @staticmethod
     def filter_by_confidence(
-        patterns: List[ScoredPattern],
+        patterns: list[ScoredPattern],
         min_confidence: float,
-        max_confidence: Optional[float] = None
-    ) -> List[ScoredPattern]:
+        max_confidence: float | None = None
+    ) -> list[ScoredPattern]:
         """
         Filter patterns by confidence threshold.
 
@@ -98,10 +97,10 @@ class PatternScorer:
 
     @staticmethod
     def get_top_patterns(
-        patterns: List[ScoredPattern],
+        patterns: list[ScoredPattern],
         n: int = 5,
-        min_confidence: Optional[float] = None
-    ) -> List[ScoredPattern]:
+        min_confidence: float | None = None
+    ) -> list[ScoredPattern]:
         """
         Get top N patterns by confidence.
 
@@ -121,8 +120,8 @@ class PatternScorer:
 
     @staticmethod
     def calculate_weighted_score(
-        scores: Dict[str, float],
-        weights: Dict[str, float]
+        scores: dict[str, float],
+        weights: dict[str, float]
     ) -> float:
         """
         Calculate weighted score from multiple factors.
@@ -174,9 +173,9 @@ class PatternScorer:
 
     @staticmethod
     def aggregate_scores(
-        patterns: List[ScoredPattern],
+        patterns: list[ScoredPattern],
         aggregation: str = 'mean'
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Aggregate scores across patterns.
 
@@ -225,9 +224,9 @@ class PatternScorer:
 
     @staticmethod
     def calculate_confidence_interval(
-        patterns: List[ScoredPattern],
+        patterns: list[ScoredPattern],
         confidence_level: float = 0.95
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """
         Calculate confidence interval for pattern scores.
 
@@ -271,8 +270,8 @@ class ScoreAnalyzer:
 
     @staticmethod
     def analyze_score_distribution(
-        patterns: List[ScoredPattern]
-    ) -> Dict[str, any]:
+        patterns: list[ScoredPattern]
+    ) -> dict[str, Any]:
         """
         Analyze the distribution of confidence scores.
 
@@ -329,10 +328,10 @@ class ScoreAnalyzer:
 
     @staticmethod
     def identify_outliers(
-        patterns: List[ScoredPattern],
+        patterns: list[ScoredPattern],
         method: str = 'iqr',
         threshold: float = 1.5
-    ) -> Tuple[List[ScoredPattern], List[ScoredPattern]]:
+    ) -> tuple[list[ScoredPattern], list[ScoredPattern]]:
         """
         Identify outlier patterns based on confidence scores.
 
@@ -390,7 +389,7 @@ class ScoreAnalyzer:
 
     @staticmethod
     def calculate_score_variance(
-        patterns: List[ScoredPattern],
+        patterns: list[ScoredPattern],
         score_type: str = 'confidence'
     ) -> float:
         """
@@ -413,9 +412,9 @@ class ScoreAnalyzer:
 
     @staticmethod
     def compare_score_groups(
-        group1: List[ScoredPattern],
-        group2: List[ScoredPattern]
-    ) -> Dict[str, any]:
+        group1: list[ScoredPattern],
+        group2: list[ScoredPattern]
+    ) -> dict[str, Any]:
         """
         Compare two groups of patterns statistically.
 

@@ -6,11 +6,11 @@ into atomic transactions that can be committed or rolled back.
 """
 
 import logging
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Any
 
+from .models import OperationStatus, OperationType
 from .tracker import OperationHistory
-from .models import OperationType, OperationStatus
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class OperationTransaction:
             # Automatically rolls back on exception
     """
 
-    def __init__(self, history: OperationHistory, metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, history: OperationHistory, metadata: dict[str, Any] | None = None):
         """
         Initialize transaction context manager.
 
@@ -41,7 +41,7 @@ class OperationTransaction:
         """
         self.history = history
         self.metadata = metadata or {}
-        self.transaction_id: Optional[str] = None
+        self.transaction_id: str | None = None
         self._committed = False
         self._rolled_back = False
 
@@ -83,10 +83,10 @@ class OperationTransaction:
         self,
         operation_type: OperationType,
         source_path: Path,
-        destination_path: Optional[Path] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        destination_path: Path | None = None,
+        metadata: dict[str, Any] | None = None,
         status: OperationStatus = OperationStatus.COMPLETED,
-        error_message: Optional[str] = None
+        error_message: str | None = None
     ) -> int:
         """
         Log an operation within this transaction.
@@ -115,7 +115,7 @@ class OperationTransaction:
             error_message=error_message
         )
 
-    def log_move(self, source_path: Path, destination_path: Path, metadata: Optional[Dict[str, Any]] = None) -> int:
+    def log_move(self, source_path: Path, destination_path: Path, metadata: dict[str, Any] | None = None) -> int:
         """
         Log a move operation.
 
@@ -134,7 +134,7 @@ class OperationTransaction:
             metadata=metadata
         )
 
-    def log_rename(self, source_path: Path, destination_path: Path, metadata: Optional[Dict[str, Any]] = None) -> int:
+    def log_rename(self, source_path: Path, destination_path: Path, metadata: dict[str, Any] | None = None) -> int:
         """
         Log a rename operation.
 
@@ -153,7 +153,7 @@ class OperationTransaction:
             metadata=metadata
         )
 
-    def log_delete(self, source_path: Path, metadata: Optional[Dict[str, Any]] = None) -> int:
+    def log_delete(self, source_path: Path, metadata: dict[str, Any] | None = None) -> int:
         """
         Log a delete operation.
 
@@ -170,7 +170,7 @@ class OperationTransaction:
             metadata=metadata
         )
 
-    def log_copy(self, source_path: Path, destination_path: Path, metadata: Optional[Dict[str, Any]] = None) -> int:
+    def log_copy(self, source_path: Path, destination_path: Path, metadata: dict[str, Any] | None = None) -> int:
         """
         Log a copy operation.
 
@@ -189,7 +189,7 @@ class OperationTransaction:
             metadata=metadata
         )
 
-    def log_create(self, source_path: Path, metadata: Optional[Dict[str, Any]] = None) -> int:
+    def log_create(self, source_path: Path, metadata: dict[str, Any] | None = None) -> int:
         """
         Log a create operation.
 
@@ -211,8 +211,8 @@ class OperationTransaction:
         operation_type: OperationType,
         source_path: Path,
         error_message: str,
-        destination_path: Optional[Path] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        destination_path: Path | None = None,
+        metadata: dict[str, Any] | None = None
     ) -> int:
         """
         Log a failed operation.
@@ -286,7 +286,7 @@ class OperationTransaction:
             logger.info(f"Transaction {self.transaction_id} rolled back")
         return success
 
-    def get_transaction_id(self) -> Optional[str]:
+    def get_transaction_id(self) -> str | None:
         """
         Get the current transaction ID.
 

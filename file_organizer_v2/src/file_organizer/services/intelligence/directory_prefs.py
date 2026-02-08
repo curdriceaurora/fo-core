@@ -6,9 +6,8 @@ inheritance, allowing fine-grained control over file organization behavior
 at different levels of the directory tree.
 """
 
-from pathlib import Path
-from typing import Optional, List, Tuple, Dict, Any
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class DirectoryPrefs:
 
     def __init__(self):
         """Initialize the directory preference manager."""
-        self._preferences: Dict[str, dict] = {}
+        self._preferences: dict[str, dict] = {}
         logger.debug("DirectoryPrefs initialized")
 
     def set_preference(
@@ -68,7 +67,7 @@ class DirectoryPrefs:
     def get_preference_with_inheritance(
         self,
         path: Path
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Get preference for a path, with inheritance from parent directories.
 
@@ -98,7 +97,7 @@ class DirectoryPrefs:
         normalized_path = path.resolve()
 
         # Collect all preferences from root to current path
-        preferences_chain: List[dict] = []
+        preferences_chain: list[dict] = []
         current_path = normalized_path
 
         while True:
@@ -140,7 +139,7 @@ class DirectoryPrefs:
         )
         return result
 
-    def _merge_preferences(self, preferences_chain: List[dict]) -> dict:
+    def _merge_preferences(self, preferences_chain: list[dict]) -> dict:
         """
         Merge a chain of preferences from parent to child.
 
@@ -183,7 +182,7 @@ class DirectoryPrefs:
 
         return result
 
-    def list_directory_preferences(self) -> List[Tuple[Path, dict]]:
+    def list_directory_preferences(self) -> list[tuple[Path, dict]]:
         """
         List all directory preferences without inheritance resolution.
 

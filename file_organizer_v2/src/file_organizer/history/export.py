@@ -5,15 +5,14 @@ This module provides functionality to export operation history
 to various formats (JSON, CSV).
 """
 
-import json
 import csv
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any
 
 from .database import DatabaseManager
-from .models import Operation, Transaction, OperationType, OperationStatus, TransactionStatus
+from .models import Operation, OperationStatus, OperationType, Transaction, TransactionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +38,11 @@ class HistoryExporter:
     def export_to_json(
         self,
         output_path: Path,
-        operation_type: Optional[OperationType] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
+        operation_type: OperationType | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
         include_transactions: bool = True
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """
         Export operations to JSON file.
 
@@ -91,7 +90,7 @@ class HistoryExporter:
         # Include transactions if requested
         if include_transactions:
             # Get unique transaction IDs
-            transaction_ids = set(op.get('transaction_id') for op in operations if op.get('transaction_id'))
+            transaction_ids = {op.get('transaction_id') for op in operations if op.get('transaction_id')}
 
             if transaction_ids:
                 placeholders = ','.join('?' * len(transaction_ids))
@@ -115,9 +114,9 @@ class HistoryExporter:
     def export_to_csv(
         self,
         output_path: Path,
-        operation_type: Optional[OperationType] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        operation_type: OperationType | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None
     ) -> int:
         """
         Export operations to CSV file.

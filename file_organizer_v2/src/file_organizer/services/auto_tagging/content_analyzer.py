@@ -9,11 +9,9 @@ Analyzes file content to extract relevant tags using multiple techniques:
 """
 
 import logging
-from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Set
-from collections import Counter
 import re
-import json
+from collections import Counter
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +31,7 @@ class ContentTagAnalyzer:
         self,
         min_keyword_length: int = 3,
         max_keywords: int = 20,
-        stop_words: Optional[Set[str]] = None
+        stop_words: set[str] | None = None
     ):
         """
         Initialize the content tag analyzer.
@@ -58,7 +56,7 @@ class ContentTagAnalyzer:
 
         logger.info("ContentTagAnalyzer initialized")
 
-    def analyze_file(self, file_path: Path) -> List[str]:
+    def analyze_file(self, file_path: Path) -> list[str]:
         """
         Analyze a file and return suggested tags.
 
@@ -98,7 +96,7 @@ class ContentTagAnalyzer:
 
     def extract_keywords(
         self, file_path: Path, top_n: int = 10
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Extract keywords with confidence scores using TF-IDF.
 
@@ -147,7 +145,7 @@ class ContentTagAnalyzer:
             logger.error(f"Error extracting keywords from {file_path}: {e}")
             return []
 
-    def extract_entities(self, file_path: Path) -> List[str]:
+    def extract_entities(self, file_path: Path) -> list[str]:
         """
         Extract named entities from file content.
 
@@ -185,13 +183,13 @@ class ContentTagAnalyzer:
             acronyms = re.findall(acronym_pattern, content)
             entities.update(acronyms)
 
-            return sorted(list(entities))[:20]  # Limit to top 20
+            return sorted(entities)[:20]  # Limit to top 20
 
         except Exception as e:
             logger.error(f"Error extracting entities from {file_path}: {e}")
             return []
 
-    def batch_analyze(self, files: List[Path]) -> Dict[Path, List[str]]:
+    def batch_analyze(self, files: list[Path]) -> dict[Path, list[str]]:
         """
         Analyze multiple files in batch.
 
@@ -214,7 +212,7 @@ class ContentTagAnalyzer:
 
         return results
 
-    def _extract_from_filename(self, file_path: Path) -> List[str]:
+    def _extract_from_filename(self, file_path: Path) -> list[str]:
         """Extract tags from filename."""
         filename = file_path.stem
 
@@ -231,7 +229,7 @@ class ContentTagAnalyzer:
 
         return tags
 
-    def _extract_from_extension(self, file_path: Path) -> List[str]:
+    def _extract_from_extension(self, file_path: Path) -> list[str]:
         """Extract tags from file extension."""
         ext = file_path.suffix.lower().lstrip('.')
 
@@ -259,7 +257,7 @@ class ContentTagAnalyzer:
 
         return tags
 
-    def _extract_from_directory(self, file_path: Path) -> List[str]:
+    def _extract_from_directory(self, file_path: Path) -> list[str]:
         """Extract tags from directory structure."""
         tags = []
 
@@ -278,7 +276,7 @@ class ContentTagAnalyzer:
 
         return tags
 
-    def _extract_from_content(self, file_path: Path) -> List[str]:
+    def _extract_from_content(self, file_path: Path) -> list[str]:
         """Extract tags from file content."""
         try:
             content = self._read_text_content(file_path)
@@ -298,7 +296,7 @@ class ContentTagAnalyzer:
             logger.debug(f"Could not extract content tags from {file_path}: {e}")
             return []
 
-    def _extract_from_metadata(self, file_path: Path) -> List[str]:
+    def _extract_from_metadata(self, file_path: Path) -> list[str]:
         """Extract tags from file metadata."""
         tags = []
 
@@ -357,7 +355,7 @@ class ContentTagAnalyzer:
             logger.debug(f"Could not read {file_path}: {e}")
             return ""
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """Tokenize text into words."""
         # Convert to lowercase and split
         text = text.lower()
@@ -377,7 +375,7 @@ class ContentTagAnalyzer:
 
         return words
 
-    def _clean_tags(self, tags: List[str]) -> List[str]:
+    def _clean_tags(self, tags: list[str]) -> list[str]:
         """Clean and normalize tags."""
         cleaned = []
         seen = set()

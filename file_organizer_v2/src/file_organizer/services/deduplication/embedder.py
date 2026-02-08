@@ -4,11 +4,11 @@ Document embedding module using TF-IDF vectorization.
 Converts text documents into numerical vectors for similarity comparison.
 """
 
-from typing import List, Dict, Optional, Tuple
-from pathlib import Path
-import numpy as np
 import logging
 import pickle
+from pathlib import Path
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,10 @@ class DocumentEmbedder:
     def __init__(
         self,
         max_features: int = 5000,
-        ngram_range: Tuple[int, int] = (1, 2),
+        ngram_range: tuple[int, int] = (1, 2),
         min_df: int = 1,
         max_df: float = 0.95,
-        cache_path: Optional[Path] = None
+        cache_path: Path | None = None
     ):
         """
         Initialize the document embedder.
@@ -52,11 +52,11 @@ class DocumentEmbedder:
                 strip_accents='unicode'
             )
 
-        except ImportError:
+        except ImportError as exc:
             raise ImportError(
                 "scikit-learn is required for document embedding. "
                 "Install with: pip install scikit-learn>=1.4.0"
-            )
+            ) from exc
 
         self.max_features = max_features
         self.ngram_range = ngram_range
@@ -64,7 +64,7 @@ class DocumentEmbedder:
         self.is_fitted = False
 
         # Cache for embeddings {document_hash: embedding}
-        self.embedding_cache: Dict[str, np.ndarray] = {}
+        self.embedding_cache: dict[str, np.ndarray] = {}
 
         # Load cache if available
         if cache_path and cache_path.exists():
@@ -75,7 +75,7 @@ class DocumentEmbedder:
             f"ngram_range={ngram_range}"
         )
 
-    def fit_transform(self, documents: List[str]) -> np.ndarray:
+    def fit_transform(self, documents: list[str]) -> np.ndarray:
         """
         Fit the vectorizer and transform documents to embeddings.
 
@@ -142,7 +142,7 @@ class DocumentEmbedder:
 
         return embedding
 
-    def transform_batch(self, documents: List[str]) -> np.ndarray:
+    def transform_batch(self, documents: list[str]) -> np.ndarray:
         """
         Transform multiple documents to embeddings.
 
@@ -163,7 +163,7 @@ class DocumentEmbedder:
 
         return embeddings
 
-    def get_feature_names(self) -> List[str]:
+    def get_feature_names(self) -> list[str]:
         """
         Get the feature names (vocabulary terms).
 
@@ -185,7 +185,7 @@ class DocumentEmbedder:
             # Fall back to old API
             return self.vectorizer.get_feature_names()
 
-    def get_vocabulary(self) -> Dict[str, int]:
+    def get_vocabulary(self) -> dict[str, int]:
         """
         Get the vocabulary dictionary.
 
@@ -203,7 +203,7 @@ class DocumentEmbedder:
         self,
         embedding: np.ndarray,
         top_n: int = 10
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Get top N terms from an embedding by weight.
 

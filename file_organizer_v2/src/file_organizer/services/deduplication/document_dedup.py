@@ -5,12 +5,11 @@ Integrates text extraction, embedding, and semantic similarity analysis
 for finding duplicate and similar documents.
 """
 
-from pathlib import Path
-from typing import List, Dict, Optional
 import logging
+from pathlib import Path
 
-from .extractor import DocumentExtractor
 from .embedder import DocumentEmbedder
+from .extractor import DocumentExtractor
 from .semantic import SemanticAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -50,9 +49,9 @@ class DocumentDeduplicator:
 
     def find_duplicates(
         self,
-        file_paths: List[Path],
+        file_paths: list[Path],
         min_text_length: int = 100
-    ) -> Dict:
+    ) -> dict:
         """
         Find duplicate and similar documents.
 
@@ -129,7 +128,7 @@ class DocumentDeduplicator:
         self,
         doc1_path: Path,
         doc2_path: Path
-    ) -> Optional[float]:
+    ) -> float | None:
         """
         Compare two documents for similarity.
 
@@ -168,7 +167,7 @@ class DocumentDeduplicator:
             logger.error(f"Error comparing documents: {e}")
             return None
 
-    def _calculate_space_wasted(self, duplicate_groups: List[Dict]) -> int:
+    def _calculate_space_wasted(self, duplicate_groups: list[dict]) -> int:
         """Calculate total space wasted by duplicates."""
         wasted = 0
 

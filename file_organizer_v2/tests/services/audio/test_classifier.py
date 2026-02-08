@@ -19,20 +19,14 @@ from pathlib import Path
 import pytest
 
 from file_organizer.services.audio.classifier import (
+    PODCAST_KEYWORDS,
     AudioClassifier,
     AudioType,
-    ClassificationResult,
-    PODCAST_KEYWORDS,
-    AUDIOBOOK_KEYWORDS,
-    LECTURE_KEYWORDS,
-    INTERVIEW_KEYWORDS,
-    RECORDING_KEYWORDS,
-    MUSIC_GENRES,
     _count_keyword_matches,
+    _estimate_speaker_count,
+    _has_audiobook_metadata,
     _has_music_metadata,
     _has_podcast_metadata,
-    _has_audiobook_metadata,
-    _estimate_speaker_count,
 )
 from file_organizer.services.audio.metadata_extractor import AudioMetadata
 from file_organizer.services.audio.transcriber import (
@@ -40,7 +34,6 @@ from file_organizer.services.audio.transcriber import (
     TranscriptionOptions,
     TranscriptionResult,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

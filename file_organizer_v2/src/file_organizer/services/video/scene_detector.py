@@ -5,16 +5,15 @@ Detects scene changes in video files using content-aware and threshold-based alg
 Supports multiple detection methods and provides detailed scene metadata.
 """
 
-from dataclasses import dataclass, field
-from enum import Enum
-from pathlib import Path
-from typing import List, Optional, Union
 import logging
+from dataclasses import dataclass, field
+from enum import StrEnum
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-class DetectionMethod(str, Enum):
+class DetectionMethod(StrEnum):
     """Scene detection methods."""
     CONTENT = "content"  # Content-aware detection
     THRESHOLD = "threshold"  # Simple threshold-based
@@ -39,7 +38,7 @@ class Scene:
 class SceneDetectionResult:
     """Complete scene detection result."""
     video_path: Path
-    scenes: List[Scene]
+    scenes: list[Scene]
     total_duration: float  # seconds
     fps: float
     total_frames: int
@@ -93,14 +92,14 @@ class SceneDetector:
     def _check_dependencies(self):
         """Check if required dependencies are available."""
         try:
-            import cv2
+            import cv2  # noqa: F401
         except ImportError:
             logger.warning(
                 "opencv-python not found. Install with: pip install opencv-python"
             )
 
         try:
-            import scenedetect
+            import scenedetect  # noqa: F401
         except ImportError:
             logger.info(
                 "scenedetect not found. Some features may be limited. "
@@ -109,9 +108,9 @@ class SceneDetector:
 
     def detect_scenes(
         self,
-        video_path: Union[str, Path],
-        method: Optional[DetectionMethod] = None,
-        threshold: Optional[float] = None,
+        video_path: str | Path,
+        method: DetectionMethod | None = None,
+        threshold: float | None = None,
     ) -> SceneDetectionResult:
         """
         Detect scenes in a video file.
@@ -151,8 +150,8 @@ class SceneDetector:
         threshold: float,
     ) -> SceneDetectionResult:
         """Detect scenes using PySceneDetect library."""
-        from scenedetect import VideoManager, SceneManager
-        from scenedetect.detectors import ContentDetector, ThresholdDetector, AdaptiveDetector
+        from scenedetect import SceneManager, VideoManager
+        from scenedetect.detectors import AdaptiveDetector, ContentDetector, ThresholdDetector
 
         # Create video manager
         video_manager = VideoManager([str(video_path)])
@@ -317,9 +316,9 @@ class SceneDetector:
 
     def detect_scenes_batch(
         self,
-        video_paths: List[Union[str, Path]],
-        method: Optional[DetectionMethod] = None,
-    ) -> List[SceneDetectionResult]:
+        video_paths: list[str | Path],
+        method: DetectionMethod | None = None,
+    ) -> list[SceneDetectionResult]:
         """
         Detect scenes in multiple video files.
 
@@ -342,7 +341,7 @@ class SceneDetector:
         return results
 
     @staticmethod
-    def save_scene_list(result: SceneDetectionResult, output_path: Union[str, Path]):
+    def save_scene_list(result: SceneDetectionResult, output_path: str | Path):
         """
         Save scene detection result to a file.
 
@@ -377,9 +376,9 @@ class SceneDetector:
 
     @staticmethod
     def extract_scene_thumbnails(
-        video_path: Union[str, Path],
+        video_path: str | Path,
         result: SceneDetectionResult,
-        output_dir: Union[str, Path],
+        output_dir: str | Path,
         frame_offset: float = 0.5,  # Extract frame at 0.5s into scene
     ):
         """

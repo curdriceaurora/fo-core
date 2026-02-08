@@ -13,9 +13,9 @@ Features:
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
 
@@ -43,7 +43,7 @@ class ProfileExporter:
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
-        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
 
     def export_profile(self, profile_name: str, file_path: Path) -> bool:
         """
@@ -84,7 +84,7 @@ class ProfileExporter:
 
             # Validate export file
             if not self.validate_export(temp_file):
-                print(f"Error: Export file validation failed")
+                print("Error: Export file validation failed")
                 temp_file.unlink()
                 return False
 
@@ -101,7 +101,7 @@ class ProfileExporter:
         self,
         profile_name: str,
         file_path: Path,
-        preferences_list: List[str]
+        preferences_list: list[str]
     ) -> bool:
         """
         Export selected preferences from a profile.
@@ -194,13 +194,13 @@ class ProfileExporter:
                 return False
 
             # Load and parse JSON
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding='utf-8') as f:
                 data = json.load(f)
 
             # Check required fields
             required_fields = ['profile_name', 'profile_version', 'exported_at']
             if not all(field in data for field in required_fields):
-                print(f"Error: Missing required fields in export file")
+                print("Error: Missing required fields in export file")
                 return False
 
             # Check export type
@@ -209,30 +209,30 @@ class ProfileExporter:
             if export_type == 'full':
                 # Validate full export structure
                 if 'preferences' not in data:
-                    print(f"Error: Full export missing preferences")
+                    print("Error: Full export missing preferences")
                     return False
 
                 prefs = data['preferences']
                 if not isinstance(prefs, dict):
-                    print(f"Error: Invalid preferences structure")
+                    print("Error: Invalid preferences structure")
                     return False
 
                 # Check preferences have required keys
                 if 'global' not in prefs or 'directory_specific' not in prefs:
-                    print(f"Error: Invalid preferences structure")
+                    print("Error: Invalid preferences structure")
                     return False
 
             elif export_type == 'selective':
                 # Validate selective export
                 if 'included_preferences' not in data:
-                    print(f"Error: Selective export missing included_preferences")
+                    print("Error: Selective export missing included_preferences")
                     return False
 
             # Validate timestamps
             try:
                 datetime.fromisoformat(data['exported_at'].replace('Z', '+00:00'))
             except (ValueError, AttributeError):
-                print(f"Error: Invalid timestamp format")
+                print("Error: Invalid timestamp format")
                 return False
 
             return True
@@ -245,7 +245,7 @@ class ProfileExporter:
             print(f"Error validating export: {e}")
             return False
 
-    def preview_export(self, profile_name: str) -> Optional[Dict[str, Any]]:
+    def preview_export(self, profile_name: str) -> dict[str, Any] | None:
         """
         Preview what would be exported for a profile.
 
@@ -311,9 +311,9 @@ class ProfileExporter:
 
     def export_multiple(
         self,
-        profile_names: List[str],
+        profile_names: list[str],
         output_dir: Path
-    ) -> Dict[str, bool]:
+    ) -> dict[str, bool]:
         """
         Export multiple profiles to a directory.
 

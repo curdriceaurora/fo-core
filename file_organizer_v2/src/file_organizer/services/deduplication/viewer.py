@@ -9,23 +9,19 @@ Provides a terminal-based UI for reviewing duplicate images with:
 - User decision recording
 """
 
-import os
 import shutil
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
 from PIL import Image
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.columns import Columns
-from rich.prompt import Prompt, Confirm
-from rich.text import Text
-from rich.layout import Layout
 from rich import box
+from rich.columns import Columns
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
+from rich.table import Table
 
 
 class UserAction(Enum):
@@ -74,8 +70,8 @@ class ImageMetadata:
 @dataclass
 class DuplicateReview:
     """Result of reviewing a duplicate group."""
-    files_to_keep: List[Path]
-    files_to_delete: List[Path]
+    files_to_keep: list[Path]
+    files_to_delete: list[Path]
     skipped: bool = False
 
 
@@ -89,7 +85,7 @@ class ComparisonViewer:
 
     def __init__(
         self,
-        console: Optional[Console] = None,
+        console: Console | None = None,
         preview_width: int = 40,
         preview_height: int = 20
     ):
@@ -108,8 +104,8 @@ class ComparisonViewer:
 
     def show_comparison(
         self,
-        images: List[Path],
-        similarity_score: Optional[float] = None
+        images: list[Path],
+        similarity_score: float | None = None
     ) -> DuplicateReview:
         """
         Show comparison for a group of duplicate images.
@@ -150,9 +146,9 @@ class ComparisonViewer:
 
     def batch_review(
         self,
-        duplicate_groups: Dict[str, List[Path]],
+        duplicate_groups: dict[str, list[Path]],
         auto_select_best: bool = False
-    ) -> Dict[Path, str]:
+    ) -> dict[Path, str]:
         """
         Review multiple groups of duplicates in batch.
 
@@ -163,7 +159,7 @@ class ComparisonViewer:
         Returns:
             Dictionary mapping file paths to actions ("keep" or "delete")
         """
-        decisions: Dict[Path, str] = {}
+        decisions: dict[Path, str] = {}
         total_groups = len(duplicate_groups)
 
         self.console.print(f"\n[bold cyan]Starting batch review of {total_groups} duplicate groups[/bold cyan]\n")
@@ -229,7 +225,7 @@ class ComparisonViewer:
     def _display_comparison_header(
         self,
         image_count: int,
-        similarity_score: Optional[float] = None
+        similarity_score: float | None = None
     ) -> None:
         """Display header for comparison."""
         header_text = f"Comparing {image_count} duplicate images"
@@ -244,7 +240,7 @@ class ComparisonViewer:
 
     def _display_images_side_by_side(
         self,
-        metadata_list: List[ImageMetadata]
+        metadata_list: list[ImageMetadata]
     ) -> None:
         """
         Display images side by side with metadata.
@@ -315,7 +311,7 @@ class ComparisonViewer:
         image_path: Path,
         max_width: int = 40,
         max_height: int = 15
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Generate ASCII art preview of image.
 
@@ -407,7 +403,7 @@ class ComparisonViewer:
     def _process_user_action(
         self,
         action: UserAction,
-        metadata_list: List[ImageMetadata]
+        metadata_list: list[ImageMetadata]
     ) -> DuplicateReview:
         """
         Process user action and return review result.
@@ -458,7 +454,7 @@ class ComparisonViewer:
 
         return DuplicateReview([], [], skipped=True)
 
-    def _auto_select_best(self, images: List[Path]) -> DuplicateReview:
+    def _auto_select_best(self, images: list[Path]) -> DuplicateReview:
         """
         Automatically select the best quality image.
 
@@ -534,7 +530,7 @@ class ComparisonViewer:
 
         return total_score
 
-    def _display_review_summary(self, decisions: Dict[Path, str]) -> None:
+    def _display_review_summary(self, decisions: dict[Path, str]) -> None:
         """
         Display summary of review decisions.
 
@@ -582,9 +578,9 @@ class ComparisonViewer:
 
     def interactive_select(
         self,
-        images: List[Path],
+        images: list[Path],
         prompt: str = "Select images to keep"
-    ) -> List[Path]:
+    ) -> list[Path]:
         """
         Interactive selection of images from a list.
 

@@ -4,22 +4,22 @@ Integration Tests for Johnny Decimal Methodology
 Tests complete workflows and cross-component integration.
 """
 
-import pytest
 import shutil
 from pathlib import Path
 
+import pytest
+
 from file_organizer.methodologies.johnny_decimal import (
-    JohnnyDecimalSystem,
-    JohnnyDecimalMigrator,
-    create_para_compatible_config,
-    HybridOrganizer,
-    PARACategory,
     CompatibilityAnalyzer,
-    AdapterRegistry,
-    create_default_registry,
-    OrganizationItem,
     ConfigBuilder,
+    HybridOrganizer,
     JohnnyDecimalConfig,
+    JohnnyDecimalMigrator,
+    JohnnyDecimalSystem,
+    OrganizationItem,
+    PARACategory,
+    create_default_registry,
+    create_para_compatible_config,
 )
 
 
@@ -139,7 +139,7 @@ class TestCompleteWorkflows:
 
         # Verify structure changed
         jd_folders = [f for f in complex_structure.rglob("*") if f.is_dir()]
-        has_jd_numbers = any(
+        any(
             any(c.isdigit() for c in f.name[:3]) for f in jd_folders
         )
 
@@ -183,7 +183,7 @@ class TestCompleteWorkflows:
         organizer = HybridOrganizer(config)
 
         # Step 3: Create hybrid structure
-        paths = organizer.create_hybrid_structure(tmp_path)
+        organizer.create_hybrid_structure(tmp_path)
 
         # Step 4: Add items to each category
         items = [
@@ -270,8 +270,8 @@ class TestCrossComponentIntegration:
         from file_organizer.methodologies.johnny_decimal import (
             FolderScanner,
             FolderTransformer,
-            MigrationValidator,
             JohnnyDecimalGenerator,
+            MigrationValidator,
             get_default_scheme,
         )
 
@@ -383,7 +383,7 @@ class TestRealWorldScenarios:
 
         # Use hybrid approach
         config = create_para_compatible_config()
-        organizer = HybridOrganizer(config)
+        HybridOrganizer(config)
 
         # Analyze and migrate
         analyzer = CompatibilityAnalyzer(config)
@@ -526,7 +526,7 @@ class TestErrorHandling:
         """Test handling of invalid configuration."""
         # This should not crash
         try:
-            config = (
+            (
                 ConfigBuilder("invalid")
                 .add_area(5, "Invalid")  # Invalid area number
                 .build()

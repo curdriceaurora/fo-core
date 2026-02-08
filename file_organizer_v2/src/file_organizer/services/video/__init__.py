@@ -8,7 +8,7 @@ This module provides video file processing capabilities including:
 - Video format detection
 """
 
-from .scene_detector import SceneDetector, Scene, SceneDetectionResult
+from .scene_detector import Scene, SceneDetectionResult, SceneDetector
 
 __all__ = [
     "SceneDetector",

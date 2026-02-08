@@ -6,13 +6,12 @@ mismatch analysis.
 """
 
 import logging
-from pathlib import Path
-from typing import List, Dict, Set, Optional, Tuple
+import mimetypes
 from dataclasses import dataclass, field
 from datetime import datetime
-import mimetypes
+from pathlib import Path
 
-from .pattern_analyzer import PatternAnalyzer, PatternAnalysis
+from .pattern_analyzer import PatternAnalysis, PatternAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +23,12 @@ class MisplacedFile:
     current_location: Path
     suggested_location: Path
     mismatch_score: float  # 0-100, higher = more misplaced
-    reasons: List[str]
-    similar_files: List[Path] = field(default_factory=list)
-    metadata: Dict = field(default_factory=dict)
+    reasons: list[str]
+    similar_files: list[Path] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
     detected_at: datetime = field(default_factory=datetime.now)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             'file_path': str(self.file_path),
@@ -48,15 +47,15 @@ class ContextAnalysis:
     """Analysis of file context and surroundings."""
     file_path: Path
     file_type: str
-    mime_type: Optional[str]
+    mime_type: str | None
     size: int
     directory: Path
-    sibling_files: List[Path]
-    sibling_types: Set[str]
+    sibling_files: list[Path]
+    sibling_types: set[str]
     parent_category: str
-    naming_patterns: List[str]
+    naming_patterns: list[str]
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             'file_path': str(self.file_path),
@@ -108,8 +107,8 @@ class MisplacementDetector:
     def detect_misplaced(
         self,
         directory: Path,
-        pattern_analysis: Optional[PatternAnalysis] = None
-    ) -> List[MisplacedFile]:
+        pattern_analysis: PatternAnalysis | None = None
+    ) -> list[MisplacedFile]:
         """
         Detect misplaced files in a directory.
 
@@ -285,9 +284,14 @@ class MisplacementDetector:
         category = self._infer_category_from_type(file_type)
 
         # Look for existing directories with matching patterns
+        current_dir = file_path.parent
         candidates = []
 
         for location_pattern in pattern_analysis.location_patterns:
+            # Skip the file's current directory to avoid suggesting same location
+            if location_pattern.directory == current_dir:
+                continue
+
             if file_type in location_pattern.file_types:
                 candidates.append((
                     location_pattern.directory,
@@ -316,7 +320,7 @@ class MisplacementDetector:
         file_path: Path,
         target_location: Path,
         pattern_analysis: PatternAnalysis
-    ) -> List[Path]:
+    ) -> list[Path]:
         """
         Find files similar to the given file.
 
@@ -465,7 +469,7 @@ class MisplacementDetector:
         file_path: Path,
         context: ContextAnalysis,
         score: float
-    ) -> List[str]:
+    ) -> list[str]:
         """Generate human-readable reasons for mismatch."""
         reasons = []
 
@@ -493,7 +497,7 @@ class MisplacementDetector:
 
         return reasons
 
-    def _detect_local_patterns(self, files: List[Path]) -> List[str]:
+    def _detect_local_patterns(self, files: list[Path]) -> list[str]:
         """Detect naming patterns in a set of files."""
         if not files:
             return []

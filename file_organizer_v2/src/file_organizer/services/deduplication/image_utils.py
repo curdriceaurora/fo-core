@@ -7,7 +7,7 @@ format conversion, and batch processing operations.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any
 
 from PIL import Image
 
@@ -68,7 +68,7 @@ class ImageMetadata:
             f"bytes={self.size_bytes})"
         )
 
-    def to_dict(self) -> Dict[str, any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert metadata to dictionary."""
         return {
             "path": str(self.path),
@@ -81,7 +81,7 @@ class ImageMetadata:
         }
 
 
-def get_image_metadata(image_path: Path) -> Optional[ImageMetadata]:
+def get_image_metadata(image_path: Path) -> ImageMetadata | None:
     """
     Extract metadata from an image file.
 
@@ -120,7 +120,7 @@ def get_image_metadata(image_path: Path) -> Optional[ImageMetadata]:
         return None
 
 
-def get_image_dimensions(image_path: Path) -> Optional[Tuple[int, int]]:
+def get_image_dimensions(image_path: Path) -> tuple[int, int] | None:
     """
     Get image dimensions without loading full image data.
 
@@ -138,7 +138,7 @@ def get_image_dimensions(image_path: Path) -> Optional[Tuple[int, int]]:
         return None
 
 
-def get_image_format(image_path: Path) -> Optional[str]:
+def get_image_format(image_path: Path) -> str | None:
     """
     Get image format (JPEG, PNG, etc.).
 
@@ -169,7 +169,7 @@ def is_supported_format(file_path: Path) -> bool:
     return file_path.suffix.lower() in SUPPORTED_FORMATS
 
 
-def validate_image_file(image_path: Path) -> Tuple[bool, Optional[str]]:
+def validate_image_file(image_path: Path) -> tuple[bool, str | None]:
     """
     Validate that a file is a readable image.
 
@@ -215,7 +215,7 @@ def validate_image_file(image_path: Path) -> Tuple[bool, Optional[str]]:
         return False, f"Corrupt or invalid image: {e}"
 
 
-def filter_valid_images(file_paths: List[Path]) -> List[Path]:
+def filter_valid_images(file_paths: list[Path]) -> list[Path]:
     """
     Filter list to only include valid image files.
 
@@ -238,8 +238,8 @@ def filter_valid_images(file_paths: List[Path]) -> List[Path]:
 def find_images_in_directory(
     directory: Path,
     recursive: bool = True,
-    extensions: Optional[List[str]] = None
-) -> List[Path]:
+    extensions: list[str] | None = None
+) -> list[Path]:
     """
     Find all image files in a directory.
 
@@ -271,7 +271,7 @@ def find_images_in_directory(
             for ext in extensions
         ]
 
-    image_files: List[Path] = []
+    image_files: list[Path] = []
 
     pattern = "**/*" if recursive else "*"
 
@@ -282,7 +282,7 @@ def find_images_in_directory(
     return image_files
 
 
-def group_images_by_format(images: List[Path]) -> Dict[str, List[Path]]:
+def group_images_by_format(images: list[Path]) -> dict[str, list[Path]]:
     """
     Group images by their file format.
 
@@ -292,7 +292,7 @@ def group_images_by_format(images: List[Path]) -> Dict[str, List[Path]]:
     Returns:
         Dictionary mapping format (lowercase extension) to list of image paths
     """
-    groups: Dict[str, List[Path]] = {}
+    groups: dict[str, list[Path]] = {}
 
     for img_path in images:
         fmt = img_path.suffix.lower()
@@ -363,7 +363,7 @@ def compare_image_quality(img1: Path, img2: Path) -> int:
     return 0
 
 
-def get_best_quality_image(images: List[Path]) -> Optional[Path]:
+def get_best_quality_image(images: list[Path]) -> Path | None:
     """
     Select the best quality image from a list.
 
@@ -398,7 +398,7 @@ def get_best_quality_image(images: List[Path]) -> Optional[Path]:
         return None
 
     # Sort by quality criteria
-    def quality_key(item: Tuple[Path, ImageMetadata]) -> Tuple[int, int, int]:
+    def quality_key(item: tuple[Path, ImageMetadata]) -> tuple[int, int, int]:
         img_path, meta = item
         return (
             meta.resolution,                      # Higher resolution is better

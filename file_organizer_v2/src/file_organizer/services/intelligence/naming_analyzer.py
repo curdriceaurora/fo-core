@@ -5,20 +5,19 @@ This module provides advanced analysis of filename patterns, including
 semantic analysis, structure comparison, and pattern matching utilities.
 """
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Dict, Optional, Set, Tuple
 import re
 from collections import Counter
-from difflib import SequenceMatcher
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
 class NameStructure:
     """Analyzed structure of a filename."""
     original: str
-    tokens: List[str] = field(default_factory=list)
-    delimiters: List[str] = field(default_factory=list)
+    tokens: list[str] = field(default_factory=list)
+    delimiters: list[str] = field(default_factory=list)
     has_date: bool = False
     has_version: bool = False
     has_numbers: bool = False
@@ -26,7 +25,7 @@ class NameStructure:
     char_count: int = 0
     structure_hash: str = ""
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             'original': self.original,
@@ -67,7 +66,7 @@ class NamingAnalyzer:
 
     def __init__(self):
         """Initialize the naming analyzer."""
-        self._structure_cache: Dict[str, NameStructure] = {}
+        self._structure_cache: dict[str, NameStructure] = {}
 
     def analyze_structure(self, filename: str) -> NameStructure:
         """
@@ -112,7 +111,7 @@ class NamingAnalyzer:
         self,
         filename1: str,
         filename2: str
-    ) -> Dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Compare structures of two filenames.
 
@@ -157,7 +156,7 @@ class NamingAnalyzer:
             'compatible': overall_sim > 0.6
         }
 
-    def find_common_pattern(self, filenames: List[str]) -> Optional[Dict[str, any]]:
+    def find_common_pattern(self, filenames: list[str]) -> dict[str, Any] | None:
         """
         Find common pattern across multiple filenames.
 
@@ -208,7 +207,7 @@ class NamingAnalyzer:
         self,
         original: str,
         corrected: str
-    ) -> Dict[str, any]:
+    ) -> dict[str, Any]:
         """
         Extract differences between original and corrected filenames.
 
@@ -316,7 +315,7 @@ class NamingAnalyzer:
 
         return normalized + extension
 
-    def extract_semantic_components(self, filename: str) -> Dict[str, any]:
+    def extract_semantic_components(self, filename: str) -> dict[str, Any]:
         """
         Extract semantic components from a filename.
 
@@ -357,7 +356,7 @@ class NamingAnalyzer:
 
         return components
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """Tokenize text by separators and camelCase."""
         # First split by explicit separators
         pattern = '|'.join(re.escape(sep) for sep in self.SEPARATORS)
@@ -377,7 +376,7 @@ class NamingAnalyzer:
 
         return [t for t in tokens if t]
 
-    def _extract_delimiters(self, text: str) -> List[str]:
+    def _extract_delimiters(self, text: str) -> list[str]:
         """Extract delimiters from text."""
         delimiters = []
         for sep in self.SEPARATORS:
@@ -411,15 +410,15 @@ class NamingAnalyzer:
 
     def _calculate_token_similarity(
         self,
-        tokens1: List[str],
-        tokens2: List[str]
+        tokens1: list[str],
+        tokens2: list[str]
     ) -> float:
         """Calculate similarity between token lists."""
         if not tokens1 or not tokens2:
             return 0.0
 
-        set1 = set(t.lower() for t in tokens1)
-        set2 = set(t.lower() for t in tokens2)
+        set1 = {t.lower() for t in tokens1}
+        set2 = {t.lower() for t in tokens2}
 
         intersection = len(set1.intersection(set2))
         union = len(set1.union(set2))
@@ -428,8 +427,8 @@ class NamingAnalyzer:
 
     def _calculate_delimiter_similarity(
         self,
-        delims1: List[str],
-        delims2: List[str]
+        delims1: list[str],
+        delims2: list[str]
     ) -> float:
         """Calculate similarity between delimiter lists."""
         if not delims1 and not delims2:
@@ -474,7 +473,7 @@ class NamingAnalyzer:
             token.lower() in ['final', 'draft', 'copy', 'backup', 'temp', 'old', 'new']
         )
 
-    def _extract_version(self, text: str) -> Optional[str]:
+    def _extract_version(self, text: str) -> str | None:
         """Extract version string from text."""
         for pattern in self.VERSION_PATTERNS:
             match = re.search(pattern, text)
@@ -482,7 +481,7 @@ class NamingAnalyzer:
                 return match.group(0)
         return None
 
-    def _extract_date(self, text: str) -> Optional[str]:
+    def _extract_date(self, text: str) -> str | None:
         """Extract date string from text."""
         date_patterns = [
             r'\d{4}-\d{2}-\d{2}',

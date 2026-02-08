@@ -4,7 +4,7 @@ import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, Optional, Union
+from typing import ClassVar
 
 from loguru import logger
 from rich.console import Console
@@ -372,7 +372,6 @@ class FileOrganizer:
 
             # Handle duplicate names
             counter = 1
-            original_new_path = new_path
             while new_path.exists():
                 new_filename = f"{result.filename}_{counter}{result.file_path.suffix}"
                 new_path = folder_path / new_filename

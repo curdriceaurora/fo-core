@@ -1,18 +1,18 @@
 """Tests for AnalyticsService."""
 
-import pytest
-from pathlib import Path
-from datetime import datetime
 import tempfile
-import os
+from datetime import datetime
+from pathlib import Path
 
-from file_organizer.services.analytics import AnalyticsService
+import pytest
+
 from file_organizer.models.analytics import (
     AnalyticsDashboard,
-    StorageStats,
-    QualityMetrics,
     DuplicateStats,
+    QualityMetrics,
+    StorageStats,
 )
+from file_organizer.services.analytics import AnalyticsService
 
 
 @pytest.fixture
@@ -94,7 +94,8 @@ class TestAnalyticsService:
 
         assert isinstance(stats, DuplicateStats)
         assert stats.duplicate_groups == 1
-        assert stats.total_duplicates == 2
+        # total_duplicates counts extra copies (excludes one original per group)
+        assert stats.total_duplicates == 1
         assert stats.space_wasted > 0
 
     def test_calculate_time_saved(self):

@@ -13,10 +13,10 @@ Features:
 - Confidence trend analysis
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Tuple
 import math
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 
 @dataclass
@@ -24,20 +24,20 @@ class UsageRecord:
     """Record of a single pattern usage."""
     timestamp: datetime
     success: bool
-    context: Dict[str, any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class PatternUsageData:
     """Usage data for a pattern."""
     pattern_id: str
-    usage_records: List[UsageRecord] = field(default_factory=list)
-    first_seen: Optional[datetime] = None
-    last_seen: Optional[datetime] = None
+    usage_records: list[UsageRecord] = field(default_factory=list)
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
     total_uses: int = 0
     successful_uses: int = 0
 
-    def add_usage(self, timestamp: datetime, success: bool, context: Optional[Dict] = None) -> None:
+    def add_usage(self, timestamp: datetime, success: bool, context: dict | None = None) -> None:
         """Add a usage record."""
         record = UsageRecord(timestamp=timestamp, success=success, context=context or {})
         self.usage_records.append(record)
@@ -90,13 +90,13 @@ class ConfidenceEngine:
         """
         self.decay_half_life_days = decay_half_life_days
         self.old_pattern_threshold_days = old_pattern_threshold_days
-        self._usage_data: Dict[str, PatternUsageData] = {}
+        self._usage_data: dict[str, PatternUsageData] = {}
 
     def calculate_confidence(
         self,
         pattern_id: str,
-        usage_data: Optional[PatternUsageData] = None,
-        current_time: Optional[datetime] = None
+        usage_data: PatternUsageData | None = None,
+        current_time: datetime | None = None
     ) -> float:
         """
         Calculate confidence score for a pattern.
@@ -113,7 +113,7 @@ class ConfidenceEngine:
             Confidence score between 0.0 and 1.0
         """
         if current_time is None:
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now(UTC)
 
         # Get usage data
         if usage_data is None:
@@ -243,10 +243,10 @@ class ConfidenceEngine:
 
     def decay_old_patterns(
         self,
-        patterns: List[Dict],
-        time_threshold: Optional[int] = None,
-        current_time: Optional[datetime] = None
-    ) -> List[Dict]:
+        patterns: list[dict],
+        time_threshold: int | None = None,
+        current_time: datetime | None = None
+    ) -> list[dict]:
         """
         Apply time decay to old patterns.
 
@@ -262,7 +262,7 @@ class ConfidenceEngine:
             Updated list of patterns with decayed confidence
         """
         if current_time is None:
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now(UTC)
 
         if time_threshold is None:
             time_threshold = self.old_pattern_threshold_days
@@ -308,11 +308,11 @@ class ConfidenceEngine:
 
     def boost_recent_patterns(
         self,
-        patterns: List[Dict],
+        patterns: list[dict],
         boost_threshold_days: int = 7,
         boost_factor: float = 1.15,
-        current_time: Optional[datetime] = None
-    ) -> List[Dict]:
+        current_time: datetime | None = None
+    ) -> list[dict]:
         """
         Boost confidence for recently used patterns.
 
@@ -329,7 +329,7 @@ class ConfidenceEngine:
             Updated list of patterns with boosted confidence
         """
         if current_time is None:
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now(UTC)
 
         boosted_patterns = []
 
@@ -406,8 +406,8 @@ class ConfidenceEngine:
         self,
         pattern_id: str,
         lookback_days: int = 30,
-        current_time: Optional[datetime] = None
-    ) -> Dict[str, any]:
+        current_time: datetime | None = None
+    ) -> dict[str, Any]:
         """
         Analyze confidence trend for a pattern over time.
 
@@ -420,7 +420,7 @@ class ConfidenceEngine:
             Dictionary with trend analysis including direction and rate
         """
         if current_time is None:
-            current_time = datetime.now(timezone.utc)
+            current_time = datetime.now(UTC)
 
         usage_data = self._usage_data.get(pattern_id)
         if usage_data is None or len(usage_data.usage_records) < 2:
@@ -481,7 +481,7 @@ class ConfidenceEngine:
         pattern_id: str,
         timestamp: datetime,
         success: bool,
-        context: Optional[Dict] = None
+        context: dict | None = None
     ) -> None:
         """
         Track a pattern usage for confidence calculations.
@@ -497,7 +497,7 @@ class ConfidenceEngine:
 
         self._usage_data[pattern_id].add_usage(timestamp, success, context)
 
-    def get_usage_data(self, pattern_id: str) -> Optional[PatternUsageData]:
+    def get_usage_data(self, pattern_id: str) -> PatternUsageData | None:
         """
         Get usage data for a pattern.
 
@@ -509,7 +509,7 @@ class ConfidenceEngine:
         """
         return self._usage_data.get(pattern_id)
 
-    def clear_usage_data(self, pattern_id: Optional[str] = None) -> None:
+    def clear_usage_data(self, pattern_id: str | None = None) -> None:
         """
         Clear usage data for a specific pattern or all patterns.
 

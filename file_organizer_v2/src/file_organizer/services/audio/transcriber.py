@@ -7,14 +7,14 @@ Supports multiple model sizes, languages, and advanced transcription options.
 
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class ModelSize(str, Enum):
+class ModelSize(StrEnum):
     """Whisper model sizes."""
     TINY = "tiny"
     BASE = "base"
@@ -24,7 +24,7 @@ class ModelSize(str, Enum):
     LARGE_V3 = "large-v3"
 
 
-class ComputeType(str, Enum):
+class ComputeType(StrEnum):
     """Computation precision types."""
     FLOAT16 = "float16"
     FLOAT32 = "float32"

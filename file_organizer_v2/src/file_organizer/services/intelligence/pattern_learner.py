@@ -5,15 +5,14 @@ Coordinates pattern extraction, confidence scoring, folder learning, and feedbac
 to provide a unified pattern learning system.
 """
 
-from pathlib import Path
-from typing import Optional, Dict, List
-from datetime import datetime
 import logging
+from datetime import datetime
+from pathlib import Path
 
-from .pattern_extractor import NamingPatternExtractor
 from .confidence import ConfidenceEngine
-from .folder_learner import FolderPreferenceLearner
 from .feedback_processor import FeedbackProcessor
+from .folder_learner import FolderPreferenceLearner
+from .pattern_extractor import NamingPatternExtractor
 from .preference_tracker import PreferenceTracker
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,7 @@ class PatternLearner:
     - Preference tracking (from Task #50)
     """
 
-    def __init__(self, storage_path: Optional[Path] = None):
+    def __init__(self, storage_path: Path | None = None):
         """
         Initialize the pattern learner.
 
@@ -65,8 +64,8 @@ class PatternLearner:
         self,
         original: Path,
         corrected: Path,
-        context: Optional[Dict] = None
-    ) -> Dict:
+        context: dict | None = None
+    ) -> dict:
         """
         Learn from a user correction.
 
@@ -125,7 +124,7 @@ class PatternLearner:
 
         return results
 
-    def extract_naming_pattern(self, filenames: List[str]) -> Dict:
+    def extract_naming_pattern(self, filenames: list[str]) -> dict:
         """
         Extract common naming patterns from a list of filenames.
 
@@ -183,7 +182,7 @@ class PatternLearner:
         self,
         file_type: str,
         chosen_folder: Path,
-        context: Optional[Dict] = None
+        context: dict | None = None
     ) -> None:
         """
         Record a folder choice for learning.
@@ -213,9 +212,9 @@ class PatternLearner:
 
     def get_pattern_suggestion(
         self,
-        file_info: Dict,
-        min_confidence: Optional[float] = None
-    ) -> Optional[Dict]:
+        file_info: dict,
+        min_confidence: float | None = None
+    ) -> dict | None:
         """
         Get pattern-based suggestions for a file.
 
@@ -271,7 +270,7 @@ class PatternLearner:
 
         return None
 
-    def get_learning_stats(self) -> Dict:
+    def get_learning_stats(self) -> dict:
         """
         Get statistics about learned patterns.
 
@@ -290,9 +289,9 @@ class PatternLearner:
 
     def batch_learn_from_history(
         self,
-        corrections: List[Dict],
-        max_age_days: Optional[int] = None
-    ) -> Dict:
+        corrections: list[dict],
+        max_age_days: int | None = None
+    ) -> dict:
         """
         Learn from historical corrections in batch.
 
@@ -325,7 +324,7 @@ class PatternLearner:
 
         return results
 
-    def clear_old_patterns(self, days: int = 90) -> Dict:
+    def clear_old_patterns(self, days: int = 90) -> dict:
         """
         Clear patterns older than specified days.
 
@@ -366,7 +365,7 @@ class PatternLearner:
         self,
         original_name: str,
         corrected_name: str
-    ) -> Dict:
+    ) -> dict:
         """
         Learn from a naming correction.
 
@@ -413,8 +412,8 @@ class PatternLearner:
         self,
         original: Path,
         corrected: Path,
-        context: Optional[Dict]
-    ) -> Dict:
+        context: dict | None
+    ) -> dict:
         """
         Learn from a folder correction.
 
@@ -448,7 +447,7 @@ class PatternLearner:
 
         return result
 
-    def _get_naming_suggestions(self, filename: str) -> Optional[Dict]:
+    def _get_naming_suggestions(self, filename: str) -> dict | None:
         """
         Get naming pattern suggestions for a filename.
 

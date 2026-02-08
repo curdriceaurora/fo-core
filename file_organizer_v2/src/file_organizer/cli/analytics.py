@@ -9,14 +9,10 @@ quality metrics, and organization insights.
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional, List
 
+from loguru import logger
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
-from rich.layout import Layout
-from rich.text import Text
-from loguru import logger
 
 from ..services.analytics import AnalyticsService
 from ..utils.chart_generator import ChartGenerator
@@ -44,7 +40,7 @@ def _format_duration(seconds: float) -> str:
     return f"{hours:.1f}h"
 
 
-def display_storage_stats(stats, chart_gen: Optional[ChartGenerator]) -> None:
+def display_storage_stats(stats, chart_gen: ChartGenerator | None) -> None:
     """Display storage statistics with optional charts."""
     console.print("\n[bold cyan]STORAGE STATISTICS[/bold cyan]")
     console.print("=" * 70)
@@ -200,7 +196,7 @@ def display_time_savings(savings) -> None:
     console.print(table)
 
 
-def display_file_distribution(distribution, chart_gen: Optional[ChartGenerator]) -> None:
+def display_file_distribution(distribution, chart_gen: ChartGenerator | None) -> None:
     """Display file distribution charts."""
     console.print("\n[bold cyan]FILE DISTRIBUTION[/bold cyan]")
     console.print("=" * 70)
@@ -232,7 +228,7 @@ def display_file_distribution(distribution, chart_gen: Optional[ChartGenerator])
         console.print(size_table)
 
 
-def analytics_command(args: Optional[List[str]] = None) -> int:
+def analytics_command(args: list[str] | None = None) -> int:
     """
     Execute the analytics command.
 

@@ -11,9 +11,9 @@ Features:
 - Validation of merged results
 """
 
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
 
@@ -50,14 +50,14 @@ class ProfileMerger:
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
-        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
 
     def merge_profiles(
         self,
-        profile_list: List[str],
+        profile_list: list[str],
         merge_strategy: str = "confident",
-        output_name: Optional[str] = None
-    ) -> Optional[Profile]:
+        output_name: str | None = None
+    ) -> Profile | None:
         """
         Merge multiple profiles into a single profile.
 
@@ -145,9 +145,9 @@ class ProfileMerger:
 
     def _merge_preferences(
         self,
-        profiles: List[Profile],
+        profiles: list[Profile],
         strategy: MergeStrategy
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Merge preferences from multiple profiles.
 
@@ -211,9 +211,9 @@ class ProfileMerger:
 
     def _merge_learned_patterns(
         self,
-        profiles: List[Profile],
+        profiles: list[Profile],
         strategy: MergeStrategy
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Merge learned patterns from multiple profiles.
 
@@ -252,9 +252,9 @@ class ProfileMerger:
 
     def _merge_confidence_data(
         self,
-        profiles: List[Profile],
+        profiles: list[Profile],
         strategy: MergeStrategy
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Merge confidence data from multiple profiles.
 
@@ -294,7 +294,7 @@ class ProfileMerger:
 
     def resolve_conflicts(
         self,
-        conflicting_prefs: List[Dict[str, Any]],
+        conflicting_prefs: list[dict[str, Any]],
         strategy: MergeStrategy
     ) -> Any:
         """
@@ -358,7 +358,7 @@ class ProfileMerger:
     def preserve_high_confidence(
         self,
         merged_profile: Profile,
-        source_profiles: List[Profile],
+        source_profiles: list[Profile],
         confidence_threshold: float = 0.8
     ) -> None:
         """
@@ -405,8 +405,8 @@ class ProfileMerger:
     def create_merged_profile(
         self,
         name: str,
-        merged_data: Dict[str, Any]
-    ) -> Optional[Profile]:
+        merged_data: dict[str, Any]
+    ) -> Profile | None:
         """
         Create a new profile from merged data.
 
@@ -446,8 +446,8 @@ class ProfileMerger:
 
     def get_merge_conflicts(
         self,
-        profile_list: List[str]
-    ) -> Dict[str, List[Any]]:
+        profile_list: list[str]
+    ) -> dict[str, list[Any]]:
         """
         Identify conflicts between profiles before merging.
 

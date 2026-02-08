@@ -8,16 +8,13 @@ removing duplicate files using hash-based detection.
 
 import argparse
 import sys
-from pathlib import Path
-from typing import Dict, List, Optional
 from datetime import datetime
+from pathlib import Path
 
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from loguru import logger
-
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 console = Console()
 
@@ -35,9 +32,9 @@ class DedupeConfig:
         recursive: bool = True,
         batch: bool = False,
         min_size: int = 0,
-        max_size: Optional[int] = None,
-        include_patterns: Optional[List[str]] = None,
-        exclude_patterns: Optional[List[str]] = None,
+        max_size: int | None = None,
+        include_patterns: list[str] | None = None,
+        exclude_patterns: list[str] | None = None,
     ):
         """Initialize deduplication configuration.
 
@@ -99,7 +96,7 @@ def format_datetime(timestamp: float) -> str:
 def display_duplicate_group(
     group_id: int,
     file_hash: str,
-    files: List[Dict],
+    files: list[dict],
     total_groups: int
 ) -> None:
     """Display a group of duplicate files in a formatted table.
@@ -151,9 +148,9 @@ def display_duplicate_group(
 
 
 def select_files_to_keep(
-    files: List[Dict],
+    files: list[dict],
     strategy: str
-) -> List[Dict]:
+) -> list[dict]:
     """Apply selection strategy to determine which files to keep/remove.
 
     Args:
@@ -190,7 +187,7 @@ def select_files_to_keep(
     return files
 
 
-def get_user_selection(files: List[Dict], strategy: str, batch: bool = False) -> List[int]:
+def get_user_selection(files: list[dict], strategy: str, batch: bool = False) -> list[int]:
     """Get user selection for files to remove.
 
     Args:
@@ -295,7 +292,7 @@ def display_summary(
         ))
 
 
-def dedupe_command(args: Optional[List[str]] = None) -> int:
+def dedupe_command(args: list[str] | None = None) -> int:
     """Execute the dedupe command.
 
     Args:
@@ -471,8 +468,8 @@ Examples:
 
     try:
         # Import deduplication services
-        from file_organizer.services.deduplication.detector import DuplicateDetector, ScanOptions
         from file_organizer.services.deduplication.backup import BackupManager
+        from file_organizer.services.deduplication.detector import DuplicateDetector, ScanOptions
 
         # Initialize services
         detector = DuplicateDetector()

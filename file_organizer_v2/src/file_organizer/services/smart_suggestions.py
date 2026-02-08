@@ -5,21 +5,14 @@ Generates intelligent file organization suggestions using AI models
 and pattern analysis.
 """
 
-import logging
-from pathlib import Path
-from typing import List, Optional, Dict
-from datetime import datetime
-import uuid
 import hashlib
+import logging
+from datetime import datetime
+from pathlib import Path
 
-from ..models.suggestion_types import (
-    Suggestion,
-    SuggestionType,
-    SuggestionBatch,
-    ConfidenceFactors
-)
+from ..models.suggestion_types import ConfidenceFactors, Suggestion, SuggestionType
 from ..models.text_model import TextModel
-from .pattern_analyzer import PatternAnalyzer, PatternAnalysis
+from .pattern_analyzer import PatternAnalysis, PatternAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +29,10 @@ class ConfidenceScorer:
     def score_suggestion(
         self,
         file_path: Path,
-        target_path: Optional[Path],
+        target_path: Path | None,
         suggestion_type: SuggestionType,
-        pattern_analysis: Optional[PatternAnalysis] = None,
-        user_history: Optional[Dict] = None
+        pattern_analysis: PatternAnalysis | None = None,
+        user_history: dict | None = None
     ) -> ConfidenceFactors:
         """
         Calculate confidence score for a suggestion.
@@ -136,7 +129,7 @@ class ConfidenceScorer:
         return similarity
 
     def _calculate_user_history_score(
-        self, file_path: Path, target_path: Optional[Path], history: Dict
+        self, file_path: Path, target_path: Path | None, history: dict
     ) -> float:
         """Calculate score based on user's past actions."""
         if not target_path:
@@ -157,7 +150,7 @@ class ConfidenceScorer:
         return 40.0
 
     def _calculate_naming_match(
-        self, file_path: Path, target_path: Path, analysis: Optional[PatternAnalysis]
+        self, file_path: Path, target_path: Path, analysis: PatternAnalysis | None
     ) -> float:
         """Calculate naming convention match score."""
         if not analysis:
@@ -184,7 +177,7 @@ class ConfidenceScorer:
             return 50.0
 
     def _calculate_file_type_match(
-        self, file_path: Path, target_path: Path, analysis: Optional[PatternAnalysis]
+        self, file_path: Path, target_path: Path, analysis: PatternAnalysis | None
     ) -> float:
         """Calculate if file type is appropriate for target location."""
         if not analysis:
@@ -263,7 +256,7 @@ class SuggestionEngine:
 
     def __init__(
         self,
-        text_model: Optional[TextModel] = None,
+        text_model: TextModel | None = None,
         min_confidence: float = 40.0
     ):
         """
@@ -280,11 +273,11 @@ class SuggestionEngine:
 
     def generate_suggestions(
         self,
-        files: List[Path],
-        pattern_analysis: Optional[PatternAnalysis] = None,
-        user_history: Optional[Dict] = None,
+        files: list[Path],
+        pattern_analysis: PatternAnalysis | None = None,
+        user_history: dict | None = None,
         max_suggestions: int = 50
-    ) -> List[Suggestion]:
+    ) -> list[Suggestion]:
         """
         Generate suggestions for organizing files.
 
@@ -326,10 +319,10 @@ class SuggestionEngine:
 
     def _suggest_moves(
         self,
-        files: List[Path],
+        files: list[Path],
         analysis: PatternAnalysis,
-        user_history: Optional[Dict]
-    ) -> List[Suggestion]:
+        user_history: dict | None
+    ) -> list[Suggestion]:
         """Suggest moving files to better locations."""
         suggestions = []
 
@@ -360,8 +353,8 @@ class SuggestionEngine:
         return suggestions
 
     def _suggest_renames(
-        self, files: List[Path], analysis: PatternAnalysis
-    ) -> List[Suggestion]:
+        self, files: list[Path], analysis: PatternAnalysis
+    ) -> list[Suggestion]:
         """Suggest renaming files to match patterns."""
         suggestions = []
 
@@ -375,7 +368,7 @@ class SuggestionEngine:
                 )
                 confidence = factors.calculate_weighted_score()
 
-                reasoning = f"Rename to match detected naming pattern in this directory"
+                reasoning = "Rename to match detected naming pattern in this directory"
 
                 suggestions.append(Suggestion(
                     suggestion_id=self._generate_id(file_path, None),
@@ -389,7 +382,7 @@ class SuggestionEngine:
 
         return suggestions
 
-    def _suggest_restructures(self, analysis: PatternAnalysis) -> List[Suggestion]:
+    def _suggest_restructures(self, analysis: PatternAnalysis) -> list[Suggestion]:
         """Suggest restructuring directories."""
         suggestions = []
 
@@ -431,7 +424,7 @@ class SuggestionEngine:
 
         return suggestions
 
-    def rank_suggestions(self, suggestions: List[Suggestion]) -> List[Suggestion]:
+    def rank_suggestions(self, suggestions: list[Suggestion]) -> list[Suggestion]:
         """
         Rank suggestions by confidence and importance.
 
@@ -482,7 +475,7 @@ class SuggestionEngine:
 
     def _find_best_location(
         self, file_path: Path, analysis: PatternAnalysis
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """Find the best location for a file based on patterns."""
         file_type = file_path.suffix.lower()
 
@@ -501,7 +494,7 @@ class SuggestionEngine:
 
     def _suggest_better_name(
         self, file_path: Path, analysis: PatternAnalysis
-    ) -> Optional[str]:
+    ) -> str | None:
         """Suggest a better name for the file based on patterns."""
         # Find patterns in the file's directory
         dir_patterns = [
@@ -539,12 +532,12 @@ class SuggestionEngine:
 
         return f"Move to {target.name} - " + ", ".join(reasons)
 
-    def _generate_id(self, file_path: Path, target: Optional[Path]) -> str:
+    def _generate_id(self, file_path: Path, target: Path | None) -> str:
         """Generate unique ID for suggestion."""
         content = f"{file_path}{target}{datetime.now().isoformat()}"
         return hashlib.md5(content.encode()).hexdigest()[:16]
 
-    def _get_common_root(self, files: List[Path]) -> Path:
+    def _get_common_root(self, files: list[Path]) -> Path:
         """Get common root directory for files."""
         if not files:
             return Path.cwd()

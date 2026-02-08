@@ -6,14 +6,11 @@ managing undo/redo stacks, and coordinating validation and rollback.
 """
 
 import logging
-from pathlib import Path
-from typing import Optional, List, Tuple
 
+from ..history.models import Operation, OperationStatus
 from ..history.tracker import OperationHistory
-from ..history.models import Operation, OperationStatus, Transaction
-from .validator import OperationValidator
 from .rollback import RollbackExecutor
-from .models import ValidationResult, RollbackResult
+from .validator import OperationValidator
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +25,9 @@ class UndoManager:
 
     def __init__(
         self,
-        history: Optional[OperationHistory] = None,
-        validator: Optional[OperationValidator] = None,
-        executor: Optional[RollbackExecutor] = None,
+        history: OperationHistory | None = None,
+        validator: OperationValidator | None = None,
+        executor: RollbackExecutor | None = None,
         max_stack_size: int = 1000
     ):
         """
@@ -250,7 +247,7 @@ class UndoManager:
 
         return success
 
-    def can_undo(self, operation_id: int) -> Tuple[bool, str]:
+    def can_undo(self, operation_id: int) -> tuple[bool, str]:
         """
         Check if an operation can be undone.
 
@@ -277,7 +274,7 @@ class UndoManager:
         else:
             return (False, validation.error_message or "Validation failed")
 
-    def can_redo(self, operation_id: int) -> Tuple[bool, str]:
+    def can_redo(self, operation_id: int) -> tuple[bool, str]:
         """
         Check if an operation can be redone.
 
@@ -304,7 +301,7 @@ class UndoManager:
         else:
             return (False, validation.error_message or "Validation failed")
 
-    def get_undo_stack(self) -> List[Operation]:
+    def get_undo_stack(self) -> list[Operation]:
         """
         Get list of operations that can be undone.
 
@@ -316,7 +313,7 @@ class UndoManager:
             limit=self.max_stack_size
         )
 
-    def get_redo_stack(self) -> List[Operation]:
+    def get_redo_stack(self) -> list[Operation]:
         """
         Get list of operations that can be redone.
 

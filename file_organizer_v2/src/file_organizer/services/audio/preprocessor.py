@@ -8,13 +8,13 @@ capabilities to prepare audio files for transcription and analysis.
 import logging
 import tempfile
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-class AudioFormat(str, Enum):
+class AudioFormat(StrEnum):
     """Supported audio formats."""
     WAV = "wav"
     MP3 = "mp3"

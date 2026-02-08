@@ -4,12 +4,11 @@ Storage analysis module.
 Analyzes storage usage, file distributions, and identifies optimization opportunities.
 """
 
-from pathlib import Path
-from typing import Dict, List, Optional
-from datetime import datetime
 import logging
+from datetime import datetime
+from pathlib import Path
 
-from ...models.analytics import StorageStats, FileInfo, FileDistribution
+from ...models.analytics import FileDistribution, FileInfo, StorageStats
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +27,12 @@ class StorageAnalyzer:
     def __init__(self):
         """Initialize the storage analyzer."""
         self.cache_ttl = 3600  # 1 hour cache TTL
-        self._cache: Dict = {}
+        self._cache: dict = {}
 
     def analyze_directory(
         self,
         path: Path,
-        max_depth: Optional[int] = None,
+        max_depth: int | None = None,
         use_cache: bool = True
     ) -> StorageStats:
         """
@@ -63,8 +62,8 @@ class StorageAnalyzer:
         total_size = 0
         file_count = 0
         directory_count = 0
-        size_by_type: Dict[str, int] = {}
-        files_list: List[FileInfo] = []
+        size_by_type: dict[str, int] = {}
+        files_list: list[FileInfo] = []
 
         # Walk directory
         for item in self._walk_directory(path, max_depth):
@@ -162,7 +161,7 @@ class StorageAnalyzer:
         path: Path,
         threshold: int = 100 * 1024 * 1024,  # 100MB
         top_n: int = 50
-    ) -> List[FileInfo]:
+    ) -> list[FileInfo]:
         """
         Identify large files above threshold.
 
@@ -196,7 +195,7 @@ class StorageAnalyzer:
 
     def get_duplicate_space(
         self,
-        duplicate_groups: List[Dict]
+        duplicate_groups: list[dict]
     ) -> int:
         """
         Calculate space wasted by duplicates.
@@ -224,7 +223,7 @@ class StorageAnalyzer:
     def _walk_directory(
         self,
         path: Path,
-        max_depth: Optional[int] = None,
+        max_depth: int | None = None,
         current_depth: int = 0
     ):
         """

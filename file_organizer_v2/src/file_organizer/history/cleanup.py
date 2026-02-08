@@ -7,8 +7,7 @@ including automatic cleanup, manual purging, and database maintenance.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
-from pathlib import Path
+from typing import Any
 
 from .database import DatabaseManager
 from .models import OperationStatus, TransactionStatus
@@ -51,7 +50,7 @@ class HistoryCleanup:
     manage database size, and perform maintenance tasks.
     """
 
-    def __init__(self, db: DatabaseManager, config: Optional[HistoryCleanupConfig] = None):
+    def __init__(self, db: DatabaseManager, config: HistoryCleanupConfig | None = None):
         """
         Initialize history cleanup manager.
 
@@ -87,7 +86,7 @@ class HistoryCleanup:
 
         return False
 
-    def cleanup_old_operations(self, max_age_days: Optional[int] = None) -> int:
+    def cleanup_old_operations(self, max_age_days: int | None = None) -> int:
         """
         Delete operations older than the specified age.
 
@@ -117,7 +116,7 @@ class HistoryCleanup:
         logger.info(f"Deleted {deleted_count} old operations")
         return deleted_count
 
-    def cleanup_by_count(self, max_operations: Optional[int] = None) -> int:
+    def cleanup_by_count(self, max_operations: int | None = None) -> int:
         """
         Keep only the most recent N operations, delete older ones.
 
@@ -179,7 +178,7 @@ class HistoryCleanup:
         logger.info(f"Deleted {deleted_count} operations")
         return deleted_count
 
-    def cleanup_by_size(self, max_size_mb: Optional[int] = None) -> int:
+    def cleanup_by_size(self, max_size_mb: int | None = None) -> int:
         """
         Delete old operations until database is under size limit.
 
@@ -307,7 +306,7 @@ class HistoryCleanup:
 
         return deleted_count
 
-    def auto_cleanup(self) -> Dict[str, int]:
+    def auto_cleanup(self) -> dict[str, int]:
         """
         Perform automatic cleanup based on configuration.
 
@@ -379,7 +378,7 @@ class HistoryCleanup:
         logger.info("All history data cleared")
         return True
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get statistics about the current history database.
 

@@ -15,12 +15,9 @@ from pathlib import Path
 import pytest
 
 from file_organizer.services.audio.content_analyzer import (
+    STOP_WORDS,
     AudioContentAnalyzer,
     ContentAnalysis,
-    STOP_WORDS,
-    TOPIC_CATEGORIES,
-    POSITIVE_WORDS,
-    NEGATIVE_WORDS,
     _tokenize,
 )
 from file_organizer.services.audio.metadata_extractor import AudioMetadata
@@ -29,7 +26,6 @@ from file_organizer.services.audio.transcriber import (
     TranscriptionOptions,
     TranscriptionResult,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

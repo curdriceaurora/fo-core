@@ -4,11 +4,9 @@ Auto-Tagging CLI Commands
 Command-line interface for the auto-tagging system.
 """
 
-import argparse
+import json
 import sys
 from pathlib import Path
-from typing import List, Optional
-import json
 
 from ..services.auto_tagging import AutoTaggingService
 

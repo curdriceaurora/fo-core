@@ -20,7 +20,7 @@ from file_organizer.utils.file_readers import (
 def sample_dxf_file(tmp_path: Path) -> Path:
     """Create a minimal valid DXF file for testing."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -107,7 +107,7 @@ def sample_iges_file(tmp_path: Path) -> Path:
 def test_read_dxf_file_basic(sample_dxf_file: Path) -> None:
     """Test basic DXF file reading."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -122,7 +122,7 @@ def test_read_dxf_file_basic(sample_dxf_file: Path) -> None:
 def test_read_dxf_file_metadata(sample_dxf_file: Path) -> None:
     """Test DXF metadata extraction."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -137,7 +137,7 @@ def test_read_dxf_file_metadata(sample_dxf_file: Path) -> None:
 def test_read_dxf_file_entities(sample_dxf_file: Path) -> None:
     """Test DXF entity information extraction."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -150,7 +150,7 @@ def test_read_dxf_file_entities(sample_dxf_file: Path) -> None:
 def test_read_dxf_file_max_layers(sample_dxf_file: Path) -> None:
     """Test DXF max_layers parameter."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -163,7 +163,7 @@ def test_read_dxf_file_max_layers(sample_dxf_file: Path) -> None:
 def test_read_dxf_file_nonexistent() -> None:
     """Test reading non-existent DXF file."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -176,7 +176,7 @@ def test_read_dxf_file_nonexistent() -> None:
 def test_read_dwg_file_fallback(tmp_path: Path) -> None:
     """Test DWG file reading fallback when ezdxf can't parse."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -195,7 +195,7 @@ def test_read_dwg_file_fallback(tmp_path: Path) -> None:
 def test_read_dwg_file_nonexistent() -> None:
     """Test reading non-existent DWG file."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -269,7 +269,7 @@ def test_read_iges_file_nonexistent() -> None:
 def test_read_cad_file_dxf(sample_dxf_file: Path) -> None:
     """Test CAD dispatcher with DXF file."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 
@@ -309,7 +309,7 @@ def test_read_cad_file_unsupported(tmp_path: Path) -> None:
 def test_read_file_dxf_integration(sample_dxf_file: Path) -> None:
     """Test read_file() with DXF format."""
     try:
-        import ezdxf
+        import ezdxf  # noqa: F401
     except ImportError:
         pytest.skip("ezdxf not installed")
 

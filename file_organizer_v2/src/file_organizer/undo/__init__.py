@@ -5,10 +5,10 @@ This module provides comprehensive undo/redo capabilities for file operations,
 including validation, rollback execution, and history viewing.
 """
 
-from .models import ValidationResult, RollbackResult, Conflict, ConflictType
-from .validator import OperationValidator
+from .models import Conflict, ConflictType, RollbackResult, ValidationResult
 from .rollback import RollbackExecutor
 from .undo_manager import UndoManager
+from .validator import OperationValidator
 from .viewer import HistoryViewer
 
 __all__ = [

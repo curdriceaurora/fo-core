@@ -5,16 +5,8 @@ Intelligent tag suggestion system that learns from user behavior.
 """
 
 from .content_analyzer import ContentTagAnalyzer
-from .tag_learning import (
-    TagLearningEngine,
-    TagPattern,
-    TagUsage
-)
-from .tag_recommender import (
-    TagRecommender,
-    TagSuggestion,
-    TagRecommendation
-)
+from .tag_learning import TagLearningEngine, TagPattern, TagUsage
+from .tag_recommender import TagRecommendation, TagRecommender, TagSuggestion
 
 __all__ = [
     'ContentTagAnalyzer',

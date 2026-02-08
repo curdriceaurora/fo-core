@@ -8,11 +8,10 @@ handling all operation types and transaction management.
 import logging
 import shutil
 from pathlib import Path
-from typing import List, Optional
 
-from ..history.models import Operation, OperationType, OperationStatus
-from .validator import OperationValidator
+from ..history.models import Operation, OperationType
 from .models import RollbackResult
+from .validator import OperationValidator
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class RollbackExecutor:
     to undo or redo file operations.
     """
 
-    def __init__(self, validator: Optional[OperationValidator] = None):
+    def __init__(self, validator: OperationValidator | None = None):
         """
         Initialize rollback executor.
 
@@ -199,7 +198,7 @@ class RollbackExecutor:
 
         try:
             # Move to trash instead of permanent delete
-            trash_path = self._move_to_trash(copy_path, operation.id)
+            self._move_to_trash(copy_path, operation.id)
 
             logger.info(f"Successfully rolled back copy operation {operation.id}")
             return True
@@ -223,7 +222,7 @@ class RollbackExecutor:
 
         try:
             # Move to trash instead of permanent delete
-            trash_path = self._move_to_trash(created_path, operation.id)
+            self._move_to_trash(created_path, operation.id)
 
             logger.info(f"Successfully rolled back create operation {operation.id}")
             return True
@@ -300,7 +299,7 @@ class RollbackExecutor:
 
         try:
             # Move to trash
-            trash_path = self._move_to_trash(file_path, operation.id)
+            self._move_to_trash(file_path, operation.id)
 
             logger.info(f"Successfully redid delete operation {operation.id}")
             return True
@@ -375,7 +374,7 @@ class RollbackExecutor:
     def rollback_transaction(
         self,
         transaction_id: str,
-        operations: List[Operation]
+        operations: list[Operation]
     ) -> RollbackResult:
         """
         Rollback an entire transaction atomically.
@@ -439,7 +438,7 @@ class RollbackExecutor:
 
         return result
 
-    def _move_to_trash(self, file_path: Path, operation_id: Optional[int] = None) -> Path:
+    def _move_to_trash(self, file_path: Path, operation_id: int | None = None) -> Path:
         """
         Move a file to trash.
 

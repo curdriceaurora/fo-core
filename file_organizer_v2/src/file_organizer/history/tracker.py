@@ -6,14 +6,14 @@ and managing operation history.
 """
 
 import hashlib
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List
-import json
+from typing import Any
 
 from .database import DatabaseManager
-from .models import Operation, OperationType, OperationStatus, Transaction, TransactionStatus
+from .models import Operation, OperationStatus, OperationType, Transaction, TransactionStatus
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class OperationHistory:
     and query operation history.
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         """
         Initialize operation history tracker.
 
@@ -42,11 +42,11 @@ class OperationHistory:
         self,
         operation_type: OperationType,
         source_path: Path,
-        destination_path: Optional[Path] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        transaction_id: Optional[str] = None,
+        destination_path: Path | None = None,
+        metadata: dict[str, Any] | None = None,
+        transaction_id: str | None = None,
         status: OperationStatus = OperationStatus.COMPLETED,
-        error_message: Optional[str] = None
+        error_message: str | None = None
     ) -> int:
         """
         Log a file operation to the database.
@@ -128,7 +128,7 @@ class OperationHistory:
         logger.debug(f"Logged operation {operation_id}: {operation_type.value} {source_path}")
         return operation_id
 
-    def start_transaction(self, metadata: Optional[Dict[str, Any]] = None) -> str:
+    def start_transaction(self, metadata: dict[str, Any] | None = None) -> str:
         """
         Start a new transaction for batch operations.
 
@@ -227,13 +227,13 @@ class OperationHistory:
 
     def get_operations(
         self,
-        operation_type: Optional[OperationType] = None,
-        transaction_id: Optional[str] = None,
-        status: Optional[OperationStatus] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-        limit: Optional[int] = None
-    ) -> List[Operation]:
+        operation_type: OperationType | None = None,
+        transaction_id: str | None = None,
+        status: OperationStatus | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        limit: int | None = None
+    ) -> list[Operation]:
         """
         Query operations with optional filters.
 
@@ -284,7 +284,7 @@ class OperationHistory:
         rows = self.db.fetch_all(query, tuple(params) if params else None)
         return [Operation.from_row(row) for row in rows]
 
-    def get_transaction(self, transaction_id: str) -> Optional[Transaction]:
+    def get_transaction(self, transaction_id: str) -> Transaction | None:
         """
         Get transaction by ID.
 
@@ -301,7 +301,7 @@ class OperationHistory:
             return Transaction.from_row(row)
         return None
 
-    def get_recent_operations(self, limit: int = 100) -> List[Operation]:
+    def get_recent_operations(self, limit: int = 100) -> list[Operation]:
         """
         Get most recent operations.
 

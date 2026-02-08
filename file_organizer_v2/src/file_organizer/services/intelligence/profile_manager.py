@@ -15,10 +15,10 @@ Features:
 import json
 import shutil
 import threading
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from typing import Any
 
 
 @dataclass
@@ -27,15 +27,15 @@ class Profile:
     profile_name: str
     description: str
     profile_version: str = "1.0"
-    created: Optional[str] = None
-    updated: Optional[str] = None
-    preferences: Optional[Dict[str, Any]] = None
-    learned_patterns: Optional[Dict[str, Any]] = None
-    confidence_data: Optional[Dict[str, Any]] = None
+    created: str | None = None
+    updated: str | None = None
+    preferences: dict[str, Any] | None = None
+    learned_patterns: dict[str, Any] | None = None
+    confidence_data: dict[str, Any] | None = None
 
     def __post_init__(self):
         """Initialize default values after dataclass initialization."""
-        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        now = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
         if self.created is None:
             self.created = now
         if self.updated is None:
@@ -50,12 +50,12 @@ class Profile:
         if self.confidence_data is None:
             self.confidence_data = {}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert profile to dictionary."""
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Profile':
+    def from_dict(cls, data: dict[str, Any]) -> 'Profile':
         """Create profile from dictionary."""
         return cls(
             profile_name=data.get('profile_name', 'default'),
@@ -116,7 +116,7 @@ class ProfileManager:
     ACTIVE_PROFILE_FILE = "active_profile.txt"
     PROFILE_EXTENSION = ".json"
 
-    def __init__(self, storage_path: Optional[Path] = None):
+    def __init__(self, storage_path: Path | None = None):
         """
         Initialize profile manager.
 
@@ -139,7 +139,7 @@ class ProfileManager:
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
-        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
 
     def _sanitize_profile_name(self, name: str) -> str:
         """
@@ -213,7 +213,7 @@ class ProfileManager:
             print(f"Error saving profile to disk: {e}")
             return False
 
-    def _load_profile_from_disk(self, profile_name: str) -> Optional[Profile]:
+    def _load_profile_from_disk(self, profile_name: str) -> Profile | None:
         """
         Load profile from disk.
 
@@ -229,7 +229,7 @@ class ProfileManager:
             if not profile_path.exists():
                 return None
 
-            with open(profile_path, 'r', encoding='utf-8') as f:
+            with open(profile_path, encoding='utf-8') as f:
                 data = json.load(f)
 
             profile = Profile.from_dict(data)
@@ -252,7 +252,7 @@ class ProfileManager:
         """Get name of currently active profile."""
         try:
             if self.active_profile_file.exists():
-                with open(self.active_profile_file, 'r', encoding='utf-8') as f:
+                with open(self.active_profile_file, encoding='utf-8') as f:
                     return f.read().strip()
         except Exception as e:
             print(f"Error reading active profile: {e}")
@@ -284,7 +284,7 @@ class ProfileManager:
             print(f"Error setting active profile: {e}")
             return False
 
-    def create_profile(self, name: str, description: str) -> Optional[Profile]:
+    def create_profile(self, name: str, description: str) -> Profile | None:
         """
         Create a new profile.
 
@@ -309,7 +309,7 @@ class ProfileManager:
 
             # Validate
             if not profile.validate():
-                print(f"Error: Invalid profile data")
+                print("Error: Invalid profile data")
                 return None
 
             # Save to disk
@@ -344,14 +344,14 @@ class ProfileManager:
 
             # Verify activation
             if self._get_active_profile_name() != profile_name:
-                print(f"Error: Profile activation verification failed")
+                print("Error: Profile activation verification failed")
                 # Rollback
                 self._set_active_profile_name(current_active)
                 return False
 
             return True
 
-    def list_profiles(self) -> List[Profile]:
+    def list_profiles(self) -> list[Profile]:
         """
         List all available profiles.
 
@@ -386,7 +386,7 @@ class ProfileManager:
         with self._lock:
             # Don't allow deleting default profile
             if profile_name == "default":
-                print(f"Error: Cannot delete default profile")
+                print("Error: Cannot delete default profile")
                 return False
 
             # Check if profile exists
@@ -399,12 +399,12 @@ class ProfileManager:
             active_profile = self._get_active_profile_name()
             if profile_name == active_profile:
                 if not force:
-                    print(f"Error: Cannot delete active profile. Switch to another profile first or use force=True")
+                    print("Error: Cannot delete active profile. Switch to another profile first or use force=True")
                     return False
                 else:
                     # Switch to default before deleting
                     if not self.activate_profile("default"):
-                        print(f"Error: Failed to switch to default profile")
+                        print("Error: Failed to switch to default profile")
                         return False
 
             # Create backup before deleting
@@ -422,7 +422,7 @@ class ProfileManager:
                 print(f"Error deleting profile: {e}")
                 return False
 
-    def get_active_profile(self) -> Optional[Profile]:
+    def get_active_profile(self) -> Profile | None:
         """
         Get currently active profile.
 
@@ -466,13 +466,13 @@ class ProfileManager:
 
             # Validate
             if not profile.validate():
-                print(f"Error: Invalid profile data after update")
+                print("Error: Invalid profile data after update")
                 return False
 
             # Save
             return self._save_profile_to_disk(profile)
 
-    def get_profile(self, profile_name: str) -> Optional[Profile]:
+    def get_profile(self, profile_name: str) -> Profile | None:
         """
         Get a specific profile by name.
 

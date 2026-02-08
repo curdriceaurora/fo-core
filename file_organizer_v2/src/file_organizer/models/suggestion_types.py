@@ -5,10 +5,9 @@ Defines the data structures for smart suggestions.
 """
 
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Optional, Dict, List
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 
 
 class SuggestionType(Enum):
@@ -38,16 +37,16 @@ class Suggestion:
     suggestion_id: str
     suggestion_type: SuggestionType
     file_path: Path
-    target_path: Optional[Path] = None
+    target_path: Path | None = None
     confidence: float = 0.0  # 0-100
     reasoning: str = ""
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
     created_at: datetime = field(default_factory=datetime.now)
 
     # Additional attributes for specific suggestion types
-    tags: List[str] = field(default_factory=list)
-    new_name: Optional[str] = None
-    related_files: List[Path] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    new_name: str | None = None
+    related_files: list[Path] = field(default_factory=list)
 
     @property
     def confidence_level(self) -> ConfidenceLevel:
@@ -63,7 +62,7 @@ class Suggestion:
         else:
             return ConfidenceLevel.VERY_LOW
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert suggestion to dictionary."""
         return {
             'suggestion_id': self.suggestion_id,
@@ -85,7 +84,7 @@ class Suggestion:
 class SuggestionBatch:
     """A batch of related suggestions."""
     batch_id: str
-    suggestions: List[Suggestion]
+    suggestions: list[Suggestion]
     category: str
     description: str
     created_at: datetime = field(default_factory=datetime.now)
@@ -102,7 +101,7 @@ class SuggestionBatch:
         """Total number of suggestions in batch."""
         return len(self.suggestions)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert batch to dictionary."""
         return {
             'batch_id': self.batch_id,
@@ -129,7 +128,7 @@ class ConfidenceFactors:
     size_appropriateness: float = 0.0  # File size appropriate for location
 
     # Weights for each factor (should sum to 1.0)
-    weights: Dict[str, float] = field(default_factory=lambda: {
+    weights: dict[str, float] = field(default_factory=lambda: {
         'pattern_strength': 0.25,
         'content_similarity': 0.20,
         'user_history': 0.15,
@@ -152,7 +151,7 @@ class ConfidenceFactors:
         )
         return min(max(score, 0.0), 100.0)  # Clamp to 0-100
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary."""
         return {
             'pattern_strength': self.pattern_strength,

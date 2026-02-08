@@ -7,13 +7,10 @@ can be safely executed without conflicts.
 
 import hashlib
 import logging
-import os
-import shutil
 from pathlib import Path
-from typing import Optional
 
-from ..history.models import Operation, OperationType, OperationStatus
-from .models import ValidationResult, Conflict, ConflictType
+from ..history.models import Operation, OperationStatus, OperationType
+from .models import Conflict, ConflictType, ValidationResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +24,7 @@ class OperationValidator:
     and conflict detection.
     """
 
-    def __init__(self, trash_dir: Optional[Path] = None):
+    def __init__(self, trash_dir: Path | None = None):
         """
         Initialize the validator.
 
@@ -469,7 +466,7 @@ class OperationValidator:
             result = self.validate_redo(operation)
         return result.conflicts
 
-    def _get_trash_path(self, operation: Operation) -> Optional[Path]:
+    def _get_trash_path(self, operation: Operation) -> Path | None:
         """
         Get the trash path for a deleted file.
 

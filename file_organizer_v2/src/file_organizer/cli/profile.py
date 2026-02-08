@@ -9,19 +9,17 @@ Provides command-line interface for all profile management operations including:
 - Migration operations
 """
 
-import click
-import json
 from pathlib import Path
-from typing import Optional
+
+import click
 
 from file_organizer.services.intelligence import (
-    ProfileManager,
     ProfileExporter,
     ProfileImporter,
-    ProfileMigrator,
+    ProfileManager,
     ProfileMerger,
+    ProfileMigrator,
     TemplateManager,
-    MergeStrategy
 )
 
 
@@ -90,7 +88,7 @@ def create_profile(name: str, description: str, activate: bool):
 
         if profile is None:
             click.echo(f"Failed to create profile '{name}'", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
         click.echo(f"✓ Created profile: {name}")
 
@@ -117,7 +115,7 @@ def activate_profile(name: str):
             click.echo(f"✓ Activated profile: {name}")
         else:
             click.echo(f"✗ Failed to activate profile '{name}'", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
     except Exception as e:
         click.echo(f"Error activating profile: {e}", err=True)
@@ -142,7 +140,7 @@ def delete_profile(name: str, force: bool):
             click.echo(f"✓ Deleted profile: {name}")
         else:
             click.echo(f"✗ Failed to delete profile '{name}'", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
     except Exception as e:
         click.echo(f"Error deleting profile: {e}", err=True)
@@ -158,7 +156,7 @@ def show_current():
 
         if profile is None:
             click.echo("No active profile found.", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
         click.echo(f"\nActive Profile: {profile.profile_name}")
         click.echo("=" * 80)
@@ -212,7 +210,7 @@ def export_profile(name: str, output: str, selective: tuple):
             click.echo(f"✓ Exported profile '{name}' to: {output_path}")
         else:
             click.echo("✗ Failed to export profile", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
     except Exception as e:
         click.echo(f"Error exporting profile: {e}", err=True)
@@ -223,7 +221,7 @@ def export_profile(name: str, output: str, selective: tuple):
 @click.argument('file', type=click.Path(exists=True))
 @click.option('--as', 'new_name', help='Import with a different name')
 @click.option('--preview', is_flag=True, help='Preview import without applying')
-def import_profile(file: str, new_name: Optional[str], preview: bool):
+def import_profile(file: str, new_name: str | None, preview: bool):
     """Import a profile from JSON file."""
     try:
         manager = get_profile_manager()
@@ -236,7 +234,7 @@ def import_profile(file: str, new_name: Optional[str], preview: bool):
             preview_data = importer.preview_import(file_path)
             if preview_data is None:
                 click.echo("✗ Failed to preview import", err=True)
-                raise click.Abort() from e
+                raise click.Abort()
 
             click.echo("\nImport Preview:")
             click.echo("=" * 80)
@@ -274,7 +272,7 @@ def import_profile(file: str, new_name: Optional[str], preview: bool):
 
         if profile is None:
             click.echo("✗ Failed to import profile", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
         click.echo(f"✓ Imported profile: {profile.profile_name}")
 
@@ -305,7 +303,7 @@ def merge_profiles(profiles: tuple, output: str, strategy: str, show_conflicts: 
 
         if len(profile_list) < 2:
             click.echo("Error: Need at least 2 profiles to merge", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
         # Show conflicts if requested
         if show_conflicts:
@@ -330,7 +328,7 @@ def merge_profiles(profiles: tuple, output: str, strategy: str, show_conflicts: 
 
         if merged is None:
             click.echo("✗ Failed to merge profiles", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
         click.echo(f"✓ Merged {len(profile_list)} profiles into: {output}")
         click.echo(f"  Strategy used: {strategy}")
@@ -387,7 +385,7 @@ def preview_template(name: str):
 
         if preview is None:
             click.echo(f"✗ Template '{name}' not found", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
         click.echo(f"\nTemplate Preview: {preview['name']}")
         click.echo("=" * 80)
@@ -426,7 +424,7 @@ def apply_template(template_name: str, profile_name: str, activate: bool):
 
         if profile is None:
             click.echo("✗ Failed to create profile from template", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
         click.echo(f"✓ Created profile '{profile_name}' from template '{template_name}'")
 
@@ -463,7 +461,7 @@ def migrate_profile(name: str, to_version: str, no_backup: bool):
             click.echo(f"✓ Migrated profile '{name}' to version {to_version}")
         else:
             click.echo("✗ Failed to migrate profile", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
     except Exception as e:
         click.echo(f"Error migrating profile: {e}", err=True)
@@ -482,7 +480,7 @@ def validate_profile(name: str):
             click.echo(f"✓ Profile '{name}' is valid")
         else:
             click.echo(f"✗ Profile '{name}' validation failed", err=True)
-            raise click.Abort() from e
+            raise click.Abort()
 
     except Exception as e:
         click.echo(f"Error validating profile: {e}", err=True)

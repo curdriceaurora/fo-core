@@ -5,10 +5,9 @@ Processes user corrections and feedback to update pattern learning models in rea
 Supports both individual corrections and batch history analysis.
 """
 
-from pathlib import Path
-from typing import Dict, List, Optional
-from datetime import datetime
 import logging
+from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +33,8 @@ class FeedbackProcessor:
         self,
         original: Path,
         corrected: Path,
-        context: Optional[Dict] = None
-    ) -> Dict:
+        context: dict | None = None
+    ) -> dict:
         """
         Process a single user correction in real-time.
 
@@ -85,9 +84,9 @@ class FeedbackProcessor:
 
     def batch_process_history(
         self,
-        corrections: List[Dict],
-        max_age_days: Optional[int] = None
-    ) -> Dict:
+        corrections: list[dict],
+        max_age_days: int | None = None
+    ) -> dict:
         """
         Process historical corrections in batch to extract patterns.
 
@@ -149,7 +148,7 @@ class FeedbackProcessor:
 
         return insights
 
-    def update_learning_model(self, insights: Dict) -> bool:
+    def update_learning_model(self, insights: dict) -> bool:
         """
         Update the learning model with new insights.
 
@@ -170,7 +169,7 @@ class FeedbackProcessor:
 
         return True
 
-    def trigger_retraining(self) -> Dict:
+    def trigger_retraining(self) -> dict:
         """
         Trigger a full model retraining.
 
@@ -194,7 +193,7 @@ class FeedbackProcessor:
         self,
         original_name: str,
         corrected_name: str
-    ) -> Dict:
+    ) -> dict:
         """
         Analyze a filename correction to extract patterns.
 
@@ -254,8 +253,8 @@ class FeedbackProcessor:
         self,
         original: Path,
         corrected: Path,
-        context: Optional[Dict]
-    ) -> Dict:
+        context: dict | None
+    ) -> dict:
         """
         Analyze a folder correction.
 
@@ -288,7 +287,7 @@ class FeedbackProcessor:
 
         # Find common ancestor and divergence point
         common_depth = 0
-        for i, (f, t) in enumerate(zip(from_parts, to_parts)):
+        for i, (f, t) in enumerate(zip(from_parts, to_parts, strict=False)):
             if f == t:
                 common_depth = i + 1
             else:
@@ -303,7 +302,7 @@ class FeedbackProcessor:
 
         return insight
 
-    def _extract_context_patterns(self, context: Dict) -> Optional[Dict]:
+    def _extract_context_patterns(self, context: dict) -> dict | None:
         """
         Extract patterns from context information.
 
@@ -344,8 +343,8 @@ class FeedbackProcessor:
 
     def _extract_batch_name_patterns(
         self,
-        name_changes: List[tuple]
-    ) -> List[Dict]:
+        name_changes: list[tuple]
+    ) -> list[dict]:
         """
         Extract common naming patterns from batch changes.
 
@@ -390,8 +389,8 @@ class FeedbackProcessor:
 
     def _extract_batch_folder_patterns(
         self,
-        folder_changes: List[tuple]
-    ) -> List[Dict]:
+        folder_changes: list[tuple]
+    ) -> list[dict]:
         """
         Extract common folder patterns from batch changes.
 
@@ -405,7 +404,7 @@ class FeedbackProcessor:
 
         # Group by file type
         type_mappings = {}
-        for from_folder, to_folder, file_type in folder_changes:
+        for _from_folder, to_folder, file_type in folder_changes:
             if file_type not in type_mappings:
                 type_mappings[file_type] = {}
             type_mappings[file_type][to_folder] = \
@@ -428,8 +427,8 @@ class FeedbackProcessor:
 
     def _identify_common_operations(
         self,
-        corrections: List[Dict]
-    ) -> Dict:
+        corrections: list[dict]
+    ) -> dict:
         """
         Identify common correction operations.
 
@@ -448,7 +447,7 @@ class FeedbackProcessor:
         return operations
 
     @staticmethod
-    def _extract_delimiters(filename: str) -> List[str]:
+    def _extract_delimiters(filename: str) -> list[str]:
         """Extract delimiter characters from a filename."""
         delimiters = []
         for char in filename:

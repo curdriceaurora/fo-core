@@ -5,9 +5,8 @@ Extracts text content from various document formats for semantic analysis.
 Supports PDF, DOCX, TXT, RTF, ODT, and Markdown document formats.
 """
 
-from pathlib import Path
-from typing import Dict, List, Optional
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ class DocumentExtractor:
             logger.error(f"Error extracting text from {file_path}: {e}")
             return ""
 
-    def extract_batch(self, file_paths: List[Path]) -> Dict[Path, str]:
+    def extract_batch(self, file_paths: list[Path]) -> dict[Path, str]:
         """
         Extract text from multiple documents in batch.
 
@@ -109,14 +108,14 @@ class DocumentExtractor:
         """
         return file_path.suffix.lower() in self.supported_extensions
 
-    def get_supported_formats(self) -> List[str]:
+    def get_supported_formats(self) -> list[str]:
         """
         Get list of supported file formats.
 
         Returns:
             List of supported extensions
         """
-        return sorted(list(self.supported_extensions))
+        return sorted(self.supported_extensions)
 
     def _extract_pdf(self, file_path: Path) -> str:
         """
@@ -207,7 +206,7 @@ class DocumentExtractor:
 
             for encoding in encodings:
                 try:
-                    with open(file_path, 'r', encoding=encoding) as f:
+                    with open(file_path, encoding=encoding) as f:
                         text = f.read()
                     logger.debug(f"Read {len(text)} chars from text file: {file_path.name}")
                     return text
@@ -239,7 +238,7 @@ class DocumentExtractor:
             try:
                 from striprtf.striprtf import rtf_to_text
 
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(file_path, encoding='utf-8', errors='ignore') as f:
                     rtf_content = f.read()
 
                 text = rtf_to_text(rtf_content)
@@ -251,7 +250,7 @@ class DocumentExtractor:
                 # Fallback: simple RTF stripping
                 logger.warning("striprtf not installed, using basic extraction")
 
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(file_path, encoding='utf-8', errors='ignore') as f:
                     content = f.read()
 
                 # Very basic RTF stripping (removes control words)
@@ -277,8 +276,8 @@ class DocumentExtractor:
             Extracted text
         """
         try:
-            import zipfile
             import xml.etree.ElementTree as ET
+            import zipfile
 
             # ODT files are ZIP archives
             with zipfile.ZipFile(file_path, 'r') as odt_zip:

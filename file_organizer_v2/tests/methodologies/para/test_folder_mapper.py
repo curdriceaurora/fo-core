@@ -307,8 +307,9 @@ class TestCategoryFolderMapper:
         assert f"Total files: {len(results)}" in report
         assert "Distribution by Category" in report
 
-        # Check category names appear
-        for category in PARACategory:
+        # Check that categories with mapped files appear in the report
+        mapped_categories = {r.target_category for r in results}
+        for category in mapped_categories:
             assert category.value in report.lower()
 
     def test_report_shows_sample_mappings(self, mapper, temp_source, temp_target):

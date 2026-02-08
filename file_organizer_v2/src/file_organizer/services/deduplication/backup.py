@@ -13,7 +13,6 @@ import json
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 class BackupManager:
@@ -32,7 +31,7 @@ class BackupManager:
     BACKUP_DIR_NAME = ".file_organizer_backups"
     MANIFEST_FILE = "manifest.json"
 
-    def __init__(self, base_dir: Optional[Path] = None):
+    def __init__(self, base_dir: Path | None = None):
         """
         Initialize the BackupManager.
 
@@ -84,7 +83,7 @@ class BackupManager:
         try:
             shutil.copy2(file_path, backup_path)
         except Exception as e:
-            raise OSError(f"Failed to create backup: {e}")
+            raise OSError(f"Failed to create backup: {e}") from e
 
         # Update manifest
         manifest = self._load_manifest()
@@ -99,7 +98,7 @@ class BackupManager:
 
         return backup_path
 
-    def restore_backup(self, backup_path: Path, target_path: Optional[Path] = None) -> Path:
+    def restore_backup(self, backup_path: Path, target_path: Path | None = None) -> Path:
         """
         Restore a file from backup.
 
@@ -140,11 +139,11 @@ class BackupManager:
         try:
             shutil.copy2(backup_path, target_path)
         except Exception as e:
-            raise OSError(f"Failed to restore backup: {e}")
+            raise OSError(f"Failed to restore backup: {e}") from e
 
         return target_path
 
-    def cleanup_old_backups(self, max_age_days: int = 30) -> List[Path]:
+    def cleanup_old_backups(self, max_age_days: int = 30) -> list[Path]:
         """
         Remove backups older than the specified age.
 
@@ -162,7 +161,7 @@ class BackupManager:
         removed_backups = []
 
         # Find and remove old backups
-        for backup_key, _metadata in list(manifest.items()):
+        for backup_key, metadata in list(manifest.items()):
             backup_time = datetime.fromisoformat(metadata["backup_time"])
 
             if backup_time < cutoff_date:
@@ -185,7 +184,7 @@ class BackupManager:
 
         return removed_backups
 
-    def get_backup_info(self, backup_path: Path) -> Optional[Dict]:
+    def get_backup_info(self, backup_path: Path) -> dict | None:
         """
         Get metadata for a specific backup.
 
@@ -199,7 +198,7 @@ class BackupManager:
         backup_key = str(Path(backup_path).resolve())
         return manifest.get(backup_key)
 
-    def list_backups(self) -> List[Dict]:
+    def list_backups(self) -> list[dict]:
         """
         List all backups with their metadata.
 
@@ -209,7 +208,7 @@ class BackupManager:
         manifest = self._load_manifest()
 
         backups = []
-        for backup_key, _metadata in manifest.items():
+        for backup_key, metadata in manifest.items():
             backup_info = metadata.copy()
             backup_info["exists"] = Path(backup_key).exists()
             backups.append(backup_info)
@@ -219,7 +218,7 @@ class BackupManager:
 
         return backups
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """
         Get statistics about the backup system.
 
@@ -247,7 +246,7 @@ class BackupManager:
             "backup_directory": str(self.backup_dir),
         }
 
-    def verify_backups(self) -> List[str]:
+    def verify_backups(self) -> list[str]:
         """
         Verify integrity of all backups.
 
@@ -257,7 +256,7 @@ class BackupManager:
         manifest = self._load_manifest()
         issues = []
 
-        for backup_key, _metadata in manifest.items():
+        for backup_key, metadata in manifest.items():
             backup_path = Path(backup_key)
 
             # Check if backup file exists
@@ -271,7 +270,7 @@ class BackupManager:
 
         return issues
 
-    def _load_manifest(self) -> Dict:
+    def _load_manifest(self) -> dict:
         """
         Load the backup manifest from disk.
 
@@ -282,13 +281,13 @@ class BackupManager:
             return {}
 
         try:
-            with open(self.manifest_path, 'r', encoding='utf-8') as f:
+            with open(self.manifest_path, encoding='utf-8') as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
             # If manifest is corrupted, start fresh
             return {}
 
-    def _save_manifest(self, manifest: Dict) -> None:
+    def _save_manifest(self, manifest: dict) -> None:
         """
         Save the backup manifest to disk.
 

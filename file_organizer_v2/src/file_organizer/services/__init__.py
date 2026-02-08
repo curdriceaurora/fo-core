@@ -1,28 +1,28 @@
 """Processing services for different file types."""
 
-from file_organizer.services.text_processor import TextProcessor, ProcessedFile
-from file_organizer.services.vision_processor import VisionProcessor, ProcessedImage
+from file_organizer.services.misplacement_detector import (
+    ContextAnalysis,
+    MisplacedFile,
+    MisplacementDetector,
+)
 from file_organizer.services.pattern_analyzer import (
-    PatternAnalyzer,
-    PatternAnalysis,
-    NamingPattern,
-    LocationPattern,
     ContentCluster,
+    LocationPattern,
+    NamingPattern,
+    PatternAnalysis,
+    PatternAnalyzer,
 )
 from file_organizer.services.smart_suggestions import (
-    SuggestionEngine,
     ConfidenceScorer,
-)
-from file_organizer.services.misplacement_detector import (
-    MisplacementDetector,
-    MisplacedFile,
-    ContextAnalysis,
+    SuggestionEngine,
 )
 from file_organizer.services.suggestion_feedback import (
-    SuggestionFeedback,
     FeedbackEntry,
     LearningStats,
+    SuggestionFeedback,
 )
+from file_organizer.services.text_processor import ProcessedFile, TextProcessor
+from file_organizer.services.vision_processor import ProcessedImage, VisionProcessor
 
 __all__ = [
     "TextProcessor",

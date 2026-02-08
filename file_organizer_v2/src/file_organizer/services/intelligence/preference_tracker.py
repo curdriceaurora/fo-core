@@ -14,12 +14,11 @@ Features:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from enum import Enum
 from pathlib import Path
 from threading import RLock
-from typing import Dict, List, Optional, Tuple
-from enum import Enum
-import hashlib
+from typing import Any
 
 
 class PreferenceType(Enum):
@@ -47,7 +46,7 @@ class PreferenceMetadata:
     updated: datetime
     confidence: float = 0.5  # Initial confidence 0.5
     frequency: int = 1  # Number of times this preference was observed
-    last_used: Optional[datetime] = None
+    last_used: datetime | None = None
     source: str = "user_correction"  # Source of the preference
 
     def to_dict(self) -> dict:
@@ -79,9 +78,9 @@ class Preference:
     """A tracked preference with its metadata."""
     preference_type: PreferenceType
     key: str  # Identifier for the preference (e.g., file pattern, category name)
-    value: any  # The preference value
+    value: Any  # The preference value
     metadata: PreferenceMetadata
-    context: Dict[str, any] = field(default_factory=dict)  # Additional context
+    context: dict[str, Any] = field(default_factory=dict)  # Additional context
 
     def to_dict(self) -> dict:
         """Convert preference to dictionary."""
@@ -112,7 +111,7 @@ class Correction:
     source: Path
     destination: Path
     timestamp: datetime
-    context: Dict[str, any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
 
     def get_pattern_key(self) -> str:
         """Generate a unique key for this correction pattern."""
@@ -147,8 +146,8 @@ class PreferenceTracker:
     def __init__(self):
         """Initialize the preference tracker."""
         self._lock = RLock()  # Reentrant lock for thread safety
-        self._preferences: Dict[str, List[Preference]] = {}  # Key -> List of preferences
-        self._corrections: List[Correction] = []  # History of corrections
+        self._preferences: dict[str, list[Preference]] = {}  # Key -> List of preferences
+        self._corrections: list[Correction] = []  # History of corrections
         self._statistics = {
             "total_corrections": 0,
             "total_preferences": 0,
@@ -161,7 +160,7 @@ class PreferenceTracker:
         source: Path,
         destination: Path,
         correction_type: CorrectionType,
-        context: Optional[Dict[str, any]] = None
+        context: dict[str, Any] | None = None
     ) -> None:
         """
         Track a user correction and update preferences accordingly.
@@ -173,7 +172,7 @@ class PreferenceTracker:
             context: Additional context about the correction
         """
         with self._lock:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
 
             # Create correction record
             correction = Correction(
@@ -197,7 +196,7 @@ class PreferenceTracker:
         This method analyzes the correction and updates relevant preferences.
         Must be called within a lock.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         pattern_key = correction.get_pattern_key()
 
         # Determine preference type based on correction type
@@ -276,7 +275,7 @@ class PreferenceTracker:
         self,
         preference_type: PreferenceType,
         key: str
-    ) -> Optional[Preference]:
+    ) -> Preference | None:
         """
         Find an existing preference by type and key.
 
@@ -299,8 +298,8 @@ class PreferenceTracker:
         self,
         file_path: Path,
         preference_type: PreferenceType,
-        context: Optional[Dict[str, any]] = None
-    ) -> Optional[Preference]:
+        context: dict[str, Any] | None = None
+    ) -> Preference | None:
         """
         Get a preference for a given file path and type.
 
@@ -334,7 +333,7 @@ class PreferenceTracker:
 
                 # Return the preference with highest confidence
                 best_pref = max(matching_prefs, key=lambda p: p.metadata.confidence)
-                best_pref.metadata.last_used = datetime.now(timezone.utc)
+                best_pref.metadata.last_used = datetime.now(UTC)
                 return best_pref
 
             # For other preference types, use exact pattern matching
@@ -355,14 +354,14 @@ class PreferenceTracker:
             best_pref = max(prefs, key=lambda p: p.metadata.confidence)
 
             # Update last used timestamp
-            best_pref.metadata.last_used = datetime.now(timezone.utc)
+            best_pref.metadata.last_used = datetime.now(UTC)
 
             return best_pref
 
     def get_all_preferences(
         self,
-        preference_type: Optional[PreferenceType] = None
-    ) -> List[Preference]:
+        preference_type: PreferenceType | None = None
+    ) -> list[Preference]:
         """
         Get all preferences, optionally filtered by type.
 
@@ -396,7 +395,7 @@ class PreferenceTracker:
             success: Whether the application was successful
         """
         with self._lock:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
 
             if success:
                 # Increase confidence (cap at 0.98)
@@ -434,7 +433,7 @@ class PreferenceTracker:
 
             return stats
 
-    def clear_preferences(self, preference_type: Optional[PreferenceType] = None) -> int:
+    def clear_preferences(self, preference_type: PreferenceType | None = None) -> int:
         """
         Clear preferences, optionally filtered by type.
 
@@ -488,7 +487,7 @@ class PreferenceTracker:
                 },
                 "corrections": [c.to_dict() for c in self._corrections],
                 "statistics": self._statistics.copy(),
-                "exported_at": datetime.now(timezone.utc).isoformat()
+                "exported_at": datetime.now(UTC).isoformat()
             }
 
     def import_data(self, data: dict) -> None:
@@ -524,7 +523,7 @@ class PreferenceTracker:
             if "statistics" in data:
                 self._statistics.update(data["statistics"])
 
-    def get_corrections_for_file(self, file_path: Path) -> List[Correction]:
+    def get_corrections_for_file(self, file_path: Path) -> list[Correction]:
         """
         Get all corrections related to a specific file.
 
@@ -540,7 +539,7 @@ class PreferenceTracker:
                 if c.source == file_path or c.destination == file_path
             ]
 
-    def get_recent_corrections(self, limit: int = 10) -> List[Correction]:
+    def get_recent_corrections(self, limit: int = 10) -> list[Correction]:
         """
         Get the most recent corrections.
 
@@ -570,7 +569,7 @@ def track_file_move(
     tracker: PreferenceTracker,
     source: Path,
     destination: Path,
-    context: Optional[Dict[str, any]] = None
+    context: dict[str, Any] | None = None
 ) -> None:
     """
     Convenience function to track a file move correction.
@@ -593,7 +592,7 @@ def track_file_rename(
     tracker: PreferenceTracker,
     source: Path,
     destination: Path,
-    context: Optional[Dict[str, any]] = None
+    context: dict[str, Any] | None = None
 ) -> None:
     """
     Convenience function to track a file rename correction.
@@ -617,7 +616,7 @@ def track_category_change(
     file_path: Path,
     old_category: str,
     new_category: str,
-    context: Optional[Dict[str, any]] = None
+    context: dict[str, Any] | None = None
 ) -> None:
     """
     Convenience function to track a category change correction.

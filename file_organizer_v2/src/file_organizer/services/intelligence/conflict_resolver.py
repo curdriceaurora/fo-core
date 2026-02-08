@@ -5,10 +5,9 @@ This module provides deterministic conflict resolution using multiple
 weighting strategies including recency, frequency, and confidence scoring.
 """
 
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import logging
 import math
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class ConflictResolver:
             f"confidence={self.confidence_weight:.2f}"
         )
 
-    def resolve(self, conflicting_preferences: List[dict]) -> dict:
+    def resolve(self, conflicting_preferences: list[dict]) -> dict:
         """
         Resolve conflicts between multiple preferences.
 
@@ -163,7 +162,7 @@ class ConflictResolver:
 
         return resolved
 
-    def weight_by_recency(self, preferences: List[dict]) -> List[float]:
+    def weight_by_recency(self, preferences: list[dict]) -> list[float]:
         """
         Calculate recency weights for preferences.
 
@@ -219,7 +218,7 @@ class ConflictResolver:
 
         return weights
 
-    def weight_by_frequency(self, preferences: List[dict]) -> List[float]:
+    def weight_by_frequency(self, preferences: list[dict]) -> list[float]:
         """
         Calculate frequency weights for preferences.
 
@@ -304,7 +303,7 @@ class ConflictResolver:
 
         return confidence
 
-    def _parse_timestamp(self, timestamp: Optional[str]) -> datetime:
+    def _parse_timestamp(self, timestamp: str | None) -> datetime:
         """
         Parse ISO 8601 timestamp string to datetime.
 
@@ -337,7 +336,7 @@ class ConflictResolver:
             logger.warning(f"Failed to parse timestamp '{timestamp}': {e}")
             return datetime(1970, 1, 1)
 
-    def get_ambiguity_score(self, conflicting_preferences: List[dict]) -> float:
+    def get_ambiguity_score(self, conflicting_preferences: list[dict]) -> float:
         """
         Calculate ambiguity score for a set of conflicting preferences.
 
@@ -403,7 +402,7 @@ class ConflictResolver:
 
     def needs_user_input(
         self,
-        conflicting_preferences: List[dict],
+        conflicting_preferences: list[dict],
         ambiguity_threshold: float = 0.7
     ) -> bool:
         """

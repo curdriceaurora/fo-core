@@ -16,12 +16,12 @@ Features:
 - Regex pattern generation from examples
 """
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Dict, Optional, Set, Tuple, Pattern as RegexPattern
 import re
 from collections import Counter
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -31,21 +31,21 @@ class PatternElement:
     value: str
     position: int
     is_variable: bool = False
-    pattern: Optional[str] = None  # Regex pattern if is_variable
+    pattern: str | None = None  # Regex pattern if is_variable
 
 
 @dataclass
 class NamingPattern:
     """A structured naming pattern extracted from filenames."""
     pattern_id: str
-    elements: List[PatternElement] = field(default_factory=list)
-    delimiter: Optional[str] = None
+    elements: list[PatternElement] = field(default_factory=list)
+    delimiter: str | None = None
     has_date: bool = False
-    date_format: Optional[str] = None
-    prefix: Optional[str] = None
-    suffix: Optional[str] = None
+    date_format: str | None = None
+    prefix: str | None = None
+    suffix: str | None = None
     case_convention: str = "mixed"  # 'lower', 'upper', 'title', 'camel', 'mixed'
-    example_files: List[str] = field(default_factory=list)
+    example_files: list[str] = field(default_factory=list)
     confidence: float = 0.5
 
     def to_regex(self) -> str:
@@ -96,9 +96,9 @@ class NamingPatternExtractor:
 
     def __init__(self):
         """Initialize the pattern extractor."""
-        self._pattern_cache: Dict[str, NamingPattern] = {}
+        self._pattern_cache: dict[str, NamingPattern] = {}
 
-    def analyze_filename(self, filename: str) -> Dict[str, any]:
+    def analyze_filename(self, filename: str) -> dict[str, Any]:
         """
         Analyze a single filename and extract its structure.
 
@@ -132,7 +132,7 @@ class NamingPatternExtractor:
 
         return analysis
 
-    def extract_delimiters(self, filename: str) -> List[str]:
+    def extract_delimiters(self, filename: str) -> list[str]:
         """
         Extract delimiters used in a filename.
 
@@ -157,7 +157,7 @@ class NamingPatternExtractor:
 
         return [delim for delim, _ in delimiter_counts.most_common()]
 
-    def detect_date_format(self, filename: str) -> Optional[Dict[str, any]]:
+    def detect_date_format(self, filename: str) -> dict[str, Any] | None:
         """
         Detect date format in filename.
 
@@ -178,7 +178,7 @@ class NamingPatternExtractor:
                 }
         return None
 
-    def extract_common_elements(self, filenames: List[str]) -> List[str]:
+    def extract_common_elements(self, filenames: list[str]) -> list[str]:
         """
         Extract common elements across multiple filenames.
 
@@ -207,9 +207,9 @@ class NamingPatternExtractor:
         for parts in all_parts[1:]:
             common = common.intersection(parts)
 
-        return sorted(list(common))
+        return sorted(common)
 
-    def identify_structure_pattern(self, filenames: List[str]) -> Optional[NamingPattern]:
+    def identify_structure_pattern(self, filenames: list[str]) -> NamingPattern | None:
         """
         Identify common structural pattern across filenames.
 
@@ -275,7 +275,7 @@ class NamingPatternExtractor:
 
         return pattern
 
-    def suggest_naming_convention(self, file_info: Dict[str, any]) -> Optional[str]:
+    def suggest_naming_convention(self, file_info: dict[str, Any]) -> str | None:
         """
         Suggest a naming convention based on file info.
 
@@ -368,7 +368,7 @@ class NamingPatternExtractor:
         # Calculate average
         return sum(similarity_factors) / len(similarity_factors) if similarity_factors else 0.0
 
-    def generate_regex_pattern(self, filenames: List[str]) -> Optional[str]:
+    def generate_regex_pattern(self, filenames: list[str]) -> str | None:
         """
         Generate a regex pattern that matches the given filenames.
 
@@ -383,7 +383,7 @@ class NamingPatternExtractor:
             return pattern.to_regex()
         return None
 
-    def _split_by_delimiters(self, text: str, delimiters: List[str]) -> List[str]:
+    def _split_by_delimiters(self, text: str, delimiters: list[str]) -> list[str]:
         """Split text by multiple delimiters."""
         if not delimiters:
             return [text]
@@ -431,7 +431,7 @@ class NamingPatternExtractor:
         else:
             return text
 
-    def _generate_pattern_id(self, filenames: List[str]) -> str:
+    def _generate_pattern_id(self, filenames: list[str]) -> str:
         """Generate unique pattern ID."""
         import hashlib
         content = ''.join(sorted(filenames[:5]))
@@ -440,7 +440,7 @@ class NamingPatternExtractor:
     def _build_pattern_elements(
         self,
         pattern: NamingPattern,
-        analyses: List[Dict]
+        analyses: list[dict]
     ) -> None:
         """Build pattern elements from analyses."""
         # This is a simplified version - can be expanded

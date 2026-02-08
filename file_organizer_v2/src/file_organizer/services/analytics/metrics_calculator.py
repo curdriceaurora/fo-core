@@ -2,11 +2,8 @@
 Metrics calculation module for quality scoring and efficiency analysis.
 """
 
-from typing import Dict, List, Optional
-from pathlib import Path
 import logging
-
-from ...models.analytics import QualityMetrics, TimeSavings
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +50,7 @@ class MetricsCalculator:
 
     def measure_naming_compliance(
         self,
-        files: List[Path],
+        files: list[Path],
     ) -> float:
         """
         Measure naming convention compliance.
@@ -122,8 +119,8 @@ class MetricsCalculator:
     def calculate_improvement_metrics(
         self,
         current_score: float,
-        previous_score: Optional[float] = None
-    ) -> Dict:
+        previous_score: float | None = None
+    ) -> dict:
         """
         Calculate improvement metrics.
 

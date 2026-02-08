@@ -2,7 +2,6 @@
 Chart generation module for terminal-based visualizations.
 """
 
-from typing import Dict, List, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ class ChartGenerator:
 
     def create_pie_chart(
         self,
-        data: Dict[str, float],
+        data: dict[str, float],
         title: str,
         width: int = 40
     ) -> str:
@@ -56,7 +55,7 @@ class ChartGenerator:
 
     def create_bar_chart(
         self,
-        data: Dict[str, int],
+        data: dict[str, int],
         title: str,
         width: int = 50
     ) -> str:
@@ -89,7 +88,7 @@ class ChartGenerator:
 
     def create_trend_line(
         self,
-        data: List[Tuple[str, float]],
+        data: list[tuple[str, float]],
         title: str,
         height: int = 10
     ) -> str:
@@ -135,12 +134,12 @@ class ChartGenerator:
             lines.append(line)
 
         # Add labels
-        labels = " ".join([l[:3] for l, _ in data])
+        labels = " ".join([label[:3] for label, _ in data])
         lines.append(labels)
 
         return "\n".join(lines)
 
-    def create_sparkline(self, values: List[float]) -> str:
+    def create_sparkline(self, values: list[float]) -> str:
         """
         Create compact sparkline.
 

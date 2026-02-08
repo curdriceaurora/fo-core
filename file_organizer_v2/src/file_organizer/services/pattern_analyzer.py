@@ -5,13 +5,12 @@ Analyzes file organization patterns including directory structures,
 naming conventions, and content-based clustering.
 """
 
-import re
-from pathlib import Path
-from typing import List, Dict, Set, Optional, Tuple
-from dataclasses import dataclass, field
-from collections import defaultdict, Counter
 import logging
+import re
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ class NamingPattern:
     """Represents a detected file naming pattern."""
     pattern: str
     regex: str
-    example_files: List[str]
+    example_files: list[str]
     count: int
     confidence: float
     description: str
@@ -31,21 +30,21 @@ class NamingPattern:
 class LocationPattern:
     """Represents a pattern in file locations."""
     directory: Path
-    file_types: Set[str]
-    naming_patterns: List[str]
+    file_types: set[str]
+    naming_patterns: list[str]
     file_count: int
     depth_level: int
-    category: Optional[str] = None
+    category: str | None = None
 
 
 @dataclass
 class ContentCluster:
     """Represents a cluster of files with similar content characteristics."""
     cluster_id: str
-    file_paths: List[Path]
-    common_keywords: List[str]
-    file_types: Set[str]
-    size_range: Tuple[int, int]
+    file_paths: list[Path]
+    common_keywords: list[str]
+    file_types: set[str]
+    size_range: tuple[int, int]
     category: str
     confidence: float
 
@@ -54,14 +53,14 @@ class ContentCluster:
 class PatternAnalysis:
     """Complete pattern analysis results."""
     directory: Path
-    naming_patterns: List[NamingPattern]
-    location_patterns: List[LocationPattern]
-    content_clusters: List[ContentCluster]
-    file_type_distribution: Dict[str, int]
-    depth_distribution: Dict[int, int]
+    naming_patterns: list[NamingPattern]
+    location_patterns: list[LocationPattern]
+    content_clusters: list[ContentCluster]
+    file_type_distribution: dict[str, int]
+    depth_distribution: dict[int, int]
     analyzed_at: datetime
     total_files: int
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
 
 class PatternAnalyzer:
@@ -147,7 +146,7 @@ class PatternAnalyzer:
             }
         )
 
-    def _collect_files(self, directory: Path, current_depth: int = 0) -> List[Path]:
+    def _collect_files(self, directory: Path, current_depth: int = 0) -> list[Path]:
         """
         Recursively collect all files up to max_depth.
 
@@ -173,7 +172,7 @@ class PatternAnalyzer:
 
         return files
 
-    def detect_naming_patterns(self, files: List[Path]) -> List[NamingPattern]:
+    def detect_naming_patterns(self, files: list[Path]) -> list[NamingPattern]:
         """
         Detect naming patterns across files.
 
@@ -219,7 +218,7 @@ class PatternAnalyzer:
         logger.info(f"Detected {len(detected_patterns)} naming patterns")
         return detected_patterns
 
-    def get_location_patterns(self, directory: Path) -> List[LocationPattern]:
+    def get_location_patterns(self, directory: Path) -> list[LocationPattern]:
         """
         Analyze location-based organizational patterns.
 
@@ -278,7 +277,7 @@ class PatternAnalyzer:
         logger.info(f"Detected {len(location_patterns)} location patterns")
         return location_patterns
 
-    def cluster_by_content(self, files: List[Path]) -> List[ContentCluster]:
+    def cluster_by_content(self, files: list[Path]) -> list[ContentCluster]:
         """
         Group files into clusters based on content characteristics.
 
@@ -349,12 +348,12 @@ class PatternAnalyzer:
         logger.info(f"Created {len(clusters)} content clusters")
         return clusters
 
-    def _analyze_file_types(self, files: List[Path]) -> Dict[str, int]:
+    def _analyze_file_types(self, files: list[Path]) -> dict[str, int]:
         """Count files by type."""
         type_counter = Counter(f.suffix.lower() for f in files if f.suffix)
         return dict(type_counter.most_common())
 
-    def _analyze_depth_distribution(self, files: List[Path], root: Path) -> Dict[int, int]:
+    def _analyze_depth_distribution(self, files: list[Path], root: Path) -> dict[int, int]:
         """Analyze distribution of files across directory depths."""
         depth_counter = Counter()
 
@@ -367,7 +366,7 @@ class PatternAnalyzer:
 
         return dict(depth_counter)
 
-    def _extract_common_keywords(self, files: List[Path]) -> List[str]:
+    def _extract_common_keywords(self, files: list[Path]) -> list[str]:
         """Extract common keywords from filenames."""
         # Split filenames into words
         word_counter = Counter()
@@ -382,7 +381,7 @@ class PatternAnalyzer:
         # Return most common words
         return [word for word, count in word_counter.most_common(20)]
 
-    def _calculate_cluster_confidence(self, files: List[Path], keywords: List[str]) -> float:
+    def _calculate_cluster_confidence(self, files: list[Path], keywords: list[str]) -> float:
         """Calculate confidence score for a cluster."""
         if not files or not keywords:
             return 0.0
@@ -397,7 +396,7 @@ class PatternAnalyzer:
         confidence = (keyword_matches / len(files)) * 100
         return min(confidence, 100.0)
 
-    def _infer_category(self, name: str, file_types: Set[str]) -> str:
+    def _infer_category(self, name: str, file_types: set[str]) -> str:
         """Infer category from directory name or file types."""
         name_lower = name.lower()
 

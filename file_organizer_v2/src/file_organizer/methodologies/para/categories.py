@@ -8,12 +8,12 @@ Based on Tiago Forte's PARA methodology from "Building a Second Brain".
 """
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 
-class PARACategory(str, Enum):
+class PARACategory(StrEnum):
     """
     PARA methodology categories.
 

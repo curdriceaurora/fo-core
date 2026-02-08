@@ -10,7 +10,15 @@ This module provides:
 from .backup import BackupManager
 from .detector import DuplicateDetector
 from .hasher import FileHasher
-from .image_dedup import ImageDeduplicator
+
+# ImageDeduplicator requires the optional 'imagededup' package
+try:
+    from .image_dedup import ImageDeduplicator
+except ImportError:
+    ImageDeduplicator = None  # type: ignore[assignment,misc]
+from .document_dedup import DocumentDeduplicator
+from .embedder import DocumentEmbedder
+from .extractor import DocumentExtractor
 from .image_utils import (
     ImageMetadata,
     filter_valid_images,
@@ -22,11 +30,8 @@ from .image_utils import (
     validate_image_file,
 )
 from .index import DuplicateIndex
-from .extractor import DocumentExtractor
-from .embedder import DocumentEmbedder
-from .semantic import SemanticAnalyzer
-from .document_dedup import DocumentDeduplicator
 from .reporter import StorageReporter
+from .semantic import SemanticAnalyzer
 
 __all__ = [
     # Hash-based deduplication

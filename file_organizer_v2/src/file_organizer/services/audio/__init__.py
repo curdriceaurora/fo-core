@@ -11,12 +11,12 @@ This module provides audio file processing capabilities including:
 - Audio utility functions
 """
 
+from .classifier import AudioClassifier, AudioType, ClassificationResult
+from .content_analyzer import AudioContentAnalyzer, ContentAnalysis
 from .metadata_extractor import AudioMetadata, AudioMetadataExtractor
+from .organizer import AudioOrganizer, OrganizationPlan, OrganizationResult, OrganizationRules
 from .preprocessor import AudioFormat, AudioPreprocessor
 from .transcriber import AudioTranscriber, TranscriptionOptions, TranscriptionResult
-from .classifier import AudioClassifier, AudioType, ClassificationResult
-from .organizer import AudioOrganizer, OrganizationRules, OrganizationResult, OrganizationPlan
-from .content_analyzer import AudioContentAnalyzer, ContentAnalysis
 from .utils import (
     convert_audio_format,
     get_audio_duration,

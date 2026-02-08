@@ -4,11 +4,10 @@ Storage reclamation reporter.
 Generates reports on duplicate detection and storage savings.
 """
 
-from pathlib import Path
-from typing import Dict
-import json
 import csv
+import json
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class StorageReporter:
         """Initialize the storage reporter."""
         pass
 
-    def calculate_reclamation(self, duplicate_groups: list[Dict]) -> Dict:
+    def calculate_reclamation(self, duplicate_groups: list[dict]) -> dict:
         """
         Calculate storage reclamation metrics.
 
@@ -97,7 +96,7 @@ class StorageReporter:
 
     def export_to_csv(
         self,
-        duplicate_groups: list[Dict],
+        duplicate_groups: list[dict],
         output_path: Path
     ) -> None:
         """

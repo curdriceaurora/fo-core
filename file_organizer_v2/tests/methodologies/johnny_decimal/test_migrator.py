@@ -4,17 +4,17 @@ Tests for Johnny Decimal Migration Engine
 Tests scanner, transformer, validator, and migrator components.
 """
 
-import pytest
 import shutil
 from pathlib import Path
-from datetime import datetime
+
+import pytest
 
 from file_organizer.methodologies.johnny_decimal import (
     FolderScanner,
     FolderTransformer,
-    MigrationValidator,
-    JohnnyDecimalMigrator,
     JohnnyDecimalGenerator,
+    JohnnyDecimalMigrator,
+    MigrationValidator,
     get_default_scheme,
 )
 
@@ -258,7 +258,7 @@ class TestMigrationValidator:
             scan_result.folder_tree, temp_structure
         )
 
-        result = validator.validate_plan(plan)
+        validator.validate_plan(plan)
 
         # All numbers should be in valid ranges
         for rule in plan.rules:
@@ -310,7 +310,7 @@ class TestJohnnyDecimalMigrator:
         assert result.backup_path is None  # No backup in dry run
 
         # Verify no actual changes
-        original_folders = list(temp_structure.rglob("*"))
+        list(temp_structure.rglob("*"))
         # Structure should be unchanged after dry run
 
     def test_execute_migration_with_backup(self, migrator, temp_structure):

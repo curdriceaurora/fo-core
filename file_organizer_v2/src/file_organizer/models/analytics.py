@@ -5,7 +5,6 @@ Data classes for analytics dashboard, storage stats, and quality metrics.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional
 from datetime import datetime
 from pathlib import Path
 
@@ -17,7 +16,7 @@ class FileInfo:
     size: int
     type: str
     modified: datetime
-    category: Optional[str] = None
+    category: str | None = None
 
 
 @dataclass
@@ -82,7 +81,7 @@ class DuplicateStats:
     space_wasted: int
     space_recoverable: int
     by_type: dict[str, int] = field(default_factory=dict)
-    largest_duplicate_group: Optional[Dict] = None
+    largest_duplicate_group: dict | None = None
 
     @property
     def formatted_space_wasted(self) -> str:
@@ -103,7 +102,7 @@ class QualityMetrics:
     structure_consistency: float  # 0-1
     metadata_completeness: float  # 0-1
     categorization_accuracy: float  # 0-1
-    improvement_rate: Optional[float] = None
+    improvement_rate: float | None = None
 
     @property
     def grade(self) -> str:
@@ -168,8 +167,8 @@ class MetricsSnapshot:
     timestamp: datetime
     storage_stats: StorageStats
     quality_metrics: QualityMetrics
-    duplicate_stats: Optional[DuplicateStats] = None
-    time_savings: Optional[TimeSavings] = None
+    duplicate_stats: DuplicateStats | None = None
+    time_savings: TimeSavings | None = None
 
 
 @dataclass
@@ -215,7 +214,7 @@ class AnalyticsDashboard:
     trends: dict[str, TrendData] = field(default_factory=dict)
     generated_at: datetime = field(default_factory=datetime.utcnow)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert dashboard to dictionary for serialization."""
         return {
             'storage_stats': {

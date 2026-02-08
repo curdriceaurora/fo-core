@@ -8,11 +8,10 @@ This module provides advanced EPUB processing capabilities including:
 - ISBN and identifier parsing
 """
 
+import io
+import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
-import re
-import io
 
 try:
     import ebooklib
@@ -81,20 +80,20 @@ class EPUBMetadata:
     """
     title: str
     authors: list[str]
-    language: Optional[str] = None
-    publisher: Optional[str] = None
-    publication_date: Optional[str] = None
-    isbn: Optional[str] = None
+    language: str | None = None
+    publisher: str | None = None
+    publication_date: str | None = None
+    isbn: str | None = None
     identifiers: dict[str, str] = None
     subjects: list[str] = None
-    description: Optional[str] = None
-    series: Optional[str] = None
-    series_index: Optional[float] = None
-    rights: Optional[str] = None
+    description: str | None = None
+    series: str | None = None
+    series_index: float | None = None
+    rights: str | None = None
     contributors: list[str] = None
     has_cover: bool = False
-    cover_path: Optional[Path] = None
-    epub_version: Optional[str] = None
+    cover_path: Path | None = None
+    epub_version: str | None = None
 
     def __post_init__(self):
         """Initialize mutable defaults."""
@@ -161,8 +160,8 @@ class EnhancedEPUBReader:
         self,
         file_path: str | Path,
         extract_cover: bool = False,
-        cover_output_dir: Optional[Path] = None,
-        max_chapters: Optional[int] = None
+        cover_output_dir: Path | None = None,
+        max_chapters: int | None = None
     ) -> EPUBContent:
         """Read and parse an EPUB file.
 
@@ -227,7 +226,7 @@ class EnhancedEPUBReader:
             EPUBMetadata with all available metadata
         """
         # Helper to get metadata value
-        def get_meta(key: str) -> Optional[str]:
+        def get_meta(key: str) -> str | None:
             """Get single metadata value."""
             values = book.get_metadata('DC', key)
             if values and len(values) > 0:
@@ -306,7 +305,7 @@ class EnhancedEPUBReader:
     def _extract_chapters(
         self,
         book: epub.EpubBook,
-        max_chapters: Optional[int] = None
+        max_chapters: int | None = None
     ) -> list[EPUBChapter]:
         """Extract chapters from EPUB.
 
@@ -412,7 +411,7 @@ class EnhancedEPUBReader:
         self,
         title: str,
         book: epub.EpubBook
-    ) -> tuple[Optional[str], Optional[float]]:
+    ) -> tuple[str | None, float | None]:
         """Detect if book is part of a series.
 
         Args:
@@ -471,7 +470,7 @@ class EnhancedEPUBReader:
 
         return None, None
 
-    def _word_to_number(self, word: str) -> Optional[float]:
+    def _word_to_number(self, word: str) -> float | None:
         """Convert word numbers to floats.
 
         Args:
@@ -541,8 +540,8 @@ class EnhancedEPUBReader:
         self,
         book: epub.EpubBook,
         epub_path: Path,
-        output_dir: Optional[Path] = None
-    ) -> Optional[Path]:
+        output_dir: Path | None = None
+    ) -> Path | None:
         """Extract cover image from EPUB.
 
         Args:
@@ -610,7 +609,7 @@ class EnhancedEPUBReader:
             logger.warning(f"Failed to extract cover: {e}")
             return None
 
-    def _detect_epub_version(self, book: epub.EpubBook) -> Optional[str]:
+    def _detect_epub_version(self, book: epub.EpubBook) -> str | None:
         """Detect EPUB version.
 
         Args:

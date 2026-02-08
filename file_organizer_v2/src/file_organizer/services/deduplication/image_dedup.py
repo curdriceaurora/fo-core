@@ -7,8 +7,9 @@ for efficient perceptual hashing and Hamming distance calculations.
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List, Literal, Optional, Set, Tuple
+from typing import Literal
 
 from imagededup.methods import AHash, DHash, PHash
 from PIL import Image
@@ -82,7 +83,7 @@ class ImageDeduplicator:
         else:  # ahash
             self.hasher = AHash()
 
-    def get_image_hash(self, image_path: Path) -> Optional[str]:
+    def get_image_hash(self, image_path: Path) -> str | None:
         """
         Compute perceptual hash for a single image.
 
@@ -151,7 +152,7 @@ class ImageDeduplicator:
         except ValueError as e:
             raise ValueError(f"Invalid hash format: {e}") from e
 
-    def compute_similarity(self, img1: Path, img2: Path) -> Optional[float]:
+    def compute_similarity(self, img1: Path, img2: Path) -> float | None:
         """
         Compute similarity score between two images.
 
@@ -182,8 +183,8 @@ class ImageDeduplicator:
         self,
         directory: Path,
         recursive: bool = True,
-        progress_callback: Optional[Callable[[int, int], None]] = None
-    ) -> Dict[str, List[Path]]:
+        progress_callback: Callable[[int, int], None] | None = None
+    ) -> dict[str, list[Path]]:
         """
         Find duplicate and similar images in a directory.
 
@@ -221,7 +222,7 @@ class ImageDeduplicator:
         logger.info(f"Found {len(image_files)} images to process")
 
         # Compute hashes for all images
-        image_hashes: Dict[Path, str] = {}
+        image_hashes: dict[Path, str] = {}
 
         for idx, img_path in enumerate(image_files, 1):
             img_hash = self.get_image_hash(img_path)
@@ -244,8 +245,8 @@ class ImageDeduplicator:
         )
 
         # Convert back to Path objects and group by representative
-        grouped_duplicates: Dict[str, List[Path]] = {}
-        processed: Set[str] = set()
+        grouped_duplicates: dict[str, list[Path]] = {}
+        processed: set[str] = set()
 
         for image_str, similar_list in duplicates_dict.items():
             if image_str in processed:
@@ -273,9 +274,9 @@ class ImageDeduplicator:
 
     def cluster_by_similarity(
         self,
-        images: List[Path],
-        progress_callback: Optional[Callable[[int, int], None]] = None
-    ) -> List[List[Path]]:
+        images: list[Path],
+        progress_callback: Callable[[int, int], None] | None = None
+    ) -> list[list[Path]]:
         """
         Cluster images into groups of similar images.
 
@@ -293,7 +294,7 @@ class ImageDeduplicator:
             return []
 
         # Compute hashes for all images
-        image_hashes: Dict[Path, str] = {}
+        image_hashes: dict[Path, str] = {}
 
         for idx, img_path in enumerate(images, 1):
             img_hash = self.get_image_hash(img_path)
@@ -307,8 +308,8 @@ class ImageDeduplicator:
             return []
 
         # Build clusters using single-linkage
-        clusters: List[List[Path]] = []
-        processed: Set[Path] = set()
+        clusters: list[list[Path]] = []
+        processed: set[Path] = set()
 
         for img_path, img_hash in image_hashes.items():
             if img_path in processed:
@@ -337,9 +338,9 @@ class ImageDeduplicator:
 
     def batch_compute_hashes(
         self,
-        image_paths: List[Path],
-        progress_callback: Optional[Callable[[int, int], None]] = None
-    ) -> Dict[Path, str]:
+        image_paths: list[Path],
+        progress_callback: Callable[[int, int], None] | None = None
+    ) -> dict[Path, str]:
         """
         Compute perceptual hashes for multiple images.
 
@@ -354,7 +355,7 @@ class ImageDeduplicator:
             Dictionary mapping image paths to their perceptual hashes.
             Images that couldn't be hashed are excluded from results.
         """
-        results: Dict[Path, str] = {}
+        results: dict[Path, str] = {}
 
         for idx, img_path in enumerate(image_paths, 1):
             img_hash = self.get_image_hash(img_path)
@@ -370,7 +371,7 @@ class ImageDeduplicator:
         self,
         directory: Path,
         recursive: bool = True
-    ) -> List[Path]:
+    ) -> list[Path]:
         """
         Find all supported image files in a directory.
 
@@ -381,7 +382,7 @@ class ImageDeduplicator:
         Returns:
             List of paths to image files
         """
-        image_files: List[Path] = []
+        image_files: list[Path] = []
 
         if recursive:
             pattern = "**/*"
@@ -394,7 +395,7 @@ class ImageDeduplicator:
 
         return image_files
 
-    def validate_image(self, image_path: Path) -> Tuple[bool, Optional[str]]:
+    def validate_image(self, image_path: Path) -> tuple[bool, str | None]:
         """
         Validate that an image can be processed.
 
