@@ -122,13 +122,20 @@ class HistoryCleanup:
         Keep only the most recent N operations, delete older ones.
 
         Args:
-            max_operations: Maximum number of operations to keep. Uses config default if not specified.
+            max_operations: Maximum number of operations to keep.
+                Uses config default if not specified. Must be non-negative.
 
         Returns:
             Number of operations deleted
+
+        Raises:
+            ValueError: If max_operations is negative.
         """
         if max_operations is None:
             max_operations = self.config.max_operations
+
+        if max_operations < 0:
+            raise ValueError(f"max_operations must be non-negative, got {max_operations}")
 
         current_count = self.db.get_operation_count()
         if current_count <= max_operations:
@@ -138,25 +145,33 @@ class HistoryCleanup:
         operations_to_delete = current_count - max_operations
         logger.info(f"Cleaning up {operations_to_delete} operations to maintain limit of {max_operations}")
 
-        # Get the timestamp of the Nth most recent operation
-        query = """
-        SELECT timestamp FROM operations
-        ORDER BY timestamp DESC
-        LIMIT 1 OFFSET ?
-        """
-        result = self.db.fetch_one(query, (max_operations,))
+        if max_operations == 0:
+            # Special case: delete all operations
+            delete_query = "DELETE FROM operations"
+            with self.db.transaction() as conn:
+                cursor = conn.execute(delete_query)
+                deleted_count = cursor.rowcount
+        else:
+            # Get the timestamp of the Nth most recent operation
+            # Use OFFSET to find the cutoff point, then delete within same transaction
+            query = """
+            SELECT timestamp FROM operations
+            ORDER BY timestamp DESC
+            LIMIT 1 OFFSET ?
+            """
+            result = self.db.fetch_one(query, (max_operations,))
 
-        if result is None:
-            logger.warning("Could not determine cutoff timestamp")
-            return 0
+            if result is None:
+                logger.warning("Could not determine cutoff timestamp")
+                return 0
 
-        cutoff_timestamp = result['timestamp']
+            cutoff_timestamp = result['timestamp']
 
-        # Delete operations older than the cutoff
-        delete_query = "DELETE FROM operations WHERE timestamp < ?"
-        with self.db.transaction() as conn:
-            cursor = conn.execute(delete_query, (cutoff_timestamp,))
-            deleted_count = cursor.rowcount
+            # Delete operations older than the cutoff (strictly less than)
+            delete_query = "DELETE FROM operations WHERE timestamp < ?"
+            with self.db.transaction() as conn:
+                cursor = conn.execute(delete_query, (cutoff_timestamp,))
+                deleted_count = cursor.rowcount
 
         # Clean up orphaned transactions
         self._cleanup_orphaned_transactions()
