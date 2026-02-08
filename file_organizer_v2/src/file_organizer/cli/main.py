@@ -15,6 +15,7 @@ from file_organizer.cli.daemon import daemon_app
 from file_organizer.cli.dedupe_v2 import dedupe_app
 from file_organizer.cli.rules import rules_app
 from file_organizer.cli.suggest import suggest_app
+from file_organizer.cli.update import update_app
 
 console = Console()
 
@@ -257,6 +258,7 @@ app.add_typer(daemon_app, name="daemon")
 app.add_typer(dedupe_app, name="dedupe")
 app.add_typer(rules_app, name="rules")
 app.add_typer(suggest_app, name="suggest")
+app.add_typer(update_app, name="update")
 
 
 @app.command()

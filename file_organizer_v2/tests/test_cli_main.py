@@ -77,6 +77,10 @@ class TestHelpOutputs:
             ["rules", "preview", "--help"],
             ["rules", "export", "--help"],
             ["rules", "import", "--help"],
+            ["update", "--help"],
+            ["update", "check", "--help"],
+            ["update", "install", "--help"],
+            ["update", "rollback", "--help"],
         ],
     )
     def test_help(self, cmd: list[str]) -> None:

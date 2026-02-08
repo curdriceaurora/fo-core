@@ -16,6 +16,7 @@ from .profile import profile_command
 from .rules import rules_app
 from .suggest import suggest_app
 from .undo_redo import history_command, redo_command, undo_command
+from .update import update_app
 
 __all__ = [
     "app",
@@ -38,4 +39,5 @@ __all__ = [
     "suggest_app",
     "profile_command",
     "undo_command",
+    "update_app",
 ]
