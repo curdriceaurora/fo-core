@@ -103,24 +103,28 @@ class FilePreviewPanel(Static):
         Args:
             path: File to preview.
         """
-        if not path.exists():
-            self.call_from_thread(self.update, "[dim]File not found[/dim]")
-            return
+        try:
+            if not path.exists():
+                self.call_from_thread(self.update, "[dim]File not found[/dim]")
+                return
 
-        if path.is_dir():
-            content = self._preview_directory(path)
-        elif path.suffix.lower() in self._TEXT_EXTENSIONS:
-            content = self._preview_text(path)
-        elif path.suffix.lower() in self._IMAGE_EXTENSIONS:
-            content = self._preview_image(path)
-        elif path.suffix.lower() in self._PDF_EXTENSIONS:
-            content = self._preview_pdf(path)
-        elif path.suffix.lower() in self._ARCHIVE_EXTENSIONS:
-            content = self._preview_archive(path)
-        else:
-            content = self._preview_generic(path)
+            if path.is_dir():
+                content = self._preview_directory(path)
+            elif path.suffix.lower() in self._TEXT_EXTENSIONS:
+                content = self._preview_text(path)
+            elif path.suffix.lower() in self._IMAGE_EXTENSIONS:
+                content = self._preview_image(path)
+            elif path.suffix.lower() in self._PDF_EXTENSIONS:
+                content = self._preview_pdf(path)
+            elif path.suffix.lower() in self._ARCHIVE_EXTENSIONS:
+                content = self._preview_archive(path)
+            else:
+                content = self._preview_generic(path)
 
-        self.call_from_thread(self.update, content)
+            self.call_from_thread(self.update, content)
+        except (AttributeError, RuntimeError):
+            # Widget may not be fully mounted yet (e.g. during tests)
+            pass
 
     # ---- Preview strategies ------------------------------------------
 

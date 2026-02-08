@@ -126,7 +126,7 @@ class FileOrganizerApp(App[None]):
     # View switching
     # ------------------------------------------------------------------
 
-    def action_switch_view(self, name: str) -> None:
+    async def action_switch_view(self, name: str) -> None:
         """Switch the main content area to the named view.
 
         Removes the current ``#view`` widget and mounts a new one
@@ -137,10 +137,10 @@ class FileOrganizerApp(App[None]):
         """
         self._current_view = name
         old = self.query_one("#view")
+        await old.remove()
         new_view = self._create_view(name)
         container = self.query_one("#main-content")
-        old.remove()
-        container.mount(new_view)
+        await container.mount(new_view)
         status = self.query_one(StatusBar)
         status.set_status(f"View: {name.capitalize()}")
 
