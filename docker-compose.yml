@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  file-organizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: file-organizer:latest
+    container_name: file-organizer
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - organizer-data:/data
+      - ./input:/data/input
+      - ./output:/data/output
+    environment:
+      - FILE_ORGANIZER_DATA_DIR=/data
+      - FILE_ORGANIZER_INPUT_DIR=/data/input
+      - FILE_ORGANIZER_OUTPUT_DIR=/data/output
+      - OLLAMA_HOST=http://localhost:11434
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - organizer-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: file-organizer-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - organizer-net
+
+volumes:
+  organizer-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  organizer-net:
+    driver: bridge

@@ -1,0 +1,67 @@
+version: 2
+updates:
+  # Python dependencies (pip)
+  - package-ecosystem: "pip"
+    directory: "/file_organizer_v2"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "curdriceaurora"
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "pytest*"
+          - "mypy"
+          - "ruff"
+          - "black"
+          - "isort"
+          - "pre-commit"
+        update-types:
+          - "minor"
+          - "patch"
+      ai-dependencies:
+        patterns:
+          - "ollama"
+          - "faster-whisper"
+          - "torch"
+      web-dependencies:
+        patterns:
+          - "fastapi"
+          - "uvicorn"
+          - "httpx"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+      - "automated"
+    commit-message:
+      prefix: "ci"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+    commit-message:
+      prefix: "docker"
