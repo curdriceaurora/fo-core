@@ -48,14 +48,14 @@ class ImageMetadata:
         path: Path,
         width: int,
         height: int,
-        format: str,
+        image_format: str,
         mode: str,
         size_bytes: int
     ):
         self.path = path
         self.width = width
         self.height = height
-        self.format = format
+        self.format = image_format
         self.mode = mode
         self.size_bytes = size_bytes
         self.resolution = width * height
@@ -99,7 +99,7 @@ def get_image_metadata(image_path: Path) -> Optional[ImageMetadata]:
     try:
         with Image.open(image_path) as img:
             width, height = img.size
-            format = img.format or "unknown"
+            image_format = img.format or "unknown"
             mode = img.mode
 
         size_bytes = image_path.stat().st_size
@@ -108,7 +108,7 @@ def get_image_metadata(image_path: Path) -> Optional[ImageMetadata]:
             path=image_path,
             width=width,
             height=height,
-            format=format,
+            image_format=image_format,
             mode=mode,
             size_bytes=size_bytes
         )
