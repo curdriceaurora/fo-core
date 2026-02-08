@@ -11,10 +11,13 @@ from .checkpoint import CheckpointManager
 from .config import ExecutorType, ParallelConfig
 from .models import Checkpoint, JobState, JobStatus, JobSummary
 from .persistence import JobPersistence
+from .priority_queue import PriorityQueue, QueueItem
 from .processor import ParallelProcessor
+from .resource_manager import ResourceConfig, ResourceManager, ResourceType
 from .result import BatchResult, FileResult
 from .resume import ResumableProcessor
 from .scheduler import PriorityStrategy, TaskScheduler
+from .throttle import RateThrottler, ThrottleStats
 
 __all__ = [
     "BatchResult",
@@ -28,9 +31,16 @@ __all__ = [
     "JobSummary",
     "ParallelConfig",
     "ParallelProcessor",
+    "PriorityQueue",
     "PriorityStrategy",
+    "QueueItem",
+    "RateThrottler",
     "ResumableProcessor",
+    "ResourceConfig",
+    "ResourceManager",
+    "ResourceType",
     "TaskScheduler",
+    "ThrottleStats",
 ]
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
