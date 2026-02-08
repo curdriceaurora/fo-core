@@ -2,7 +2,7 @@
 Document text extraction module.
 
 Extracts text content from various document formats for semantic analysis.
-Supports PDF, DOCX, TXT, RTF, ODT and other common document formats.
+Supports PDF, DOCX, TXT, RTF, ODT, and Markdown document formats.
 """
 
 from pathlib import Path
@@ -18,8 +18,8 @@ class DocumentExtractor:
 
     Supported formats:
     - PDF (.pdf)
-    - Word Documents (.docx, .doc)
-    - Plain Text (.txt)
+    - Word Documents (.docx)
+    - Plain Text (.txt, .md)
     - Rich Text (.rtf)
     - OpenDocument (.odt)
     """
@@ -27,7 +27,7 @@ class DocumentExtractor:
     def __init__(self):
         """Initialize the document extractor."""
         self.supported_extensions = {
-            '.pdf', '.docx', '.doc', '.txt', '.rtf', '.odt', '.md'
+            '.pdf', '.docx', '.txt', '.rtf', '.odt', '.md'
         }
         self._check_dependencies()
 
@@ -56,7 +56,7 @@ class DocumentExtractor:
         try:
             if extension == '.pdf':
                 return self._extract_pdf(file_path)
-            elif extension in ['.docx', '.doc']:
+            elif extension == '.docx':
                 return self._extract_docx(file_path)
             elif extension == '.txt' or extension == '.md':
                 return self._extract_text(file_path)
