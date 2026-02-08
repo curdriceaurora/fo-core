@@ -11,7 +11,7 @@ authors = [
 ]
 readme = "README.md"
 license = {text = "MIT OR Apache-2.0"}
-requires-python = ">=3.12"
+requires-python = ">=3.9"
 keywords = ["file-management", "ai", "organization", "local-llm", "privacy"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -19,6 +19,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Desktop Environment :: File Managers",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -152,7 +155,7 @@ file_organizer = ["py.typed", "config/*.yaml"]
 # Ruff configuration (linting and formatting)
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py39"
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
@@ -173,7 +176,7 @@ ignore = [
 
 # MyPy configuration (type checking)
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.9"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
