@@ -15,7 +15,7 @@ Based on the Johnny Decimal system by Johnny Noble.
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 
 class NumberLevel(str, Enum):
@@ -48,8 +48,8 @@ class JohnnyDecimalNumber:
     """
 
     area: int
-    category: Optional[int] = None
-    item_id: Optional[int] = None
+    category: int | None = None
+    item_id: int | None = None
     name: str = ""
     description: str = ""
 
@@ -99,7 +99,7 @@ class JohnnyDecimalNumber:
             return f"{self.area:02d}"
 
     @property
-    def parent_number(self) -> Optional[str]:
+    def parent_number(self) -> str | None:
         """Return the parent number in the hierarchy."""
         if self.item_id is not None:
             return f"{self.area:02d}.{self.category:02d}"
@@ -187,8 +187,8 @@ class AreaDefinition:
     area_range_end: int  # e.g., 19
     name: str
     description: str
-    keywords: List[str] = field(default_factory=list)
-    examples: List[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
+    examples: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Validate area definition."""
@@ -225,8 +225,8 @@ class CategoryDefinition:
     category: int
     name: str
     description: str
-    keywords: List[str] = field(default_factory=list)
-    patterns: List[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
+    patterns: list[str] = field(default_factory=list)
     auto_assign: bool = True
 
     def __post_init__(self) -> None:
@@ -268,11 +268,11 @@ class NumberingResult:
     file_path: Path
     number: JohnnyDecimalNumber
     confidence: float
-    reasons: List[str]
-    alternative_numbers: Dict[str, float] = field(default_factory=dict)
-    applied_rules: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    conflicts: List[str] = field(default_factory=list)
+    reasons: list[str]
+    alternative_numbers: dict[str, float] = field(default_factory=dict)
+    applied_rules: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    conflicts: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Validate the numbering result."""
@@ -301,7 +301,7 @@ class NumberingResult:
         """Check if there are any number conflicts."""
         return len(self.conflicts) > 0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert the result to a dictionary."""
         return {
             "file_path": str(self.file_path),
@@ -331,9 +331,9 @@ class NumberingScheme:
 
     name: str
     description: str
-    areas: Dict[int, AreaDefinition] = field(default_factory=dict)
-    categories: Dict[str, CategoryDefinition] = field(default_factory=dict)
-    reserved_numbers: Set[str] = field(default_factory=set)
+    areas: dict[int, AreaDefinition] = field(default_factory=dict)
+    categories: dict[str, CategoryDefinition] = field(default_factory=dict)
+    reserved_numbers: set[str] = field(default_factory=set)
     allow_gaps: bool = True
     auto_increment: bool = True
 
@@ -352,11 +352,11 @@ class NumberingScheme:
         key = f"{category_def.area:02d}.{category_def.category:02d}"
         self.categories[key] = category_def
 
-    def get_area(self, area_number: int) -> Optional[AreaDefinition]:
+    def get_area(self, area_number: int) -> AreaDefinition | None:
         """Get the area definition for a given area number."""
         return self.areas.get(area_number)
 
-    def get_category(self, area: int, category: int) -> Optional[CategoryDefinition]:
+    def get_category(self, area: int, category: int) -> CategoryDefinition | None:
         """Get the category definition for a given area and category."""
         key = f"{area:02d}.{category:02d}"
         return self.categories.get(key)
@@ -369,11 +369,11 @@ class NumberingScheme:
         """Reserve a number to prevent it from being assigned."""
         self.reserved_numbers.add(number.formatted_number)
 
-    def get_available_areas(self) -> List[int]:
+    def get_available_areas(self) -> list[int]:
         """Get list of all defined area numbers."""
         return sorted(self.areas.keys())
 
-    def get_available_categories(self, area: int) -> List[str]:
+    def get_available_categories(self, area: int) -> list[str]:
         """Get list of all defined categories in an area."""
         return sorted([
             key for key in self.categories.keys()
@@ -382,7 +382,7 @@ class NumberingScheme:
 
 
 # Default Johnny Decimal scheme with common area definitions
-DEFAULT_AREAS: List[AreaDefinition] = [
+DEFAULT_AREAS: list[AreaDefinition] = [
     AreaDefinition(
         area_range_start=10,
         area_range_end=19,

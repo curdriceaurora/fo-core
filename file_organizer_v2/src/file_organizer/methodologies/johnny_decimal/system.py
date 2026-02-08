@@ -8,7 +8,7 @@ file organization, including number assignment, validation, and management.
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Any
 
 from .categories import (
     AreaDefinition,
@@ -16,6 +16,7 @@ from .categories import (
     JohnnyDecimalNumber,
     NumberingResult,
     NumberingScheme,
+    NumberLevel,
     get_default_scheme,
 )
 from .numbering import (
@@ -37,8 +38,8 @@ class JohnnyDecimalSystem:
 
     def __init__(
         self,
-        scheme: Optional[NumberingScheme] = None,
-        config_path: Optional[Path] = None,
+        scheme: NumberingScheme | None = None,
+        config_path: Path | None = None,
     ):
         """
         Initialize the Johnny Decimal system.
@@ -86,7 +87,7 @@ class JohnnyDecimalSystem:
         logger.info(f"Initialized with {detected_numbers} existing numbers")
         self._initialized = True
 
-    def _extract_number_from_path(self, path: Path) -> Optional[JohnnyDecimalNumber]:
+    def _extract_number_from_path(self, path: Path) -> JohnnyDecimalNumber | None:
         """
         Extract Johnny Decimal number from a file or directory path.
 
@@ -128,8 +129,8 @@ class JohnnyDecimalSystem:
     def assign_number_to_file(
         self,
         file_path: Path,
-        content: Optional[str] = None,
-        preferred_number: Optional[JohnnyDecimalNumber] = None,
+        content: str | None = None,
+        preferred_number: JohnnyDecimalNumber | None = None,
         auto_register: bool = True,
     ) -> NumberingResult:
         """
@@ -147,9 +148,9 @@ class JohnnyDecimalSystem:
         Raises:
             NumberConflictError: If preferred number conflicts
         """
-        reasons: List[str] = []
-        conflicts: List[str] = []
-        alternative_numbers: Dict[str, float] = {}
+        reasons: list[str] = []
+        conflicts: list[str] = []
+        alternative_numbers: dict[str, float] = {}
         confidence = 0.5
 
         # Check if preferred number is available
@@ -174,7 +175,7 @@ class JohnnyDecimalSystem:
                     logger.error(f"Could not resolve conflict: {e}")
                     raise NumberConflictError(
                         f"Preferred number conflicts and no alternative found: {errors}"
-                    )
+                    ) from e
         else:
             # Suggest number based on content
             if content:
@@ -339,13 +340,13 @@ class JohnnyDecimalSystem:
 
             return result
 
-        except NumberConflictError as e:
+        except NumberConflictError:
             # Rollback: restore old number
             self.generator._used_numbers.add(old_str)
             self.generator._number_mappings[old_str] = file_path
             raise
 
-    def get_area_summary(self, area: int) -> Dict[str, any]:
+    def get_area_summary(self, area: int) -> dict[str, Any]:
         """
         Get summary information about an area.
 
@@ -374,17 +375,17 @@ class JohnnyDecimalSystem:
             "numbers": sorted(used_numbers),
         }
 
-    def get_all_areas_summary(self) -> List[Dict[str, any]]:
+    def get_all_areas_summary(self) -> list[dict[str, Any]]:
         """
         Get summary of all defined areas.
 
         Returns:
-            List of area summaries
+            list of area summaries
         """
         areas = self.scheme.get_available_areas()
         return [self.get_area_summary(area) for area in areas]
 
-    def get_usage_report(self) -> Dict[str, any]:
+    def get_usage_report(self) -> dict[str, Any]:
         """
         Generate a comprehensive usage report.
 
@@ -402,7 +403,7 @@ class JohnnyDecimalSystem:
             "initialized": self._initialized,
         }
 
-    def save_configuration(self, path: Optional[Path] = None) -> None:
+    def save_configuration(self, path: Path | None = None) -> None:
         """
         Save the current configuration to a file.
 
@@ -439,7 +440,7 @@ class JohnnyDecimalSystem:
 
         logger.info(f"Saved configuration to {save_path}")
 
-    def load_configuration(self, path: Optional[Path] = None) -> None:
+    def load_configuration(self, path: Path | None = None) -> None:
         """
         Load configuration from a file.
 
@@ -523,15 +524,18 @@ class JohnnyDecimalSystem:
             raise ValueError("Range cannot span multiple areas")
 
         # Reserve based on level
-        if start.level == "area":
+        if start.level == NumberLevel.AREA:
             for area in range(start.area, end.area + 1):
                 num = JohnnyDecimalNumber(area=area)
                 self.scheme.reserve_number(num)
-        elif start.level == "category":
+        elif start.level == NumberLevel.CATEGORY:
+            assert start.category is not None and end.category is not None
             for cat in range(start.category, end.category + 1):
                 num = JohnnyDecimalNumber(area=start.area, category=cat)
                 self.scheme.reserve_number(num)
         else:  # ID level
+            assert start.item_id is not None and end.item_id is not None
+            assert start.category is not None
             for item in range(start.item_id, end.item_id + 1):
                 num = JohnnyDecimalNumber(
                     area=start.area, category=start.category, item_id=item
@@ -547,3 +551,54 @@ class JohnnyDecimalSystem:
         self.generator.clear_registrations()
         self._initialized = False
         logger.info("Cleared all registrations")
+
+    def create_area(self, area_number: int, name: str, description: str = "") -> JohnnyDecimalNumber:
+        """
+        Create a new area and return its JD number.
+
+        Args:
+            area_number: Area number (10-99)
+            name: Area name
+            description: Optional description
+
+        Returns:
+            JohnnyDecimalNumber for the created area
+        """
+        area_def = AreaDefinition(
+            area_range_start=area_number,
+            area_range_end=area_number,
+            name=name,
+            description=description,
+        )
+        self.scheme.add_area(area_def)
+        number = JohnnyDecimalNumber(area=area_number, name=name, description=description)
+        logger.info(f"Created area: {number.formatted_number} {name}")
+        return number
+
+    def create_category(
+        self, area_number: int, category_number: int, name: str, description: str = ""
+    ) -> JohnnyDecimalNumber:
+        """
+        Create a new category and return its JD number.
+
+        Args:
+            area_number: Parent area number
+            category_number: Category number (01-99)
+            name: Category name
+            description: Optional description
+
+        Returns:
+            JohnnyDecimalNumber for the created category
+        """
+        cat_def = CategoryDefinition(
+            area=area_number,
+            category=category_number,
+            name=name,
+            description=description,
+        )
+        self.scheme.add_category(cat_def)
+        number = JohnnyDecimalNumber(
+            area=area_number, category=category_number, name=name, description=description
+        )
+        logger.info(f"Created category: {number.formatted_number} {name}")
+        return number

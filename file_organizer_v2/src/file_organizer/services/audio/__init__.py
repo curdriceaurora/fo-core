@@ -5,12 +5,18 @@ This module provides audio file processing capabilities including:
 - Audio transcription using Whisper models
 - Audio format preprocessing and conversion
 - Audio metadata extraction
+- Audio type classification
+- Content-based organisation
+- Audio content analysis
 - Audio utility functions
 """
 
 from .metadata_extractor import AudioMetadata, AudioMetadataExtractor
 from .preprocessor import AudioFormat, AudioPreprocessor
 from .transcriber import AudioTranscriber, TranscriptionOptions, TranscriptionResult
+from .classifier import AudioClassifier, AudioType, ClassificationResult
+from .organizer import AudioOrganizer, OrganizationRules, OrganizationResult, OrganizationPlan
+from .content_analyzer import AudioContentAnalyzer, ContentAnalysis
 from .utils import (
     convert_audio_format,
     get_audio_duration,
@@ -30,6 +36,18 @@ __all__ = [
     # Preprocessing
     "AudioPreprocessor",
     "AudioFormat",
+    # Classification
+    "AudioClassifier",
+    "AudioType",
+    "ClassificationResult",
+    # Organisation
+    "AudioOrganizer",
+    "OrganizationRules",
+    "OrganizationResult",
+    "OrganizationPlan",
+    # Content Analysis
+    "AudioContentAnalyzer",
+    "ContentAnalysis",
     # Utilities
     "get_audio_duration",
     "normalize_audio",

@@ -12,6 +12,7 @@ Components:
 - folder_generator: PARA folder structure generation
 - folder_mapper: Category-based folder mapping and organization
 - migration_manager: Migration from flat structures to PARA
+- ai: AI-powered smart suggestions, feedback, and file organization
 
 Author: File Organizer v2.0
 License: MIT
