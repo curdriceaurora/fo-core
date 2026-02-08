@@ -1,10 +1,12 @@
 ---
+status: closed
 issue: 81
 title: Add PARA smart suggestions
 analyzed: 2026-01-24T11:37:58Z
 estimated_hours: 24
 parallelization_factor: 3.5
 ---
+status: closed
 
 # Parallel Work Analysis: Issue #81
 

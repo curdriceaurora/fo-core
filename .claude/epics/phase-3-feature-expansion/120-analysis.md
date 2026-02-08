@@ -1,10 +1,12 @@
 ---
+status: closed
 issue: 120
 title: Build audio content-based organization
 analyzed: 2026-01-24T11:37:58Z
 estimated_hours: 16
 parallelization_factor: 3.0
 ---
+status: closed
 
 # Parallel Work Analysis: Issue #120
 

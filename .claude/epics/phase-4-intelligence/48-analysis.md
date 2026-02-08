@@ -1,10 +1,12 @@
 ---
+status: closed
 issue: 48
 title: Add semantic similarity for document deduplication
 analyzed: 2026-01-21T06:20:56Z
 estimated_hours: 24
 parallelization_factor: 2.4
 ---
+status: closed
 
 # Parallel Work Analysis: Issue #48
 
