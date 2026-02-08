@@ -820,9 +820,10 @@ def read_dxf_file(file_path: str | Path, max_layers: int = 20) -> str:
                 pass
 
             try:
-                author = doc.header.get('$AUTHOR', 'Unknown')
-                if author:
-                    metadata_parts.append(f"Author: {author}")
+                author = doc.header.get('$AUTHOR', '')
+                if not author:
+                    author = doc.header.get('$LASTSAVEDBY', 'Unknown')
+                metadata_parts.append(f"Author: {author}")
             except Exception:
                 pass
 
@@ -904,6 +905,9 @@ def read_dwg_file(file_path: str | Path) -> str:
     except Exception as e:
         # If ezdxf can't read it, provide basic file info
         logger.warning(f"Could not parse DWG file with ezdxf: {e}")
+
+        if not file_path.exists():
+            raise FileReadError(f"File not found: {file_path}") from e
 
         metadata_parts = [
             "=== DWG File Information ===",
