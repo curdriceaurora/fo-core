@@ -32,8 +32,16 @@ class FileHasher:
         
         Args:
             chunk_size: Size of chunks to read at a time (in bytes).
-                       Default is 64KB for optimal performance.
+                       Must be a positive integer. Default is 64KB
+                       for optimal performance.
+        
+        Raises:
+            ValueError: If chunk_size is not a positive integer.
         """
+        if not isinstance(chunk_size, int) or chunk_size <= 0:
+            raise ValueError(
+                f"chunk_size must be a positive integer, got {chunk_size!r}"
+            )
         self.chunk_size = chunk_size
     
     def compute_hash(
