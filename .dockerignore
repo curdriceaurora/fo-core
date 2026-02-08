@@ -1,0 +1,80 @@
+# =============================================================================
+# .dockerignore - Exclude files from Docker build context
+# =============================================================================
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Python artifacts
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+*.egg-info
+*.egg
+dist/
+build/
+eggs/
+sdist/
+develop-eggs/
+.installed.cfg
+
+# Virtual environments
+.venv
+venv
+env
+.env
+.env.*
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.project
+.settings
+
+# Test artifacts
+.pytest_cache
+.coverage
+coverage.xml
+htmlcov/
+.tox
+.nox
+.mypy_cache
+.ruff_cache
+
+# Documentation (not needed at runtime)
+docs/
+*.md
+!README.md
+LICENSE
+
+# CI/CD configuration
+.github/
+.claude/
+.gitlab-ci.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (avoid recursive inclusion)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Development files
+technical-debt/
+archive/
+phase3-audio/
+phase4-intelligence/
+*.bak
+*.log
+
+# Node artifacts (if any)
+node_modules/
+package-lock.json

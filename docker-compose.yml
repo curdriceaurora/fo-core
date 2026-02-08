@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  file-organizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: file-organizer
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - organizer-data:/data
+    environment:
+      - FILE_ORGANIZER_DATA_DIR=/data
+      - FILE_ORGANIZER_LOG_LEVEL=INFO
+      - REDIS_URL=redis://redis:6379/0
+    networks:
+      - organizer-network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: file-organizer-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - organizer-network
+
+volumes:
+  organizer-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  organizer-network:
+    driver: bridge

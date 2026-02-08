@@ -1,0 +1,53 @@
+# Development override for docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+version: "3.8"
+
+services:
+  file-organizer:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: file-organizer-dev
+    volumes:
+      - ./file_organizer_v2/src:/app/file_organizer_v2/src
+      - organizer-data:/data
+    environment:
+      - FILE_ORGANIZER_DATA_DIR=/data
+      - FILE_ORGANIZER_LOG_LEVEL=DEBUG
+      - FILE_ORGANIZER_DEBUG=1
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+      - "5678:5678"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: file-organizer-tests
+    volumes:
+      - ./file_organizer_v2/src:/app/file_organizer_v2/src
+      - ./file_organizer_v2/tests:/app/file_organizer_v2/tests
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - FILE_ORGANIZER_LOG_LEVEL=DEBUG
+    command: ["python", "-m", "pytest", "file_organizer_v2/tests/", "-v", "--tb=short"]
+    networks:
+      - organizer-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - test
+
+volumes:
+  organizer-data:
+    driver: local
+
+networks:
+  organizer-network:
+    driver: bridge
