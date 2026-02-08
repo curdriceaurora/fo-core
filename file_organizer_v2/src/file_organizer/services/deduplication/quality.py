@@ -4,11 +4,10 @@ This module provides quality scoring and comparison logic to automatically
 select the highest quality image from a group of similar/duplicate images.
 """
 
-from pathlib import Path
-from typing import Dict, List, Optional
+import logging
 from dataclasses import dataclass
 from enum import IntEnum
-import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +79,7 @@ class ImageQualityAnalyzer:
         'has_transparency': 0.05 # Transparency can be important
     }
 
-    def __init__(self, weights: Optional[dict[str, float]] = None):
+    def __init__(self, weights: dict[str, float] | None = None):
         """Initialize quality analyzer.
 
         Args:
@@ -117,7 +116,7 @@ class ImageQualityAnalyzer:
         ext = path.suffix.lower()
         return self.FORMAT_RANKING.get(ext, ImageFormat.UNKNOWN)
 
-    def _extract_metrics_with_pil(self, path: Path) -> Optional[QualityMetrics]:
+    def _extract_metrics_with_pil(self, path: Path) -> QualityMetrics | None:
         """Extract detailed metrics using PIL.
 
         Args:
@@ -159,10 +158,11 @@ class ImageQualityAnalyzer:
                 }
                 color_depth = mode_bits.get(img.mode, 24)
 
-                file_size = path.stat().st_size
+                stat = path.stat()
+                file_size = stat.st_size
                 format_enum = self._get_format_from_extension(path)
                 aspect_ratio = width / height if height > 0 else 0
-                modification_time = path.stat().st_mtime
+                modification_time = stat.st_mtime
 
                 return QualityMetrics(
                     resolution=resolution,
@@ -189,9 +189,10 @@ class ImageQualityAnalyzer:
         Returns:
             QualityMetrics with basic information
         """
-        file_size = path.stat().st_size
+        stat = path.stat()
+        file_size = stat.st_size
         format_enum = self._get_format_from_extension(path)
-        modification_time = path.stat().st_mtime
+        modification_time = stat.st_mtime
 
         # Estimate resolution based on file size and format
         # These are very rough estimates
@@ -215,7 +216,7 @@ class ImageQualityAnalyzer:
             modification_time=modification_time
         )
 
-    def get_quality_metrics(self, image_path: Path) -> Optional[QualityMetrics]:
+    def get_quality_metrics(self, image_path: Path) -> QualityMetrics | None:
         """Extract quality metrics from an image file.
 
         Args:
@@ -237,21 +238,15 @@ class ImageQualityAnalyzer:
 
         return metrics
 
-    def assess_quality(self, image_path: Path) -> float:
-        """Calculate overall quality score for an image.
-
-        The score is normalized to 0.0-1.0 range, with higher being better.
+    def _score_from_metrics(self, metrics: QualityMetrics) -> float:
+        """Calculate quality score from pre-extracted metrics.
 
         Args:
-            image_path: Path to the image file
+            metrics: Pre-extracted quality metrics
 
         Returns:
-            Quality score (0.0-1.0), or 0.0 if assessment fails
+            Quality score (0.0-1.0)
         """
-        metrics = self.get_quality_metrics(image_path)
-        if metrics is None:
-            return 0.0
-
         score = 0.0
 
         # Resolution score (normalize to typical range: 0-25M pixels)
@@ -281,6 +276,23 @@ class ImageQualityAnalyzer:
 
         return score
 
+    def assess_quality(self, image_path: Path) -> float:
+        """Calculate overall quality score for an image.
+
+        The score is normalized to 0.0-1.0 range, with higher being better.
+
+        Args:
+            image_path: Path to the image file
+
+        Returns:
+            Quality score (0.0-1.0), or 0.0 if assessment fails
+        """
+        metrics = self.get_quality_metrics(image_path)
+        if metrics is None:
+            return 0.0
+
+        return self._score_from_metrics(metrics)
+
     def compare_quality(self, img1: Path, img2: Path) -> int:
         """Compare quality of two images.
 
@@ -306,7 +318,7 @@ class ImageQualityAnalyzer:
         else:
             return 1
 
-    def get_best_quality(self, images: list[Path]) -> Optional[Path]:
+    def get_best_quality(self, images: list[Path]) -> Path | None:
         """Select the best quality image from a list.
 
         Args:
@@ -399,7 +411,7 @@ class ImageQualityAnalyzer:
         for img in images:
             metrics = self.get_quality_metrics(img)
             if metrics:
-                score = self.assess_quality(img)
+                score = self._score_from_metrics(metrics)
                 results.append((img, score, metrics))
 
         # Sort by score descending
