@@ -220,12 +220,8 @@ class DuplicateDetector:
         
         # Process each size group
         for size, files in size_groups.items():
-            # Optimization: skip groups with only one file
+            # Skip groups with only one file - unique sizes cannot be duplicates
             if len(files) == 1:
-                # Still add to index for completeness
-                file_path = files[0]
-                # Give it a unique "hash" since we're not computing it
-                self.index.add_file(file_path, f"unique_{size}_{file_path}")
                 continue
             
             # Hash files in this size group
