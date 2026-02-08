@@ -13,13 +13,12 @@ from typing import Callable, Dict, List, Literal, Optional, Set, Tuple
 from imagededup.methods import AHash, DHash, PHash
 from PIL import Image
 
+from .image_utils import SUPPORTED_FORMATS
+
 logger = logging.getLogger(__name__)
 
 # Supported hash algorithms
 HashMethod = Literal["phash", "dhash", "ahash"]
-
-# Supported image formats
-SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif", ".webp"}
 
 
 class ImageDeduplicator:
