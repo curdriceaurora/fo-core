@@ -5,8 +5,8 @@ a user-typed prefix, suitable for ``typer.Argument(autocompletion=...)``.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 
 def complete_directory(incomplete: str) -> Iterator[tuple[str, str]]:

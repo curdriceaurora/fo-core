@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -173,7 +172,7 @@ def apply(
             console.print(f"  [red]Error: {exc}[/red]")
 
     if dry_run:
-        console.print(f"\n[yellow]Dry run — no changes made.[/yellow]")
+        console.print("\n[yellow]Dry run — no changes made.[/yellow]")
     else:
         console.print(f"\n[green]Applied {applied} suggestions.[/green]")
 

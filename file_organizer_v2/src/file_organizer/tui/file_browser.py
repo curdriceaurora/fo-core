@@ -6,9 +6,9 @@ filtering.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 from textual import on
 from textual.binding import Binding

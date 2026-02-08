@@ -5,9 +5,7 @@ type-dispatched preview panel on the right, plus multi-file selection.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import Set
 
 from textual import on, work
 from textual.binding import Binding
@@ -179,7 +177,7 @@ class FilePreviewPanel(Static):
             content = read_file(str(path))
             if content:
                 return f"[b]Archive Contents[/b]\n\n{content[:2000]}"
-            return f"[b]Archive[/b]\n\n[dim]Empty or unreadable archive[/dim]"
+            return "[b]Archive[/b]\n\n[dim]Empty or unreadable archive[/dim]"
         except Exception as exc:
             return f"[b]Archive[/b]\n\n[dim]Cannot read archive: {exc}[/dim]"
 
