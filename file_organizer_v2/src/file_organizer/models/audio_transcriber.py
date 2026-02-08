@@ -1,4 +1,5 @@
 """Core audio transcription engine using faster-whisper."""
+from __future__ import annotations
 
 import time
 from dataclasses import dataclass

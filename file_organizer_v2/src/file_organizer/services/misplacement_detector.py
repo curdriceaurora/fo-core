@@ -4,6 +4,7 @@ Misplacement Detector Service
 Detects files that are in the wrong location based on content-location
 mismatch analysis.
 """
+from __future__ import annotations
 
 import logging
 import mimetypes

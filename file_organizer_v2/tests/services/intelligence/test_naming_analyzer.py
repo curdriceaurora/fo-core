@@ -4,6 +4,7 @@ Unit tests for Naming Analyzer
 Tests advanced filename analysis, structure comparison, pattern detection,
 and semantic component extraction.
 """
+from __future__ import annotations
 
 import pytest
 

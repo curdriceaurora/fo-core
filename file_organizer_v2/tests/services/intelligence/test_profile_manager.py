@@ -3,6 +3,7 @@ Tests for ProfileManager
 
 Tests profile CRUD operations, activation, validation, and atomic operations.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

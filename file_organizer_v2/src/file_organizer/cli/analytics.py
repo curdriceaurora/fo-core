@@ -5,6 +5,7 @@ Analytics CLI - Display comprehensive analytics dashboard.
 This module provides a command-line interface for viewing storage analytics,
 quality metrics, and organization insights.
 """
+from __future__ import annotations
 
 import argparse
 import sys

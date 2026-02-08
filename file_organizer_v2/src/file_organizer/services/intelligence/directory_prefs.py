@@ -5,6 +5,7 @@ This module provides directory-scoped preferences with parent directory
 inheritance, allowing fine-grained control over file organization behavior
 at different levels of the directory tree.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

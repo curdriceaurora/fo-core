@@ -3,6 +3,7 @@ Storage analysis module.
 
 Analyzes storage usage, file distributions, and identifies optimization opportunities.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

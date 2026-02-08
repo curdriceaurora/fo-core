@@ -3,6 +3,7 @@ Tests for PARA methodology system.
 
 Tests PARA categorization, rules engine, and heuristics.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

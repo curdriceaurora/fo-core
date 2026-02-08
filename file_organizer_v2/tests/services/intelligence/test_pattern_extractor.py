@@ -4,7 +4,7 @@ Unit tests for Pattern Extractor
 Tests filename analysis, pattern extraction, delimiter detection,
 date format recognition, and pattern generation.
 """
-
+from __future__ import annotations
 
 import pytest
 

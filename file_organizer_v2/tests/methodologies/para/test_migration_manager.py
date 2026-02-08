@@ -3,6 +3,7 @@ Tests for PARA migration manager.
 
 Tests file migration from flat structures to PARA organization.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

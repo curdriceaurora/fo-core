@@ -3,6 +3,7 @@ Auto-Tagging Service
 
 Intelligent tag suggestion system that learns from user behavior.
 """
+from __future__ import annotations
 
 from .content_analyzer import ContentTagAnalyzer
 from .tag_learning import TagLearningEngine, TagPattern, TagUsage

@@ -4,6 +4,7 @@ PARA Heuristics Engine
 Multi-factor heuristic detection system for automatic PARA categorization.
 Uses temporal, content, structural, and AI-based heuristics.
 """
+from __future__ import annotations
 
 import logging
 import re

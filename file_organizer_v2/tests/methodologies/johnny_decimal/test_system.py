@@ -3,6 +3,7 @@ Tests for Johnny Decimal system module.
 
 Tests system orchestration, configuration, and integration.
 """
+from __future__ import annotations
 
 import json
 from pathlib import Path

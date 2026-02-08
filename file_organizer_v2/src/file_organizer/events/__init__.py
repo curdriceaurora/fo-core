@@ -13,7 +13,6 @@ Example:
 """
 from __future__ import annotations
 
-
 from file_organizer.events.config import EventConfig
 from file_organizer.events.consumer import EventConsumer
 from file_organizer.events.publisher import EventPublisher

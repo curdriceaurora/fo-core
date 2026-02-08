@@ -11,9 +11,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from file_organizer.services.deduplication.quality import (
-    ImageQualityAnalyzer,
     ImageFormat,
-    QualityMetrics
+    ImageQualityAnalyzer,
+    QualityMetrics,
 )
 
 
@@ -201,7 +201,7 @@ def test_custom_weights():
         print(f"  {key:20s}: {value:.2f}")
 
     analyzer = ImageQualityAnalyzer(weights=custom_weights)
-    print(f"\nAnalyzer created successfully with custom weights")
+    print("\nAnalyzer created successfully with custom weights")
     print(f"Total weight: {sum(analyzer.weights.values()):.2f}")
 
 

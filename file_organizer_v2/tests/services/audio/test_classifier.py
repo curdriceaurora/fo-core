@@ -13,6 +13,7 @@ Tests cover:
 - Confidence and alternatives
 - Edge cases
 """
+from __future__ import annotations
 
 from pathlib import Path
 

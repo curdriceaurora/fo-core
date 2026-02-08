@@ -4,6 +4,7 @@ History viewer for displaying operation history.
 This module provides CLI-friendly formatting and filtering
 for viewing operation history.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

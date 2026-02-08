@@ -4,11 +4,13 @@ Video Scene Detection Service
 Detects scene changes in video files using content-aware and threshold-based algorithms.
 Supports multiple detection methods and provides detailed scene metadata.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from enum import StrEnum
 from pathlib import Path
+
+from file_organizer._compat import StrEnum
 
 logger = logging.getLogger(__name__)
 

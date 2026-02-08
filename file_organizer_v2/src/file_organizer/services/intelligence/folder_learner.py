@@ -4,6 +4,7 @@ Folder preference learning module.
 Learns user folder preferences based on file type, naming patterns, and user corrections.
 Maps file types to preferred folders and detects organization workflows.
 """
+from __future__ import annotations
 
 import json
 import logging

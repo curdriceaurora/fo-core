@@ -5,7 +5,6 @@ from Redis Streams with handler registration.
 """
 from __future__ import annotations
 
-
 import asyncio
 import logging
 from collections.abc import Callable
@@ -242,7 +241,7 @@ class EventConsumer:
                 event_type,
             )
 
-    def __enter__(self) -> "EventConsumer":
+    def __enter__(self) -> EventConsumer:
         """Context manager entry - connects to Redis."""
         self.connect()
         return self

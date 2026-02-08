@@ -4,6 +4,7 @@ Tag Recommendation Engine
 Combines content analysis and learning insights to generate ranked tag suggestions.
 Integrates with smart suggestions infrastructure.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ class TagSuggestion:
         }
 
     @staticmethod
-    def from_dict(data: dict) -> 'TagSuggestion':
+    def from_dict(data: dict) -> TagSuggestion:
         """Create from dictionary."""
         return TagSuggestion(
             tag=data['tag'],

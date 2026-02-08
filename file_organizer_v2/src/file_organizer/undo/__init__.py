@@ -4,6 +4,7 @@ Undo/redo functionality for file operations.
 This module provides comprehensive undo/redo capabilities for file operations,
 including validation, rollback execution, and history viewing.
 """
+from __future__ import annotations
 
 from .models import Conflict, ConflictType, RollbackResult, ValidationResult
 from .rollback import RollbackExecutor

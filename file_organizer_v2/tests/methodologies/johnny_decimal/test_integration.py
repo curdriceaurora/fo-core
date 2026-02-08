@@ -3,6 +3,7 @@ Integration Tests for Johnny Decimal Methodology
 
 Tests complete workflows and cross-component integration.
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

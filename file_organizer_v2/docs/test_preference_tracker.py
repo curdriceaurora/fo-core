@@ -12,10 +12,9 @@ sys.path.insert(0, str(Path(__file__).parent / "file_organizer_v2" / "src"))
 from file_organizer.services.intelligence import (
     PreferenceTracker,
     PreferenceType,
-    CorrectionType,
+    track_category_change,
     track_file_move,
     track_file_rename,
-    track_category_change,
 )
 
 
@@ -47,7 +46,7 @@ def test_basic_tracking():
 
     # Test 4: Get statistics
     stats = tracker.get_statistics()
-    print(f"\n✓ Statistics:")
+    print("\n✓ Statistics:")
     print(f"  - Total corrections: {stats['total_corrections']}")
     print(f"  - Total preferences: {stats['total_preferences']}")
     print(f"  - Unique preferences: {stats['unique_preferences']}")
@@ -74,13 +73,13 @@ def test_basic_tracking():
     # Get updated preference
     pref2 = tracker.get_preference(similar_file, PreferenceType.FOLDER_MAPPING)
     if pref2:
-        print(f"\n✓ Updated preference after second correction:")
+        print("\n✓ Updated preference after second correction:")
         print(f"  - Confidence: {pref2.metadata.confidence} (increased)")
         print(f"  - Frequency: {pref2.metadata.frequency}")
 
     # Test 7: Export and import data
     exported_data = tracker.export_data()
-    print(f"\n✓ Exported data successfully")
+    print("\n✓ Exported data successfully")
     print(f"  - Keys: {list(exported_data.keys())}")
 
     # Create new tracker and import
@@ -88,7 +87,7 @@ def test_basic_tracking():
     new_tracker.import_data(exported_data)
     new_stats = new_tracker.get_statistics()
 
-    print(f"\n✓ Imported data successfully")
+    print("\n✓ Imported data successfully")
     print(f"  - Total corrections: {new_stats['total_corrections']}")
     print(f"  - Total preferences: {new_stats['total_preferences']}")
 
@@ -96,13 +95,13 @@ def test_basic_tracking():
     if pref2:
         original_confidence = pref2.metadata.confidence
         tracker.update_preference_confidence(pref2, success=True)
-        print(f"\n✓ Updated preference confidence:")
+        print("\n✓ Updated preference confidence:")
         print(f"  - Before: {original_confidence}")
         print(f"  - After: {pref2.metadata.confidence}")
 
     # Test 9: Get recent corrections
     recent = tracker.get_recent_corrections(limit=3)
-    print(f"\n✓ Recent corrections (last 3):")
+    print("\n✓ Recent corrections (last 3):")
     for i, corr in enumerate(recent, 1):
         print(f"  {i}. {corr.correction_type.value}: {corr.source.name} -> {corr.destination.name}")
 
@@ -143,15 +142,15 @@ def test_thread_safety():
 
     # Check results
     stats = tracker.get_statistics()
-    print(f"\n✓ Thread-safe operations completed:")
+    print("\n✓ Thread-safe operations completed:")
     print(f"  - Threads run: {len(results)}")
     print(f"  - Total corrections: {stats['total_corrections']}")
     print(f"  - Expected corrections: {len(results) * 5}")
 
     if stats['total_corrections'] == len(results) * 5:
-        print(f"  - Result: PASS ✓")
+        print("  - Result: PASS ✓")
     else:
-        print(f"  - Result: FAIL ✗ (race condition detected)")
+        print("  - Result: FAIL ✗ (race condition detected)")
 
 
 if __name__ == "__main__":

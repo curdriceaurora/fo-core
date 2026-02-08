@@ -11,10 +11,11 @@ Features:
 - Import preview
 - Conflict detection and resolution
 """
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +64,7 @@ class ProfileImporter:
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
-        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
     def validate_import_file(self, file_path: Path) -> ValidationResult:
         """
@@ -388,7 +389,7 @@ class ProfileImporter:
             profile: Profile to backup
         """
         try:
-            timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             backup_name = f"{profile.profile_name}.{timestamp}.backup"
 
             # Export profile to backup

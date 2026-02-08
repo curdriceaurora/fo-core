@@ -5,6 +5,7 @@ feature extraction through suggestion generation, feedback collection,
 and file organization. All tests use real (non-mocked) components but
 do not require Ollama or any AI models.
 """
+from __future__ import annotations
 
 import os
 import time

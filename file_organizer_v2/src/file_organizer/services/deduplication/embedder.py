@@ -3,6 +3,7 @@ Document embedding module using TF-IDF vectorization.
 
 Converts text documents into numerical vectors for similarity comparison.
 """
+from __future__ import annotations
 
 import logging
 import pickle

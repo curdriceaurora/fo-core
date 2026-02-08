@@ -4,6 +4,7 @@ CLI commands for undo/redo operations.
 This module provides command-line interface for undoing and redoing
 file operations.
 """
+from __future__ import annotations
 
 import logging
 import sys

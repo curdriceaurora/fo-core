@@ -4,6 +4,7 @@ Scoring Module - Confidence Scoring Utilities
 This module provides utility functions and classes for confidence scoring,
 including score normalization, ranking, and comparison operations.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any

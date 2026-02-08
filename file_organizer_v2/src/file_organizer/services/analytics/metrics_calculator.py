@@ -1,6 +1,7 @@
 """
 Metrics calculation module for quality scoring and efficiency analysis.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

@@ -5,11 +5,13 @@ Classifies audio files into content types (music, podcast, audiobook, etc.)
 using rule-based heuristics from metadata and optional transcription data.
 No external AI dependencies required.
 """
+from __future__ import annotations
 
 import logging
 import re
 from dataclasses import dataclass, field
-from enum import StrEnum
+
+from file_organizer._compat import StrEnum
 
 from .metadata_extractor import AudioMetadata
 from .transcriber import Segment, TranscriptionResult

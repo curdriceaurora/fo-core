@@ -5,11 +5,12 @@ Provides a privacy-first feedback loop: user acceptances and rejections
 are stored locally in JSON and used to learn patterns that improve future
 suggestions. No data leaves the local machine.
 """
+from __future__ import annotations
 
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +42,7 @@ class FeedbackEvent:
     suggested: PARACategory
     actual: PARACategory
     confidence: float
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     accepted: bool = True
     file_extension: str = ""
     parent_directory: str = ""
@@ -67,7 +68,7 @@ class FeedbackEvent:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FeedbackEvent":
+    def from_dict(cls, data: dict[str, Any]) -> FeedbackEvent:
         """Deserialize from a dictionary."""
         return cls(
             file_path=Path(data["file_path"]),

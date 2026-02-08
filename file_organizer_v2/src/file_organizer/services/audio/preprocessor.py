@@ -4,12 +4,14 @@ Audio Preprocessing Service
 Provides audio format conversion, normalization, and preprocessing
 capabilities to prepare audio files for transcription and analysis.
 """
+from __future__ import annotations
 
 import logging
 import tempfile
 from dataclasses import dataclass
-from enum import StrEnum
 from pathlib import Path
+
+from file_organizer._compat import StrEnum
 
 logger = logging.getLogger(__name__)
 

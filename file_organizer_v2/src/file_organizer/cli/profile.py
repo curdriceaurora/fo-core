@@ -8,6 +8,7 @@ Provides command-line interface for all profile management operations including:
 - Template management
 - Migration operations
 """
+from __future__ import annotations
 
 from pathlib import Path
 

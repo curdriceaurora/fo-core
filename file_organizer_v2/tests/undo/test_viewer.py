@@ -3,6 +3,7 @@ Unit tests for HistoryViewer.
 
 Tests history viewing and filtering functionality.
 """
+from __future__ import annotations
 
 import shutil
 import sys

@@ -1,5 +1,5 @@
 """Tests for video metadata extraction - Phase 3."""
-
+from __future__ import annotations
 
 import pytest
 

@@ -4,6 +4,7 @@ SQLite database manager for operation history tracking.
 This module provides database connection management, schema creation,
 and migration support for the operation history system.
 """
+from __future__ import annotations
 
 import logging
 import sqlite3

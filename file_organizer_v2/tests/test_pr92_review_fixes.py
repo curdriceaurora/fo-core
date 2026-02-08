@@ -9,6 +9,7 @@ Validates fixes for CodeRabbit and Copilot review comments:
 5. Audio preprocessing output_path handling
 6. Temporal heuristic old year detection
 """
+from __future__ import annotations
 
 import tempfile
 from datetime import datetime

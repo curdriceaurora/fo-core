@@ -6,10 +6,11 @@ comprehensive metadata and content from EPUB files.
 """
 
 from pathlib import Path
+
 from file_organizer.utils.epub_enhanced import (
     EnhancedEPUBReader,
     get_epub_metadata,
-    read_epub_simple
+    read_epub_simple,
 )
 
 
@@ -24,7 +25,7 @@ def example_basic_text_extraction():
     # Quick text extraction (backward compatible with existing code)
     text = read_epub_simple(epub_path, max_chars=500)
 
-    print(f"\nExtracted text (first 500 chars):")
+    print("\nExtracted text (first 500 chars):")
     print(text)
     print()
 

@@ -3,6 +3,7 @@ Tests for ProfileExporter and ProfileImporter
 
 Tests export/import functionality, validation, and selective operations.
 """
+from __future__ import annotations
 
 import json
 import shutil

@@ -1,4 +1,5 @@
 """Vision model implementation using Ollama for multimodal tasks."""
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any

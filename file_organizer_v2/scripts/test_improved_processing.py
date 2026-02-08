@@ -7,8 +7,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from file_organizer.services import TextProcessor
 from loguru import logger
+
+from file_organizer.services import TextProcessor
 
 # Configure logging
 logger.remove()
@@ -330,7 +331,7 @@ def test_improved_processing():
             print(f"⏱️  Processing time: {result.processing_time:.2f}s")
             print(f"\n📁 Folder name: {result.folder_name}")
             print(f"📄 Filename: {result.filename}{result.file_path.suffix}")
-            print(f"\n📝 Description:")
+            print("\n📝 Description:")
             print(f"   {result.description}\n")
 
             results.append((description, result))
@@ -344,7 +345,7 @@ def test_improved_processing():
         total_time = sum(r.processing_time for _, r in results)
         avg_time = total_time / len(results) if results else 0
 
-        print(f"\nProcessing Statistics:")
+        print("\nProcessing Statistics:")
         print(f"  Total files: {len(results)}")
         print(f"  Successful: {successful}")
         print(f"  Failed: {len(results) - successful}")
@@ -352,7 +353,7 @@ def test_improved_processing():
         print(f"  Average time: {avg_time:.2f}s per file")
 
         # File organization preview
-        print(f"\n📊 Organization Preview:")
+        print("\n📊 Organization Preview:")
         folders = {}
         for description, result in results:
             if not result.error:
@@ -368,7 +369,7 @@ def test_improved_processing():
                 print(f"     ├── {filename:<40} ({desc})")
 
         # Quality assessment
-        print(f"\n✅ Quality Assessment:")
+        print("\n✅ Quality Assessment:")
 
         # Check if filenames are meaningful (not "untitled")
         meaningful_filenames = sum(
@@ -426,7 +427,7 @@ def main():
         if test_dir.exists():
             import shutil
             shutil.rmtree(test_dir)
-            print(f"\n🧹 Cleaned up test directory")
+            print("\n🧹 Cleaned up test directory")
 
         if success:
             print("\n✓ All tests passed!")

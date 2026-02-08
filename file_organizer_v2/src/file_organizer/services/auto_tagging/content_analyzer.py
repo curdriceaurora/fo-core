@@ -7,6 +7,7 @@ Analyzes file content to extract relevant tags using multiple techniques:
 - Entity recognition
 - File metadata analysis
 """
+from __future__ import annotations
 
 import logging
 import re

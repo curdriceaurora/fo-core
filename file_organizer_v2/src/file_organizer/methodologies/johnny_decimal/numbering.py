@@ -4,6 +4,7 @@ Johnny Decimal Number Generation
 This module provides number generation logic for the Johnny Decimal system,
 including automatic number assignment, validation, and conflict detection.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

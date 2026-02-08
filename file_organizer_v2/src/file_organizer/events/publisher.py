@@ -5,9 +5,8 @@ to Redis Streams.
 """
 from __future__ import annotations
 
-
 import logging
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from file_organizer.events.config import EventConfig
@@ -100,7 +99,7 @@ class EventPublisher:
             event_type=event_type,
             file_path=file_path,
             metadata=metadata or {},
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
         )
 
         message_id = self._manager.publish(
@@ -139,7 +138,7 @@ class EventPublisher:
             scan_id=scan_id,
             status=status,
             stats=stats or {},
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
         )
 
         message_id = self._manager.publish(
@@ -158,7 +157,7 @@ class EventPublisher:
 
         return message_id
 
-    def __enter__(self) -> "EventPublisher":
+    def __enter__(self) -> EventPublisher:
         """Context manager entry - connects to Redis."""
         self.connect()
         return self

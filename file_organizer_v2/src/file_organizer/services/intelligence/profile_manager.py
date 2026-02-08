@@ -11,12 +11,13 @@ Features:
 - Thread-safe operations
 - JSON-based profile storage with versioning
 """
+from __future__ import annotations
 
 import json
 import shutil
 import threading
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +36,7 @@ class Profile:
 
     def __post_init__(self):
         """Initialize default values after dataclass initialization."""
-        now = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         if self.created is None:
             self.created = now
         if self.updated is None:
@@ -55,7 +56,7 @@ class Profile:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> 'Profile':
+    def from_dict(cls, data: dict[str, Any]) -> Profile:
         """Create profile from dictionary."""
         return cls(
             profile_name=data.get('profile_name', 'default'),
@@ -139,7 +140,7 @@ class ProfileManager:
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format."""
-        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
     def _sanitize_profile_name(self, name: str) -> str:
         """

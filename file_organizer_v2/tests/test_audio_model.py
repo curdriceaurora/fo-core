@@ -1,5 +1,5 @@
 """Tests for AudioModel class - Phase 3 placeholder."""
-
+from __future__ import annotations
 
 import pytest
 

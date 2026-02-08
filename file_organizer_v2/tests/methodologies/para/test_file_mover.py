@@ -3,6 +3,7 @@
 Tests cover move suggestion generation, dry-run and actual file moves,
 bulk organization, archive suggestions, and collision handling.
 """
+from __future__ import annotations
 
 import time
 from pathlib import Path

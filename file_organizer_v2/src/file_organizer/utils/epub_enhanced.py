@@ -7,6 +7,7 @@ This module provides advanced EPUB processing capabilities including:
 - Genre and subject detection
 - ISBN and identifier parsing
 """
+from __future__ import annotations
 
 import io
 import re

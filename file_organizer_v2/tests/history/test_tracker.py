@@ -1,6 +1,7 @@
 """
 Tests for operation tracker.
 """
+from __future__ import annotations
 
 import tempfile
 from datetime import datetime, timedelta

@@ -3,6 +3,7 @@ Tests for Johnny Decimal Migration Engine
 
 Tests scanner, transformer, validator, and migrator components.
 """
+from __future__ import annotations
 
 import shutil
 from pathlib import Path

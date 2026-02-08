@@ -12,10 +12,11 @@ Features:
 - Pattern boosting for recent successes
 - Confidence trend analysis
 """
+from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -113,7 +114,7 @@ class ConfidenceEngine:
             Confidence score between 0.0 and 1.0
         """
         if current_time is None:
-            current_time = datetime.now(UTC)
+            current_time = datetime.now(timezone.utc)
 
         # Get usage data
         if usage_data is None:
@@ -262,7 +263,7 @@ class ConfidenceEngine:
             Updated list of patterns with decayed confidence
         """
         if current_time is None:
-            current_time = datetime.now(UTC)
+            current_time = datetime.now(timezone.utc)
 
         if time_threshold is None:
             time_threshold = self.old_pattern_threshold_days
@@ -329,7 +330,7 @@ class ConfidenceEngine:
             Updated list of patterns with boosted confidence
         """
         if current_time is None:
-            current_time = datetime.now(UTC)
+            current_time = datetime.now(timezone.utc)
 
         boosted_patterns = []
 
@@ -420,7 +421,7 @@ class ConfidenceEngine:
             Dictionary with trend analysis including direction and rate
         """
         if current_time is None:
-            current_time = datetime.now(UTC)
+            current_time = datetime.now(timezone.utc)
 
         usage_data = self._usage_data.get(pattern_id)
         if usage_data is None or len(usage_data.usage_records) < 2:

@@ -4,6 +4,7 @@ File system monitor for real-time directory watching.
 Provides the FileMonitor class that manages watchdog observers,
 coordinates event handling, and supports dynamic directory management.
 """
+from __future__ import annotations
 
 import logging
 import threading

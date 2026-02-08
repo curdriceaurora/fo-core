@@ -5,6 +5,7 @@ Generates organized folder structures for audio files based on their
 classification type and metadata. Supports customizable path templates,
 dry-run previews, and safe file operations.
 """
+from __future__ import annotations
 
 import logging
 import re

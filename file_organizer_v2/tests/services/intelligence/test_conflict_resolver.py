@@ -3,6 +3,7 @@ Unit tests for ConflictResolver class.
 
 Tests conflict resolution with multiple weighting strategies.
 """
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 

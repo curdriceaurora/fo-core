@@ -4,6 +4,7 @@ History cleanup and maintenance utilities.
 This module provides functionality for managing operation history size,
 including automatic cleanup, manual purging, and database maintenance.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta

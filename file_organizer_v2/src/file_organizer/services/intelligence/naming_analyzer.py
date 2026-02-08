@@ -4,6 +4,7 @@ Naming Analyzer - Advanced Filename Analysis
 This module provides advanced analysis of filename patterns, including
 semantic analysis, structure comparison, and pattern matching utilities.
 """
+from __future__ import annotations
 
 import re
 from collections import Counter

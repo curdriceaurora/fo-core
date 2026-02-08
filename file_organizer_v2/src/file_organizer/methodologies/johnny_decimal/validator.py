@@ -4,6 +4,7 @@ Johnny Decimal Migration Validator
 Validates transformation plans before execution to prevent errors and data loss.
 Checks for conflicts, invalid numbers, and potential issues.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field

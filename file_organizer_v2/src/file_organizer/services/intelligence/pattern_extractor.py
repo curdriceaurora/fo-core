@@ -15,6 +15,7 @@ Features:
 - Structure similarity scoring
 - Regex pattern generation from examples
 """
+from __future__ import annotations
 
 import re
 from collections import Counter

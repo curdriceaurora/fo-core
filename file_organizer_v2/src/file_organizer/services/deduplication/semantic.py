@@ -3,6 +3,7 @@ Semantic similarity analysis module.
 
 Computes cosine similarity between document embeddings and identifies similar documents.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

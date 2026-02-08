@@ -4,6 +4,7 @@ PARA Migration Manager
 Handles migration of files from flat or hierarchical structures to PARA organization.
 Supports dry-run, rollback, and detailed reporting.
 """
+from __future__ import annotations
 
 import logging
 import os

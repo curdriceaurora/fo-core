@@ -4,6 +4,7 @@ Image utility functions for deduplication operations.
 Provides helper functions for image validation, metadata extraction,
 format conversion, and batch processing operations.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

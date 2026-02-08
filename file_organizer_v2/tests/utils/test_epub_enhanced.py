@@ -7,6 +7,7 @@ This module tests the EnhancedEPUBReader class which provides:
 - Series detection
 - EPUB 2/3 support
 """
+from __future__ import annotations
 
 import io
 from pathlib import Path

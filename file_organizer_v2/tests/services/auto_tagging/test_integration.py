@@ -1,4 +1,5 @@
 """Integration tests for auto-tagging system."""
+from __future__ import annotations
 
 import shutil
 import tempfile

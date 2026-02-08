@@ -6,12 +6,13 @@ backup/restore functionality, and migration support.
 
 Schema Version: 1.0
 """
+from __future__ import annotations
 
 import json
 import shutil
 import threading
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -38,9 +39,9 @@ class DirectoryPreference:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> 'DirectoryPreference':
+    def from_dict(cls, data: dict[str, Any]) -> DirectoryPreference:
         """Create from dictionary"""
-        now = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+        now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         return cls(
             folder_mappings=data.get('folder_mappings', {}),
             naming_patterns=data.get('naming_patterns', {}),
@@ -94,7 +95,7 @@ class PreferenceStore:
 
     def _get_current_timestamp(self) -> str:
         """Get current UTC timestamp in ISO format"""
-        return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+        return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
     def _create_empty_preferences(self) -> dict[str, Any]:
         """Create empty preference structure"""
@@ -439,7 +440,7 @@ class PreferenceStore:
             # Parse ISO format and make timezone aware for comparison
             updated_dt = datetime.fromisoformat(updated.replace('Z', '+00:00'))
             # Make now timezone aware as well
-            now = datetime.now(UTC)
+            now = datetime.now(timezone.utc)
             days_old = (now - updated_dt).days
             recency_score = 1.0 / (1.0 + days_old / 30.0)  # Decay over 30 days
         except (ValueError, AttributeError):
@@ -517,7 +518,7 @@ class PreferenceStore:
 
                 # Create backup before importing
                 if self.preference_file.exists():
-                    backup_timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+                    backup_timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
                     backup_path = self.storage_path / f"{self.DEFAULT_FILENAME}.{backup_timestamp}.backup"
                     shutil.copy2(self.preference_file, backup_path)
 

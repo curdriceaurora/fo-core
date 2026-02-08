@@ -4,6 +4,7 @@ Johnny Decimal PARA Compatibility Layer
 Integrates Johnny Decimal methodology with PARA (Projects/Areas/Resources/Archive)
 organizational system, allowing hybrid setups and smooth migrations.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass

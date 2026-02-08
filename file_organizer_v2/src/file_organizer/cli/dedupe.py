@@ -5,6 +5,7 @@ Deduplication CLI - Interactive duplicate file detection and removal.
 This module provides a user-friendly command-line interface for finding and
 removing duplicate files using hash-based detection.
 """
+from __future__ import annotations
 
 import argparse
 import sys

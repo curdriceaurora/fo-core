@@ -3,6 +3,7 @@ Auto-Tagging CLI Commands
 
 Command-line interface for the auto-tagging system.
 """
+from __future__ import annotations
 
 import json
 import sys

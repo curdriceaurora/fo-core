@@ -4,6 +4,7 @@ Transaction context manager for batch operations.
 This module provides a context manager for grouping related file operations
 into atomic transactions that can be committed or rolled back.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -45,7 +46,7 @@ class OperationTransaction:
         self._committed = False
         self._rolled_back = False
 
-    def __enter__(self) -> 'OperationTransaction':
+    def __enter__(self) -> OperationTransaction:
         """
         Enter transaction context.
 

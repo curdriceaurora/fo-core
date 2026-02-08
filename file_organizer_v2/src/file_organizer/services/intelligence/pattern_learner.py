@@ -4,6 +4,7 @@ Pattern learning orchestrator module.
 Coordinates pattern extraction, confidence scoring, folder learning, and feedback processing
 to provide a unified pattern learning system.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

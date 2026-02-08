@@ -9,6 +9,7 @@ Tests cover:
 - Integration with AudioMetadata and TranscriptionResult
 - Edge cases (empty text, no transcription, short segments)
 """
+from __future__ import annotations
 
 from pathlib import Path
 

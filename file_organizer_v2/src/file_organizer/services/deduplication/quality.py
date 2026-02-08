@@ -3,6 +3,7 @@
 This module provides quality scoring and comparison logic to automatically
 select the highest quality image from a group of similar/duplicate images.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass

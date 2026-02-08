@@ -4,6 +4,7 @@ Pattern Analyzer Service
 Analyzes file organization patterns including directory structures,
 naming conventions, and content-based clustering.
 """
+from __future__ import annotations
 
 import logging
 import re

@@ -6,6 +6,7 @@ from audio metadata and transcription data.  Uses lightweight NLP
 techniques (keyword extraction, regex, heuristics) without requiring
 external AI models.
 """
+from __future__ import annotations
 
 import logging
 import re

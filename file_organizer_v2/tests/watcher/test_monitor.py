@@ -4,6 +4,7 @@ Unit tests for FileMonitor.
 Tests directory watching, event collection, dynamic directory management,
 and integration with real file operations using tmp_path fixtures.
 """
+from __future__ import annotations
 
 import time
 from pathlib import Path

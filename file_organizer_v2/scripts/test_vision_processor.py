@@ -7,8 +7,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from file_organizer.services import VisionProcessor
 from loguru import logger
+
+from file_organizer.services import VisionProcessor
 
 # Configure logging
 logger.remove()

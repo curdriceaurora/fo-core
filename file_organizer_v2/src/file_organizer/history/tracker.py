@@ -4,6 +4,7 @@ Operation tracker for logging file operations.
 This module provides the main interface for tracking file operations
 and managing operation history.
 """
+from __future__ import annotations
 
 import hashlib
 import json

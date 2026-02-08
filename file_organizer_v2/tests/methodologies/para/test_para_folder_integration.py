@@ -3,6 +3,7 @@ Integration tests for PARA folder generation system.
 
 Tests the complete workflow of folder generation, file mapping, and migration.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

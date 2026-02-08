@@ -4,6 +4,7 @@ Feedback processing module.
 Processes user corrections and feedback to update pattern learning models in real-time.
 Supports both individual corrections and batch history analysis.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

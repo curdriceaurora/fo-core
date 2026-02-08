@@ -4,6 +4,7 @@ Duplicate file index module.
 Maintains an efficient hash-to-files mapping for quick duplicate detection
 and provides statistics about duplicates and potential space savings.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime

@@ -3,13 +3,15 @@ Data models for operation history tracking.
 
 This module defines the data structures for operations and transactions.
 """
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+from file_organizer._compat import StrEnum
 
 
 class OperationType(StrEnum):
@@ -89,7 +91,7 @@ class Operation:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> 'Operation':
+    def from_dict(cls, data: dict[str, Any]) -> Operation:
         """
         Create operation from dictionary.
 
@@ -143,7 +145,7 @@ class Operation:
         )
 
     @classmethod
-    def from_row(cls, row) -> 'Operation':
+    def from_row(cls, row) -> Operation:
         """
         Create operation from database row.
 
@@ -194,7 +196,7 @@ class Transaction:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> 'Transaction':
+    def from_dict(cls, data: dict[str, Any]) -> Transaction:
         """
         Create transaction from dictionary.
 
@@ -233,7 +235,7 @@ class Transaction:
         )
 
     @classmethod
-    def from_row(cls, row) -> 'Transaction':
+    def from_row(cls, row) -> Transaction:
         """
         Create transaction from database row.
 

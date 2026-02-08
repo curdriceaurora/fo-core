@@ -1,4 +1,5 @@
 """Tests for ChartGenerator."""
+from __future__ import annotations
 
 from file_organizer.utils.chart_generator import ChartGenerator
 

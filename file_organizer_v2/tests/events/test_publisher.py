@@ -6,7 +6,6 @@ publisher API. All tests mock the underlying RedisStreamManager.
 """
 from __future__ import annotations
 
-
 from unittest.mock import MagicMock
 
 import pytest

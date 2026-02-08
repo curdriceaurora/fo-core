@@ -3,8 +3,9 @@
 Tests cover FeedbackEvent serialization, FeedbackCollector persistence,
 AccuracyStats computation, and PatternLearner rule generation.
 """
+from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -75,7 +76,7 @@ class TestFeedbackEvent:
             "suggested": "project",
             "actual": "project",
             "confidence": 0.8,
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "accepted": True,
         }
         event = FeedbackEvent.from_dict(data)

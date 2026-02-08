@@ -7,9 +7,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from file_organizer.models import TextModel, VisionModel
-from file_organizer.models.base import ModelConfig, ModelType
 from loguru import logger
+
+from file_organizer.models import TextModel, VisionModel
 
 # Configure logging
 logger.remove()

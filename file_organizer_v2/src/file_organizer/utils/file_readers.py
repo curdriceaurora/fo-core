@@ -1,4 +1,5 @@
 """File reading utilities for various file types."""
+from __future__ import annotations
 
 from pathlib import Path
 

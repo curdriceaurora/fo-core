@@ -1,4 +1,5 @@
 """Tests for TagLearningEngine."""
+from __future__ import annotations
 
 import shutil
 import tempfile

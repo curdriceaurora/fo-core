@@ -1,6 +1,7 @@
 """
 Command-line interface modules for File Organizer.
 """
+from __future__ import annotations
 
 from .autotag import handle_autotag_command, setup_autotag_parser
 from .dedupe import dedupe_command

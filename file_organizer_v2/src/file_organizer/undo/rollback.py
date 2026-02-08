@@ -4,6 +4,7 @@ Rollback executor for file operations.
 This module executes rollback operations for undo/redo,
 handling all operation types and transaction management.
 """
+from __future__ import annotations
 
 import logging
 import shutil

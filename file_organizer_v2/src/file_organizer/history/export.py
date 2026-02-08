@@ -4,6 +4,7 @@ Export utilities for operation history.
 This module provides functionality to export operation history
 to various formats (JSON, CSV).
 """
+from __future__ import annotations
 
 import csv
 import json

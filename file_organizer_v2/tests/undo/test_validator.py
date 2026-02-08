@@ -3,6 +3,7 @@ Unit tests for OperationValidator.
 
 Tests validation logic for undo/redo operations.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

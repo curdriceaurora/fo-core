@@ -4,6 +4,7 @@ Johnny Decimal Migration Scanner
 Scans existing folder structures to prepare for migration to Johnny Decimal system.
 Detects current organization patterns and suggests appropriate JD mappings.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -21,7 +22,7 @@ class FolderInfo:
     path: Path
     name: str
     depth: int
-    children: list["FolderInfo"] = field(default_factory=list)
+    children: list[FolderInfo] = field(default_factory=list)
     file_count: int = 0
     total_size: int = 0  # bytes
     suggested_number: JohnnyDecimalNumber | None = None

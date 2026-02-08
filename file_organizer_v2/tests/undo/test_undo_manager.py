@@ -3,6 +3,7 @@ Unit tests for UndoManager.
 
 Tests high-level undo/redo management functionality.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

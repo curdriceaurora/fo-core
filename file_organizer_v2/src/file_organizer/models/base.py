@@ -1,4 +1,5 @@
 """Base model interface for all AI models."""
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -95,7 +96,7 @@ class BaseModel(ABC):
         """Check if model is initialized."""
         return self._initialized
 
-    def __enter__(self) -> "BaseModel":
+    def __enter__(self) -> BaseModel:
         """Context manager entry."""
         if not self._initialized:
             self.initialize()

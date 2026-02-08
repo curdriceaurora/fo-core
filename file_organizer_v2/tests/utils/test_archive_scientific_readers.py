@@ -1,4 +1,5 @@
 """Tests for archive and scientific format readers."""
+from __future__ import annotations
 
 import io
 import tarfile

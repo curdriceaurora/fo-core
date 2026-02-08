@@ -5,6 +5,7 @@ Combines heuristic analysis, feature extraction, and optional AI models
 to produce intelligent PARA categorization suggestions. Designed to work
 entirely offline with no cloud dependencies.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field

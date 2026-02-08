@@ -1,4 +1,5 @@
 """Tests for AnalyticsService."""
+from __future__ import annotations
 
 import tempfile
 from datetime import datetime

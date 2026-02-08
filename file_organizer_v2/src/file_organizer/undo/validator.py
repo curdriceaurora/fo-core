@@ -4,6 +4,7 @@ Operation validator for undo/redo operations.
 This module provides validation logic to ensure undo/redo operations
 can be safely executed without conflicts.
 """
+from __future__ import annotations
 
 import hashlib
 import logging

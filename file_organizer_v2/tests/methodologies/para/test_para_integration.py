@@ -3,7 +3,7 @@ PARA Integration Tests
 
 Tests complete workflows and integration with file organizer system.
 """
-
+from __future__ import annotations
 
 import pytest
 

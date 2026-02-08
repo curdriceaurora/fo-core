@@ -3,6 +3,7 @@ Tests for Johnny Decimal categories module.
 
 Tests data models, validation, and category definitions.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

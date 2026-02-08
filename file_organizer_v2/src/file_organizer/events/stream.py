@@ -5,11 +5,10 @@ when Redis is unavailable.
 """
 from __future__ import annotations
 
-
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 try:
@@ -36,7 +35,7 @@ class Event:
     id: str
     stream: str
     data: dict[str, str]
-    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class RedisConnectionError(Exception):
@@ -407,7 +406,7 @@ class RedisStreamManager:
         except Exception:
             return 0
 
-    def __enter__(self) -> "RedisStreamManager":
+    def __enter__(self) -> RedisStreamManager:
         """Context manager entry - connects to Redis."""
         self.connect()
         return self
@@ -443,6 +442,6 @@ def _parse_timestamp_from_id(message_id: str) -> datetime:
     """
     try:
         ms_part = message_id.split("-")[0]
-        return datetime.fromtimestamp(int(ms_part) / 1000.0, tz=UTC)
+        return datetime.fromtimestamp(int(ms_part) / 1000.0, tz=timezone.utc)
     except (ValueError, IndexError):
-        return datetime.now(UTC)
+        return datetime.now(timezone.utc)

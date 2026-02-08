@@ -4,6 +4,7 @@ Unit tests for FileEventHandler.
 Tests debouncing, pattern filtering, callback dispatch, and event queuing.
 Uses real file operations via tmp_path where possible.
 """
+from __future__ import annotations
 
 import time
 from pathlib import Path

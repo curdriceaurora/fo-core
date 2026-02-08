@@ -4,6 +4,7 @@ File hashing module for duplicate detection.
 Provides FileHasher class with MD5 and SHA256 support, chunked reading
 for large files, and batch processing capabilities.
 """
+from __future__ import annotations
 
 import hashlib
 import logging

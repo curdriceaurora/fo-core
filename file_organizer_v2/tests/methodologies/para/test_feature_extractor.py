@@ -3,6 +3,7 @@
 Tests cover text feature extraction, metadata feature extraction,
 and structural feature extraction without any external dependencies.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

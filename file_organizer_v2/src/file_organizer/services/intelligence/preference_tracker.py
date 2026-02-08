@@ -12,9 +12,10 @@ Features:
 - Preference confidence and frequency tracking
 - Real-time preference updates
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from threading import RLock
@@ -61,7 +62,7 @@ class PreferenceMetadata:
         }
 
     @staticmethod
-    def from_dict(data: dict) -> "PreferenceMetadata":
+    def from_dict(data: dict) -> PreferenceMetadata:
         """Create metadata from dictionary."""
         return PreferenceMetadata(
             created=datetime.fromisoformat(data["created"]),
@@ -93,7 +94,7 @@ class Preference:
         }
 
     @staticmethod
-    def from_dict(data: dict) -> "Preference":
+    def from_dict(data: dict) -> Preference:
         """Create preference from dictionary."""
         return Preference(
             preference_type=PreferenceType(data["preference_type"]),
@@ -172,7 +173,7 @@ class PreferenceTracker:
             context: Additional context about the correction
         """
         with self._lock:
-            now = datetime.now(UTC)
+            now = datetime.now(timezone.utc)
 
             # Create correction record
             correction = Correction(
@@ -196,7 +197,7 @@ class PreferenceTracker:
         This method analyzes the correction and updates relevant preferences.
         Must be called within a lock.
         """
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)
         pattern_key = correction.get_pattern_key()
 
         # Determine preference type based on correction type
@@ -333,7 +334,7 @@ class PreferenceTracker:
 
                 # Return the preference with highest confidence
                 best_pref = max(matching_prefs, key=lambda p: p.metadata.confidence)
-                best_pref.metadata.last_used = datetime.now(UTC)
+                best_pref.metadata.last_used = datetime.now(timezone.utc)
                 return best_pref
 
             # For other preference types, use exact pattern matching
@@ -354,7 +355,7 @@ class PreferenceTracker:
             best_pref = max(prefs, key=lambda p: p.metadata.confidence)
 
             # Update last used timestamp
-            best_pref.metadata.last_used = datetime.now(UTC)
+            best_pref.metadata.last_used = datetime.now(timezone.utc)
 
             return best_pref
 
@@ -395,7 +396,7 @@ class PreferenceTracker:
             success: Whether the application was successful
         """
         with self._lock:
-            now = datetime.now(UTC)
+            now = datetime.now(timezone.utc)
 
             if success:
                 # Increase confidence (cap at 0.98)
@@ -487,7 +488,7 @@ class PreferenceTracker:
                 },
                 "corrections": [c.to_dict() for c in self._corrections],
                 "statistics": self._statistics.copy(),
-                "exported_at": datetime.now(UTC).isoformat()
+                "exported_at": datetime.now(timezone.utc).isoformat()
             }
 
     def import_data(self, data: dict) -> None:

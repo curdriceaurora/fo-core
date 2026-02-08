@@ -9,7 +9,6 @@ This script demonstrates:
 4. Quality-based selection
 """
 
-import sys
 from pathlib import Path
 
 # Add src to path for development
@@ -149,7 +148,7 @@ def example_compare_two_images():
         print(f"  - {img2}")
         return
 
-    print(f"Comparing:")
+    print("Comparing:")
     print(f"  1. {img1.name}")
     print(f"  2. {img2.name}")
     print()

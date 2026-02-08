@@ -3,6 +3,7 @@ Analytics data models.
 
 Data classes for analytics dashboard, storage stats, and quality metrics.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime

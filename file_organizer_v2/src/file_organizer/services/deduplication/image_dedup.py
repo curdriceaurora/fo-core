@@ -5,6 +5,7 @@ Provides ImageDeduplicator class with support for pHash, dHash, and aHash
 algorithms for detecting visually similar images. Uses the imagededup library
 for efficient perceptual hashing and Hamming distance calculations.
 """
+from __future__ import annotations
 
 import logging
 from collections.abc import Callable

@@ -3,6 +3,7 @@ Unit tests for RollbackExecutor.
 
 Tests rollback execution for all operation types.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

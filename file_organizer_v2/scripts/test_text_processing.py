@@ -7,8 +7,9 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from file_organizer.services import TextProcessor
 from loguru import logger
+
+from file_organizer.services import TextProcessor
 
 # Configure logging
 logger.remove()
@@ -136,7 +137,7 @@ def test_text_processing():
                 print(f"📄 Filename: {result.filename}")
 
                 if result.original_content:
-                    print(f"\n💾 Original content preview:")
+                    print("\n💾 Original content preview:")
                     print(f"   {result.original_content[:100]}...")
 
                 results.append(result)

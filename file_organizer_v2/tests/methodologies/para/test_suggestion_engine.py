@@ -4,6 +4,7 @@ Tests cover suggestion generation, batch processing, confidence levels,
 explanation formatting, and integration with heuristics. All tests use
 mocks for the heuristic engine to avoid filesystem dependencies.
 """
+from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import MagicMock

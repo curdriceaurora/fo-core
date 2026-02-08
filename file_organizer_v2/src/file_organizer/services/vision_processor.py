@@ -1,4 +1,5 @@
 """Vision file processing service."""
+from __future__ import annotations
 
 import re
 from dataclasses import dataclass
@@ -420,7 +421,7 @@ FILENAME:"""
             self.vision_model.cleanup()
             logger.info("Vision model cleaned up")
 
-    def __enter__(self) -> "VisionProcessor":
+    def __enter__(self) -> VisionProcessor:
         """Context manager entry."""
         self.initialize()
         return self

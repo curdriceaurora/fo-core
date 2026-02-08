@@ -3,6 +3,7 @@ Audio Utility Functions
 
 Common utility functions for audio file processing and analysis.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

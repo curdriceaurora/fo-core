@@ -4,6 +4,7 @@ Johnny Decimal Folder Transformer
 Transforms existing folder structures to Johnny Decimal naming convention.
 Handles renaming, restructuring, and maintains file integrity.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field

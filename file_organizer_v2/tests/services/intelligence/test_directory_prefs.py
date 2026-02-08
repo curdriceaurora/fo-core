@@ -3,6 +3,7 @@ Unit tests for DirectoryPrefs class.
 
 Tests directory-level preference management with hierarchical inheritance.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

@@ -4,6 +4,7 @@ Johnny Decimal Configuration Management
 Manages configuration for Johnny Decimal methodology including hybrid setups
 with PARA and other organizational systems.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -110,7 +111,7 @@ class JohnnyDecimalConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "JohnnyDecimalConfig":
+    def from_dict(cls, data: dict) -> JohnnyDecimalConfig:
         """Create configuration from dictionary."""
         # Parse scheme
         scheme_data = data.get("scheme", {})
@@ -197,7 +198,7 @@ class JohnnyDecimalConfig:
         logger.info(f"Configuration saved to {path}")
 
     @classmethod
-    def load_from_file(cls, path: Path) -> "JohnnyDecimalConfig":
+    def load_from_file(cls, path: Path) -> JohnnyDecimalConfig:
         """
         Load configuration from JSON file.
 
@@ -243,7 +244,7 @@ class ConfigBuilder:
         self._compatibility = CompatibilityConfig()
         self._custom_mappings: dict[str, int] = {}
 
-    def add_area(self, area_number: int, title: str, description: str = "") -> "ConfigBuilder":
+    def add_area(self, area_number: int, title: str, description: str = "") -> ConfigBuilder:
         """
         Add an area to the scheme.
 
@@ -267,7 +268,7 @@ class ConfigBuilder:
 
     def add_category(
         self, area_number: int, category_number: int, title: str, description: str = ""
-    ) -> "ConfigBuilder":
+    ) -> ConfigBuilder:
         """
         Add a category to the scheme.
 
@@ -295,7 +296,7 @@ class ConfigBuilder:
         preserve_names: bool = True,
         create_backups: bool = True,
         max_depth: int = 10,
-    ) -> "ConfigBuilder":
+    ) -> ConfigBuilder:
         """
         Configure migration settings.
 
@@ -321,7 +322,7 @@ class ConfigBuilder:
         areas_area: int = 20,
         resources_area: int = 30,
         archive_area: int = 40,
-    ) -> "ConfigBuilder":
+    ) -> ConfigBuilder:
         """
         Enable and configure PARA integration.
 
@@ -344,7 +345,7 @@ class ConfigBuilder:
         )
         return self
 
-    def add_custom_mapping(self, folder_name: str, area_number: int) -> "ConfigBuilder":
+    def add_custom_mapping(self, folder_name: str, area_number: int) -> ConfigBuilder:
         """
         Add custom folder-to-area mapping.
 

@@ -4,9 +4,11 @@ Data models for undo/redo operations.
 This module defines data structures for validation results, rollback results,
 and conflict detection.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
+
+from file_organizer._compat import StrEnum
 
 
 class ConflictType(StrEnum):

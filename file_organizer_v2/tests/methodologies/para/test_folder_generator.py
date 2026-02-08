@@ -3,6 +3,7 @@ Tests for PARA folder generation.
 
 Tests folder structure generation, validation, and category path management.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

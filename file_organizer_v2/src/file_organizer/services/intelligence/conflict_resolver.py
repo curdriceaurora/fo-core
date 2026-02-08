@@ -4,6 +4,7 @@ Conflict resolution for contradictory preferences.
 This module provides deterministic conflict resolution using multiple
 weighting strategies including recency, frequency, and confidence scoring.
 """
+from __future__ import annotations
 
 import logging
 import math

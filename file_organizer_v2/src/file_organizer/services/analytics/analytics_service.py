@@ -4,6 +4,7 @@ Analytics service - orchestrates all analytics components.
 Main service that coordinates storage analysis, metrics calculation,
 chart generation, and dashboard creation.
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime

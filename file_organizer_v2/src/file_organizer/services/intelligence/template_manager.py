@@ -10,6 +10,7 @@ Features:
 - Custom template creation from existing profiles
 - Template customization options
 """
+from __future__ import annotations
 
 from typing import Any
 

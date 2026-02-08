@@ -4,6 +4,7 @@ Tests for Smart Suggestions System
 Comprehensive tests for pattern analyzer, suggestion engine,
 misplacement detector, and feedback system.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

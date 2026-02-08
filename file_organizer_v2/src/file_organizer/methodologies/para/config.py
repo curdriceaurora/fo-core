@@ -7,6 +7,7 @@ Configuration management for PARA methodology including:
 - Auto-categorization rules
 - Custom patterns and keywords
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
@@ -97,7 +98,7 @@ class PARAConfig:
     archive_dir: str = "Archive"
 
     @classmethod
-    def load_from_yaml(cls, config_path: Path) -> "PARAConfig":
+    def load_from_yaml(cls, config_path: Path) -> PARAConfig:
         """
         Load configuration from YAML file.
 

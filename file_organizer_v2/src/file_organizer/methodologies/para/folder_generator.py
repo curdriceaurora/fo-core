@@ -4,6 +4,7 @@ PARA Folder Structure Generator
 Creates and manages PARA (Projects, Areas, Resources, Archive) folder structures
 with support for custom templates and nested organizations.
 """
+from __future__ import annotations
 
 import logging
 from dataclasses import dataclass

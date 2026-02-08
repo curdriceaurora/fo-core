@@ -8,6 +8,7 @@ Provides a terminal-based UI for reviewing duplicate images with:
 - Batch review operations
 - User decision recording
 """
+from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass

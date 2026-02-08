@@ -4,6 +4,7 @@ Johnny Decimal Methodology Adapters
 Adapter pattern implementation for bridging Johnny Decimal with other
 organizational methodologies and file management systems.
 """
+from __future__ import annotations
 
 import hashlib
 import logging

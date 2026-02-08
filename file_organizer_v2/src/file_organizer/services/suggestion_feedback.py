@@ -4,6 +4,7 @@ Suggestion Feedback System
 Tracks user actions on suggestions and provides continuous learning
 through pattern refinement.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -43,7 +44,7 @@ class FeedbackEntry:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'FeedbackEntry':
+    def from_dict(cls, data: dict) -> FeedbackEntry:
         """Create from dictionary."""
         return cls(
             suggestion_id=data['suggestion_id'],

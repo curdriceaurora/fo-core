@@ -11,11 +11,13 @@ The Johnny Decimal system:
 
 Based on the Johnny Decimal system by Johnny Noble.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+from file_organizer._compat import StrEnum
 
 
 class NumberLevel(StrEnum):
@@ -133,7 +135,7 @@ class JohnnyDecimalNumber:
         """Make hashable for use in sets and dicts."""
         return hash((self.area, self.category, self.item_id))
 
-    def __lt__(self, other: "JohnnyDecimalNumber") -> bool:
+    def __lt__(self, other: JohnnyDecimalNumber) -> bool:
         """Support sorting of numbers."""
         return (self.area, self.category or 0, self.item_id or 0) < (
             other.area,
@@ -142,7 +144,7 @@ class JohnnyDecimalNumber:
         )
 
     @classmethod
-    def from_string(cls, number_str: str) -> "JohnnyDecimalNumber":
+    def from_string(cls, number_str: str) -> JohnnyDecimalNumber:
         """
         Parse a Johnny Decimal number from string.
 

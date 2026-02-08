@@ -5,12 +5,13 @@ Extracts text, metadata, and structural features from files to support
 intelligent PARA categorization. All analysis is performed locally
 without any cloud API dependencies.
 """
+from __future__ import annotations
 
 import logging
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -255,8 +256,8 @@ class FeatureExtractor:
         now = time.time()
 
         # Convert timestamps to datetime
-        creation_date = datetime.fromtimestamp(stat.st_ctime, tz=UTC)
-        modification_date = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
+        creation_date = datetime.fromtimestamp(stat.st_ctime, tz=timezone.utc)
+        modification_date = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
 
         # Days calculations
         days_since_modified = (now - stat.st_mtime) / 86400.0

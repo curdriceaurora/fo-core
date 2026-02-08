@@ -4,6 +4,7 @@ Integration Tests for Audio Content-Based Organization
 Tests the complete pipeline: metadata -> classification -> content analysis -> organisation.
 All tests use mock data (no actual audio files or AI models required).
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

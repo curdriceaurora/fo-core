@@ -4,6 +4,7 @@ Tag Learning Engine
 Learns from user tagging patterns to improve tag suggestions over time.
 Tracks tag usage, co-occurrences, and builds personalized tag models.
 """
+from __future__ import annotations
 
 import json
 import logging
@@ -33,7 +34,7 @@ class TagPattern:
         return data
 
     @staticmethod
-    def from_dict(data: dict) -> 'TagPattern':
+    def from_dict(data: dict) -> TagPattern:
         """Create from dictionary."""
         if 'last_seen' in data and data['last_seen']:
             data['last_seen'] = datetime.fromisoformat(data['last_seen'])
@@ -62,7 +63,7 @@ class TagUsage:
         }
 
     @staticmethod
-    def from_dict(data: dict) -> 'TagUsage':
+    def from_dict(data: dict) -> TagUsage:
         """Create from dictionary."""
         return TagUsage(
             tag=data['tag'],

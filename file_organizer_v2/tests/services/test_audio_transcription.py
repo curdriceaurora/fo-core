@@ -1,5 +1,5 @@
 """Tests for audio transcription service - Phase 3."""
-
+from __future__ import annotations
 
 import pytest
 

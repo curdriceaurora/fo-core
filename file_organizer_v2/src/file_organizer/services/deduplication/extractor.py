@@ -4,6 +4,7 @@ Document text extraction module.
 Extracts text content from various document formats for semantic analysis.
 Supports PDF, DOCX, TXT, RTF, ODT, and Markdown document formats.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

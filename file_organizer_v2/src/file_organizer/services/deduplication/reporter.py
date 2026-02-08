@@ -3,6 +3,7 @@ Storage reclamation reporter.
 
 Generates reports on duplicate detection and storage savings.
 """
+from __future__ import annotations
 
 import csv
 import json

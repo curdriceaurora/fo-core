@@ -7,6 +7,7 @@ This demo showcases the 100% quality text processing with real files.
 Supports: PDF, DOCX, TXT, MD, CSV, XLSX, PPT, PPTX, EPUB
 Coming soon: Images, Videos, Audio
 """
+from __future__ import annotations
 
 import sys
 from pathlib import Path
@@ -15,9 +16,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 import argparse
-from file_organizer.core import FileOrganizer
+
 from loguru import logger
 from rich.console import Console
+
+from file_organizer.core import FileOrganizer
 
 # Configure logging
 logger.remove()

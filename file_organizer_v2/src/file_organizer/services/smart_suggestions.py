@@ -4,6 +4,7 @@ Smart Suggestions Service
 Generates intelligent file organization suggestions using AI models
 and pattern analysis.
 """
+from __future__ import annotations
 
 import hashlib
 import logging

@@ -3,6 +3,7 @@ Tests for Johnny Decimal PARA Compatibility
 
 Tests PARA integration, compatibility analyzer, and hybrid organizer.
 """
+from __future__ import annotations
 
 from pathlib import Path
 

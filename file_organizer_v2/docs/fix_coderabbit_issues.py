@@ -5,9 +5,8 @@ Addresses 95 review issues systematically.
 """
 
 import re
-import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 # Base directory
 BASE_DIR = Path(__file__).parent / "file_organizer_v2"

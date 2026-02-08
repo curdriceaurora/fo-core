@@ -11,6 +11,7 @@ Tests cover:
 - Custom organisation rules
 - Edge cases (missing metadata, illegal characters)
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

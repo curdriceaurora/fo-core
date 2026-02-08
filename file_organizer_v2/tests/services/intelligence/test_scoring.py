@@ -3,6 +3,7 @@ Unit tests for Scoring Module
 
 Tests pattern scoring, ranking, filtering, and statistical analysis.
 """
+from __future__ import annotations
 
 import pytest
 

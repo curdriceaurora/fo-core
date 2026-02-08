@@ -4,6 +4,7 @@ PARA Rule Engine Implementation
 Provides interfaces and data structures for the PARA categorization rule engine.
 This is a design specification - actual implementation will be in subsequent tasks.
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -73,7 +74,7 @@ class RuleCondition:
     threshold: float | None = None
     min_matches: int | None = None
     max_matches: int | None = None
-    subconditions: list['RuleCondition'] | None = None
+    subconditions: list[RuleCondition] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):

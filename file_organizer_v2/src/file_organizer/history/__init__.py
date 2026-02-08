@@ -4,6 +4,7 @@ Operation history tracking module.
 This module provides comprehensive operation history tracking for file operations,
 including database management, transaction support, cleanup, and export functionality.
 """
+from __future__ import annotations
 
 from .cleanup import HistoryCleanup, HistoryCleanupConfig
 from .database import DatabaseManager

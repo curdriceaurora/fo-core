@@ -14,8 +14,8 @@ from PIL import Image, ImageDraw
 
 from file_organizer.services.deduplication.image_dedup import ImageDeduplicator
 from file_organizer.services.deduplication.image_utils import (
-    get_image_metadata,
     get_best_quality_image,
+    get_image_metadata,
     validate_image_file,
 )
 

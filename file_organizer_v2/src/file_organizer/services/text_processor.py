@@ -1,4 +1,5 @@
 """Text file processing service."""
+from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -384,7 +385,7 @@ FILENAME:"""
             self.text_model.cleanup()
             logger.info("Text model cleaned up")
 
-    def __enter__(self) -> "TextProcessor":
+    def __enter__(self) -> TextProcessor:
         """Context manager entry."""
         self.initialize()
         return self

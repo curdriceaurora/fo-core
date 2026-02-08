@@ -3,6 +3,7 @@ Unit tests for EventQueue and FileEvent.
 
 Tests thread safety, batching, capacity limits, and blocking behavior.
 """
+from __future__ import annotations
 
 import threading
 import time

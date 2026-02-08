@@ -3,6 +3,7 @@ Suggestion Types and Data Models
 
 Defines the data structures for smart suggestions.
 """
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime

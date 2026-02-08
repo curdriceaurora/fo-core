@@ -3,6 +3,7 @@ Tests for PARA folder mapper.
 
 Tests category-based folder mapping and organization strategies.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

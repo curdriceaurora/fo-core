@@ -4,6 +4,7 @@ Undo/redo manager for file operations.
 This module provides the main interface for undoing and redoing file operations,
 managing undo/redo stacks, and coordinating validation and rollback.
 """
+from __future__ import annotations
 
 import logging
 

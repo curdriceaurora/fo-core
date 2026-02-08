@@ -12,6 +12,7 @@ Tests cover:
 - Thread safety
 - Performance benchmarks
 """
+from __future__ import annotations
 
 import json
 import tempfile

@@ -5,12 +5,11 @@ Demo script for ComparisonViewer.
 This script demonstrates the terminal-based UI for reviewing duplicate images.
 """
 
-import sys
-from pathlib import Path
 
 # Add src to path
-from file_organizer.services.deduplication.viewer import ComparisonViewer
 from rich.console import Console
+
+from file_organizer.services.deduplication.viewer import ComparisonViewer
 
 
 def demo_single_comparison():

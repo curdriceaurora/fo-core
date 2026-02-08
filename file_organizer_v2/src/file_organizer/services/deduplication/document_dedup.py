@@ -4,6 +4,7 @@ Document deduplication orchestrator.
 Integrates text extraction, embedding, and semantic similarity analysis
 for finding duplicate and similar documents.
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path

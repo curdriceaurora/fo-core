@@ -3,6 +3,7 @@ Tests for ProfileMerger and TemplateManager
 
 Tests profile merging, conflict resolution, and template operations.
 """
+from __future__ import annotations
 
 import shutil
 import tempfile

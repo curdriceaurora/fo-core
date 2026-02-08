@@ -30,7 +30,7 @@ def create_sample_images(output_dir: Path) -> None:
     # Draw sun
     draw.ellipse([650, 50, 750, 150], fill=(255, 255, 0))
     img1.save(output_dir / "mountain_landscape.jpg")
-    print(f"✓ Created: mountain_landscape.jpg")
+    print("✓ Created: mountain_landscape.jpg")
 
     # Sample 2: Abstract geometric
     img2 = Image.new('RGB', (600, 600), color=(255, 255, 255))
@@ -39,7 +39,7 @@ def create_sample_images(output_dir: Path) -> None:
     draw.ellipse([300, 200, 500, 400], fill=(0, 0, 255))
     draw.polygon([(250, 50), (150, 200), (350, 200)], fill=(255, 255, 0))
     img2.save(output_dir / "geometric_shapes.jpg")
-    print(f"✓ Created: geometric_shapes.jpg")
+    print("✓ Created: geometric_shapes.jpg")
 
     # Sample 3: Simple text image
     img3 = Image.new('RGB', (800, 400), color=(240, 240, 240))
@@ -47,11 +47,11 @@ def create_sample_images(output_dir: Path) -> None:
     # Try to use a font, fallback to default if not available
     try:
         font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 60)
-    except (OSError, IOError):
+    except OSError:
         font = ImageFont.load_default()
     draw.text((150, 150), "Hello World!", fill=(0, 0, 0), font=font)
     img3.save(output_dir / "text_hello_world.jpg")
-    print(f"✓ Created: text_hello_world.jpg")
+    print("✓ Created: text_hello_world.jpg")
 
     # Sample 4: Food-like image (pizza-ish)
     img4 = Image.new('RGB', (600, 600), color=(255, 228, 196))  # Bisque
@@ -61,7 +61,7 @@ def create_sample_images(output_dir: Path) -> None:
     for x, y in [(200, 200), (400, 200), (300, 350), (150, 400), (450, 400)]:
         draw.ellipse([x-30, y-30, x+30, y+30], fill=(220, 20, 60))
     img4.save(output_dir / "food_pizza.jpg")
-    print(f"✓ Created: food_pizza.jpg")
+    print("✓ Created: food_pizza.jpg")
 
     # Sample 5: Architecture-like (building)
     img5 = Image.new('RGB', (600, 800), color=(135, 206, 235))  # Sky
@@ -75,7 +75,7 @@ def create_sample_images(output_dir: Path) -> None:
             y = 350 + row * 80
             draw.rectangle([x, y, x+50, y+60], fill=(255, 255, 200))
     img5.save(output_dir / "urban_building.jpg")
-    print(f"✓ Created: urban_building.jpg")
+    print("✓ Created: urban_building.jpg")
 
     print(f"\n✓ Created 5 sample images in {output_dir}")
 

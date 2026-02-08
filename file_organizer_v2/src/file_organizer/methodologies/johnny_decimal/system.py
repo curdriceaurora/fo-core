@@ -4,6 +4,7 @@ Johnny Decimal System Core
 This module provides the main system orchestration for Johnny Decimal
 file organization, including number assignment, validation, and management.
 """
+from __future__ import annotations
 
 import json
 import logging
