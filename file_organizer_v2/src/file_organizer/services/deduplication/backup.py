@@ -65,7 +65,7 @@ class BackupManager:
         Raises:
             FileNotFoundError: If the source file doesn't exist
             PermissionError: If unable to create backup due to permissions
-            IOError: If backup creation fails
+            OSError: If backup creation fails
         """
         file_path = Path(file_path).resolve()
 
@@ -84,7 +84,7 @@ class BackupManager:
         try:
             shutil.copy2(file_path, backup_path)
         except Exception as e:
-            raise IOError(f"Failed to create backup: {e}")
+            raise OSError(f"Failed to create backup: {e}")
 
         # Update manifest
         manifest = self._load_manifest()
@@ -113,7 +113,7 @@ class BackupManager:
         Raises:
             FileNotFoundError: If the backup file doesn't exist
             ValueError: If backup is not in manifest
-            IOError: If restoration fails
+            OSError: If restoration fails
         """
         backup_path = Path(backup_path).resolve()
 
@@ -140,7 +140,7 @@ class BackupManager:
         try:
             shutil.copy2(backup_path, target_path)
         except Exception as e:
-            raise IOError(f"Failed to restore backup: {e}")
+            raise OSError(f"Failed to restore backup: {e}")
 
         return target_path
 
@@ -284,7 +284,7 @@ class BackupManager:
         try:
             with open(self.manifest_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (json.JSONDecodeError, OSError):
             # If manifest is corrupted, start fresh
             return {}
 
@@ -298,5 +298,5 @@ class BackupManager:
         try:
             with open(self.manifest_path, 'w', encoding='utf-8') as f:
                 json.dump(manifest, f, indent=2, ensure_ascii=False)
-        except IOError as e:
-            raise IOError(f"Failed to save manifest: {e}") from e
+        except OSError as e:
+            raise OSError(f"Failed to save manifest: {e}") from e

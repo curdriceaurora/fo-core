@@ -113,7 +113,7 @@ class ImageDeduplicator:
             # imagededup expects string path
             encoding = self.hasher.encode_image(str(image_path))
             return encoding
-        except (IOError, OSError) as e:
+        except OSError as e:
             logger.warning(f"Could not read image {image_path}: {e}")
             return None
         except Exception as e:
@@ -426,7 +426,7 @@ class ImageDeduplicator:
                 # Try to load image data to verify it's not corrupt
                 img.verify()
             return True, None
-        except (IOError, OSError) as e:
+        except OSError as e:
             return False, f"Cannot read image: {e}"
         except Exception as e:
             return False, f"Corrupt or invalid image: {e}"

@@ -43,10 +43,10 @@ class DocumentExtractor:
 
         Raises:
             ValueError: If file format not supported
-            IOError: If file cannot be read
+            OSError: If file cannot be read
         """
         if not file_path.exists():
-            raise IOError(f"File not found: {file_path}")
+            raise OSError(f"File not found: {file_path}")
 
         extension = file_path.suffix.lower()
 

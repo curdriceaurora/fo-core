@@ -112,7 +112,7 @@ def get_image_metadata(image_path: Path) -> Optional[ImageMetadata]:
             mode=mode,
             size_bytes=size_bytes
         )
-    except (IOError, OSError) as e:
+    except OSError as e:
         logger.warning(f"Could not read image {image_path}: {e}")
         return None
     except Exception as e:
@@ -209,7 +209,7 @@ def validate_image_file(image_path: Path) -> Tuple[bool, Optional[str]]:
 
         return True, None
 
-    except (IOError, OSError) as e:
+    except OSError as e:
         return False, f"Cannot read image: {e}"
     except Exception as e:
         return False, f"Corrupt or invalid image: {e}"
