@@ -6,11 +6,15 @@ interface for duplicate detection workflows.
 """
 
 from pathlib import Path
-from typing import , Optional, Callable
+import logging
+from collections.abc import Callable
+from typing import Optional
 from dataclasses import dataclass
 
 from .hasher import FileHasher, HashAlgorithm
 from .index import DuplicateIndex, FileMetadata
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -244,7 +248,7 @@ class DuplicateDetector:
                 
                 except (FileNotFoundError, PermissionError, ValueError) as e:
                     # Log error but continue
-                    print(f"Warning: Could not process {file_path}: {e}")
+                    logger.warning("Could not process %s: %s", file_path, e)
                     continue
     
     def find_duplicates_of_file(

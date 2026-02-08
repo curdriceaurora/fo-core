@@ -6,10 +6,13 @@ for large files, and batch processing capabilities.
 """
 
 import hashlib
+import logging
 from pathlib import Path
 from typing import Dict, List, Literal
 
 HashAlgorithm = Literal["md5", "sha256"]
+
+logger = logging.getLogger(__name__)
 
 
 class FileHasher:
@@ -111,8 +114,7 @@ class FileHasher:
                 results[file_path] = hash_value
             except (FileNotFoundError, PermissionError, ValueError) as e:
                 # Log error but continue processing
-                # In a production system, this would use proper logging
-                print(f"Warning: Could not hash {file_path}: {e}")
+                logger.warning("Could not hash %s: %s", file_path, e)
                 continue
         
         return results
