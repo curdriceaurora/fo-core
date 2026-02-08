@@ -6,6 +6,7 @@ from __future__ import annotations
 from file_organizer.cli.main import app, main
 
 from .autotag import handle_autotag_command, setup_autotag_parser
+from .copilot import copilot_app
 from .completion import complete_directory, complete_file
 from .daemon import daemon_app
 from .dedupe import dedupe_command
@@ -17,6 +18,7 @@ from .undo_redo import history_command, redo_command, undo_command
 
 __all__ = [
     "app",
+    "copilot_app",
     "daemon_app",
     "main",
     "complete_directory",

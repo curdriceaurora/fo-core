@@ -17,11 +17,13 @@ from file_organizer.tui.file_preview import (
 )
 from file_organizer.tui.methodology_view import MethodologyView
 from file_organizer.tui.organization_preview import OrganizationPreviewView
+from file_organizer.tui.copilot_view import CopilotView
 from file_organizer.tui.undo_history_view import UndoHistoryView
 
 __all__ = [
     "AnalyticsView",
     "AudioView",
+    "CopilotView",
     "FileOrganizerApp",
     "FileBrowserTree",
     "FileBrowserView",

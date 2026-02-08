@@ -65,6 +65,9 @@ class TestHelpOutputs:
             ["redo", "--help"],
             ["history", "--help"],
             ["analytics", "--help"],
+            ["copilot", "--help"],
+            ["copilot", "chat", "--help"],
+            ["copilot", "status", "--help"],
         ],
     )
     def test_help(self, cmd: list[str]) -> None:
