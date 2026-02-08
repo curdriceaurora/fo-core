@@ -1054,7 +1054,7 @@ def read_iges_file(file_path: str | Path, max_lines: int = 50) -> str:
                 "Native system ID"
             ]
 
-            for _i, (name, value) in enumerate(zip(param_names, params, strict=False)):
+            for _i, (name, value) in enumerate(zip(param_names, params)):
                 if value.strip():
                     metadata_parts.append(f"{name}: {value.strip()}")
 

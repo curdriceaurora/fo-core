@@ -288,7 +288,7 @@ class FeedbackProcessor:
 
         # Find common ancestor and divergence point
         common_depth = 0
-        for i, (f, t) in enumerate(zip(from_parts, to_parts, strict=False)):
+        for i, (f, t) in enumerate(zip(from_parts, to_parts)):
             if f == t:
                 common_depth = i + 1
             else:
