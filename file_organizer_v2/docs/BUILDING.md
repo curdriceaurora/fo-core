@@ -64,6 +64,47 @@ bash scripts/build_macos.sh --universal \\
   --x86 /path/to/file-organizer-<version>-macos-x86_64
 ```
 
+## Windows Installer (Inno Setup)
+
+Install Inno Setup 6+ and ensure `ISCC.exe` is available (default install path:
+`C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe`).
+
+```powershell
+cd file_organizer_v2
+python scripts/build.py --clean
+.\scripts\build_windows.ps1
+```
+
+The installer is written to `file_organizer_v2/dist/` as:
+
+```text
+file-organizer-<version>-windows-setup.exe
+```
+
+## Linux AppImage
+
+Install AppImage runtime dependencies (Ubuntu/Debian):
+
+```bash
+sudo apt-get update
+sudo apt-get install -y fuse libfuse2
+```
+
+Build the executable and AppImage:
+
+```bash
+cd file_organizer_v2
+python scripts/build.py --clean
+bash scripts/build_linux.sh
+```
+
+Artifacts are written to `file_organizer_v2/dist/`:
+
+```text
+file-organizer-<version>-linux-<arch>.AppImage
+file-organizer-<version>-linux-<arch>.tar.gz
+```
+
 ## Generate Spec File Only
 
 If you want to regenerate the spec file without running a build:
