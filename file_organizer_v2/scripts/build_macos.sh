@@ -14,14 +14,34 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+export PROJECT_ROOT
 DIST_DIR="${PROJECT_ROOT}/dist"
 BUILD_DIR="${PROJECT_ROOT}/build"
 APP_NAME="File Organizer"
 BUNDLE_ID="com.fileorganizer.app"
-VERSION="2.0.0-alpha.1"
-DMG_NAME="file-organizer-${VERSION}-macos"
+VERSION="$(python3 - <<'PY'
+import os
+import re
+from pathlib import Path
+
+root = Path(os.environ["PROJECT_ROOT"]) / "pyproject.toml"
+text = root.read_text(encoding="utf-8")
+match = re.search(r'(?m)^version\\s*=\\s*\"([^\"]+)\"', text)
+print(match.group(1) if match else "0.0.0")
+PY
+)"
+ARCH="$(uname -m | tr '[:upper:]' '[:lower:]')"
+if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
+    ARCH="arm64"
+elif [[ "$ARCH" == "x86_64" || "$ARCH" == "amd64" ]]; then
+    ARCH="x86_64"
+fi
+DMG_NAME="file-organizer-${VERSION}-macos-${ARCH}"
 SIGN_IDENTITY=""
 NOTARIZE=false
+UNIVERSAL=false
+ARM_EXEC=""
+X86_EXEC=""
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -30,12 +50,18 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --sign)     SIGN_IDENTITY="$2"; shift 2 ;;
         --notarize) NOTARIZE=true; shift ;;
+        --universal) UNIVERSAL=true; shift ;;
+        --arm) ARM_EXEC="$2"; shift 2 ;;
+        --x86) X86_EXEC="$2"; shift 2 ;;
         --help)
-            echo "Usage: $0 [--sign IDENTITY] [--notarize]"
+            echo "Usage: $0 [--sign IDENTITY] [--notarize] [--universal --arm PATH --x86 PATH]"
             echo ""
             echo "Options:"
             echo "  --sign IDENTITY   Code signing identity (Developer ID Application)"
             echo "  --notarize        Submit to Apple notary service after signing"
+            echo "  --universal       Build a universal DMG from arm64 + x86_64 executables"
+            echo "  --arm PATH        Path to arm64 executable (required for --universal)"
+            echo "  --x86 PATH        Path to x86_64 executable (required for --universal)"
             exit 0
             ;;
         *)          echo "Unknown option: $1"; exit 1 ;;
@@ -46,7 +72,39 @@ done
 # Ensure PyInstaller output exists
 # ---------------------------------------------------------------------------
 echo "==> Checking for PyInstaller output..."
-EXECUTABLE=$(find "${DIST_DIR}" -maxdepth 1 -name "file-organizer-*" -type f 2>/dev/null | head -1)
+mkdir -p "${DIST_DIR}"
+mkdir -p "${BUILD_DIR}"
+
+EXECUTABLE=""
+
+if [[ "$UNIVERSAL" == "true" ]]; then
+    if [[ -z "$ARM_EXEC" ]]; then
+        ARM_EXEC=$(find "${DIST_DIR}" -maxdepth 1 -name "file-organizer-*macos-arm64*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
+    fi
+    if [[ -z "$X86_EXEC" ]]; then
+        X86_EXEC=$(find "${DIST_DIR}" -maxdepth 1 -name "file-organizer-*macos-x86_64*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
+    fi
+
+    if [[ -z "$ARM_EXEC" || -z "$X86_EXEC" ]]; then
+        echo "ERROR: Universal build requires arm64 and x86_64 executables."
+        echo "Provide with --arm and --x86 or place in ${DIST_DIR}/"
+        exit 1
+    fi
+
+    if ! command -v lipo >/dev/null 2>&1; then
+        echo "ERROR: lipo not found. Install Xcode command line tools."
+        exit 1
+    fi
+
+    UNIVERSAL_EXEC="${BUILD_DIR}/file-organizer-universal"
+    echo "    Creating universal binary with lipo..."
+    lipo -create "$ARM_EXEC" "$X86_EXEC" -output "$UNIVERSAL_EXEC"
+    chmod +x "$UNIVERSAL_EXEC"
+    EXECUTABLE="$UNIVERSAL_EXEC"
+    DMG_NAME="file-organizer-${VERSION}-macos-universal"
+else
+    EXECUTABLE=$(find "${DIST_DIR}" -maxdepth 1 -name "file-organizer-*macos-${ARCH}*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
+fi
 
 if [[ -z "$EXECUTABLE" ]]; then
     echo "ERROR: No executable found in ${DIST_DIR}/"

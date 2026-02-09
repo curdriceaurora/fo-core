@@ -237,6 +237,13 @@ def main() -> None:
     print(f"Build target: {config.output_name}")
     print(f"Platform: {config.platform} ({config.arch})")
 
+    if args.clean:
+        clean_build(config)
+
+    if args.spec_only:
+        generate_spec(config)
+        return
+
     if not check_pyinstaller():
         print(
             "ERROR: PyInstaller is not installed.\n"
@@ -244,13 +251,6 @@ def main() -> None:
             "Or:  pip install -e '.[build]'"
         )
         sys.exit(1)
-
-    if args.clean:
-        clean_build(config)
-
-    if args.spec_only:
-        generate_spec(config)
-        return
 
     # Generate spec file if it doesn't exist
     spec_file = _PROJECT_ROOT / "file_organizer.spec"
