@@ -4,6 +4,7 @@ from __future__ import annotations
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI
 from loguru import logger
@@ -12,7 +13,13 @@ from file_organizer.api.config import ApiSettings, load_settings
 from file_organizer.api.dependencies import get_settings
 from file_organizer.api.exceptions import setup_exception_handlers
 from file_organizer.api.middleware import setup_middleware
-from file_organizer.api.routers import health_router
+from file_organizer.api.routers import (
+    dedupe_router,
+    files_router,
+    health_router,
+    organize_router,
+    system_router,
+)
 
 _LOGGING_CONFIGURED = False
 
@@ -24,7 +31,7 @@ def configure_logging(settings: ApiSettings) -> None:
         return
 
     log_dir = Path.home() / ".config" / "file-organizer" / "logs"
-    log_file: Path | None = None
+    log_file: Optional[Path] = None
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "api.log"
@@ -39,7 +46,7 @@ def configure_logging(settings: ApiSettings) -> None:
     _LOGGING_CONFIGURED = True
 
 
-def create_app(settings: ApiSettings | None = None) -> FastAPI:
+def create_app(settings: Optional[ApiSettings] = None) -> FastAPI:
     """Create the FastAPI application."""
     settings = settings or load_settings()
     configure_logging(settings)
@@ -66,7 +73,11 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     setup_exception_handlers(app)
     app.dependency_overrides[get_settings] = lambda: settings
 
-    app.include_router(health_router)
+    app.include_router(health_router, prefix="/api/v1")
+    app.include_router(files_router, prefix="/api/v1")
+    app.include_router(organize_router, prefix="/api/v1")
+    app.include_router(dedupe_router, prefix="/api/v1")
+    app.include_router(system_router, prefix="/api/v1")
 
     @app.get("/")
     def root() -> dict[str, str]:

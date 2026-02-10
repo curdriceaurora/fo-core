@@ -1,0 +1,237 @@
+"""Pydantic models for API requests and responses."""
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Literal, Optional
+
+from pydantic import BaseModel, Field
+
+
+class FileInfo(BaseModel):
+    path: str
+    name: str
+    size: int
+    created: datetime
+    modified: datetime
+    file_type: str
+    mime_type: Optional[str] = None
+
+
+class FileListResponse(BaseModel):
+    items: list[FileInfo]
+    total: int
+    skip: int
+    limit: int
+
+
+class FileContentResponse(BaseModel):
+    path: str
+    content: str
+    encoding: str
+    truncated: bool
+    size: int
+    mime_type: Optional[str] = None
+
+
+class MoveFileRequest(BaseModel):
+    source: str
+    destination: str
+    overwrite: bool = False
+    allow_directory_overwrite: bool = False
+    dry_run: bool = False
+
+
+class MoveFileResponse(BaseModel):
+    source: str
+    destination: str
+    moved: bool
+    dry_run: bool
+
+
+class DeleteFileRequest(BaseModel):
+    path: str
+    permanent: bool = False
+    dry_run: bool = False
+
+
+class DeleteFileResponse(BaseModel):
+    path: str
+    deleted: bool
+    dry_run: bool
+    trashed_path: Optional[str] = None
+
+
+class ScanRequest(BaseModel):
+    input_dir: str
+    recursive: bool = True
+    include_hidden: bool = False
+
+
+class ScanResponse(BaseModel):
+    input_dir: str
+    total_files: int
+    counts: dict[str, int]
+
+
+class OrganizeRequest(BaseModel):
+    input_dir: str
+    output_dir: str
+    skip_existing: bool = True
+    dry_run: bool = False
+    use_hardlinks: bool = True
+    run_in_background: bool = True
+
+
+class OrganizationError(BaseModel):
+    file: str
+    error: str
+
+
+class OrganizationResultResponse(BaseModel):
+    total_files: int
+    processed_files: int
+    skipped_files: int
+    failed_files: int
+    processing_time: float
+    organized_structure: dict[str, list[str]]
+    errors: list[OrganizationError]
+
+
+class OrganizeExecuteResponse(BaseModel):
+    status: Literal["queued", "completed", "failed"]
+    job_id: Optional[str] = None
+    result: Optional[OrganizationResultResponse] = None
+    error: Optional[str] = None
+
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: datetime
+    updated_at: datetime
+    result: Optional[OrganizationResultResponse] = None
+    error: Optional[str] = None
+
+
+class DedupeScanRequest(BaseModel):
+    path: str
+    recursive: bool = True
+    algorithm: Literal["md5", "sha256"] = "sha256"
+    min_file_size: int = 0
+    max_file_size: Optional[int] = None
+    include_patterns: Optional[list[str]] = None
+    exclude_patterns: Optional[list[str]] = None
+
+
+class DedupeFileInfo(BaseModel):
+    path: str
+    size: int
+    modified: datetime
+    accessed: datetime
+
+
+class DedupeGroup(BaseModel):
+    hash_value: str
+    files: list[DedupeFileInfo]
+    total_size: int
+    wasted_space: int
+
+
+class DedupeScanResponse(BaseModel):
+    path: str
+    duplicates: list[DedupeGroup]
+    stats: dict[str, int]
+
+
+class DedupePreviewGroup(BaseModel):
+    hash_value: str
+    keep: str
+    remove: list[str]
+
+
+class DedupePreviewResponse(BaseModel):
+    path: str
+    preview: list[DedupePreviewGroup]
+    stats: dict[str, int]
+
+
+class DedupeExecuteRequest(BaseModel):
+    path: str
+    recursive: bool = True
+    algorithm: Literal["md5", "sha256"] = "sha256"
+    min_file_size: int = 0
+    max_file_size: Optional[int] = None
+    include_patterns: Optional[list[str]] = None
+    exclude_patterns: Optional[list[str]] = None
+    dry_run: bool = True
+    trash: bool = True
+
+
+class DedupeExecuteResponse(BaseModel):
+    path: str
+    removed: list[str]
+    dry_run: bool
+    stats: dict[str, int]
+
+
+class SystemStatusResponse(BaseModel):
+    app: str
+    version: str
+    environment: str
+    disk_total: int
+    disk_used: int
+    disk_free: int
+    active_jobs: int
+
+
+class ConfigResponse(BaseModel):
+    profile: str
+    config: dict[str, Any]
+    profiles: list[str] = Field(default_factory=list)
+
+
+class ModelPresetUpdate(BaseModel):
+    text_model: Optional[str] = None
+    vision_model: Optional[str] = None
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+    device: Optional[str] = None
+    framework: Optional[str] = None
+
+
+class UpdateSettingsUpdate(BaseModel):
+    check_on_startup: Optional[bool] = None
+    interval_hours: Optional[int] = None
+    include_prereleases: Optional[bool] = None
+    repo: Optional[str] = None
+
+
+class ConfigUpdateRequest(BaseModel):
+    profile: str = "default"
+    default_methodology: Optional[str] = None
+    models: Optional[ModelPresetUpdate] = None
+    updates: Optional[UpdateSettingsUpdate] = None
+    watcher: Optional[dict[str, Any]] = None
+    daemon: Optional[dict[str, Any]] = None
+    parallel: Optional[dict[str, Any]] = None
+    pipeline: Optional[dict[str, Any]] = None
+    events: Optional[dict[str, Any]] = None
+    deploy: Optional[dict[str, Any]] = None
+    para: Optional[dict[str, Any]] = None
+    johnny_decimal: Optional[dict[str, Any]] = None
+
+
+class StorageStatsResponse(BaseModel):
+    total_size: int
+    organized_size: int
+    saved_size: int
+    file_count: int
+    directory_count: int
+    size_by_type: dict[str, int]
+    largest_files: list[FileInfo]
+
+
+class ApiErrorResponse(BaseModel):
+    error: str
+    message: str
+    details: Optional[Any] = None
