@@ -8,6 +8,8 @@ from threading import Lock
 from typing import Any, Literal, Optional
 from uuid import uuid4
 
+from file_organizer.api.realtime import realtime_manager
+
 JobStateStatus = Literal["queued", "running", "completed", "failed"]
 
 
@@ -57,6 +59,8 @@ def create_job(job_type: str) -> JobState:
         _JOB_STORE[job_id] = job
         _JOB_STORE.move_to_end(job_id)
         _prune_jobs(ts)
+        payload = _build_job_payload(job, event_type="job.created")
+    _notify_job_event(payload)
     return job
 
 
@@ -82,10 +86,32 @@ def update_job(job_id: str, **updates: Any) -> Optional[JobState]:
         job.updated_at = _now()
         _JOB_STORE.move_to_end(job_id)
         _prune_jobs(job.updated_at)
-        return job
+        payload = _build_job_payload(job, event_type="job.updated")
+    _notify_job_event(payload)
+    return job
 
 
 def job_count() -> int:
     with _JOB_STORE_LOCK:
         _prune_jobs(_now())
         return sum(1 for job in _JOB_STORE.values() if job.status in _ACTIVE_STATUSES)
+
+
+def _build_job_payload(job: JobState, event_type: str) -> dict[str, Any]:
+    return {
+        "type": event_type,
+        "job_id": job.job_id,
+        "job_type": job.job_type,
+        "status": job.status,
+        "created_at": job.created_at.isoformat(),
+        "updated_at": job.updated_at.isoformat(),
+        "error": job.error,
+        "result": job.result,
+    }
+
+
+def _notify_job_event(payload: dict[str, Any]) -> None:
+    realtime_manager.enqueue_event(payload, channel="jobs")
+    job_id = payload.get("job_id")
+    if job_id:
+        realtime_manager.enqueue_event(payload, channel=f"job:{job_id}")
