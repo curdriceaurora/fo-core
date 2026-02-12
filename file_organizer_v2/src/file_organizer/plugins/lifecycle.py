@@ -5,7 +5,7 @@ from enum import Enum
 from threading import RLock
 
 from file_organizer.plugins.base import Plugin
-from file_organizer.plugins.errors import PluginLifecycleError
+from file_organizer.plugins.errors import PluginLifecycleError, PluginNotLoadedError
 from file_organizer.plugins.registry import PluginRegistry
 
 
@@ -88,9 +88,8 @@ class PluginLifecycleManager:
     def _ensure_loaded(self, name: str) -> Plugin:
         try:
             plugin = self.registry.get_plugin(name)
-        except Exception:
+        except PluginNotLoadedError:
             plugin = self.registry.load_plugin(name)
         if name not in self._states:
             self._states[name] = PluginState.LOADED
         return plugin
-

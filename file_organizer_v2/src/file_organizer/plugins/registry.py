@@ -173,6 +173,15 @@ class PluginRegistry:
         return module
 
     def _instantiate_plugin(self, module: ModuleType, *, config: PluginConfig) -> Plugin:
+        """Create a plugin instance from module exports.
+
+        Resolution order is explicit:
+        1. Use ``create_plugin(config=..., sandbox=...)`` factory when present.
+        2. Otherwise instantiate the first discovered ``Plugin`` subclass.
+
+        Only one plugin instance per module is supported; modules with multiple
+        plugin classes should expose ``create_plugin`` to control selection.
+        """
         sandbox = self._build_sandbox(config)
         factory = getattr(module, "create_plugin", None)
         if callable(factory):
