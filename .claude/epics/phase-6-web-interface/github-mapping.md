@@ -1,8 +1,8 @@
 # GitHub Issue Mapping - Phase 6 Web Interface
 
-**Epic Issue**: #228 - Phase 6 - Web Interface & Plugin Ecosystem
-**Epic URL**: https://github.com/curdriceaurora/Local-File-Organizer/issues/228
-**Synced**: 2026-02-10T00:15:02-05:00
+**Epic Issue**: #5 - [EPIC] Phase 6: Web Interface & Plugin Ecosystem
+**Epic URL**: https://github.com/curdriceaurora/Local-File-Organizer/issues/5
+**Synced**: 2026-02-16T19:44:50Z
 
 ## Task to Issue Mapping
 
@@ -78,4 +78,18 @@ All issues can be viewed at:
 https://github.com/curdriceaurora/Local-File-Organizer/issues?q=is:issue+label:phase-6
 
 Epic and sub-issues:
+https://github.com/curdriceaurora/Local-File-Organizer/issues/5
+
+Legacy phase-6 epic issue (closed):
 https://github.com/curdriceaurora/Local-File-Organizer/issues/228
+
+## Technical Debt Follow-Ups
+
+Open follow-up tickets from Phase 6 review items (4 total):
+
+- #278 - Optimize job metadata pruning in dashboard polling
+- #279 - Sanitize plan generation error messages
+- #280 - Sanitize queue job error responses
+- #281 - Speed up SSE polling test with shorter interval
+
+These are linked under technical-debt epic #266 for execution tracking.
