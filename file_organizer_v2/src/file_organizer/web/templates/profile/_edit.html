@@ -1,0 +1,37 @@
+{% if success %}
+<p class="success-text">{{ success }}</p>
+{% endif %}
+{% if error %}
+<p class="error-text">{{ error }}</p>
+{% endif %}
+
+<div class="form-group">
+    <p class="form-hint">Avatar</p>
+    <img src="{{ avatar_url or '/static/images/logo.png' }}" alt="Avatar" width="72" height="72">
+    <form
+        method="post"
+        action="/ui/profile/edit-avatar"
+        hx-post="/ui/profile/edit-avatar"
+        hx-target="#profile-edit"
+        enctype="multipart/form-data"
+    >
+        <input type="file" name="avatar" accept="image/*" required>
+        <button class="btn-ghost btn-sm" type="submit">Upload avatar</button>
+    </form>
+</div>
+
+<form method="post" action="/ui/profile/edit" hx-post="/ui/profile/edit" hx-target="#profile-edit">
+    <div class="form-group">
+        <label for="edit-username">Username</label>
+        <input id="edit-username" type="text" value="{{ user.username }}" disabled>
+    </div>
+    <div class="form-group">
+        <label for="edit-fullname">Full name</label>
+        <input id="edit-fullname" name="full_name" type="text" value="{{ user.full_name or '' }}">
+    </div>
+    <div class="form-group">
+        <label for="edit-email">Email</label>
+        <input id="edit-email" name="email" type="email" value="{{ user.email }}" required>
+    </div>
+    <button class="btn-primary" type="submit">Save changes</button>
+</form>
