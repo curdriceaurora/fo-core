@@ -5,10 +5,10 @@ github_issue: 5
 github_url: https://github.com/curdriceaurora/Local-File-Organizer/issues/5
 status: open
 created: 2026-01-20T23:30:00Z
-updated: 2026-02-16T08:50:55-05:00
+updated: 2026-02-16T13:50:55Z
 labels: [enhancement, epic, phase-6]
 github: https://github.com/curdriceaurora/Local-File-Organizer/issues/5
-last_sync: 2026-02-16T08:50:55-05:00
+last_sync: 2026-02-16T13:50:55Z
 ---
 
 # Epic: Web Interface & Plugin Ecosystem (Phase 6)
