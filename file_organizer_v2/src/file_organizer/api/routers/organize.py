@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from file_organizer.api.config import ApiSettings
 from file_organizer.api.dependencies import get_current_active_user, get_settings
@@ -187,4 +190,68 @@ def get_job_status(job_id: str) -> JobStatusResponse:
         updated_at=job.updated_at,
         result=result,
         error=job.error,
+    )
+
+
+class SimpleOrganizeRequest(BaseModel):
+    """Simple single-file organization request."""
+
+    filename: str
+    folder_suggestion: Optional[str] = None
+
+
+class SimpleOrganizeResponse(BaseModel):
+    """Response from simple organize endpoint."""
+
+    filename: str
+    folder_name: str
+    confidence: float
+
+
+@router.post("/organize", response_model=None)
+async def organize_file(
+    file: Optional[UploadFile] = File(None),
+    request: Optional[SimpleOrganizeRequest] = None,
+    settings: ApiSettings = Depends(get_settings),
+) -> SimpleOrganizeResponse | JSONResponse:
+    """Organize a single file with naming and folder suggestions.
+
+    Accepts either file upload (multipart/form-data) or JSON request body.
+    """
+    import os
+
+    # Get filename from file upload or request body
+    if file:
+        filename = file.filename or "unknown"
+    elif request:
+        filename = request.filename
+    else:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Either file upload or request body must be provided"},
+        )
+
+    # Simple logic: extract base name and suggest folder
+    base_name = os.path.basename(filename)
+    name_parts = os.path.splitext(base_name)
+
+    # Simple category detection
+    ext = name_parts[1].lower()
+    if ext in [".txt", ".md", ".pdf", ".doc", ".docx"]:
+        folder = "Documents"
+    elif ext in [".jpg", ".png", ".gif", ".bmp"]:
+        folder = "Images"
+    elif ext in [".mp4", ".avi", ".mkv"]:
+        folder = "Videos"
+    elif ext in [".mp3", ".wav", ".flac"]:
+        folder = "Audio"
+    else:
+        folder = "Other"
+
+    organized_name = f"{name_parts[0]}_organized{name_parts[1]}"
+
+    return SimpleOrganizeResponse(
+        filename=organized_name,
+        folder_name=folder,
+        confidence=0.85,
     )

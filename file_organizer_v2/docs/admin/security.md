@@ -7,11 +7,10 @@
 #### Generate API Keys
 
 ```bash
-# Via API endpoint
-curl -X POST http://localhost:8000/api/v1/auth/keys \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "client-key"}'
+# API keys are managed via the CLI
+file-organizer api-key create --name "client-key"
+file-organizer api-key list
+file-organizer api-key revoke <key-id>
 ```
 
 #### API Key Format

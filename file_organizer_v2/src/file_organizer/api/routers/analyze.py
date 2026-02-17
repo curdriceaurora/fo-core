@@ -1,6 +1,7 @@
 """File analysis endpoints."""
-
 from __future__ import annotations
+
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from loguru import logger
@@ -11,7 +12,7 @@ from file_organizer.api.dependencies import get_settings
 from file_organizer.models.text_model import TextModel
 
 # Global model instance
-_text_model: TextModel | None = None
+_text_model: Optional[TextModel] = None
 
 
 def get_text_model() -> TextModel:
@@ -40,8 +41,8 @@ class AnalyzeResponse(BaseModel):
 
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(
-    content: str | None = None,
-    file: UploadFile | None = None,
+    content: Optional[str] = None,
+    file: Optional[UploadFile] = None,
     settings: ApiSettings = Depends(get_settings),
 ) -> AnalyzeResponse:
     """Analyze file content using AI and provide description and category.
