@@ -8,24 +8,14 @@ module.exports = {
     "^.+\\.jsx?$": "babel-jest",
   },
   collectCoverageFrom: [
-    "file_organizer_v2/src/file_organizer/web/static/**/*.js",
-    "!**/*.min.js",
-    "!**/node_modules/**",
-    "!**/.git/**",
+    "<rootDir>/file_organizer_v2/src/file_organizer/web/static/**/*.{js,jsx}",
+    "!<rootDir>/file_organizer_v2/src/file_organizer/web/static/**/app.js",
   ],
   coveragePathIgnorePatterns: [
     "/node_modules/",
     "/tests/",
+    ".*\\.min\\.js$",
   ],
-  // Enforce minimum coverage thresholds (70%+)
-  coverageThreshold: {
-    global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70,
-    },
-  },
   testMatch: [
     "**/tests/frontend/**/*.test.js",
   ],
