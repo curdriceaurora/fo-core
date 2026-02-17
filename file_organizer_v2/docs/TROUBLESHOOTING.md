@@ -1,136 +1,53 @@
-# Troubleshooting
+# Troubleshooting Guide
 
-## Common Issues
+Common issues and solutions.
 
-### Ollama Not Running
+## Installation Issues
 
-**Symptom**: `ConnectionRefusedError` or "Ollama unavailable".
+### Ollama Connection Failed
 
-**Fix**:
+**Error**: `ConnectionRefusedError` or "Ollama unavailable"
 
+**Solution**:
 ```bash
 # Start Ollama
 ollama serve
 
 # Verify it's running
-ollama list
+curl http://localhost:11434/api/version
 ```
 
 ### Model Not Found
 
-**Symptom**: `Model not found`.
+**Error**: "Model not found"
 
-**Fix**:
-
+**Solution**:
 ```bash
 ollama pull qwen2.5:3b-instruct-q4_K_M
 ollama pull qwen2.5vl:7b-q4_K_M
+ollama list  # Verify they're installed
 ```
 
-### Audio View Empty
+### Port Already in Use
 
-**Symptom**: Audio panel shows no files or metadata.
+**Error**: "Port 8000 is already in use"
 
-**Fix**:
-
-- Install audio extras: `pip install -e ".[audio]"`
-- Ensure FFmpeg is installed and on your PATH
-- Rescan with `r` in the Audio view
-
-### Deduplication Is Slow
-
-**Fixes**:
-
-- Limit scope: `file-organizer dedupe scan ./Documents --min-size 1000000`
-- Use include/exclude patterns
-- Start with a smaller directory and expand
-
-### Daemon Won't Start
-
-**Symptoms**: PID file missing, status says stopped.
-
-**Fix**:
-
-- Start in foreground to view errors:
-  ```bash
-  file-organizer daemon start --foreground --watch-dir ./inbox --output-dir ./organized
-  ```
-- Check that the output directory is writable.
-
-### Watcher Not Seeing Changes
-
-**Fixes**:
-
-- Confirm the watch directory exists
-- Increase poll interval: `file-organizer daemon watch ./inbox --poll-interval 2`
-- Remove overly aggressive `exclude_patterns` in config
-
-### Update Fails
-
-**Fix**:
-
+**Solution**:
 ```bash
-file-organizer update check
-file-organizer --verbose update install
-file-organizer update rollback
+# Use different port
+file-organizer serve --port 8001
+
+# Or find process using 8000
+lsof -i :8000
+kill -9 <PID>
 ```
-
-If you are running a packaged build, ensure the executable or AppImage is in a writable location.
-
-### TUI Display Issues
-
-**Symptom**: Garbled or missing characters.
-
-**Fix**:
-
-- Use a modern terminal emulator (iTerm2, Windows Terminal, Alacritty)
-- Ensure terminal supports Unicode and 256 colors
-- Try: `TERM=xterm-256color file-organizer tui`
-
-### Rules Not Matching
-
-**Debug steps**:
-
-```bash
-file-organizer rules list
-file-organizer rules export
-file-organizer --verbose rules preview ./Downloads
-```
-
-### Analytics or History Empty
-
-**Fix**:
-
-- Run an organize or preview command first
-- Refresh Analytics (`r`) or History (`r`) in the TUI
-
-### Permission Denied
-
-**Symptom**: `PermissionError` when organizing files.
-
-**Fix**:
-
-- Check file permissions
-- Ensure output directory is writable
-- Avoid running from read-only locations
 
 ## Getting Help
 
-```bash
-file-organizer --help
-file-organizer organize --help
-file-organizer copilot chat --help
-file-organizer rules add --help
-```
+If you can't find a solution:
 
-## Reporting Bugs
-
-File issues at the [GitHub Issues page](https://github.com/curdriceaurora/Local-File-Organizer/issues).
-
-Include:
-
-- OS and version
-- Python version (`python --version`)
-- File Organizer version (`file-organizer version`)
-- Error message or traceback
-- Steps to reproduce
+1. **Check documentation**: [Full docs](index.md)
+2. **Review logs**: `docker-compose logs`
+3. **GitHub Issues**: [Report issue](https://github.com/curdriceaurora/Local-File-Organizer/issues)
+4. **Discussions**: [Ask questions](https://github.com/curdriceaurora/Local-File-Organizer/discussions)
+5. **FAQ**: [Frequently Asked Questions](faq.md)

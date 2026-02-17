@@ -1,0 +1,307 @@
+# Authentication
+
+Secure your API requests with authentication.
+
+## API Key Authentication
+
+### Generating an API Key
+
+API keys are personal access tokens for API requests.
+
+1. Log in to web interface
+2. Click **Settings** (gear icon)
+3. Go to **API Keys**
+4. Click **Generate New Key**
+5. Configure:
+   - **Name**: Identify the key (e.g., "Python Script")
+   - **Expiration**: When key expires (30 days, 90 days, 1 year, never)
+   - **Permissions**: Select what key can do
+6. Click **Generate**
+7. Copy the token (shown only once)
+
+### API Key Format
+
+API keys are bearer tokens:
+
+```
+fk_live_abcdef0123456789...
+```
+
+- Prefix indicates environment (fk_live, fk_test)
+- 32+ character random string
+- Unique per key
+
+### Using Your API Key
+
+Include API key in Authorization header:
+
+```bash
+curl http://localhost:8000/api/v1/files \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Or as query parameter:
+
+```bash
+curl "http://localhost:8000/api/v1/files?api_key=YOUR_API_KEY"
+```
+
+## API Key Permissions
+
+Control what each API key can do:
+
+### Permission Levels
+
+| Permission | Allows |
+|-----------|--------|
+| `read:files` | List and view files |
+| `write:files` | Upload files |
+| `write:files:delete` | Delete files |
+| `read:organize` | View organization jobs |
+| `write:organize` | Create organization jobs |
+| `read:analyze` | Run analysis |
+| `read:search` | Search files |
+| `read:admin` | View system info |
+| `write:admin` | Modify system settings |
+
+### Recommended Permissions
+
+**For Scripts**:
+- `read:files`
+- `read:search`
+- `read:organize`
+
+**For Applications**:
+- `read:files`
+- `write:files`
+- `read:search`
+- `read:organize`
+
+**For Admin Tools**:
+- All permissions (use with caution!)
+
+## Managing API Keys
+
+### View Your Keys
+
+1. Go to **Settings** → **API Keys**
+2. See all active keys:
+   - Name and creation date
+   - Expiration date
+   - Last used
+   - Permissions
+   - Actions
+
+### Revoke a Key
+
+1. Find key in API Keys list
+2. Click **Revoke**
+3. Confirm deletion
+4. Key is disabled immediately
+5. Any requests with this key fail
+
+### Rotate a Key
+
+Generate a new key and revoke the old:
+
+1. **Generate New Key** with new permissions
+2. Update scripts/applications
+3. **Revoke** old key
+4. Verify everything works
+
+## Rate Limiting
+
+API requests are rate-limited to prevent abuse.
+
+### Rate Limit Tiers
+
+| Tier | Requests/Min | Best For |
+|------|-------------|----------|
+| Free | 100 | Testing, personal use |
+| Pro | 1,000 | Production applications |
+| Enterprise | Custom | High-volume use |
+
+### Checking Rate Limits
+
+Rate limits appear in response headers:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1645026000
+```
+
+- **Limit**: Total requests per minute
+- **Remaining**: Requests left in current window
+- **Reset**: Unix timestamp when window resets
+
+### Handling Rate Limits
+
+If you exceed the limit:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Too many requests",
+    "retryAfter": 60
+  }
+}
+```
+
+**Response**:
+- HTTP Status: 429 Too Many Requests
+- `Retry-After` header indicates seconds to wait
+
+**Best Practices**:
+- Wait before retrying
+- Use exponential backoff
+- Batch requests when possible
+- Consider upgrading tier
+
+## Error Responses
+
+### Unauthorized (401)
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid or missing API key"
+  }
+}
+```
+
+**Causes**:
+- Missing API key
+- Invalid API key
+- Expired API key
+- Revoked API key
+
+**Solutions**:
+- Check key is included
+- Verify key format
+- Generate new key if expired
+- Check if key was revoked
+
+### Forbidden (403)
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Permission denied",
+    "details": {
+      "required": "write:files",
+      "granted": "read:files"
+    }
+  }
+}
+```
+
+**Causes**:
+- Key lacks required permission
+- User lacks access to resource
+
+**Solutions**:
+- Regenerate key with needed permissions
+- Use different key
+- Contact administrator
+
+## Security Best Practices
+
+### Key Management
+
+1. **Keep Keys Secret**
+   - Don't commit to version control
+   - Don't share in messages
+   - Store securely (environment variables)
+
+2. **Use Environment Variables**
+   ```bash
+   export FILE_ORGANIZER_API_KEY="fk_live_..."
+   ```
+
+3. **Rotate Regularly**
+   - Generate new keys periodically
+   - Revoke old keys
+   - Update applications
+
+4. **Use Minimal Permissions**
+   - Only request needed permissions
+   - Create separate keys for different apps
+   - Review permissions regularly
+
+### Secure Storage
+
+**Python**:
+```python
+import os
+api_key = os.getenv('FILE_ORGANIZER_API_KEY')
+```
+
+**Node.js**:
+```javascript
+const apiKey = process.env.FILE_ORGANIZER_API_KEY;
+```
+
+**.env File**:
+```
+FILE_ORGANIZER_API_KEY=fk_live_...
+```
+
+## API Key Expiration
+
+### Setting Expiration
+
+When creating/regenerating key:
+
+1. Choose expiration time
+2. Options: 30 days, 90 days, 1 year, never
+3. Key expires automatically
+
+### Before Expiration
+
+Receive notification:
+- Email reminder (7 days before)
+- Web interface warning
+- API requests continue working
+
+### After Expiration
+
+- Key becomes invalid
+- API requests return 401
+- Must generate new key
+- Update applications
+
+## Scopes
+
+Fine-grained permission scopes for advanced use:
+
+### Read Scopes
+
+- `read:files` - List files, view properties
+- `read:search` - Search files
+- `read:organize` - View organization jobs
+- `read:analyze` - Run analysis
+
+### Write Scopes
+
+- `write:files` - Upload files
+- `write:files:delete` - Delete files
+- `write:organize` - Create organization jobs
+- `write:analyze` - Create analysis jobs
+
+### Admin Scopes
+
+- `read:admin` - View system information
+- `write:admin` - Modify system settings
+
+## Next Steps
+
+- [File Management API](file-endpoints.md)
+- [Organization API](organization-endpoints.md)
+- [API Clients](../developer/api-clients.md)
