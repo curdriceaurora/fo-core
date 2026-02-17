@@ -4,21 +4,41 @@ Real-time updates via WebSocket connections.
 
 ## Connecting to WebSocket
 
-The WebSocket endpoint requires a unique `client_id` path parameter and an API token
-passed as a query parameter. Each client session must use a distinct `client_id`.
+The WebSocket endpoint requires a unique `client_id` path parameter. Each client session must use a distinct `client_id`. Authentication is handled via the `token` query parameter. This approach works in both browser and Node.js environments.
 
 **Endpoint**: `ws://localhost:8000/api/v1/ws/{client_id}?token=YOUR_API_KEY`
 
 ```javascript
-// Node.js example using 'ws' library
+// Browser example
+const clientId = crypto.randomUUID();
+const ws = new WebSocket(
+  `ws://localhost:8000/api/v1/ws/${clientId}?token=YOUR_API_KEY`
+);
+
+ws.onopen = () => {
+  console.log('Connected');
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Received:', data);
+};
+```
+
+**Query Parameter Authentication**:
+
+All WebSocket connections must use the `?token=` query parameter for authentication. This is the only method that works with browser WebSocket APIs.
+
+```javascript
+// Standard approach for both browser and Node.js
 const WebSocket = require('ws');
 const { randomUUID } = require('crypto');
 
-// Generate a unique client ID for this session
 const clientId = randomUUID();
+const token = 'YOUR_API_KEY';
 
 const ws = new WebSocket(
-  `ws://localhost:8000/api/v1/ws/${clientId}?token=YOUR_API_KEY`
+  `ws://localhost:8000/api/v1/ws/${clientId}?token=${token}`
 );
 
 ws.on('open', () => {
