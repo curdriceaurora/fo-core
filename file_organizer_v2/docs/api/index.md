@@ -17,6 +17,7 @@ The File Organizer API allows you to:
 ## API Features
 
 ### REST Endpoints
+
 - File management (upload, list, delete)
 - Organization (start jobs, monitor progress)
 - Search and filtering
@@ -24,16 +25,19 @@ The File Organizer API allows you to:
 - Settings and configuration
 
 ### Authentication
+
 - API key-based authentication
 - Bearer token in Authorization header
 - Rate limiting and quotas
 
 ### Real-Time Updates
+
 - WebSocket connections for live progress
 - Job status streaming
 - Event notifications
 
 ### Response Formats
+
 - JSON responses
 - Proper HTTP status codes
 - Error details in response body
@@ -43,16 +47,16 @@ The File Organizer API allows you to:
 ### 1. Generate API Key
 
 1. Log in to web interface
-2. Click **Settings** (gear icon)
-3. Select **API Keys**
-4. Click **Generate New Key**
-5. Copy the token (shown only once)
+1. Click **Settings** (gear icon)
+1. Select **API Keys**
+1. Click **Generate New Key**
+1. Copy the token (shown only once)
 
 ### 2. Make Your First Request
 
 ```bash
-curl -X GET http://localhost:8000/api/v1/files \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+curl -X GET "http://localhost:8000/api/v1/files?path=/" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json"
 ```
 
@@ -72,14 +76,17 @@ curl -X GET http://localhost:8000/api/v1/files \
 ## API Endpoints
 
 ### File Management
+
 - `GET /api/v1/files` - List files
-- `POST /api/v1/files/upload` - Upload file
+
 - `GET /api/v1/files/{id}` - Get file details
+
 - `DELETE /api/v1/files/{id}` - Delete file
 
 **Guide**: [File Management Endpoints](file-endpoints.md)
 
 ### Organization
+
 - `POST /api/v1/organize` - Start organization job
 - `GET /api/v1/organize/jobs` - List jobs
 - `GET /api/v1/organize/jobs/{id}` - Get job status
@@ -88,21 +95,26 @@ curl -X GET http://localhost:8000/api/v1/files \
 **Guide**: [Organization Endpoints](organization-endpoints.md)
 
 ### Analysis
+
 - `POST /api/v1/analyze/duplicates` - Find duplicates
 - `GET /api/v1/analyze/storage` - Storage analysis
 - `GET /api/v1/analyze/categories` - Category analysis
 
 **Guide**: [Analysis Endpoints](analysis-endpoints.md)
 
-### Search
+### Search (Planned)
+
+!!! note
+Search endpoints are under development and not yet available.
+
 - `GET /api/v1/search` - Search files
 - `POST /api/v1/search/advanced` - Advanced search
-- `GET /api/v1/search/saved` - Saved searches
 
 **Guide**: [Search Endpoints](search-endpoints.md)
 
 ### WebSocket
-- `WS /api/v1/ws` - Real-time events
+
+- `WS /api/v1/ws/{client_id}` - Real-time events
 - Job progress updates
 - File operation notifications
 
@@ -115,16 +127,16 @@ curl -X GET http://localhost:8000/api/v1/files \
 All API requests require authentication via API key:
 
 ```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" \
-  http://localhost:8000/api/v1/files
+curl -H "X-API-Key: YOUR_API_KEY" \
+  "http://localhost:8000/api/v1/files?path=/"
 ```
 
 ### Rate Limiting
 
 API requests are rate-limited:
 
-- **Tier 1**: 100 requests/minute (free)
-- **Tier 2**: 1,000 requests/minute (with subscription)
+- **Default**: 1000 requests/minute
+- **Configurable**: Via app settings
 
 Check rate limit in response headers:
 
@@ -139,9 +151,9 @@ X-RateLimit-Reset: 1645026000
 API keys have configurable expiration:
 
 1. Generate key with expiration date
-2. Expired keys return 401 Unauthorized
-3. Generate new key if expired
-4. Revoke old keys in Settings
+1. Expired keys return 401 Unauthorized
+1. Generate new key if expired
+1. Revoke old keys in Settings
 
 ## Response Format
 
@@ -230,45 +242,35 @@ All API responses use consistent JSON format:
 }
 ```
 
-## Client Libraries
+## Using the API Programmatically
 
-Official client libraries available:
-
-### Python
-
-```bash
-pip install file-organizer-client
-```
+### Python (with `httpx`)
 
 ```python
-from file_organizer import FileOrganizerClient
+import httpx
 
-client = FileOrganizerClient(
-  base_url="http://localhost:8000",
-  api_key="your-api-key"
+client = httpx.Client(
+    base_url="http://localhost:8000/api/v1",
+    headers={"X-API-Key": "your-api-key"},
 )
 
-files = client.list_files()
+response = client.get("/files", params={"path": "/documents"})
+files = response.json()
 ```
 
-### JavaScript/Node.js
-
-```bash
-npm install file-organizer-client
-```
+### JavaScript/Node.js (with `fetch`)
 
 ```javascript
-const { FileOrganizerClient } = require('file-organizer-client');
-
-const client = new FileOrganizerClient({
-  baseUrl: 'http://localhost:8000',
-  apiKey: 'your-api-key'
-});
-
-const files = await client.listFiles();
+const response = await fetch(
+  'http://localhost:8000/api/v1/files?path=/documents',
+  {
+    headers: { 'X-API-Key': 'your-api-key' },
+  }
+);
+const files = await response.json();
 ```
 
-See [API Clients Guide](../developer/api-clients.md) for more details.
+See [Developer Guide](../developer/index.md) for more details.
 
 ## Interactive Documentation
 
@@ -283,12 +285,12 @@ Explore the API interactively:
 ### 1. Organize Files Programmatically
 
 ```bash
-# Start organization job
-curl -X POST http://localhost:8000/api/v1/organize \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+# Start organization preview
+curl -X POST http://localhost:8000/api/v1/organize/preview \
+  -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "file_ids": ["file_1", "file_2"],
+    "path": "/documents",
     "methodology": "para"
   }'
 ```
@@ -328,15 +330,18 @@ ws.onmessage = (event) => {
 ## Getting Help
 
 ### Documentation
+
 - This API Reference
 - [Developer Guide](../developer/index.md)
 - [API Clients Guide](../developer/api-clients.md)
 
 ### Support
+
 - [GitHub Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues)
 - [GitHub Discussions](https://github.com/curdriceaurora/Local-File-Organizer/discussions)
 
 ### Troubleshooting
+
 - Check [Troubleshooting Guide](../troubleshooting.md)
 - Review error codes and messages
 - Check server logs for details

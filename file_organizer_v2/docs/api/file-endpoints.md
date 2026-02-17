@@ -1,10 +1,10 @@
 # File Management Endpoints
 
-API endpoints for file upload, listing, and management.
+API endpoints for file listing, content reading, moving, and deletion.
 
 ## List Files
 
-List all files in workspace.
+List files in a directory.
 
 ```
 GET /api/v1/files
@@ -12,114 +12,112 @@ GET /api/v1/files
 
 ### Query Parameters
 
-- `page` - Page number (default: 1)
-- `pageSize` - Items per page (default: 50)
-- `sort` - Sort field (name, date, size)
-- `order` - Ascending or descending (asc, desc)
-- `type` - Filter by file type
-- `search` - Search query
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `path` | string | *(required)* | Directory or file path to list |
+| `recursive` | boolean | `false` | Include files in subdirectories |
+| `include_hidden` | boolean | `false` | Include hidden files |
+| `file_type` | string | `null` | Comma-separated extensions or groups (`text`, `image`, `video`, `audio`, `cad`) |
+| `sort_by` | string | `name` | Sort field: `name`, `size`, `created`, `modified` |
+| `sort_order` | string | `asc` | Sort order: `asc`, `desc` |
+| `skip` | integer | `0` | Number of items to skip (pagination offset) |
+| `limit` | integer | `100` | Items per page (1–1000) |
 
 ### Response
 
 ```json
 {
-  "success": true,
-  "data": {
-    "files": [
-      {
-        "id": "file_123",
-        "name": "document.pdf",
-        "path": "/documents/",
-        "size": 1024000,
-        "type": "pdf",
-        "created": "2024-02-01T10:30:00Z",
-        "modified": "2024-02-15T14:20:00Z"
-      }
-    ],
-    "total": 150,
-    "page": 1,
-    "pageSize": 50
-  }
+  "items": [
+    {
+      "path": "/documents/report.pdf",
+      "name": "report.pdf",
+      "size": 1024000,
+      "created": "2024-02-01T10:30:00Z",
+      "modified": "2024-02-15T14:20:00Z",
+      "file_type": "pdf",
+      "mime_type": "application/pdf"
+    }
+  ],
+  "total": 150,
+  "skip": 0,
+  "limit": 100
 }
 ```
 
-## Upload File
+## Get File Info
 
-Upload a single file.
+Get detailed information about a specific file.
 
 ```
-POST /api/v1/files/upload
-Content-Type: multipart/form-data
+GET /api/v1/files/info
 ```
 
-### Parameters
+### Query Parameters
 
-- `file` - File to upload (required)
-- `path` - Destination path (optional)
-- `scanForDuplicates` - Auto-detect duplicates (optional, default: false)
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `path` | string | *(required)* Path to the file |
 
 ### Response
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "file_456",
-    "name": "newfile.pdf",
-    "size": 512000,
-    "type": "pdf"
-  }
+  "path": "/documents/report.pdf",
+  "name": "report.pdf",
+  "size": 1024000,
+  "created": "2024-02-01T10:30:00Z",
+  "modified": "2024-02-15T14:20:00Z",
+  "file_type": "pdf",
+  "mime_type": "application/pdf"
 }
 ```
 
-## Get File Details
+## Read File Content
 
-Get detailed information about a file.
+Read the text content of a file.
 
 ```
-GET /api/v1/files/{file_id}
+GET /api/v1/files/content
 ```
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `path` | string | *(required)* | Path to the file |
+| `max_bytes` | integer | `200000` | Max bytes to read (1–5,000,000) |
+| `encoding` | string | `utf-8` | Text encoding |
 
 ### Response
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "file_123",
-    "name": "document.pdf",
-    "path": "/documents/",
-    "size": 1024000,
-    "type": "pdf",
-    "created": "2024-02-01T10:30:00Z",
-    "modified": "2024-02-15T14:20:00Z",
-    "description": "AI-generated description",
-    "tags": ["important", "project-x"],
-    "duplicates": [
-      {
-        "id": "file_789",
-        "similarity": 0.98
-      }
-    ]
-  }
+  "path": "/documents/report.txt",
+  "content": "File content here...",
+  "encoding": "utf-8",
+  "truncated": false,
+  "size": 5120,
+  "mime_type": "text/plain"
 }
 ```
 
-## Update File
+## Move File
 
-Update file metadata.
+Move or rename a file.
 
 ```
-PATCH /api/v1/files/{file_id}
+POST /api/v1/files/move
 ```
 
 ### Request Body
 
 ```json
 {
-  "description": "Updated description",
-  "tags": ["new-tag"],
-  "name": "renamed.pdf"
+  "source": "/downloads/report.pdf",
+  "destination": "/documents/report.pdf",
+  "overwrite": false,
+  "allow_directory_overwrite": false,
+  "dry_run": false
 }
 ```
 
@@ -127,84 +125,28 @@ PATCH /api/v1/files/{file_id}
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "file_123",
-    "name": "renamed.pdf",
-    "description": "Updated description",
-    "tags": ["new-tag"]
-  }
+  "source": "/downloads/report.pdf",
+  "destination": "/documents/report.pdf",
+  "moved": true,
+  "dry_run": false
 }
 ```
 
 ## Delete File
 
-Delete a file.
+Delete a file (moves to trash by default).
 
 ```
-DELETE /api/v1/files/{file_id}
-```
-
-### Response
-
-```json
-{
-  "success": true,
-  "message": "File deleted successfully"
-}
-```
-
-## Download File
-
-Download a file.
-
-```
-GET /api/v1/files/{file_id}/download
-```
-
-### Response
-
-Binary file content with appropriate headers.
-
-## Batch Upload
-
-Upload multiple files at once.
-
-```
-POST /api/v1/files/upload/batch
-Content-Type: multipart/form-data
-```
-
-### Parameters
-
-- `files[]` - Multiple files to upload
-
-### Response
-
-```json
-{
-  "success": true,
-  "data": {
-    "uploaded": 5,
-    "failed": 0,
-    "files": [...]
-  }
-}
-```
-
-## Batch Delete
-
-Delete multiple files.
-
-```
-POST /api/v1/files/delete/batch
+DELETE /api/v1/files
 ```
 
 ### Request Body
 
 ```json
 {
-  "file_ids": ["file_1", "file_2", "file_3"]
+  "path": "/documents/old-report.pdf",
+  "permanent": false,
+  "dry_run": false
 }
 ```
 
@@ -212,14 +154,15 @@ POST /api/v1/files/delete/batch
 
 ```json
 {
-  "success": true,
-  "data": {
-    "deleted": 3,
-    "failed": 0
-  }
+  "path": "/documents/old-report.pdf",
+  "deleted": true,
+  "dry_run": false,
+  "trashed_path": "/home/user/.config/file-organizer/trash/old-report.pdf"
 }
 ```
 
----
+Set `permanent: true` to bypass trash and permanently delete the file.
+
+______________________________________________________________________
 
 See [API Reference](index.md) for more endpoints.

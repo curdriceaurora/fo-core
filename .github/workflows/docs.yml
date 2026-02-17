@@ -24,12 +24,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd file_organizer_v2
-          pip install mkdocs mkdocs-material pymdown-extensions
+          pip install -e .[docs] mkdocs-minify-plugin
 
       - name: Build documentation
         run: |
@@ -45,7 +45,7 @@ jobs:
           mkdocs build --strict
 
       - name: Upload documentation artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: documentation
           path: file_organizer_v2/site/
@@ -62,10 +62,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -73,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd file_organizer_v2
-          pip install mkdocs mkdocs-material pymdown-extensions
+          pip install -e .[docs]
 
       - name: Build documentation
         run: |
@@ -81,11 +81,10 @@ jobs:
           mkdocs build
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./file_organizer_v2/site
-          cname: docs.fileorganizer.local
 
   test:
     runs-on: ubuntu-latest
@@ -93,19 +92,21 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Validate markdown
-        run: |
-          cd file_organizer_v2
-          pip install mdformat
-          mdformat --check docs/
+      # mdformat check removed - it enforces 70-char horizontal rules which conflicts
+      # with Markdown best practices (---). See PR #299 feedback.
+      # - name: Validate markdown
+      #   run: |
+      #     cd file_organizer_v2
+      #     pip install mdformat
+      #     mdformat --check docs/
 
       - name: Lint YAML
         run: |

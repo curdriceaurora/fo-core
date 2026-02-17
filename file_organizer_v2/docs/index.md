@@ -46,7 +46,6 @@ Welcome to the **File Organizer** documentation! A privacy-first, AI-powered loc
     - [Architecture](developer/architecture.md)
     - [Plugin Development](developer/plugin-development.md)
     - [API Clients](developer/api-clients.md)
-    - [Contributing](developer/contributing.md)
 
 ## Key Features
 
@@ -81,17 +80,20 @@ File Organizer processes **43+ file formats** including:
 ## Documentation Sections
 
 ### User Guides
+
 - [Web UI Guide](web-ui/index.md) - Browser-based file management
 - [Getting Started](getting-started.md) - Initial setup and overview
 - [CLI Reference](cli-reference.md) - Command-line interface guide
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
 
 ### API & Integration
+
 - [API Reference](api/index.md) - Complete REST API documentation
 - [Authentication](api/authentication.md) - API key management
 - [WebSocket Events](api/websocket-api.md) - Real-time updates
 
 ### Deployment & Administration
+
 - [Installation](admin/installation.md) - Setup instructions
 - [Deployment Guide](admin/deployment.md) - Production deployment
 - [Configuration](admin/configuration.md) - Environment setup
@@ -99,11 +101,10 @@ File Organizer processes **43+ file formats** including:
 - [Monitoring](admin/monitoring.md) - Health checks and logging
 
 ### Development & Extension
+
 - [Architecture Guide](developer/architecture.md) - System design
 - [Plugin Development](developer/plugin-development.md) - Creating plugins
 - [API Clients](developer/api-clients.md) - Client libraries
-- [Contributing](developer/contributing.md) - Development guidelines
-- [Testing](developer/testing.md) - Test strategies
 
 ## Getting Help
 
@@ -149,7 +150,7 @@ This documentation is maintained for File Organizer v2.0+. For older versions, c
 **Last Updated**: 2026-02-16
 **Version**: 2.0.0+
 
----
+______________________________________________________________________
 
 ## License
 
