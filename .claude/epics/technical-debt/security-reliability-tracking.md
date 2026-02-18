@@ -4,7 +4,7 @@ title: Security & Reliability Issues Tracking
 epic: technical-debt
 github_epic: 266
 created: 2026-02-18T06:59:33Z
-updated: 2026-02-18T07:26:00Z
+updated: 2026-02-18T07:50:00Z
 status: active
 ---
 
@@ -24,17 +24,19 @@ Identified from codebase audit (PR #344, merged 2026-02-18).
 
 **Issue #339: Reliability: File Reading Denial of Service Risk (DoS-1)**
 - **Priority**: High
-- **Status**: Open
-- **Effort**: TBD
+- **Status**: Closed ✅
+- **Effort**: 6h (actual)
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/339
 - **Description**: File reading operations lack size/resource limits, enabling DoS
+- **Completed**: 2026-02-18 — `FileTooLargeError` + `_check_file_size()` gate on 5 readers; 12 tests passing
 
 **Issue #340: Security: Insecure Default JWT Secret (Auth-1)**
 - **Priority**: High
-- **Status**: Open
-- **Effort**: TBD
+- **Status**: Closed ✅
+- **Effort**: 3h (actual)
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/340
 - **Description**: Default JWT secret is weak/hardcoded, allowing token forgery
+- **Completed**: 2026-02-18 — `SecretStr` type for `auth_jwt_secret`; 5 tests passing
 
 ## Medium Priority 🟡
 
@@ -69,3 +71,4 @@ Identified from codebase audit (PR #344, merged 2026-02-18).
 ## Tracking Updates
 
 - **2026-02-18**: Issues identified and added to technical-debt CCPM tracking
+- **2026-02-18**: #339 closed (file size gate), #340 closed (SecretStr JWT)
