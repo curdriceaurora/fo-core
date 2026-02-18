@@ -4,7 +4,7 @@ title: Security & Reliability Issues Tracking
 epic: technical-debt
 github_epic: 266
 created: 2026-02-18T06:59:33Z
-updated: 2026-02-18T06:59:33Z
+updated: 2026-02-18T07:26:00Z
 status: active
 ---
 
@@ -16,10 +16,11 @@ Identified from codebase audit (PR #344, merged 2026-02-18).
 
 **Issue #338: Security: Plugin Sandbox Bypass Risk (Plug-1)**
 - **Priority**: High
-- **Status**: Open
-- **Effort**: TBD
+- **Status**: Closed ✅
+- **Effort**: 10h (actual)
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/338
 - **Description**: Plugin execution environment may allow sandbox escape
+- **Completed**: 2026-02-18 — subprocess isolation via `executor.py` + `ipc.py`; 15 tests passing
 
 **Issue #339: Reliability: File Reading Denial of Service Risk (DoS-1)**
 - **Priority**: High
