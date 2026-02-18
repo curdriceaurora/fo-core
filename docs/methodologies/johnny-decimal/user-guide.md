@@ -335,14 +335,11 @@ if not validation.is_valid:
 ## Resources
 
 - Original system: [johnnydecimal.com](https://johnnydecimal.com)
-- File Organizer documentation: [Main docs](../../README.md)
-- Community examples: [Examples](examples/)
-
+- File Organizer documentation: [Main docs](../../index.md)
 ## Support
 
 For issues or questions:
 - Check the [FAQ](faq.md)
-- Review [examples](examples/)
 - Open an issue on GitHub
 - Consult the API documentation
 

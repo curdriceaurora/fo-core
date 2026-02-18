@@ -178,6 +178,11 @@ file_organizer = [
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+exclude = [
+    "technical-debt/",
+    "fix_coderabbit_issues.py",
+    "test_preference_tracker.py",
+]
 [tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors

@@ -574,7 +574,7 @@ for name, category in items:
 
 - PARA method: Tiago Forte's "Building a Second Brain"
 - Johnny Decimal: [johnnydecimal.com](https://johnnydecimal.com)
-- File Organizer docs: [Main documentation](../../README.md)
+- File Organizer docs: [Main documentation](../../index.md)
 
 ---
 

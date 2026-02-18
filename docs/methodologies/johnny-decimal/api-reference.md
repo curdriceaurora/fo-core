@@ -647,7 +647,7 @@ Raised when JD number is invalid.
 from file_organizer.methodologies.johnny_decimal import InvalidNumberError
 
 try:
-    number = JohnnyDecimalNumber(area=5, ...)  # Invalid: must be 10-99
+    number = JohnnyDecimalNumber(area=5)  # Invalid: must be 10-99
 except InvalidNumberError as e:
     print(f"Invalid number: {e}")
 ```

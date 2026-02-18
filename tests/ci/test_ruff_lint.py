@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-FO_ROOT = Path(__file__).resolve().parents[2]
+FO_ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.ci
