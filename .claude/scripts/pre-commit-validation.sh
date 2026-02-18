@@ -84,7 +84,7 @@ if [[ -n "$PY_FILES" ]]; then
     echo "✓ Linting passed"
     echo ""
     echo "🔧 Running full ruff check..."
-    if ! ruff check file_organizer_v2; then
+    if ! ruff check .; then
       echo "❌ Full ruff check failed"
       echo "Fix errors above, then re-stage files"
       exit 1
@@ -92,7 +92,7 @@ if [[ -n "$PY_FILES" ]]; then
     echo "✓ Full ruff check passed"
     echo ""
     echo "🔧 Running type annotation lint on src/..."
-    PY_SRC_FILES=$(echo "$PY_FILES" | grep '^file_organizer_v2/src/' || true)
+    PY_SRC_FILES=$(echo "$PY_FILES" | grep '^src/' || true)
     if [[ -n "$PY_SRC_FILES" ]]; then
       if ! echo "$PY_SRC_FILES" | xargs ruff check --select ANN; then
         echo "❌ Type annotation lint failed"
@@ -111,7 +111,7 @@ if [[ -n "$PY_FILES" ]]; then
   # 6. Type checking
   echo "📋 Type checking Python files..."
   if command -v mypy &> /dev/null; then
-    MYPY_OUTPUT=$(echo "$PY_FILES" | xargs mypy --config-file=file_organizer_v2/pyproject.toml 2>&1 | head -20 || true)
+    MYPY_OUTPUT=$(echo "$PY_FILES" | xargs mypy --config-file=pyproject.toml 2>&1 | head -20 || true)
     if [[ -n "$MYPY_OUTPUT" ]]; then
       echo "$MYPY_OUTPUT"
       echo "⚠️  Type checking found issues (non-blocking)"
@@ -169,7 +169,7 @@ if [[ -n "$PY_FILES" ]]; then
   TEST_FAILED=0
   for file in $PY_FILES; do
     # Only test files in src/ (match any depth with glob)
-    if [[ $file == file_organizer_v2/src/file_organizer/* ]] && [[ $file == *.py ]]; then
+    if [[ $file == src/file_organizer/* ]] && [[ $file == *.py ]]; then
       # Convert src path to test path
       TEST_FILE=${file/src\/file_organizer/tests}
       TEST_FILE=${TEST_FILE/.py/_test.py}
@@ -210,10 +210,10 @@ if [[ -n "$PY_FILES" ]]; then
 
   # 8b. Run focused security tests when related modules change
   echo "🔐 Checking if security-focused tests are needed..."
-  SECURITY_FILES_REGEX="file_organizer_v2/src/file_organizer/api/(middleware|rate_limit|api_keys|config)\\.py|file_organizer_v2/tests/test_api_security\\.py"
+  SECURITY_FILES_REGEX="src/file_organizer/api/(middleware|rate_limit|api_keys|config)\\.py|tests/test_api_security\\.py"
   if echo "$MODIFIED" | grep -Eq "$SECURITY_FILES_REGEX"; then
     echo "🧪 Running API security tests..."
-    if ! pytest file_organizer_v2/tests/test_api_security.py -q --override-ini="addopts="; then
+    if ! pytest tests/test_api_security.py -q --override-ini="addopts="; then
       echo "❌ API security tests failed"
       exit 1
     fi
@@ -225,10 +225,10 @@ if [[ -n "$PY_FILES" ]]; then
   fi
 
   echo "🧪 Checking if marketplace security tests are needed..."
-  MARKETPLACE_FILES_REGEX="file_organizer_v2/src/file_organizer/plugins/marketplace/|file_organizer_v2/tests/plugins/test_marketplace_core\\.py"
+  MARKETPLACE_FILES_REGEX="src/file_organizer/plugins/marketplace/|tests/plugins/test_marketplace_core\\.py"
   if echo "$MODIFIED" | grep -Eq "$MARKETPLACE_FILES_REGEX"; then
     echo "🧪 Running marketplace safety and integrity tests..."
-    if ! pytest file_organizer_v2/tests/plugins/test_marketplace_core.py -q --override-ini="addopts="; then
+    if ! pytest tests/plugins/test_marketplace_core.py -q --override-ini="addopts="; then
       echo "❌ Marketplace tests failed"
       exit 1
     fi
@@ -240,11 +240,11 @@ if [[ -n "$PY_FILES" ]]; then
   fi
 
   echo "🧪 Running CI-focused test suite..."
-  if ! pytest file_organizer_v2/tests/ci -q --override-ini="addopts="; then
+  if ! pytest tests/ci -q --override-ini="addopts="; then
     echo "❌ CI-focused tests failed"
     exit 1
   fi
-  if ! pytest file_organizer_v2/tests -m "not regression" --override-ini="addopts="; then
+  if ! pytest tests -m "not regression" --override-ini="addopts="; then
     echo "❌ Non-regression test suite failed"
     exit 1
   fi

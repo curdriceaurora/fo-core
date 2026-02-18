@@ -114,8 +114,8 @@ if metadata is not None and hasattr(metadata, "title") and metadata.title is not
 ```bash
 
 # Check for dict-style access on known dataclasses
-rg -n 'if\s+"[^"]+"\s+in\s+(metadata|result|config)' file_organizer_v2/
-rg -n '\["[^"]+"\]' file_organizer_v2/ | grep -E '(metadata|result|config)'
+rg -n 'if\s+"[^"]+"\s+in\s+(metadata|result|config)' 
+rg -n '\["[^"]+"\]'  | grep -E '(metadata|result|config)'
 
 ```
 
@@ -154,7 +154,7 @@ text = read_ebook_file("book.epub")
 ```bash
 
 # 1. Find the actual function
-rg -n "def read_epub_file" file_organizer_v2/
+rg -n "def read_epub_file" 
 
 # 2. Read the implementation
 
@@ -219,11 +219,11 @@ config = PARAConfig(
 ```bash
 
 # Find class definition
-rg -A 20 "^class PARAConfig" file_organizer_v2/
+rg -A 20 "^class PARAConfig" 
 
 # Or use ast-grep for precise structure
 ast-grep --pattern 'class PARAConfig:
-    $$$' --lang python file_organizer_v2/
+    $$$' --lang python 
 
 ```
 
@@ -246,7 +246,7 @@ from file_organizer.methodologies.para import PARARule
 
 # ✅ FIRST: Verify module exists
 
-# ls file_organizer_v2/src/file_organizer/methodologies/para/
+# ls src/file_organizer/methodologies/para/
 
 # ✅ THEN: Import from correct location
 from file_organizer.methodologies.para.rules import Rule
@@ -258,7 +258,7 @@ from file_organizer.methodologies.para.rules import Rule
 ```bash
 
 # Check if module exists
-find file_organizer_v2/src -name "*.py" -path "*para*" -type f
+find src -name "*.py" -path "*para*" -type f
 
 # Verify import path
 python3 -c "from file_organizer.methodologies.para.rules import Rule; print('✅ Import works')"
@@ -307,7 +307,7 @@ file-organizer dedupe --scan-dir ~/Documents
 file-organizer --help
 
 # Or inspect CLI code
-rg -n "@app.command" file_organizer_v2/src/file_organizer/cli/
+rg -n "@app.command" src/file_organizer/cli/
 
 ```
 
@@ -329,7 +329,7 @@ See [FAQ](faq.md) for more information.
 ```bash
 
 # ✅ FIRST: Check if file exists
-ls file_organizer_v2/docs/phase-3/faq.md
+ls docs/phase-3/faq.md
 
 # ✅ IF missing: Remove link or create file
 
@@ -344,11 +344,11 @@ ls file_organizer_v2/docs/phase-3/faq.md
 ```bash
 
 # Find all markdown links
-rg -n '\[.*\]\([^h][^t][^t][^p].*\)' file_organizer_v2/docs/
+rg -n '\[.*\]\([^h][^t][^t][^p].*\)' docs/
 
 # Check each linked file exists
-for link in $(rg -o '\]\(([^h][^t][^t][^p][^\)]+)\)' -r '$1' file_organizer_v2/docs/); do
-  if [[ ! -f "file_organizer_v2/docs/$link" ]]; then
+for link in $(rg -o '\]\(([^h][^t][^t][^p][^\)]+)\)' -r '$1' docs/); do
+  if [[ ! -f "docs/$link" ]]; then
     echo "❌ Broken link: $link"
   fi
 done
@@ -397,7 +397,7 @@ fixture_path = Path("tests/fixtures/johnny")
 ```bash
 
 # ✅ FIRST: Check actual fixture directories
-ls file_organizer_v2/tests/fixtures/
+ls tests/fixtures/
 
 # ✅ THEN: Use correct names
 fixture_path = Path("tests/fixtures/audio_samples")
@@ -410,7 +410,7 @@ fixture_path = Path("tests/fixtures/johnny_decimal")
 ```bash
 
 # List actual fixture directories
-find file_organizer_v2/tests/fixtures -type d -maxdepth 1
+find tests/fixtures -type d -maxdepth 1
 
 ```
 

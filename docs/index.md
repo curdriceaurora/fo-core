@@ -136,7 +136,7 @@ File Organizer processes **43+ file formats** including:
 
     ```bash
     git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-    cd file_organizer_v2
+    cd Local-File-Organizer
     pip install -e .
     file-organizer serve
     ```

@@ -8,7 +8,7 @@ Extend and customize File Organizer for your needs.
 
 ```bash
 git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd file_organizer_v2
+cd Local-File-Organizer
 ```
 
 ### Install Development Environment

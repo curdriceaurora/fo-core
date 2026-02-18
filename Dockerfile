@@ -25,10 +25,10 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies (copy requirements first for layer caching)
-COPY file_organizer_v2/pyproject.toml /build/file_organizer_v2/pyproject.toml
-COPY file_organizer_v2/src/ /build/file_organizer_v2/src/
+COPY pyproject.toml /build/pyproject.toml
+COPY src/ /build/src/
 
-WORKDIR /build/file_organizer_v2
+WORKDIR /build
 
 # Install the package and its dependencies into the virtual environment
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
@@ -74,8 +74,8 @@ RUN mkdir -p /data && chown organizer:organizer /data
 WORKDIR /app
 
 # Copy application source
-COPY file_organizer_v2/src/ /app/src/
-COPY file_organizer_v2/pyproject.toml /app/pyproject.toml
+COPY src/ /app/src/
+COPY pyproject.toml /app/pyproject.toml
 
 # Ensure the application user owns the app directory
 RUN chown -R organizer:organizer /app

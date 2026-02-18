@@ -289,7 +289,7 @@ with TextProcessor() as processor:
 ## Files Created This Session
 
 ```
-file_organizer_v2/src/file_organizer/
+src/file_organizer/
 ├── utils/
 │   ├── __init__.py
 │   ├── file_readers.py (329 lines)

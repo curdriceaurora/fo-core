@@ -47,9 +47,9 @@ An AI-powered local file management system with privacy-first architecture. Orga
 ### ✅ Permitted Actions
 
 **Code Development**:
-- Create, modify, and delete code files in `file_organizer_v2/src/`
-- Write and update tests in `file_organizer_v2/tests/`
-- Create utility scripts in `file_organizer_v2/scripts/`
+- Create, modify, and delete code files in `src/file_organizer/`
+- Write and update tests in `tests/`
+- Create utility scripts in `scripts/`
 - Modify configuration files (`pyproject.toml`, etc.)
 
 **Git Operations**:
@@ -133,8 +133,8 @@ updated: 2026-01-23T14:30:45Z  # Real datetime, not placeholder
 ```markdown
 # Use relative paths - NEVER absolute paths with usernames
 ✅ src/file_organizer/models/audio_model.py
-✅ file_organizer_v2/src/file_organizer/
-❌ /Users/username/Projects/file_organizer_v2/src/...
+✅ src/file_organizer/
+❌ /Users/username/Projects/src/file_organizer/...
 ```
 
 **Frontmatter Standards** (ALWAYS):
@@ -279,7 +279,6 @@ bash .claude/scripts/pre-commit-validation.sh
 
 ```bash
 # Install dependencies
-cd file_organizer_v2
 pip install -e .
 
 # Install Ollama and pull models
@@ -360,77 +359,76 @@ Local-File-Organizer/
 │   ├── agents/                    # Specialized agent definitions
 │   └── rules/                     # Standard operation rules
 │
-├── file_organizer_v2/                # Main application (~25K LOC)
-│   ├── src/file_organizer/
-│   │   ├── models/                # AI model abstractions (650 LOC)
-│   │   │   ├── base.py            # BaseModel interface, ModelConfig
-│   │   │   ├── text_model.py      # Ollama text generation
-│   │   │   ├── vision_model.py    # Vision-language models
-│   │   │   └── audio_model.py     # Audio transcription (Phase 3)
-│   │   │
-│   │   ├── services/              # Business logic layer
-│   │   │   ├── analytics/         # Storage & metrics analysis
-│   │   │   ├── auto_tagging/      # Tag recommendation & learning
-│   │   │   ├── deduplication/     # Image & document deduplication
-│   │   │   │   ├── image_dedup/   # Perceptual hashing
-│   │   │   │   ├── document_dedup/# Embedding-based dedup
-│   │   │   │   ├── backup_manager.py
-│   │   │   │   └── quality_assessor.py
-│   │   │   ├── intelligence/      # User preference learning (21 modules)
-│   │   │   │   ├── preference_tracker.py
-│   │   │   │   ├── profile_manager.py
-│   │   │   │   ├── pattern_learner.py
-│   │   │   │   ├── confidence_engine.py
-│   │   │   │   └── [16 more modules]
-│   │   │   ├── text_processor.py  # Text file pipeline (13 KB)
-│   │   │   ├── vision_processor.py# Image/video pipeline (14 KB)
-│   │   │   ├── pattern_analyzer.py# Pattern detection (16 KB)
-│   │   │   ├── smart_suggestions.py# Placement suggestions (19 KB)
-│   │   │   └── misplacement_detector.py# Context analysis (17 KB)
-│   │   │
-│   │   ├── core/                  # Main orchestrator
-│   │   │   └── file_organizer.py  # FileOrganizer class
-│   │   │
-│   │   ├── cli/                   # Command-line interfaces (6 modules)
-│   │   │   ├── dedupe.py          # Deduplication commands
-│   │   │   ├── profile.py         # Profile management
-│   │   │   ├── undo_redo.py       # Undo/redo commands
-│   │   │   ├── autotag.py         # Auto-tagging commands
-│   │   │   └── analytics.py       # Analytics commands
-│   │   │
-│   │   ├── history/               # Operation history (6 modules, ~50 KB)
-│   │   │   ├── operation_history.py
-│   │   │   ├── operation_transaction.py
-│   │   │   ├── history_cleanup.py
-│   │   │   ├── history_exporter.py
-│   │   │   ├── database_manager.py
-│   │   │   └── models.py
-│   │   │
-│   │   ├── undo/                  # Undo/redo system (5 modules, ~50 KB)
-│   │   │   ├── undo_manager.py
-│   │   │   ├── rollback_executor.py
-│   │   │   ├── operation_validator.py
-│   │   │   ├── history_viewer.py
-│   │   │   └── conflict_detector.py
-│   │   │
-│   │   ├── utils/                 # Utilities
-│   │   │   ├── file_readers.py    # 10+ file format readers
-│   │   │   ├── text_processing.py # Text utilities
-│   │   │   └── chart_generator.py # Visual analytics
-│   │   │
-│   │   └── config/                # Configuration management
+├── src/file_organizer/               # Main application (~25K LOC)
+│   ├── models/                    # AI model abstractions (650 LOC)
+│   │   ├── base.py                # BaseModel interface, ModelConfig
+│   │   ├── text_model.py          # Ollama text generation
+│   │   ├── vision_model.py        # Vision-language models
+│   │   └── audio_model.py         # Audio transcription (Phase 3)
 │   │
-│   ├── tests/                     # 136 test files
-│   │   ├── services/
-│   │   │   ├── analytics/         # 4 test files
-│   │   │   ├── auto_tagging/      # 4 test files
-│   │   │   ├── intelligence/      # 8 test files
-│   │   │   └── deduplication/
-│   │   ├── history/               # 5 test files
-│   │   └── undo/                  # 4 test files
+│   ├── services/                  # Business logic layer
+│   │   ├── analytics/             # Storage & metrics analysis
+│   │   ├── auto_tagging/          # Tag recommendation & learning
+│   │   ├── deduplication/         # Image & document deduplication
+│   │   │   ├── image_dedup/       # Perceptual hashing
+│   │   │   ├── document_dedup/    # Embedding-based dedup
+│   │   │   ├── backup_manager.py
+│   │   │   └── quality_assessor.py
+│   │   ├── intelligence/          # User preference learning (21 modules)
+│   │   │   ├── preference_tracker.py
+│   │   │   ├── profile_manager.py
+│   │   │   ├── pattern_learner.py
+│   │   │   ├── confidence_engine.py
+│   │   │   └── [16 more modules]
+│   │   ├── text_processor.py      # Text file pipeline (13 KB)
+│   │   ├── vision_processor.py    # Image/video pipeline (14 KB)
+│   │   ├── pattern_analyzer.py    # Pattern detection (16 KB)
+│   │   ├── smart_suggestions.py   # Placement suggestions (19 KB)
+│   │   └── misplacement_detector.py# Context analysis (17 KB)
 │   │
-│   ├── demo.py                    # CLI demo (~400 LOC)
-│   └── pyproject.toml             # Project configuration
+│   ├── core/                      # Main orchestrator
+│   │   └── file_organizer.py      # FileOrganizer class
+│   │
+│   ├── cli/                       # Command-line interfaces (6 modules)
+│   │   ├── dedupe.py              # Deduplication commands
+│   │   ├── profile.py             # Profile management
+│   │   ├── undo_redo.py           # Undo/redo commands
+│   │   ├── autotag.py             # Auto-tagging commands
+│   │   └── analytics.py           # Analytics commands
+│   │
+│   ├── history/                   # Operation history (6 modules, ~50 KB)
+│   │   ├── operation_history.py
+│   │   ├── operation_transaction.py
+│   │   ├── history_cleanup.py
+│   │   ├── history_exporter.py
+│   │   ├── database_manager.py
+│   │   └── models.py
+│   │
+│   ├── undo/                      # Undo/redo system (5 modules, ~50 KB)
+│   │   ├── undo_manager.py
+│   │   ├── rollback_executor.py
+│   │   ├── operation_validator.py
+│   │   ├── history_viewer.py
+│   │   └── conflict_detector.py
+│   │
+│   ├── utils/                     # Utilities
+│   │   ├── file_readers.py        # 10+ file format readers
+│   │   ├── text_processing.py     # Text utilities
+│   │   └── chart_generator.py     # Visual analytics
+│   │
+│   └── config/                    # Configuration management
+│
+├── tests/                         # 136 test files
+│   ├── services/
+│   │   ├── analytics/             # 4 test files
+│   │   ├── auto_tagging/          # 4 test files
+│   │   ├── intelligence/          # 8 test files
+│   │   └── deduplication/
+│   ├── history/                   # 5 test files
+│   └── undo/                      # 4 test files
+│
+├── demo.py                        # CLI demo (~400 LOC)
+├── pyproject.toml                 # Project configuration
 │
 └── BUSINESS_REQUIREMENTS_DOCUMENT.md
 ```
@@ -541,7 +539,7 @@ class ProcessedImage:
 ```bash
 # 1. Clone repository
 git clone <repo-url>
-cd Local-File-Organizer/file_organizer_v2
+cd Local-File-Organizer
 
 # 2. Install Ollama (if not installed)
 # macOS/Linux: curl -fsSL https://ollama.ai/install.sh | sh
@@ -1217,7 +1215,6 @@ python3 demo.py --input ~/Downloads --output ~/Organized --verbose
 
 ```bash
 # Create new migration
-cd file_organizer_v2
 alembic revision -m "Add new table"
 
 # Edit migration file

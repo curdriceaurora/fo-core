@@ -12,7 +12,7 @@ updated: 2026-02-18T13:43:10Z
 
 ## Summary
 
-Added a file size gate to `file_organizer_v2/src/file_organizer/utils/file_readers.py`
+Added a file size gate to `src/file_organizer/utils/file_readers.py`
 to prevent DoS attacks via zip bombs or excessively large files.
 
 ## Changes Made

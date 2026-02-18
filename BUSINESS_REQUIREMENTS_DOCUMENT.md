@@ -282,7 +282,7 @@ Libraries:
 
 **Architecture:**
 ```
-file_organizer_v2/
+Local-File-Organizer/
 ├── models/         # AI model abstractions
 ├── services/       # Business logic
 ├── core/           # Orchestration

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Project root is two levels above file_organizer_v2/scripts/
+# Project root is one level above scripts/
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPTS_DIR.parents[1]
 _V2_ROOT = _SCRIPTS_DIR.parent

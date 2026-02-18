@@ -25,7 +25,6 @@ jobs:
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit dependencies
-        working-directory: file_organizer_v2
         run: pip-audit -r <(pip install -e . && pip freeze)
         continue-on-error: true
 
@@ -39,7 +38,7 @@ jobs:
       - name: Install bandit
         run: pip install bandit[toml]
       - name: Run bandit
-        run: bandit -r file_organizer_v2/src/ -c pyproject.toml || true
+        run: bandit -r src/ -c pyproject.toml || true
 
   codeql-analysis:
     runs-on: ubuntu-latest

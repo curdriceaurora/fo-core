@@ -13,6 +13,6 @@ improvements (including universal DMG support and CI workflow updates).
 
 Key artifacts and references:
 - Phase 2 CCPM execution status: `.claude/epics/phase-2-enhanced-ux/execution-status.md`
-- macOS build script updates: `file_organizer_v2/scripts/build_macos.sh`
+- macOS build script updates: `scripts/build_macos.sh`
 - macOS CI workflow: `.github/workflows/build-macos.yml`
-- Build docs: `file_organizer_v2/docs/BUILDING.md`
+- Build docs: `docs/BUILDING.md`

@@ -13,14 +13,14 @@ status: in_progress
 Integration tests verifying sandbox bypass is blocked. Test plugin that attempts forbidden operations must fail. Update existing tests for new executor.
 
 ## Files Created
-- `file_organizer_v2/tests/plugins/test_sandbox_isolation.py` — 15 tests across 3 groups (new)
-- `file_organizer_v2/tests/plugins/__init__.py` — package marker (new)
-- `file_organizer_v2/tests/plugins/fixtures/__init__.py` — fixtures package marker (new)
-- `file_organizer_v2/tests/plugins/fixtures/malicious_plugin/__init__.py` — malicious fixture package (new)
-- `file_organizer_v2/tests/plugins/fixtures/malicious_plugin/plugin.py` — MaliciousPlugin fixture (new)
-- `file_organizer_v2/src/file_organizer/plugins/__init__.py` — package re-exporting Plugin, PluginLoadError, PluginPermissionError (new)
-- `file_organizer_v2/src/file_organizer/plugins/base.py` — Plugin base class + exception hierarchy (new)
-- `file_organizer_v2/src/file_organizer/plugins/executor.py` — PluginExecutor stub documenting Stream A interface (new)
+- `tests/plugins/test_sandbox_isolation.py` — 15 tests across 3 groups (new)
+- `tests/plugins/__init__.py` — package marker (new)
+- `tests/plugins/fixtures/__init__.py` — fixtures package marker (new)
+- `tests/plugins/fixtures/malicious_plugin/__init__.py` — malicious fixture package (new)
+- `tests/plugins/fixtures/malicious_plugin/plugin.py` — MaliciousPlugin fixture (new)
+- `src/file_organizer/plugins/__init__.py` — package re-exporting Plugin, PluginLoadError, PluginPermissionError (new)
+- `src/file_organizer/plugins/base.py` — Plugin base class + exception hierarchy (new)
+- `src/file_organizer/plugins/executor.py` — PluginExecutor stub documenting Stream A interface (new)
 
 ## Test Results
 - 12 passed, 3 skipped (executor tests await Stream A)

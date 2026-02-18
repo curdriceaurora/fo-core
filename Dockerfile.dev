@@ -38,12 +38,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install Python dependencies first for layer caching
-COPY file_organizer_v2/pyproject.toml /app/file_organizer_v2/pyproject.toml
-COPY file_organizer_v2/src/ /app/file_organizer_v2/src/
+COPY pyproject.toml /app/pyproject.toml
+COPY src/ /app/src/
 
 # Install the package with all development extras
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir -e "/app/file_organizer_v2[dev,audio,video]"
+    && pip install --no-cache-dir -e "/app[dev,audio,video]"
 
 # Install additional dev utilities
 RUN pip install --no-cache-dir \
@@ -61,4 +61,4 @@ EXPOSE 5678
 # Default command: run with live reload enabled
 CMD ["python", "-m", "uvicorn", "file_organizer.api:app", \
      "--host", "0.0.0.0", "--port", "8000", "--reload", \
-     "--reload-dir", "/app/file_organizer_v2/src"]
+     "--reload-dir", "/app/src"]

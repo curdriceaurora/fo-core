@@ -44,7 +44,7 @@ All 25 tasks complete.
 
 ## Phase Close Notes (2026-02-18)
 
-- Task #36 delivered: `file_organizer_v2/docs/tui.md` — comprehensive TUI documentation with embedded demo GIF (`tui-demo.gif`) and all view illustrations (SVG assets). Full keyboard reference, configuration guide, and troubleshooting section.
+- Task #36 delivered: `docs/tui.md` — comprehensive TUI documentation with embedded demo GIF (`tui-demo.gif`) and all view illustrations (SVG assets). Full keyboard reference, configuration guide, and troubleshooting section.
 - Tasks #12, #13, #23 confirmed complete via codebase audit (2026-02-17): 195+ test files, docs suite, auto-update mechanism all in place.
 - GitHub issue #255 closed.
 - GitHub epic issue #1 closed.

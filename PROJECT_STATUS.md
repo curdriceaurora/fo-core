@@ -91,7 +91,7 @@ We've successfully rebuilt the File Organizer from scratch with state-of-the-art
 ### Current Structure
 
 ```
-file_organizer_v2/
+Local-File-Organizer/
 ├── src/file_organizer/
 │   ├── models/                # AI model implementations
 │   │   ├── base.py           # Abstract base classes

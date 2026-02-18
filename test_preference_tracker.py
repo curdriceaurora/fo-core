@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 # Add the src directory to the path
-sys.path.insert(0, str(Path(__file__).parent / "file_organizer_v2" / "src"))
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from file_organizer.services.intelligence import (
     PreferenceTracker,

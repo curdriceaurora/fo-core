@@ -41,7 +41,7 @@ result = function()  # Returns single value, not tuple
 ```bash
 
 # Before using any import:
-find file_organizer_v2/src -name "*.py" -path "*path/to/module*"
+find src -name "*.py" -path "*path/to/module*"
 
 # Test import works:
 python3 -c "from file_organizer.module import Class; print('✅')"
@@ -57,7 +57,7 @@ config = Config(param_that_doesnt_exist=True)
 
 # ✅ CORRECT: Read class definition first
 
-# 1. Find class: rg "^class Config" file_organizer_v2/
+# 1. Find class: rg "^class Config" 
 
 # 2. Read __init__ or @dataclass fields
 
@@ -138,7 +138,7 @@ if hasattr(metadata, "field") and metadata.field is not None:
 ```python
 
 # Find the implementation:
-rg -A 5 "def function_name" file_organizer_v2/src/
+rg -A 5 "def function_name" src/
 
 # Read the return type annotation
 
@@ -151,7 +151,7 @@ rg -A 5 "def function_name" file_organizer_v2/src/
 ```bash
 
 # Find correct module:
-find file_organizer_v2/src -name "*.py" | grep -i "keyword"
+find src -name "*.py" | grep -i "keyword"
 
 # Update import path to match actual location
 

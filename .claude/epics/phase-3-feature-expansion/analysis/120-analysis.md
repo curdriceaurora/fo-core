@@ -18,9 +18,9 @@ Implement intelligent content-based organization for audio files using both tran
 ### Stream A: Audio Type Classification
 **Scope**: Develop classification engine to identify audio types
 **Files**:
-- `file_organizer_v2/src/file_organizer/services/audio_classifier.py`
-- `file_organizer_v2/src/file_organizer/services/audio_type_detector.py`
-- `file_organizer_v2/src/file_organizer/models/audio_types.py`
+- `src/file_organizer/services/audio_classifier.py`
+- `src/file_organizer/services/audio_type_detector.py`
+- `src/file_organizer/models/audio_types.py`
 **Agent Type**: ml-specialist
 **Can Start**: immediately
 **Estimated Hours**: 4 hours
@@ -37,9 +37,9 @@ Implement intelligent content-based organization for audio files using both tran
 ### Stream B: Organization Rule Engine
 **Scope**: Build flexible rule engine for organizing different audio types
 **Files**:
-- `file_organizer_v2/src/file_organizer/services/audio_organizer.py`
-- `file_organizer_v2/src/file_organizer/core/organization_rules.py`
-- `file_organizer_v2/src/file_organizer/models/organization_templates.py`
+- `src/file_organizer/services/audio_organizer.py`
+- `src/file_organizer/core/organization_rules.py`
+- `src/file_organizer/models/organization_templates.py`
 **Agent Type**: backend-specialist
 **Can Start**: immediately
 **Estimated Hours**: 4 hours
@@ -56,9 +56,9 @@ Implement intelligent content-based organization for audio files using both tran
 ### Stream C: Content Analysis Integration
 **Scope**: Integrate transcription and metadata for smart organization
 **Files**:
-- `file_organizer_v2/src/file_organizer/services/audio_content_analyzer.py`
-- `file_organizer_v2/src/file_organizer/services/topic_extractor.py`
-- `file_organizer_v2/src/file_organizer/utils/path_utils.py`
+- `src/file_organizer/services/audio_content_analyzer.py`
+- `src/file_organizer/services/topic_extractor.py`
+- `src/file_organizer/utils/path_utils.py`
 **Agent Type**: nlp-specialist
 **Can Start**: immediately
 **Estimated Hours**: 4 hours
@@ -75,8 +75,8 @@ Implement intelligent content-based organization for audio files using both tran
 ### Stream D: Duplicate Detection
 **Scope**: Identify and handle duplicate audio files
 **Files**:
-- `file_organizer_v2/src/file_organizer/services/audio_duplicate_detector.py`
-- `file_organizer_v2/src/file_organizer/utils/audio_fingerprint.py`
+- `src/file_organizer/services/audio_duplicate_detector.py`
+- `src/file_organizer/utils/audio_fingerprint.py`
 **Agent Type**: backend-specialist
 **Can Start**: immediately
 **Estimated Hours**: 3 hours
@@ -93,12 +93,12 @@ Implement intelligent content-based organization for audio files using both tran
 ### Stream E: Testing & Integration
 **Scope**: Comprehensive testing across all components
 **Files**:
-- `file_organizer_v2/tests/services/test_audio_classifier.py`
-- `file_organizer_v2/tests/services/test_audio_organizer.py`
-- `file_organizer_v2/tests/services/test_audio_content_analyzer.py`
-- `file_organizer_v2/tests/services/test_audio_duplicate_detector.py`
-- `file_organizer_v2/tests/integration/test_audio_organization_workflow.py`
-- `file_organizer_v2/tests/fixtures/audio_organization/`
+- `tests/services/test_audio_classifier.py`
+- `tests/services/test_audio_organizer.py`
+- `tests/services/test_audio_content_analyzer.py`
+- `tests/services/test_audio_duplicate_detector.py`
+- `tests/integration/test_audio_organization_workflow.py`
+- `tests/fixtures/audio_organization/`
 **Agent Type**: qa-specialist
 **Can Start**: after Streams A-D are 50% complete
 **Estimated Hours**: 4 hours
@@ -115,8 +115,8 @@ Implement intelligent content-based organization for audio files using both tran
 ## Coordination Points
 
 ### Shared Files
-- `file_organizer_v2/src/file_organizer/models/audio_metadata.py` - Streams A, B, C (coordinate metadata structure)
-- `file_organizer_v2/src/file_organizer/services/__init__.py` - All development streams (coordinate exports)
+- `src/file_organizer/models/audio_metadata.py` - Streams A, B, C (coordinate metadata structure)
+- `src/file_organizer/services/__init__.py` - All development streams (coordinate exports)
 
 ### Type Definitions
 All streams need agreement on:

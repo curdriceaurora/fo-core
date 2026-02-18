@@ -117,7 +117,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 
 **Usage:**
 ```bash
-cd file_organizer_v2
+
 ./migrate_to_py39.sh
 ```
 
@@ -392,10 +392,10 @@ cd file_organizer_v2
 ## References
 
 ### Analysis Documents (In Repository)
-- `file_organizer_v2/PYTHON_VERSION_MIGRATION_ANALYSIS.md`
-- `file_organizer_v2/PYTHON39_DEPENDENCY_ANALYSIS.md`
-- `file_organizer_v2/PYTHON39_MODULE_ANALYSIS.md`
-- `file_organizer_v2/migrate_to_py39.sh`
+- `PYTHON_VERSION_MIGRATION_ANALYSIS.md`
+- `PYTHON39_DEPENDENCY_ANALYSIS.md`
+- `PYTHON39_MODULE_ANALYSIS.md`
+- `migrate_to_py39.sh`
 
 ### Task Files (Phase 5 Epic)
 - `.claude/epics/phase-5-architecture/125.md` - Syntax conversion

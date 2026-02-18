@@ -66,7 +66,7 @@ See [Installation Guide](admin/installation.md) for options.
 
 ```bash
 git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd file_organizer_v2
+cd Local-File-Organizer
 pip install -e .
 
 # Pull required AI models

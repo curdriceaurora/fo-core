@@ -11,7 +11,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Project root is two levels above file_organizer_v2/scripts/
+# Project root is one level above scripts/
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 _V2_ROOT = _SCRIPTS_DIR.parent
 

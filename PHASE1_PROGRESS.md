@@ -174,7 +174,7 @@ Total: ~8-9 GB peak (when both models loaded)
 ## Files Created 📁
 
 ```
-file_organizer_v2/
+Local-File-Organizer/
 ├── pyproject.toml (295 lines)
 ├── README.md (378 lines)
 ├── PHASE1_PROGRESS.md (this file)
@@ -240,7 +240,7 @@ For anyone wanting to test the current progress:
 
 ```bash
 # 1. Clone repository
-cd Local-File-Organizer/file_organizer_v2
+cd Local-File-Organizer
 
 # 2. Install dependencies
 pip install ollama loguru

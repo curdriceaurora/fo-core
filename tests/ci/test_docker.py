@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-# Project root is two levels above file_organizer_v2/tests/ci/
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# Project root is two levels above tests/ci/
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestDockerfile:

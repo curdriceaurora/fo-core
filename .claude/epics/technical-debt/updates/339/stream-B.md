@@ -24,8 +24,8 @@ All 12 tests pass against the landed Stream A implementation.
 
 ## Files Created
 
-- `file_organizer_v2/tests/utils/__init__.py` (new package init)
-- `file_organizer_v2/tests/utils/test_file_size_limit.py` (221 lines, 12 tests)
+- `tests/utils/__init__.py` (new package init)
+- `tests/utils/test_file_size_limit.py` (221 lines, 12 tests)
 
 ## Test Classes
 

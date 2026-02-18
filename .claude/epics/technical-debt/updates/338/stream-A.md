@@ -13,9 +13,9 @@ status: completed
 Create the subprocess executor and IPC protocol modules that isolate plugin execution from the host process.
 
 ## Files
-- `file_organizer_v2/src/file_organizer/plugins/executor.py` ← implemented
-- `file_organizer_v2/src/file_organizer/plugins/ipc.py` ← implemented
-- `file_organizer_v2/src/file_organizer/plugins/security.py` ← implemented (new; required by executor)
+- `src/file_organizer/plugins/executor.py` ← implemented
+- `src/file_organizer/plugins/ipc.py` ← implemented
+- `src/file_organizer/plugins/security.py` ← implemented (new; required by executor)
 
 ## Completed
 

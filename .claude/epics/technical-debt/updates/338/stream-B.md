@@ -10,9 +10,9 @@ status: completed
 # Stream B: Registry Integration
 
 ## Files Changed
-- `file_organizer_v2/src/file_organizer/plugins/registry.py` — created (new file)
-- `file_organizer_v2/src/file_organizer/plugins/executor.py` — updated (optional args, PluginLoadError on_load)
-- `file_organizer_v2/tests/plugins/test_sandbox_isolation.py` — removed 3 skip markers
+- `src/file_organizer/plugins/registry.py` — created (new file)
+- `src/file_organizer/plugins/executor.py` — updated (optional args, PluginLoadError on_load)
+- `tests/plugins/test_sandbox_isolation.py` — removed 3 skip markers
 
 ## Test Results
 All 15 plugin tests pass (0 skipped)

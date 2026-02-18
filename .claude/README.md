@@ -122,9 +122,9 @@ The main PRD is already created at `.claude/prds/file-organizer-v2.md`
 5. **Release**: Follow semantic versioning
 
 ### Key Files to Reference
-- `file_organizer_v2/BUSINESS_REQUIREMENTS_DOCUMENT.md` - Complete BRD (20,000+ words)
-- `file_organizer_v2/PROJECT_STATUS.md` - Current status and metrics
-- `file_organizer_v2/README.md` - User-facing documentation
+- `BUSINESS_REQUIREMENTS_DOCUMENT.md` - Complete BRD (20,000+ words)
+- `PROJECT_STATUS.md` - Current status and metrics
+- `README.md` - User-facing documentation
 
 ## Best Practices
 
@@ -177,7 +177,7 @@ For CCPM-specific questions:
 
 For File Organizer v2.0 questions:
 - GitHub Issues: https://github.com/curdriceaurora/Local-File-Organizer/issues
-- Documentation: See `file_organizer_v2/` directory
+- Documentation: See `` directory
 
 ---
 

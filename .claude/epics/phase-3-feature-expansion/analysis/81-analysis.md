@@ -18,10 +18,10 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 ### Stream A: AI Content Analysis Engine
 **Scope**: Build content analysis pipeline using Claude API
 **Files**:
-- `file_organizer_v2/src/file_organizer/ai/content_analyzer.py`
-- `file_organizer_v2/src/file_organizer/ai/feature_extractor.py`
-- `file_organizer_v2/src/file_organizer/ai/claude_integration.py`
-- `file_organizer_v2/src/file_organizer/ai/text_analysis.py`
+- `src/file_organizer/ai/content_analyzer.py`
+- `src/file_organizer/ai/feature_extractor.py`
+- `src/file_organizer/ai/claude_integration.py`
+- `src/file_organizer/ai/text_analysis.py`
 **Agent Type**: ai-specialist
 **Can Start**: immediately
 **Estimated Hours**: 7 hours
@@ -39,10 +39,10 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 ### Stream B: Suggestion & Classification Engine
 **Scope**: Generate smart categorization suggestions with confidence scoring
 **Files**:
-- `file_organizer_v2/src/file_organizer/ai/suggestion_engine.py`
-- `file_organizer_v2/src/file_organizer/ai/para_classifier.py`
-- `file_organizer_v2/src/file_organizer/ai/confidence_scorer.py`
-- `file_organizer_v2/src/file_organizer/ai/explainer.py`
+- `src/file_organizer/ai/suggestion_engine.py`
+- `src/file_organizer/ai/para_classifier.py`
+- `src/file_organizer/ai/confidence_scorer.py`
+- `src/file_organizer/ai/explainer.py`
 **Agent Type**: ml-specialist
 **Can Start**: immediately
 **Estimated Hours**: 6 hours
@@ -60,10 +60,10 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 ### Stream C: Feedback Loop & Learning System
 **Scope**: Collect user feedback and improve suggestions over time
 **Files**:
-- `file_organizer_v2/src/file_organizer/ai/feedback_collector.py`
-- `file_organizer_v2/src/file_organizer/ai/feedback_database.py`
-- `file_organizer_v2/src/file_organizer/ai/continuous_learner.py`
-- `file_organizer_v2/src/file_organizer/ai/pattern_analyzer.py`
+- `src/file_organizer/ai/feedback_collector.py`
+- `src/file_organizer/ai/feedback_database.py`
+- `src/file_organizer/ai/continuous_learner.py`
+- `src/file_organizer/ai/pattern_analyzer.py`
 **Agent Type**: ml-specialist
 **Can Start**: immediately
 **Estimated Hours**: 5 hours
@@ -81,10 +81,10 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 ### Stream D: PARA-Aware File Movement
 **Scope**: Smart file movement with context preservation
 **Files**:
-- `file_organizer_v2/src/file_organizer/ai/para_file_mover.py`
-- `file_organizer_v2/src/file_organizer/ai/bulk_organizer.py`
-- `file_organizer_v2/src/file_organizer/ai/archive_suggester.py`
-- `file_organizer_v2/src/file_organizer/utils/link_updater.py`
+- `src/file_organizer/ai/para_file_mover.py`
+- `src/file_organizer/ai/bulk_organizer.py`
+- `src/file_organizer/ai/archive_suggester.py`
+- `src/file_organizer/utils/link_updater.py`
 **Agent Type**: backend-specialist
 **Can Start**: immediately
 **Estimated Hours**: 4 hours
@@ -102,10 +102,10 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 ### Stream E: User Interface Components
 **Scope**: UI for displaying suggestions and collecting feedback
 **Files**:
-- `file_organizer_v2/src/file_organizer/cli/para_suggest_command.py`
-- `file_organizer_v2/src/file_organizer/ui/suggestion_display.py`
-- `file_organizer_v2/src/file_organizer/ui/feedback_ui.py`
-- `file_organizer_v2/src/file_organizer/ui/bulk_organize_ui.py`
+- `src/file_organizer/cli/para_suggest_command.py`
+- `src/file_organizer/ui/suggestion_display.py`
+- `src/file_organizer/ui/feedback_ui.py`
+- `src/file_organizer/ui/bulk_organize_ui.py`
 **Agent Type**: frontend-specialist
 **Can Start**: after Streams A & B reach 30%
 **Estimated Hours**: 4 hours
@@ -122,12 +122,12 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 ### Stream F: Testing & Integration
 **Scope**: Comprehensive testing across all components
 **Files**:
-- `file_organizer_v2/tests/ai/test_content_analyzer.py`
-- `file_organizer_v2/tests/ai/test_suggestion_engine.py`
-- `file_organizer_v2/tests/ai/test_feedback_loop.py`
-- `file_organizer_v2/tests/ai/test_para_file_mover.py`
-- `file_organizer_v2/tests/integration/test_para_suggestions_workflow.py`
-- `file_organizer_v2/tests/fixtures/para_suggestions/`
+- `tests/ai/test_content_analyzer.py`
+- `tests/ai/test_suggestion_engine.py`
+- `tests/ai/test_feedback_loop.py`
+- `tests/ai/test_para_file_mover.py`
+- `tests/integration/test_para_suggestions_workflow.py`
+- `tests/fixtures/para_suggestions/`
 **Agent Type**: qa-specialist
 **Can Start**: after Streams A-D reach 50%
 **Estimated Hours**: 6 hours
@@ -145,8 +145,8 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 ## Coordination Points
 
 ### Shared Files
-- `file_organizer_v2/src/file_organizer/ai/models.py` - Streams A, B, C, D (shared data structures)
-- `file_organizer_v2/src/file_organizer/ai/__init__.py` - All streams (coordinate exports)
+- `src/file_organizer/ai/models.py` - Streams A, B, C, D (shared data structures)
+- `src/file_organizer/ai/__init__.py` - All streams (coordinate exports)
 
 ### Shared Data Structures
 All streams need agreement on:

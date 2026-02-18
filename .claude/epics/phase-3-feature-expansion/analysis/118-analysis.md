@@ -18,10 +18,10 @@ Integrate the Johnny Decimal numbering system with existing folder organization 
 ### Stream A: Migration Engine
 **Scope**: Core migration tool development and folder transformation logic
 **Files**:
-- `file_organizer_v2/src/file_organizer/methodologies/johnny_decimal/migrator.py`
-- `file_organizer_v2/src/file_organizer/methodologies/johnny_decimal/scanner.py`
-- `file_organizer_v2/src/file_organizer/methodologies/johnny_decimal/transformer.py`
-- `file_organizer_v2/src/file_organizer/methodologies/johnny_decimal/validator.py`
+- `src/file_organizer/methodologies/johnny_decimal/migrator.py`
+- `src/file_organizer/methodologies/johnny_decimal/scanner.py`
+- `src/file_organizer/methodologies/johnny_decimal/transformer.py`
+- `src/file_organizer/methodologies/johnny_decimal/validator.py`
 **Agent Type**: backend-specialist
 **Can Start**: immediately
 **Estimated Hours**: 6 hours
@@ -38,9 +38,9 @@ Integrate the Johnny Decimal numbering system with existing folder organization 
 ### Stream B: Compatibility Layer
 **Scope**: Ensure Johnny Decimal works with PARA and other systems
 **Files**:
-- `file_organizer_v2/src/file_organizer/methodologies/johnny_decimal/compatibility.py`
-- `file_organizer_v2/src/file_organizer/methodologies/johnny_decimal/adapters.py`
-- `file_organizer_v2/src/file_organizer/methodologies/johnny_decimal/config.py`
+- `src/file_organizer/methodologies/johnny_decimal/compatibility.py`
+- `src/file_organizer/methodologies/johnny_decimal/adapters.py`
+- `src/file_organizer/methodologies/johnny_decimal/config.py`
 **Agent Type**: backend-specialist
 **Can Start**: immediately
 **Estimated Hours**: 5 hours
@@ -56,11 +56,11 @@ Integrate the Johnny Decimal numbering system with existing folder organization 
 ### Stream C: Documentation & User Guides
 **Scope**: Comprehensive documentation for users and developers
 **Files**:
-- `file_organizer_v2/docs/phase-3/johnny-decimal-user-guide.md`
-- `file_organizer_v2/docs/phase-3/johnny-decimal-migration.md`
-- `file_organizer_v2/docs/phase-3/johnny-decimal-para-compatibility.md`
-- `file_organizer_v2/docs/phase-3/johnny-decimal-api.md`
-- `file_organizer_v2/docs/phase-3/johnny-decimal-faq.md`
+- `docs/phase-3/johnny-decimal-user-guide.md`
+- `docs/phase-3/johnny-decimal-migration.md`
+- `docs/phase-3/johnny-decimal-para-compatibility.md`
+- `docs/phase-3/johnny-decimal-api.md`
+- `docs/phase-3/johnny-decimal-faq.md`
 **Agent Type**: documentation-specialist
 **Can Start**: immediately
 **Estimated Hours**: 4 hours
@@ -76,10 +76,10 @@ Integrate the Johnny Decimal numbering system with existing folder organization 
 ### Stream D: Testing & Integration
 **Scope**: Comprehensive test suite and integration validation
 **Files**:
-- `file_organizer_v2/tests/methodologies/johnny_decimal/test_migrator.py`
-- `file_organizer_v2/tests/methodologies/johnny_decimal/test_compatibility.py`
-- `file_organizer_v2/tests/methodologies/johnny_decimal/test_integration.py`
-- `file_organizer_v2/tests/fixtures/johnny_decimal/`
+- `tests/methodologies/johnny_decimal/test_migrator.py`
+- `tests/methodologies/johnny_decimal/test_compatibility.py`
+- `tests/methodologies/johnny_decimal/test_integration.py`
+- `tests/fixtures/johnny_decimal/`
 **Agent Type**: qa-specialist
 **Can Start**: after Streams A & B are 50% complete
 **Estimated Hours**: 5 hours
@@ -95,7 +95,7 @@ Integrate the Johnny Decimal numbering system with existing folder organization 
 ## Coordination Points
 
 ### Shared Files
-- `file_organizer_v2/src/file_organizer/methodologies/johnny_decimal/__init__.py` - All streams (coordinate exports)
+- `src/file_organizer/methodologies/johnny_decimal/__init__.py` - All streams (coordinate exports)
 - Configuration files - Streams A & B (migration config structure)
 
 ### Sequential Requirements

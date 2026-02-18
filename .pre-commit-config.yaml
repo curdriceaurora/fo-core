@@ -3,36 +3,36 @@ repos:
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: ruff check file_organizer_v2
+        entry: ruff check .
         language: system
         pass_filenames: false
       - id: ruff-check-src
         name: ruff check (src)
-        entry: ruff check file_organizer_v2/src/
+        entry: ruff check src/
         language: system
         pass_filenames: false
       - id: ruff-check-full
         name: ruff check (full)
-        entry: bash -c "cd file_organizer_v2 && ruff check ."
+        entry: bash -c "ruff check ."
         language: system
         pass_filenames: false
       - id: pytest-websocket
         name: pytest (websocket validations)
-        entry: bash -c "cd file_organizer_v2 && pytest tests/test_api_websocket.py -q --override-ini=\"addopts=\""
+        entry: bash -c "pytest tests/test_api_websocket.py -q --override-ini=\"addopts=\""
         language: system
         pass_filenames: false
       - id: pytest-ci-lint
         name: pytest (ci guardrails)
-        entry: pytest file_organizer_v2/tests/ci -q --override-ini="addopts="
+        entry: pytest tests/ci -q --override-ini="addopts="
         language: system
         pass_filenames: false
       - id: pytest-web-ui
         name: pytest (web ui)
-        entry: bash -c "cd file_organizer_v2 && pytest tests/test_web_ui.py -q --override-ini=\"addopts=\""
+        entry: bash -c "pytest tests/test_web_ui.py -q --override-ini=\"addopts=\""
         language: system
         pass_filenames: false
       - id: pytest-not-regression
         name: pytest (not regression)
-        entry: bash -c "cd file_organizer_v2 && pytest tests/ -m \"not regression\" --override-ini=\"addopts=\""
+        entry: bash -c "pytest tests/ -m \"not regression\" --override-ini=\"addopts=\""
         language: system
         pass_filenames: false

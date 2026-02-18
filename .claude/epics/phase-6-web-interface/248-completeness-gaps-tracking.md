@@ -299,7 +299,7 @@ Each GitHub issue contains detailed specifications for its implementation.
 
 - **Task 248 Details**: `.claude/epics/phase-6-web-interface/248.md`
 - **Audit Report**: Generated via code-analyzer comprehensive audit
-- **Test Suite**: `file_organizer_v2/tests/docs/` (commit 3ac23a5)
+- **Test Suite**: `tests/docs/` (commit 3ac23a5)
 - **GitHub Issues**: View all with `gh issue list --label documentation --state open`
 
 ---

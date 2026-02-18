@@ -96,6 +96,5 @@ __snapshots__/
 node_modules/
 
 # MkDocs build output
-file_organizer_v2/site/
 site/
 .claude/worktrees/

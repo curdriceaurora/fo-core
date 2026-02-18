@@ -17,13 +17,12 @@ jobs:
       - name: Install build tools
         run: pip install build twine
       - name: Build package
-        working-directory: file_organizer_v2
         run: python -m build
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: file_organizer_v2/dist/
+          path: dist/
 
   publish-pypi:
     needs: build

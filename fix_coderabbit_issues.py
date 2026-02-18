@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List
 
 # Base directory
-BASE_DIR = Path(__file__).parent / "file_organizer_v2"
+BASE_DIR = Path(__file__).parent
 
 
 def add_blank_lines_around_code_blocks(content: str) -> str:

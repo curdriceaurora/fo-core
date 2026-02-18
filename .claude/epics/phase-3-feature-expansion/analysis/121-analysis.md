@@ -18,9 +18,9 @@ Implement automatic PARA folder structure generation with migration support from
 ### Stream A: Folder Structure Generator
 **Scope**: Core PARA folder creation and structure management
 **Files**:
-- `file_organizer_v2/src/file_organizer/methodologies/para/folder_generator.py`
-- `file_organizer_v2/src/file_organizer/methodologies/para/structure_validator.py`
-- `file_organizer_v2/src/file_organizer/methodologies/para/config.py`
+- `src/file_organizer/methodologies/para/folder_generator.py`
+- `src/file_organizer/methodologies/para/structure_validator.py`
+- `src/file_organizer/methodologies/para/config.py`
 **Agent Type**: backend-specialist
 **Can Start**: immediately
 **Estimated Hours**: 5 hours
@@ -38,9 +38,9 @@ Implement automatic PARA folder structure generation with migration support from
 ### Stream B: Migration Manager
 **Scope**: Migrate existing flat/hierarchical structures to PARA
 **Files**:
-- `file_organizer_v2/src/file_organizer/methodologies/para/migration_manager.py`
-- `file_organizer_v2/src/file_organizer/methodologies/para/migration_analyzer.py`
-- `file_organizer_v2/src/file_organizer/methodologies/para/migration_planner.py`
+- `src/file_organizer/methodologies/para/migration_manager.py`
+- `src/file_organizer/methodologies/para/migration_analyzer.py`
+- `src/file_organizer/methodologies/para/migration_planner.py`
 **Agent Type**: backend-specialist
 **Can Start**: immediately
 **Estimated Hours**: 6 hours
@@ -59,8 +59,8 @@ Implement automatic PARA folder structure generation with migration support from
 ### Stream C: Rule Integration & Mapper
 **Scope**: Integrate categorization rules with folder generation
 **Files**:
-- `file_organizer_v2/src/file_organizer/methodologies/para/folder_mapper.py`
-- `file_organizer_v2/src/file_organizer/methodologies/para/rule_engine_integration.py`
+- `src/file_organizer/methodologies/para/folder_mapper.py`
+- `src/file_organizer/methodologies/para/rule_engine_integration.py`
 **Agent Type**: backend-specialist
 **Can Start**: after Stream A reaches 30%
 **Estimated Hours**: 3 hours
@@ -77,11 +77,11 @@ Implement automatic PARA folder structure generation with migration support from
 ### Stream D: Testing & Validation
 **Scope**: Comprehensive test suite for all components
 **Files**:
-- `file_organizer_v2/tests/methodologies/para/test_folder_generator.py`
-- `file_organizer_v2/tests/methodologies/para/test_migration_manager.py`
-- `file_organizer_v2/tests/methodologies/para/test_folder_mapper.py`
-- `file_organizer_v2/tests/methodologies/para/test_integration.py`
-- `file_organizer_v2/tests/fixtures/para_migration/`
+- `tests/methodologies/para/test_folder_generator.py`
+- `tests/methodologies/para/test_migration_manager.py`
+- `tests/methodologies/para/test_folder_mapper.py`
+- `tests/methodologies/para/test_integration.py`
+- `tests/fixtures/para_migration/`
 **Agent Type**: qa-specialist
 **Can Start**: after Streams A & B are 50% complete
 **Estimated Hours**: 5 hours
@@ -100,8 +100,8 @@ Implement automatic PARA folder structure generation with migration support from
 ## Coordination Points
 
 ### Shared Files
-- `file_organizer_v2/src/file_organizer/methodologies/para/models.py` - Streams A, B, C (coordinate data structures)
-- `file_organizer_v2/src/file_organizer/methodologies/para/__init__.py` - All streams (coordinate exports)
+- `src/file_organizer/methodologies/para/models.py` - Streams A, B, C (coordinate data structures)
+- `src/file_organizer/methodologies/para/__init__.py` - All streams (coordinate exports)
 
 ### Shared Data Structures
 All streams need agreement on:

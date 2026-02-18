@@ -9,7 +9,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: file-organizer-dev
     volumes:
-      - ./file_organizer_v2/src:/app/file_organizer_v2/src
+      - ./src:/app/src
       - organizer-data:/data
     environment:
       - FILE_ORGANIZER_DATA_DIR=/data
@@ -30,12 +30,12 @@ services:
       dockerfile: Dockerfile.dev
     container_name: file-organizer-tests
     volumes:
-      - ./file_organizer_v2/src:/app/file_organizer_v2/src
-      - ./file_organizer_v2/tests:/app/file_organizer_v2/tests
+      - ./src:/app/src
+      - ./tests:/app/tests
     environment:
       - REDIS_URL=redis://redis:6379/0
       - FILE_ORGANIZER_LOG_LEVEL=DEBUG
-    command: ["python", "-m", "pytest", "file_organizer_v2/tests/", "-v", "--tb=short"]
+    command: ["python", "-m", "pytest", "tests/", "-v", "--tb=short"]
     networks:
       - organizer-network
     depends_on:
