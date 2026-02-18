@@ -15,6 +15,14 @@ import json
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
+
+# fcntl is Unix-only, not available on Windows
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False
 
 
 class BackupManager:
@@ -186,7 +194,7 @@ class BackupManager:
 
         return removed_backups
 
-    def get_backup_info(self, backup_path: Path) -> dict | None:
+    def get_backup_info(self, backup_path: Path) -> Optional[dict]:
         """
         Get metadata for a specific backup.
 
@@ -276,20 +284,24 @@ class BackupManager:
         """
         Load the backup manifest from disk with file locking.
 
-        Uses a lock file to prevent race conditions when multiple
-        processes read the manifest simultaneously.
-
         Returns:
             Dictionary containing manifest data
         """
         if not self.manifest_path.exists():
             return {}
 
-        lock_path = self.manifest_path.with_suffix(".lock")
         try:
-            with _FileLock(lock_path):
-                with open(self.manifest_path, encoding="utf-8") as f:
-                    return json.load(f)
+            with open(self.manifest_path, encoding='utf-8') as f:
+                # Acquire shared lock for reading (Unix only)
+                if HAS_FCNTL:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                try:
+                    data = json.load(f)
+                finally:
+                    # Release lock (Unix only)
+                    if HAS_FCNTL:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                return data
         except (json.JSONDecodeError, OSError):
             # If manifest is corrupted, start fresh
             return {}
@@ -298,61 +310,26 @@ class BackupManager:
         """
         Save the backup manifest to disk with file locking.
 
-        Writes to a temporary file first, then atomically renames it
-        to prevent corruption from interrupted writes.
-
         Args:
             manifest: Dictionary containing manifest data
         """
-        lock_path = self.manifest_path.with_suffix(".lock")
-        tmp_path = self.manifest_path.with_suffix(".tmp")
         try:
-            with _FileLock(lock_path):
-                # Write to temp file first for atomic replacement
-                with open(tmp_path, "w", encoding="utf-8") as f:
+            # Open in read+ mode to avoid truncating before lock
+            mode = 'r+' if self.manifest_path.exists() else 'w'
+            with open(self.manifest_path, mode, encoding='utf-8') as f:
+                # Acquire exclusive lock for writing (Unix only)
+                if HAS_FCNTL:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                try:
+                    # Truncate file after acquiring lock
+                    if mode == 'r+':
+                        f.seek(0)
+                        f.truncate()
                     json.dump(manifest, f, indent=2, ensure_ascii=False)
-                # Atomic rename
-                tmp_path.replace(self.manifest_path)
+                    f.flush()
+                finally:
+                    # Release lock (Unix only)
+                    if HAS_FCNTL:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         except OSError as e:
-            tmp_path.unlink(missing_ok=True)
             raise OSError(f"Failed to save manifest: {e}") from e
-
-
-class _FileLock:
-    """Simple cross-platform file lock using a lock file.
-
-    Creates an exclusive lock file that is held for the duration of the
-    context manager.  Uses ``O_CREAT | O_EXCL`` for atomic creation on
-    all platforms.
-
-    Args:
-        lock_path: Path for the lock file.
-        timeout: Maximum seconds to wait for the lock.
-    """
-
-    def __init__(self, lock_path: Path, timeout: float = 10.0) -> None:
-        self._lock_path = Path(lock_path)
-        self._timeout = timeout
-
-    def __enter__(self) -> _FileLock:
-        import os
-        import time
-
-        deadline = time.monotonic() + self._timeout
-        while True:
-            try:
-                fd = os.open(
-                    str(self._lock_path),
-                    os.O_CREAT | os.O_EXCL | os.O_WRONLY,
-                )
-                os.close(fd)
-                return self
-            except FileExistsError:
-                if time.monotonic() >= deadline:
-                    # Stale lock — force remove and retry once
-                    self._lock_path.unlink(missing_ok=True)
-                    continue
-                time.sleep(0.05)
-
-    def __exit__(self, *args: object) -> None:
-        self._lock_path.unlink(missing_ok=True)

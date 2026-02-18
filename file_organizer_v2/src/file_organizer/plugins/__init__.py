@@ -22,6 +22,7 @@ from file_organizer.plugins.errors import (
     PluginNotLoadedError,
     PluginPermissionError,
 )
+from file_organizer.plugins.executor import PluginExecutor
 from file_organizer.plugins.hooks import HookExecutionResult, HookRegistry
 from file_organizer.plugins.lifecycle import PluginLifecycleManager, PluginState
 from file_organizer.plugins.marketplace import (
@@ -60,6 +61,7 @@ __all__ = [
     "PluginDependencyError",
     "PluginDiscoveryError",
     "PluginError",
+    "PluginExecutor",
     "PluginHookManager",
     "PluginLifecycleError",
     "PluginLifecycleManager",

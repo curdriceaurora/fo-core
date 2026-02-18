@@ -51,9 +51,11 @@ class ApiSettings(BaseModel):
     auth_login_rate_limit_enabled: bool = True
     auth_login_max_attempts: int = Field(default=5, gt=0)
     auth_login_window_seconds: int = Field(default=900, gt=0)
-    auth_password_min_length: int = Field(default=8, gt=0)
+    auth_password_min_length: int = Field(default=12, gt=0)
     auth_password_require_number: bool = True
     auth_password_require_letter: bool = True
+    auth_password_require_special: bool = True
+    auth_password_require_uppercase: bool = True
     auth_bootstrap_admin: bool = False
     auth_bootstrap_admin_local_only: bool = True
     database_url: Optional[str] = None
@@ -258,6 +260,14 @@ def load_settings() -> ApiSettings:
     if "FO_API_AUTH_PASSWORD_REQUIRE_LETTER" in env:
         data["auth_password_require_letter"] = env[
             "FO_API_AUTH_PASSWORD_REQUIRE_LETTER"
+        ].lower() in ("1", "true", "yes")
+    if "FO_API_AUTH_PASSWORD_REQUIRE_SPECIAL" in env:
+        data["auth_password_require_special"] = env[
+            "FO_API_AUTH_PASSWORD_REQUIRE_SPECIAL"
+        ].lower() in ("1", "true", "yes")
+    if "FO_API_AUTH_PASSWORD_REQUIRE_UPPERCASE" in env:
+        data["auth_password_require_uppercase"] = env[
+            "FO_API_AUTH_PASSWORD_REQUIRE_UPPERCASE"
         ].lower() in ("1", "true", "yes")
     if "FO_API_AUTH_BOOTSTRAP_ADMIN" in env:
         data["auth_bootstrap_admin"] = env["FO_API_AUTH_BOOTSTRAP_ADMIN"].lower() in (

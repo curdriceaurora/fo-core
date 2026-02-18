@@ -7,7 +7,22 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from file_organizer.plugins.errors import (
+    PluginError,
+    PluginLoadError,
+    PluginPermissionError,
+)
 from file_organizer.plugins.security import PluginSandbox
+
+# Re-export errors for backward compatibility with code that imports
+# PluginError/PluginLoadError/PluginPermissionError from this module.
+__all__ = [
+    "Plugin",
+    "PluginError",
+    "PluginLoadError",
+    "PluginMetadata",
+    "PluginPermissionError",
+]
 
 
 @dataclass(frozen=True)
