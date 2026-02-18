@@ -103,6 +103,35 @@ class FileReadError(Exception):
     pass
 
 
+MAX_FILE_SIZE_BYTES: int = 500 * 1024 * 1024  # 500 MB
+
+
+class FileTooLargeError(OSError):
+    """Raised when a file exceeds the maximum allowed size for processing."""
+
+
+def _check_file_size(file_path: Path, max_bytes: int = MAX_FILE_SIZE_BYTES) -> None:
+    """Raise FileTooLargeError if file exceeds max_bytes.
+
+    Args:
+        file_path: Path to the file to check.
+        max_bytes: Maximum allowed file size in bytes.
+
+    Raises:
+        FileTooLargeError: If the file is larger than max_bytes.
+    """
+    try:
+        size = file_path.stat().st_size
+    except OSError:
+        return  # Let the reader handle missing/inaccessible files
+    if size > max_bytes:
+        mb = size / (1024 * 1024)
+        limit_mb = max_bytes / (1024 * 1024)
+        raise FileTooLargeError(
+            f"File too large to process: {mb:.1f} MB (limit: {limit_mb:.0f} MB): {file_path}"
+        )
+
+
 def read_text_file(file_path: str | Path, max_chars: int = 5000) -> str:
     """Read text content from a plain text file.
 
@@ -142,6 +171,7 @@ def read_docx_file(file_path: str | Path) -> str:
     if not DOCX_AVAILABLE:
         raise ImportError("python-docx is not installed. Install with: pip install python-docx")
 
+    _check_file_size(Path(file_path))
     file_path = Path(file_path)
     try:
         doc = docx.Document(file_path)
@@ -241,6 +271,7 @@ def read_presentation_file(file_path: str | Path) -> str:
     if not PPTX_AVAILABLE:
         raise ImportError("python-pptx is not installed. Install with: pip install python-pptx")
 
+    _check_file_size(Path(file_path))
     file_path = Path(file_path)
     try:
         prs = Presentation(file_path)
@@ -281,6 +312,7 @@ def read_ebook_file(file_path: str | Path, max_chars: int = 10000) -> str:
     if not EBOOKLIB_AVAILABLE:
         raise ImportError("ebooklib is not installed. Install with: pip install ebooklib")
 
+    _check_file_size(Path(file_path))
     file_path = Path(file_path)
 
     # Only support EPUB for now
@@ -456,6 +488,7 @@ def read_tar_file(file_path: str | Path, max_files: int = 50) -> str:
     Raises:
         FileReadError: If file cannot be read
     """
+    _check_file_size(Path(file_path))
     file_path = Path(file_path)
     try:
         with tarfile.open(file_path, "r:*") as tf:
@@ -757,6 +790,7 @@ def read_file(file_path: str | Path, **kwargs) -> str | None:
     Raises:
         FileReadError: If file cannot be read
     """
+    _check_file_size(Path(file_path))
     file_path = Path(file_path)
 
     # Check for compound extensions (e.g., .tar.gz)
