@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 import yaml
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 from file_organizer.api.api_keys import hash_api_key
 from file_organizer.version import __version__
@@ -43,7 +43,7 @@ class ApiSettings(BaseModel):
     auth_db_path: str = Field(
         default_factory=lambda: str(Path.home() / ".config" / "file-organizer" / "auth.db")
     )
-    auth_jwt_secret: str = "change-me"
+    auth_jwt_secret: SecretStr = SecretStr("change-me")
     auth_jwt_algorithm: str = "HS256"
     auth_access_token_minutes: int = Field(default=30, gt=0)
     auth_refresh_token_days: int = Field(default=7, gt=0)
@@ -387,7 +387,7 @@ def load_settings() -> ApiSettings:
 
     api_key_enabled_explicit = "api_key_enabled" in data
     settings = ApiSettings(**data)
-    if settings.auth_enabled and settings.auth_jwt_secret == "change-me":
+    if settings.auth_enabled and settings.auth_jwt_secret.get_secret_value() == "change-me":
         if settings.environment.lower() in {"development", "test"}:
             logger.warning(
                 "FO_API_AUTH_JWT_SECRET is using the default placeholder. "

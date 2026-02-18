@@ -74,7 +74,7 @@ def _build_token(
         "iat": int(issued_at.timestamp()),
         "exp": int(expires_at.timestamp()),
     }
-    token = jwt.encode(claims, settings.auth_jwt_secret, algorithm=settings.auth_jwt_algorithm)
+    token = jwt.encode(claims, settings.auth_jwt_secret.get_secret_value(), algorithm=settings.auth_jwt_algorithm)
     return token, jti, expires_at
 
 
@@ -104,7 +104,7 @@ def create_token_bundle(user_id: str, username: str, settings: ApiSettings) -> T
 
 def decode_token(token: str, settings: ApiSettings) -> dict[str, Any]:
     try:
-        return jwt.decode(token, settings.auth_jwt_secret, algorithms=[settings.auth_jwt_algorithm])
+        return jwt.decode(token, settings.auth_jwt_secret.get_secret_value(), algorithms=[settings.auth_jwt_algorithm])
     except JWTError as exc:
         raise TokenError("Invalid token") from exc
 
