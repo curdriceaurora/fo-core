@@ -1,58 +1,70 @@
 ---
-name: security-issues-tracking
+name: security-reliability-tracking
 title: Security & Reliability Issues Tracking
-epic: phase-6-web-interface
-created: 2026-02-18T06:55:32Z
-updated: 2026-02-18T06:55:32Z
+epic: technical-debt
+github_epic: 266
+created: 2026-02-18T06:59:33Z
+updated: 2026-02-18T06:59:33Z
 status: active
 ---
 
-# Security & Reliability Issues - Identified 2026-02-18
+# Security & Reliability Issues
 
-Issues identified from codebase audit (PR #344).
+Identified from codebase audit (PR #344, merged 2026-02-18).
 
-## High Priority
+## High Priority 🔴
 
 **Issue #338: Security: Plugin Sandbox Bypass Risk (Plug-1)**
 - **Priority**: High
-- **Labels**: bug, high-priority
 - **Status**: Open
+- **Effort**: TBD
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/338
+- **Description**: Plugin execution environment may allow sandbox escape
 
 **Issue #339: Reliability: File Reading Denial of Service Risk (DoS-1)**
 - **Priority**: High
-- **Labels**: bug, high-priority
 - **Status**: Open
+- **Effort**: TBD
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/339
+- **Description**: File reading operations lack size/resource limits, enabling DoS
 
 **Issue #340: Security: Insecure Default JWT Secret (Auth-1)**
 - **Priority**: High
-- **Labels**: bug, high-priority
 - **Status**: Open
+- **Effort**: TBD
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/340
+- **Description**: Default JWT secret is weak/hardcoded, allowing token forgery
 
-## Medium Priority
+## Medium Priority 🟡
 
 **Issue #341: Security: SQL Injection Vector in DatabaseOptimization (DB-1)**
 - **Priority**: Medium
-- **Labels**: bug
 - **Status**: Open
+- **Effort**: TBD
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/341
+- **Description**: Raw SQL in DatabaseOptimization class not parameterized
 
 **Issue #342: Security: Weak Password Policy (Auth-2)**
 - **Priority**: Medium
-- **Labels**: bug
 - **Status**: Open
+- **Effort**: TBD
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/342
+- **Description**: No minimum password strength enforcement
 
 **Issue #343: Privacy: Potential Data Leak in Logs (Priv-1)**
 - **Priority**: Medium
-- **Labels**: bug
 - **Status**: Open
+- **Effort**: TBD
 - **GitHub**: https://github.com/curdriceaurora/Local-File-Organizer/issues/343
+- **Description**: Sensitive data (file paths, metadata) may appear in log output
 
 ## Summary
-- **Total**: 6 security/reliability issues
+
+- **Total**: 6 issues
 - **High Priority**: 3 (#338, #339, #340)
 - **Medium Priority**: 3 (#341, #342, #343)
-- **Source**: Codebase audit via PR #344 (merged 2026-02-18)
+- **Source**: PR #344 codebase audit (merged 2026-02-18)
+
+## Tracking Updates
+
+- **2026-02-18**: Issues identified and added to technical-debt CCPM tracking
