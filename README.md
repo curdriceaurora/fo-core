@@ -1,32 +1,35 @@
 # File Organizer v2.0
 
 [![CI](https://github.com/curdriceaurora/Local-File-Organizer/actions/workflows/ci.yml/badge.svg)](https://github.com/curdriceaurora/Local-File-Organizer/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-local%20report-blue)](htmlcov/index.html)
+[![Coverage](https://img.shields.io/badge/coverage-local%20report-blue)](../htmlcov/index.html)
 
-> AI-powered local file management. Privacy-first — runs 100% on your device.
+> AI-powered local file management. Privacy-first -- runs 100% on your device.
 
-## Highlights
+**3,146 tests** | **184 modules** | **43 file types** | Python 3.9+
 
-- **Copilot Chat**: Natural-language assistant for organize/find/undo.
-- **Terminal UI**: 8-view Textual TUI (Files, Analytics, Audio, History, Copilot, and more).
-- **Full CLI**: Organize, rules, suggestions, dedupe, daemon, analytics, update.
-- **Audio Intelligence**: Metadata extraction + classification (Phase 3).
-- **Deduplication**: Hash and semantic detection (Phase 4).
-- **Undo/Redo**: Operation history with reversible actions.
-- **Methodologies**: PARA + Johnny Decimal.
-- **Auto-Update**: GitHub Releases with rollback support.
-- **Cross-Platform Builds**: macOS DMG (Intel + Apple Silicon), Windows installer, Linux AppImage.
+## Features
+
+- **AI-Powered Organisation**: Qwen 2.5 3B (text) + Qwen 2.5-VL 7B (vision) via Ollama
+- **Copilot Chat**: Natural-language assistant -- "organise ./Downloads", "find report.pdf", "undo"
+- **Organisation Rules**: Automated sorting with conditions, preview, and YAML persistence
+- **Terminal UI**: 8-view Textual TUI (Files, Analytics, Audio, History, Copilot, and more)
+- **Full CLI**: Organize, rules, suggest, dedupe, daemon, analytics, update, profiles
+- **Auto-Update**: GitHub Releases checks with verified downloads and rollback
+- **Intelligence**: Pattern learning, preference tracking, smart suggestions, auto-tagging
+- **Deduplication**: Hash and semantic duplicate detection
+- **Undo/Redo**: Full operation history
+- **PARA + Johnny Decimal**: Built-in organisational methodologies
+- **Cross-Platform**: macOS (DMG), Windows (installer), Linux (AppImage) executables
 
 ## Screenshots
 
-![TUI overview](file_organizer_v2/docs/assets/tui-overview.svg)
+![TUI overview](docs/assets/tui-overview.svg)
 
-![TUI demo](file_organizer_v2/docs/assets/tui-demo.gif)
+![TUI demo](docs/assets/tui-demo.gif)
 
 ## Quick Start
 
 ```bash
-cd file_organizer_v2
 pip install -e .
 
 # Pull models
@@ -40,32 +43,31 @@ file-organizer organize ./Downloads ./Organized --dry-run
 file-organizer tui
 ```
 
+## Web UI (Preview)
+
+Start the FastAPI server and open the UI:
+
+```bash
+uvicorn file_organizer.api.main:app --reload
+```
+
+Then visit `http://localhost:8000/ui/` for the HTMX interface.
+
 ## Documentation
 
-- [User Guide](file_organizer_v2/docs/USER_GUIDE.md)
-- [CLI Reference](file_organizer_v2/docs/CLI_REFERENCE.md)
-- [Configuration Guide](file_organizer_v2/docs/CONFIGURATION.md)
-- [Troubleshooting](file_organizer_v2/docs/TROUBLESHOOTING.md)
-- [Tutorials](file_organizer_v2/docs/tutorials/README.md)
+- [User Guide](docs/USER_GUIDE.md)
+- [CLI Reference](docs/CLI_REFERENCE.md)
+- [Configuration Guide](docs/CONFIGURATION.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Tutorials](docs/tutorials/README.md)
 
-## Installation
-
-### Prerequisites
-
-- Python 3.9+
-- Ollama
-
-### Optional Feature Packs
+## Optional Feature Packs
 
 ```bash
 pip install -e ".[audio]"
 pip install -e ".[dedup]"
 pip install -e ".[build]"
 ```
-
-### Pre-built Binaries
-
-Pre-built releases are available for macOS, Windows, and Linux via GitHub Releases.
 
 ## Development
 
@@ -80,11 +82,6 @@ ruff check src/
 ## Configuration
 
 Config lives in `config/file-organizer/config.yaml` relative to your config home. Override with `FILE_ORGANIZER_CONFIG`.
-
-## Support
-
-- [Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues)
-- [Discussions](https://github.com/curdriceaurora/Local-File-Organizer/discussions)
 
 ---
 
