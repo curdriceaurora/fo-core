@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from ..categories import PARACategory
+from ..config import CategoryThresholds
 
 logger = logging.getLogger(__name__)
 
@@ -452,13 +453,8 @@ class HeuristicEngine:
     4. Confidence = (top_score - second_score) / top_score
     """
 
-    # Auto-categorization thresholds
-    THRESHOLDS = {
-        PARACategory.PROJECT: 0.75,
-        PARACategory.AREA: 0.75,
-        PARACategory.RESOURCE: 0.80,
-        PARACategory.ARCHIVE: 0.90,  # High bar for auto-archiving
-    }
+    # Default auto-categorization thresholds (used when no config is provided)
+    _DEFAULT_THRESHOLDS = CategoryThresholds()
 
     def __init__(
         self,
@@ -466,6 +462,7 @@ class HeuristicEngine:
         enable_content: bool = True,
         enable_structural: bool = True,
         enable_ai: bool = False,
+        thresholds: CategoryThresholds | None = None,
     ):
         """
         Initialize heuristic engine.
@@ -475,7 +472,10 @@ class HeuristicEngine:
             enable_content: Enable content heuristic
             enable_structural: Enable structural heuristic
             enable_ai: Enable AI heuristic
+            thresholds: Category-specific confidence thresholds; uses
+                ``CategoryThresholds`` defaults when not provided.
         """
+        self._thresholds = thresholds or self._DEFAULT_THRESHOLDS
         self.heuristics: list[Heuristic] = []
 
         if enable_temporal:
@@ -489,6 +489,20 @@ class HeuristicEngine:
 
         if enable_ai:
             self.heuristics.append(AIHeuristic(weight=0.10))
+
+    @property
+    def THRESHOLDS(self) -> dict[PARACategory, float]:
+        """Backwards-compatible public accessor returning thresholds as a dict.
+
+        Returns a mapping from each PARACategory to its minimum confidence
+        threshold, matching the original class-level ``THRESHOLDS`` dict API.
+        """
+        return {
+            PARACategory.PROJECT: self._thresholds.project,
+            PARACategory.AREA: self._thresholds.area,
+            PARACategory.RESOURCE: self._thresholds.resource,
+            PARACategory.ARCHIVE: self._thresholds.archive,
+        }
 
     def evaluate(self, file_path: Path, metadata: dict | None = None) -> HeuristicResult:
         """
@@ -551,9 +565,10 @@ class HeuristicEngine:
             score.confidence = confidence
 
         # Determine recommendation based on thresholds
+        thresholds_map = self.THRESHOLDS
         recommended = None
         for category in scores_list:
-            if category.score >= self.THRESHOLDS[category.category]:
+            if category.score >= thresholds_map[category.category]:
                 recommended = category.category
                 break
 
