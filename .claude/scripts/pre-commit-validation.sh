@@ -162,6 +162,97 @@ if [[ -n "$MD_FILES" ]]; then
   echo ""
 fi
 
+# 7b. Run ALL staged test files directly (catches new/modified tests even
+#     when no src/ file is staged — the blind spot that caused PR #415 failures)
+STAGED_TEST_FILES=$(git diff --name-only --cached -- 'tests/**/*.py' | grep -E '^tests/.*test_.*\.py$' || true)
+if [[ -n "$STAGED_TEST_FILES" ]]; then
+  echo "🧪 Running staged test files directly..."
+  STAGED_TEST_FAILED=0
+  for test_file in $STAGED_TEST_FILES; do
+    if [[ -f "$test_file" ]]; then
+      echo "  Testing $test_file..."
+      if ! pytest "$test_file" --tb=short -q --override-ini="addopts="; then
+        echo "❌ Test file $test_file has failures"
+        STAGED_TEST_FAILED=1
+      fi
+    fi
+  done
+  if [[ $STAGED_TEST_FAILED -eq 1 ]]; then
+    echo ""
+    echo "❌ Some staged test files have failures"
+    echo "Fix failing tests before committing"
+    exit 1
+  fi
+  echo "✓ All staged test files passed"
+  echo ""
+fi
+
+# 7c. Validate mock @patch targets in staged test files resolve to real attributes
+#     Uses the Python that has the project installed (same one pytest uses).
+if [[ -n "$STAGED_TEST_FILES" ]]; then
+  # Find a Python that can import the project (try python3, then the one pytest uses)
+  PROJ_PYTHON=""
+  if python3 -c "import file_organizer" 2>/dev/null; then
+    PROJ_PYTHON="python3"
+  elif command -v pytest &>/dev/null; then
+    PYTEST_PYTHON=$(head -1 "$(command -v pytest)" | sed 's/^#!//')
+    if [[ -n "$PYTEST_PYTHON" ]] && $PYTEST_PYTHON -c "import file_organizer" 2>/dev/null; then
+      PROJ_PYTHON="$PYTEST_PYTHON"
+    fi
+  fi
+
+  if [[ -z "$PROJ_PYTHON" ]]; then
+    echo "⚠️  Skipping mock target validation (project not installed in any Python)"
+  else
+    echo "🎯 Validating mock patch targets..."
+    PATCH_ISSUES=0
+    for test_file in $STAGED_TEST_FILES; do
+      # Extract patch targets from newly-added lines (portable: uses Python, not grep -oP)
+      PATCH_TARGETS=$($PROJ_PYTHON -c "
+import re, sys
+text = sys.stdin.read()
+for m in re.finditer(r'^\+.*@patch\(\"([^\"]+)\"', text, re.MULTILINE):
+    print(m.group(1))
+" < <(git diff --cached -- "$test_file") 2>/dev/null || true)
+      for target in $PATCH_TARGETS; do
+        # Resolve target: import longest module prefix, then walk remaining attributes
+        if ! $PROJ_PYTHON - "$target" <<'VALIDATE_EOF'
+import importlib, sys
+target = sys.argv[1]
+parts = target.split(".")
+for i in range(len(parts), 0, -1):
+    try:
+        module = importlib.import_module(".".join(parts[:i]))
+    except ImportError:
+        continue
+    obj = module
+    for attr in parts[i:]:
+        try:
+            obj = getattr(obj, attr)
+        except AttributeError:
+            sys.exit(1)
+    sys.exit(0)
+sys.exit(1)
+VALIDATE_EOF
+        then
+          echo "❌ Invalid mock target in $test_file: $target"
+          echo "   Target could not be resolved to an importable object"
+          echo "   If the function uses a local import, patch at the source module instead"
+          PATCH_ISSUES=1
+        fi
+      done
+    done
+    if [[ $PATCH_ISSUES -eq 1 ]]; then
+      echo ""
+      echo "Fix: Patch where the name is DEFINED, not where it's IMPORTED locally"
+      echo "See: https://docs.python.org/3/library/unittest.mock.html#where-to-patch"
+      exit 1
+    fi
+    echo "✓ All mock patch targets are valid"
+    echo ""
+  fi
+fi
+
 # 8. Run tests on modified Python modules (if tests exist)
 if [[ -n "$PY_FILES" ]]; then
   echo "🧪 Running tests for modified modules..."
