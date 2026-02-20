@@ -13,6 +13,7 @@ Features:
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
@@ -249,6 +250,7 @@ class TemplateManager:
             profile_manager: ProfileManager instance
         """
         self.profile_manager = profile_manager
+        self._templates = copy.deepcopy(self.TEMPLATES)
 
     def list_templates(self) -> list[str]:
         """
@@ -257,7 +259,7 @@ class TemplateManager:
         Returns:
             List of template names
         """
-        return list(self.TEMPLATES.keys())
+        return list(self._templates.keys())
 
     def get_template(self, template_name: str) -> dict[str, Any] | None:
         """
@@ -270,8 +272,8 @@ class TemplateManager:
             Template data dictionary or None if not found
         """
         template_name_lower = template_name.lower()
-        if template_name_lower in self.TEMPLATES:
-            return self.TEMPLATES[template_name_lower].copy()
+        if template_name_lower in self._templates:
+            return copy.deepcopy(self._templates[template_name_lower])
         return None
 
     def preview_template(self, template_name: str) -> dict[str, Any] | None:
@@ -379,8 +381,6 @@ class TemplateManager:
             Customized template data
         """
         # Deep copy to avoid modifying original
-        import copy
-
         customized = copy.deepcopy(template)
 
         # Apply naming pattern customizations
@@ -426,7 +426,7 @@ class TemplateManager:
                 return False
 
             # Check if template name already exists
-            if template_name.lower() in self.TEMPLATES:
+            if template_name.lower() in self._templates:
                 print(f"Error: Template '{template_name}' already exists")
                 return False
 
@@ -434,14 +434,14 @@ class TemplateManager:
             template_data = {
                 "name": profile.profile_name,
                 "description": profile.description,
-                "preferences": profile.preferences,
-                "learned_patterns": profile.learned_patterns,
-                "confidence_data": profile.confidence_data,
+                "preferences": copy.deepcopy(profile.preferences),
+                "learned_patterns": copy.deepcopy(profile.learned_patterns),
+                "confidence_data": copy.deepcopy(profile.confidence_data),
             }
 
             # Add to templates (in-memory only, not persisted)
             # For persistence, would need to save to file
-            self.TEMPLATES[template_name.lower()] = template_data
+            self._templates[template_name.lower()] = template_data
 
             print(f"Created custom template '{template_name}' from profile '{from_profile}'")
             print("Note: Custom templates are not persisted and will be lost on restart")

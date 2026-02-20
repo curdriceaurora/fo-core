@@ -13,6 +13,18 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def mock_text_model(mocker):
+    """Mock the text model for all tests in this file."""
+    mock_model = mocker.MagicMock()
+    mock_model.generate.return_value = "Mocked AI response"
+
+    # Mock the get_text_model dependency and reset the module-level cache
+    mocker.patch("file_organizer.api.routers.analyze.get_text_model", return_value=mock_model)
+    mocker.patch("file_organizer.api.routers.analyze._text_model", None)
+    return mock_model
+
+
 class TestAnalyzeEndpoint:
     """Tests for the /analyze endpoint."""
 
