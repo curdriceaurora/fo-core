@@ -53,34 +53,28 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       pages: write
       id-token: write
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Download documentation artifact
+        uses: actions/download-artifact@v4
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          name: documentation
+          path: ./site
 
-      - name: Install dependencies
-        run: |
-          pip install -e .[docs]
-
-      - name: Build documentation
-        run: |
-          mkdocs build
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   test:
     runs-on: ubuntu-latest
