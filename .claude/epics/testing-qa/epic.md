@@ -164,3 +164,19 @@ Ensure docs are accurate
 4. **Week 6**: CI/CD setup and documentation
 
 **Total Timeline**: 6-8 weeks with 2-3 developers working in parallel
+
+---
+
+## Recent Bugs & Fixes
+
+### CLI Validation Bugs
+- [ ] **#445** - Invalid Click Short Option Validation (M, 2-3h)
+  - Single dash "-" not valid as short option in Click
+  - Need proper short flag or remove short form
+
+- [ ] **#446** - CLI Documentation Validation Gap (M, 3-4h)
+  - Inconsistent documentation requirements between command presence and parameter extraction
+  - Commands can pass presence check but skip parameter validation
+  - Need to enforce consistent documentation structure
+
+**Subtotal**: 2 bugs, 5-7 hours estimated effort
