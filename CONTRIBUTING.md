@@ -36,6 +36,58 @@ pip install -e ".[dev]"
 file-organizer --version
 ```
 
+### Pre-Commit Hooks (Automatic Validation)
+
+This project uses automated pre-commit validation to catch common issues before commits:
+
+```bash
+# Install git pre-commit hooks (one-time setup after first time)
+pre-commit install
+
+# Now on every commit, these hooks automatically run:
+```
+
+**Pre-Commit Hooks** (run automatically on `git commit`):
+
+| Hook | Purpose | Catches |
+|------|---------|---------|
+| **ruff-check** | Python linting (strict, includes RUF100) | Style, imports, stale `# noqa` comments |
+| **codespell** | Spelling consistency | Typos, spelling inconsistencies |
+| **absolute-path-check** | Hardcoded absolute paths | `/Users/`, `/home/`, `C:\Users\` paths |
+| **pytest** (multiple) | CI guardrails, web UI, websocket tests | Test failures block commit |
+
+**Additional Checks** (via `bash .claude/scripts/pre-commit-validation.sh`):
+
+| Check | Purpose | Catches |
+|-------|---------|---------|
+| **mypy** | Type safety (strict mode) | Type errors block commit |
+| **broken-link-check** | Documentation links | Broken references to files |
+| **dict-style access** | Dataclass pattern validation | Dict-style access on dataclasses |
+| **mock target validation** | Mock patch targets | Invalid `@patch()` targets |
+
+**Manual Validation**:
+
+```bash
+# Run all pre-commit hooks on entire codebase
+pre-commit run --all-files
+
+# Run specific hook
+pre-commit run ruff-check --all-files
+pre-commit run codespell --all-files
+
+# Run full validation script (includes hooks + additional checks)
+bash .claude/scripts/pre-commit-validation.sh
+```
+
+**Skipping Hooks** (only if necessary):
+
+```bash
+# Commit bypassing pre-commit (NOT recommended)
+git commit --no-verify
+
+# But hooks will still run in CI, so issues will be caught there
+```
+
 ---
 
 ## Pre-Push Checklist
