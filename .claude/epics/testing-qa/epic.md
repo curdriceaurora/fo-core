@@ -173,10 +173,12 @@ Ensure docs are accurate
 - [ ] **#445** - Invalid Click Short Option Validation (M, 2-3h)
   - Single dash "-" not valid as short option in Click
   - Need proper short flag or remove short form
+  - **Status**: Standalone code bug (not part of #442 or #444)
 
-- [ ] **#446** - CLI Documentation Validation Gap (M, 3-4h)
+- [x] **#446** - CLI Documentation Validation Gap (CLOSED)
   - Inconsistent documentation requirements between command presence and parameter extraction
   - Commands can pass presence check but skip parameter validation
-  - Need to enforce consistent documentation structure
+  - **Resolution**: Folded into Issue #444 as discovered semantic validation gap
+  - Will be addressed as part of #444 implementation (items 1b, 3a, acceptance criteria)
 
-**Subtotal**: 2 bugs, 5-7 hours estimated effort
+**Subtotal**: 1 standalone bug (2-3h), 1 closed/folded into #444
