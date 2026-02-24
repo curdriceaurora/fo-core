@@ -22,6 +22,7 @@ from __future__ import annotations
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -208,7 +209,7 @@ class TestComplexTreeOrganization:
             for fname in filelist
         }
         for f in deep_files:
-            placed_name = f"{f.stem}{f.suffix}"
+            placed_name = f.name
             assert placed_name in all_placed, (
                 f"Deeply nested file '{f.name}' not found in organized output; "
                 f"placed files: {sorted(all_placed)[:10]}"
@@ -234,8 +235,8 @@ class TestComplexTreeOrganization:
 
         Contract relied upon: ``organized_structure`` tracks copy-level placement,
         not AI-processing.  This is an implementation detail of ``_organize_files``
-        (the ``continue`` branch at line ~587 of organizer.py when
-        ``new_path.exists() and skip_existing``).
+        where ``new_path.exists() and skip_existing`` causes the file to be
+        skipped (not copied), so it is omitted from ``organized_structure``.
         """
         out_dir = tmp_path / "out"
         organizer = FileOrganizer(dry_run=False, use_hardlinks=False)
@@ -285,7 +286,13 @@ class TestPipelineTiming:
         self,
         complex_file_tree: Path,
     ) -> None:
-        """_collect_files on the ~60-file tree must complete in under 1 second."""
+        """_collect_files on the ~60-file tree must complete in under 1 second.
+
+        NOTE: This test is deliberately coupled to the private ``_collect_files``
+        method because there is no public API that exposes collection timing
+        independently of AI processing.  If ``_collect_files`` is renamed or
+        removed, this test should be updated or deleted accordingly.
+        """
         organizer = FileOrganizer(dry_run=True, use_hardlinks=False)
         t0 = time.perf_counter()
         files = organizer._collect_files(complex_file_tree)
@@ -296,7 +303,7 @@ class TestPipelineTiming:
     @pytest.mark.benchmark
     def test_benchmark_organize(
         self,
-        benchmark: object,
+        benchmark: Any,
         tmp_path: Path,
         complex_file_tree: Path,
         mock_text_processor: MagicMock,
@@ -317,6 +324,6 @@ class TestPipelineTiming:
             dest = out_dir / str(uuid.uuid4())
             return organizer.organize(complex_file_tree, dest)
 
-        result = benchmark(run_organize)  # type: ignore[operator]
+        result = benchmark(run_organize)
         assert result.total_files >= _EXPECTED_MIN_FILES
         assert result.processed_files > 0
