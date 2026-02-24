@@ -101,6 +101,8 @@ dev = [
     "isort>=5.13.0",
     "pre-commit>=3.6.0",
     "codespell>=2.2.0",
+    "faker>=26.0",
+    "pytest-benchmark>=4.0",
 ]
 
 gui = [
@@ -255,7 +257,11 @@ markers = [
     "unit: marks tests as unit tests",
     "ci: marks tests intended for PR CI validation",
     "regression: marks tests intended for full regression runs",
+    "e2e: end-to-end tests against real file trees (no Ollama required)",
+    "benchmark: performance benchmark tests (use --benchmark-only to run)",
 ]
+# pytest-benchmark settings (pass via CLI: --benchmark-min-rounds=3 --benchmark-max-time=30.0)
+# benchmark_ prefix keys are NOT supported as ini_options in pytest-benchmark 5.x
 
 # Coverage configuration
 [tool.coverage.run]
