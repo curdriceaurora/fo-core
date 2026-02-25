@@ -9,6 +9,8 @@ import pytest
 
 from file_organizer.services.vision_processor import ProcessedImage, VisionProcessor
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def mock_vision_model() -> MagicMock:

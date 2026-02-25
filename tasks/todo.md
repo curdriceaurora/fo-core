@@ -1,6 +1,7 @@
 # Testing & QA — Coverage Report Plan
 
 ## Objective
+
 Run full test suite with coverage, analyze results, and produce a prioritized gap analysis.
 
 ---

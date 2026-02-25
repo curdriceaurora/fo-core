@@ -9,6 +9,8 @@ import pytest
 from file_organizer.models.base import ModelConfig, ModelType
 from file_organizer.models.vision_model import VisionModel
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def vision_model_config() -> ModelConfig:
