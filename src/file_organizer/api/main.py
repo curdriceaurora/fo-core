@@ -39,6 +39,7 @@ from file_organizer.web import STATIC_DIR
 from file_organizer.web import router as web_router
 
 _LOGGING_CONFIGURED = False
+_app: Optional[FastAPI] = None
 
 
 def configure_logging(settings: ApiSettings) -> None:
@@ -122,4 +123,16 @@ def create_app(settings: Optional[ApiSettings] = None) -> FastAPI:
     return app
 
 
-app = create_app()
+def get_app() -> FastAPI:
+    """Get or create the FastAPI application instance.
+
+    This function implements lazy initialization to avoid import-time side effects
+    (like creating .config directories) that would break isolated test environments.
+
+    Returns:
+        The initialized FastAPI application instance.
+    """
+    global _app
+    if _app is None:
+        _app = create_app()
+    return _app

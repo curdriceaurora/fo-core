@@ -2,28 +2,54 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-__all__ = ["app", "create_app"]
+__all__ = ["app", "create_app", "get_app"]
+
+# Module-level cache for lazy initialization
+_app_cache: Optional["FastAPI"] = None
+_create_app_cache = None
+_get_app_cache = None
 
 
-def __getattr__(name: str) -> object:
-    """Lazily import ``app`` and ``create_app`` to avoid circular imports.
+def create_app(settings=None):
+    """Lazily import and call create_app from main module.
 
-    ``file_organizer.plugins.api.endpoints`` imports from
-    ``file_organizer.api.config``, which would trigger this package's
-    ``__init__`` and then eagerly import ``api.main``, which in turn
-    imports ``plugins.api.endpoints.router`` — creating a circular
-    dependency.  Deferring these imports until they are actually
-    accessed breaks the cycle.
+    This wrapper breaks the circular dependency and defers app creation.
     """
-    if name in {"app", "create_app"}:
-        from file_organizer.api.main import app, create_app
+    global _create_app_cache
+    if _create_app_cache is None:
+        from file_organizer.api.main import create_app as _real_create_app
 
-        globals()["app"] = app
-        globals()["create_app"] = create_app
-        return globals()[name]
+        _create_app_cache = _real_create_app
+    return _create_app_cache(settings)
+
+
+def get_app() -> "FastAPI":
+    """Get or create the FastAPI application instance.
+
+    This function implements lazy initialization to avoid import-time side effects
+    (like creating .config directories) that would break isolated test environments.
+
+    Returns:
+        The initialized FastAPI application instance.
+    """
+    global _app_cache
+    if _app_cache is None:
+        _app_cache = create_app()
+    return _app_cache
+
+
+# Keep __getattr__ for backwards compatibility with attribute access
+def __getattr__(name: str) -> object:
+    """Fallback for attribute access patterns.
+
+    Provided for backwards compatibility with code that uses attribute
+    access instead of function calls.
+    """
+    if name == "app":
+        return get_app()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
