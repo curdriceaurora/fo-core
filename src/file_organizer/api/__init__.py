@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -13,14 +13,20 @@ __all__ = ["app", "create_app", "get_app"]
 # Module-level cache for lazy initialization with thread safety
 _app_cache: Optional[FastAPI] = None
 _app_lock = threading.Lock()
-_create_app_cache = None
+_create_app_cache: Optional[Callable] = None
 
 
-def create_app(settings=None):
+def create_app(settings: Optional[dict] = None) -> FastAPI:
     """Lazily import and call create_app from main module.
 
     This wrapper breaks the circular dependency and defers app creation.
     It delegates to the real create_app in file_organizer.api.main.
+
+    Args:
+        settings: Optional configuration dictionary for the app.
+
+    Returns:
+        The initialized FastAPI application instance.
     """
     global _create_app_cache
     if _create_app_cache is None:
@@ -55,9 +61,9 @@ def get_app() -> FastAPI:
         # Re-check after acquiring lock (another thread may have created it)
         if _app_cache is None:
             # Import here to avoid circular dependencies at module level
-            # This is the actual create_app from main module
+            # Call main.get_app() to respect singleton pattern there
             import file_organizer.api.main
-            globals()['_app_cache'] = file_organizer.api.main.create_app()
+            globals()['_app_cache'] = file_organizer.api.main.get_app()
 
         return _app_cache
 

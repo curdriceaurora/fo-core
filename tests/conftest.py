@@ -243,7 +243,7 @@ def mock_nltk_freqdist() -> MagicMock:
         freq_dist_instance = MagicMock()
         word_counts = Counter(words)
 
-        def most_common(n: int = None) -> list[tuple[str, int]]:
+        def most_common(n: int | None = None) -> list[tuple[str, int]]:
             """Return the most common words."""
             return word_counts.most_common(n)
 

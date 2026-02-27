@@ -20,6 +20,7 @@ from file_organizer.utils.text_processing import (
 )
 
 
+@pytest.mark.unit
 class TestNLTKHermeticity:
     """Tests ensuring NLTK functionality works in isolated environments."""
 
@@ -45,6 +46,14 @@ class TestNLTKHermeticity:
 
         # Result should contain underscores for word separation
         assert "_" in result or len(result.split("_")) >= 1
+
+        # Result should contain the expected words (possibly with underscores)
+        result_words = set(result.lower().split("_"))
+        for expected_word in expected_contains:
+            assert expected_word in result_words, (
+                f"Expected '{expected_word}' in result '{result}' "
+                f"(words: {result_words})"
+            )
 
     def test_extract_keywords_fallback_without_nltk(
         self,
@@ -110,6 +119,7 @@ class TestNLTKHermeticity:
             pass
 
 
+@pytest.mark.unit
 class TestNLTKMockingCompleteness:
     """Tests verifying NLTK mocking is complete for all code paths."""
 
