@@ -6,8 +6,9 @@ in isolated environments without pre-installed NLTK corpus data.
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 @pytest.fixture(autouse=True)

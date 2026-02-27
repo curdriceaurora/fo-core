@@ -194,7 +194,7 @@ def mock_nltk_stopwords() -> MagicMock:
         'from', 'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'or',
         'that', 'the', 'to', 'was', 'will', 'with', 'i', 'you', 'we',
         'they', 'she', 'him', 'her', 'me', 'us', 'can', 'could', 'would',
-        'should', 'do', 'does', 'did', 'have', 'has', 'having', 'not',
+        'should', 'do', 'does', 'did', 'have', 'having', 'not',
         'no', 'nor', 'so', 'than', 'too', 'very', 'just', 'own', 'same',
     }
 
