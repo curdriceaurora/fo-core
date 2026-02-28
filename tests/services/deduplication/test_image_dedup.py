@@ -39,7 +39,19 @@ sys.modules.setdefault("imagededup.methods", _imagededup_methods_mod)
 
 # Now import the module under test – the mocked modules will satisfy the
 # ``from imagededup.methods import …`` statement.
+import file_organizer.services.deduplication.image_dedup as _image_dedup_module  # noqa: E402
 from file_organizer.services.deduplication.image_dedup import ImageDeduplicator  # noqa: E402
+
+# If the module was already cached in sys.modules (imported by another test module
+# or by ``deduplication/__init__`` before our sys.modules mock was in place),
+# _IMAGEDEDUP_AVAILABLE will be False and AHash/DHash/PHash will be None because
+# imagededup is not installed in CI.  Restore the mock values so that
+# ``ImageDeduplicator.__init__`` can call PHash()/DHash()/AHash() successfully.
+if not _image_dedup_module._IMAGEDEDUP_AVAILABLE:
+    _image_dedup_module.AHash = _mock_ahash_cls
+    _image_dedup_module.DHash = _mock_dhash_cls
+    _image_dedup_module.PHash = _mock_phash_cls
+    _image_dedup_module._IMAGEDEDUP_AVAILABLE = True
 
 
 # ---------------------------------------------------------------------------
@@ -765,3 +777,25 @@ class TestValidateImage:
             is_valid, error = dedup.validate_image(img)
             assert is_valid is False
             assert "Corrupt or invalid image" in error
+
+
+# ---------------------------------------------------------------------------
+# Optional dependency guard
+# ---------------------------------------------------------------------------
+
+
+class TestMissingImagededupDep:
+    """ImageDeduplicator raises ImportError with an actionable message when
+    imagededup is not installed."""
+
+    def test_init_raises_import_error_when_dep_missing(self) -> None:
+        """ImportError is raised with install hint when imagededup is absent."""
+        import file_organizer.services.deduplication.image_dedup as _mod
+
+        original = _mod._IMAGEDEDUP_AVAILABLE
+        try:
+            _mod._IMAGEDEDUP_AVAILABLE = False
+            with pytest.raises(ImportError, match="pip install 'file-organizer\\[dedup\\]'"):
+                ImageDeduplicator()
+        finally:
+            _mod._IMAGEDEDUP_AVAILABLE = original
