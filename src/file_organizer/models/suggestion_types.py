@@ -6,9 +6,10 @@ Defines the data structures for smart suggestions.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 
 class SuggestionType(Enum):
@@ -42,8 +43,8 @@ class Suggestion:
     target_path: Path | None = None
     confidence: float = 0.0  # 0-100
     reasoning: str = ""
-    metadata: dict = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.now)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
     # Additional attributes for specific suggestion types
     tags: list[str] = field(default_factory=list)
@@ -64,7 +65,7 @@ class Suggestion:
         else:
             return ConfidenceLevel.VERY_LOW
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert suggestion to dictionary."""
         return {
             "suggestion_id": self.suggestion_id,
@@ -90,7 +91,7 @@ class SuggestionBatch:
     suggestions: list[Suggestion]
     category: str
     description: str
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
     @property
     def avg_confidence(self) -> float:
@@ -104,7 +105,7 @@ class SuggestionBatch:
         """Total number of suggestions in batch."""
         return len(self.suggestions)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert batch to dictionary."""
         return {
             "batch_id": self.batch_id,
@@ -155,7 +156,7 @@ class ConfidenceFactors:
         )
         return min(max(score, 0.0), 100.0)  # Clamp to 0-100
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "pattern_strength": self.pattern_strength,

@@ -123,7 +123,8 @@ class VisionModel(BaseModel):
             "top_p": kwargs.get("top_p", self.config.top_p),
             "num_predict": kwargs.get("max_tokens", self.config.max_tokens),
         }
-        options.update(self.config.extra_params)
+        if self.config.extra_params:
+            options.update(self.config.extra_params)
 
         try:
             logger.debug(f"Analyzing image with model {self.config.name}")
@@ -135,7 +136,12 @@ class VisionModel(BaseModel):
                 stream=False,
             )
 
-            generated_text = response["response"]
+            raw_response = response.get("response")
+            if not raw_response:
+                raise ValueError(
+                    f"Ollama returned empty response for model {self.config.name}"
+                )
+            generated_text = str(raw_response)
             logger.debug(
                 f"Generated {len(generated_text)} characters "
                 f"in {response.get('total_duration', 0) / 1e9:.2f}s"

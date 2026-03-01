@@ -6,11 +6,18 @@ Tests conflict resolution with multiple weighting strategies.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from file_organizer.services.intelligence.conflict_resolver import ConflictResolver
+
+_TIMESTAMP_FMT = "%Y-%m-%dT%H:%M:%SZ"
+
+
+def _format_utc(dt: datetime) -> str:
+    """Format a datetime as a canonical UTC timestamp string."""
+    return dt.strftime(_TIMESTAMP_FMT)
 
 
 @pytest.mark.unit
@@ -65,9 +72,9 @@ class TestConflictResolver:
 
     def test_resolve_by_recency(self, resolver):
         """Test conflict resolution favors more recent preferences."""
-        now = datetime.utcnow()
-        old_date = (now - timedelta(days=30)).isoformat() + "Z"
-        recent_date = now.isoformat() + "Z"
+        now = datetime.now(tz=UTC)
+        old_date = _format_utc(now - timedelta(days=30))
+        recent_date = _format_utc(now)
 
         old_pref = {
             "folder_mappings": {"pdf": "Documents"},
@@ -89,7 +96,7 @@ class TestConflictResolver:
 
     def test_resolve_by_frequency(self, resolver):
         """Test conflict resolution favors higher frequency preferences."""
-        now = datetime.utcnow().isoformat() + "Z"
+        now = _format_utc(datetime.now(tz=UTC))
 
         low_freq = {
             "folder_mappings": {"pdf": "Documents"},
@@ -111,7 +118,7 @@ class TestConflictResolver:
 
     def test_resolve_by_confidence(self, resolver):
         """Test conflict resolution favors higher confidence preferences."""
-        now = datetime.utcnow().isoformat() + "Z"
+        now = _format_utc(datetime.now(tz=UTC))
 
         low_conf = {
             "folder_mappings": {"pdf": "Documents"},
@@ -133,19 +140,19 @@ class TestConflictResolver:
 
     def test_resolve_combined_factors(self, resolver):
         """Test conflict resolution with multiple competing factors."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         # Recent but low frequency and confidence
         pref1 = {
             "value": "pref1",
-            "updated": now.isoformat() + "Z",
+            "updated": _format_utc(now),
             "correction_count": 2,
             "confidence": 0.5,
         }
         # Old but high frequency and confidence
         pref2 = {
             "value": "pref2",
-            "updated": (now - timedelta(days=60)).isoformat() + "Z",
+            "updated": _format_utc(now - timedelta(days=60)),
             "correction_count": 50,
             "confidence": 0.95,
         }
@@ -157,17 +164,17 @@ class TestConflictResolver:
 
     def test_resolve_tie_breaks_by_recency(self, resolver):
         """Test that ties are broken by most recent preference."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         pref1 = {
             "value": "pref1",
-            "updated": (now - timedelta(days=1)).isoformat() + "Z",
+            "updated": _format_utc(now - timedelta(days=1)),
             "correction_count": 10,
             "confidence": 0.8,
         }
         pref2 = {
             "value": "pref2",
-            "updated": now.isoformat() + "Z",
+            "updated": _format_utc(now),
             "correction_count": 10,
             "confidence": 0.8,
         }
@@ -179,12 +186,12 @@ class TestConflictResolver:
 
     def test_weight_by_recency(self, resolver):
         """Test recency weight calculation."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         prefs = [
-            {"updated": (now - timedelta(days=60)).isoformat() + "Z"},
-            {"updated": (now - timedelta(days=30)).isoformat() + "Z"},
-            {"updated": now.isoformat() + "Z"},
+            {"updated": _format_utc(now - timedelta(days=60))},
+            {"updated": _format_utc(now - timedelta(days=30))},
+            {"updated": _format_utc(now)},
         ]
 
         weights = resolver.weight_by_recency(prefs)
@@ -196,11 +203,11 @@ class TestConflictResolver:
 
     def test_weight_by_recency_missing_timestamps(self, resolver):
         """Test recency weighting with missing timestamps."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         prefs = [
             {},  # No timestamp
-            {"updated": now.isoformat() + "Z"},
+            {"updated": _format_utc(now)},
         ]
 
         weights = resolver.weight_by_recency(prefs)
@@ -289,15 +296,15 @@ class TestConflictResolver:
 
     def test_get_ambiguity_score_clear_winner(self, resolver):
         """Test ambiguity score with clear winner."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         prefs = [
             {
-                "updated": (now - timedelta(days=60)).isoformat() + "Z",
+                "updated": _format_utc(now - timedelta(days=60)),
                 "correction_count": 2,
                 "confidence": 0.5,
             },
-            {"updated": now.isoformat() + "Z", "correction_count": 50, "confidence": 0.95},
+            {"updated": _format_utc(now), "correction_count": 50, "confidence": 0.95},
         ]
 
         ambiguity = resolver.get_ambiguity_score(prefs)
@@ -307,11 +314,11 @@ class TestConflictResolver:
 
     def test_get_ambiguity_score_high_ambiguity(self, resolver):
         """Test ambiguity score with very similar preferences."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         prefs = [
-            {"updated": now.isoformat() + "Z", "correction_count": 10, "confidence": 0.8},
-            {"updated": now.isoformat() + "Z", "correction_count": 10, "confidence": 0.8},
+            {"updated": _format_utc(now), "correction_count": 10, "confidence": 0.8},
+            {"updated": _format_utc(now), "correction_count": 10, "confidence": 0.8},
         ]
 
         ambiguity = resolver.get_ambiguity_score(prefs)
@@ -321,26 +328,26 @@ class TestConflictResolver:
 
     def test_needs_user_input_low_ambiguity(self, resolver):
         """Test that low ambiguity doesn't require user input."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         prefs = [
             {
-                "updated": (now - timedelta(days=60)).isoformat() + "Z",
+                "updated": _format_utc(now - timedelta(days=60)),
                 "correction_count": 2,
                 "confidence": 0.5,
             },
-            {"updated": now.isoformat() + "Z", "correction_count": 50, "confidence": 0.95},
+            {"updated": _format_utc(now), "correction_count": 50, "confidence": 0.95},
         ]
 
         assert not resolver.needs_user_input(prefs)
 
     def test_needs_user_input_high_ambiguity(self, resolver):
         """Test that high ambiguity requires user input."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         prefs = [
-            {"updated": now.isoformat() + "Z", "correction_count": 10, "confidence": 0.8},
-            {"updated": now.isoformat() + "Z", "correction_count": 10, "confidence": 0.8},
+            {"updated": _format_utc(now), "correction_count": 10, "confidence": 0.8},
+            {"updated": _format_utc(now), "correction_count": 10, "confidence": 0.8},
         ]
 
         assert resolver.needs_user_input(prefs)
@@ -413,13 +420,13 @@ class TestConflictResolver:
 
     def test_real_world_scenario(self, resolver):
         """Test a realistic conflict resolution scenario."""
-        now = datetime.utcnow()
+        now = datetime.now(tz=UTC)
 
         # User has been moving PDFs to "Documents" folder for months
         old_habit = {
             "folder_mappings": {"pdf": "Documents"},
-            "created": (now - timedelta(days=90)).isoformat() + "Z",
-            "updated": (now - timedelta(days=30)).isoformat() + "Z",
+            "created": _format_utc(now - timedelta(days=90)),
+            "updated": _format_utc(now - timedelta(days=30)),
             "correction_count": 45,  # High frequency
             "confidence": 0.85,
         }
@@ -427,8 +434,8 @@ class TestConflictResolver:
         # Recently started moving PDFs to "PDFs" folder
         new_habit = {
             "folder_mappings": {"pdf": "PDFs"},
-            "created": (now - timedelta(days=7)).isoformat() + "Z",
-            "updated": now.isoformat() + "Z",
+            "created": _format_utc(now - timedelta(days=7)),
+            "updated": _format_utc(now),
             "correction_count": 8,  # Lower frequency but recent
             "confidence": 0.9,
         }

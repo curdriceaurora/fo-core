@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from PIL import Image
 from rich import box
@@ -317,7 +318,12 @@ class ComparisonViewer:
 
                 # Convert to ASCII
                 ascii_chars = " .:-=+*#%@"
-                pixels = img.getdata()
+                _get_flat: Any = getattr(img, "get_flattened_data", None)
+                pixels: list[int]
+                if callable(_get_flat):
+                    pixels = _get_flat()
+                else:
+                    pixels = list(img.getdata())
 
                 ascii_lines = []
                 for i in range(0, len(pixels), new_width):

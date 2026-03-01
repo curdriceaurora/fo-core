@@ -15,7 +15,7 @@ try:
 
     _FASTER_WHISPER_AVAILABLE = True
 except ImportError:
-    WhisperModel = None  # type: ignore[assignment,misc]
+    WhisperModel = None
     _FASTER_WHISPER_AVAILABLE = False
 
 
@@ -287,6 +287,8 @@ class AudioTranscriber:
 
         try:
             # Detect language from first 30 seconds
+            if self.model is None:
+                raise RuntimeError("Model not loaded: call _load_model() before transcribing")
             segments, info = self.model.transcribe(str(audio_path), beam_size=5, language=None)
 
             # Get language from detected info
@@ -352,6 +354,8 @@ class AudioTranscriber:
 
         try:
             # Run transcription
+            if self.model is None:
+                raise RuntimeError("Model not loaded: call _load_model() before transcribing")
             segments, info = self.model.transcribe(
                 str(audio_path),
                 language=options.language,

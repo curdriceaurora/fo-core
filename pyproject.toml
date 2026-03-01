@@ -164,10 +164,11 @@ file-organizer = "file_organizer.cli:main"
 fo = "file_organizer.cli:main"  # Short alias
 
 [project.urls]
-Homepage = "https://github.com/yourusername/file-organizer-v2"
-Documentation = "https://file-organizer.readthedocs.io"
-Repository = "https://github.com/yourusername/file-organizer-v2"
-Issues = "https://github.com/yourusername/file-organizer-v2/issues"
+Homepage = "https://github.com/curdriceaurora/Local-File-Organizer"
+Documentation = "https://github.com/curdriceaurora/Local-File-Organizer#readme"
+Repository = "https://github.com/curdriceaurora/Local-File-Organizer"
+Issues = "https://github.com/curdriceaurora/Local-File-Organizer/issues"
+Changelog = "https://github.com/curdriceaurora/Local-File-Organizer/releases"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -197,6 +198,7 @@ select = [
     "I",   # isort
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
+    "C901", # mccabe complexity
     "UP",  # pyupgrade
     "D",   # pydocstyle (google convention)
     "RUF100",  # stale noqa comments
@@ -204,9 +206,11 @@ select = [
 ignore = [
     "E501",  # line too long (handled by formatter)
     "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
     "UP045", # type hint upgrades handled project-wide
 ]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -215,6 +219,21 @@ convention = "google"
 "__init__.py" = ["F401"]
 "tests/**/*.py" = ["D"]
 "scripts/**/*.py" = ["D"]
+# C901 ratchet baseline — functions exceeding complexity 15 (2026-02-28)
+# Each entry allows existing complex functions; new ones must stay under 15.
+"src/file_organizer/api/config.py" = ["C901"]
+"src/file_organizer/cli/dedupe.py" = ["C901"]
+"src/file_organizer/cli/undo_redo.py" = ["C901"]
+"src/file_organizer/cli/utilities.py" = ["C901"]
+"src/file_organizer/core/organizer.py" = ["C901"]
+"src/file_organizer/methodologies/para/ai/suggestion_engine.py" = ["C901"]
+"src/file_organizer/parallel/processor.py" = ["C901"]
+"src/file_organizer/services/copilot/intent_parser.py" = ["C901"]
+"src/file_organizer/services/intelligence/profile_importer.py" = ["C901"]
+"src/file_organizer/services/intelligence/profile_merger.py" = ["C901"]
+"src/file_organizer/services/intelligence/profile_migrator.py" = ["C901"]
+"src/file_organizer/updater/installer.py" = ["C901"]
+"src/file_organizer/web/files_routes.py" = ["C901"]
 
 # MyPy configuration (type checking)
 [tool.mypy]
@@ -261,6 +280,13 @@ markers = [
     "regression: marks tests intended for full regression runs",
     "e2e: end-to-end tests against real file trees (no Ollama required)",
     "benchmark: performance benchmark tests (use --benchmark-only to run)",
+]
+filterwarnings = [
+    "error::DeprecationWarning:file_organizer",
+    "error::PendingDeprecationWarning:file_organizer",
+    "ignore::DeprecationWarning:pkg_resources",
+    "ignore::DeprecationWarning:google",
+    "ignore::DeprecationWarning:importlib",
 ]
 # pytest-benchmark settings (pass via CLI: --benchmark-min-rounds=3 --benchmark-max-time=30.0)
 # benchmark_ prefix keys are NOT supported as ini_options in pytest-benchmark 5.x

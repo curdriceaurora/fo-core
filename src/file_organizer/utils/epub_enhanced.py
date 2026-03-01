@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import re
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +37,11 @@ try:
     BS4_AVAILABLE = True
 except ImportError:
     BS4_AVAILABLE = False
+
+try:
+    from bs4 import XMLParsedAsHTMLWarning
+except ImportError:
+    XMLParsedAsHTMLWarning = None  # type: ignore[assignment,misc]
 
 from loguru import logger
 
@@ -335,9 +341,12 @@ class EnhancedEPUBReader:
                 break
 
             try:
-                # Parse HTML content
+                # Parse HTML content (epub XHTML triggers XMLParsedAsHTMLWarning)
                 content_bytes = item.get_content()
-                soup = BeautifulSoup(content_bytes, "lxml")
+                with warnings.catch_warnings():
+                    if XMLParsedAsHTMLWarning is not None:
+                        warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+                    soup = BeautifulSoup(content_bytes, "lxml")
 
                 # Extract title from heading tags or filename
                 title = self._extract_chapter_title(soup, item)

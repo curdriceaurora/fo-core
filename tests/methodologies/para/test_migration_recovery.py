@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import shutil
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -68,19 +69,15 @@ class TestMigrationBackupSystem:
         )
 
     @pytest.fixture
-    def migration_manager(self, config):
-        """Create migration manager instance."""
+    def migration_manager(
+        self, config: PARAConfig, tmp_path: Path
+    ) -> Generator[PARAMigrationManager, None, None]:
+        """Create migration manager instance with isolated backup root."""
         manager = PARAMigrationManager(config)
+        # Override backup_root to use tmp_path so parallel tests don't collide
+        manager.backup_root = tmp_path / "migration-backups"
+        manager.backup_root.mkdir(parents=True, exist_ok=True)
         yield manager
-
-        # Cleanup backup directory after tests
-        if manager.backup_root.exists():
-            try:
-                shutil.rmtree(manager.backup_root)
-            except Exception as e:
-                # Ignore cleanup errors in tests due to parallel execution
-                import warnings
-                warnings.warn(f"Failed to cleanup backup directory: {e}", stacklevel=2)
 
     def test_backup_creation(self, migration_manager, temp_source, temp_target):
         """Test backup creation for migration files."""
