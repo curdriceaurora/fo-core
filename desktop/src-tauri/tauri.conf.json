@@ -28,6 +28,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": [
+      "binaries/file-organizer-backend"
+    ],
     "icon": [
       "icons/icon_32x32.png",
       "icons/icon_128x128.png",
