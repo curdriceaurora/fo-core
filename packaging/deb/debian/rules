@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# Pre-built binaries are provided; no build step required
+	echo "Using pre-built binaries"
+
+override_dh_auto_test:
+	# Skip automated tests during package build
+	true
