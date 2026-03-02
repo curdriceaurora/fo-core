@@ -163,3 +163,193 @@ class TestLinuxDaemonManager(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWindowsDaemonManager(unittest.TestCase):
+    """Validates Windows Scheduled Task daemon module (windows.rs)."""
+
+    def setUp(self) -> None:
+        self.daemon_dir = DAEMON_DIR
+        self.windows_rs = self.daemon_dir / "windows.rs"
+
+    def test_windows_rs_exists(self) -> None:
+        """windows.rs must exist in the daemon directory."""
+        self.assertTrue(
+            self.windows_rs.exists(),
+            f"windows.rs not found at {self.windows_rs}",
+        )
+
+    def test_implements_daemon_manager(self) -> None:
+        """windows.rs must implement the DaemonManager trait."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "impl DaemonManager for",
+            content,
+            "Expected 'impl DaemonManager for' in windows.rs",
+        )
+
+    def test_schtasks_commands(self) -> None:
+        """windows.rs must use schtasks.exe for task management."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "schtasks",
+            content,
+            "Expected 'schtasks' command in windows.rs",
+        )
+
+    def test_registry_key_present(self) -> None:
+        """windows.rs must reference the Windows Registry CurrentVersion Run key."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            r"CurrentVersion\Run",
+            content,
+            r"Expected 'CurrentVersion\Run' registry path in windows.rs",
+        )
+
+    def test_start_stop_methods(self) -> None:
+        """windows.rs must define both fn start and fn stop."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "fn start",
+            content,
+            "Expected 'fn start' in windows.rs",
+        )
+        self.assertIn(
+            "fn stop",
+            content,
+            "Expected 'fn stop' in windows.rs",
+        )
+
+    def test_rust_tests_present(self) -> None:
+        """windows.rs must include Rust unit tests."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "#[cfg(test)]",
+            content,
+            "Expected '#[cfg(test)]' module in windows.rs",
+        )
+        self.assertIn(
+            "#[test]",
+            content,
+            "Expected '#[test]' attributes in windows.rs",
+        )
+
+    def test_struct_defined(self) -> None:
+        """WindowsDaemonManager struct must be defined."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "struct WindowsDaemonManager",
+            content,
+            "Expected 'struct WindowsDaemonManager' in windows.rs",
+        )
+
+    def test_task_name_field(self) -> None:
+        """WindowsDaemonManager must have a task_name field."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "task_name",
+            content,
+            "Expected 'task_name' field in windows.rs",
+        )
+
+    def test_hkcu_registry_path(self) -> None:
+        """Autostart registry key must be under HKCU."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "HKCU",
+            content,
+            "Expected 'HKCU' registry hive in windows.rs",
+        )
+
+    def test_is_running_method(self) -> None:
+        """windows.rs must implement fn is_running."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "fn is_running",
+            content,
+            "Expected 'fn is_running' in windows.rs",
+        )
+
+    def test_install_uninstall_methods(self) -> None:
+        """windows.rs must implement both fn install and fn uninstall."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "fn install",
+            content,
+            "Expected 'fn install' in windows.rs",
+        )
+        self.assertIn(
+            "fn uninstall",
+            content,
+            "Expected 'fn uninstall' in windows.rs",
+        )
+
+    def test_enable_disable_autostart(self) -> None:
+        """windows.rs must implement enable_autostart and disable_autostart."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "fn enable_autostart",
+            content,
+            "Expected 'fn enable_autostart' in windows.rs",
+        )
+        self.assertIn(
+            "fn disable_autostart",
+            content,
+            "Expected 'fn disable_autostart' in windows.rs",
+        )
+
+    def test_build_create_command_method(self) -> None:
+        """build_create_command helper method must be present."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "build_create_command",
+            content,
+            "Expected 'build_create_command' method in windows.rs",
+        )
+
+    def test_autostart_registry_key_method(self) -> None:
+        """autostart_registry_key static method must be present."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "autostart_registry_key",
+            content,
+            "Expected 'autostart_registry_key' method in windows.rs",
+        )
+
+    def test_onlogon_trigger(self) -> None:
+        """Scheduled task must use onlogon trigger for auto-start."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "onlogon",
+            content,
+            "Expected 'onlogon' trigger in windows.rs",
+        )
+
+    def test_mod_rs_includes_windows(self) -> None:
+        """mod.rs must declare the windows module."""
+        mod_rs = self.daemon_dir / "mod.rs"
+        self.assertTrue(mod_rs.exists(), "mod.rs not found")
+        content = mod_rs.read_text()
+        self.assertIn(
+            "pub mod windows",
+            content,
+            "Expected 'pub mod windows' in mod.rs",
+        )
+
+    def test_reg_exe_used_for_registry(self) -> None:
+        """windows.rs must use reg.exe for registry operations."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            '"reg"',
+            content,
+            "Expected reg.exe ('\"reg\"') usage in windows.rs",
+        )
+
+    def test_schtasks_query_for_is_running(self) -> None:
+        """is_running must use schtasks /query to check task status."""
+        content = self.windows_rs.read_text()
+        self.assertIn(
+            "/query",
+            content,
+            "Expected '/query' subcommand for schtasks in windows.rs",
+        )

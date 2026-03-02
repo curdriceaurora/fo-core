@@ -1,6 +1,6 @@
 pub mod macos;
 pub mod linux;
-// pub mod windows;  // Will be added by windows agent
+pub mod windows;
 
 use std::path::PathBuf;
 
