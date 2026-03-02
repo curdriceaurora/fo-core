@@ -1,5 +1,8 @@
 mod daemon;
+mod sidecar;
 mod tray;
+
+pub use sidecar::SidecarManager;
 
 use tauri::Manager;
 
