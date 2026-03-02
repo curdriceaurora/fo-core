@@ -4,9 +4,16 @@ use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
+use tauri::Emitter;
+
 const MAX_RETRIES: u32 = 3;
 const HEALTH_POLL_TIMEOUT_SECS: u64 = 30;
 const SHUTDOWN_WAIT_SECS: u64 = 5;
+
+// ---------------------------------------------------------------------------
+// State types
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SidecarState {
@@ -16,16 +23,47 @@ pub enum SidecarState {
     Crashed,
 }
 
+// ---------------------------------------------------------------------------
+// Event payload
+// ---------------------------------------------------------------------------
+
+/// Payload emitted on the `sidecar-state` Tauri event whenever the sidecar
+/// process transitions between lifecycle states.
+///
+/// The frontend can listen with:
+/// ```js
+/// import { listen } from '@tauri-apps/api/event';
+/// await listen('sidecar-state', (event) => console.log(event.payload));
+/// ```
+#[derive(Debug, Clone, Serialize)]
+pub struct SidecarStatePayload {
+    /// Current sidecar state: `"starting"`, `"running"`, `"stopped"`, or `"unhealthy"`.
+    pub state: &'static str,
+    /// The TCP port the sidecar is listening on, or `None` when stopped/unhealthy.
+    pub port: Option<u16>,
+    /// Error description, populated only for `"unhealthy"` transitions.
+    pub error: Option<String>,
+    /// UTC Unix timestamp (seconds) at the moment of the transition.
+    pub timestamp: u64,
+}
+
+// ---------------------------------------------------------------------------
+// Manager
+// ---------------------------------------------------------------------------
+
 pub struct SidecarManager {
     binary_path: PathBuf,
     port: u16,
     state: Arc<Mutex<SidecarState>>,
     child: Arc<Mutex<Option<Child>>>,
     retry_count: Arc<Mutex<u32>>,
+    /// Optional AppHandle used to emit `sidecar-state` events to the frontend.
+    /// `None` only in unit-test contexts where no Tauri runtime is available.
+    app_handle: Option<tauri::AppHandle>,
 }
 
 impl SidecarManager {
-    pub fn new(binary_path: PathBuf) -> std::io::Result<Self> {
+    pub fn new(binary_path: PathBuf, app: tauri::AppHandle) -> std::io::Result<Self> {
         let port = Self::find_available_port()?;
         Ok(Self {
             binary_path,
@@ -33,10 +71,26 @@ impl SidecarManager {
             state: Arc::new(Mutex::new(SidecarState::Stopped)),
             child: Arc::new(Mutex::new(None)),
             retry_count: Arc::new(Mutex::new(0)),
+            app_handle: Some(app),
         })
     }
 
-    /// Bind to port 0 and read the OS-assigned port
+    /// Construct a manager with no AppHandle for unit tests.
+    ///
+    /// Events will not be emitted; all other behaviour is identical.
+    #[cfg(test)]
+    pub fn new_for_test(port: u16) -> Self {
+        Self {
+            binary_path: PathBuf::from("/usr/bin/file-organizer"),
+            port,
+            state: Arc::new(Mutex::new(SidecarState::Stopped)),
+            child: Arc::new(Mutex::new(None)),
+            retry_count: Arc::new(Mutex::new(0)),
+            app_handle: None,
+        }
+    }
+
+    /// Bind to port 0 and read the OS-assigned port.
     fn find_available_port() -> std::io::Result<u16> {
         let listener = TcpListener::bind("127.0.0.1:0")?;
         Ok(listener.local_addr()?.port())
@@ -50,9 +104,34 @@ impl SidecarManager {
         format!("http://127.0.0.1:{}/api/v1/health", self.port)
     }
 
-    /// Spawn the sidecar binary with `--port <port>` argument
+    /// Emit a `sidecar-state` event to all frontend windows.
+    ///
+    /// Silently no-ops when `app_handle` is `None` (test mode).
+    fn emit_state(&self, payload: SidecarStatePayload) {
+        if let Some(app) = &self.app_handle {
+            let _ = app.emit("sidecar-state", payload);
+        }
+    }
+
+    /// Returns the current UTC Unix timestamp in seconds.
+    fn unix_ts() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+
+    /// Spawn the sidecar binary with `--port <port>` argument.
+    ///
+    /// Transitions state to `Starting` and emits a `sidecar-state` event.
     pub fn start(&self) -> std::io::Result<()> {
         *self.state.lock().unwrap() = SidecarState::Starting;
+        self.emit_state(SidecarStatePayload {
+            state: "starting",
+            port: Some(self.port),
+            error: None,
+            timestamp: Self::unix_ts(),
+        });
 
         let child = Command::new(&self.binary_path)
             .arg("--port")
@@ -64,6 +143,9 @@ impl SidecarManager {
     }
 
     /// Poll the health endpoint with exponential backoff until ready or timeout.
+    ///
+    /// Transitions to `Ready` on success (emitting `sidecar-state { state: "running" }`) or
+    /// to `Crashed` on timeout (emitting `sidecar-state { state: "unhealthy" }`).
     pub fn wait_until_ready(&self) -> Result<(), String> {
         let timeout = Duration::from_secs(HEALTH_POLL_TIMEOUT_SECS);
         let start = Instant::now();
@@ -72,14 +154,27 @@ impl SidecarManager {
         loop {
             if start.elapsed() > timeout {
                 *self.state.lock().unwrap() = SidecarState::Crashed;
-                return Err(format!(
+                let error_message = format!(
                     "Backend did not become ready within {}s",
                     HEALTH_POLL_TIMEOUT_SECS
-                ));
+                );
+                self.emit_state(SidecarStatePayload {
+                    state: "unhealthy",
+                    port: None,
+                    error: Some(error_message.clone()),
+                    timestamp: Self::unix_ts(),
+                });
+                return Err(error_message);
             }
 
             if self.check_health() {
                 *self.state.lock().unwrap() = SidecarState::Ready;
+                self.emit_state(SidecarStatePayload {
+                    state: "running",
+                    port: Some(self.port),
+                    error: None,
+                    timestamp: Self::unix_ts(),
+                });
                 return Ok(());
             }
 
@@ -89,7 +184,7 @@ impl SidecarManager {
     }
 
     /// Perform a minimal HTTP GET to the health endpoint; returns true on HTTP 200.
-    fn check_health(&self) -> bool {
+    pub fn check_health(&self) -> bool {
         use std::io::{Read, Write};
         use std::net::{SocketAddr, TcpStream};
 
@@ -115,9 +210,12 @@ impl SidecarManager {
     }
 
     /// Check whether the child process is still alive.
+    ///
     /// If it has exited, attempt to restart it up to MAX_RETRIES times.
     /// Returns `true` if the sidecar is running (or successfully restarted),
     /// `false` if the maximum retry count has been exceeded.
+    ///
+    /// Emits `sidecar-state { state: "unhealthy" }` when retries are exhausted.
     pub fn monitor(&self) -> bool {
         // First check: is the process still running?
         let process_exited = {
@@ -153,6 +251,14 @@ impl SidecarManager {
             true
         } else {
             *self.state.lock().unwrap() = SidecarState::Crashed;
+            self.emit_state(SidecarStatePayload {
+                state: "unhealthy",
+                port: None,
+                error: Some(
+                    "Sidecar process crashed and exceeded maximum restart attempts".to_string(),
+                ),
+                timestamp: Self::unix_ts(),
+            });
             false
         }
     }
@@ -162,6 +268,8 @@ impl SidecarManager {
     /// On Unix, sends SIGTERM via the system `kill` command and waits up to
     /// SHUTDOWN_WAIT_SECS seconds for the process to exit before force-killing.
     /// On Windows, immediately calls `kill()` (no SIGTERM equivalent).
+    ///
+    /// Emits `sidecar-state { state: "stopped" }` after the process exits.
     pub fn shutdown(&self) {
         let mut child_guard = self.child.lock().unwrap();
         if let Some(child) = child_guard.as_mut() {
@@ -191,6 +299,12 @@ impl SidecarManager {
             }
         }
         *self.state.lock().unwrap() = SidecarState::Stopped;
+        self.emit_state(SidecarStatePayload {
+            state: "stopped",
+            port: None,
+            error: None,
+            timestamp: Self::unix_ts(),
+        });
     }
 
     pub fn state(&self) -> SidecarState {
@@ -201,6 +315,27 @@ impl SidecarManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Write};
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    /// Bind an OS-assigned port, return the port number, and spawn a thread
+    /// that accepts exactly one connection, reads the request, and responds with
+    /// the supplied HTTP status line + body.
+    fn spawn_mock_server(response: &'static str) -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 1024];
+                let _ = stream.read(&mut buf);
+                let _ = stream.write_all(response.as_bytes());
+            }
+        });
+        port
+    }
+
+    // ── existing tests (migrated to new_for_test) ────────────────────────────
 
     #[test]
     fn test_find_available_port() {
@@ -211,25 +346,13 @@ mod tests {
 
     #[test]
     fn test_health_url_format() {
-        let mgr = SidecarManager {
-            binary_path: PathBuf::from("/usr/bin/file-organizer"),
-            port: 12345,
-            state: Arc::new(Mutex::new(SidecarState::Stopped)),
-            child: Arc::new(Mutex::new(None)),
-            retry_count: Arc::new(Mutex::new(0)),
-        };
+        let mgr = SidecarManager::new_for_test(12345);
         assert_eq!(mgr.health_url(), "http://127.0.0.1:12345/api/v1/health");
     }
 
     #[test]
     fn test_initial_state_is_stopped() {
-        let mgr = SidecarManager {
-            binary_path: PathBuf::from("/usr/bin/file-organizer"),
-            port: 12346,
-            state: Arc::new(Mutex::new(SidecarState::Stopped)),
-            child: Arc::new(Mutex::new(None)),
-            retry_count: Arc::new(Mutex::new(0)),
-        };
+        let mgr = SidecarManager::new_for_test(12346);
         assert_eq!(mgr.state(), SidecarState::Stopped);
     }
 
@@ -256,37 +379,19 @@ mod tests {
 
     #[test]
     fn test_check_health_returns_false_for_closed_port() {
-        let mgr = SidecarManager {
-            binary_path: PathBuf::from("/usr/bin/file-organizer"),
-            port: 1, // port 1 is never open in userspace
-            state: Arc::new(Mutex::new(SidecarState::Stopped)),
-            child: Arc::new(Mutex::new(None)),
-            retry_count: Arc::new(Mutex::new(0)),
-        };
+        let mgr = SidecarManager::new_for_test(1); // port 1 is never open in userspace
         assert!(!mgr.check_health());
     }
 
     #[test]
     fn test_monitor_returns_false_when_no_child() {
-        let mgr = SidecarManager {
-            binary_path: PathBuf::from("/usr/bin/file-organizer"),
-            port: 12347,
-            state: Arc::new(Mutex::new(SidecarState::Stopped)),
-            child: Arc::new(Mutex::new(None)),
-            retry_count: Arc::new(Mutex::new(0)),
-        };
+        let mgr = SidecarManager::new_for_test(12347);
         assert!(!mgr.monitor());
     }
 
     #[test]
     fn test_state_transitions() {
-        let mgr = SidecarManager {
-            binary_path: PathBuf::from("/usr/bin/file-organizer"),
-            port: 12348,
-            state: Arc::new(Mutex::new(SidecarState::Stopped)),
-            child: Arc::new(Mutex::new(None)),
-            retry_count: Arc::new(Mutex::new(0)),
-        };
+        let mgr = SidecarManager::new_for_test(12348);
         assert_eq!(mgr.state(), SidecarState::Stopped);
 
         *mgr.state.lock().unwrap() = SidecarState::Starting;
@@ -301,15 +406,71 @@ mod tests {
 
     #[test]
     fn test_shutdown_sets_state_to_stopped() {
-        let mgr = SidecarManager {
-            binary_path: PathBuf::from("/usr/bin/file-organizer"),
-            port: 12349,
-            state: Arc::new(Mutex::new(SidecarState::Ready)),
-            child: Arc::new(Mutex::new(None)),
-            retry_count: Arc::new(Mutex::new(0)),
-        };
-        // shutdown with no child should just update state
+        let mgr = SidecarManager::new_for_test(12349);
+        *mgr.state.lock().unwrap() = SidecarState::Ready;
+        // shutdown with no child should just update state; emit is a no-op without AppHandle
         mgr.shutdown();
         assert_eq!(mgr.state(), SidecarState::Stopped);
+    }
+
+    // ── new health-check tests ────────────────────────────────────────────────
+
+    /// Positive path: `check_health()` returns `true` when the server responds
+    /// with HTTP 200.
+    #[test]
+    fn test_health_check_returns_true_on_200() {
+        // Spawn a minimal HTTP server that replies with 200 OK.
+        let port = spawn_mock_server("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+
+        // Give the background thread a moment to enter accept().
+        std::thread::sleep(Duration::from_millis(20));
+
+        let mgr = SidecarManager::new_for_test(port);
+        assert!(
+            mgr.check_health(),
+            "check_health() should return true when server responds with HTTP 200"
+        );
+    }
+
+    /// Negative path: `check_health()` returns `false` when nothing is
+    /// listening on the target port (connection refused).
+    #[test]
+    fn test_health_check_returns_false_on_connection_refused() {
+        // Bind a port to discover an available number, then drop the listener
+        // immediately so the port is closed by the time check_health() runs.
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener); // port is now closed
+
+        let mgr = SidecarManager::new_for_test(port);
+        assert!(
+            !mgr.check_health(),
+            "check_health() should return false when connection is refused"
+        );
+    }
+
+    /// Negative path: `check_health()` returns `false` when the server replies
+    /// with a non-200 status (e.g. 503 Service Unavailable).
+    #[test]
+    fn test_health_check_returns_false_on_non_200() {
+        let port = spawn_mock_server(
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n",
+        );
+
+        std::thread::sleep(Duration::from_millis(20));
+
+        let mgr = SidecarManager::new_for_test(port);
+        assert!(
+            !mgr.check_health(),
+            "check_health() should return false for non-200 responses"
+        );
+    }
+
+    /// `unix_ts()` must return a plausible Unix timestamp (after 2024-01-01).
+    #[test]
+    fn test_unix_ts_is_reasonable() {
+        let ts = SidecarManager::unix_ts();
+        // 2024-01-01T00:00:00Z in Unix time = 1_704_067_200
+        assert!(ts > 1_704_067_200, "Timestamp looks too old: {}", ts);
     }
 }
