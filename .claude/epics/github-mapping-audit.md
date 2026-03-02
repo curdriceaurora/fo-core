@@ -19,6 +19,7 @@
 Original report generated: 2026-02-09 17:54 (local)
 
 ## Summary
+
 - Total tasks scanned: 79
 - Missing GitHub links: 0
 - Title mismatches vs GitHub issue: 14

@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "identifier": "com.fileorganizer.app",
   "build": {
-    "frontendDist": "http://localhost:8000/ui/",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:8000/ui/",
     "beforeDevCommand": "",
     "beforeBuildCommand": ""

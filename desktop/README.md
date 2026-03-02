@@ -50,6 +50,17 @@ The webview CSP in `tauri.conf.json` includes `'unsafe-inline'` for `script-src`
 
 The `com.apple.security.cs.allow-unsigned-executable-memory` entitlement is required for the bundled PyInstaller sidecar (loads code from unsigned memory pages) and Ollama's Metal/GPU JIT compilation.
 
+## Auto-Updater
+
+The Tauri updater plugin is included but **disabled** by default (`"active": false` in `tauri.conf.json`). Before enabling it in a release build:
+
+1. Generate a signing key pair: `npx @tauri-apps/cli signer generate -w ~/.tauri/myapp.key`
+2. Replace the `"pubkey"` placeholder in `tauri.conf.json` `plugins.updater` with the public key output.
+3. Set the `TAURI_SIGNING_PRIVATE_KEY` environment variable in CI so release builds are signed.
+4. Set `"active": true` in the updater config.
+
+The `"pubkey"` value ships as a placeholder (`REPLACE_WITH_TAURI_SIGNER_GENERATE_OUTPUT`) and must never be used in production as-is.
+
 ## Prerequisites
 
 - [Rust](https://rustup.rs/) 1.70+

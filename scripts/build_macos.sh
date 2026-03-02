@@ -116,6 +116,12 @@ echo "    Found: ${EXECUTABLE}"
 
 # ---------------------------------------------------------------------------
 # Create Tauri sidecar copy (Tauri expects: file-organizer-backend-{target-triple})
+#
+# Tauri resolves sidecar binaries by appending a Rust-style target triple to
+# the base name declared in tauri.conf.json "externalBin".  The triples used
+# here (aarch64-apple-darwin, x86_64-apple-darwin) match the values that
+# `rustc -vV | grep host` prints on each architecture, which is what Tauri
+# uses at build time and runtime to locate the correct binary.
 # ---------------------------------------------------------------------------
 echo "==> Creating Tauri sidecar copy..."
 if [[ "$UNIVERSAL" == "true" ]]; then

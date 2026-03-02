@@ -31,4 +31,5 @@ parallelization_factor: 1.0
 **No parallelization needed** — all changes are in one tight area.
 
 ## Key Decision
+
 Use `pydantic.SecretStr` type for `auth_jwt_secret` so the value is redacted in logs/repr. This is a small additive improvement worth doing at the same time.

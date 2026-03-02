@@ -11,11 +11,13 @@ status: closed
 # Parallel Work Analysis: Issue #48
 
 ## Overview
+
 Implement semantic similarity detection for documents using TF-IDF vectorization and cosine similarity. This integrates with existing hash-based (#46) and image perceptual (#47) deduplication to create a unified deduplication system. The system extracts text from multiple formats (PDF, DOCX, TXT, RTF, ODT), generates embeddings, computes similarity, and provides comprehensive storage reclamation reporting.
 
 ## Parallel Streams
 
 ### Stream A: Text Extraction Module
+
 **Scope**: Extract text content from various document formats
 **Files**:
 - `file_organizer/services/deduplication/extractor.py`
@@ -34,6 +36,7 @@ Implement semantic similarity detection for documents using TF-IDF vectorization
 - UTF-8 encoding support
 
 ### Stream B: Embedding & Similarity Engine
+
 **Scope**: TF-IDF vectorization and cosine similarity computation
 **Files**:
 - `file_organizer/services/deduplication/embedder.py`
@@ -54,6 +57,7 @@ Implement semantic similarity detection for documents using TF-IDF vectorization
 - Efficient pairwise comparison for large datasets
 
 ### Stream C: Integration & Reporting
+
 **Scope**: Integrate with existing deduplication, unified reporting
 **Files**:
 - `file_organizer/services/deduplication/document_dedup.py`
@@ -75,6 +79,7 @@ Implement semantic similarity detection for documents using TF-IDF vectorization
 - CLI integration with existing dedupe commands
 
 ### Stream D: Testing & Documentation
+
 **Scope**: Comprehensive testing and documentation
 **Files**:
 - `tests/services/deduplication/test_extractor.py`
@@ -99,10 +104,12 @@ Implement semantic similarity detection for documents using TF-IDF vectorization
 ## Coordination Points
 
 ### Shared Files
+
 Minimal overlap:
 - `file_organizer/services/deduplication/__init__.py` - Stream C updates exports after A, B complete
 
 ### Interface Contracts
+
 Define these interfaces upfront:
 
 **DocumentExtractor Interface**:
@@ -136,11 +143,13 @@ def export_to_csv(duplicate_groups: Dict, output_path: Path)
 ```
 
 ### Sequential Requirements
+
 1. Streams A and B can run in parallel
 2. Stream C requires both A and B to complete (needs text extraction and similarity analysis)
 3. Stream D requires C to complete (needs full integration for testing)
 
 ## Conflict Risk Assessment
+
 **Low Risk** - Clear separation between streams:
 - Stream A: `extractor.py` only
 - Stream B: `embedder.py`, `semantic.py` only
@@ -185,12 +194,14 @@ Total wall time: ~19 hours
 ## Notes
 
 ### Success Factors
+
 - Streams A and B are completely independent
 - Stream C integrates cleanly via defined interfaces
 - Dependencies on #46 and #47 are only for integration, not core functionality
 - scikit-learn handles TF-IDF complexity
 
 ### Risks & Mitigation
+
 - **Risk**: Large documents might cause memory issues
   - **Mitigation**: Stream A chunks large files, Stream B uses sparse matrices
 - **Risk**: Integration complexity with #46, #47
@@ -199,12 +210,14 @@ Total wall time: ~19 hours
   - **Mitigation**: Stream B includes configurable parameters, Stream D validates with diverse documents
 
 ### Performance Targets
+
 - Text extraction: >20 documents/second
 - TF-IDF vectorization: <5 seconds for 1,000 documents
 - Similarity computation: <10 seconds for 1,000 pairwise comparisons
 - Memory usage: <2GB for 1,000 document corpus
 
 ### Integration Notes
+
 Must integrate with:
 - Issue #46: Hash-based deduplication (exact duplicates)
 - Issue #47: Image perceptual hashing (similar images)
@@ -212,6 +225,7 @@ Must integrate with:
 - BackupManager for safe deletion
 
 ### Dependencies to Install
+
 ```bash
 pip install scikit-learn>=1.4.0
 pip install PyPDF2>=3.0.0

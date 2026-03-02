@@ -11,11 +11,13 @@ status: closed
 # Parallel Work Analysis: Issue #46
 
 ## Overview
+
 Implement a hash-based duplicate file detection system with MD5/SHA256 support, duplicate index, user confirmation interface, and safe backup mode. The system needs to efficiently handle large file sets and provide a user-friendly CLI experience.
 
 ## Parallel Streams
 
 ### Stream A: Core Hash & Index Implementation
+
 **Scope**: Backend logic for hash computation and duplicate tracking
 **Files**:
 - `file_organizer/services/deduplication/__init__.py`
@@ -36,6 +38,7 @@ Implement a hash-based duplicate file detection system with MD5/SHA256 support, 
 - Batch hash computation
 
 ### Stream B: Backup & Safety System
+
 **Scope**: Safe mode implementation with backup management
 **Files**:
 - `file_organizer/services/deduplication/backup.py`
@@ -53,6 +56,7 @@ Implement a hash-based duplicate file detection system with MD5/SHA256 support, 
 - Cleanup command for old backups
 
 ### Stream C: CLI & User Interface
+
 **Scope**: User-facing command-line interface and interaction
 **Files**:
 - `file_organizer/cli/dedupe.py` (new CLI subcommand)
@@ -71,6 +75,7 @@ Implement a hash-based duplicate file detection system with MD5/SHA256 support, 
 - Progress indicators (using tqdm)
 
 ### Stream D: Integration & Testing
+
 **Scope**: Bring all components together, comprehensive testing
 **Files**:
 - `tests/services/deduplication/test_hasher.py`
@@ -93,9 +98,11 @@ Implement a hash-based duplicate file detection system with MD5/SHA256 support, 
 ## Coordination Points
 
 ### Shared Files
+
 None - streams work on completely independent file sets
 
 ### Interface Contracts
+
 To enable parallel work, define these interfaces upfront:
 
 **FileHasher Interface**:
@@ -125,11 +132,13 @@ def remove_duplicates(index: DuplicateIndex, strategy: str) -> None
 ```
 
 ### Sequential Requirements
+
 1. Streams A, B, C can all run in parallel
 2. Stream D (testing/integration) must wait for A, B, C to complete
 3. Interface contracts must be agreed upon before starting
 
 ## Conflict Risk Assessment
+
 **Low Risk** - Streams work on completely different directories with no file overlap:
 - Stream A: `file_organizer/services/deduplication/{hasher,index,detector}.py`
 - Stream B: `file_organizer/services/deduplication/backup.py`
@@ -177,23 +186,27 @@ Total wall time: ~9.5 hours (including coordination)
 ## Notes
 
 ### Success Factors
+
 - Clear interface contracts prevent integration issues
 - Streams A, B, C are completely independent - no coordination needed during development
 - Stream D benefits from having all components ready for comprehensive testing
 
 ### Risks & Mitigation
+
 - **Risk**: Interface mismatch between components
   - **Mitigation**: Document interfaces before starting, include in acceptance criteria
 - **Risk**: Performance issues discovered during testing
   - **Mitigation**: Stream A includes performance optimization from the start (chunked reading, batch processing)
 
 ### Performance Targets
+
 - Hash computation: >100 files/second for small files (<1MB)
 - Large file handling: No memory issues with files >1GB
 - Index lookup: O(1) for duplicate detection
 - UI responsiveness: Progress updates every 100 files
 
 ### Integration Points
+
 This task integrates with:
 - Existing `FileOrganizer` service (for directory scanning)
 - CLI framework (for new dedupe subcommand)

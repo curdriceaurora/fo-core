@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, Runtime,
 };
 
@@ -81,7 +81,7 @@ fn api_post(url: String) {
 ///   About File Organizer
 ///   ─────────────────
 ///   Quit
-pub fn create_tray<R: Runtime>(app: &AppHandle<R>, port: u16) -> tauri::Result<()> {
+pub fn create_tray<R: Runtime>(app: &AppHandle<R>, port: u16) -> tauri::Result<TrayIcon<R>> {
     let state = TrayState::new(port);
 
     // ── Menu items ──────────────────────────────────────────────────────────
@@ -133,10 +133,18 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>, port: u16) -> tauri::Result<(
 
     // ── Tray icon ────────────────────────────────────────────────────────────
     let state_for_menu = state.clone();
-    let _tray = TrayIconBuilder::new()
+    let mut builder = TrayIconBuilder::new()
         .menu(&menu)
-        .icon(app.default_window_icon().unwrap().clone())
-        .tooltip("File Organizer")
+        .tooltip("File Organizer");
+
+    // Use the default window icon if available; otherwise create the tray
+    // without a custom icon to avoid panicking on platforms where no icon
+    // is bundled.
+    if let Some(icon) = app.default_window_icon() {
+        builder = builder.icon(icon.clone());
+    }
+
+    let tray = builder
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| {
             let port = *state_for_menu.backend_port.lock().unwrap();
@@ -227,5 +235,5 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>, port: u16) -> tauri::Result<(
         })
         .build(app)?;
 
-    Ok(())
+    Ok(tray)
 }

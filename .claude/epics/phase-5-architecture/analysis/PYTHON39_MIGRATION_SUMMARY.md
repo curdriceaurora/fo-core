@@ -1,4 +1,5 @@
 # Python 3.9 Migration - Complete Analysis & Task Creation
+
 ## Phase 5 Architecture Preparation for Docker Support
 
 **Date:** 2026-01-24
@@ -33,6 +34,7 @@ Comprehensive analysis completed for migrating File Organizer v2 from Python 3.1
 ## Analysis Documents Created
 
 ### 1. PYTHON_VERSION_MIGRATION_ANALYSIS.md (300+ lines)
+
 **Purpose:** Primary migration strategy document
 
 **Contents:**
@@ -51,6 +53,7 @@ Comprehensive analysis completed for migrating File Organizer v2 from Python 3.1
 ---
 
 ### 2. PYTHON39_DEPENDENCY_ANALYSIS.md (400+ lines)
+
 **Purpose:** Deep dive into dependency compatibility and Docker implications
 
 **Contents:**
@@ -80,6 +83,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ---
 
 ### 3. PYTHON39_MODULE_ANALYSIS.md (400+ lines)
+
 **Purpose:** File-by-file conversion priority and complexity analysis
 
 **Contents:**
@@ -104,6 +108,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ---
 
 ### 4. migrate_to_py39.sh (100+ lines)
+
 **Purpose:** Automated migration script
 
 **Features:**
@@ -126,6 +131,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ## Tasks Created in Phase 5 Epic
 
 ### Task #125: Python 3.9 Syntax Conversion
+
 **Size:** Medium (8 hours)
 **Priority:** High (Foundational)
 **Dependencies:** None
@@ -145,6 +151,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ---
 
 ### Task #126: Multi-Version Testing & Validation
+
 **Size:** Large (12 hours)
 **Priority:** High (Critical validation)
 **Dependencies:** #125
@@ -165,6 +172,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ---
 
 ### Task #127: Docker Base Image Updates
+
 **Size:** Medium (8 hours)
 **Priority:** High (Phase 5 core)
 **Dependencies:** #125, #126
@@ -186,6 +194,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ---
 
 ### Task #128: Documentation Updates
+
 **Size:** Small (4 hours)
 **Priority:** Medium (Polish)
 **Dependencies:** #125, #126, #127
@@ -246,6 +255,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ## Risk Assessment
 
 ### Low Risk Factors ✅
+
 - All dependencies already compatible
 - No match/case statements to convert
 - No PEP 695 type parameters used
@@ -254,11 +264,13 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 - Clear rollback path
 
 ### Medium Risk Factors ⚠️
+
 - 219 union operators need conversion (automated)
 - Multi-version testing required (time-consuming)
 - Some optional dependencies behave differently
 
 ### Mitigation Strategies
+
 - Automated conversion reduces human error
 - Comprehensive testing on 4 Python versions
 - Manual review of high-priority files
@@ -288,6 +300,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ## Timeline & Milestones
 
 ### Week 1: Conversion & Testing
+
 **Days 1-2:** Syntax conversion (#125)
 - Automated conversion: 2 hours
 - Manual review: 6 hours
@@ -298,6 +311,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 - CI/CD setup: 2 hours
 
 ### Week 2: Docker & Documentation
+
 **Days 5-6:** Docker updates (#127)
 - Dockerfile creation: 6 hours
 - Testing: 2 hours
@@ -313,6 +327,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ## Success Metrics
 
 ### Code Quality
+
 - [ ] All 169 tests pass on Python 3.9-3.12
 - [ ] mypy strict mode passes on all versions
 - [ ] ruff linting passes
@@ -320,6 +335,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 - [ ] Coverage >= 80% maintained
 
 ### Docker
+
 - [ ] Production image < 350 MB
 - [ ] Alpine image < 200 MB
 - [ ] All images build successfully
@@ -327,6 +343,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 - [ ] GPU image functional
 
 ### Documentation
+
 - [ ] Installation instructions accurate
 - [ ] Migration guide complete
 - [ ] Docker deployment documented
@@ -334,6 +351,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 - [ ] All code examples tested
 
 ### Integration
+
 - [ ] demo.py works on all versions
 - [ ] CLI commands functional
 - [ ] No import errors
@@ -344,12 +362,14 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ## Next Steps
 
 ### Immediate Actions (This Week)
+
 1. ✅ Analysis complete (DONE)
 2. ✅ Tasks created in Phase 5 epic (DONE)
 3. ⏳ Get approval for migration plan
 4. ⏳ Execute #125 (syntax conversion)
 
 ### Short-term (Next 2 Weeks)
+
 1. Complete #126 (testing)
 2. Complete #127 (Docker)
 3. Complete #128 (documentation)
@@ -357,6 +377,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 5. Tag release: v2.0.0-alpha.2
 
 ### Long-term (Q3 2025)
+
 1. Monitor Python 3.9 EOL (October 2025)
 2. Plan migration to Python 3.10+ as new minimum
 3. Evaluate Python 3.12 adoption rate
@@ -392,18 +413,21 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ## References
 
 ### Analysis Documents (In Repository)
+
 - `PYTHON_VERSION_MIGRATION_ANALYSIS.md`
 - `PYTHON39_DEPENDENCY_ANALYSIS.md`
 - `PYTHON39_MODULE_ANALYSIS.md`
 - `migrate_to_py39.sh`
 
 ### Task Files (Phase 5 Epic)
+
 - `.claude/epics/phase-5-architecture/125.md` - Syntax conversion
 - `.claude/epics/phase-5-architecture/126.md` - Testing
 - `.claude/epics/phase-5-architecture/127.md` - Docker
 - `.claude/epics/phase-5-architecture/128.md` - Documentation
 
 ### External References
+
 - Python version support: https://devguide.python.org/versions/
 - pyupgrade docs: https://github.com/asottile/pyupgrade
 - Docker Python images: https://hub.docker.com/_/python
@@ -413,6 +437,7 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 ## Appendix: Quick Stats
 
 ### Codebase Metrics
+
 - **Total Python files:** 104
 - **Files to modify:** ~50 (48%)
 - **Union operators:** 219 total
@@ -423,12 +448,14 @@ Python 3.12 base images: 5 options (Debian 12, Alpine 3.19, Ubuntu 24.04 only)
 - **Total tests:** 169
 
 ### Conversion Metrics
+
 - **Automated:** 90% (pyupgrade)
 - **Manual review:** 10% (high-priority files)
 - **Estimated time:** 8 hours (conversion)
 - **Files at risk:** 0 (all tested)
 
 ### Compatibility Metrics
+
 - **Dependencies compatible:** 100%
 - **Test pass rate target:** 100%
 - **Python versions supported:** 4 (3.9-3.12)

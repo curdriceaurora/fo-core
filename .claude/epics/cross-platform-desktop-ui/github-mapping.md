@@ -5,17 +5,20 @@ Epic: #537 - https://github.com/curdriceaurora/Local-File-Organizer/issues/537
 ## Tasks
 
 ### Phase 1: Service Facade + Config Consolidation
+
 - #542: Create Service Facade - https://github.com/curdriceaurora/Local-File-Organizer/issues/542
 - #554: Fix Config Path Consistency - https://github.com/curdriceaurora/Local-File-Organizer/issues/554
 - #558: Harden Health Endpoint - https://github.com/curdriceaurora/Local-File-Organizer/issues/558
 
 ### Phase 2: Tauri Shell Scaffold
+
 - #559: Initialize Tauri v2 Project - https://github.com/curdriceaurora/Local-File-Organizer/issues/559
 - #560: Implement Sidecar Process Manager - https://github.com/curdriceaurora/Local-File-Organizer/issues/560
 - #540: Implement Splash Screen - https://github.com/curdriceaurora/Local-File-Organizer/issues/540
 - #544: Implement Basic System Tray - https://github.com/curdriceaurora/Local-File-Organizer/issues/544
 
 ### Phase 3: Cross-Platform Builds + Packaging
+
 - #546: Web UI Viewport Adjustments - https://github.com/curdriceaurora/Local-File-Organizer/issues/546
 - #548: Rename PyInstaller Output to Sidecar Convention - https://github.com/curdriceaurora/Local-File-Organizer/issues/548
 - #549: Generate App Icons - https://github.com/curdriceaurora/Local-File-Organizer/issues/549
@@ -24,6 +27,7 @@ Epic: #537 - https://github.com/curdriceaurora/Local-File-Organizer/issues/537
 - #547: Update CI/CD Pipeline for Tauri Builds - https://github.com/curdriceaurora/Local-File-Organizer/issues/547
 
 ### Phase 4: Native OS Integration
+
 - #552: Full System Tray Menu - https://github.com/curdriceaurora/Local-File-Organizer/issues/552
 - #556: Implement Daemon Manager - macOS - https://github.com/curdriceaurora/Local-File-Organizer/issues/556
 - #539: Implement Daemon Manager - Linux - https://github.com/curdriceaurora/Local-File-Organizer/issues/539
@@ -33,9 +37,11 @@ Epic: #537 - https://github.com/curdriceaurora/Local-File-Organizer/issues/537
 - #557: Native Notifications - https://github.com/curdriceaurora/Local-File-Organizer/issues/557
 
 ### Phase 5: Update System Integration
+
 - #543: Coordinated Update System - https://github.com/curdriceaurora/Local-File-Organizer/issues/543
 
 ### Phase 6: Additional Linux Packaging
+
 - #550: Flatpak Packaging - https://github.com/curdriceaurora/Local-File-Organizer/issues/550
 - #553: Debian Packaging - https://github.com/curdriceaurora/Local-File-Organizer/issues/553
 

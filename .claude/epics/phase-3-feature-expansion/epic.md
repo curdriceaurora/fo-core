@@ -19,11 +19,13 @@ last_sync: 2026-02-19T00:43:37Z
 **Priority:** High
 
 ## Overview
+
 Expand file type support and add advanced organization methodologies.
 
 ## Key Features
 
 ### 1. Audio File Support 🎵
+
 Transcription and organization of audio files
 - **Formats**: MP3, WAV, FLAC, M4A, OGG
 - Distil-Whisper integration for transcription
@@ -33,6 +35,7 @@ Transcription and organization of audio files
 - Organize by content/topic
 
 ### 2. Advanced Video Processing 🎥
+
 Enhanced video analysis beyond first frame
 - Multi-frame analysis (scene detection)
 - Video transcription (audio track)
@@ -41,6 +44,7 @@ Enhanced video analysis beyond first frame
 - Scene-based categorization
 
 ### 3. PARA Methodology 📂
+
 Projects, Areas, Resources, Archive organization
 - Automatic PARA categorization
 - User-defined category rules
@@ -49,6 +53,7 @@ Projects, Areas, Resources, Archive organization
 - PARA-aware folder generation
 
 ### 4. Johnny Decimal System 🔢
+
 Hierarchical numbering for organization
 - Auto-generate Johnny Decimal numbers
 - User-defined numbering schemes
@@ -57,6 +62,7 @@ Hierarchical numbering for organization
 - Integration with existing structures
 
 ### 5. Enhanced Ebook Support 📚
+
 Improved EPUB processing
 - Chapter-based analysis
 - Author and genre detection
@@ -64,12 +70,14 @@ Improved EPUB processing
 - Better metadata extraction
 
 ### 6. Format Expansion 📦
+
 Additional file types
 - CAD files (DWG, DXF)
 - Archive files (ZIP, RAR, 7Z)
 - Scientific data formats
 
 ## Success Criteria
+
 - [ ] 20+ file types supported
 - [ ] Audio transcription >90% accuracy
 - [ ] PARA adoption by power users
@@ -77,45 +85,54 @@ Additional file types
 - [ ] Johnny Decimal implementation complete
 
 ## Technical Requirements
+
 - faster-whisper 1.0+ (audio transcription)
 - ffmpeg-python 0.2+ (video processing)
 - Additional file format libraries
 
 ## Dependencies
+
 - Phase 2 complete
 - Audio model integration (Distil-Whisper)
 
 ## Related
+
 - GitHub Issue: #2
 - Related PRD: file-organizer-v2
 
 ## Tasks Created
 
 ### Audio File Support (3 tasks)
+
 - [ ] #42 - Integrate Distil-Whisper for audio transcription (parallel: true)
 - [ ] #43 - Implement audio metadata extraction (parallel: true)
 - [ ] #44 - Build audio content-based organization (parallel: false)
 
 ### Advanced Video Processing (3 tasks)
+
 - [ ] #45 - Implement multi-frame video analysis (parallel: true)
 - [ ] #34 - Add video transcription from audio track (parallel: false)
 - [ ] #36 - Enhance video metadata extraction (parallel: true)
 
 ### PARA Methodology (3 tasks)
+
 - [ ] #38 - Design PARA categorization system (parallel: true)
 - [ ] #40 - Implement PARA folder generation (parallel: false)
 - [ ] #35 - Add PARA smart suggestions (parallel: false)
 
 ### Johnny Decimal System (2 tasks)
+
 - [ ] #37 - Implement Johnny Decimal numbering system (parallel: true)
 - [ ] #39 - Integrate Johnny Decimal with existing structures (parallel: false)
 
 ### Enhanced Ebook Support & Format Expansion (3 tasks)
+
 - [ ] #41 - Enhance EPUB processing (parallel: true)
 - [ ] #30 - Add CAD file support (parallel: true)
 - [ ] #31 - Add archive and scientific format support (parallel: true)
 
 ### Testing & Documentation (2 tasks)
+
 - [ ] #32 - Write comprehensive tests for Phase 3 features (parallel: false)
 - [ ] #33 - Update documentation and create user guides (parallel: false)
 

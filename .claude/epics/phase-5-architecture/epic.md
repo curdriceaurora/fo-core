@@ -19,11 +19,13 @@ last_sync: 2026-02-16T19:07:15Z
 **Priority:** Medium
 
 ## Overview
+
 Refactor to event-driven architecture, add real-time file watching, and containerize for easy deployment.
 
 ## Key Features
 
 ### 1. Event-Driven Architecture 🔄
+
 Microservices with event streaming
 - Redis Streams integration
 - Pub/sub event system
@@ -33,6 +35,7 @@ Microservices with event streaming
 - Decoupled components
 
 ### 2. Real-Time File Watching 👁️
+
 Automatic organization of new files
 - Monitor directories for changes
 - Auto-organize new files
@@ -43,6 +46,7 @@ Automatic organization of new files
 - System tray integration
 
 ### 3. Batch Processing Optimization ⚡
+
 Efficient processing of large collections
 - Parallel processing (multi-core)
 - Progress persistence
@@ -52,6 +56,7 @@ Efficient processing of large collections
 - **3x speed improvement target**
 
 ### 4. Docker Deployment 🐳
+
 Containerized deployment
 - **Dockerfile** with multi-stage builds
 - **Docker Compose** for easy setup
@@ -62,6 +67,7 @@ Containerized deployment
 - Auto-scaling support
 
 ### 5. Performance Optimizations 🚀
+
 Speed improvements across the board
 - Model loading optimization
 - Caching layer
@@ -71,6 +77,7 @@ Speed improvements across the board
 - Profile-guided optimization
 
 ### 6. CI/CD Pipeline 🔧
+
 Automated testing and deployment
 - GitHub Actions workflows
 - Automated testing on push
@@ -80,6 +87,7 @@ Automated testing and deployment
 - Security scanning
 
 ## Success Criteria
+
 - [ ] Handle 100,000+ files efficiently
 - [ ] Real-time latency <1 second
 - [ ] Processing speed improved 3x
@@ -88,6 +96,7 @@ Automated testing and deployment
 - [ ] CI/CD pipeline operational
 
 ## Technical Requirements
+
 - Redis 5.0+ (event streams)
 - watchdog 3.0+ (file watching)
 - Docker & Docker Compose
@@ -95,14 +104,17 @@ Automated testing and deployment
 - Performance profiling tools
 
 ## Dependencies
+
 - Phase 4 complete
 - Stable core functionality
 
 ## Related
+
 - GitHub Issue: #4
 - Related PRD: file-organizer-v2
 
 ## Post-Completion Follow-Ups (2026-02-16)
+
 Additional defects were opened after Phase 5 completion and are tracked under the technical debt epic.
 
 - Parent: #266 - Technical Debt & Maintenance
@@ -118,37 +130,44 @@ Additional defects were opened after Phase 5 completion and are tracked under th
 ## Tasks Created
 
 ### Docker Preparation (Python 3.9 Migration)
+
 - [ ] **#126** - Python 3.9 syntax conversion (M, 8h, parallel: true)
 - [ ] **#127** - Multi-version testing and validation (L, 12h, depends on: #126)
 - [ ] **#128** - Docker base image updates (M, 8h, depends on: #126, #127)
 - [ ] **#129** - Documentation updates (S, 4h, depends on: #126, #127, #128)
 
 ### Event-Driven Architecture
+
 - [ ] **#130** - Redis Streams integration (L, 16h, parallel: true)
 - [ ] **#131** - Pub/sub event system (M, 12h, depends on: #130)
 - [ ] **#132** - Microservices communication layer (M, 14h, depends on: #130, #131)
 - [ ] **#133** - Event replay and monitoring (S, 8h, depends on: #130)
 
 ### Real-Time File Watching
+
 - [ ] **#134** - File system monitoring with watchdog (M, 12h, parallel: true)
 - [ ] **#135** - Auto-organization pipeline (L, 16h, depends on: #134)
 - [ ] **#136** - Background daemon mode (M, 10h, depends on: #134, #135)
 
 ### Batch Processing Optimization
+
 - [ ] **#137** - Parallel processing implementation (L, 16h, parallel: true)
 - [ ] **#138** - Progress persistence and resume (M, 12h, depends on: #137)
 - [ ] **#139** - Resource management and priority queue (M, 12h, depends on: #137, #138)
 
 ### Docker Deployment & Scaling
+
 - [ ] **#140** - Production Docker deployment (M, 12h, depends on: #128)
 - [ ] **#141** - Auto-scaling configuration (M, 10h, depends on: #128, #140)
 
 ### Performance Optimizations
+
 - [ ] **#142** - Model loading optimization and caching (M, 14h, parallel: true)
 - [ ] **#143** - Database indexing and query optimization (M, 12h, parallel: true)
 - [ ] **#144** - Memory management and profiling (M, 10h, depends on: #142)
 
 ### CI/CD Pipeline
+
 - [ ] **#145** - GitHub Actions workflows (M, 12h, parallel: true)
 - [ ] **#146** - Automated releases (S, 8h, depends on: #145)
 

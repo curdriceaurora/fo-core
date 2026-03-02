@@ -37,7 +37,7 @@ pub enum SidecarState {
 /// ```
 #[derive(Debug, Clone, Serialize)]
 pub struct SidecarStatePayload {
-    /// Current sidecar state: `"starting"`, `"running"`, `"stopped"`, or `"unhealthy"`.
+    /// Current sidecar state: `"starting"`, `"ready"`, `"stopped"`, or `"unhealthy"`.
     pub state: &'static str,
     /// The TCP port the sidecar is listening on, or `None` when stopped/unhealthy.
     pub port: Option<u16>,
@@ -144,7 +144,7 @@ impl SidecarManager {
 
     /// Poll the health endpoint with exponential backoff until ready or timeout.
     ///
-    /// Transitions to `Ready` on success (emitting `sidecar-state { state: "running" }`) or
+    /// Transitions to `Ready` on success (emitting `sidecar-state { state: "ready" }`) or
     /// to `Crashed` on timeout (emitting `sidecar-state { state: "unhealthy" }`).
     pub fn wait_until_ready(&self) -> Result<(), String> {
         let timeout = Duration::from_secs(HEALTH_POLL_TIMEOUT_SECS);

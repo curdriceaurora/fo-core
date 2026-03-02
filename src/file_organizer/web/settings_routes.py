@@ -21,11 +21,10 @@ from loguru import logger
 
 from file_organizer.api.config import ApiSettings
 from file_organizer.api.dependencies import get_settings
+from file_organizer.config.path_manager import get_config_dir
 from file_organizer.web._helpers import base_context, templates
 
 settings_router = APIRouter(tags=["web"])
-
-from file_organizer.config.path_manager import get_config_dir  # noqa: E402
 
 _SETTINGS_DIR = get_config_dir()
 _SETTINGS_FILE = _SETTINGS_DIR / "web-settings.json"

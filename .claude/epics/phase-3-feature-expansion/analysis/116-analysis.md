@@ -20,6 +20,7 @@ Create comprehensive test coverage for all Phase 3 features: audio transcription
 ## Work Streams
 
 ### Stream A: Audio & Video Testing
+
 **Scope**: Tests for audio transcription and video processing
 **Files**:
 - `tests/test_audio_model.py` (new)
@@ -36,6 +37,7 @@ Create comprehensive test coverage for all Phase 3 features: audio transcription
 **Dependencies**: none (can mock audio/video processing)
 
 ### Stream B: Organization Methods Testing
+
 **Scope**: Tests for PARA and Johnny Decimal systems
 **Files**:
 - `tests/methodologies/test_para_system.py` (new)
@@ -52,6 +54,7 @@ Create comprehensive test coverage for all Phase 3 features: audio transcription
 **Parallel with**: Stream A
 
 ### Stream C: Format Support Testing
+
 **Scope**: Tests for CAD, archives, EPUB, scientific formats
 **Files**:
 - `tests/utils/test_cad_readers.py` (new)
@@ -69,6 +72,7 @@ Create comprehensive test coverage for all Phase 3 features: audio transcription
 **Parallel with**: Streams A, B
 
 ### Stream D: Integration & Coverage
+
 **Scope**: Integration tests and coverage reporting
 **Files**:
 - `tests/integration/test_phase3_workflows.py` (new)
@@ -84,17 +88,20 @@ Create comprehensive test coverage for all Phase 3 features: audio transcription
 ## Coordination Points
 
 ### Shared Files
+
 - `tests/conftest.py` - May need Phase 3 fixtures added
 - `pyproject.toml` - May need test dependencies updated
 - `.github/workflows/test.yml` - May need Phase 3 test jobs
 
 ### Test Fixture Strategy
+
 Each stream creates its own fixtures:
 - Stream A: Audio/video sample files
 - Stream B: PARA/Johnny Decimal test structures
 - Stream C: CAD/archive/EPUB/scientific samples
 
 ### Sequential Requirements
+
 1. Unit tests (Streams A, B, C) must complete before integration tests (Stream D)
 2. Coverage reporting happens after all tests exist
 
@@ -103,6 +110,7 @@ Each stream creates its own fixtures:
 **Recommended Approach**: Parallel unit testing + sequential integration
 
 ### Phase 1: Parallel Unit Tests (Week 1-2)
+
 Launch 3 agents simultaneously:
 - **Agent A**: Audio & video testing (12-14h)
 - **Agent B**: Organization methods testing (10-12h)
@@ -111,12 +119,14 @@ Launch 3 agents simultaneously:
 All can work simultaneously on different test modules.
 
 ### Phase 2: Integration & Coverage (Week 2-3)
+
 After unit tests complete:
 - **Agent D**: Integration tests, coverage setup, documentation (6-8h)
 
 ## Expected Timeline
 
 ### With Parallel Execution (Recommended):
+
 - **Week 1-2**: 3 parallel streams (max of 12-14h per stream)
 - **Week 2-3**: Integration & coverage (6-8h)
 - **Total Wall Time**: ~2-3 weeks
@@ -124,10 +134,12 @@ After unit tests complete:
 - **Efficiency Gain**: 2.5x speedup
 
 ### Without Parallel Execution:
+
 - **Sequential Time**: 36-44 hours
 - **Total Wall Time**: ~5-6 weeks (one developer)
 
 ### Critical Path:
+
 ```
 Streams A, B, C (parallel, 12-14h max) → Stream D (6-8h)
 Total: 18-22 hours wall time
@@ -136,11 +148,13 @@ Total: 18-22 hours wall time
 ## Test Coverage Strategy
 
 ### Priority Areas
+
 1. **Critical Path**: Audio transcription, video processing (highest business value)
 2. **New Features**: PARA, Johnny Decimal (user-facing)
 3. **Format Support**: CAD, archives, EPUB (quality gates)
 
 ### Coverage Goals
+
 - **Overall**: >80% code coverage
 - **Audio Module**: >85% (core feature)
 - **Video Module**: >85% (core feature)
@@ -151,18 +165,21 @@ Total: 18-22 hours wall time
 ## Testing Approach
 
 ### Mocking Strategy
+
 - **Audio**: Mock Whisper model calls (speed)
 - **Video**: Mock frame extraction (speed)
 - **File I/O**: Use temp directories (real operations)
 - **External APIs**: Mock all network calls
 
 ### Test Data
+
 - Create minimal sample files for each format
 - Use synthetic data where possible
 - Store in `tests/fixtures/`
 - Document fixture creation process
 
 ### CI/CD Integration
+
 - Add Phase 3 test jobs to GitHub Actions
 - Run in parallel with existing tests
 - Set up coverage reporting
@@ -171,24 +188,29 @@ Total: 18-22 hours wall time
 ## Risk Mitigation
 
 ### Large Sample Files
+
 - **Risk**: Audio/video test fixtures too large for git
 - **Mitigation**: Use minimal samples (<1MB each), generate synthetically, or use Git LFS
 
 ### Slow Tests
+
 - **Risk**: Audio/video tests take too long
 - **Mitigation**: Mock heavy operations, use small samples, mark slow tests with pytest.mark.slow
 
 ### Fixture Conflicts
+
 - **Risk**: Agents create overlapping fixtures
 - **Mitigation**: Each stream has its own fixtures/ subdirectory
 
 ### Coverage Gaps
+
 - **Risk**: Hard-to-test edge cases
 - **Mitigation**: Document known gaps, add TODOs for future coverage
 
 ## Success Metrics
 
 ### Quantitative
+
 - [ ] >80% overall code coverage for Phase 3
 - [ ] All 100+ unit tests passing
 - [ ] All 20+ integration tests passing
@@ -196,6 +218,7 @@ Total: 18-22 hours wall time
 - [ ] Zero flaky tests
 
 ### Qualitative
+
 - [ ] Clear test documentation
 - [ ] Maintainable test structure
 - [ ] Good error messages
@@ -204,8 +227,10 @@ Total: 18-22 hours wall time
 ## Implementation Plan
 
 ### Step 1: Setup Test Infrastructure
+
 ```bash
 # Create test directory structure
+
 mkdir -p tests/services/audio
 mkdir -p tests/services/video
 mkdir -p tests/methodologies
@@ -213,31 +238,39 @@ mkdir -p tests/fixtures/{audio_samples,video_samples,para_methods,johnny_decimal
 
 # Update test dependencies
 # Add pytest-asyncio, pytest-mock, faker, hypothesis
+
 ```
 
 ### Step 2: Launch Parallel Agents
+
 ```bash
 # Create feature branch
+
 git checkout -b feature/issue-116-phase3-testing
 
 # Launch 3 agents for parallel test creation
 # Each agent works on their assigned stream
+
 ```
 
 ### Step 3: Integration Phase
+
 ```bash
 # After unit tests complete
 # Create integration tests
 # Set up coverage reporting
 # Update CI/CD
+
 ```
 
 ### Step 4: Review & Merge
+
 ```bash
 # Run full test suite
 # Verify coverage >80%
 # Create PR
 # Merge to main
+
 ```
 
 ## Next Steps

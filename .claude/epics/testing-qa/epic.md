@@ -19,11 +19,13 @@ last_sync: 2026-02-27T18:45:00Z
 **Priority:** High
 
 ## Overview
+
 Establish comprehensive testing infrastructure to ensure code quality and reliability.
 
 ## Key Components
 
 ### 1. Unit Testing 🧪
+
 Component-level tests
 - Test coverage >80%
 - pytest framework
@@ -33,6 +35,7 @@ Component-level tests
 - Test utilities
 
 ### 2. Integration Testing 🔗
+
 End-to-end workflows
 - Full organization workflows
 - Multi-file processing
@@ -41,6 +44,7 @@ End-to-end workflows
 - Performance benchmarks
 
 ### 3. Test Automation ⚙️
+
 Continuous testing
 - GitHub Actions CI
 - Run tests on every push
@@ -49,6 +53,7 @@ Continuous testing
 - Performance regression detection
 
 ### 4. Code Quality Tools 📊
+
 Static analysis and formatting
 - mypy (type checking)
 - ruff (linting)
@@ -57,6 +62,7 @@ Static analysis and formatting
 - Code review automation
 
 ### 5. Documentation Testing 📖
+
 Ensure docs are accurate
 - Test code examples in docs
 - Link checking
@@ -64,6 +70,7 @@ Ensure docs are accurate
 - Installation guide testing
 
 ## Success Criteria
+
 - [x] >80% test coverage
 - [x] All CI checks pass
 - [x] Zero critical bugs in production
@@ -71,6 +78,7 @@ Ensure docs are accurate
 - [x] Documentation accuracy 100%
 
 ## Technical Requirements
+
 - pytest 7.4+
 - pytest-cov (coverage)
 - pytest-mock (mocking)
@@ -79,6 +87,7 @@ Ensure docs are accurate
 - black 23+
 
 ## Related
+
 - GitHub Issue: #6
 - Related PRD: file-organizer-v2
 
@@ -90,6 +99,7 @@ Ensure docs are accurate
 **Total Estimated Effort**: 236-286 hours
 
 ### Phase 1: Core Foundation (Tasks 001-009)
+
 - [x] **#192** - Setup Test Infrastructure (M, 8-12h, parallel)
 - [x] **#193** - Test AI Model Abstractions (S, 4-6h, sequential after 001)
 - [x] **#194** - Test Text Model Implementation (M, 8-10h, sequential after 002)
@@ -103,6 +113,7 @@ Ensure docs are accurate
 **Phase 1 Subtotal**: 86-110 hours
 
 ### Phase 2: Pattern Analysis & Intelligence (Tasks 010-012)
+
 - [x] **#201** - Test Pattern Analyzer Service (L, 12-14h, parallel)
 - [x] **#202** - Test Misplacement Detector Service (L, 14-16h, sequential after 010)
 - [x] **#203** - Test Suggestion Feedback Service (M, 8-10h, parallel)
@@ -110,6 +121,7 @@ Ensure docs are accurate
 **Phase 2 Subtotal**: 34-40 hours
 
 ### Phase 3: Deduplication Services (Tasks 013-016)
+
 - [x] **#204** - Test Deduplication Core Services (L, 14-16h, parallel)
 - [x] **#205** - Test Image Deduplication (L, 12-14h, sequential after 013)
 - [x] **#206** - Test Document Deduplication (XL, 16-20h, parallel with 014)
@@ -118,6 +130,7 @@ Ensure docs are accurate
 **Phase 3 Subtotal**: 52-62 hours
 
 ### Phase 4: Intelligence Services (Tasks 017-019)
+
 - [x] **#208** - Test Preference Tracking & Learning (XL, 16-18h, parallel)
 - [x] **#209** - Test Feedback Processing (M, 8-10h, sequential after 017)
 - [x] **#210** - Test Profile Management (L, 12-14h, parallel)
@@ -125,6 +138,7 @@ Ensure docs are accurate
 **Phase 4 Subtotal**: 36-42 hours
 
 ### Phase 5: Integration & CI/CD (Tasks 020-023)
+
 - [x] **#211** - Test CLI Commands (L, 12-14h, parallel after 009, 013)
 - [x] **#212** - Integration Test Suite (XL, 20-24h, sequential after 009, 013, 017)
 - [x] **#213** - Setup CI/CD Pipeline (M, 6-8h, sequential after 021)
@@ -137,6 +151,7 @@ Ensure docs are accurate
 ## Execution Strategy
 
 ### Parallel Work Streams
+
 **Stream A: Core Models & Processors** (Tasks 001→002→003/004→007/008→009)
 - Focus: AI models, file processors, core orchestrator
 - Critical path: ~66-80 hours
@@ -158,6 +173,7 @@ Ensure docs are accurate
 - Final phase: ~44-54 hours
 
 ### Recommended Approach
+
 1. **Week 1-2**: Start all parallel streams (001 foundation, then branch out)
 2. **Week 3-4**: Continue parallel work on Streams A, B, C, D
 3. **Week 5**: Converge on integration testing (Stream E)
@@ -170,6 +186,7 @@ Ensure docs are accurate
 ## Recent Bugs & Fixes
 
 ### CLI Validation Bugs
+
 - [x] **#445** - Invalid Click Short Option Validation (M, 2-3h)
   - Single dash "-" not valid as short option in Click
   - Fixed in PR #448: proper short flag or removed short form

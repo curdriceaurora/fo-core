@@ -40,9 +40,11 @@ All 23 issues implemented and pushed to `epic/cross-platform-desktop-ui`.
 | #553 | Debian Packaging | 5 | ✅ 40 tests |
 
 ## Active Agents
+
 None — all work complete.
 
 ## Dependency Graph (resolved)
+
 - Wave 1 (parallel): #542, #546, #548, #549, #554, #559
 - Wave 2 (parallel): #558, #544, #538, #541, #556, #539, #545
 - Wave 3 (parallel): #560, #547
@@ -50,4 +52,5 @@ None — all work complete.
 - Wave 5 (parallel): #543, #550, #553
 
 ## Next Step
+
 Run: `/pm:epic-merge cross-platform-desktop-ui`

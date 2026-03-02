@@ -46,6 +46,16 @@ if (-not (Test-Path $webview2Key) -and -not (Test-Path $webview2KeyUser)) {
     $bootstrapperUrl = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
     $bootstrapperPath = "$env:TEMP\MicrosoftEdgeWebview2Setup.exe"
     Invoke-WebRequest -Uri $bootstrapperUrl -OutFile $bootstrapperPath
+    # TODO: Add hash verification for production builds.
+    # The bootstrapper URL is a Microsoft redirect that always serves the latest
+    # version, so the hash changes with each release. For CI/CD, pin a specific
+    # version URL and verify against a known SHA-256:
+    #   $expectedHash = "<sha256-of-pinned-version>"
+    #   $actualHash = (Get-FileHash -Path $bootstrapperPath -Algorithm SHA256).Hash
+    #   if ($actualHash -ne $expectedHash) {
+    #       Remove-Item $bootstrapperPath
+    #       throw "WebView2 bootstrapper hash mismatch: expected $expectedHash, got $actualHash"
+    #   }
     Write-Host "    Installing WebView2 Runtime (silent)..."
     Start-Process -FilePath $bootstrapperPath -ArgumentList "/silent /install" -Wait
     Write-Host "    WebView2 Runtime installed." -ForegroundColor Green

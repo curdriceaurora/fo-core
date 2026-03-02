@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 import yaml
 from loguru import logger
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 from file_organizer.api.api_keys import hash_api_key
 from file_organizer.version import __version__
@@ -105,6 +105,14 @@ class ApiSettings(BaseModel):
     security_hsts_subdomains: bool = True
     security_referrer_policy: str = "strict-origin-when-cross-origin"
     ollama_url: str = "http://localhost:11434"
+
+    @field_validator("ollama_url")
+    @classmethod
+    def _normalize_ollama_url(cls, v: str) -> str:
+        """Prepend ``http://`` when *OLLAMA_HOST* is given as ``host:port``."""
+        if v and not v.startswith(("http://", "https://")):
+            return f"http://{v}"
+        return v
 
 
 def _parse_list(value: str) -> list[str]:

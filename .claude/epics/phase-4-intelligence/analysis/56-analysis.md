@@ -11,11 +11,13 @@ status: closed
 # Parallel Work Analysis: Issue #56
 
 ## Overview
+
 Create a comprehensive analytics dashboard that provides insights into storage usage, file organization, duplicate detection, and overall system efficiency to help users understand and optimize their file management.
 
 ## Parallel Streams
 
 ### Stream A: Storage Analysis & Metrics
+
 **Scope**: Storage usage analysis and calculation engines
 **Files**:
 - `file_organizer/services/analytics/storage_analyzer.py`
@@ -40,6 +42,7 @@ Create a comprehensive analytics dashboard that provides insights into storage u
 - Data models for all analytics types
 
 ### Stream B: Chart Generation & Visualization
+
 **Scope**: Terminal-based chart generation and visual representations
 **Files**:
 - `file_organizer/utils/chart_generator.py`
@@ -62,6 +65,7 @@ Create a comprehensive analytics dashboard that provides insights into storage u
 - Rich library integration for enhanced output
 
 ### Stream C: Historical Tracking & Reporting
+
 **Scope**: Time-series data tracking and report generation
 **Files**:
 - `file_organizer/services/analytics/history_tracker.py`
@@ -86,6 +90,7 @@ Create a comprehensive analytics dashboard that provides insights into storage u
 - export_html() - HTML report generation (future)
 
 ### Stream D: Analytics Service & CLI Integration
+
 **Scope**: Main analytics service orchestration and CLI interface
 **Files**:
 - `file_organizer/services/analytics/analytics_service.py`
@@ -116,11 +121,13 @@ Create a comprehensive analytics dashboard that provides insights into storage u
 ## Coordination Points
 
 ### Shared Files
+
 Minimal overlap:
 - `file_organizer/services/analytics/__init__.py` - Stream D updates after A, B, C complete
 - `file_organizer/models/analytics.py` - Stream A owns, others import
 
 ### Interface Contracts
+
 To enable parallel work, define these interfaces upfront:
 
 **StorageAnalyzer Interface**:
@@ -195,11 +202,13 @@ class QualityMetrics:
 ```
 
 ### Sequential Requirements
+
 1. Streams A, B, C can all run in parallel
 2. Stream D (orchestration/CLI/testing) must wait for A, B, C to complete
 3. Interface contracts and data models must be agreed upon before starting
 
 ## Conflict Risk Assessment
+
 **Low Risk** - Streams work on completely different files:
 - Stream A: `storage_analyzer.py`, `metrics_calculator.py`, `analytics.py` (models/)
 - Stream B: `chart_generator.py`, `visualizer.py`
@@ -247,6 +256,7 @@ Total wall time: ~12.5 hours (including coordination)
 ## Notes
 
 ### Success Factors
+
 - Clear interface contracts prevent integration issues
 - Streams A, B, C are completely independent - no coordination needed
 - Data models agreed upon upfront enable parallel work
@@ -254,6 +264,7 @@ Total wall time: ~12.5 hours (including coordination)
 - Rich terminal output makes analytics engaging
 
 ### Risks & Mitigation
+
 - **Risk**: Performance issues on large directories
   - **Mitigation**: Stream A implements caching and incremental analysis
 - **Risk**: Terminal visualizations not portable across platforms
@@ -264,6 +275,7 @@ Total wall time: ~12.5 hours (including coordination)
   - **Mitigation**: Stream A optimizes critical paths, uses sampling for large datasets
 
 ### Performance Targets
+
 - Storage analysis: 1000 files in <2 seconds
 - Quality score calculation: <500ms
 - Chart generation: <100ms per chart
@@ -273,6 +285,7 @@ Total wall time: ~12.5 hours (including coordination)
 - Incremental updates: <1 second for new data
 
 ### Design Considerations
+
 - Use Rich library for terminal formatting
 - Cache analytics for large directories (TTL: 1 hour)
 - Store historical data in lightweight format (JSON/SQLite)
@@ -284,6 +297,7 @@ Total wall time: ~12.5 hours (including coordination)
 - Unicode charts for better visuals
 
 ### Integration Points
+
 This task integrates with:
 - File scanning infrastructure
 - Deduplication service (for duplicate stats)
@@ -338,6 +352,7 @@ This task integrates with:
 - Productivity metrics
 
 ### Historical Data Storage
+
 - Store snapshots in `~/.file_organizer/analytics/history.json`
 - Retention: configurable, default 90 days
 - Snapshot frequency: configurable, default daily
@@ -345,6 +360,7 @@ This task integrates with:
 - Compression for older snapshots
 
 ### Test Coverage Requirements
+
 - Storage calculation accuracy
 - Metrics calculation correctness
 - Chart generation output

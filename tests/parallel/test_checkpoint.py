@@ -73,10 +73,12 @@ class TestCheckpointManagerInit(unittest.TestCase):
 
     def test_default_dir(self) -> None:
         """Test that default directory is under home."""
+        from file_organizer.config.path_manager import get_data_dir
+
         mgr = CheckpointManager()
         self.assertEqual(
             mgr.checkpoints_dir,
-            Path.home() / ".file-organizer" / "checkpoints",
+            get_data_dir() / "checkpoints",
         )
 
     def test_custom_dir(self) -> None:

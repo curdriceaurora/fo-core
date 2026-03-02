@@ -15,7 +15,9 @@ from file_organizer.api.routers.system import router as system_router
 
 try:
     from file_organizer.api.routers.daemon import router as daemon_router
-except ModuleNotFoundError:
+except ModuleNotFoundError as exc:
+    if "daemon" not in (exc.name or ""):
+        raise  # Re-raise if a transitive dependency is missing, not the daemon module
     import warnings
     warnings.warn("daemon router not available; daemon endpoints disabled", stacklevel=1)
     daemon_router = None  # type: ignore[assignment]

@@ -25,7 +25,9 @@
 #include <idp.iss>
 
 [Setup]
-AppId={{A7B3E2F1-4D5C-6E7F-8A9B-0C1D2E3F4A5B}
+; AppId uniquely identifies this application. Do not reuse this GUID in other
+; installers.  Generated with uuid4; the double brace is Inno Setup escaping.
+AppId={{44CDBA25-4641-4909-9723-9E9B7E37EA0F}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}

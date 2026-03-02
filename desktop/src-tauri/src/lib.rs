@@ -46,8 +46,30 @@ pub fn run() {
             // Store the sidecar manager in Tauri managed state for later access.
             app.manage(std::sync::Mutex::new(sidecar));
 
+            // Spawn a background thread that polls the health endpoint until the
+            // sidecar is ready.  This bridges the gap between `start()` (which
+            // only emits "starting") and the "ready" event the splash screen
+            // waits for.
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let state = app_handle.state::<std::sync::Mutex<SidecarManager>>();
+                // Lock briefly to call wait_until_ready which does its own
+                // internal polling loop.  The lock is held for the duration of
+                // health polling, which is acceptable at startup since no other
+                // code path needs the sidecar manager until the UI is loaded.
+                if let Ok(mgr) = state.lock() {
+                    if let Err(e) = mgr.wait_until_ready() {
+                        eprintln!("Warning: sidecar health poll failed: {e}");
+                    }
+                }
+            });
+
             // Create tray with the dynamic sidecar port.
-            tray::create_tray(&app.handle(), port)?;
+            // The returned handle must be kept alive; dropping it removes the
+            // tray icon.  Storing it in Tauri managed state ties its lifetime
+            // to the application.
+            let tray_handle = tray::create_tray(&app.handle(), port)?;
+            app.manage(tray_handle);
             notifications::register_notification_listeners(&app.handle());
             Ok(())
         })
