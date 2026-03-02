@@ -1,5 +1,6 @@
 mod daemon;
 mod sidecar;
+mod splash;
 mod tray;
 
 pub use sidecar::SidecarManager;
@@ -12,6 +13,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
+        .invoke_handler(tauri::generate_handler![splash::get_sidecar_state])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
             Ok(())
