@@ -1,3 +1,5 @@
+mod tray;
+
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -7,7 +9,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            // App setup - sidecar will be managed here
+            tray::create_tray(&app.handle())?;
             Ok(())
         })
         .run(tauri::generate_context!())
