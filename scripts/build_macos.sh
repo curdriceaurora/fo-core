@@ -184,7 +184,7 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
     echo "==> Signing with identity: ${SIGN_IDENTITY}..."
     codesign --deep --force --options runtime \
         --sign "${SIGN_IDENTITY}" \
-        --entitlements /dev/null \
+        --entitlements "${SCRIPT_DIR}/../desktop/src-tauri/entitlements.plist" \
         "${APP_DIR}"
     echo "    Signed successfully."
 
