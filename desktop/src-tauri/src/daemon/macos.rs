@@ -177,13 +177,14 @@ impl DaemonManager for MacOsDaemonManager {
         let plist_str = plist_path
             .to_str()
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "Plist path is not valid UTF-8"))?;
-        // Unload then load to pick up RunAtLoad=true.
-        let _ = self.launchctl(&["unload", plist_str]);
-        self.launchctl(&["load", plist_str])
+        // Unload then load with -w to persistently enable RunAtLoad=true.
+        let _ = self.launchctl(&["unload", "-w", plist_str]);
+        self.launchctl(&["load", "-w", plist_str])
     }
 
     fn disable_autostart(&self) -> io::Result<()> {
-        // Unloading removes it from the active set for this login session.
+        // Use -w flag so the disable persists across reboots (writes Disabled=true
+        // to the launchd override database, not just the current session).
         let plist_path = self.plist_path()?;
         if !plist_path.exists() {
             return Ok(()); // Nothing to disable.
@@ -191,7 +192,7 @@ impl DaemonManager for MacOsDaemonManager {
         let plist_str = plist_path
             .to_str()
             .ok_or_else(|| io::Error::new(ErrorKind::InvalidInput, "Plist path is not valid UTF-8"))?;
-        self.launchctl(&["unload", plist_str])
+        self.launchctl(&["unload", "-w", plist_str])
     }
 }
 
