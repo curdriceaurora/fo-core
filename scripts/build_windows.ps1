@@ -1,10 +1,12 @@
-<#+
+<#
 .SYNOPSIS
   Build Windows executable and installer using PyInstaller + Inno Setup.
 
 .DESCRIPTION
-  1) Runs PyInstaller via scripts/build.py
-  2) Builds an installer using Inno Setup (ISCC)
+  1) Checks and installs WebView2 Runtime if not present
+  2) Runs PyInstaller via scripts/build.py (with app manifest)
+  3) Creates Tauri sidecar copy
+  4) Builds an installer using Inno Setup (ISCC)
 
 .PARAMETER Version
   Optional version override for installer naming (defaults to pyproject.toml)
@@ -33,8 +35,32 @@ print(tomllib.loads(Path("pyproject.toml").read_text())['project']['version'])
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
+# ---------------------------------------------------------------------------
+# Check and install WebView2 Runtime (required by Tauri)
+# ---------------------------------------------------------------------------
+Write-Host "==> Checking WebView2 Runtime..."
+$webview2Key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+$webview2KeyUser = "HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+if (-not (Test-Path $webview2Key) -and -not (Test-Path $webview2KeyUser)) {
+    Write-Host "    WebView2 Runtime not found. Downloading bootstrapper..."
+    $bootstrapperUrl = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+    $bootstrapperPath = "$env:TEMP\MicrosoftEdgeWebview2Setup.exe"
+    Invoke-WebRequest -Uri $bootstrapperUrl -OutFile $bootstrapperPath
+    Write-Host "    Installing WebView2 Runtime (silent)..."
+    Start-Process -FilePath $bootstrapperPath -ArgumentList "/silent /install" -Wait
+    Write-Host "    WebView2 Runtime installed." -ForegroundColor Green
+} else {
+    Write-Host "    WebView2 Runtime already installed." -ForegroundColor Green
+}
+
+# ---------------------------------------------------------------------------
+# Application manifest path (embedded by winres via build.rs for Tauri builds;
+# also passed explicitly when invoking PyInstaller directly)
+# ---------------------------------------------------------------------------
+$manifestFile = Join-Path $repoRoot "desktop\build\app.manifest"
+
 if (-not $SkipBuild) {
-  python scripts/build.py --clean
+  python scripts/build.py --clean --manifest-file $manifestFile
 }
 
 # ---------------------------------------------------------------------------

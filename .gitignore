@@ -38,6 +38,9 @@ operation_log.txt
 *.egg-info/
 dist/
 build/
+# Allow desktop/build/ (Windows manifest and build assets for Tauri)
+!desktop/build/
+!desktop/build/**
 *.egg
 
 # MkDocs build output
