@@ -37,6 +37,25 @@ if (-not $SkipBuild) {
   python scripts/build.py --clean
 }
 
+# ---------------------------------------------------------------------------
+# Create Tauri sidecar copy (Tauri expects: file-organizer-backend-{target-triple})
+# ---------------------------------------------------------------------------
+Write-Host "==> Creating Tauri sidecar copy..."
+$sidecarTriple = "x86_64-pc-windows-msvc"
+$distDir = Join-Path $repoRoot "dist"
+$sourceExe = Get-ChildItem -Path $distDir -Filter "file-organizer-*.exe" -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notmatch "backend" } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if ($null -ne $sourceExe) {
+    $sidecarName = "file-organizer-backend-${sidecarTriple}.exe"
+    $sidecarPath = Join-Path $distDir $sidecarName
+    Copy-Item -Path $sourceExe.FullName -Destination $sidecarPath -Force
+    Write-Host "    Sidecar: $sidecarPath"
+} else {
+    Write-Host "WARNING: No source executable found in $distDir for sidecar copy." -ForegroundColor Yellow
+}
+
 $version = Get-Version
 $iss = Join-Path $PSScriptRoot "build_windows.iss"
 $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"

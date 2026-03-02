@@ -115,6 +115,24 @@ fi
 echo "    Found: ${EXECUTABLE}"
 
 # ---------------------------------------------------------------------------
+# Create Tauri sidecar copy (Tauri expects: file-organizer-backend-{target-triple})
+# ---------------------------------------------------------------------------
+echo "==> Creating Tauri sidecar copy..."
+if [[ "$UNIVERSAL" == "true" ]]; then
+    SIDECAR_TRIPLE="universal-apple-darwin"
+else
+    if [[ "$ARCH" == "arm64" ]]; then
+        SIDECAR_TRIPLE="aarch64-apple-darwin"
+    else
+        SIDECAR_TRIPLE="x86_64-apple-darwin"
+    fi
+fi
+SIDECAR_PATH="${DIST_DIR}/file-organizer-backend-${SIDECAR_TRIPLE}"
+cp "${EXECUTABLE}" "${SIDECAR_PATH}"
+chmod +x "${SIDECAR_PATH}"
+echo "    Sidecar: ${SIDECAR_PATH}"
+
+# ---------------------------------------------------------------------------
 # Create .app bundle structure
 # ---------------------------------------------------------------------------
 echo "==> Creating .app bundle..."
