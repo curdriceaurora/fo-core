@@ -40,6 +40,16 @@ desktop/
 | Minimum size | 800 × 600 |
 | Dev server | `http://localhost:8000` |
 
+## Security
+
+### Content Security Policy (CSP)
+
+The webview CSP in `tauri.conf.json` includes `'unsafe-inline'` for `script-src` and `style-src`. This is required because the Web UI uses Jinja2 server-rendered templates with HTMX, which rely on inline `<script>` tags and `style` attributes. All content is served from the local Python backend (`127.0.0.1`); no remote resources are loaded. Migrating to nonce-based CSP would require refactoring all web templates and is tracked as a future improvement.
+
+### Entitlements (macOS)
+
+The `com.apple.security.cs.allow-unsigned-executable-memory` entitlement is required for the bundled PyInstaller sidecar (loads code from unsigned memory pages) and Ollama's Metal/GPU JIT compilation.
+
 ## Prerequisites
 
 - [Rust](https://rustup.rs/) 1.70+

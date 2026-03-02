@@ -15,7 +15,7 @@ from file_organizer.api.routers.system import router as system_router
 
 try:
     from file_organizer.api.routers.daemon import router as daemon_router
-except ImportError:
+except ModuleNotFoundError:
     import warnings
     warnings.warn("daemon router not available; daemon endpoints disabled", stacklevel=1)
     daemon_router = None  # type: ignore[assignment]
