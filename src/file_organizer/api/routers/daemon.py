@@ -19,7 +19,7 @@ async def toggle_daemon() -> dict[str, Any]:
 
     Returns the new daemon state after toggling.
     """
-    from file_organizer.api.service_facade import ServiceFacade  # noqa: PLC0415
+    from file_organizer.api.service_facade import ServiceFacade
 
     facade = ServiceFacade()
     status = await facade.get_daemon_status()
@@ -32,7 +32,7 @@ async def toggle_daemon() -> dict[str, Any]:
 @router.post("/start")
 async def start_daemon() -> dict[str, Any]:
     """Start the background daemon service."""
-    from file_organizer.api.service_facade import ServiceFacade  # noqa: PLC0415
+    from file_organizer.api.service_facade import ServiceFacade
 
     facade = ServiceFacade()
     return await facade.start_daemon()
@@ -41,7 +41,7 @@ async def start_daemon() -> dict[str, Any]:
 @router.post("/stop")
 async def stop_daemon() -> dict[str, Any]:
     """Stop the background daemon service."""
-    from file_organizer.api.service_facade import ServiceFacade  # noqa: PLC0415
+    from file_organizer.api.service_facade import ServiceFacade
 
     facade = ServiceFacade()
     return await facade.stop_daemon()
@@ -50,7 +50,7 @@ async def stop_daemon() -> dict[str, Any]:
 @router.get("/status")
 async def daemon_status() -> dict[str, Any]:
     """Get the current daemon status."""
-    from file_organizer.api.service_facade import ServiceFacade  # noqa: PLC0415
+    from file_organizer.api.service_facade import ServiceFacade
 
     facade = ServiceFacade()
     return await facade.get_daemon_status()

@@ -44,12 +44,12 @@ async def health(response: Response) -> dict[str, object]:
     """
     # Lazy import to avoid circular dependency:
     # service_facade → api.routers → health → service_facade
-    from file_organizer.api.service_facade import ServiceFacade  # noqa: PLC0415
+    from file_organizer.api.service_facade import ServiceFacade
 
     facade = ServiceFacade()
     try:
         payload = await facade.health_check()
-    except Exception:  # noqa: BLE001
+    except Exception:
         payload = {}
 
     ollama_ok: bool = bool(payload.get("ollama", False))

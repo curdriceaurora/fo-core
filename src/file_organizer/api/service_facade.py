@@ -7,8 +7,8 @@ with the Python backend without starting the FastAPI server.
 from __future__ import annotations
 
 import asyncio
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -109,9 +109,9 @@ class ServiceFacade:
             :class:`~file_organizer.api.routers.config.ConfigResponse`.
         """
         # Import here to avoid circular dependencies at module level
-        from file_organizer.api.routers import config as _config_router  # noqa: PLC0415
+        from file_organizer.api.routers import config as _config_router
 
-        cfg: ConfigResponse = _config_router._config  # noqa: SLF001  (intentional)
+        cfg: ConfigResponse = _config_router._config
         return cfg.model_dump()
 
     # ------------------------------------------------------------------
@@ -148,7 +148,7 @@ class ServiceFacade:
             names.
         """
         try:
-            from file_organizer.core.organizer import FileOrganizer  # noqa: PLC0415
+            from file_organizer.core.organizer import FileOrganizer
 
             def _blocking_organize() -> dict[str, Any]:
                 organizer = FileOrganizer(dry_run=dry_run)
@@ -170,7 +170,7 @@ class ServiceFacade:
 
             data = await asyncio.to_thread(_blocking_organize)
             return {"success": True, "data": data}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("organize_files failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -193,8 +193,8 @@ class ServiceFacade:
             ``{"success": False, "error": "<message>"}`` on failure.
         """
         try:
-            from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
-            from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
+            from file_organizer.daemon.config import DaemonConfig
+            from file_organizer.daemon.service import DaemonService
 
             def _blocking_status() -> dict[str, Any]:
                 config = DaemonConfig()
@@ -207,7 +207,7 @@ class ServiceFacade:
 
             data = await asyncio.to_thread(_blocking_status)
             return {"success": True, "data": data}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("get_daemon_status failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -223,8 +223,8 @@ class ServiceFacade:
             on failure.
         """
         try:
-            from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
-            from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
+            from file_organizer.daemon.config import DaemonConfig
+            from file_organizer.daemon.service import DaemonService
 
             def _blocking_start() -> None:
                 config = DaemonConfig()
@@ -233,7 +233,7 @@ class ServiceFacade:
 
             await asyncio.to_thread(_blocking_start)
             return {"success": True, "data": {"started": True}}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("start_daemon failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -248,8 +248,8 @@ class ServiceFacade:
             stops, or ``{"success": False, "error": "<message>"}`` on failure.
         """
         try:
-            from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
-            from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
+            from file_organizer.daemon.config import DaemonConfig
+            from file_organizer.daemon.service import DaemonService
 
             def _blocking_stop() -> None:
                 config = DaemonConfig()
@@ -258,7 +258,7 @@ class ServiceFacade:
 
             await asyncio.to_thread(_blocking_stop)
             return {"success": True, "data": {"stopped": True}}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("stop_daemon failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -279,7 +279,7 @@ class ServiceFacade:
             Returns ``{"success": False, "error": "<message>"}`` on failure.
         """
         try:
-            from file_organizer.models.model_manager import ModelManager  # noqa: PLC0415
+            from file_organizer.models.model_manager import ModelManager
 
             def _blocking_models() -> list[dict[str, Any]]:
                 manager = ModelManager()
@@ -298,7 +298,7 @@ class ServiceFacade:
 
             model_list = await asyncio.to_thread(_blocking_models)
             return {"success": True, "data": {"models": model_list}}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("get_model_status failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -323,7 +323,7 @@ class ServiceFacade:
             ``{"success": False, "error": "<message>"}`` on failure.
         """
         try:
-            from file_organizer.services.smart_suggestions import SuggestionEngine  # noqa: PLC0415
+            from file_organizer.services.smart_suggestions import SuggestionEngine
 
             def _blocking_suggestions() -> list[dict[str, Any]]:
                 engine = SuggestionEngine()
@@ -347,7 +347,7 @@ class ServiceFacade:
 
             suggestion_list = await asyncio.to_thread(_blocking_suggestions)
             return {"success": True, "data": {"suggestions": suggestion_list}}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("get_suggestions failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -371,7 +371,7 @@ class ServiceFacade:
             :meth:`~file_organizer.services.deduplication.detector.DuplicateDetector.get_statistics`.
         """
         try:
-            from file_organizer.services.deduplication.detector import (  # noqa: PLC0415
+            from file_organizer.services.deduplication.detector import (
                 DuplicateDetector,
             )
 
@@ -405,7 +405,7 @@ class ServiceFacade:
 
             data = await asyncio.to_thread(_blocking_dedup)
             return {"success": True, "data": data}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("find_duplicates failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -425,7 +425,7 @@ class ServiceFacade:
             ``{"success": False, "error": "<message>"}`` on failure.
         """
         try:
-            from file_organizer.undo.undo_manager import UndoManager  # noqa: PLC0415
+            from file_organizer.undo.undo_manager import UndoManager
 
             def _blocking_undo() -> bool:
                 manager = UndoManager()
@@ -433,7 +433,7 @@ class ServiceFacade:
 
             undone = await asyncio.to_thread(_blocking_undo)
             return {"success": True, "data": {"undone": undone}}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("undo_last_operation failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -452,7 +452,7 @@ class ServiceFacade:
             ``{"success": False, "error": "<message>"}`` on failure.
         """
         try:
-            from file_organizer.history.tracker import OperationHistory  # noqa: PLC0415
+            from file_organizer.history.tracker import OperationHistory
 
             def _blocking_history() -> list[dict[str, Any]]:
                 history = OperationHistory()
@@ -482,7 +482,7 @@ class ServiceFacade:
 
             operations = await asyncio.to_thread(_blocking_history)
             return {"success": True, "data": {"operations": operations}}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("get_operation_history failed: {}", exc)
             return {"success": False, "error": str(exc)}
 
@@ -504,9 +504,9 @@ class ServiceFacade:
 
         def _blocking_check() -> bool:
             try:
-                with urllib.request.urlopen(url, timeout=2) as response:  # noqa: S310
+                with urllib.request.urlopen(url, timeout=2) as response:
                     return response.status == 200
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.debug("Ollama not reachable: {}", exc)
                 return False
 
