@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import time
+from unittest.mock import patch
+
+import pytest
 
 from file_organizer.api.auth_store import (
     InMemoryTokenStore,
@@ -14,6 +17,7 @@ from file_organizer.api.auth_store import (
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.unit
 class TestInMemoryTokenStore:
     """Tests for InMemoryTokenStore."""
 
@@ -71,11 +75,10 @@ class TestInMemoryTokenStore:
 
     def test_store_refresh_with_zero_ttl_expires_immediately(self) -> None:
         store = InMemoryTokenStore()
-        store.store_refresh("jti-1", "user-1", ttl_seconds=0)
-        # TTL 0 means expires_at == now, which is <= time.time()
-        # Small race but checking immediately should still show expired
-        time.sleep(0.01)
-        assert store.is_refresh_active("jti-1") is False
+        with patch("file_organizer.api.auth_store.time.time", return_value=1_000.0):
+            store.store_refresh("jti-1", "user-1", ttl_seconds=0)
+        with patch("file_organizer.api.auth_store.time.time", return_value=1_000.0):
+            assert store.is_refresh_active("jti-1") is False
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +86,7 @@ class TestInMemoryTokenStore:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.unit
 class TestBuildTokenStore:
     """Tests for build_token_store factory."""
 
