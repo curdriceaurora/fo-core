@@ -1,0 +1,39 @@
+{
+  "productName": "File Organizer",
+  "version": "2.0.0",
+  "identifier": "com.fileorganizer.app",
+  "build": {
+    "frontendDist": "http://localhost:8000",
+    "devUrl": "http://localhost:8000",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "title": "File Organizer",
+        "width": 1280,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon_32x32.png",
+      "icons/icon_128x128.png",
+      "icons/icon_256x256.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
