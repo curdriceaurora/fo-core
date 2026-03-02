@@ -41,7 +41,7 @@ class ApiSettings(BaseModel):
     websocket_token: Optional[str] = None
     auth_enabled: bool = True
     auth_db_path: str = Field(
-        default_factory=lambda: str(Path.home() / ".config" / "file-organizer" / "auth.db")
+        default_factory=lambda: str(__import__("file_organizer.config.path_manager", fromlist=["get_config_dir"]).get_config_dir() / "auth.db")
     )
     auth_jwt_secret: SecretStr = SecretStr("change-me")
     auth_jwt_algorithm: str = "HS256"

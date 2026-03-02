@@ -11,11 +11,12 @@ import json
 import logging
 from pathlib import Path
 
+from file_organizer.config.path_manager import get_data_dir
 from file_organizer.parallel.models import JobState, JobStatus, JobSummary
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_JOBS_DIR = Path.home() / ".file-organizer" / "jobs"
+_DEFAULT_JOBS_DIR = get_data_dir() / "jobs"
 
 
 class JobPersistence:

@@ -38,7 +38,9 @@ _SESSION_COOKIE = "fo_session"
 _API_KEY_PREFIX = "fo"
 _STATE_KEY = "web_profile_state"
 _RESET_TOKEN_TTL_MINUTES = 20
-_SETTINGS_DIR = Path.home() / ".config" / "file-organizer"
+from file_organizer.config.path_manager import get_config_dir
+
+_SETTINGS_DIR = get_config_dir()
 _AVATAR_DIR = _SETTINGS_DIR / "avatars"
 _DEFAULT_ROLES = {"viewer", "editor", "admin"}
 _PASSWORD_RESET_TOKENS: dict[str, tuple[str, datetime]] = {}

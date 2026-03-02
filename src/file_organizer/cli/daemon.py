@@ -25,7 +25,9 @@ daemon_app = typer.Typer(
     rich_markup_mode="rich",
 )
 
-_DEFAULT_PID_DIR = Path.home() / ".file-organizer"
+from file_organizer.config.path_manager import get_state_dir
+
+_DEFAULT_PID_DIR = get_state_dir()
 _DEFAULT_PID_FILE = _DEFAULT_PID_DIR / "daemon.pid"
 
 

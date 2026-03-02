@@ -126,7 +126,9 @@ class PreferenceDatabaseManager:
                     Defaults to ~/.file_organizer/preferences.db
         """
         if db_path is None:
-            db_path = Path.home() / ".file_organizer" / "preferences.db"
+            from file_organizer.config.path_manager import get_data_dir
+
+            db_path = get_data_dir() / "preferences.db"
 
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

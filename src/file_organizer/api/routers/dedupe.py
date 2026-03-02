@@ -141,7 +141,9 @@ def execute_deduplication(
                 if not target.exists():
                     continue
                 if request.trash:
-                    trash_dir = Path.home() / ".config" / "file-organizer" / "trash"
+                    from file_organizer.config.path_manager import get_data_dir
+
+                    trash_dir = get_data_dir() / "trash"
                     trash_dir.mkdir(parents=True, exist_ok=True)
                     destination = trash_dir / target.name
                     counter = 1

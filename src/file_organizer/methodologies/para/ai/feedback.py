@@ -20,7 +20,9 @@ from ..config import HeuristicWeights
 logger = logging.getLogger(__name__)
 
 # Default feedback storage location
-_DEFAULT_FEEDBACK_DIR = Path.home() / ".config" / "file-organizer" / "feedback"
+from file_organizer.config.path_manager import get_config_dir
+
+_DEFAULT_FEEDBACK_DIR = get_config_dir() / "feedback"
 
 
 @dataclass

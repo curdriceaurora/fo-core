@@ -34,7 +34,9 @@ class VSCodeIntegration(Integration):
         raw = str(self.config.settings.get("command_output_path", "")).strip()
         if raw:
             return Path(raw).expanduser()
-        return Path.home() / ".config" / "file-organizer" / "integrations" / "vscode-commands.jsonl"
+        from file_organizer.config.path_manager import get_config_dir
+
+        return get_config_dir() / "integrations" / "vscode-commands.jsonl"
 
     async def connect(self) -> bool:
         """Connect to VS Code by verifying the workspace path."""

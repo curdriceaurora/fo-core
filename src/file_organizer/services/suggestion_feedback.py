@@ -93,7 +93,7 @@ class SuggestionFeedback:
             feedback_file: Path to store feedback data
         """
         self.feedback_file = (
-            feedback_file or Path.home() / ".file_organizer" / "suggestion_feedback.json"
+            feedback_file or __import__("file_organizer.config.path_manager", fromlist=["get_data_dir"]).get_data_dir() / "suggestion_feedback.json"
         )
         self.feedback_entries: list[FeedbackEntry] = []
         self.pattern_adjustments: dict[str, float] = {}

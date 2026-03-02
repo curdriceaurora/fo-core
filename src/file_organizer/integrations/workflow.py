@@ -28,7 +28,9 @@ class WorkflowIntegration(Integration):
         raw = str(self.config.settings.get("output_dir", "")).strip()
         if raw:
             return Path(raw).expanduser()
-        return Path.home() / ".config" / "file-organizer" / "integrations" / "workflow"
+        from file_organizer.config.path_manager import get_config_dir
+
+        return get_config_dir() / "integrations" / "workflow"
 
     async def connect(self) -> bool:
         """Connect to the workflow output directory, creating it if needed."""

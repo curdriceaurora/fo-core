@@ -26,7 +26,9 @@ from file_organizer.web._helpers import base_context, templates
 
 settings_router = APIRouter(tags=["web"])
 
-_SETTINGS_DIR = Path.home() / ".config" / "file-organizer"
+from file_organizer.config.path_manager import get_config_dir
+
+_SETTINGS_DIR = get_config_dir()
 _SETTINGS_FILE = _SETTINGS_DIR / "web-settings.json"
 
 METHODOLOGY_OPTIONS = {

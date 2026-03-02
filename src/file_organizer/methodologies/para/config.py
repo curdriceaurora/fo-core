@@ -297,7 +297,7 @@ def load_config(config_path: Path | None = None) -> PARAConfig:
     if config_path is None:
         # Try to find default config locations
         possible_paths = [
-            Path.home() / ".config" / "file-organizer" / "para_config.yaml",
+            __import__("file_organizer.config.path_manager", fromlist=["get_config_dir"]).get_config_dir() / "para_config.yaml",
             Path.cwd() / "para_config.yaml",
             Path(__file__).parent / "default_config.yaml",
         ]

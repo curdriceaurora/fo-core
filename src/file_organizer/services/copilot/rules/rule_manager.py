@@ -11,9 +11,10 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
+from file_organizer.config.path_manager import get_config_dir
 from file_organizer.services.copilot.rules.models import Rule, RuleSet
 
-_DEFAULT_RULES_DIR = Path.home() / ".config" / "file-organizer" / "rules"
+_DEFAULT_RULES_DIR = get_config_dir() / "rules"
 
 
 class RuleManager:

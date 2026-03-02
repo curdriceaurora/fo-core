@@ -66,7 +66,9 @@ class DatabaseManager:
                     Defaults to ~/.file_organizer/history.db
         """
         if db_path is None:
-            db_path = Path.home() / ".file_organizer" / "history.db"
+            from file_organizer.config.path_manager import get_data_dir
+
+            db_path = get_data_dir() / "history" / "history.db"
 
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

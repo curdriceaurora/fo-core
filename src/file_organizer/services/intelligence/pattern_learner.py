@@ -37,7 +37,9 @@ class PatternLearner:
             storage_path: Base path for storing learned data
         """
         if storage_path is None:
-            storage_path = Path.home() / ".file_organizer"
+            from file_organizer.config.path_manager import get_data_dir
+
+            storage_path = get_data_dir()
 
         self.storage_path = storage_path
         self.storage_path.mkdir(parents=True, exist_ok=True)

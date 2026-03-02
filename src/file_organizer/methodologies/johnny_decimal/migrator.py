@@ -307,7 +307,7 @@ class JohnnyDecimalMigrator:
             rollback_info: Rollback information to save
         """
         rollback_file = (
-            Path.home() / ".file_organizer" / "rollback" / f"{rollback_info.migration_id}.json"
+            __import__("file_organizer.config.path_manager", fromlist=["get_data_dir"]).get_data_dir() / "rollback" / f"{rollback_info.migration_id}.json"
         )
         rollback_file.parent.mkdir(parents=True, exist_ok=True)
 

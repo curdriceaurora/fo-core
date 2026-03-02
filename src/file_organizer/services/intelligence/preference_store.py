@@ -78,7 +78,9 @@ class PreferenceStore:
             storage_path: Path to store preferences. If None, uses default location.
         """
         if storage_path is None:
-            storage_path = Path.home() / ".file_organizer" / "preferences"
+            from file_organizer.config.path_manager import get_data_dir
+
+            storage_path = get_data_dir() / "preferences"
 
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
