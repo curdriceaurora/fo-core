@@ -1,3 +1,4 @@
+mod daemon;
 mod tray;
 
 use tauri::Manager;
