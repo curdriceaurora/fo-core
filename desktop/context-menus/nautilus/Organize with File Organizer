@@ -18,9 +18,11 @@ for path in $NAUTILUS_SCRIPT_SELECTED_FILE_PATHS; do
             -H "Content-Type: application/json" \
             -d "$json_payload" >/dev/null 2>&1; then
             notify-send "File Organizer" "Organizing: $(basename "$path")" 2>/dev/null || true
-        else
+        elif command -v file-organizer >/dev/null 2>&1; then
             # Fall back to CLI
             file-organizer organize --input "$path" &
+        else
+            notify-send "File Organizer" "Error: file-organizer not found. Please install it or add it to PATH." 2>/dev/null || true
         fi
     fi
 done

@@ -26,7 +26,7 @@ pub fn run() {
             // Resolve sidecar binary path relative to the app resource directory.
             let binary_name = format!(
                 "file-organizer-backend-{}",
-                std::env::consts::ARCH
+                env!("TARGET_TRIPLE")
             );
             let binary_path = app
                 .path()

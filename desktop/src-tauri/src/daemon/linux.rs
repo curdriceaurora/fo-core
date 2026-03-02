@@ -1,9 +1,10 @@
 //! Linux systemd daemon manager implementation.
 //!
 //! Uses systemd user units for per-user daemon management.
-//! Unit files are placed in `~/.config/systemd/user/`.
+//! Unit files are placed in `$XDG_CONFIG_HOME/systemd/user/` (falls back to `~/.config/systemd/user/`).
 
 use super::DaemonManager;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -23,15 +24,21 @@ impl LinuxDaemonManager {
     }
 
     /// Returns the path to the systemd user unit file.
+    ///
+    /// Respects `$XDG_CONFIG_HOME` if set, falling back to `~/.config`.
     pub fn unit_file_path(&self) -> std::io::Result<PathBuf> {
-        let home = dirs_next::home_dir().ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "Cannot determine home directory",
-            )
-        })?;
-        Ok(home
-            .join(".config")
+        let config_dir = if let Ok(xdg) = env::var("XDG_CONFIG_HOME") {
+            PathBuf::from(xdg)
+        } else {
+            let home = dirs_next::home_dir().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "Cannot determine home directory",
+                )
+            })?;
+            home.join(".config")
+        };
+        Ok(config_dir
             .join("systemd")
             .join("user")
             .join(format!("{}.service", self.service_name)))
@@ -46,7 +53,7 @@ impl LinuxDaemonManager {
              \n\
              [Service]\n\
              Type=simple\n\
-             ExecStart={}\n\
+             ExecStart="{}"\n\
              Restart=on-failure\n\
              RestartSec=5\n\
              \n\
@@ -226,7 +233,7 @@ mod tests {
         let mgr = LinuxDaemonManager::new("file-organizer");
         let binary = PathBuf::from("/opt/file-organizer/bin/file-organizer");
         let content = mgr.generate_unit_file(&binary);
-        assert!(content.contains("/opt/file-organizer/bin/file-organizer"));
+        assert!(content.contains(r#"ExecStart="/opt/file-organizer/bin/file-organizer""#));
     }
 
     #[test]

@@ -71,7 +71,7 @@
   <div class="error-panel" id="errorPanel">
     <p id="errorMsg">Backend failed to start</p>
     <p style="font-size:11px; color:#888; margin-top:8px;">
-      Check logs at <code id="logPath">~/.config/file-organizer/logs/</code>
+      Check the application logs for details.
     </p>
     <button class="retry-btn" onclick="retry()">Retry</button>
   </div>
@@ -84,11 +84,10 @@
       document.getElementById('status').textContent = msg;
     }
 
-    function showError(msg, logPath) {
+    function showError(msg) {
       document.getElementById('spinner').style.display = 'none';
       document.getElementById('status').style.display = 'none';
       document.getElementById('errorMsg').textContent = msg || 'Backend failed to start';
-      if (logPath) document.getElementById('logPath').textContent = logPath;
       document.getElementById('errorPanel').classList.add('visible');
     }
 

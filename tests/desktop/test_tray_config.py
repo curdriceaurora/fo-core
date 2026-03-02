@@ -7,6 +7,10 @@ and that lib.rs correctly references the tray module.
 
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.ci
+
 TAURI_SRC = Path(__file__).parent.parent.parent / "desktop" / "src-tauri" / "src"
 TRAY_RS = TAURI_SRC / "tray.rs"
 LIB_RS = TAURI_SRC / "lib.rs"

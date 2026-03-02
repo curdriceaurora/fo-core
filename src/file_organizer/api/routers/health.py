@@ -9,6 +9,7 @@ from __future__ import annotations
 import time
 
 from fastapi import APIRouter, Response
+from loguru import logger
 
 router = APIRouter(tags=["health"])
 
@@ -49,17 +50,13 @@ async def health(response: Response) -> dict[str, object]:
     facade = ServiceFacade()
     try:
         payload = await facade.health_check()
-    except Exception:
+    except Exception as exc:
+        logger.warning("health_check failed: {}", exc)
         payload = {}
 
-    ollama_ok: bool = bool(payload.get("ollama", False))
-
-    if not payload:
-        status: str = "error"
-    elif ollama_ok:
-        status = "ok"
-    else:
-        status = "degraded"
+    # Use the status derived by the facade rather than re-deriving it here.
+    # The facade returns "ok" / "degraded"; we add "error" for total failure.
+    status: str = str(payload.get("status", "error")) if payload else "error"
 
     _READINESS_MAP: dict[str, str] = {
         "ok": "ready",
@@ -69,9 +66,9 @@ async def health(response: Response) -> dict[str, object]:
 
     result: dict[str, object] = {
         "status": status,
-        "readiness": _READINESS_MAP[status],
+        "readiness": _READINESS_MAP.get(status, "unhealthy"),
         "version": payload.get("version", ""),
-        "ollama": ollama_ok,
+        "ollama": bool(payload.get("ollama", False)),
         "uptime": time.time() - _startup_time,
     }
 

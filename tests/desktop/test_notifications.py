@@ -2,6 +2,10 @@
 import unittest
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.unit
+
 
 class TestNativeNotifications(unittest.TestCase):
     def setUp(self):

@@ -1,3 +1,9 @@
+# Installation paths:
+#   KDE Plasma 5: ~/.local/share/kservices5/ServiceMenus/file-organizer.desktop
+#   KDE Plasma 6: ~/.local/share/kio/servicemenus/file-organizer.desktop
+#
+# Detect your Plasma version with: plasmashell --version
+# Then copy this file to the appropriate path above.
 [Desktop Entry]
 Type=Service
 ServiceTypes=KonqPopupMenu/Plugin
@@ -9,4 +15,4 @@ X-KDE-Priority=TopLevel
 Name=Organize with File Organizer
 Name[en_US]=Organize with File Organizer
 Icon=folder-sync
-Exec=bash -c 'PORT="${FILE_ORGANIZER_PORT:-8000}"; escaped=$(printf "%%s" "%f" | sed "s/\\\\/\\\\\\\\\\\\\\\\/g; s/\\"/\\\\\\"/g"); if curl -sf -X POST "http://127.0.0.1:${PORT}/api/v1/organize" -H "Content-Type: application/json" -d "{\"paths\": [\"${escaped}\"]}" >/dev/null 2>&1; then notify-send "File Organizer" "Organizing: %f"; else file-organizer organize --input "%f"; fi'
+Exec=bash -c 'PORT="${FILE_ORGANIZER_PORT:-8000}"; json_path=$(printf "%%s" "$1" | sed '"'"'s/\\/\\\\/g; s/"/\\"/g'"'"'); if curl -sf -X POST "http://127.0.0.1:${PORT}/api/v1/organize" -H "Content-Type: application/json" -d "{\"paths\": [\"${json_path}\"]}" >/dev/null 2>&1; then notify-send "File Organizer" "Organizing: $1"; else file-organizer organize --input "$1"; fi' _ %f

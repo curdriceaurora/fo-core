@@ -8,7 +8,7 @@ This directory contains the Tauri v2 project that wraps the existing Python Fast
 
 ## Architecture
 
-```
+```text
 desktop/
 ├── src-tauri/          # Rust/Tauri backend
 │   ├── src/

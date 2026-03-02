@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, fields
-from pathlib import Path
 from typing import Optional
 
 import httpx
@@ -26,7 +25,7 @@ from file_organizer.web._helpers import base_context, templates
 
 settings_router = APIRouter(tags=["web"])
 
-from file_organizer.config.path_manager import get_config_dir
+from file_organizer.config.path_manager import get_config_dir  # noqa: E402
 
 _SETTINGS_DIR = get_config_dir()
 _SETTINGS_FILE = _SETTINGS_DIR / "web-settings.json"

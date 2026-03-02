@@ -30,10 +30,11 @@ class TestDebianControl:
         )
 
     def test_control_version_field(self) -> None:
-        """control file must contain Version: 2.0.0."""
+        """control file must contain a Version field with build-time placeholder."""
         content = (DEBIAN_DIR / "control").read_text()
-        assert "Version: 2.0.0" in content, (
-            "debian/control missing 'Version: 2.0.0'"
+        assert "Version: REPLACE_VERSION" in content, (
+            "debian/control missing 'Version: REPLACE_VERSION' placeholder "
+            "(version is injected at build time, not hardcoded)"
         )
 
     def test_control_architecture_field(self) -> None:

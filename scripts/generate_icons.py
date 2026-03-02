@@ -12,7 +12,6 @@ Produces all required icon formats:
   - icon_32x32.png    : Linux
 """
 
-import os
 import shutil
 import subprocess
 import sys
@@ -20,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
 except ImportError:
     print("ERROR: Pillow is required. Install with: pip install Pillow")
     sys.exit(1)
@@ -132,10 +131,15 @@ def generate_master(size: int = 512) -> Image.Image:
 
 def generate_all_pngs(master: Image.Image) -> dict[int, Image.Image]:
     """Return dict of {size: Image} for all required sizes."""
-    sizes = [512, 256, 128, 64, 48, 32, 16]
+    sizes = [1024, 512, 256, 128, 64, 48, 32, 16]
     images: dict[int, Image.Image] = {512: master}
     for sz in sizes:
-        if sz != 512:
+        if sz == 512:
+            continue
+        if sz > 512:
+            # Draw natively at larger sizes for crisp Retina icons
+            images[sz] = draw_icon(sz)
+        else:
             images[sz] = master.resize((sz, sz), Image.LANCZOS)
     return images
 
@@ -181,6 +185,7 @@ def build_icns(images: dict[int, Image.Image], out: Path) -> None:
             "icon_256x256.png":    256,
             "icon_256x256@2x.png": 512,
             "icon_512x512.png":    512,
+            "icon_512x512@2x.png": 1024,
         }
 
         for filename, sz in iconset_map.items():

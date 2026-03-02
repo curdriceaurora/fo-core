@@ -116,7 +116,7 @@ jobs:
           if [ "${{ matrix.platform }}" = "windows" ]; then
             exe=$(find dist -name "*.exe" -type f | head -1)
           else
-            exe=$(find dist -type f -perm +111 | head -1)
+            exe=$(find dist -type f -perm /111 | head -1)
           fi
 
           if [ -z "$exe" ]; then
@@ -144,7 +144,7 @@ jobs:
             mkdir -p desktop/src-tauri/binaries
             cp "$SRC" "desktop/src-tauri/binaries/${SIDECAR_NAME}.exe"
           else
-            SRC=$(find dist -type f -perm +111 -name "file-organizer" | head -1)
+            SRC=$(find dist -type f -perm /111 -name "file-organizer" | head -1)
             mkdir -p desktop/src-tauri/binaries
             cp "$SRC" "desktop/src-tauri/binaries/${SIDECAR_NAME}"
             chmod +x "desktop/src-tauri/binaries/${SIDECAR_NAME}"

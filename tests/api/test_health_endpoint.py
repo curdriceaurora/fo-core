@@ -17,7 +17,6 @@ from fastapi.testclient import TestClient
 from file_organizer.api.routers.health import router
 from file_organizer.version import __version__
 
-
 # ---------------------------------------------------------------------------
 # Test fixtures / helpers
 # ---------------------------------------------------------------------------
@@ -33,9 +32,13 @@ def _build_client() -> TestClient:
 
 
 def _mock_health(ollama: bool) -> dict[str, object]:
-    """Return a mock health_check payload."""
+    """Return a mock health_check payload.
+
+    Mirrors the real ``ServiceFacade.health_check`` behaviour: ``status`` is
+    ``"ok"`` when Ollama is reachable, ``"degraded"`` otherwise.
+    """
     return {
-        "status": "ok",
+        "status": "ok" if ollama else "degraded",
         "version": __version__,
         "ollama": ollama,
     }

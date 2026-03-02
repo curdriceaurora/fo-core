@@ -12,22 +12,22 @@ Tests cover:
 from __future__ import annotations
 
 import hashlib
-import tempfile
+from collections.abc import Iterator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
 from file_organizer.updater.checker import AssetInfo, ReleaseInfo
 from file_organizer.updater.installer import InstallResult
 from file_organizer.updater.sidecar_updater import (
-    CoordinatedUpdateResult,
-    SidecarUpdateStatus,
     check_sidecar_update,
     coordinated_update,
     verify_sha256,
 )
 
+pytestmark = pytest.mark.unit
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -56,7 +56,7 @@ def fake_release() -> ReleaseInfo:
 
 
 @pytest.fixture()
-def mock_checker_with_update(fake_release: ReleaseInfo):
+def mock_checker_with_update(fake_release: ReleaseInfo) -> Iterator[Any]:
     """Patch UpdateChecker so it always returns ``fake_release``."""
     with patch(
         "file_organizer.updater.sidecar_updater.UpdateChecker"
@@ -68,7 +68,7 @@ def mock_checker_with_update(fake_release: ReleaseInfo):
 
 
 @pytest.fixture()
-def mock_checker_no_update():
+def mock_checker_no_update() -> Iterator[Any]:
     """Patch UpdateChecker so it always returns ``None`` (no update)."""
     with patch(
         "file_organizer.updater.sidecar_updater.UpdateChecker"

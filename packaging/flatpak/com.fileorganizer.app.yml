@@ -18,8 +18,8 @@ modules:
     build-commands:
       # Install the Tauri desktop binary
       - install -Dm755 file-organizer /app/bin/file-organizer
-      # Install the Python sidecar binary
-      - install -Dm755 file-organizer-sidecar /app/bin/file-organizer-sidecar
+      # Install the Python sidecar binary (Tauri expects target-triple suffix)
+      - install -Dm755 file-organizer-backend-x86_64-unknown-linux-gnu /app/bin/binaries/file-organizer-backend-x86_64-unknown-linux-gnu
       # Install desktop entry
       - install -Dm644 com.fileorganizer.app.desktop /app/share/applications/com.fileorganizer.app.desktop
       # Install application icon
@@ -33,8 +33,8 @@ modules:
         path: ../../desktop/src-tauri/target/release/file-organizer
         dest-filename: file-organizer
       - type: file
-        path: ../../desktop/src-tauri/target/release/file-organizer-sidecar
-        dest-filename: file-organizer-sidecar
+        path: ../../desktop/src-tauri/target/release/file-organizer-backend-x86_64-unknown-linux-gnu
+        dest-filename: file-organizer-backend-x86_64-unknown-linux-gnu
       - type: file
         path: com.fileorganizer.app.desktop
       - type: file

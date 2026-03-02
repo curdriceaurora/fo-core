@@ -54,9 +54,10 @@
                 <dict>
                     <key>COMMAND_STRING</key>
                     <string>for f in "$@"; do
+  escaped_f=$(printf '%s' "$f" | sed 's/\\/\\\\/g; s/"/\\"/g')
   curl -sf -X POST "http://127.0.0.1:${FILE_ORGANIZER_PORT:-8000}/api/v1/organize" \
     -H "Content-Type: application/json" \
-    -d "{\"paths\": [\"$f\"]}" -o /dev/null 2>/dev/null || \
+    -d "{\"paths\": [\"$escaped_f\"]}" -o /dev/null 2>/dev/null || \
   file-organizer organize --input "$f"
 done</string>
                     <key>CheckedForUserDefaultShell</key>

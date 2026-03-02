@@ -58,7 +58,8 @@
       "dialog": false,
       "windows": {
         "installMode": "passive"
-      }
+      },
+      "active": false
     }
   }
 }

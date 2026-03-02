@@ -1,6 +1,7 @@
 """Tests for build.yml CI/CD pipeline."""
 import unittest
 from pathlib import Path
+
 import yaml
 
 
@@ -37,7 +38,7 @@ class TestBuildWorkflow(unittest.TestCase):
         build_steps = self.jobs["build"]["steps"]
         step_names = [s.get("name", "") for s in build_steps]
         self.assertTrue(
-            any("idecar" in name for name in step_names),
+            any("sidecar" in name for name in step_names),
             f"No sidecar step found in: {step_names}",
         )
 

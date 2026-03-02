@@ -79,8 +79,12 @@ class PreferenceStore:
         """
         if storage_path is None:
             from file_organizer.config.path_manager import get_data_dir
+            from file_organizer.config.path_migration import resolve_legacy_path
 
-            storage_path = get_data_dir() / "preferences"
+            storage_path = resolve_legacy_path(
+                get_data_dir() / "preferences",
+                Path.home() / ".file_organizer" / "preferences",
+            )
 
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)

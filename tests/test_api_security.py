@@ -20,7 +20,7 @@ def test_security_headers_present(tmp_path: Path) -> None:
     client = TestClient(app)
 
     response = client.get("/api/v1/health")
-    assert response.status_code == 200
+    assert response.status_code in {200, 207}
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-XSS-Protection"] == "1; mode=block"

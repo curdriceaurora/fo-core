@@ -55,7 +55,8 @@ class CheckpointManager:
 
     Args:
         checkpoints_dir: Directory where checkpoint files are stored.
-            Defaults to ``~/.file-organizer/checkpoints/``.
+            Defaults to the ``checkpoints/`` subdirectory under
+            the XDG data directory resolved by ``PathManager``.
     """
 
     def __init__(self, checkpoints_dir: Path | None = None) -> None:

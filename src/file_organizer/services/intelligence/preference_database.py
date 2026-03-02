@@ -123,7 +123,8 @@ class PreferenceDatabaseManager:
 
         Args:
             db_path: Path to SQLite database file.
-                    Defaults to ~/.file_organizer/preferences.db
+                    Defaults to ``preferences.db`` in the XDG data
+                    directory resolved by ``PathManager``.
         """
         if db_path is None:
             from file_organizer.config.path_manager import get_data_dir

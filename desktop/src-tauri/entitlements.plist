@@ -10,6 +10,13 @@
     <true/>
     <key>com.apple.security.automation.apple-events</key>
     <false/>
+    <!--
+        allow-unsigned-executable-memory is required for two reasons:
+        1. The bundled PyInstaller sidecar loads code from unsigned memory pages.
+        2. Ollama uses JIT compilation for Metal/GPU inference kernels.
+        Removing this entitlement will cause the sidecar or Ollama to crash
+        at runtime on hardened-runtime builds.
+    -->
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
     <key>com.apple.security.device.metal</key>

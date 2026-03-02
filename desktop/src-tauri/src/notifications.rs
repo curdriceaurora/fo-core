@@ -3,6 +3,7 @@
 //! Uses tauri-plugin-notification (already in Cargo.toml).
 
 use tauri::AppHandle;
+use tauri::Listener;
 use tauri_plugin_notification::NotificationExt;
 
 /// Notification templates

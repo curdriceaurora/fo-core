@@ -22,16 +22,15 @@ Typical usage::
 from __future__ import annotations
 
 import hashlib
-import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from loguru import logger
 
 from file_organizer.updater.checker import ReleaseInfo, UpdateChecker
 from file_organizer.updater.installer import InstallResult, UpdateInstaller
-from file_organizer.updater.manager import UpdateManager, UpdateStatus
+from file_organizer.updater.manager import UpdateManager
 
 # Default GitHub repository.
 _DEFAULT_REPO = "curdriceaurora/Local-File-Organizer"

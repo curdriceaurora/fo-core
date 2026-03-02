@@ -12,11 +12,15 @@ import logging
 from pathlib import Path
 
 from file_organizer.config.path_manager import get_data_dir
+from file_organizer.config.path_migration import resolve_legacy_path
 from file_organizer.parallel.models import JobState, JobStatus, JobSummary
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_JOBS_DIR = get_data_dir() / "jobs"
+_DEFAULT_JOBS_DIR = resolve_legacy_path(
+    get_data_dir() / "jobs",
+    Path.home() / ".file-organizer" / "jobs",
+)
 
 
 class JobPersistence:

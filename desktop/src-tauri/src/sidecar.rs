@@ -198,6 +198,7 @@ impl SidecarManager {
         };
 
         if let Ok(mut stream) = TcpStream::connect_timeout(&sock_addr, Duration::from_millis(500)) {
+            stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
             let request = format!(
                 "GET /api/v1/health HTTP/1.0\r\nHost: 127.0.0.1:{}\r\n\r\n",
                 self.port
@@ -237,21 +238,17 @@ impl SidecarManager {
     ///
     /// Emits `sidecar-state { state: "unhealthy" }` when retries are exhausted.
     pub fn monitor(&self) -> bool {
-        // First check: is the process still running?
-        let process_exited = {
+        // Check whether the child process is still running.
+        {
             let mut child_guard = self.child.lock().unwrap();
             match child_guard.as_mut() {
                 None => return false,
                 Some(child) => match child.try_wait() {
-                    Ok(Some(_)) => true,     // Process has exited
+                    Ok(Some(_)) => {}        // Process has exited — fall through to restart logic
                     Ok(None) => return true, // Still running
                     Err(_) => return false,
                 },
             }
-        };
-
-        if !process_exited {
-            return true;
         }
 
         // Process exited — decide whether to restart

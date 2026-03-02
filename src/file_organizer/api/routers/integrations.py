@@ -40,8 +40,12 @@ router = APIRouter(tags=["integrations"], dependencies=[Depends(get_current_acti
 
 def _default_integration_root() -> Path:
     from file_organizer.config.path_manager import get_config_dir
+    from file_organizer.config.path_migration import resolve_legacy_path
 
-    return get_config_dir() / "integrations"
+    return resolve_legacy_path(
+        get_config_dir() / "integrations",
+        Path.home() / ".config" / "file-organizer" / "integrations",
+    )
 
 
 def build_integration_manager(settings: ApiSettings) -> IntegrationManager:

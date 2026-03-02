@@ -20,6 +20,10 @@
 #endif
 #define SidecarTriple "x86_64-pc-windows-msvc"
 
+; Inno Download Plugin — required for downloading WebView2 at install time.
+; Install from: https://mitrichsoftware.wordpress.com/inno-setup-tools/inno-download-plugin/
+#include <idp.iss>
+
 [Setup]
 AppId={{A7B3E2F1-4D5C-6E7F-8A9B-0C1D2E3F4A5B}
 AppName={#AppName}
@@ -53,7 +57,7 @@ Name: "addtopath"; Description: "Add to system PATH"; GroupDescription: "System 
 Source: "..\dist\file-organizer-*-windows-*.exe"; DestDir: "{app}"; DestName: "{#AppExeName}"; Flags: ignoreversion
 
 ; Tauri sidecar backend binary (named per Tauri target-triple convention)
-Source: "..\dist\file-organizer-backend-{#SidecarTriple}.exe"; DestDir: "{app}"; Flags: ignoreversion; Check: SidecarExists()
+Source: "..\dist\file-organizer-backend-{#SidecarTriple}.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; WebView2 Bootstrapper - downloaded/included for offline install support
 Source: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall external skipifsourcedoesntexist
@@ -102,10 +106,6 @@ begin
       'pv', Value);
 end;
 
-function SidecarExists(): Boolean;
-begin
-  Result := FileExists(ExpandConstant('..\dist\file-organizer-backend-{#SidecarTriple}.exe'));
-end;
 
 procedure InitializeWizard();
 begin
@@ -114,6 +114,7 @@ begin
     if not FileExists(ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe')) then begin
       idpAddFile('https://go.microsoft.com/fwlink/p/?LinkId=2124703',
                  ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'));
+      idpDownloadAfter(wpReady);
     end;
   end;
 end;

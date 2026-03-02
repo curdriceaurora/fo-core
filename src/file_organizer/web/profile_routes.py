@@ -38,7 +38,7 @@ _SESSION_COOKIE = "fo_session"
 _API_KEY_PREFIX = "fo"
 _STATE_KEY = "web_profile_state"
 _RESET_TOKEN_TTL_MINUTES = 20
-from file_organizer.config.path_manager import get_config_dir
+from file_organizer.config.path_manager import get_config_dir  # noqa: E402
 
 _SETTINGS_DIR = get_config_dir()
 _AVATAR_DIR = _SETTINGS_DIR / "avatars"

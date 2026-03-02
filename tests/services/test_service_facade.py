@@ -16,7 +16,6 @@ import pytest
 from file_organizer.api.config import ApiSettings
 from file_organizer.api.service_facade import ServiceFacade
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

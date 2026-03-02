@@ -6,7 +6,6 @@ the signing script is present and executable.
 
 from __future__ import annotations
 
-import os
 import plistlib
 import stat
 from pathlib import Path

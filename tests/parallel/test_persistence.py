@@ -24,9 +24,18 @@ class TestJobPersistenceInit(unittest.TestCase):
     """Test JobPersistence initialization."""
 
     def test_default_jobs_dir(self) -> None:
-        """Test that default directory is under home."""
+        """Test that default directory resolves to a platform-appropriate path.
+
+        The default may be the legacy ``~/.file-organizer/jobs`` when that
+        directory already contains data, or the new XDG-compliant path
+        returned by ``get_data_dir() / "jobs"`` for fresh installs.
+        """
+        from file_organizer.config.path_manager import get_data_dir
+
         persistence = JobPersistence()
-        self.assertEqual(persistence.jobs_dir, Path.home() / ".file-organizer" / "jobs")
+        legacy = Path.home() / ".file-organizer" / "jobs"
+        canonical = get_data_dir() / "jobs"
+        self.assertIn(persistence.jobs_dir, {legacy, canonical})
 
     def test_custom_jobs_dir(self, tmp_path: Path | None = None) -> None:
         """Test that custom directory is used."""

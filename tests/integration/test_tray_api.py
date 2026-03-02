@@ -6,7 +6,6 @@ endpoint URLs and menu items required by issue #552.
 import unittest
 from pathlib import Path
 
-
 TRAY_RS = Path("desktop/src-tauri/src/tray.rs")
 
 

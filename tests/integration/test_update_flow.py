@@ -12,23 +12,19 @@ controlled fake "release server" using monkeypatching, verifying that:
 from __future__ import annotations
 
 import hashlib
-import tempfile
 from pathlib import Path
-from typing import Generator
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from file_organizer.updater.checker import AssetInfo, ReleaseInfo
-from file_organizer.updater.installer import InstallResult, UpdateInstaller
+from file_organizer.updater.installer import InstallResult
 from file_organizer.updater.sidecar_updater import (
-    CoordinatedUpdateResult,
-    SidecarUpdateStatus,
-    check_sidecar_update,
     coordinated_update,
     verify_sha256,
 )
 
+pytestmark = pytest.mark.integration
 
 # ---------------------------------------------------------------------------
 # Helpers

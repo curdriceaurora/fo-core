@@ -10,7 +10,6 @@ from file_organizer.api.config import ApiSettings
 from file_organizer.api.service_facade import ServiceFacade
 from file_organizer.version import __version__
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -56,7 +55,7 @@ class TestServiceFacadeInstantiation:
 
     def test_importable_from_api_package(self) -> None:
         """ServiceFacade is importable directly from the api package."""
-        from file_organizer.api import ServiceFacade as FacadeFromPackage  # noqa: PLC0415
+        from file_organizer.api import ServiceFacade as FacadeFromPackage
 
         assert FacadeFromPackage is ServiceFacade
 
@@ -82,13 +81,22 @@ class TestHealthCheck:
         assert "ollama" in result
 
     @pytest.mark.asyncio
-    async def test_status_is_ok(self) -> None:
-        """health_check.status must be 'ok'."""
+    async def test_status_ok_when_ollama_reachable(self) -> None:
+        """health_check.status is 'ok' when Ollama is reachable."""
+        facade = _make_facade()
+        with patch.object(facade, "_check_ollama", new_callable=AsyncMock, return_value=True):
+            result = await facade.health_check()
+
+        assert result["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_status_degraded_when_ollama_unreachable(self) -> None:
+        """health_check.status is 'degraded' when Ollama is unreachable."""
         facade = _make_facade()
         with patch.object(facade, "_check_ollama", new_callable=AsyncMock, return_value=False):
             result = await facade.health_check()
 
-        assert result["status"] == "ok"
+        assert result["status"] == "degraded"
 
     @pytest.mark.asyncio
     async def test_version_matches_package(self) -> None:

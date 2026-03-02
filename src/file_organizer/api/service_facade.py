@@ -44,6 +44,7 @@ class ServiceFacade:
         if settings is None:
             settings = ApiSettings()
         self._settings = settings
+        self._daemon_service: Any = None
 
     # ------------------------------------------------------------------
     # Health
@@ -54,7 +55,8 @@ class ServiceFacade:
 
         The response always contains:
 
-        * ``status`` -- ``"ok"`` when the backend is operational.
+        * ``status`` -- ``"ok"`` when Ollama is reachable,
+          ``"degraded"`` when the backend works but Ollama is unreachable.
         * ``version`` -- the package version string.
         * ``ollama`` -- ``True`` when the Ollama service is reachable.
 
@@ -63,8 +65,9 @@ class ServiceFacade:
             ``ollama`` (bool).
         """
         ollama_ok = await self._check_ollama()
+        status = "ok" if ollama_ok else "degraded"
         return {
-            "status": "ok",
+            "status": status,
             "version": __version__,
             "ollama": ollama_ok,
         }
@@ -172,20 +175,38 @@ class ServiceFacade:
             return {"success": True, "data": data}
         except Exception as exc:
             logger.error("organize_files failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error during file organization"}
 
     # ------------------------------------------------------------------
     # Daemon management
     # ------------------------------------------------------------------
 
+    def _get_daemon_service(self) -> Any:
+        """Return the cached DaemonService instance, creating it on first use.
+
+        Lazy-initialises a single :class:`~file_organizer.daemon.service.DaemonService`
+        so that all daemon methods (start, stop, status) operate on the
+        same instance.  This ensures that a daemon started via
+        :meth:`start_daemon` can later be queried or stopped.
+
+        Returns:
+            The shared :class:`DaemonService` instance.
+        """
+        if self._daemon_service is None:
+            from file_organizer.daemon.config import DaemonConfig
+            from file_organizer.daemon.service import DaemonService
+
+            config = DaemonConfig()
+            self._daemon_service = DaemonService(config)
+        return self._daemon_service
+
     async def get_daemon_status(self) -> dict[str, Any]:
         """Return the current status of the background daemon service.
 
-        Queries a freshly-constructed
-        :class:`~file_organizer.daemon.service.DaemonService` to read its
-        initial state.  A newly constructed daemon will report
-        ``running=False``; callers should treat this as "no daemon active"
-        unless one was started in-process via :meth:`start_daemon`.
+        Queries the shared
+        :class:`~file_organizer.daemon.service.DaemonService` instance to
+        read its current state.  Reports the daemon's running flag, uptime,
+        and file-processing count.
 
         Returns:
             ``{"success": True, "data": {"running": bool, "uptime_seconds":
@@ -193,12 +214,9 @@ class ServiceFacade:
             ``{"success": False, "error": "<message>"}`` on failure.
         """
         try:
-            from file_organizer.daemon.config import DaemonConfig
-            from file_organizer.daemon.service import DaemonService
+            daemon = self._get_daemon_service()
 
             def _blocking_status() -> dict[str, Any]:
-                config = DaemonConfig()
-                daemon = DaemonService(config)
                 return {
                     "running": daemon.is_running,
                     "uptime_seconds": daemon.uptime_seconds,
@@ -209,7 +227,7 @@ class ServiceFacade:
             return {"success": True, "data": data}
         except Exception as exc:
             logger.error("get_daemon_status failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error while querying daemon status"}
 
     async def start_daemon(self) -> dict[str, Any]:
         """Start the background daemon service.
@@ -223,19 +241,16 @@ class ServiceFacade:
             on failure.
         """
         try:
-            from file_organizer.daemon.config import DaemonConfig
-            from file_organizer.daemon.service import DaemonService
+            daemon = self._get_daemon_service()
 
             def _blocking_start() -> None:
-                config = DaemonConfig()
-                daemon = DaemonService(config)
                 daemon.start_background()
 
             await asyncio.to_thread(_blocking_start)
             return {"success": True, "data": {"started": True}}
         except Exception as exc:
             logger.error("start_daemon failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error while starting daemon"}
 
     async def stop_daemon(self) -> dict[str, Any]:
         """Stop the background daemon service.
@@ -248,19 +263,16 @@ class ServiceFacade:
             stops, or ``{"success": False, "error": "<message>"}`` on failure.
         """
         try:
-            from file_organizer.daemon.config import DaemonConfig
-            from file_organizer.daemon.service import DaemonService
+            daemon = self._get_daemon_service()
 
             def _blocking_stop() -> None:
-                config = DaemonConfig()
-                daemon = DaemonService(config)
                 daemon.stop()
 
             await asyncio.to_thread(_blocking_stop)
             return {"success": True, "data": {"stopped": True}}
         except Exception as exc:
             logger.error("stop_daemon failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error while stopping daemon"}
 
     # ------------------------------------------------------------------
     # Model status
@@ -300,7 +312,7 @@ class ServiceFacade:
             return {"success": True, "data": {"models": model_list}}
         except Exception as exc:
             logger.error("get_model_status failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error while querying model status"}
 
     # ------------------------------------------------------------------
     # Smart suggestions
@@ -349,7 +361,7 @@ class ServiceFacade:
             return {"success": True, "data": {"suggestions": suggestion_list}}
         except Exception as exc:
             logger.error("get_suggestions failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error while generating suggestions"}
 
     # ------------------------------------------------------------------
     # Duplicate detection
@@ -407,7 +419,7 @@ class ServiceFacade:
             return {"success": True, "data": data}
         except Exception as exc:
             logger.error("find_duplicates failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error during duplicate detection"}
 
     # ------------------------------------------------------------------
     # Undo / history
@@ -435,7 +447,7 @@ class ServiceFacade:
             return {"success": True, "data": {"undone": undone}}
         except Exception as exc:
             logger.error("undo_last_operation failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error during undo operation"}
 
     async def get_operation_history(self, limit: int = 10) -> dict[str, Any]:
         """Return recent file operation history.
@@ -484,7 +496,7 @@ class ServiceFacade:
             return {"success": True, "data": {"operations": operations}}
         except Exception as exc:
             logger.error("get_operation_history failed: {}", exc)
-            return {"success": False, "error": str(exc)}
+            return {"success": False, "error": "Internal server error while retrieving operation history"}
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -493,21 +505,25 @@ class ServiceFacade:
     async def _check_ollama(self) -> bool:
         """Probe the Ollama service and return ``True`` if it responds.
 
-        Makes a lightweight HTTP request to the Ollama default endpoint.
+        Makes a lightweight HTTP request to the configured Ollama endpoint.
+        The URL is read from :attr:`ApiSettings.ollama_url` which defaults to
+        ``http://localhost:11434`` and can be overridden via the ``OLLAMA_HOST``
+        or ``FO_OLLAMA_URL`` environment variables.
+
         Returns ``False`` on any network or HTTP error so the facade never
         raises from a health-check call.
 
         Returns:
             ``True`` when Ollama is reachable, ``False`` otherwise.
         """
-        url = "http://localhost:11434"
+        url = self._settings.ollama_url
 
         def _blocking_check() -> bool:
             try:
                 with urllib.request.urlopen(url, timeout=2) as response:
                     return response.status == 200
             except Exception as exc:
-                logger.debug("Ollama not reachable: {}", exc)
+                logger.debug("Ollama not reachable at {}: {}", url, exc)
                 return False
 
         return await asyncio.to_thread(_blocking_check)

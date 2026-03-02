@@ -85,4 +85,4 @@ def __getattr__(name: str) -> object:
 # Desktop-shell facade – importable without starting the HTTP server
 # ---------------------------------------------------------------------------
 
-from file_organizer.api.service_facade import ServiceFacade  # noqa: E402, F401
+from file_organizer.api.service_facade import ServiceFacade  # noqa: E402

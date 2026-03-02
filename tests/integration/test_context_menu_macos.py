@@ -1,5 +1,4 @@
 """Tests for macOS Finder context menu Quick Action."""
-import os
 import stat
 import unittest
 from pathlib import Path
