@@ -9,7 +9,7 @@
     "beforeBuildCommand": ""
   },
   "app": {
-    "withGlobalTauri": false,
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "File Organizer",
