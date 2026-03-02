@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.fileorganizer.app</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>File Organizer</name>
+  <summary>AI-powered local file management with privacy-first architecture</summary>
+  <description>
+    <p>
+      File Organizer is an AI-powered local file management system that organizes
+      your files intelligently using local LLMs with zero cloud dependencies.
+      Your files and data never leave your machine.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>AI-powered file categorization using local language models</li>
+      <li>Support for 48+ file types including documents, images, audio, and video</li>
+      <li>Privacy-first: 100% local processing, no cloud required</li>
+      <li>Intelligent deduplication for images and documents</li>
+      <li>PARA and Johnny Decimal organization methodologies</li>
+      <li>Undo/redo support for all file operations</li>
+      <li>Plugin marketplace for extensibility</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">com.fileorganizer.app.desktop</launchable>
+  <url type="homepage">https://github.com/curdriceaurora/Local-File-Organizer</url>
+  <url type="bugtracker">https://github.com/curdriceaurora/Local-File-Organizer/issues</url>
+  <developer_name>File Organizer Contributors</developer_name>
+  <releases>
+    <release version="2.0.0-alpha.1" date="2026-01-01">
+      <description>
+        <p>Initial alpha release with full AI-powered file organization capabilities.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Utility</category>
+    <category>FileManager</category>
+  </categories>
+  <keywords>
+    <keyword>file organizer</keyword>
+    <keyword>AI</keyword>
+    <keyword>productivity</keyword>
+    <keyword>file management</keyword>
+    <keyword>local LLM</keyword>
+  </keywords>
+  <!-- TODO: Add screenshots once UI is finalized
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main application window showing file organization interface</caption>
+    <image type="source" width="1280" height="720">https://example.com/screenshot.png</image>
+    </screenshot>
+  </screenshots>
+  -->
+</component>

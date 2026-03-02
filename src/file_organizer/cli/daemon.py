@@ -16,6 +16,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from file_organizer.config.path_manager import get_state_dir
+
 console = Console()
 
 daemon_app = typer.Typer(
@@ -25,7 +27,7 @@ daemon_app = typer.Typer(
     rich_markup_mode="rich",
 )
 
-_DEFAULT_PID_DIR = Path.home() / ".file-organizer"
+_DEFAULT_PID_DIR = get_state_dir()
 _DEFAULT_PID_FILE = _DEFAULT_PID_DIR / "daemon.pid"
 
 

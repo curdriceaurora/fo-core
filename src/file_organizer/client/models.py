@@ -16,9 +16,10 @@ class HealthResponse(BaseModel):
     """Response from the /api/v1/health endpoint."""
 
     status: str
+    readiness: str
     version: str
-    environment: str
-    timestamp: str
+    ollama: bool
+    uptime: float
 
 
 class FileInfo(BaseModel):

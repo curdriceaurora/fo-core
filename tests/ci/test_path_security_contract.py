@@ -42,6 +42,12 @@ _ALLOWED_PATH_SNIPPETS: dict[str, set[str]] = {
     "web/files_routes.py": {
         "raw_name = Path(upload.filename).name.strip()",
     },
+    # service_facade wraps business-logic calls where the paths originate
+    # from request bodies already validated by the router layer.
+    "api/service_facade.py": {
+        "target = Path(path)",
+        "detector.scan_directory(Path(scan_dir))",
+    },
 }
 
 

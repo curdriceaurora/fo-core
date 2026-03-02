@@ -36,8 +36,11 @@ operation_log.txt
 
 # Python packaging
 *.egg-info/
-dist/
+/dist/
 build/
+# Allow only the Windows app manifest from desktop/build/ (not build artifacts)
+!desktop/build/
+!desktop/build/app.manifest
 *.egg
 
 # MkDocs build output

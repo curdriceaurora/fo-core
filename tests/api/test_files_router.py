@@ -806,9 +806,10 @@ class TestTrashTarget:
 
     def test_collision_incrementing(self, tmp_path: Path) -> None:
         from file_organizer.api.routers.files import _trash_target
+        from file_organizer.config.path_manager import get_data_dir
 
-        # Simulate existing trash files
-        trash_dir = Path.home() / ".config" / "file-organizer" / "trash"
+        # Simulate existing trash files in the actual trash directory used by _trash_target
+        trash_dir = get_data_dir() / "trash"
         trash_dir.mkdir(parents=True, exist_ok=True)
         sentinel = trash_dir / "collide.txt"
         sentinel.write_text("exists")

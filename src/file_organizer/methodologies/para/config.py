@@ -285,6 +285,13 @@ class PARAConfig:
 DEFAULT_CONFIG = PARAConfig()
 
 
+def _get_para_config_dir() -> Path:
+    """Get config directory via lazy import to avoid circular imports."""
+    from file_organizer.config.path_manager import get_config_dir
+
+    return get_config_dir()
+
+
 def load_config(config_path: Path | None = None) -> PARAConfig:
     """Load PARA configuration.
 
@@ -297,7 +304,7 @@ def load_config(config_path: Path | None = None) -> PARAConfig:
     if config_path is None:
         # Try to find default config locations
         possible_paths = [
-            Path.home() / ".config" / "file-organizer" / "para_config.yaml",
+            _get_para_config_dir() / "para_config.yaml",
             Path.cwd() / "para_config.yaml",
             Path(__file__).parent / "default_config.yaml",
         ]

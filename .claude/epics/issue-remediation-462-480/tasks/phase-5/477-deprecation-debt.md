@@ -14,12 +14,15 @@ epic: issue-remediation-462-480
 # Task 477: Burn down deprecation/warning debt
 
 ## Description
+
 Address deprecation warnings and suppress/fix pytest warnings. Cleans up technical debt and reduces build noise.
 
 ## Priority
+
 Low-Medium - Code cleanliness
 
 ## Acceptance Criteria
+
 - [ ] All deprecation warnings identified
 - [ ] Deprecated APIs replaced or suppressed
 - [ ] Pytest warnings addressed
@@ -28,23 +31,29 @@ Low-Medium - Code cleanliness
 - [ ] Documentation updated for changes
 
 ## Files to Modify
+
 - Multiple modules using deprecated APIs
 - Test configuration (pytest.ini)
 - Setup/configuration files
 
 ## Related Issues
+
 - Code cleanliness
 
 ## Blocking Issues
+
 - None
 
 ## Blocked By
+
 - None
 
 ## Dependencies
+
 - None (can run in parallel with Phase 4)
 
 ## Notes
+
 - Medium effort (8-16 hours)
 - Low priority but good for code health
 - Can run in parallel with Phase 4 work

@@ -19,22 +19,27 @@ def test_get_canonical_paths_uses_xdg_when_available():
         assert paths['config'] == Path('/tmp/test-xdg-config/file-organizer')
         assert paths['data'] == Path('/tmp/test-xdg-data/file-organizer')
         assert paths['state'] == Path('/tmp/test-xdg-state/file-organizer')
-        assert paths['cache'] == Path('/tmp/test-xdg-data/file-organizer/cache')
+        # Cache uses platformdirs user_cache_dir, which is independent of XDG_DATA_HOME
+        from platformdirs import user_cache_dir
+        assert paths['cache'] == Path(user_cache_dir("file-organizer"))
 
 
 def test_get_canonical_paths_uses_home_defaults():
-    """Should use ~/.config, ~/.local/share, ~/.local/state when XDG not set"""
+    """When XDG vars are unset, paths should match platformdirs defaults."""
+    from platformdirs import user_cache_dir, user_config_dir, user_data_dir
+
     with patch.dict(os.environ, {
         'XDG_CONFIG_HOME': '',
         'XDG_DATA_HOME': '',
         'XDG_STATE_HOME': '',
-        'HOME': '/home/testuser',
     }, clear=False):
         paths = get_canonical_paths()
 
-        assert paths['config'] == Path('/home/testuser/.config/file-organizer')
-        assert paths['data'] == Path('/home/testuser/.local/share/file-organizer')
-        assert paths['state'] == Path('/home/testuser/.local/state/file-organizer')
+        # platformdirs returns platform-appropriate defaults (XDG on Linux,
+        # ~/Library/... on macOS, %APPDATA% on Windows).
+        assert paths['config'] == Path(user_config_dir("file-organizer"))
+        assert paths['data'] == Path(user_data_dir("file-organizer"))
+        assert paths['cache'] == Path(user_cache_dir("file-organizer"))
 
 
 def test_path_manager_creates_directories():

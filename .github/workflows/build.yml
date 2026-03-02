@@ -12,6 +12,34 @@ on:
         default: ''
 
 jobs:
+  test-rust:
+    name: Rust Tests
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Install Tauri Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Run Rust tests
+        working-directory: desktop
+        run: cargo test --all
+
   build:
     strategy:
       fail-fast: false
@@ -43,6 +71,20 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Install Tauri Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -52,7 +94,6 @@ jobs:
       - name: Install AppImage dependencies
         if: matrix.platform == 'linux'
         run: |
-          sudo apt-get update
           sudo apt-get install -y fuse libfuse2
 
       - name: Run tests
@@ -75,7 +116,7 @@ jobs:
           if [ "${{ matrix.platform }}" = "windows" ]; then
             exe=$(find dist -name "*.exe" -type f | head -1)
           else
-            exe=$(find dist -type f -perm +111 | head -1)
+            exe=$(find dist -type f -perm /111 | head -1)
           fi
 
           if [ -z "$exe" ]; then
@@ -90,15 +131,63 @@ jobs:
           # Basic smoke test
           "$exe" --help || true
 
+      - name: Rename sidecar for Tauri
+        shell: bash
+        run: |
+          # Get Rust target triple
+          TARGET_TRIPLE=$(rustc -vV | grep host | cut -d' ' -f2)
+          SIDECAR_NAME="file-organizer-backend-${TARGET_TRIPLE}"
+
+          # Copy PyInstaller output to sidecar location expected by Tauri
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            SRC=$(find dist -name "file-organizer.exe" | head -1)
+            mkdir -p desktop/src-tauri/binaries
+            cp "$SRC" "desktop/src-tauri/binaries/${SIDECAR_NAME}.exe"
+          else
+            SRC=$(find dist -type f -perm /111 -name "file-organizer" | head -1)
+            mkdir -p desktop/src-tauri/binaries
+            cp "$SRC" "desktop/src-tauri/binaries/${SIDECAR_NAME}"
+            chmod +x "desktop/src-tauri/binaries/${SIDECAR_NAME}"
+          fi
+          echo "Sidecar placed: desktop/src-tauri/binaries/${SIDECAR_NAME}"
+
+      - name: Build Tauri desktop app
+        working-directory: desktop
+        run: |
+          npm install
+          npm run tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Collect Tauri artifacts
+        shell: bash
+        run: |
+          mkdir -p combined-artifacts
+          # Copy PyInstaller output
+          cp -r dist/* combined-artifacts/ 2>/dev/null || true
+          # Copy Tauri bundles
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            find desktop/src-tauri/target/release/bundle -name "*.dmg" -exec cp {} combined-artifacts/ \; 2>/dev/null || true
+            find desktop/src-tauri/target/release/bundle -name "*.app" -exec cp -r {} combined-artifacts/ \; 2>/dev/null || true
+          elif [ "${{ matrix.platform }}" = "linux" ]; then
+            find desktop/src-tauri/target/release/bundle -name "*.AppImage" -exec cp {} combined-artifacts/ \; 2>/dev/null || true
+            find desktop/src-tauri/target/release/bundle -name "*.deb" -exec cp {} combined-artifacts/ \; 2>/dev/null || true
+          elif [ "${{ matrix.platform }}" = "windows" ]; then
+            find desktop/src-tauri/target/release/bundle -name "*.exe" -exec cp {} combined-artifacts/ \; 2>/dev/null || true
+            find desktop/src-tauri/target/release/bundle -name "*.msi" -exec cp {} combined-artifacts/ \; 2>/dev/null || true
+          fi
+          ls -la combined-artifacts/
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: file-organizer-${{ matrix.platform }}-${{ matrix.arch }}
-          path: dist/*
+          path: combined-artifacts/*
           retention-days: 30
 
   release:
-    needs: build
+    needs: [build, test-rust]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

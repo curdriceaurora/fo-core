@@ -1,0 +1,8 @@
+file-organizer (2.0.0-1) unstable; urgency=medium
+
+  * Initial Debian packaging release.
+  * AI-powered local file organizer with privacy-first architecture.
+  * Supports text, image, audio, and video file processing.
+  * Includes Textual TUI, FastAPI REST server, and Web UI.
+
+ -- File Organizer Team <team@fileorganizer.app>  Mon, 02 Mar 2026 04:32:16 +0000

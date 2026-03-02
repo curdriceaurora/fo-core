@@ -108,3 +108,35 @@ class PathMigrator:
 
         # Could optionally remove legacy path here
         # For now, leave it with backup created for safety
+
+
+def resolve_legacy_path(new_dir: Path, legacy_dir: Path) -> Path:
+    """Return *new_dir* when it already contains data, otherwise fall back to *legacy_dir*.
+
+    This provides a seamless upgrade experience: users who have existing data
+    under the old hardcoded location (e.g. ``~/.file_organizer/``) will
+    continue to see it until a full migration is performed.  New installs
+    get the platform-appropriate XDG/``platformdirs`` path immediately.
+
+    Args:
+        new_dir: The new canonical directory (from ``get_data_dir()`` /
+            ``get_config_dir()``).
+        legacy_dir: The old hardcoded directory that may contain user data.
+
+    Returns:
+        *new_dir* if it exists and is non-empty **or** *legacy_dir* does not
+        exist / is empty; *legacy_dir* otherwise.
+    """
+    try:
+        if new_dir.exists() and any(new_dir.iterdir()):
+            return new_dir
+    except OSError:
+        pass
+
+    try:
+        if legacy_dir.exists() and any(legacy_dir.iterdir()):
+            return legacy_dir
+    except OSError:
+        pass
+
+    return new_dir

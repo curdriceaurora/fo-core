@@ -32,7 +32,9 @@ class FolderPreferenceLearner:
             storage_path: Path to store learned preferences (default: ~/.file_organizer/folder_prefs.json)
         """
         if storage_path is None:
-            storage_path = Path.home() / ".file_organizer" / "folder_prefs.json"
+            from file_organizer.config.path_manager import get_data_dir
+
+            storage_path = get_data_dir() / "folder_prefs.json"
 
         self.storage_path = storage_path
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)

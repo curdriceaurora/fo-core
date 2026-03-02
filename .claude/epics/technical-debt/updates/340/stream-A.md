@@ -18,6 +18,7 @@ field in `ApiSettings` from a plain `str` to `pydantic.SecretStr`.
 ## Changes Made
 
 ### 1. `src/file_organizer/api/config.py`
+
 - Added `SecretStr` to the `pydantic` import line.
 - Changed field declaration from:
   `auth_jwt_secret: str = "change-me"`
@@ -27,12 +28,14 @@ field in `ApiSettings` from a plain `str` to `pydantic.SecretStr`.
   `.get_secret_value()` so the `== "change-me"` check still works.
 
 ### 2. `src/file_organizer/api/auth.py`
+
 - Updated `_build_token()`: changed `settings.auth_jwt_secret` →
   `settings.auth_jwt_secret.get_secret_value()` in the `jwt.encode()` call.
 - Updated `decode_token()`: changed `settings.auth_jwt_secret` →
   `settings.auth_jwt_secret.get_secret_value()` in the `jwt.decode()` call.
 
 ### 3. `tests/unit/api/test_config_security.py` (new)
+
 Five tests added:
 - `test_jwt_secret_not_in_repr` — asserts the raw value is masked in repr/str.
 - `test_jwt_secret_accessible_via_get_secret_value` — asserts `.get_secret_value()` returns the correct value.

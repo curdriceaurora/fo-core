@@ -1172,3 +1172,56 @@ body {
     justify-content: flex-end;
   }
 }
+
+/* ── Desktop-shell / Tauri viewport adjustments (Issue #546) ────────────── */
+
+/* Prevent horizontal scrollbar in narrow desktop webviews (≥ 800 px wide). */
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* Ensure the nav shell never forces the page wider than the viewport. */
+.nav-shell {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* Brand text may be truncated on very narrow widths. */
+.brand-text {
+  min-width: 0;
+}
+
+.brand-title,
+.brand-subtitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Collapse sidebar / tree-panel on viewports up to the 800 px Tauri minimum. */
+@media (max-width: 820px) {
+  .file-browser {
+    grid-template-columns: 1fr;
+  }
+
+  .tree-panel {
+    position: static;
+    max-height: 280px;   /* scrollable but compact */
+    overflow-y: auto;
+  }
+
+  .nav-links {
+    display: none;
+  }
+
+  .nav-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .main-content {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}

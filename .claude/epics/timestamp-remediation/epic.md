@@ -23,6 +23,7 @@ For a file management application, timestamps are load-bearing infrastructure:
 - **Operation history**: Timestamps must be monotonically ordered for undo/redo
 
 ### Current State
+
 - 27 instances of `datetime.now()` without timezone across 12 files
 - 11 instances of `fromtimestamp()` without `tz=` across 8 files
 - DTZ ruff rules available but not enabled
@@ -30,6 +31,7 @@ For a file management application, timestamps are load-bearing infrastructure:
 - No timestamp-aware test fixtures
 
 ### Target State
+
 - Zero naive datetime instances in production code
 - DTZ ruff rules enforced at lint time
 - Pre-commit script catches naive datetime patterns
@@ -38,22 +40,26 @@ For a file management application, timestamps are load-bearing infrastructure:
 ## Tasks
 
 ### Task 1: Enable DTZ Ruff Rules
+
 - Add `"DTZ"` to ruff lint select in `pyproject.toml`
 - Enables DTZ001-DTZ007, DTZ011-DTZ012 (10 datetime rules)
 - Run initial scan to confirm violation count
 - **Effort**: 30 minutes
 
 ### Task 2: Fix 27 Naive `datetime.now()` Calls
+
 - Replace with `datetime.now(UTC)` using `from datetime import UTC`
 - Files: pattern_analyzer.py, suggestion_feedback.py, smart_suggestions.py, audio/organizer.py, auto_tagging/tag_learning.py, deduplication/backup.py, deduplication/index.py, intelligence/pattern_extractor.py, johnny_decimal/migrator.py, para/detection/heuristics.py, para/rules/engine.py, config/path_migration.py
 - **Effort**: 2-3 hours
 
 ### Task 3: Fix 11 Naive `fromtimestamp()` Calls
+
 - Add `tz=UTC` parameter to all instances
 - Files: analytics/storage_analyzer.py, deduplication/viewer.py, deduplication/backup.py, deduplication/index.py, copilot/rules/preview.py, history/tracker.py, tui/file_browser.py, cli/dedupe.py
 - **Effort**: 1-2 hours
 
 ### Task 4: Add Timestamp Validation to Pre-Commit Script
+
 - Add 4 new checks to `.claude/scripts/pre-commit-validation.sh`:
   1. Naive `datetime.now()` without UTC on staged files
   2. Deprecated `datetime.utcnow()` on staged files
@@ -62,11 +68,13 @@ For a file management application, timestamps are load-bearing infrastructure:
 - **Effort**: 1 hour
 
 ### Task 5: Remove Temporary Per-File DTZ Ignores
+
 - After Tasks 2-3 fix all violations, remove any temporary ignores
 - Verify `ruff check src/file_organizer/ --select DTZ` returns 0 violations
 - **Effort**: 15 minutes
 
 ### Task 6: Add Timestamp-Aware Test Fixtures
+
 - Add `time-machine` to test dependencies
 - Create `tests/test_timestamp_safety.py` with tests verifying:
   - No naive datetimes leak from public APIs
@@ -93,18 +101,23 @@ Task 4 + Task 6 (add gates - can parallelize)
 
 ```bash
 # Zero DTZ violations
+
 ruff check src/file_organizer/ --select DTZ
 
 # Zero naive datetime.now() in src/
+
 rg "datetime\.now\(\)" src/file_organizer/ --type py | grep -v "now(UTC\|now(timezone"
 
 # Zero deprecated utcnow
+
 rg "datetime\.utcnow\(\)" src/file_organizer/ --type py
 
 # Zero naive fromtimestamp
+
 rg "fromtimestamp\(" src/file_organizer/ --type py | grep -v "tz="
 
 # All tests pass
+
 pytest tests/ -x -q --timeout=30
 ```
 

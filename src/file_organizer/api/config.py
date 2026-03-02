@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 import yaml
 from loguru import logger
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 from file_organizer.api.api_keys import hash_api_key
 from file_organizer.version import __version__
@@ -20,6 +20,13 @@ _DEFAULT_CORS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+
+def _default_auth_db_path() -> str:
+    """Get default auth DB path via lazy import to avoid circular imports."""
+    from file_organizer.config.path_manager import get_config_dir
+
+    return str(get_config_dir() / "auth.db")
 
 
 class ApiSettings(BaseModel):
@@ -41,7 +48,7 @@ class ApiSettings(BaseModel):
     websocket_token: Optional[str] = None
     auth_enabled: bool = True
     auth_db_path: str = Field(
-        default_factory=lambda: str(Path.home() / ".config" / "file-organizer" / "auth.db")
+        default_factory=_default_auth_db_path
     )
     auth_jwt_secret: SecretStr = SecretStr("change-me")
     auth_jwt_algorithm: str = "HS256"
@@ -97,6 +104,15 @@ class ApiSettings(BaseModel):
     security_hsts_seconds: int = Field(default=31536000, ge=0)
     security_hsts_subdomains: bool = True
     security_referrer_policy: str = "strict-origin-when-cross-origin"
+    ollama_url: str = "http://localhost:11434"
+
+    @field_validator("ollama_url")
+    @classmethod
+    def _normalize_ollama_url(cls, v: str) -> str:
+        """Prepend ``http://`` when *OLLAMA_HOST* is given as ``host:port``."""
+        if v and not v.startswith(("http://", "https://")):
+            return f"http://{v}"
+        return v
 
 
 def _parse_list(value: str) -> list[str]:
@@ -394,6 +410,10 @@ def load_settings() -> ApiSettings:
         )
     if "FO_API_SECURITY_REFERRER_POLICY" in env:
         data["security_referrer_policy"] = env["FO_API_SECURITY_REFERRER_POLICY"]
+    if "FO_OLLAMA_URL" in env:
+        data["ollama_url"] = env["FO_OLLAMA_URL"]
+    elif "OLLAMA_HOST" in env:
+        data["ollama_url"] = env["OLLAMA_HOST"]
 
     api_key_enabled_explicit = "api_key_enabled" in data
     settings = ApiSettings(**data)

@@ -14,12 +14,15 @@ epic: issue-remediation-462-480
 # Task 471: Standardize storage/config/state paths
 
 ## Description
+
 Implement consistent path handling across all modules using XDG/platform-aware path resolution. Currently inconsistent path patterns cause migration complexity and user data location uncertainty.
 
 ## Priority
+
 Critical - Foundation for migrations and cross-platform support
 
 ## Acceptance Criteria
+
 - [ ] XDG path resolution standard implemented
 - [ ] Platform-aware path utilities created
 - [ ] All module path handling refactored
@@ -28,25 +31,31 @@ Critical - Foundation for migrations and cross-platform support
 - [ ] Cross-platform compatibility verified
 
 ## Files to Modify
+
 - `src/file_organizer/config/paths.py` (new) - Path resolution utilities
 - 10+ modules requiring path standardization
 - Migration framework implementation
 
 ## Related Issues
+
 - Migration recovery (#476)
 - Future cross-platform support
 
 ## Blocking Issues
+
 - None
 
 ## Blocked By
+
 - None
 
 ## Dependencies
+
 - Task #476 (Migration recovery) depends on this
 - Foundation for cross-platform work
 
 ## Notes
+
 - Very high effort (24-32 hours)
 - Architectural change affecting multiple modules
 - Critical for production data safety

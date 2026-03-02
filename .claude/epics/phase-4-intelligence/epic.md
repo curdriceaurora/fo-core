@@ -20,11 +20,13 @@ last_sync: 2026-02-19T00:43:37Z
 **Priority:** Medium-High
 
 ## Overview
+
 Add intelligent features including deduplication, preference learning, and undo/redo functionality.
 
 ## Key Features
 
 ### 1. File Deduplication 🔍
+
 Identify and remove duplicate files
 - **Exact duplicates**: Hash-based detection (MD5/SHA256)
 - **Similar images**: Perceptual hashing (pHash)
@@ -35,6 +37,7 @@ Identify and remove duplicate files
 - Safe mode with backups
 
 ### 2. User Preference Learning 🧠
+
 Adapt to user's organization preferences
 - Track user corrections and changes
 - Learn naming patterns
@@ -45,6 +48,7 @@ Adapt to user's organization preferences
 - Feedback loop integration
 
 ### 3. Undo/Redo System ⏮️
+
 Revert organization operations
 - Track all file operations
 - Undo single operation
@@ -55,6 +59,7 @@ Revert organization operations
 - Persistent across sessions
 
 ### 4. Smart Suggestions 💡
+
 AI-powered recommendations
 - Suggest organization improvements
 - Detect organizational patterns
@@ -63,6 +68,7 @@ AI-powered recommendations
 - Auto-tagging suggestions
 
 ### 5. Advanced Analytics 📊
+
 Insights into file organization
 - Storage usage analysis
 - File type distribution
@@ -71,6 +77,7 @@ Insights into file organization
 - Time saved calculations
 
 ## Success Criteria
+
 - [ ] Duplicate detection >99% accuracy
 - [ ] Storage savings >20% average
 - [ ] Preference learning improves over time
@@ -78,40 +85,48 @@ Insights into file organization
 - [ ] User satisfaction with suggestions >80%
 
 ## Technical Requirements
+
 - imagededup 0.3+ (perceptual hashing)
 - scikit-learn 1.4+ (similarity detection)
 - SQLite for operation history
 - JSON for preference storage
 
 ## Dependencies
+
 - Phase 3 complete
 - Stable file organization patterns
 
 ## Related
+
 - GitHub Issue: #3
 - Related PRD: file-organizer-v2
 
 ## Tasks Created
 
 ### File Deduplication (3 tasks)
+
 - [ ] #46 - Implement hash-based exact duplicate detection (parallel: true)
 - [ ] #47 - Implement perceptual hashing for similar images (parallel: true)
 - [ ] #48 - Add semantic similarity for document deduplication (parallel: false)
 
 ### User Preference Learning (3 tasks)
+
 - [ ] #50 - Build preference tracking system (parallel: true)
 - [ ] #49 - Implement pattern learning from user feedback (parallel: false)
 - [ ] #51 - Add preference profile management (parallel: false)
 
 ### Undo/Redo System (2 tasks)
+
 - [ ] #53 - Design and implement operation history tracking (parallel: true)
 - [ ] #55 - Build undo/redo functionality (parallel: false)
 
 ### Smart Suggestions (2 tasks)
+
 - [ ] #52 - Implement AI-powered smart suggestions (parallel: true)
 - [ ] #54 - Add auto-tagging suggestion system (parallel: false)
 
 ### Advanced Analytics & Final (3 tasks)
+
 - [ ] #56 - Build advanced analytics dashboard (parallel: true)
 - [ ] #57 - Write comprehensive tests for Phase 4 features (parallel: false)
 - [ ] #58 - Update documentation and create user guides (parallel: false)

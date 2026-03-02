@@ -22,6 +22,7 @@ parallelization_factor: 2.0
 ## Parallel Streams
 
 ### Stream A: Size Gate + Exception
+
 **Scope**: Add `MAX_FILE_SIZE_BYTES` constant, `FileTooLargeError` exception, and `_check_file_size()` helper. Patch `read_file()` dispatcher and the four unbounded readers (`read_docx_file`, `read_presentation_file`, `read_ebook_file`, `read_tar_file`).
 
 **Files**:
@@ -32,6 +33,7 @@ parallelization_factor: 2.0
 **Estimated Hours**: 3
 
 ### Stream B: Tests
+
 **Scope**: Unit tests for the size gate using mocked `os.stat` (no real 2 GB files needed). Verify `read_file()` and each patched reader raise `FileTooLargeError` on oversized input. Verify normal-sized files still pass.
 
 **Files**:
@@ -52,6 +54,7 @@ parallelization_factor: 2.0
 **Parallel**: Launch A and B simultaneously. B mocks `os.stat` so it doesn't need A's code to exist yet — just agree on the exception class name upfront (`FileTooLargeError`).
 
 ## Expected Timeline
+
 - Wall time: ~3 hours (parallel)
 - Total work: 6 hours
 - Efficiency gain: 50%

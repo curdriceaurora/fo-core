@@ -20,6 +20,7 @@ Comprehensive testing infrastructure for the File Organizer v2 project. This epi
 ## Parallel Work Streams
 
 ### Stream A: Core Foundation - Models & Processors
+
 **Scope**: Test infrastructure, AI models, file processors, core orchestrator
 **Issues**: #148, #149, #150, #151, #152, #153, #154, #155, #156
 **Files**:
@@ -40,6 +41,7 @@ Comprehensive testing infrastructure for the File Organizer v2 project. This epi
 **Critical Path**: Yes - foundational tests required by other streams
 
 ### Stream B: Pattern Analysis & Intelligence
+
 **Scope**: Pattern detection, misplacement detection, suggestion feedback
 **Issues**: #157, #158, #159
 **Files**:
@@ -54,6 +56,7 @@ Comprehensive testing infrastructure for the File Organizer v2 project. This epi
 **Parallel with**: Stream C, Stream D
 
 ### Stream C: Deduplication Services
+
 **Scope**: Duplicate detection for images and documents, quality assessment
 **Issues**: #160, #161, #162, #163
 **Files**:
@@ -70,6 +73,7 @@ Comprehensive testing infrastructure for the File Organizer v2 project. This epi
 **Parallel with**: Stream B, Stream D
 
 ### Stream D: Intelligence Services
+
 **Scope**: User preference learning, feedback processing, profile management
 **Issues**: #164, #165, #166
 **Files**:
@@ -86,6 +90,7 @@ Comprehensive testing infrastructure for the File Organizer v2 project. This epi
 **Parallel with**: Stream B, Stream C
 
 ### Stream E: Integration & CI/CD
+
 **Scope**: CLI tests, end-to-end workflows, CI/CD pipeline, code quality
 **Issues**: #167, #168, #169, #170
 **Files**:
@@ -107,18 +112,21 @@ Comprehensive testing infrastructure for the File Organizer v2 project. This epi
 ## Coordination Points
 
 ### Shared Files
+
 Files that multiple streams may need to reference:
 - `tests/conftest.py` - Stream A creates, all others import fixtures
 - `pyproject.toml` - Stream E updates test dependencies
 - `.github/workflows/` - Stream E owns, others may reference
 
 ### Sequential Requirements
+
 1. **Test Infrastructure (#148)** must complete before any other stream starts
 2. **Core Foundation (Stream A)** provides base fixtures for other streams
 3. **Integration Tests (#168)** require completion of Streams A, C, D
 4. **CI/CD Pipeline (#169)** requires integration tests (#168) to exist
 
 ### Configuration Changes
+
 - Stream A: Creates base test configuration
 - Stream E: Configures CI/CD workflows, pre-commit hooks
 
@@ -143,11 +151,13 @@ All streams will import fixtures from `tests/conftest.py`, so Stream A must comp
 **Recommended Approach**: Hybrid (sequential foundation + parallel execution)
 
 ### Phase 1: Foundation (Week 1-2)
+
 - **Sequential**: Complete #148 (Setup Test Infrastructure)
 - This creates `conftest.py`, base fixtures, pytest configuration
 - **8-12 hours** to complete
 
 ### Phase 2: Parallel Core Work (Week 2-4)
+
 Launch 4 agents in parallel after #148:
 - **Agent A1**: Stream A remaining (#149-156) - 78-98h
 - **Agent B1**: Stream B (#157-159) - 34-40h
@@ -157,6 +167,7 @@ Launch 4 agents in parallel after #148:
 All can work simultaneously on different test modules.
 
 ### Phase 3: Integration (Week 5-6)
+
 - **Sequential after Streams A, C, D**: Start Stream E (#167-170)
 - Agent E1: CLI tests, integration suite, CI/CD
 - **44-54 hours**
@@ -164,6 +175,7 @@ All can work simultaneously on different test modules.
 ## Expected Timeline
 
 ### With Parallel Execution (Recommended):
+
 - **Week 1**: Foundation (#148) - 8-12h
 - **Week 2-4**: 4 parallel streams (max of 78-98h per stream)
 - **Week 5-6**: Integration & CI/CD (#167-170) - 44-54h
@@ -172,10 +184,12 @@ All can work simultaneously on different test modules.
 - **Efficiency Gain**: 3.5x speedup
 
 ### Without Parallel Execution:
+
 - **Sequential Time**: 236-286 hours
 - **Total Wall Time**: ~12-14 weeks (one developer)
 
 ### Critical Path:
+
 ```
 #148 (8-12h) →
   ├─ Stream A: #149-156 (78-98h) ──┐
@@ -189,26 +203,31 @@ Total Critical Path: 8-12h + max(78-98h) + 44-54h = 130-164h
 ## Agent Assignment Recommendations
 
 ### Agent A1: Core Foundation Specialist
+
 - **Expertise**: AI models, file processing, pytest fixtures
 - **Tasks**: #148-156 (9 tasks)
 - **Focus**: Create comprehensive test infrastructure, model mocks, processor tests
 
 ### Agent B1: Pattern Analysis Specialist
+
 - **Expertise**: Pattern recognition, algorithm testing
 - **Tasks**: #157-159 (3 tasks)
 - **Focus**: Test pattern detection, misplacement algorithms, suggestions
 
 ### Agent C1: Deduplication Specialist
+
 - **Expertise**: Image processing, document analysis, similarity algorithms
 - **Tasks**: #160-163 (4 tasks)
 - **Focus**: Test perceptual hashing, embedding-based dedup, quality assessment
 
 ### Agent D1: Intelligence Specialist
+
 - **Expertise**: Machine learning, preference learning, profile management
 - **Tasks**: #164-166 (3 tasks)
 - **Focus**: Test preference tracking, feedback processing, profile operations
 
 ### Agent E1: DevOps Specialist
+
 - **Expertise**: CI/CD, GitHub Actions, integration testing
 - **Tasks**: #167-170 (4 tasks)
 - **Focus**: CLI tests, end-to-end workflows, CI/CD pipeline, code quality tools
@@ -216,16 +235,20 @@ Total Critical Path: 8-12h + max(78-98h) + 44-54h = 130-164h
 ## Execution Plan
 
 ### Step 1: Start Foundation (Immediate)
+
 ```bash
 /pm:issue-start 148
 # Agent A1 sets up test infrastructure
 # Creates conftest.py, pytest configuration, base fixtures
 # Estimated: 8-12 hours
+
 ```
 
 ### Step 2: Launch Parallel Streams (After #148)
+
 ```bash
 # Launch 4 agents simultaneously
+
 /pm:issue-start 149  # Agent A1 continues
 /pm:issue-start 157  # Agent B1 starts
 /pm:issue-start 160  # Agent C1 starts
@@ -233,6 +256,7 @@ Total Critical Path: 8-12h + max(78-98h) + 44-54h = 130-164h
 ```
 
 ### Step 3: Continue Parallel Work
+
 Each agent progresses through their stream independently:
 - **A1**: 149→150/151→154/155→156
 - **B1**: 157→158, 159 (parallel)
@@ -240,37 +264,45 @@ Each agent progresses through their stream independently:
 - **D1**: 164→165, 166 (parallel)
 
 ### Step 4: Integration Phase (After A1, C1, D1)
+
 ```bash
 /pm:issue-start 167  # Agent E1 starts
 # CLI tests, integration suite, CI/CD pipeline
+
 ```
 
 ## Risk Mitigation
 
 ### Fixture Conflicts
+
 - **Risk**: Multiple agents need similar fixtures
 - **Mitigation**: Agent A1 creates comprehensive fixtures in #148 upfront
 
 ### Test File Naming
+
 - **Risk**: Agents create overlapping test file names
 - **Mitigation**: Clear directory structure defined in analysis
 
 ### CI/CD Configuration
+
 - **Risk**: CI pipeline fails initially due to test issues
 - **Mitigation**: Agent E1 starts late, after most tests passing
 
 ### Integration Test Dependencies
+
 - **Risk**: Integration tests (#168) blocked waiting for other streams
 - **Mitigation**: Schedule after critical streams complete
 
 ## Success Metrics
 
 ### Coverage Targets
+
 - **Unit Test Coverage**: >80% (per epic success criteria)
 - **Type Coverage**: 100% (mypy strict mode)
 - **Integration Tests**: All major workflows covered
 
 ### Quality Gates
+
 - [ ] All unit tests passing (Streams A-D)
 - [ ] Integration tests passing (Stream E)
 - [ ] CI/CD pipeline operational (#169)
@@ -278,6 +310,7 @@ Each agent progresses through their stream independently:
 - [ ] Code quality tools running (mypy, ruff, black)
 
 ### Timeline Goals
+
 - **Foundation**: Complete by end of Week 1
 - **Parallel Streams**: Complete by end of Week 4
 - **Integration**: Complete by end of Week 6

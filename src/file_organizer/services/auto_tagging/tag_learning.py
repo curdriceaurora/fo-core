@@ -108,7 +108,9 @@ class TagLearningEngine:
             storage_path: Path to store learning data
         """
         if storage_path is None:
-            storage_path = Path.home() / ".file_organizer" / "tag_learning.json"
+            from file_organizer.config.path_manager import get_data_dir
+
+            storage_path = get_data_dir() / "tag_learning.json"
 
         self.storage_path = storage_path
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)

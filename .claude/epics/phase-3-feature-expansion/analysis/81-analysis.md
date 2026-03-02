@@ -11,11 +11,13 @@ status: closed
 # Parallel Work Analysis: Issue #81
 
 ## Overview
+
 Implement AI-powered smart suggestions for PARA categorization with content analysis, user feedback loops, and PARA-aware file movement. This is the intelligence layer that makes PARA organization intuitive and learns from user behavior.
 
 ## Parallel Streams
 
 ### Stream A: AI Content Analysis Engine
+
 **Scope**: Build content analysis pipeline using Claude API
 **Files**:
 - `src/file_organizer/ai/content_analyzer.py`
@@ -37,6 +39,7 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 - Handle API rate limiting and errors
 
 ### Stream B: Suggestion & Classification Engine
+
 **Scope**: Generate smart categorization suggestions with confidence scoring
 **Files**:
 - `src/file_organizer/ai/suggestion_engine.py`
@@ -58,6 +61,7 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 - Add subfolder and tag suggestions
 
 ### Stream C: Feedback Loop & Learning System
+
 **Scope**: Collect user feedback and improve suggestions over time
 **Files**:
 - `src/file_organizer/ai/feedback_collector.py`
@@ -79,6 +83,7 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 - Support user-specific personalization
 
 ### Stream D: PARA-Aware File Movement
+
 **Scope**: Smart file movement with context preservation
 **Files**:
 - `src/file_organizer/ai/para_file_mover.py`
@@ -100,6 +105,7 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 - Add move history tracking
 
 ### Stream E: User Interface Components
+
 **Scope**: UI for displaying suggestions and collecting feedback
 **Files**:
 - `src/file_organizer/cli/para_suggest_command.py`
@@ -120,6 +126,7 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 - Implement approval/rejection workflows
 
 ### Stream F: Testing & Integration
+
 **Scope**: Comprehensive testing across all components
 **Files**:
 - `tests/ai/test_content_analyzer.py`
@@ -145,10 +152,12 @@ Implement AI-powered smart suggestions for PARA categorization with content anal
 ## Coordination Points
 
 ### Shared Files
+
 - `src/file_organizer/ai/models.py` - Streams A, B, C, D (shared data structures)
 - `src/file_organizer/ai/__init__.py` - All streams (coordinate exports)
 
 ### Shared Data Structures
+
 All streams need agreement on:
 - `PARASuggestion` dataclass
 - `FeedbackEvent` structure
@@ -157,12 +166,14 @@ All streams need agreement on:
 - `OrganizationReport` format
 
 ### Sequential Requirements
+
 1. Streams A, B, C, D can run fully in parallel (independent)
 2. Stream E depends on A & B reaching 30% (needs suggestion format)
 3. Stream F starts after A-D reach 50% (needs stable APIs)
 4. Integration testing requires all development complete
 
 ## Conflict Risk Assessment
+
 - **Low Risk**: Streams A-D work on independent modules
 - **Medium Risk**: Stream E depends on A & B API design
 - **Coordination needed**: Initial data structure design session required

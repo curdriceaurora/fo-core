@@ -607,8 +607,10 @@ class TestOperationValidator(unittest.TestCase):
 
     def test_init_default_trash_dir(self):
         """Test validator initializes with default trash dir."""
+        from file_organizer.config.path_manager import get_data_dir
+
         validator = OperationValidator(trash_dir=None)
-        expected = Path.home() / ".file_organizer" / "trash"
+        expected = get_data_dir() / "trash"
         self.assertEqual(validator.trash_dir, expected)
 
 

@@ -63,10 +63,18 @@ class DatabaseManager:
 
         Args:
             db_path: Path to SQLite database file.
-                    Defaults to ~/.file_organizer/history.db
+                    Defaults to ``history/history.db`` in the XDG data
+                    directory resolved by ``PathManager`` (with automatic
+                    legacy path migration).
         """
         if db_path is None:
-            db_path = Path.home() / ".file_organizer" / "history.db"
+            from file_organizer.config.path_manager import get_data_dir
+            from file_organizer.config.path_migration import resolve_legacy_path
+
+            legacy_dir = Path.home() / ".file_organizer"
+            new_dir = get_data_dir() / "history"
+            resolved = resolve_legacy_path(new_dir, legacy_dir)
+            db_path = resolved / "history.db"
 
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)

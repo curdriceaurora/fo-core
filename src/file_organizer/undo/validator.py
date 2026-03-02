@@ -31,7 +31,9 @@ class OperationValidator:
             trash_dir: Directory for deleted files. Defaults to ~/.file_organizer/trash/
         """
         if trash_dir is None:
-            trash_dir = Path.home() / ".file_organizer" / "trash"
+            from file_organizer.config.path_manager import get_data_dir
+
+            trash_dir = get_data_dir() / "trash"
         self.trash_dir = trash_dir
         self.trash_dir.mkdir(parents=True, exist_ok=True)
 

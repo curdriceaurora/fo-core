@@ -14,12 +14,15 @@ epic: issue-remediation-462-480
 # Task 473: Refactor oversized low-cohesion modules
 
 ## Description
+
 Break up 15+ oversized service modules (>1000 LOC) with mixed concerns into focused, single-responsibility components. Reduces maintenance burden and improves code clarity.
 
 ## Priority
+
 High - Long-term maintainability
 
 ## Acceptance Criteria
+
 - [ ] All oversized modules identified and analyzed
 - [ ] Refactoring patterns established
 - [ ] Initial modules refactored (2-3 services)
@@ -28,25 +31,31 @@ High - Long-term maintainability
 - [ ] Tests pass for all refactored modules
 
 ## Files to Modify
+
 - `src/file_organizer/services/` - Comprehensive refactor
 - 15+ service modules requiring decomposition
 
 ## Related Issues
+
 - Code maintainability
 - Testing (#478)
 
 ## Blocking Issues
+
 - None
 
 ## Blocked By
+
 - None
 
 ## Dependencies
+
 - Can be parallelized after pattern established
 - Supports Task #478: Consolidate test suites
 - Supports Task #480: Tighten lint/type strictness
 
 ## Notes
+
 - Very high effort (40-60 hours)
 - Largest scope task
 - Can parallelize after pattern established

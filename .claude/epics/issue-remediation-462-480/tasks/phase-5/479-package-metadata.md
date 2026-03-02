@@ -14,12 +14,15 @@ epic: issue-remediation-462-480
 # Task 479: Fix package metadata and add validation
 
 ## Description
+
 Fix package URLs in pyproject.toml and add release metadata CI check to ensure correct package information.
 
 ## Priority
+
 Low - Release cleanliness
 
 ## Acceptance Criteria
+
 - [ ] Package URLs in pyproject.toml verified and fixed
 - [ ] Release metadata CI check implemented
 - [ ] CI validates package metadata on releases
@@ -27,22 +30,28 @@ Low - Release cleanliness
 - [ ] Release process improved
 
 ## Files to Modify
+
 - `pyproject.toml` - Fix package URLs
 - `.github/workflows/release.yml` - Add validation check
 
 ## Related Issues
+
 - Release quality
 
 ## Blocking Issues
+
 - None
 
 ## Blocked By
+
 - None
 
 ## Dependencies
+
 - None (standalone)
 
 ## Notes
+
 - Low effort (4-8 hours)
 - Quick win for release quality
 - Can run in parallel with Phase 4

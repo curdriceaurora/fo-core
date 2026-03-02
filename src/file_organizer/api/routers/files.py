@@ -237,7 +237,9 @@ def move_file(
 
 
 def _trash_target(path: Path) -> Path:
-    trash_dir = Path.home() / ".config" / "file-organizer" / "trash"
+    from file_organizer.config.path_manager import get_data_dir
+
+    trash_dir = get_data_dir() / "trash"
     trash_dir.mkdir(parents=True, exist_ok=True)
     candidate = trash_dir / path.name
     if not candidate.exists():

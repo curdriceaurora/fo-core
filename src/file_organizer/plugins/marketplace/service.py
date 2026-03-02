@@ -18,7 +18,9 @@ def default_marketplace_home() -> Path:
     configured = os.environ.get("FO_MARKETPLACE_HOME")
     if configured:
         return Path(configured).expanduser().resolve()
-    return (Path.home() / ".config" / "file-organizer" / "marketplace").resolve()
+    from file_organizer.config.path_manager import get_config_dir
+
+    return get_config_dir() / "marketplace"
 
 
 def default_repo_url(home_dir: Path) -> str:

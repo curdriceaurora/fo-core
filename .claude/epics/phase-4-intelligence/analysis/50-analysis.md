@@ -11,11 +11,13 @@ status: closed
 # Parallel Work Analysis: Issue #50
 
 ## Overview
+
 Build a comprehensive preference tracking system that captures user corrections and stores preferences in JSON format. The system implements per-directory learning with inheritance, conflict resolution for contradictory preferences, and thread-safe access. This is a foundational component for the intelligence system that Task #49 (pattern learning) will build upon.
 
 ## Parallel Streams
 
 ### Stream A: Core Preference Tracking
+
 **Scope**: Main preference tracking engine and correction capture
 **Files**:
 - `file_organizer/services/intelligence/preference_tracker.py`
@@ -34,6 +36,7 @@ Build a comprehensive preference tracking system that captures user corrections 
 - Preference metadata (timestamps, confidence, frequency)
 
 ### Stream B: Preference Storage & Persistence
+
 **Scope**: JSON-based persistence with atomic writes
 **Files**:
 - `file_organizer/services/intelligence/preference_store.py`
@@ -53,6 +56,7 @@ Build a comprehensive preference tracking system that captures user corrections 
 - Migration support for schema updates
 
 ### Stream C: Directory Hierarchy & Conflict Resolution
+
 **Scope**: Per-directory preferences with inheritance and conflict handling
 **Files**:
 - `file_organizer/services/intelligence/directory_prefs.py`
@@ -73,6 +77,7 @@ Build a comprehensive preference tracking system that captures user corrections 
 - Confidence scoring for ambiguous cases
 
 ### Stream D: Integration & Testing
+
 **Scope**: Module integration, comprehensive testing, and CLI hooks
 **Files**:
 - `file_organizer/services/intelligence/__init__.py`
@@ -99,10 +104,12 @@ Build a comprehensive preference tracking system that captures user corrections 
 ## Coordination Points
 
 ### Shared Files
+
 Minimal - only module init:
 - `file_organizer/services/intelligence/__init__.py` - Stream D updates after A, B, C complete
 
 ### Interface Contracts
+
 Define these interfaces upfront:
 
 **PreferenceTracker Interface**:
@@ -140,10 +147,12 @@ def score_confidence(preference: dict) -> float
 ```
 
 ### Sequential Requirements
+
 1. Streams A, B, and C can all run in parallel
 2. Stream D requires A, B, C to complete for integration and testing
 
 ## Conflict Risk Assessment
+
 **Low Risk** - Streams work on completely different files:
 - Stream A: `preference_tracker.py` only
 - Stream B: `preference_store.py` only
@@ -190,12 +199,14 @@ Total wall time: ~8 hours
 ## Notes
 
 ### Success Factors
+
 - Streams A, B, C are completely independent
 - Clear interface contracts prevent integration issues
 - This is a foundational component - design quality matters
 - JSON format makes preferences human-readable for debugging
 
 ### Risks & Mitigation
+
 - **Risk**: Concurrent access might cause race conditions
   - **Mitigation**: Stream A implements proper locking from the start
 - **Risk**: Preference file corruption
@@ -204,12 +215,14 @@ Total wall time: ~8 hours
   - **Mitigation**: Stream C ensures deterministic algorithm with clear rules
 
 ### Performance Targets
+
 - Preference lookup: <10ms for typical cases
 - Save operation: <100ms with atomic writes
 - Conflict resolution: <50ms per conflict
 - Memory usage: <10MB for typical preference database
 
 ### Design Considerations
+
 - JSON schema v1.0 should be extensible for future versions
 - Preference data should not leak sensitive information
 - Support for future ML model integration
@@ -217,6 +230,7 @@ Total wall time: ~8 hours
 - Preferences should be portable across systems
 
 ### JSON Schema Structure
+
 ```json
 {
   "version": "1.0",
@@ -241,12 +255,14 @@ Total wall time: ~8 hours
 ```
 
 ### Integration Points
+
 - FileOrganizer service (capture corrections)
 - Task #49 will build pattern learning on top of this
 - Future ML models will use this preference data
 - CLI commands for viewing/editing preferences
 
 ### Test Data Requirements
+
 Stream D should test:
 - Single correction tracking
 - Multiple corrections for same file type

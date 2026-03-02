@@ -14,13 +14,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from file_organizer.config.path_manager import get_config_dir
+from file_organizer.config.path_migration import resolve_legacy_path
+
 from ..categories import PARACategory
 from ..config import HeuristicWeights
 
 logger = logging.getLogger(__name__)
 
-# Default feedback storage location
-_DEFAULT_FEEDBACK_DIR = Path.home() / ".config" / "file-organizer" / "feedback"
+_DEFAULT_FEEDBACK_DIR = resolve_legacy_path(
+    get_config_dir() / "feedback",
+    Path.home() / ".config" / "file-organizer" / "feedback",
+)
 
 
 @dataclass

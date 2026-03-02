@@ -21,6 +21,7 @@ from file_organizer.api.routers import (
     analyze_router,
     auth_router,
     config_router,
+    daemon_router,
     dedupe_router,
     files_router,
     health_router,
@@ -50,7 +51,9 @@ def configure_logging(settings: ApiSettings) -> None:
     if _LOGGING_CONFIGURED:
         return
 
-    log_dir = Path.home() / ".config" / "file-organizer" / "logs"
+    from file_organizer.config.path_manager import get_state_dir
+
+    log_dir = get_state_dir() / "logs"
     log_file: Optional[Path] = None
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -114,6 +117,8 @@ def create_app(settings: Optional[ApiSettings] = None) -> FastAPI:
     app.include_router(integrations_router, prefix="/api/v1")
     app.include_router(marketplace_router, prefix="/api/v1")
     app.include_router(plugin_api_router, prefix="/api/v1")
+    if daemon_router is not None:
+        app.include_router(daemon_router, prefix="/api/v1")
 
     @app.get("/")
     def root() -> dict[str, str]:

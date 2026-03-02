@@ -74,25 +74,28 @@ class TestHealthResponse:
     def test_valid_construction(self):
         resp = HealthResponse(
             status="ok",
+            readiness="ready",
             version="2.0.0",
-            environment="production",
-            timestamp="2026-01-15T10:30:00Z",
+            ollama=True,
+            uptime=123.4,
         )
         assert resp.status == "ok"
         assert resp.version == "2.0.0"
-        assert resp.environment == "production"
-        assert resp.timestamp == "2026-01-15T10:30:00Z"
+        assert resp.readiness == "ready"
+        assert resp.ollama is True
+        assert resp.uptime == 123.4
 
     def test_missing_required_field(self):
         with pytest.raises(ValidationError):
-            HealthResponse(status="ok", version="2.0.0", environment="prod")
+            HealthResponse(status="ok", version="2.0.0")
 
     def test_serialization_roundtrip(self):
         data = {
             "status": "ok",
+            "readiness": "ready",
             "version": "1.0",
-            "environment": "dev",
-            "timestamp": "now",
+            "ollama": True,
+            "uptime": 60.0,
         }
         resp = HealthResponse(**data)
         dumped = resp.model_dump()
@@ -631,7 +634,7 @@ class TestSerializationRoundtrips:
     """Ensure every model can roundtrip through model_dump / model_validate."""
 
     def test_health_response_roundtrip(self):
-        data = {"status": "ok", "version": "1", "environment": "d", "timestamp": "t"}
+        data = {"status": "ok", "readiness": "ready", "version": "1", "ollama": True, "uptime": 0.0}
         assert HealthResponse.model_validate(data).model_dump() == data
 
     def test_file_info_roundtrip(self):

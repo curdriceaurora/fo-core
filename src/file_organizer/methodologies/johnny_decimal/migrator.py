@@ -22,6 +22,13 @@ from .validator import MigrationValidator, ValidationResult
 logger = logging.getLogger(__name__)
 
 
+def _get_data_dir() -> Path:
+    """Get data directory via lazy import to avoid circular imports."""
+    from file_organizer.config.path_manager import get_data_dir
+
+    return get_data_dir()
+
+
 @dataclass
 class MigrationResult:
     """Result of a migration execution."""
@@ -307,7 +314,7 @@ class JohnnyDecimalMigrator:
             rollback_info: Rollback information to save
         """
         rollback_file = (
-            Path.home() / ".file_organizer" / "rollback" / f"{rollback_info.migration_id}.json"
+            _get_data_dir() / "rollback" / f"{rollback_info.migration_id}.json"
         )
         rollback_file.parent.mkdir(parents=True, exist_ok=True)
 

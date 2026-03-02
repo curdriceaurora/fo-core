@@ -33,23 +33,27 @@ Systematically address 19 reported issues (#462-480) through prioritized phased 
 ## Phases Overview
 
 ### Phase 1: Quick Wins & Stability (1-2 weeks)
+
 Focus: Improve reliability without major refactoring
 - **#469**: Fix README broken links (2 hours)
 - **#467**: Add Watcher FSEvents fallback (4-6 hours)
 - **#468**: Add ParallelProcessor executor fallback (4-6 hours)
 
 ### Phase 2: Test Reliability (2-3 weeks)
+
 Focus: Make tests deterministic and environment-independent
 - **#470**: Fix NLTK test hermeticity (8-12 hours)
 - **#466**: Isolate API import side effects (12-16 hours)
 
 ### Phase 3: Architectural Foundation (4-6 weeks)
+
 Focus: Establish clean architecture for sustainable growth
 - **#471**: Standardize storage/config/state paths (24-32 hours) - *CRITICAL: blocks #476*
 - **#472**: Reduce CLI/API startup latency (20-28 hours)
 - **#476**: Implement migration recovery + plugin restrictions (16-24 hours) - *Blocked by #471*
 
 ### Phase 4: Code Quality & Maintainability (8-12 weeks)
+
 Focus: Improve codebase health and developer experience
 - **#473**: Refactor oversized modules (40-60 hours) - *Largest scope, parallelizable*
 - **#474**: Remove CI workflow duplication (4-6 hours)
@@ -58,6 +62,7 @@ Focus: Improve codebase health and developer experience
 - **#480**: Tighten lint/type strictness (24-40 hours) - *Last task (depends on refactoring)*
 
 ### Phase 5: Documentation & Warnings (1-2 weeks)
+
 Focus: Clean up technical debt and documentation
 - **#477**: Burn down deprecation/warning debt (8-16 hours)
 - **#479**: Fix package metadata + validation (4-8 hours)
@@ -102,6 +107,7 @@ Each task file contains:
 ## Risk Assessment
 
 ### High-Risk Tasks
+
 - **#473 (Module refactoring)**: Largest scope, highest regression risk
   - *Mitigation*: Establish patterns with 1-2 services, parallelize remainder, comprehensive test coverage
 - **#471 (Path standardization)**: Architectural change, affects migrations

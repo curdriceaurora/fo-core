@@ -20,11 +20,13 @@ last_sync: 2026-02-19T23:59:21Z
 **Priority:** Medium
 
 ## Overview
+
 Build a modern web interface and establish a plugin ecosystem for extensibility.
 
 ## Key Features
 
 ### 1. Web Dashboard 🌐
+
 Browser-based interface
 - Modern web UI with HTMX
 - File browser with thumbnails
@@ -35,6 +37,7 @@ Browser-based interface
 - Responsive design (mobile-friendly)
 
 ### 2. FastAPI Backend 🔌
+
 RESTful API server
 - REST API endpoints
 - WebSocket support
@@ -45,6 +48,7 @@ RESTful API server
 - Session management
 
 ### 3. Real-Time Updates ⚡
+
 Live synchronization
 - WebSocket live updates
 - Real-time progress tracking
@@ -54,6 +58,7 @@ Live synchronization
 - Live file changes
 
 ### 4. Multi-User Support 👥
+
 Team collaboration features
 - User authentication (JWT)
 - Workspace isolation
@@ -63,6 +68,7 @@ Team collaboration features
 - User profiles
 
 ### 5. Plugin System 🧩
+
 Extensibility framework
 - Plugin architecture
 - Plugin marketplace
@@ -72,6 +78,7 @@ Extensibility framework
 - Plugin API documentation
 
 ### 6. Integration Ecosystem 🔗
+
 Third-party integrations
 - Obsidian plugin
 - VS Code extension
@@ -81,6 +88,7 @@ Third-party integrations
 - API clients
 
 ## Success Criteria
+
 - [ ] Web UI feature parity with CLI
 - [ ] 10+ community plugins
 - [ ] Multi-user works smoothly
@@ -89,6 +97,7 @@ Third-party integrations
 - [ ] Security audit passed
 
 ## Technical Requirements
+
 - FastAPI 0.109+ (web backend)
 - HTMX 1.9+ (web frontend)
 - websockets 12+ (real-time)
@@ -97,15 +106,18 @@ Third-party integrations
 - JWT authentication
 
 ## Dependencies
+
 - Phase 5 complete
 - Architecture stable
 - API design finalized
 
 ## Related
+
 - GitHub Issue: #5
 - Related PRD: file-organizer-v2
 
 ## Technical Debt Follow-Ups (2026-02-16)
+
 The following open review follow-up issues are tracked under technical-debt epic #266 and tagged `phase-6`:
 
 - #278 - Optimize job metadata pruning in dashboard polling
@@ -121,6 +133,7 @@ The following open review follow-up issues are tracked under technical-debt epic
 **Total Estimated Effort:** 276-332 hours (~35-42 working days)
 
 ### Phase 1: Foundation & Backend (Tasks #229-233)
+
 - [x] #229 - Setup FastAPI Backend Infrastructure (M, 12-16h, parallel: true)
 - [x] #230 - Implement REST API Endpoints (L, 16-20h, parallel: false, depends: #229)
 - [x] #231 - Add WebSocket Support for Real-Time Updates (M, 12-14h, parallel: true, depends: #229)
@@ -130,6 +143,7 @@ The following open review follow-up issues are tracked under technical-debt epic
 **Phase 1 Subtotal:** 64-78 hours
 
 ### Phase 2: Frontend & UI (Tasks #234-238)
+
 - [x] #234 - Build HTMX Web UI Foundation (L, 16-20h, parallel: true, depends: #230)
 - [x] #235 - Implement File Browser with Thumbnails (L, 18-22h, parallel: false, depends: #230, #234)
 - [x] #236 - Create Organization Dashboard (L, 16-20h, parallel: true, depends: #230, #231, #234)
@@ -139,6 +153,7 @@ The following open review follow-up issues are tracked under technical-debt epic
 **Phase 2 Subtotal:** 76-92 hours
 
 ### Phase 3: Plugin System & Integrations (Tasks #239-243)
+
 - [x] #239 - Design Plugin Architecture (L, 18-22h, parallel: true, depends: #230)
 - [x] #240 - Implement Plugin Marketplace (M, 14-16h, parallel: false, depends: #239)
 - [x] #241 - Create Plugin API & Documentation (L, 16-20h, parallel: true, depends: #239)
@@ -148,6 +163,7 @@ The following open review follow-up issues are tracked under technical-debt epic
 **Phase 3 Subtotal:** 80-98 hours
 
 ### Phase 4: Testing, Deployment & Polish (Tasks #244-248)
+
 - [ ] #244 - Write Backend API Tests (L, 16-20h, parallel: true, depends: #230, #231, #232, #233)
 - [ ] #245 - Write Frontend UI Tests (L, 14-18h, parallel: true, depends: #234, #235, #236, #237, #238)
 - [x] #246 - Implement Database & Storage Layer (M, 12-16h, parallel: true, depends: #232)

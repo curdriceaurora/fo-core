@@ -83,6 +83,13 @@ class LearningStats:
         return asdict(self)
 
 
+def _get_data_dir() -> Path:
+    """Get data directory via lazy import to avoid circular imports."""
+    from file_organizer.config.path_manager import get_data_dir
+
+    return get_data_dir()
+
+
 class SuggestionFeedback:
     """Manages feedback collection and learning from user actions."""
 
@@ -93,7 +100,7 @@ class SuggestionFeedback:
             feedback_file: Path to store feedback data
         """
         self.feedback_file = (
-            feedback_file or Path.home() / ".file_organizer" / "suggestion_feedback.json"
+            feedback_file or _get_data_dir() / "suggestion_feedback.json"
         )
         self.feedback_entries: list[FeedbackEntry] = []
         self.pattern_adjustments: dict[str, float] = {}

@@ -13,11 +13,12 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
+from file_organizer.config.path_manager import get_data_dir
 from file_organizer.parallel.models import Checkpoint
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CHECKPOINTS_DIR = Path.home() / ".file-organizer" / "checkpoints"
+_DEFAULT_CHECKPOINTS_DIR = get_data_dir() / "checkpoints"
 
 _HASH_CHUNK_SIZE = 8192
 
@@ -54,7 +55,8 @@ class CheckpointManager:
 
     Args:
         checkpoints_dir: Directory where checkpoint files are stored.
-            Defaults to ``~/.file-organizer/checkpoints/``.
+            Defaults to the ``checkpoints/`` subdirectory under
+            the XDG data directory resolved by ``PathManager``.
     """
 
     def __init__(self, checkpoints_dir: Path | None = None) -> None:

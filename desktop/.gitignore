@@ -1,0 +1,6 @@
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+dist/*
+# Allow the Tauri splash page (referenced by frontendDist in tauri.conf.json)
+!dist/index.html
