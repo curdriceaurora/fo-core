@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
-__all__ = ["app", "create_app", "get_app"]
+__all__ = ["ServiceFacade", "app", "create_app", "get_app"]
 
 # Module-level cache for lazy initialization with thread safety
 _app_cache: Optional[FastAPI] = None
@@ -79,3 +79,10 @@ def __getattr__(name: str) -> object:
     if name == "app":
         return get_app()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# ---------------------------------------------------------------------------
+# Desktop-shell facade – importable without starting the HTTP server
+# ---------------------------------------------------------------------------
+
+from file_organizer.api.service_facade import ServiceFacade  # noqa: E402, F401
