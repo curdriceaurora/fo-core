@@ -23,13 +23,18 @@ impl LinuxDaemonManager {
     }
 
     /// Returns the path to the systemd user unit file.
-    pub fn unit_file_path(&self) -> PathBuf {
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
-        PathBuf::from(home)
+    pub fn unit_file_path(&self) -> std::io::Result<PathBuf> {
+        let home = dirs_next::home_dir().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Cannot determine home directory",
+            )
+        })?;
+        Ok(home
             .join(".config")
             .join("systemd")
             .join("user")
-            .join(format!("{}.service", self.service_name))
+            .join(format!("{}.service", self.service_name)))
     }
 
     /// Generates the systemd unit file content for the given binary path.
@@ -76,7 +81,7 @@ impl LinuxDaemonManager {
 impl DaemonManager for LinuxDaemonManager {
     /// Write the unit file and reload the systemd user daemon.
     fn install(&self, binary_path: &PathBuf) -> std::io::Result<()> {
-        let unit_path = self.unit_file_path();
+        let unit_path = self.unit_file_path()?;
 
         // Ensure parent directory exists.
         if let Some(parent) = unit_path.parent() {
@@ -87,7 +92,8 @@ impl DaemonManager for LinuxDaemonManager {
         fs::write(&unit_path, content)?;
 
         // Reload systemd user daemon so it picks up the new unit.
-        self.systemctl_bare(&["daemon-reload"])?;
+        // Best-effort — may fail in non-systemd environments (containers, WSL, etc.).
+        let _ = self.systemctl_bare(&["daemon-reload"]);
         Ok(())
     }
 
@@ -97,12 +103,13 @@ impl DaemonManager for LinuxDaemonManager {
         let _ = self.stop();
         let _ = self.disable_autostart();
 
-        let unit_path = self.unit_file_path();
+        let unit_path = self.unit_file_path()?;
         if unit_path.exists() {
             fs::remove_file(&unit_path)?;
         }
 
-        self.systemctl_bare(&["daemon-reload"])?;
+        // Best-effort daemon-reload after removing unit file.
+        let _ = self.systemctl_bare(&["daemon-reload"]);
         Ok(())
     }
 
@@ -203,7 +210,7 @@ mod tests {
     #[test]
     fn test_unit_file_path() {
         let mgr = LinuxDaemonManager::new("file-organizer");
-        let path = mgr.unit_file_path();
+        let path = mgr.unit_file_path().expect("unit_file_path should succeed");
         assert!(path.to_string_lossy().contains(".config/systemd/user"));
         assert!(path.to_string_lossy().ends_with(".service"));
     }
@@ -225,7 +232,7 @@ mod tests {
     #[test]
     fn test_unit_file_path_ends_with_service_name() {
         let mgr = LinuxDaemonManager::new("my-custom-daemon");
-        let path = mgr.unit_file_path();
+        let path = mgr.unit_file_path().expect("unit_file_path should succeed");
         assert!(path
             .to_string_lossy()
             .ends_with("my-custom-daemon.service"));
