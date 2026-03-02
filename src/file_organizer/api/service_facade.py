@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import urllib.request
 import urllib.error
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
@@ -29,6 +30,7 @@ class ServiceFacade:
         facade = ServiceFacade()
         health = await facade.health_check()
         config = await facade.get_config()
+        result = await facade.organize_files("/home/user/Downloads")
     """
 
     def __init__(self, settings: ApiSettings | None = None) -> None:
@@ -51,9 +53,9 @@ class ServiceFacade:
 
         The response always contains:
 
-        * ``status`` – ``"ok"`` when the backend is operational.
-        * ``version`` – the package version string.
-        * ``ollama`` – ``True`` when the Ollama service is reachable.
+        * ``status`` -- ``"ok"`` when the backend is operational.
+        * ``version`` -- the package version string.
+        * ``ollama`` -- ``True`` when the Ollama service is reachable.
 
         Returns:
             A dictionary with keys ``status`` (str), ``version`` (str) and
@@ -75,10 +77,10 @@ class ServiceFacade:
 
         Returns a dict containing:
 
-        * ``environment`` – the configured environment name.
-        * ``version`` – the package version string.
-        * ``auth_enabled`` – whether authentication is active.
-        * ``ollama`` – Ollama reachability flag.
+        * ``environment`` -- the configured environment name.
+        * ``version`` -- the package version string.
+        * ``auth_enabled`` -- whether authentication is active.
+        * ``ollama`` -- Ollama reachability flag.
 
         Returns:
             A dictionary with current service status information.
@@ -102,13 +104,369 @@ class ServiceFacade:
         that the desktop shell always sees the same values as the API.
 
         Returns:
-            A dictionary representation of :class:`~file_organizer.api.routers.config.ConfigResponse`.
+            A dictionary representation of
+            :class:`~file_organizer.api.routers.config.ConfigResponse`.
         """
         # Import here to avoid circular dependencies at module level
         from file_organizer.api.routers import config as _config_router  # noqa: PLC0415
 
         cfg: ConfigResponse = _config_router._config  # noqa: SLF001  (intentional)
         return cfg.model_dump()
+
+    # ------------------------------------------------------------------
+    # organize_files
+    # ------------------------------------------------------------------
+
+    async def organize_files(
+        self,
+        source_dir: str,
+        output_dir: str | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Organize files in *source_dir* using the core FileOrganizer.
+
+        This is a thin async wrapper around
+        :class:`~file_organizer.core.organizer.FileOrganizer`.  Business
+        logic lives entirely in that class; this method only handles the
+        IPC envelope.
+
+        Args:
+            source_dir: Absolute path to the directory whose files should
+                be organized.
+            output_dir: Optional destination directory.  When *None* the
+                source directory is used as the output (in-place
+                organization).
+            dry_run: When ``True`` no files are moved; a simulation report
+                is returned instead.
+
+        Returns:
+            ``{"success": True, "data": {...}}`` on success, or
+            ``{"success": False, "error": "<message>"}`` on failure.
+            The ``data`` payload mirrors
+            :class:`~file_organizer.core.organizer.OrganizationResult` field
+            names.
+        """
+        try:
+            from file_organizer.core.organizer import FileOrganizer  # noqa: PLC0415
+
+            organizer = FileOrganizer(dry_run=dry_run)
+            dest = output_dir if output_dir is not None else source_dir
+            result = organizer.organize(
+                input_path=source_dir,
+                output_path=dest,
+            )
+            return {
+                "success": True,
+                "data": {
+                    "total_files": result.total_files,
+                    "processed_files": result.processed_files,
+                    "skipped_files": result.skipped_files,
+                    "failed_files": result.failed_files,
+                    "processing_time": result.processing_time,
+                    "organized_structure": result.organized_structure,
+                    "errors": result.errors,
+                    "dry_run": dry_run,
+                },
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.error("organize_files failed: {}", exc)
+            return {"success": False, "error": str(exc)}
+
+    # ------------------------------------------------------------------
+    # Daemon management
+    # ------------------------------------------------------------------
+
+    async def get_daemon_status(self) -> dict[str, Any]:
+        """Return the current status of the background daemon service.
+
+        Queries a freshly-constructed
+        :class:`~file_organizer.daemon.service.DaemonService` to read its
+        initial state.  A newly constructed daemon will report
+        ``running=False``; callers should treat this as "no daemon active"
+        unless one was started in-process via :meth:`start_daemon`.
+
+        Returns:
+            ``{"success": True, "data": {"running": bool, "uptime_seconds":
+            float, "files_processed": int}}`` on success, or
+            ``{"success": False, "error": "<message>"}`` on failure.
+        """
+        try:
+            from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
+            from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
+
+            config = DaemonConfig()
+            daemon = DaemonService(config)
+            return {
+                "success": True,
+                "data": {
+                    "running": daemon.is_running,
+                    "uptime_seconds": daemon.uptime_seconds,
+                    "files_processed": daemon.files_processed,
+                },
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.error("get_daemon_status failed: {}", exc)
+            return {"success": False, "error": str(exc)}
+
+    async def start_daemon(self) -> dict[str, Any]:
+        """Start the background daemon service.
+
+        Launches the :class:`~file_organizer.daemon.service.DaemonService`
+        in a background thread so the call returns immediately.
+
+        Returns:
+            ``{"success": True, "data": {"started": True}}`` when the daemon
+            starts successfully, or ``{"success": False, "error": "<message>"}``
+            on failure.
+        """
+        try:
+            from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
+            from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
+
+            config = DaemonConfig()
+            daemon = DaemonService(config)
+            daemon.start_background()
+            return {"success": True, "data": {"started": True}}
+        except Exception as exc:  # noqa: BLE001
+            logger.error("start_daemon failed: {}", exc)
+            return {"success": False, "error": str(exc)}
+
+    async def stop_daemon(self) -> dict[str, Any]:
+        """Stop the background daemon service.
+
+        Signals the running :class:`~file_organizer.daemon.service.DaemonService`
+        to stop and waits briefly for it to terminate.
+
+        Returns:
+            ``{"success": True, "data": {"stopped": True}}`` when the daemon
+            stops, or ``{"success": False, "error": "<message>"}`` on failure.
+        """
+        try:
+            from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
+            from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
+
+            config = DaemonConfig()
+            daemon = DaemonService(config)
+            daemon.stop()
+            return {"success": True, "data": {"stopped": True}}
+        except Exception as exc:  # noqa: BLE001
+            logger.error("stop_daemon failed: {}", exc)
+            return {"success": False, "error": str(exc)}
+
+    # ------------------------------------------------------------------
+    # Model status
+    # ------------------------------------------------------------------
+
+    async def get_model_status(self) -> dict[str, Any]:
+        """Return the status of all configured AI models.
+
+        Queries :class:`~file_organizer.models.model_manager.ModelManager`
+        for the list of known models and their installation status.
+
+        Returns:
+            ``{"success": True, "data": {"models": [...]}}`` where each
+            entry contains ``name``, ``model_type``, ``size``,
+            ``quantization``, ``description`` and ``installed`` fields.
+            Returns ``{"success": False, "error": "<message>"}`` on failure.
+        """
+        try:
+            from file_organizer.models.model_manager import ModelManager  # noqa: PLC0415
+
+            manager = ModelManager()
+            models = manager.list_models()
+            return {
+                "success": True,
+                "data": {
+                    "models": [
+                        {
+                            "name": m.name,
+                            "model_type": m.model_type,
+                            "size": m.size,
+                            "quantization": m.quantization,
+                            "description": m.description,
+                            "installed": m.installed,
+                        }
+                        for m in models
+                    ]
+                },
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.error("get_model_status failed: {}", exc)
+            return {"success": False, "error": str(exc)}
+
+    # ------------------------------------------------------------------
+    # Smart suggestions
+    # ------------------------------------------------------------------
+
+    async def get_suggestions(self, path: str) -> dict[str, Any]:
+        """Return organization suggestions for a given directory path.
+
+        Wraps :class:`~file_organizer.services.smart_suggestions.SuggestionEngine`
+        to analyse the files at *path* and produce ranked placement
+        suggestions.
+
+        Args:
+            path: Absolute path to a directory whose files should be
+                analysed.
+
+        Returns:
+            ``{"success": True, "data": {"suggestions": [...]}}`` where each
+            entry contains the suggestion details, or
+            ``{"success": False, "error": "<message>"}`` on failure.
+        """
+        try:
+            from file_organizer.services.smart_suggestions import SuggestionEngine  # noqa: PLC0415
+
+            engine = SuggestionEngine()
+            target = Path(path)
+            files = [p for p in target.rglob("*") if p.is_file()]
+            suggestions = engine.generate_suggestions(files)
+            return {
+                "success": True,
+                "data": {
+                    "suggestions": [
+                        {
+                            "suggestion_type": s.suggestion_type.value
+                            if hasattr(s.suggestion_type, "value")
+                            else str(s.suggestion_type),
+                            "source_path": str(s.source_path),
+                            "target_path": str(s.target_path)
+                            if hasattr(s, "target_path") and s.target_path is not None
+                            else None,
+                            "confidence": s.confidence,
+                            "reason": s.reason if hasattr(s, "reason") else "",
+                        }
+                        for s in suggestions
+                    ]
+                },
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.error("get_suggestions failed: {}", exc)
+            return {"success": False, "error": str(exc)}
+
+    # ------------------------------------------------------------------
+    # Duplicate detection
+    # ------------------------------------------------------------------
+
+    async def find_duplicates(self, scan_dir: str) -> dict[str, Any]:
+        """Scan *scan_dir* for duplicate files and return a summary.
+
+        Wraps
+        :class:`~file_organizer.services.deduplication.detector.DuplicateDetector`.
+
+        Args:
+            scan_dir: Absolute path to the directory to scan.
+
+        Returns:
+            ``{"success": True, "data": {"statistics": {...}, "groups": [...]}}``
+            on success, or ``{"success": False, "error": "<message>"}`` on
+            failure.  ``statistics`` mirrors the output of
+            :meth:`~file_organizer.services.deduplication.detector.DuplicateDetector.get_statistics`.
+        """
+        try:
+            from file_organizer.services.deduplication.detector import (  # noqa: PLC0415
+                DuplicateDetector,
+            )
+
+            detector = DuplicateDetector()
+            detector.scan_directory(Path(scan_dir))
+
+            stats = detector.get_statistics()
+            groups_raw = detector.get_duplicate_groups()
+
+            # Serialise groups (dict of hash -> DuplicateGroup objects)
+            groups: list[dict[str, Any]] = []
+            for file_hash, group in groups_raw.items():
+                paths = [str(p) for p in group.files] if hasattr(group, "files") else []
+                groups.append(
+                    {
+                        "hash": file_hash,
+                        "file_count": len(paths),
+                        "files": paths,
+                    }
+                )
+
+            return {
+                "success": True,
+                "data": {
+                    "statistics": stats if isinstance(stats, dict) else vars(stats),
+                    "groups": groups,
+                },
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.error("find_duplicates failed: {}", exc)
+            return {"success": False, "error": str(exc)}
+
+    # ------------------------------------------------------------------
+    # Undo / history
+    # ------------------------------------------------------------------
+
+    async def undo_last_operation(self) -> dict[str, Any]:
+        """Undo the most recently completed file operation.
+
+        Wraps :class:`~file_organizer.undo.undo_manager.UndoManager`.
+
+        Returns:
+            ``{"success": True, "data": {"undone": True}}`` when the undo
+            succeeds, ``{"success": True, "data": {"undone": False}}`` when
+            there is nothing to undo, or
+            ``{"success": False, "error": "<message>"}`` on failure.
+        """
+        try:
+            from file_organizer.undo.undo_manager import UndoManager  # noqa: PLC0415
+
+            manager = UndoManager()
+            undone: bool = manager.undo_last_operation()
+            return {"success": True, "data": {"undone": undone}}
+        except Exception as exc:  # noqa: BLE001
+            logger.error("undo_last_operation failed: {}", exc)
+            return {"success": False, "error": str(exc)}
+
+    async def get_operation_history(self, limit: int = 10) -> dict[str, Any]:
+        """Return recent file operation history.
+
+        Wraps :class:`~file_organizer.history.tracker.OperationHistory`.
+
+        Args:
+            limit: Maximum number of operations to return (default: 10).
+
+        Returns:
+            ``{"success": True, "data": {"operations": [...]}}`` where each
+            entry is a serialised
+            :class:`~file_organizer.history.tracker.Operation`, or
+            ``{"success": False, "error": "<message>"}`` on failure.
+        """
+        try:
+            from file_organizer.history.tracker import OperationHistory  # noqa: PLC0415
+
+            history = OperationHistory()
+            ops = history.get_recent_operations(limit=limit)
+
+            serialised = []
+            for op in ops:
+                serialised.append(
+                    {
+                        "id": op.id,
+                        "operation_type": op.operation_type.value
+                        if hasattr(op.operation_type, "value")
+                        else str(op.operation_type),
+                        "source_path": str(op.source_path),
+                        "destination_path": str(op.destination_path)
+                        if op.destination_path is not None
+                        else None,
+                        "status": op.status.value
+                        if hasattr(op.status, "value")
+                        else str(op.status),
+                        "timestamp": op.timestamp.isoformat()
+                        if hasattr(op.timestamp, "isoformat")
+                        else str(op.timestamp),
+                    }
+                )
+
+            return {"success": True, "data": {"operations": serialised}}
+        except Exception as exc:  # noqa: BLE001
+            logger.error("get_operation_history failed: {}", exc)
+            return {"success": False, "error": str(exc)}
 
     # ------------------------------------------------------------------
     # Private helpers
