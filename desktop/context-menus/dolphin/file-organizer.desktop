@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Service
+ServiceTypes=KonqPopupMenu/Plugin
+MimeType=all/allfiles;inode/directory;
+Actions=OrganizeFiles;
+X-KDE-Priority=TopLevel
+
+[Desktop Action OrganizeFiles]
+Name=Organize with File Organizer
+Name[en_US]=Organize with File Organizer
+Icon=folder-sync
+Exec=bash -c 'if curl -sf -X POST "http://127.0.0.1:8000/api/v1/organize" -H "Content-Type: application/json" -d "{\"paths\": [\"%f\"]}" >/dev/null 2>&1; then notify-send "File Organizer" "Organizing: %f"; else file-organizer organize --input "%f"; fi'
