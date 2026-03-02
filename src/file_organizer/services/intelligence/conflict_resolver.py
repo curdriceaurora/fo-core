@@ -176,7 +176,7 @@ class ConflictResolver:
         if not preferences:
             return []
 
-        now = datetime.now(UTC).replace(tzinfo=None)  # Make timezone-naive
+        now = datetime.now(UTC)
         decay_factor = 30.0  # Days for weight to decay to ~37% (1/e)
 
         # Calculate days old for each preference
@@ -303,20 +303,20 @@ class ConflictResolver:
         """
         if not timestamp:
             # Return very old date for missing timestamps
-            return datetime(1970, 1, 1)
+            return datetime(1970, 1, 1, tzinfo=UTC)
 
         try:
             # Handle both with and without 'Z' suffix
             if timestamp.endswith("Z"):
-                timestamp = timestamp[:-1]  # Remove Z for naive datetime
+                timestamp = timestamp[:-1] + "+00:00"
 
-            # Parse and remove timezone info to make it naive
             dt = datetime.fromisoformat(timestamp)
-            # Make timezone-naive
-            return dt.replace(tzinfo=None)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return dt
         except (ValueError, AttributeError) as e:
             logger.warning(f"Failed to parse timestamp '{timestamp}': {e}")
-            return datetime(1970, 1, 1)
+            return datetime(1970, 1, 1, tzinfo=UTC)
 
     def get_ambiguity_score(self, conflicting_preferences: list[dict]) -> float:
         """Calculate ambiguity score for a set of conflicting preferences.

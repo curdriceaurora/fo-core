@@ -7,7 +7,7 @@ for viewing operation history.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from ..history.models import Operation, OperationStatus, OperationType
@@ -283,7 +283,10 @@ class HistoryViewer:
         """
         # Try ISO format
         try:
-            return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            return parsed
         except ValueError:
             pass
 
@@ -299,7 +302,7 @@ class HistoryViewer:
 
         for fmt in formats:
             try:
-                return datetime.strptime(date_str, fmt)
+                return datetime.strptime(date_str, fmt).replace(tzinfo=UTC)
             except ValueError:
                 continue
 

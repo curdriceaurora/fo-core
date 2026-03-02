@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -198,7 +198,9 @@ class EvaluationContext:
             return None
         created = self.file_stat["created"]
         if isinstance(created, datetime):
-            return (datetime.now() - created).days
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=UTC)
+            return (datetime.now(UTC) - created).days
         return None
 
 

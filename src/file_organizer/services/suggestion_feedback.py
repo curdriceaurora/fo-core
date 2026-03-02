@@ -10,7 +10,7 @@ import json
 import logging
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ..models.suggestion_types import Suggestion, SuggestionType
@@ -28,7 +28,7 @@ class FeedbackEntry:
     file_path: str
     target_path: str | None
     confidence: float
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     metadata: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -42,7 +42,7 @@ class FeedbackEntry:
             "file_path": self.file_path,
             "target_path": self.target_path,
             "confidence": self.confidence,
-            "timestamp": self.timestamp.isoformat(),
+            "timestamp": self.timestamp.isoformat().replace("+00:00", "Z"),
             "metadata": self.metadata,
         }
 
@@ -56,7 +56,9 @@ class FeedbackEntry:
             file_path=data["file_path"],
             target_path=data.get("target_path"),
             confidence=data["confidence"],
-            timestamp=datetime.fromisoformat(data["timestamp"]),
+            timestamp=datetime.fromisoformat(
+                data["timestamp"].replace("Z", "+00:00")
+            ),
             metadata=data.get("metadata", {}),
         )
 
@@ -291,7 +293,7 @@ class SuggestionFeedback:
         Returns:
             Number of entries removed
         """
-        cutoff = datetime.now().timestamp() - (days * 86400)
+        cutoff = datetime.now(UTC).timestamp() - (days * 86400)
         initial_count = len(self.feedback_entries)
 
         self.feedback_entries = [
@@ -354,7 +356,7 @@ class SuggestionFeedback:
             data = {
                 "entries": [entry.to_dict() for entry in self.feedback_entries],
                 "pattern_adjustments": self.pattern_adjustments,
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             }
 
             with open(self.feedback_file, "w") as f:
@@ -375,7 +377,7 @@ class SuggestionFeedback:
             "entries": [entry.to_dict() for entry in self.feedback_entries],
             "stats": self.get_learning_stats().to_dict(),
             "pattern_adjustments": self.pattern_adjustments,
-            "exported_at": datetime.now().isoformat(),
+            "exported_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
         with open(output_file, "w") as f:

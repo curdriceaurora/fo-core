@@ -10,7 +10,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,10 @@ class TagPattern:
     def from_dict(data: dict) -> TagPattern:
         """Create from dictionary."""
         if "last_seen" in data and data["last_seen"]:
-            data["last_seen"] = datetime.fromisoformat(data["last_seen"])
+            dt = datetime.fromisoformat(data["last_seen"])
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            data["last_seen"] = dt
         return TagPattern(**data)
 
 
@@ -67,13 +70,21 @@ class TagUsage:
     @staticmethod
     def from_dict(data: dict) -> TagUsage:
         """Create from dictionary."""
+        first_used = None
+        if data.get("first_used"):
+            first_used = datetime.fromisoformat(data["first_used"])
+            if first_used.tzinfo is None:
+                first_used = first_used.replace(tzinfo=UTC)
+        last_used = None
+        if data.get("last_used"):
+            last_used = datetime.fromisoformat(data["last_used"])
+            if last_used.tzinfo is None:
+                last_used = last_used.replace(tzinfo=UTC)
         return TagUsage(
             tag=data["tag"],
             count=data.get("count", 0),
-            first_used=datetime.fromisoformat(data["first_used"])
-            if data.get("first_used")
-            else None,
-            last_used=datetime.fromisoformat(data["last_used"]) if data.get("last_used") else None,
+            first_used=first_used,
+            last_used=last_used,
             file_types=set(data.get("file_types", [])),
             contexts=data.get("contexts", []),
         )
@@ -128,7 +139,7 @@ class TagLearningEngine:
 
         logger.debug(f"Recording tag application: {file_path.name} -> {tags}")
 
-        now = datetime.now()
+        now = datetime.now(UTC)
         file_ext = file_path.suffix.lower()
         directory = str(file_path.parent)
 
@@ -321,7 +332,7 @@ class TagLearningEngine:
         Returns:
             List of tag names
         """
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = datetime.now(UTC) - timedelta(days=days)
 
         recent = [
             (usage.tag, usage.last_used)
@@ -402,7 +413,7 @@ class TagLearningEngine:
         # Recency bonus
         recency_score = 0
         if usage.last_used:
-            days_ago = (datetime.now() - usage.last_used).days
+            days_ago = (datetime.now(UTC) - usage.last_used).days
             if days_ago <= 7:
                 recency_score = 20
             elif days_ago <= 30:
@@ -430,7 +441,7 @@ class TagLearningEngine:
                 "directory_tags": {
                     dir_: dict(counter) for dir_, counter in self.directory_tags.items()
                 },
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             }
 
             with open(self.storage_path, "w") as f:
