@@ -175,6 +175,84 @@ if [[ -n "$MD_FILES" ]]; then
   echo ""
 fi
 
+# 7a-1. Markdown heading spacing (MD022) — headings must have blank lines around them
+if [[ -n "$MD_FILES" ]]; then
+  echo "📝 Checking markdown heading spacing (MD022)..."
+  MD022_ISSUES=0
+
+  for md_file in $MD_FILES; do
+    if [[ ! -f "$md_file" ]]; then
+      continue
+    fi
+
+    # Read all lines into an array for look-ahead capability (bash 3.2 compatible)
+    LINES=()
+    while IFS= read -r _line || [[ -n "$_line" ]]; do
+      LINES+=("$_line")
+    done < "$md_file"
+    TOTAL_LINES=${#LINES[@]}
+    IN_FRONTMATTER=0
+    IN_CODE_BLOCK=0
+
+    for (( i=0; i<TOTAL_LINES; i++ )); do
+      line="${LINES[$i]}"
+      DISPLAY_NUM=$((i + 1))
+
+      # Track frontmatter (between --- markers at start of file)
+      if [[ $i -eq 0 ]] && [[ "$line" == "---" ]]; then
+        IN_FRONTMATTER=1
+        continue
+      fi
+      if [[ $IN_FRONTMATTER -eq 1 ]] && [[ "$line" == "---" ]]; then
+        IN_FRONTMATTER=0
+        continue
+      fi
+      if [[ $IN_FRONTMATTER -eq 1 ]]; then
+        continue
+      fi
+
+      # Track code blocks
+      if [[ "$line" == '```'* ]]; then
+        IN_CODE_BLOCK=$(( 1 - IN_CODE_BLOCK ))
+        continue
+      fi
+      if [[ $IN_CODE_BLOCK -eq 1 ]]; then
+        continue
+      fi
+
+      # Check if current line is a heading (starts with #)
+      if [[ "$line" == '#'* ]] && [[ "$line" =~ ^#{1,6}[[:space:]] ]]; then
+        # Check blank line BEFORE heading (unless first content line after frontmatter)
+        if [[ $i -gt 0 ]]; then
+          PREV_LINE="${LINES[$((i - 1))]}"
+          if [[ -n "$PREV_LINE" ]] && [[ "$PREV_LINE" != "---" ]] && [[ "$PREV_LINE" != '```'* ]]; then
+            echo "❌ $md_file:$DISPLAY_NUM: Heading needs blank line before it: $line"
+            MD022_ISSUES=1
+          fi
+        fi
+
+        # Check blank line AFTER heading (unless it's the last line)
+        if [[ $((i + 1)) -lt $TOTAL_LINES ]]; then
+          NEXT_LINE="${LINES[$((i + 1))]}"
+          if [[ -n "$NEXT_LINE" ]]; then
+            echo "❌ $md_file:$DISPLAY_NUM: Heading needs blank line after it: $line"
+            MD022_ISSUES=1
+          fi
+        fi
+      fi
+    done
+  done
+
+  if [[ $MD022_ISSUES -eq 1 ]]; then
+    echo ""
+    echo "❌ Markdown heading spacing check failed (MD022)"
+    echo "Fix: Add blank lines before AND after each heading"
+    exit 1
+  fi
+  echo "✓ Markdown heading spacing OK"
+  echo ""
+fi
+
 # 7a-2. Docs format conformity checks (admin docs conventions)
 DOCS_FILES=$(echo "$MODIFIED" | grep '^docs/.*\.md$' || true)
 if [[ -n "$DOCS_FILES" ]]; then

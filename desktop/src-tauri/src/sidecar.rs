@@ -121,8 +121,10 @@ impl SidecarManager {
             .as_secs()
     }
 
-    /// Spawn the sidecar binary with `--port <port>` argument.
+    /// Spawn the sidecar binary with `serve --host 127.0.0.1 --port <port>` arguments.
     ///
+    /// The CLI requires the `serve` subcommand. We bind to localhost only to
+    /// prevent the API from being exposed on the local network.
     /// Transitions state to `Starting` and emits a `sidecar-state` event.
     pub fn start(&self) -> std::io::Result<()> {
         *self.state.lock().unwrap() = SidecarState::Starting;
@@ -134,6 +136,9 @@ impl SidecarManager {
         });
 
         let child = Command::new(&self.binary_path)
+            .arg("serve")
+            .arg("--host")
+            .arg("127.0.0.1")
             .arg("--port")
             .arg(self.port.to_string())
             .spawn()?;
