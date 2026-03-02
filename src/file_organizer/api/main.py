@@ -50,7 +50,9 @@ def configure_logging(settings: ApiSettings) -> None:
     if _LOGGING_CONFIGURED:
         return
 
-    log_dir = Path.home() / ".config" / "file-organizer" / "logs"
+    from file_organizer.config.path_manager import get_state_dir
+
+    log_dir = get_state_dir() / "logs"
     log_file: Optional[Path] = None
     try:
         log_dir.mkdir(parents=True, exist_ok=True)

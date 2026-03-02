@@ -11,8 +11,12 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+import pytest
 
-DAEMON_DIR = Path("desktop/src-tauri/src/daemon")
+pytestmark = pytest.mark.ci
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DAEMON_DIR = REPO_ROOT / "desktop" / "src-tauri" / "src" / "daemon"
 
 
 class TestLinuxDaemonManager(unittest.TestCase):
@@ -161,8 +165,59 @@ class TestLinuxDaemonManager(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestMacOsDaemonManager(unittest.TestCase):
+    """Python integration tests for macOS LaunchAgent daemon manager."""
+
+    def test_macos_rs_file_exists(self) -> None:
+        """macos.rs source file must exist."""
+        macos_rs = DAEMON_DIR / "macos.rs"
+        self.assertTrue(macos_rs.exists(), f"macos.rs not found at {macos_rs}")
+
+    def test_macos_implements_daemon_manager_trait(self) -> None:
+        """MacOsDaemonManager must implement DaemonManager trait."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn("impl DaemonManager for MacOsDaemonManager", content)
+
+    def test_plist_contains_label_key(self) -> None:
+        """Plist template must include the Label key."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn("Label", content)
+
+    def test_plist_contains_program_arguments_key(self) -> None:
+        """Plist template must include the ProgramArguments key."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn("ProgramArguments", content)
+
+    def test_plist_contains_keep_alive_key(self) -> None:
+        """Plist template must include the KeepAlive key."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn("KeepAlive", content)
+
+    def test_plist_contains_run_at_load_key(self) -> None:
+        """Plist template must include the RunAtLoad key."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn("RunAtLoad", content)
+
+    def test_uses_launchctl(self) -> None:
+        """macos.rs must invoke launchctl for daemon management."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn("launchctl", content)
+
+    def test_installs_to_library_launchagents(self) -> None:
+        """Plist must be installed under ~/Library/LaunchAgents."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn("Library/LaunchAgents", content)
+
+    def test_has_rust_tests(self) -> None:
+        """macos.rs must include Rust unit tests."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn("#[cfg(test)]", content)
+        self.assertIn("#[test]", content)
+
+    def test_disable_autostart_uses_persistent_flag(self) -> None:
+        """disable_autostart must use -w flag for persistent disable."""
+        content = (DAEMON_DIR / "macos.rs").read_text()
+        self.assertIn('"-w"', content, "disable_autostart should use launchctl -w flag")
 
 
 class TestWindowsDaemonManager(unittest.TestCase):
@@ -353,3 +408,7 @@ class TestWindowsDaemonManager(unittest.TestCase):
             content,
             "Expected '/query' subcommand for schtasks in windows.rs",
         )
+
+
+if __name__ == "__main__":
+    unittest.main()
