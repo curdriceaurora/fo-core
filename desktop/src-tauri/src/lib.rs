@@ -1,4 +1,5 @@
 mod daemon;
+mod notifications;
 mod sidecar;
 mod splash;
 mod tray;
@@ -16,6 +17,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![splash::get_sidecar_state])
         .setup(|app| {
             tray::create_tray(&app.handle())?;
+            notifications::register_notification_listeners(&app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
