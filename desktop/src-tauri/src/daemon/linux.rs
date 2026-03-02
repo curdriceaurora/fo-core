@@ -5,7 +5,7 @@
 
 use super::DaemonManager;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Manages the file organizer daemon via systemd user units on Linux.
@@ -38,7 +38,7 @@ impl LinuxDaemonManager {
     }
 
     /// Generates the systemd unit file content for the given binary path.
-    pub fn generate_unit_file(&self, binary_path: &PathBuf) -> String {
+    pub fn generate_unit_file(&self, binary_path: &Path) -> String {
         format!(
             "[Unit]\n\
              Description=File Organizer Daemon\n\
@@ -80,7 +80,7 @@ impl LinuxDaemonManager {
 
 impl DaemonManager for LinuxDaemonManager {
     /// Write the unit file and reload the systemd user daemon.
-    fn install(&self, binary_path: &PathBuf) -> std::io::Result<()> {
+    fn install(&self, binary_path: &Path) -> std::io::Result<()> {
         let unit_path = self.unit_file_path()?;
 
         // Ensure parent directory exists.

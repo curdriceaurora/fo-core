@@ -45,9 +45,12 @@
     <keyword>file management</keyword>
     <keyword>local LLM</keyword>
   </keywords>
+  <!-- TODO: Add screenshots once UI is finalized
   <screenshots>
     <screenshot type="default">
       <caption>Main application window showing file organization interface</caption>
+    <image type="source" width="1280" height="720">https://example.com/screenshot.png</image>
     </screenshot>
   </screenshots>
+  -->
 </component>

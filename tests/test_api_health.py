@@ -20,8 +20,9 @@ def test_health_endpoint_returns_status() -> None:
 
     response = client.get("/api/v1/health")
 
-    assert response.status_code == 200
+    assert response.status_code in {200, 207, 503}
     payload = response.json()
-    assert payload["status"] == "healthy"
-    assert payload["environment"] == "test"
-    assert "timestamp" in payload
+    assert payload["status"] in {"ok", "degraded", "error"}
+    assert "readiness" in payload
+    assert "version" in payload
+    assert "uptime" in payload

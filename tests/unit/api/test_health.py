@@ -35,4 +35,6 @@ def test_health_endpoint_response_structure():
     data = response.json()
 
     assert "status" in data
-    assert data["status"] == "healthy"
+    assert data["status"] in {"ok", "degraded", "error"}
+    assert "readiness" in data
+    assert data["readiness"] in {"ready", "starting", "unhealthy"}

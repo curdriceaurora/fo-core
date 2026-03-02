@@ -5,7 +5,7 @@
 
 use std::fs;
 use std::io::{self, ErrorKind};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::DaemonManager;
@@ -49,7 +49,7 @@ impl MacOsDaemonManager {
     /// - Enables `KeepAlive` so launchd restarts the daemon if it exits
     /// - Enables `RunAtLoad` so the daemon starts immediately when loaded
     /// - Writes stdout/stderr logs to `~/Library/Logs/{label}.{out,err}.log`
-    fn generate_plist(&self, binary_path: &PathBuf) -> io::Result<String> {
+    fn generate_plist(&self, binary_path: &Path) -> io::Result<String> {
         let home = dirs_next::home_dir().ok_or_else(|| {
             io::Error::new(ErrorKind::NotFound, "Cannot determine home directory")
         })?;
@@ -116,7 +116,7 @@ impl MacOsDaemonManager {
 }
 
 impl DaemonManager for MacOsDaemonManager {
-    fn install(&self, binary_path: &PathBuf) -> io::Result<()> {
+    fn install(&self, binary_path: &Path) -> io::Result<()> {
         let plist_path = self.plist_path()?;
 
         // Ensure the LaunchAgents directory exists.

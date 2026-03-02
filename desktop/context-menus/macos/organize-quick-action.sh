@@ -12,11 +12,16 @@ organize_path() {
     local path="$1"
     [ -z "$path" ] && return
 
+    # Safely construct JSON payload (escape backslashes and quotes)
+    local escaped_path
+    escaped_path=$(printf '%s' "$path" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    local json_payload="{\"paths\": [\"${escaped_path}\"]}"
+
     # Try REST API if backend is running
     if curl -sf --max-time 5 \
         -X POST "$BACKEND_URL" \
         -H "Content-Type: application/json" \
-        -d "{\"paths\": [\"$path\"]}" \
+        -d "$json_payload" \
         -o /dev/null 2>/dev/null; then
 
         osascript -e "display notification \"Organizing: $(basename "$path")\" with title \"File Organizer\""

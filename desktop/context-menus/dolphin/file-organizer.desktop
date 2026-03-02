@@ -9,4 +9,4 @@ X-KDE-Priority=TopLevel
 Name=Organize with File Organizer
 Name[en_US]=Organize with File Organizer
 Icon=folder-sync
-Exec=bash -c 'if curl -sf -X POST "http://127.0.0.1:8000/api/v1/organize" -H "Content-Type: application/json" -d "{\"paths\": [\"%f\"]}" >/dev/null 2>&1; then notify-send "File Organizer" "Organizing: %f"; else file-organizer organize --input "%f"; fi'
+Exec=bash -c 'PORT="${FILE_ORGANIZER_PORT:-8000}"; escaped=$(printf "%%s" "%f" | sed "s/\\\\/\\\\\\\\\\\\\\\\/g; s/\\"/\\\\\\"/g"); if curl -sf -X POST "http://127.0.0.1:${PORT}/api/v1/organize" -H "Content-Type: application/json" -d "{\"paths\": [\"${escaped}\"]}" >/dev/null 2>&1; then notify-send "File Organizer" "Organizing: %f"; else file-organizer organize --input "%f"; fi'

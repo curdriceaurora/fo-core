@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "identifier": "com.fileorganizer.app",
   "build": {
-    "frontendDist": "http://localhost:8000",
+    "frontendDist": "http://localhost:8000/ui/",
     "devUrl": "http://localhost:8000/ui/",
     "beforeDevCommand": "",
     "beforeBuildCommand": ""
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src http://127.0.0.1:* ws://127.0.0.1:*; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http://127.0.0.1:*"
     }
   },
   "bundle": {

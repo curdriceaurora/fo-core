@@ -54,7 +54,7 @@
                 <dict>
                     <key>COMMAND_STRING</key>
                     <string>for f in "$@"; do
-  curl -sf -X POST "http://127.0.0.1:8000/api/v1/organize" \
+  curl -sf -X POST "http://127.0.0.1:${FILE_ORGANIZER_PORT:-8000}/api/v1/organize" \
     -H "Content-Type: application/json" \
     -d "{\"paths\": [\"$f\"]}" -o /dev/null 2>/dev/null || \
   file-organizer organize --input "$f"

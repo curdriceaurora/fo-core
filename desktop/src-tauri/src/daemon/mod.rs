@@ -2,12 +2,12 @@ pub mod macos;
 pub mod linux;
 pub mod windows;
 
-use std::path::PathBuf;
+use std::path::Path;
 
 /// Common interface for platform-specific daemon management.
 pub trait DaemonManager {
     /// Install daemon configuration (LaunchAgent plist, systemd unit, etc.)
-    fn install(&self, binary_path: &PathBuf) -> std::io::Result<()>;
+    fn install(&self, binary_path: &Path) -> std::io::Result<()>;
 
     /// Uninstall daemon configuration
     fn uninstall(&self) -> std::io::Result<()>;

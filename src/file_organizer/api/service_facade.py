@@ -6,6 +6,7 @@ with the Python backend without starting the FastAPI server.
 
 from __future__ import annotations
 
+import asyncio
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -149,15 +150,14 @@ class ServiceFacade:
         try:
             from file_organizer.core.organizer import FileOrganizer  # noqa: PLC0415
 
-            organizer = FileOrganizer(dry_run=dry_run)
-            dest = output_dir if output_dir is not None else source_dir
-            result = organizer.organize(
-                input_path=source_dir,
-                output_path=dest,
-            )
-            return {
-                "success": True,
-                "data": {
+            def _blocking_organize() -> dict[str, Any]:
+                organizer = FileOrganizer(dry_run=dry_run)
+                dest = output_dir if output_dir is not None else source_dir
+                result = organizer.organize(
+                    input_path=source_dir,
+                    output_path=dest,
+                )
+                return {
                     "total_files": result.total_files,
                     "processed_files": result.processed_files,
                     "skipped_files": result.skipped_files,
@@ -166,8 +166,10 @@ class ServiceFacade:
                     "organized_structure": result.organized_structure,
                     "errors": result.errors,
                     "dry_run": dry_run,
-                },
-            }
+                }
+
+            data = await asyncio.to_thread(_blocking_organize)
+            return {"success": True, "data": data}
         except Exception as exc:  # noqa: BLE001
             logger.error("organize_files failed: {}", exc)
             return {"success": False, "error": str(exc)}
@@ -194,16 +196,17 @@ class ServiceFacade:
             from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
             from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
 
-            config = DaemonConfig()
-            daemon = DaemonService(config)
-            return {
-                "success": True,
-                "data": {
+            def _blocking_status() -> dict[str, Any]:
+                config = DaemonConfig()
+                daemon = DaemonService(config)
+                return {
                     "running": daemon.is_running,
                     "uptime_seconds": daemon.uptime_seconds,
                     "files_processed": daemon.files_processed,
-                },
-            }
+                }
+
+            data = await asyncio.to_thread(_blocking_status)
+            return {"success": True, "data": data}
         except Exception as exc:  # noqa: BLE001
             logger.error("get_daemon_status failed: {}", exc)
             return {"success": False, "error": str(exc)}
@@ -223,9 +226,12 @@ class ServiceFacade:
             from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
             from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
 
-            config = DaemonConfig()
-            daemon = DaemonService(config)
-            daemon.start_background()
+            def _blocking_start() -> None:
+                config = DaemonConfig()
+                daemon = DaemonService(config)
+                daemon.start_background()
+
+            await asyncio.to_thread(_blocking_start)
             return {"success": True, "data": {"started": True}}
         except Exception as exc:  # noqa: BLE001
             logger.error("start_daemon failed: {}", exc)
@@ -245,9 +251,12 @@ class ServiceFacade:
             from file_organizer.daemon.service import DaemonService  # noqa: PLC0415
             from file_organizer.daemon.config import DaemonConfig  # noqa: PLC0415
 
-            config = DaemonConfig()
-            daemon = DaemonService(config)
-            daemon.stop()
+            def _blocking_stop() -> None:
+                config = DaemonConfig()
+                daemon = DaemonService(config)
+                daemon.stop()
+
+            await asyncio.to_thread(_blocking_stop)
             return {"success": True, "data": {"stopped": True}}
         except Exception as exc:  # noqa: BLE001
             logger.error("stop_daemon failed: {}", exc)
@@ -272,24 +281,23 @@ class ServiceFacade:
         try:
             from file_organizer.models.model_manager import ModelManager  # noqa: PLC0415
 
-            manager = ModelManager()
-            models = manager.list_models()
-            return {
-                "success": True,
-                "data": {
-                    "models": [
-                        {
-                            "name": m.name,
-                            "model_type": m.model_type,
-                            "size": m.size,
-                            "quantization": m.quantization,
-                            "description": m.description,
-                            "installed": m.installed,
-                        }
-                        for m in models
-                    ]
-                },
-            }
+            def _blocking_models() -> list[dict[str, Any]]:
+                manager = ModelManager()
+                models = manager.list_models()
+                return [
+                    {
+                        "name": m.name,
+                        "model_type": m.model_type,
+                        "size": m.size,
+                        "quantization": m.quantization,
+                        "description": m.description,
+                        "installed": m.installed,
+                    }
+                    for m in models
+                ]
+
+            model_list = await asyncio.to_thread(_blocking_models)
+            return {"success": True, "data": {"models": model_list}}
         except Exception as exc:  # noqa: BLE001
             logger.error("get_model_status failed: {}", exc)
             return {"success": False, "error": str(exc)}
@@ -317,29 +325,28 @@ class ServiceFacade:
         try:
             from file_organizer.services.smart_suggestions import SuggestionEngine  # noqa: PLC0415
 
-            engine = SuggestionEngine()
-            target = Path(path)
-            files = [p for p in target.rglob("*") if p.is_file()]
-            suggestions = engine.generate_suggestions(files)
-            return {
-                "success": True,
-                "data": {
-                    "suggestions": [
-                        {
-                            "suggestion_type": s.suggestion_type.value
-                            if hasattr(s.suggestion_type, "value")
-                            else str(s.suggestion_type),
-                            "source_path": str(s.source_path),
-                            "target_path": str(s.target_path)
-                            if hasattr(s, "target_path") and s.target_path is not None
-                            else None,
-                            "confidence": s.confidence,
-                            "reason": s.reason if hasattr(s, "reason") else "",
-                        }
-                        for s in suggestions
-                    ]
-                },
-            }
+            def _blocking_suggestions() -> list[dict[str, Any]]:
+                engine = SuggestionEngine()
+                target = Path(path)
+                files = [p for p in target.rglob("*") if p.is_file()]
+                suggestions = engine.generate_suggestions(files)
+                return [
+                    {
+                        "suggestion_type": s.suggestion_type.value
+                        if hasattr(s.suggestion_type, "value")
+                        else str(s.suggestion_type),
+                        "source_path": str(s.file_path),
+                        "target_path": str(s.target_path)
+                        if hasattr(s, "target_path") and s.target_path is not None
+                        else None,
+                        "confidence": s.confidence,
+                        "reason": s.reasoning if hasattr(s, "reasoning") else "",
+                    }
+                    for s in suggestions
+                ]
+
+            suggestion_list = await asyncio.to_thread(_blocking_suggestions)
+            return {"success": True, "data": {"suggestions": suggestion_list}}
         except Exception as exc:  # noqa: BLE001
             logger.error("get_suggestions failed: {}", exc)
             return {"success": False, "error": str(exc)}
@@ -368,31 +375,36 @@ class ServiceFacade:
                 DuplicateDetector,
             )
 
-            detector = DuplicateDetector()
-            detector.scan_directory(Path(scan_dir))
+            def _blocking_dedup() -> dict[str, Any]:
+                detector = DuplicateDetector()
+                detector.scan_directory(Path(scan_dir))
 
-            stats = detector.get_statistics()
-            groups_raw = detector.get_duplicate_groups()
+                stats = detector.get_statistics()
+                groups_raw = detector.get_duplicate_groups()
 
-            # Serialise groups (dict of hash -> DuplicateGroup objects)
-            groups: list[dict[str, Any]] = []
-            for file_hash, group in groups_raw.items():
-                paths = [str(p) for p in group.files] if hasattr(group, "files") else []
-                groups.append(
-                    {
-                        "hash": file_hash,
-                        "file_count": len(paths),
-                        "files": paths,
-                    }
-                )
+                # Serialise groups (dict of hash -> DuplicateGroup objects)
+                groups: list[dict[str, Any]] = []
+                for file_hash, group in groups_raw.items():
+                    paths = (
+                        [str(fm.path) for fm in group.files]
+                        if hasattr(group, "files")
+                        else []
+                    )
+                    groups.append(
+                        {
+                            "hash": file_hash,
+                            "file_count": len(paths),
+                            "files": paths,
+                        }
+                    )
 
-            return {
-                "success": True,
-                "data": {
+                return {
                     "statistics": stats if isinstance(stats, dict) else vars(stats),
                     "groups": groups,
-                },
-            }
+                }
+
+            data = await asyncio.to_thread(_blocking_dedup)
+            return {"success": True, "data": data}
         except Exception as exc:  # noqa: BLE001
             logger.error("find_duplicates failed: {}", exc)
             return {"success": False, "error": str(exc)}
@@ -415,8 +427,11 @@ class ServiceFacade:
         try:
             from file_organizer.undo.undo_manager import UndoManager  # noqa: PLC0415
 
-            manager = UndoManager()
-            undone: bool = manager.undo_last_operation()
+            def _blocking_undo() -> bool:
+                manager = UndoManager()
+                return manager.undo_last_operation()
+
+            undone = await asyncio.to_thread(_blocking_undo)
             return {"success": True, "data": {"undone": undone}}
         except Exception as exc:  # noqa: BLE001
             logger.error("undo_last_operation failed: {}", exc)
@@ -439,31 +454,34 @@ class ServiceFacade:
         try:
             from file_organizer.history.tracker import OperationHistory  # noqa: PLC0415
 
-            history = OperationHistory()
-            ops = history.get_recent_operations(limit=limit)
+            def _blocking_history() -> list[dict[str, Any]]:
+                history = OperationHistory()
+                ops = history.get_recent_operations(limit=limit)
 
-            serialised = []
-            for op in ops:
-                serialised.append(
-                    {
-                        "id": op.id,
-                        "operation_type": op.operation_type.value
-                        if hasattr(op.operation_type, "value")
-                        else str(op.operation_type),
-                        "source_path": str(op.source_path),
-                        "destination_path": str(op.destination_path)
-                        if op.destination_path is not None
-                        else None,
-                        "status": op.status.value
-                        if hasattr(op.status, "value")
-                        else str(op.status),
-                        "timestamp": op.timestamp.isoformat()
-                        if hasattr(op.timestamp, "isoformat")
-                        else str(op.timestamp),
-                    }
-                )
+                serialised = []
+                for op in ops:
+                    serialised.append(
+                        {
+                            "id": op.id,
+                            "operation_type": op.operation_type.value
+                            if hasattr(op.operation_type, "value")
+                            else str(op.operation_type),
+                            "source_path": str(op.source_path),
+                            "destination_path": str(op.destination_path)
+                            if op.destination_path is not None
+                            else None,
+                            "status": op.status.value
+                            if hasattr(op.status, "value")
+                            else str(op.status),
+                            "timestamp": op.timestamp.isoformat()
+                            if hasattr(op.timestamp, "isoformat")
+                            else str(op.timestamp),
+                        }
+                    )
+                return serialised
 
-            return {"success": True, "data": {"operations": serialised}}
+            operations = await asyncio.to_thread(_blocking_history)
+            return {"success": True, "data": {"operations": operations}}
         except Exception as exc:  # noqa: BLE001
             logger.error("get_operation_history failed: {}", exc)
             return {"success": False, "error": str(exc)}
@@ -483,10 +501,13 @@ class ServiceFacade:
             ``True`` when Ollama is reachable, ``False`` otherwise.
         """
         url = "http://localhost:11434"
-        try:
-            with urllib.request.urlopen(url, timeout=2) as response:  # noqa: S310
-                ok: bool = response.status == 200
-                return ok
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("Ollama not reachable: {}", exc)
-            return False
+
+        def _blocking_check() -> bool:
+            try:
+                with urllib.request.urlopen(url, timeout=2) as response:  # noqa: S310
+                    return response.status == 200
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Ollama not reachable: {}", exc)
+                return False
+
+        return await asyncio.to_thread(_blocking_check)

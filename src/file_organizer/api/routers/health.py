@@ -23,11 +23,18 @@ async def health(response: Response) -> dict[str, object]:
     Response shape::
 
         {
-            "status":  "ok" | "degraded" | "error",
-            "version": "<semver string>",
-            "ollama":  true | false,
-            "uptime":  <float seconds since startup>
+            "status":    "ok" | "degraded" | "error",
+            "readiness": "ready" | "starting" | "unhealthy",
+            "version":   "<semver string>",
+            "ollama":    true | false,
+            "uptime":    <float seconds since startup>
         }
+
+    The ``readiness`` field maps directly from ``status``:
+
+    * ``"ok"``       -> ``"ready"``
+    * ``"degraded"`` -> ``"starting"``
+    * ``"error"``    -> ``"unhealthy"``
 
     HTTP status codes:
 
@@ -40,13 +47,29 @@ async def health(response: Response) -> dict[str, object]:
     from file_organizer.api.service_facade import ServiceFacade  # noqa: PLC0415
 
     facade = ServiceFacade()
-    payload = await facade.health_check()
+    try:
+        payload = await facade.health_check()
+    except Exception:  # noqa: BLE001
+        payload = {}
 
     ollama_ok: bool = bool(payload.get("ollama", False))
-    status: str = "ok" if ollama_ok else "degraded"
+
+    if not payload:
+        status: str = "error"
+    elif ollama_ok:
+        status = "ok"
+    else:
+        status = "degraded"
+
+    _READINESS_MAP: dict[str, str] = {
+        "ok": "ready",
+        "degraded": "starting",
+        "error": "unhealthy",
+    }
 
     result: dict[str, object] = {
         "status": status,
+        "readiness": _READINESS_MAP[status],
         "version": payload.get("version", ""),
         "ollama": ollama_ok,
         "uptime": time.time() - _startup_time,

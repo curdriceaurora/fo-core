@@ -7,9 +7,8 @@ Standards-Version: 4.6.0
 Homepage: https://github.com/curdriceaurora/Local-File-Organizer
 
 Package: file-organizer
-Version: 2.0.0
+Version: REPLACE_VERSION
 Architecture: amd64
-Maintainer: File Organizer Team <team@fileorganizer.app>
 Depends: python3 (>= 3.9), libwebkit2gtk-4.1-0, libayatana-appindicator3-1
 Description: AI-powered local file organizer
  File Organizer is a privacy-first AI-powered local file management system.
@@ -17,4 +16,3 @@ Description: AI-powered local file organizer
  .
  Features include text, image, audio, and video file processing with AI analysis,
  smart file organization suggestions, and a terminal user interface.
-Homepage: https://github.com/curdriceaurora/Local-File-Organizer

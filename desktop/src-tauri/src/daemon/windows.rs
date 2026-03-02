@@ -8,7 +8,7 @@
 //! `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 
 use std::io::{self, ErrorKind};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::DaemonManager;
@@ -51,7 +51,7 @@ impl WindowsDaemonManager {
     /// - Runs as the current user (`/ru ""`  means current user)
     /// - Does not require a password (`/rp ""`)
     /// - Runs with normal priority and does not require elevation
-    pub fn build_create_command(&self, binary_path: &PathBuf) -> String {
+    pub fn build_create_command(&self, binary_path: &Path) -> String {
         let binary_str = binary_path
             .to_str()
             .unwrap_or("file-organizer-daemon.exe");
@@ -101,7 +101,7 @@ impl DaemonManager for WindowsDaemonManager {
     ///
     /// Creates a task that triggers on user login and runs the provided binary.
     /// The `/f` flag overwrites any existing task with the same name.
-    fn install(&self, binary_path: &PathBuf) -> io::Result<()> {
+    fn install(&self, binary_path: &Path) -> io::Result<()> {
         let binary_str = binary_path.to_str().ok_or_else(|| {
             io::Error::new(ErrorKind::InvalidInput, "Binary path is not valid UTF-8")
         })?;

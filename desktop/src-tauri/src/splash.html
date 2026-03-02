@@ -104,9 +104,9 @@
       } else if (state === 'ready') {
         setStatus('Ready! Loading...');
         // Navigate to the main web UI
-        const url = `http://127.0.0.1:${port}/`;
+        const url = `http://127.0.0.1:${port}/ui/`;
         window.location.href = url;
-      } else if (state === 'crashed') {
+      } else if (state === 'unhealthy' || state === 'crashed') {
         showError(message || 'Backend crashed after 3 retries');
       } else if (state === 'stopped') {
         showError('Backend stopped unexpectedly');
@@ -116,8 +116,8 @@
     // Also check via invoke in case event was missed
     invoke('get_sidecar_state').then((result) => {
       if (result.state === 'ready') {
-        window.location.href = `http://127.0.0.1:${result.port}/`;
-      } else if (result.state === 'crashed' || result.state === 'stopped') {
+        window.location.href = `http://127.0.0.1:${result.port}/ui/`;
+      } else if (result.state === 'unhealthy' || result.state === 'crashed' || result.state === 'stopped') {
         showError(result.message);
       }
     }).catch(() => {

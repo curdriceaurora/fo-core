@@ -27,6 +27,9 @@ impl TrayState {
 }
 
 /// Fire-and-forget HTTP POST to the Python backend REST API.
+///
+/// Errors are logged to stderr rather than silently dropped so that backend
+/// connectivity issues surface during development and in log collectors.
 fn api_post(url: String) {
     use std::io::Write;
     use std::net::TcpStream;
@@ -39,16 +42,28 @@ fn api_post(url: String) {
         let host_port = parts.next().unwrap_or("");
         let path = parts.next().unwrap_or("");
 
-        if let Ok(addr) = host_port.parse::<std::net::SocketAddr>() {
-            if let Ok(mut stream) =
-                TcpStream::connect_timeout(&addr, Duration::from_secs(2))
-            {
-                let request = format!(
-                    "POST /{} HTTP/1.0\r\nHost: {}\r\nContent-Length: 0\r\n\r\n",
-                    path, host_port
-                );
-                let _ = stream.write_all(request.as_bytes());
+        let addr = match host_port.parse::<std::net::SocketAddr>() {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("[api_post] failed to parse address '{}': {}", host_port, e);
+                return;
             }
+        };
+
+        let mut stream = match TcpStream::connect_timeout(&addr, Duration::from_secs(2)) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("[api_post] failed to connect to {}: {}", url, e);
+                return;
+            }
+        };
+
+        let request = format!(
+            "POST /{} HTTP/1.0\r\nHost: {}\r\nContent-Length: 0\r\n\r\n",
+            path, host_port
+        );
+        if let Err(e) = stream.write_all(request.as_bytes()) {
+            eprintln!("[api_post] failed to send request to {}: {}", url, e);
         }
     });
 }
@@ -66,8 +81,8 @@ fn api_post(url: String) {
 ///   About File Organizer
 ///   ─────────────────
 ///   Quit
-pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let state = TrayState::new(8000);
+pub fn create_tray<R: Runtime>(app: &AppHandle<R>, port: u16) -> tauri::Result<()> {
+    let state = TrayState::new(port);
 
     // ── Menu items ──────────────────────────────────────────────────────────
     let organize = MenuItemBuilder::new("Organize Now")
@@ -179,6 +194,12 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 }
 
                 "quit" => {
+                    // Shut down the sidecar before exiting.
+                    if let Some(mgr) = app.try_state::<std::sync::Mutex<crate::SidecarManager>>() {
+                        if let Ok(sidecar) = mgr.lock() {
+                            sidecar.shutdown();
+                        }
+                    }
                     app.exit(0);
                 }
 

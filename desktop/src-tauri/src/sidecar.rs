@@ -170,7 +170,7 @@ impl SidecarManager {
             if self.check_health() {
                 *self.state.lock().unwrap() = SidecarState::Ready;
                 self.emit_state(SidecarStatePayload {
-                    state: "running",
+                    state: "ready",
                     port: Some(self.port),
                     error: None,
                     timestamp: Self::unix_ts(),
@@ -183,7 +183,10 @@ impl SidecarManager {
         }
     }
 
-    /// Perform a minimal HTTP GET to the health endpoint; returns true on HTTP 200.
+    /// Perform a minimal HTTP GET to the health endpoint and verify the JSON body.
+    ///
+    /// Returns `true` only when the server responds with HTTP 200 (or 207 for
+    /// degraded) **and** the body contains `"status":"ok"` or `"status":"degraded"`.
     pub fn check_health(&self) -> bool {
         use std::io::{Read, Write};
         use std::net::{SocketAddr, TcpStream};
@@ -202,8 +205,25 @@ impl SidecarManager {
             if stream.write_all(request.as_bytes()).is_ok() {
                 let mut response = String::new();
                 let _ = stream.read_to_string(&mut response);
-                return response.starts_with("HTTP/1.0 200")
-                    || response.starts_with("HTTP/1.1 200");
+
+                let status_ok = response.starts_with("HTTP/1.0 200")
+                    || response.starts_with("HTTP/1.1 200")
+                    || response.starts_with("HTTP/1.0 207")
+                    || response.starts_with("HTTP/1.1 207");
+                if !status_ok {
+                    return false;
+                }
+
+                // Verify the JSON body contains a valid health status.
+                // The body follows the first "\r\n\r\n" separator.
+                if let Some(body_start) = response.find("\r\n\r\n") {
+                    let body = &response[body_start + 4..];
+                    return body.contains("\"status\":\"ok\"")
+                        || body.contains("\"status\": \"ok\"")
+                        || body.contains("\"status\":\"degraded\"")
+                        || body.contains("\"status\": \"degraded\"");
+                }
+                return false;
             }
         }
         false
@@ -416,19 +436,60 @@ mod tests {
     // ── new health-check tests ────────────────────────────────────────────────
 
     /// Positive path: `check_health()` returns `true` when the server responds
-    /// with HTTP 200.
+    /// with HTTP 200 and a valid health JSON body.
     #[test]
     fn test_health_check_returns_true_on_200() {
-        // Spawn a minimal HTTP server that replies with 200 OK.
-        let port = spawn_mock_server("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        let body = r#"{"status":"ok","version":"2.0.0","ollama":true,"uptime":1.5}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        // Leak the string so we get a &'static str for the mock server.
+        let port = spawn_mock_server(Box::leak(response.into_boxed_str()));
 
-        // Give the background thread a moment to enter accept().
         std::thread::sleep(Duration::from_millis(20));
 
         let mgr = SidecarManager::new_for_test(port);
         assert!(
             mgr.check_health(),
-            "check_health() should return true when server responds with HTTP 200"
+            "check_health() should return true when server responds with HTTP 200 and valid JSON"
+        );
+    }
+
+    /// Positive path: `check_health()` returns `true` for a degraded (207) response.
+    #[test]
+    fn test_health_check_returns_true_on_207_degraded() {
+        let body = r#"{"status": "degraded","version":"2.0.0","ollama":false,"uptime":3.0}"#;
+        let response = format!(
+            "HTTP/1.1 207 Multi-Status\r\nContent-Length: {}\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        let port = spawn_mock_server(Box::leak(response.into_boxed_str()));
+
+        std::thread::sleep(Duration::from_millis(20));
+
+        let mgr = SidecarManager::new_for_test(port);
+        assert!(
+            mgr.check_health(),
+            "check_health() should return true for degraded (207) responses"
+        );
+    }
+
+    /// Negative path: HTTP 200 but body has no valid status field.
+    #[test]
+    fn test_health_check_returns_false_on_200_without_status() {
+        let port = spawn_mock_server(
+            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok",
+        );
+
+        std::thread::sleep(Duration::from_millis(20));
+
+        let mgr = SidecarManager::new_for_test(port);
+        assert!(
+            !mgr.check_health(),
+            "check_health() should return false when body lacks valid status JSON"
         );
     }
 

@@ -23,6 +23,7 @@ EXPECTED_COMMAND = "file-organizer"
 REQUIRED_FINISH_ARGS = {
     "--filesystem=home",
     "--share=network",
+    "--share=ipc",
     "--device=dri",
     "--socket=wayland",
     "--socket=fallback-x11",
