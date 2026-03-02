@@ -69,6 +69,7 @@ dependencies = [
 
     # Configuration
     "pyyaml>=6.0.0",  # YAML config parsing
+    "platformdirs>=3.0.0",  # Cross-platform config/data directory resolution
 
     # Utilities
     "pydantic>=2.5.0",

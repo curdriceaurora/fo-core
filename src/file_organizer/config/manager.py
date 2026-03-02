@@ -23,12 +23,13 @@ from typing import Any
 
 import yaml
 
+from file_organizer.config.path_manager import get_config_dir
 from file_organizer.config.schema import AppConfig, ModelPreset, UpdateSettings
 from file_organizer.models.base import DeviceType, ModelConfig, ModelType
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_DIR = Path.home() / ".config" / "file-organizer"
+DEFAULT_CONFIG_DIR = get_config_dir()
 CONFIG_FILENAME = "config.yaml"
 
 
@@ -40,7 +41,7 @@ class ConfigManager:
 
     Args:
         config_dir: Directory for configuration files.
-            Defaults to ``~/.config/file-organizer``.
+            Defaults to the platform config dir via platformdirs (e.g. ``~/Library/Application Support/file-organizer`` on macOS).
     """
 
     def __init__(self, config_dir: str | Path | None = None) -> None:
