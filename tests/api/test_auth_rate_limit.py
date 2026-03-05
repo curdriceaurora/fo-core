@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -94,13 +95,14 @@ class TestInMemoryLoginRateLimiter:
         limiter.reset("nonexistent")  # should not raise
 
     def test_window_expiry_cleanup(self) -> None:
-        limiter = InMemoryLoginRateLimiter(max_attempts=2, window_seconds=60)
-        limiter.record_failure("user1")
-        limiter.record_failure("user1")
-        # Manipulate internal state to simulate window expiry (no public API for this)
-        state = limiter._state["user1"]
-        state.expires_at = time.time() - 1
-        blocked, retry = limiter.is_blocked("user1")
+        now = time.time()
+        with patch("file_organizer.api.auth_rate_limit.time.time", return_value=now):
+            limiter = InMemoryLoginRateLimiter(max_attempts=2, window_seconds=60)
+            limiter.record_failure("user1")
+            limiter.record_failure("user1")
+        # Simulate time advancing past the window
+        with patch("file_organizer.api.auth_rate_limit.time.time", return_value=now + 120):
+            blocked, retry = limiter.is_blocked("user1")
         assert blocked is False
         assert retry == 0
 
@@ -124,21 +126,15 @@ class TestBuildLoginRateLimiter:
     """Tests for build_login_rate_limiter factory."""
 
     def test_returns_in_memory_when_redis_url_is_none(self) -> None:
-        limiter = build_login_rate_limiter(
-            redis_url=None, max_attempts=5, window_seconds=300
-        )
+        limiter = build_login_rate_limiter(redis_url=None, max_attempts=5, window_seconds=300)
         assert isinstance(limiter, InMemoryLoginRateLimiter)
 
     def test_returns_in_memory_when_redis_url_is_empty(self) -> None:
-        limiter = build_login_rate_limiter(
-            redis_url="", max_attempts=5, window_seconds=300
-        )
+        limiter = build_login_rate_limiter(redis_url="", max_attempts=5, window_seconds=300)
         assert isinstance(limiter, InMemoryLoginRateLimiter)
 
     def test_in_memory_limiter_has_correct_config(self) -> None:
-        limiter = build_login_rate_limiter(
-            redis_url=None, max_attempts=10, window_seconds=120
-        )
+        limiter = build_login_rate_limiter(redis_url=None, max_attempts=10, window_seconds=120)
         assert isinstance(limiter, InMemoryLoginRateLimiter)
         assert limiter.max_attempts == 10
         assert limiter.window_seconds == 120

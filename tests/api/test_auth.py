@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
@@ -180,10 +182,18 @@ class TestCreateTokenBundle:
         after = datetime.now(UTC)
 
         access_delta = timedelta(minutes=settings.auth_access_token_minutes)
-        assert before + access_delta <= bundle.access_expires_at <= after + access_delta + timedelta(seconds=2)
+        assert (
+            before + access_delta
+            <= bundle.access_expires_at
+            <= after + access_delta + timedelta(seconds=2)
+        )
 
         refresh_delta = timedelta(days=settings.auth_refresh_token_days)
-        assert before + refresh_delta <= bundle.refresh_expires_at <= after + refresh_delta + timedelta(seconds=2)
+        assert (
+            before + refresh_delta
+            <= bundle.refresh_expires_at
+            <= after + refresh_delta + timedelta(seconds=2)
+        )
 
     def test_payload_contains_subject(self, settings: ApiSettings) -> None:
         bundle = create_token_bundle("uid-1", "alice", settings)
@@ -236,6 +246,22 @@ class TestDecodeToken:
         )
         with pytest.raises(TokenError):
             decode_token(bundle.access_token, other_settings)
+
+    def test_algorithm_none_rejected(self, settings: ApiSettings) -> None:
+        """Token with alg:none must be rejected (algorithm confusion attack)."""
+        header = (
+            base64.urlsafe_b64encode(json.dumps({"alg": "none", "typ": "JWT"}).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+        payload = (
+            base64.urlsafe_b64encode(json.dumps({"sub": "alice", "type": "access"}).encode())
+            .rstrip(b"=")
+            .decode()
+        )
+        none_token = f"{header}.{payload}."
+        with pytest.raises(TokenError):
+            decode_token(none_token, settings)
 
 
 # ---------------------------------------------------------------------------

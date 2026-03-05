@@ -226,9 +226,7 @@ class TestRateLimitMiddleware:
 
     def test_rate_limit_exceeded_returns_429(self) -> None:
         reset_at = int(time.time()) + 60
-        limiter = _FakeLimiter(
-            _FakeLimiterConfig(allowed=False, remaining=0, reset_at=reset_at)
-        )
+        limiter = _FakeLimiter(_FakeLimiterConfig(allowed=False, remaining=0, reset_at=reset_at))
         settings = _make_settings(rate_limit_enabled=True)
         app = _build_app(settings=settings, limiter=limiter, include_rate_limit=True)
         client = TestClient(app)
@@ -316,11 +314,29 @@ class TestRateLimitMiddleware:
         assert limit == 5
         assert window == 30
 
+    def test_rate_limit_key_format(self) -> None:
+        """Rate limit key must follow the '{client_id}:{path}' format (middleware.py:99)."""
+        limiter = _FakeLimiter()
+        settings = _make_settings(rate_limit_enabled=True)
+        app = _build_app(
+            settings=settings,
+            limiter=limiter,
+            include_rate_limit=True,
+            include_security=False,
+        )
+        client = TestClient(app)
+
+        client.get("/test")
+
+        assert len(limiter.calls) == 1
+        key, _limit, _window = limiter.calls[0]
+        # Unauthenticated requests use "ip:{address}" as the client identifier
+        assert key.startswith("ip:")
+        assert key.endswith(":/test")
+
     def test_rate_limit_headers_values(self) -> None:
         reset_ts = int(time.time()) + 120
-        limiter = _FakeLimiter(
-            _FakeLimiterConfig(allowed=True, remaining=42, reset_at=reset_ts)
-        )
+        limiter = _FakeLimiter(_FakeLimiterConfig(allowed=True, remaining=42, reset_at=reset_ts))
         settings = _make_settings(
             rate_limit_enabled=True,
             rate_limit_default_requests=100,
