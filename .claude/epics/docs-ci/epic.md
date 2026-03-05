@@ -1,9 +1,9 @@
 ---
 name: docs-ci
-status: backlog
+status: completed
 created: 2026-03-04T20:51:18Z
-updated: 2026-03-04T21:12:56Z
-progress: 0%
+updated: 2026-03-05T02:37:57Z
+progress: 100%
 prd: .claude/prds/docs-ci.md
 github: https://github.com/curdriceaurora/Local-File-Organizer/issues/589
 ---
@@ -65,11 +65,11 @@ Add CI automation to eliminate the recurring documentation PR review churn ident
 
 ## Task Breakdown Preview
 
-- [ ] Task 1: Add markdown linting CI workflow (docs-lint.yml)
-- [ ] Task 2: Add link validation CI workflow (docs-link-check.yml)
-- [ ] Task 3: Add file path existence test (test_doc_file_paths.py)
-- [ ] Task 4: Add pyproject.toml sync tests for extras + markers (test_pyproject_sync.py)
-- [ ] Task 5: Add new-file template (docs/_template.md)
+- [x] Task 1: Add markdown linting CI workflow (docs-lint.yml)
+- [x] Task 2: Add link validation CI workflow (docs-link-check.yml)
+- [x] Task 3: Add file path existence test (test_doc_file_paths.py)
+- [x] Task 4: Add pyproject.toml sync tests for extras + markers (test_pyproject_sync.py)
+- [x] Task 5: Add new-file template (docs/_template.md)
 
 ## Dependencies
 
@@ -101,11 +101,11 @@ Add CI automation to eliminate the recurring documentation PR review churn ident
 
 ## Tasks Created
 
-- [ ] #590 - Add markdown linting CI workflow (parallel: true)
-- [ ] #591 - Add link validation CI workflow (parallel: true)
-- [ ] #592 - Add file path existence test (parallel: true)
-- [ ] #593 - Add pyproject.toml sync tests (parallel: true)
-- [ ] #594 - Add new-file template for docs (parallel: true)
+- [x] #590 - Add markdown linting CI workflow (parallel: true)
+- [x] #591 - Add link validation CI workflow (parallel: true)
+- [x] #592 - Add file path existence test (parallel: true)
+- [x] #593 - Add pyproject.toml sync tests (parallel: true)
+- [x] #594 - Add new-file template for docs (parallel: true)
 
 Total tasks: 5
 Parallel tasks: 5
