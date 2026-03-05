@@ -1,0 +1,22 @@
+# .markdownlintignore — for local markdownlint-cli2 runs only.
+# The CI workflow (docs-lint.yml) uses an explicit glob (docs/**/*.md *.md)
+# and does not rely on this file. These entries exist so that running
+# `markdownlint-cli2 "**/*.md"` locally does not flag non-documentation files.
+
+# Internal CCPM framework files (not user-facing documentation)
+.claude/
+
+# Demo/sample content (illustrative files, not docs)
+demo_files/
+
+# Internal project management docs
+project-docs/
+
+# Source code READMEs (library-internal, not doc site)
+src/
+
+# Task tracking files
+tasks/
+
+# Test fixtures
+tests/fixtures/
