@@ -100,7 +100,7 @@ class PipelineOrchestrator:
         self._lock = threading.Lock()
         self._monitor = None
         self._watch_thread: threading.Thread | None = None
-        self._executor = ThreadPoolExecutor(max_workers=self.config.max_concurrent)
+        self._executor = ThreadPoolExecutor(max_workers=config.max_concurrent if config else 4)
 
     def start(self) -> None:
         """Start the pipeline, including watch mode if configured.
@@ -116,9 +116,6 @@ class PipelineOrchestrator:
                 raise RuntimeError("Pipeline is already running")
 
             self._running = True
-            # Recreate executor if it was shutdown in previous stop()
-            if self._executor._shutdown:
-                self._executor = ThreadPoolExecutor(max_workers=self.config.max_concurrent)
 
             # Start file monitor if watch config is provided
             if self.config.watch_config is not None:
@@ -152,9 +149,8 @@ class PipelineOrchestrator:
                 self._watch_thread.join(timeout=5.0)
                 self._watch_thread = None
 
-            # Shut down executor first, waiting for in-flight tasks to complete
-            # This ensures no race conditions with processor cleanup
-            self._executor.shutdown(wait=True)
+            # Clean up executor
+            self._executor.shutdown(wait=False)
 
             # Clean up processors
             self.processor_pool.cleanup()
@@ -196,8 +192,7 @@ class PipelineOrchestrator:
         # Check if extension is supported
         if not self.config.is_supported(file_path):
             duration_ms = (time.monotonic() - start_time) * 1000
-            with self._lock:
-                self.stats.skipped += 1
+            self.stats.skipped += 1
             return ProcessingResult(
                 file_path=file_path,
                 success=False,
@@ -211,8 +206,7 @@ class PipelineOrchestrator:
 
         if processor_type == ProcessorType.UNKNOWN:
             duration_ms = (time.monotonic() - start_time) * 1000
-            with self._lock:
-                self.stats.skipped += 1
+            self.stats.skipped += 1
             return ProcessingResult(
                 file_path=file_path,
                 success=False,
@@ -227,8 +221,7 @@ class PipelineOrchestrator:
 
         if processor is None:
             duration_ms = (time.monotonic() - start_time) * 1000
-            with self._lock:
-                self.stats.failed += 1
+            self.stats.failed += 1
             return ProcessingResult(
                 file_path=file_path,
                 success=False,
@@ -252,11 +245,10 @@ class PipelineOrchestrator:
             if self.config.should_move_files:
                 self._organize_file(file_path, destination)
 
-            # Update stats (thread-safe)
-            with self._lock:
-                self.stats.total_processed += 1
-                self.stats.successful += 1
-                self.stats.total_duration_ms += duration_ms
+            # Update stats
+            self.stats.total_processed += 1
+            self.stats.successful += 1
+            self.stats.total_duration_ms += duration_ms
 
             processing_result = ProcessingResult(
                 file_path=file_path,
@@ -279,10 +271,9 @@ class PipelineOrchestrator:
 
         except Exception as e:
             duration_ms = (time.monotonic() - start_time) * 1000
-            with self._lock:
-                self.stats.total_processed += 1
-                self.stats.failed += 1
-                self.stats.total_duration_ms += duration_ms
+            self.stats.total_processed += 1
+            self.stats.failed += 1
+            self.stats.total_duration_ms += duration_ms
 
             logger.exception("Failed to process %s", file_path)
 
@@ -391,19 +382,6 @@ class PipelineOrchestrator:
         shutil.copy2(source, final_dest)
         logger.info("Organized %s -> %s", source, final_dest)
 
-    def _process_watched_file(self, path: Path) -> None:
-        """Process a single watched file with error handling.
-
-        Wraps process_file so that exceptions are caught in the
-        executor thread rather than lost silently.
-        """
-        try:
-            self.process_file(path)
-        except FileNotFoundError:
-            logger.debug("File vanished before processing: %s", path)
-        except Exception:
-            logger.exception("Error processing %s", path)
-
     def _start_watch_mode(self) -> None:
         """Start the file monitor and watch thread."""
         from file_organizer.watcher import FileMonitor
@@ -420,7 +398,10 @@ class PipelineOrchestrator:
         logger.info("Watch mode started")
 
     def _watch_loop(self) -> None:
-        """Background loop that polls the monitor for events and processes them."""
+        """Background loop that polls the monitor for events and processes them.
+
+        Uses a thread pool executor to process files without blocking the event loop.
+        """
         while self._running and self._monitor is not None:
             try:
                 events = self._monitor.get_events(max_size=self.config.max_concurrent)
@@ -429,7 +410,11 @@ class PipelineOrchestrator:
                     if event.is_directory:
                         continue
 
-                    self._executor.submit(self._process_watched_file, event.path)
+                    try:
+                        # Submit to executor to avoid blocking the watch loop
+                        self._executor.submit(self.process_file, event.path)
+                    except Exception:
+                        logger.exception("Error processing %s", event.path)
 
             except Exception:
                 logger.exception("Error in watch loop")

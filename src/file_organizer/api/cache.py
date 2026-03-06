@@ -46,6 +46,8 @@ class CacheBackend(Protocol):
 
 @dataclass
 class _MemoryEntry:
+    """Cache entry with expiration timestamp."""
+
     value: str
     expires_at: float
 
@@ -53,7 +55,7 @@ class _MemoryEntry:
 class InMemoryCache:
     """In-process TTL cache implementation.
 
-    Thread-safe: all operations are protected by an internal lock.
+    Thread-safe: all access to ``_entries`` is protected by a lock.
     """
 
     def __init__(self) -> None:
@@ -126,10 +128,18 @@ class RedisCache:
         try:
             self._redis.close()
         except RedisError as exc:
-            logger.warning("Redis close failed: {}", exc)
+            logger.warning("Redis cache close failed: {}", exc)
 
 
 def _is_valid_redis_url(redis_url: str) -> bool:
+    """Check if the Redis URL has a valid scheme (redis, rediss, or unix).
+
+    Args:
+        redis_url: The Redis connection URL to validate.
+
+    Returns:
+        True if URL scheme is valid, False otherwise.
+    """
     parsed = urlparse(redis_url)
     return parsed.scheme in {"redis", "rediss", "unix"}
 

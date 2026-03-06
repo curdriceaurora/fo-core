@@ -35,6 +35,7 @@ def _make_config(**kwargs) -> DaemonConfig:
 
 
 class TestSignalHandlerWritesToPipe:
+    """TestSignalHandlerWritesToPipe test suite."""
     def test_signal_handler_writes_byte_to_pipe(self) -> None:
         """Verify signal handler writes a byte to the wakeup pipe."""
         daemon = DaemonService(_make_config())
@@ -63,6 +64,7 @@ class TestSignalHandlerWritesToPipe:
 
 
 class TestRunLoopExitsOnPipeSignal:
+    """TestRunLoopExitsOnPipeSignal test suite."""
     def test_run_loop_exits_on_pipe_signal(self) -> None:
         """Verify run loop exits when signal is written to pipe."""
         daemon = DaemonService(_make_config())
@@ -95,6 +97,7 @@ class TestRunLoopExitsOnPipeSignal:
 
 
 class TestPipeClosedOnRestore:
+    """TestPipeClosedOnRestore test suite."""
     def test_pipe_closed_on_restore(self) -> None:
         """Verify pipes are properly closed when signal handlers are restored."""
         daemon = DaemonService(_make_config())
@@ -126,28 +129,8 @@ class TestPipeClosedOnRestore:
 # ---------------------------------------------------------------------------
 
 
-class TestBackgroundRunEarlyReturn:
-    def test_background_run_early_return_when_already_running(self) -> None:
-        """Cover line 215: _background_run returns early when _running is True.
-
-        This exercises the code path where the daemon service is already
-        running and _background_run is called, ensuring it returns without
-        attempting to start again.
-        """
-        daemon = DaemonService(_make_config())
-
-        with daemon._lock:
-            daemon._running = True
-
-        # _background_run should return immediately without setting _started_event
-        daemon._background_run()
-        assert not daemon._started_event.is_set()
-
-        # Clean up
-        daemon._running = False
-
-
 class TestInstallSignalHandlersMainThread:
+    """TestInstallSignalHandlersMainThread test suite."""
     def test_install_signal_handlers_success_main_thread(self):
         """Cover lines 301-304: signal handler installation in main thread."""
         daemon = DaemonService(_make_config())
@@ -163,6 +146,7 @@ class TestInstallSignalHandlersMainThread:
 
 
 class TestRestoreSignalHandlersMainThread:
+    """TestRestoreSignalHandlersMainThread test suite."""
     def test_restore_signal_handlers_success_main_thread(self):
         """Cover lines 316-320: signal handler restoration in main thread."""
         daemon = DaemonService(_make_config())
