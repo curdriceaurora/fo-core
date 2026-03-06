@@ -17,6 +17,8 @@ from fastapi.testclient import TestClient
 from file_organizer.api.routers.health import router
 from file_organizer.version import __version__
 
+pytestmark = [pytest.mark.unit, pytest.mark.ci]
+
 # ---------------------------------------------------------------------------
 # Test fixtures / helpers
 # ---------------------------------------------------------------------------
@@ -49,7 +51,6 @@ def _mock_health(ollama: bool) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
 class TestHealthEndpoint:
     """Tests for GET /health."""
 

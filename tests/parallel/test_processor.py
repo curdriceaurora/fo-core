@@ -17,6 +17,8 @@ from file_organizer.parallel.config import ExecutorType, ParallelConfig
 from file_organizer.parallel.processor import ParallelProcessor, _execute_with_timing
 from file_organizer.parallel.result import BatchResult, FileResult
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # Simple test functions (no real file I/O)
 # ---------------------------------------------------------------------------
@@ -57,7 +59,7 @@ def _fail_then_succeed_factory() -> tuple[MagicMock, object]:
     return MagicMock(wraps=fn), call_counts
 
 
-@pytest.mark.unit
+@pytest.mark.ci
 class TestExecuteWithTiming(unittest.TestCase):
     """Test the _execute_with_timing helper function."""
 
@@ -83,7 +85,7 @@ class TestExecuteWithTiming(unittest.TestCase):
         self.assertGreater(result.duration_ms, 10.0)
 
 
-@pytest.mark.unit
+@pytest.mark.ci
 class TestParallelProcessorInit(unittest.TestCase):
     """Test ParallelProcessor initialization."""
 
@@ -109,7 +111,6 @@ class TestParallelProcessorInit(unittest.TestCase):
         self.assertEqual(processor.config.chunk_size, 5)
 
 
-@pytest.mark.unit
 class TestProcessBatch(unittest.TestCase):
     """Test ParallelProcessor.process_batch."""
 
@@ -214,7 +215,7 @@ class TestProcessBatch(unittest.TestCase):
         self.assertEqual(result.succeeded, 3)
 
 
-@pytest.mark.unit
+@pytest.mark.ci
 class TestProcessBatchRetry(unittest.TestCase):
     """Test retry behavior in process_batch."""
 
@@ -266,7 +267,7 @@ class TestProcessBatchRetry(unittest.TestCase):
         self.assertEqual(result.failed, 1)
 
 
-@pytest.mark.unit
+@pytest.mark.ci
 class TestProgressCallback(unittest.TestCase):
     """Test progress callback invocation."""
 
@@ -323,7 +324,7 @@ class TestProgressCallback(unittest.TestCase):
         self.assertEqual(sorted(completed_values), [1, 2, 3])
 
 
-@pytest.mark.unit
+@pytest.mark.ci
 class TestProcessBatchIter(unittest.TestCase):
     """Test ParallelProcessor.process_batch_iter."""
 
@@ -437,7 +438,7 @@ class TestExecutorFallback(unittest.TestCase):
         self.assertEqual(result.failed + result.succeeded, 2)
 
 
-@pytest.mark.unit
+@pytest.mark.ci
 class TestShutdown(unittest.TestCase):
     """Test ParallelProcessor.shutdown."""
 
