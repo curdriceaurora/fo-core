@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -245,3 +246,39 @@ def update_plugin(
         message=message,
         message_kind=message_kind,
     )
+
+
+@marketplace_router.get("/marketplace/plugins/{name}/details", response_class=HTMLResponse)
+def plugin_details(
+    request: Request,
+    name: str,
+    settings: ApiSettings = Depends(get_settings),
+) -> HTMLResponse:
+    """Display plugin details in a modal.
+
+    Args:
+        request: Incoming FastAPI request.
+        name: Plugin identifier.
+        settings: Application settings.
+
+    Returns:
+        Plugin details HTML fragment for modal.
+    """
+    try:
+        service = _service()
+        plugin = service.get_plugin(name)
+
+        if not plugin:
+            return HTMLResponse("<p>Plugin not found.</p>", status_code=404)
+
+        context = base_context(
+            request,
+            settings,
+            active="marketplace",
+            title=f"{plugin.name} Details",
+            extras={"plugin": plugin},
+        )
+        return templates.TemplateResponse(request, "marketplace/plugin_details.html", context)
+    except MarketplaceError as exc:
+        error_msg = escape(str(exc))
+        return HTMLResponse(f"<p>Error loading plugin details: {error_msg}</p>", status_code=500)

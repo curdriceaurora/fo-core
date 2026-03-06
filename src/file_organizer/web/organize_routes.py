@@ -799,7 +799,7 @@ async def organize_job_events(job_id: str) -> StreamingResponse:
 
 
 @organize_router.get("/organize/stats/events")
-async def organize_stats_events() -> StreamingResponse:
+async def organize_stats_events(request: Request) -> StreamingResponse:
     """Stream server-sent events for aggregate statistics updates.
 
     Emits events whenever job statistics change (active jobs, total jobs,
@@ -812,8 +812,10 @@ async def organize_stats_events() -> StreamingResponse:
     async def _event_generator() -> Any:
         last_payload = ""
         while True:
+            if await request.is_disconnected():
+                break
             stats = _build_organize_stats()
-            data = json.dumps(stats)
+            data = json.dumps(stats, sort_keys=True)
             if data != last_payload:
                 yield f"event: stats\ndata: {data}\n\n"
                 last_payload = data
@@ -833,27 +835,30 @@ async def organize_stats_events() -> StreamingResponse:
 
 @organize_router.get("/organize/history/events")
 async def organize_history_events(
-    status_filter: str = Query("all"),
-    limit: int = Query(50),
+    request: Request,
+    status_filter: str = Query("all", pattern="^(all|queued|running|completed|failed)$"),
+    limit: int = Query(50, ge=1, le=200),
 ) -> StreamingResponse:
     """Stream server-sent events for job history updates.
 
     Emits events whenever the job history changes (new jobs, status changes).
 
     Args:
+        request: Incoming FastAPI request.
         status_filter: Filter history by status (all, queued, running, completed, failed).
         limit: Maximum number of history records to include (1-200).
 
     Returns:
         SSE stream with periodic history updates.
     """
-    limit = max(1, min(limit, 200))
 
     async def _event_generator() -> Any:
         last_payload = ""
         while True:
+            if await request.is_disconnected():
+                break
             rows = _list_organize_jobs(status_filter=status_filter, limit=limit)
-            data = json.dumps(rows)
+            data = json.dumps(rows, sort_keys=True)
             if data != last_payload:
                 yield f"event: history\ndata: {data}\n\n"
                 last_payload = data

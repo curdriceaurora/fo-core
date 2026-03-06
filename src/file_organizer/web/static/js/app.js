@@ -60,12 +60,39 @@
   let organizeStatsEventSource = null;
   let organizeHistoryEventSource = null;
 
+  // SSE reconnection configuration and state
+  const sseReconnectConfig = {
+    maxRetries: 5,
+    maxDelay: 30000, // 30 seconds
+    initialDelay: 1000, // 1 second
+  };
+
+  const sseReconnectState = {
+    jobRetries: 0,
+    statsRetries: 0,
+    historyRetries: 0,
+    jobTimer: null,
+    statsTimer: null,
+    historyTimer: null,
+  };
+
+  const calculateBackoffDelay = (attempt) => {
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at maxDelay
+    const delay = sseReconnectConfig.initialDelay * Math.pow(2, attempt - 1);
+    return Math.min(delay, sseReconnectConfig.maxDelay);
+  };
+
   const closeOrganizeStream = () => {
     if (organizeEventSource) {
       organizeEventSource.close();
       organizeEventSource = null;
     }
+    if (sseReconnectState.jobTimer) {
+      clearTimeout(sseReconnectState.jobTimer);
+      sseReconnectState.jobTimer = null;
+    }
     organizeJobId = null;
+    sseReconnectState.jobRetries = 0;
   };
 
   const closeOrganizeStatsStream = () => {
@@ -73,6 +100,11 @@
       organizeStatsEventSource.close();
       organizeStatsEventSource = null;
     }
+    if (sseReconnectState.statsTimer) {
+      clearTimeout(sseReconnectState.statsTimer);
+      sseReconnectState.statsTimer = null;
+    }
+    sseReconnectState.statsRetries = 0;
   };
 
   const closeOrganizeHistoryStream = () => {
@@ -80,6 +112,11 @@
       organizeHistoryEventSource.close();
       organizeHistoryEventSource = null;
     }
+    if (sseReconnectState.historyTimer) {
+      clearTimeout(sseReconnectState.historyTimer);
+      sseReconnectState.historyTimer = null;
+    }
+    sseReconnectState.historyRetries = 0;
   };
 
   const dispatchOrganizeRefresh = () => {
@@ -118,8 +155,33 @@
         // Ignore parse errors
       }
     });
+    organizeStatsEventSource.onopen = () => {
+      // Reset retry counter on successful connection
+      if (sseReconnectState.statsTimer) {
+        clearTimeout(sseReconnectState.statsTimer);
+        sseReconnectState.statsTimer = null;
+      }
+      sseReconnectState.statsRetries = 0;
+    };
     organizeStatsEventSource.onerror = () => {
-      closeOrganizeStatsStream();
+      organizeStatsEventSource?.close();
+      organizeStatsEventSource = null;
+
+      // Attempt to reconnect with exponential backoff
+      if (sseReconnectState.statsRetries < sseReconnectConfig.maxRetries) {
+        sseReconnectState.statsRetries += 1;
+        const delay = calculateBackoffDelay(sseReconnectState.statsRetries);
+        console.log(
+          `SSE stats reconnection attempt ${sseReconnectState.statsRetries}/${sseReconnectConfig.maxRetries} in ${delay}ms`
+        );
+        sseReconnectState.statsTimer = setTimeout(() => {
+          bindOrganizeStatsStream();
+        }, delay);
+      } else {
+        console.error(
+          `SSE stats reconnection failed after ${sseReconnectConfig.maxRetries} attempts. Stats stream disconnected.`
+        );
+      }
     };
   };
 
@@ -134,26 +196,40 @@
       return;
     }
 
-    closeOrganizeHistoryStream();
     const filterInput = document.querySelector("[name='status_filter']");
     const limitInput = document.querySelector("[name='limit']");
     const statusFilter = filterInput ? filterInput.value : "all";
     const limit = limitInput ? limitInput.value : "50";
 
+    const encodedStatusFilter = encodeURIComponent(statusFilter);
+    const encodedLimit = encodeURIComponent(limit);
+
     organizeHistoryEventSource = new EventSource(
-      `/ui/organize/history/events?status_filter=${statusFilter}&limit=${limit}`
+      `/ui/organize/history/events?status_filter=${encodedStatusFilter}&limit=${encodedLimit}`
     );
     organizeHistoryEventSource.addEventListener("history", (event) => {
-      try {
-        const rows = JSON.parse(event.data);
-        // Trigger HTMX to refresh with the new data
-        dispatchOrganizeRefresh();
-      } catch (error) {
-        // Ignore parse errors
-      }
+      // SSE notifies of history change; let HTMX fetch fresh HTML
+      dispatchOrganizeRefresh();
     });
     organizeHistoryEventSource.onerror = () => {
-      closeOrganizeHistoryStream();
+      organizeHistoryEventSource?.close();
+      organizeHistoryEventSource = null;
+
+      // Attempt to reconnect with exponential backoff
+      if (sseReconnectState.historyRetries < sseReconnectConfig.maxRetries) {
+        sseReconnectState.historyRetries += 1;
+        const delay = calculateBackoffDelay(sseReconnectState.historyRetries);
+        console.log(
+          `SSE history reconnection attempt ${sseReconnectState.historyRetries}/${sseReconnectConfig.maxRetries} in ${delay}ms`
+        );
+        sseReconnectState.historyTimer = setTimeout(() => {
+          bindOrganizeHistoryStream();
+        }, delay);
+      } else {
+        console.error(
+          `SSE history reconnection failed after ${sseReconnectConfig.maxRetries} attempts. History stream disconnected.`
+        );
+      }
     };
   };
 
@@ -201,6 +277,7 @@
 
     closeOrganizeStream();
     organizeJobId = jobId;
+    sseReconnectState.jobRetries = 0;
     organizeEventSource = new EventSource(streamUrl);
     organizeEventSource.addEventListener("status", () => {
       void refreshOrganizeProgress(statusUrl);
@@ -211,7 +288,24 @@
       closeOrganizeStream();
     });
     organizeEventSource.onerror = () => {
-      closeOrganizeStream();
+      organizeEventSource?.close();
+      organizeEventSource = null;
+
+      // Attempt to reconnect with exponential backoff
+      if (sseReconnectState.jobRetries < sseReconnectConfig.maxRetries) {
+        sseReconnectState.jobRetries += 1;
+        const delay = calculateBackoffDelay(sseReconnectState.jobRetries);
+        console.log(
+          `SSE job reconnection attempt ${sseReconnectState.jobRetries}/${sseReconnectConfig.maxRetries} in ${delay}ms`
+        );
+        sseReconnectState.jobTimer = setTimeout(() => {
+          bindOrganizeDashboard();
+        }, delay);
+      } else {
+        console.error(
+          `SSE job reconnection failed after ${sseReconnectConfig.maxRetries} attempts. Job stream disconnected.`
+        );
+      }
     };
   };
 
