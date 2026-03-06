@@ -236,10 +236,12 @@ pytest
 pytest --cov=file_organizer --cov-report=html
 
 # Run specific test subsets
-pytest -m smoke         # Fast smoke suite (~3.2s) — local pre-commit validation
-pytest -m ci            # CI validation tests — PR check suite
-pytest -m "not slow"    # Skip slow tests for faster local development
-pytest tests/            # Full suite including regression tests (local and CI)
+pytest -m unit           # Unit tests only
+pytest -m smoke          # Fast smoke suite (~3.5s) — local pre-commit validation
+pytest -m ci             # CI validation tests — PR check suite
+pytest -m "not slow"     # Skip slow tests for faster local development
+pytest -m "not regression"  # Full suite without regression (PR validation)
+pytest tests/            # Full suite including regression tests (complete local/CI run)
 ```
 
 ### Test Markers
@@ -247,11 +249,11 @@ pytest tests/            # Full suite including regression tests (local and CI)
 | Marker | Purpose | When Used |
 |--------|---------|-----------|
 | `@pytest.mark.unit` | Fast unit tests | Both local and CI |
-| `@pytest.mark.smoke` | Critical-path tests for pre-commit (deterministic, fast) | Local pre-commit only |
+| `@pytest.mark.smoke` | Critical-path tests for pre-commit (~3.5s, deterministic, fast) | Local pre-commit validation |
 | `@pytest.mark.ci` | PR validation tests | GitHub Actions PR checks |
 | `@pytest.mark.integration` | Integration tests | Full CI runs |
 | `@pytest.mark.regression` | Full regression suite | Complete CI runs, manual testing |
-| `@pytest.mark.slow` | Long-running tests | Skipped in pre-commit and CI PRs |
+| `@pytest.mark.slow` | Long-running tests | Skipped in pre-commit and PR CI |
 
 ---
 
