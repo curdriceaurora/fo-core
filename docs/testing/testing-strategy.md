@@ -3,10 +3,12 @@
 ## Running Tests
 
 ```bash
-pytest                                          # All tests
+pytest                                          # Full test suite
 pytest --cov=file_organizer --cov-report=html  # With coverage
 pytest tests/services/ -v                       # Specific directory
-pytest -m "not regression" -x                  # Skip regression tests, stop on first fail
+pytest -m smoke -x                              # Fast smoke suite (pre-commit validation, deterministic)
+pytest -m ci -x                                 # CI tests for PR validation
+pytest -m "not regression" -x                   # All tests except regression (full run)
 pytest -k "backup or dedup"                     # Filter by name
 ```
 
@@ -14,12 +16,13 @@ pytest -k "backup or dedup"                     # Filter by name
 
 ```python
 @pytest.mark.unit          # Unit tests
+@pytest.mark.smoke         # Fast critical-path tests (pre-commit validation)
 @pytest.mark.integration   # Integration tests
 @pytest.mark.e2e           # End-to-end tests
 @pytest.mark.benchmark     # Performance benchmarks
 @pytest.mark.ci            # CI-specific tests
 @pytest.mark.slow          # Slow tests
-@pytest.mark.regression    # Regression tests
+@pytest.mark.regression    # Regression tests (full suite only)
 
 def test_example():
     pass
