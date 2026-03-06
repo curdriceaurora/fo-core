@@ -284,21 +284,23 @@ class TestCheckpointAtomicWrites(unittest.TestCase):
 
     def test_save_checkpoint_uses_temp_file_then_replace(self) -> None:
         """Test save_checkpoint writes temp file before replacing target."""
+        import os as os_module
+
         f1 = self.tmp_path / "a.txt"
         f1.write_text("a", encoding="utf-8")
         ckpt = self.mgr.create_checkpoint("atomic-1", [f1], [])
 
         checkpoint_path = self.ckpt_dir / "atomic-1.checkpoint.json"
-        original_replace = Path.replace
+        original_replace = os_module.replace
         saw_temp_file_before_replace = False
 
-        def wrapped_replace(path_self: Path, target: Path) -> Path:
+        def wrapped_replace(src, dst):
             nonlocal saw_temp_file_before_replace
-            if path_self.suffix == ".tmp":
-                saw_temp_file_before_replace = path_self.exists()
-            return original_replace(path_self, target)
+            if str(src).endswith(".tmp"):
+                saw_temp_file_before_replace = Path(src).exists()
+            return original_replace(src, dst)
 
-        with patch.object(Path, "replace", autospec=True, side_effect=wrapped_replace):
+        with patch("os.replace", side_effect=wrapped_replace):
             self.mgr.save_checkpoint(ckpt)
 
         self.assertTrue(saw_temp_file_before_replace)
@@ -307,6 +309,8 @@ class TestCheckpointAtomicWrites(unittest.TestCase):
 
     def test_save_checkpoint_failure_keeps_existing_file(self) -> None:
         """Test failed temp write does not corrupt existing checkpoint file."""
+        import builtins
+
         f1 = self.tmp_path / "a.txt"
         f2 = self.tmp_path / "b.txt"
         f1.write_text("a", encoding="utf-8")
@@ -315,17 +319,17 @@ class TestCheckpointAtomicWrites(unittest.TestCase):
 
         checkpoint_path = self.ckpt_dir / "atomic-2.checkpoint.json"
         original_contents = checkpoint_path.read_text(encoding="utf-8")
-        original_write_text = Path.write_text
+        original_open = builtins.open
 
-        def failing_temp_write(path_self: Path, data: str, encoding: str = "utf-8") -> int:
-            if path_self.suffix == ".tmp":
+        def failing_open(path, *args, **kwargs):
+            if str(path).endswith(".tmp"):
                 raise OSError("simulated write failure")
-            return original_write_text(path_self, data, encoding=encoding)
+            return original_open(path, *args, **kwargs)
 
         ckpt.completed_paths.append(f2)
         ckpt.pending_paths = []
 
-        with patch.object(Path, "write_text", autospec=True, side_effect=failing_temp_write):
+        with patch("builtins.open", side_effect=failing_open):
             with self.assertRaises(OSError):
                 self.mgr.save_checkpoint(ckpt)
 
@@ -420,6 +424,34 @@ class TestHasFileChanged(unittest.TestCase):
         ckpt = self.mgr.create_checkpoint("del-file-test", [f], [])
         f.unlink()
         self.assertTrue(self.mgr.has_file_changed(ckpt, f))
+
+
+@pytest.mark.unit
+class TestCheckpointFsync(unittest.TestCase):
+    """Test that save_checkpoint uses fsync before atomic rename."""
+
+    def setUp(self) -> None:
+        import tempfile
+
+        self._tmpdir = tempfile.mkdtemp()
+        self.tmp_path = Path(self._tmpdir)
+        self.mgr = CheckpointManager(checkpoints_dir=self.tmp_path / "ckpts")
+
+    def tearDown(self) -> None:
+        import shutil
+
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_save_checkpoint_calls_fsync(self) -> None:
+        """Verify os.fsync is called during save_checkpoint (file + directory)."""
+        ckpt = Checkpoint(job_id="fsync-test", file_hashes={})
+        with patch("os.fsync") as mock_fsync:
+            self.mgr.save_checkpoint(ckpt)
+            # fsync is called twice: once on file, once on directory
+            self.assertEqual(mock_fsync.call_count, 2)
+        # Verify the checkpoint was actually saved
+        loaded = self.mgr.load_checkpoint("fsync-test")
+        self.assertIsNotNone(loaded)
 
 
 if __name__ == "__main__":

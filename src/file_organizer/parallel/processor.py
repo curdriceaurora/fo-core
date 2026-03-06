@@ -178,7 +178,9 @@ class ParallelProcessor:
         max_workers = self._config.max_workers or os.cpu_count() or 1
         owns_executor = executor is None
         if owns_executor:
-            executor_type = "process" if self._config.executor_type == ExecutorType.PROCESS else "thread"
+            executor_type = (
+                "process" if self._config.executor_type == ExecutorType.PROCESS else "thread"
+            )
             exec_instance, self._executor_type_used = create_executor(executor_type, max_workers)
         else:
             assert executor is not None

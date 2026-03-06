@@ -258,27 +258,38 @@ class TestSignalHandling:
         Since pytest may not be on the main thread in all configurations,
         we test the handler mechanism directly.
         """
+        import os
+
+        from .conftest import wired_pipe
+
         svc = DaemonService(config)
 
-        # Directly test the signal-handling plumbing
-        svc._stop_event.clear()
-        svc._running = True
+        with wired_pipe(svc) as (r, _w):
+            svc._stop_event.clear()
+            svc._running = True
 
-        # Simulate receiving SIGTERM
-        svc._handle_signal(signal.SIGTERM, None)
+            svc._handle_signal(signal.SIGTERM, None)
 
-        assert svc._stop_event.is_set()
+            data = os.read(r, 1024)
+            assert len(data) > 0
 
-        # Clean up
         svc._running = False
 
     def test_sigint_triggers_stop(self, config: DaemonConfig) -> None:
-        """SIGINT triggers the stop event via the handler."""
+        """SIGINT triggers the stop event via the handler (writes to pipe)."""
+        import os
+
+        from .conftest import wired_pipe
+
         svc = DaemonService(config)
-        svc._stop_event.clear()
-        svc._running = True
 
-        svc._handle_signal(signal.SIGINT, None)
+        with wired_pipe(svc) as (r, _w):
+            svc._stop_event.clear()
+            svc._running = True
 
-        assert svc._stop_event.is_set()
+            svc._handle_signal(signal.SIGINT, None)
+
+            data = os.read(r, 1024)
+            assert len(data) > 0
+
         svc._running = False

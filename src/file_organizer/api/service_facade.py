@@ -327,7 +327,7 @@ class ServiceFacade:
 
         Args:
             path: Absolute path to a directory whose files should be
-                analysed.
+                analysed. Must be pre-validated by the API layer.
 
         Returns:
             ``{"success": True, "data": {"suggestions": [...]}}`` where each
@@ -339,6 +339,7 @@ class ServiceFacade:
 
             def _blocking_suggestions() -> list[dict[str, Any]]:
                 engine = SuggestionEngine()
+                # Path must be pre-validated at API boundary
                 target = Path(path)
                 files = [p for p in target.rglob("*") if p.is_file()]
                 suggestions = engine.generate_suggestions(files)
@@ -375,6 +376,7 @@ class ServiceFacade:
 
         Args:
             scan_dir: Absolute path to the directory to scan.
+                Must be pre-validated by the API layer.
 
         Returns:
             ``{"success": True, "data": {"statistics": {...}, "groups": [...]}}``
@@ -389,6 +391,7 @@ class ServiceFacade:
 
             def _blocking_dedup() -> dict[str, Any]:
                 detector = DuplicateDetector()
+                # Path must be pre-validated at API boundary
                 detector.scan_directory(Path(scan_dir))
 
                 stats = detector.get_statistics()
