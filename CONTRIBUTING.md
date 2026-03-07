@@ -92,7 +92,23 @@ git commit --no-verify
 
 ## Pre-Push Checklist
 
-Before pushing changes, run these checks to avoid wasting CI minutes and Copilot Review quota:
+**MANDATORY**: Before EVERY push, run the pre-commit validation script:
+
+```bash
+bash .claude/scripts/pre-commit-validation.sh
+# Must pass (exit code 0) before proceeding to push
+```
+
+This script validates:
+- Code linting (ruff)
+- Type checking (mypy strict)
+- Test suite (smoke tests for speed)
+- Pattern validation (dict-style dataclass access, imports, etc.)
+- Documentation (links, markers, coverage gate claims)
+
+**Do not push if validation fails.** Fix violations and re-run until it passes.
+
+---
 
 ### Quick Check (recommended before every push)
 
@@ -257,14 +273,58 @@ pytest tests/            # Full suite including regression tests (complete local
 
 ---
 
+## Quality Gates
+
+Before committing code, this project enforces three quality gates (in order):
+
+1. **Code Simplification** (`/simplify` skill)
+   - Review code for efficiency and reuse
+   - Suggest optimizations and improvements
+   - Run after significant code changes (>50 lines)
+
+2. **Code Review** (`/code-reviewer` skill)
+   - Validate implementation against CLAUDE.md standards
+   - Check for architectural and design issues
+   - Verify test logic and assertions
+
+3. **Pre-Commit Validation** (`bash .claude/scripts/pre-commit-validation.sh`)
+   - Lint, format, type-check, test, validate patterns
+   - Must PASS before committing
+   - Prevents CI failures due to local issues
+
+**Order matters**: Simplify → Code Review → Pre-Commit → Commit
+
+For details, see `.claude/rules/code-quality-validation.md`.
+
+---
+
 ## Pull Requests
 
 1. Create a feature branch from `main`: `git checkout -b feature/description`
 2. Make changes with tests
-3. Run `./scripts/test-local-matrix.sh --quick` (minimum) or full matrix
-4. Run `ruff check src/` for linting
-5. Commit with descriptive message
-6. Push and open a PR against `main`
+3. Run quality gates:
+   - `/simplify` (if >50 lines of code changes)
+   - `/code-reviewer` (validate design and logic)
+   - `bash .claude/scripts/pre-commit-validation.sh` (must pass)
+4. Commit with descriptive message following conventional commits
+5. Push and open a PR against `main`
 
 PRs trigger both CI workflows automatically. Copilot Review runs on every PR (premium feature),
-so catching issues locally saves real money.
+so catching issues locally via quality gates saves time and money.
+
+---
+
+## PR Review Response Protocol
+
+If reviewers request changes:
+
+1. **Extract all findings upfront** (don't iterate one at a time)
+2. **Verify each finding** against current code
+3. **Apply all fixes in one local pass** (no pushing between fixes)
+4. **Run quality gates** (simplify → code-reviewer → pre-commit)
+5. **Commit and push once** with comprehensive message
+6. **Don't monitor iteratively** — trust your quality gates did their job
+
+This single-pass approach prevents review churn and keeps PR history clean.
+
+See `.claude/rules/pr-review-response-protocol.md` for full details.
