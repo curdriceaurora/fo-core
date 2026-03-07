@@ -188,30 +188,40 @@ pr_merge_safe() {
 
   echo "🔍 Checking PR #$pr_num..."
 
+  # Validate that PR number is strictly numeric
+  if ! [[ "$pr_num" =~ ^[0-9]+$ ]]; then
+    echo "❌ Invalid PR number: $pr_num"
+    return 1
+  fi
+
   # Get current state
-  local state=$(gh pr view $pr_num --json mergeStateStatus,mergeable -q '.mergeStateStatus + "," + .mergeable')
-  local merge_state=$(echo $state | cut -d',' -f1)
-  local mergeable=$(echo $state | cut -d',' -f2)
+  local state
+  state=$(gh pr view "$pr_num" --json mergeStateStatus,mergeable -q '.mergeStateStatus + "," + .mergeable')
+  local merge_state
+  merge_state=$(echo "$state" | cut -d',' -f1)
+  local mergeable
+  mergeable=$(echo "$state" | cut -d',' -f2)
 
   # Check if blocked due to stale branch
   if [ "$merge_state" = "BLOCKED" ] && [ "$mergeable" = "MERGEABLE" ]; then
     echo "⚠️  Branch is stale - updating..."
-    gh pr update-branch $pr_num
+    gh pr update-branch "$pr_num"
     echo "⏳ Waiting for CI (120 seconds)..."
     sleep 120
   fi
 
   # Check final state before merge
-  local final_state=$(gh pr view $pr_num --json mergeStateStatus -q '.mergeStateStatus')
+  local final_state
+  final_state=$(gh pr view "$pr_num" --json mergeStateStatus -q '.mergeStateStatus')
   if [ "$final_state" = "BLOCKED" ]; then
     echo "❌ PR still blocked - cannot merge"
-    echo "Run: gh pr view $pr_num --json mergeStateStatus,mergeable"
+    echo "Run: gh pr view \"$pr_num\" --json mergeStateStatus,mergeable"
     return 1
   fi
 
   # Merge
   echo "✅ Merging PR #$pr_num..."
-  gh pr merge $pr_num --squash
+  gh pr merge "$pr_num" --squash
 }
 
 # Usage:
@@ -228,8 +238,14 @@ Before running `gh pr merge`:
 #!/bin/bash
 PR_NUM=$1
 
+# Validate that PR number is strictly numeric
+if ! [[ "$PR_NUM" =~ ^[0-9]+$ ]]; then
+  echo "❌ Invalid PR number: $PR_NUM"
+  exit 1
+fi
+
 # Get base commit when PR was created
-PR_BASE=$(gh pr view $PR_NUM --json baseRefOid -q '.baseRefOid[0:8]')
+PR_BASE=$(gh pr view "$PR_NUM" --json baseRefOid -q '.baseRefOid[0:8]')
 
 # Get current main
 MAIN_HEAD=$(git log main --oneline -1 | awk '{print $1}')
@@ -238,7 +254,7 @@ MAIN_HEAD=$(git log main --oneline -1 | awk '{print $1}')
 if [ "$PR_BASE" != "$MAIN_HEAD" ]; then
   echo "📌 PR is behind main ($PR_BASE vs $MAIN_HEAD)"
   echo "Updating branch before merge..."
-  gh pr update-branch $PR_NUM
+  gh pr update-branch "$PR_NUM"
   echo "✅ Update queued - CI will re-run"
   exit 0
 fi
