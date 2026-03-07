@@ -6,18 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from file_organizer.plugins.marketplace.errors import MarketplaceError
 
-def _mock_marketplace_service() -> MagicMock:
-    """Create marketplace service mock with deterministic test behavior.
-
-    Returns a MagicMock configured with:
-    - list_plugins() returns ([], 0) - empty list with count
-    - list_installed() returns [] - empty list, iterable for _render_marketplace_page
-    """
-    mock_instance = MagicMock()
-    mock_instance.list_plugins.return_value = ([], 0)
-    mock_instance.list_installed.return_value = []
-    return mock_instance
+from .test_helpers import assert_html_contains, assert_html_contains_any, assert_html_tag_present
 
 
 @pytest.mark.unit
@@ -114,7 +105,7 @@ class TestMarketplaceHtmxEndpoints:
         # Should handle HTMX request header
         assert response.status_code == 200
         # HTMX requests should return HTML fragment with searchable content
-        assert "marketplace" in response.text.lower() or "plugin" in response.text.lower()
+        assert_html_contains_any(response.text, "marketplace", "plugin")
 
     def test_marketplace_htmx_pagination(self, web_client_builder) -> None:
         """HTMX pagination should return marketplace results with updated page."""
@@ -123,15 +114,14 @@ class TestMarketplaceHtmxEndpoints:
         response = client.get("/ui/marketplace?page=2", headers=headers)
         assert response.status_code == 200
         # HTMX requests should return HTML fragment with results
-        assert "marketplace" in response.text.lower() or "plugin" in response.text.lower()
+        assert_html_contains_any(response.text, "marketplace", "plugin")
 
-    def test_marketplace_plugin_installation_action(self, web_client_builder) -> None:
+    def test_marketplace_plugin_installation_action(self, web_client_builder, mock_marketplace_service) -> None:
         """Should support plugin installation via HTMX POST request."""
         client = web_client_builder(allowed_paths=[])
         # Mock the MarketplaceService.install method
         with patch("file_organizer.web.marketplace_routes.MarketplaceService") as mock_service_class:
-            mock_instance = _mock_marketplace_service()
-            mock_service_class.return_value = mock_instance
+            mock_service_class.return_value = mock_marketplace_service
 
             # Test the install endpoint with a valid plugin name
             response = client.post(
@@ -145,24 +135,26 @@ class TestMarketplaceHtmxEndpoints:
             # Route always returns 200 (renders marketplace page with message)
             assert response.status_code == 200
             # Should return HTML marketplace page
-            assert any(tag in response.text.lower() for tag in ["<html", "<body", "marketplace"])
-            # Verify install method was called with plugin name
-            mock_instance.install.assert_called()
+            assert_html_tag_present(response.text, "<html", "<body")
+            assert_html_contains_any(response.text, "marketplace")
+            # Verify install method was called with correct plugin name
+            mock_marketplace_service.install.assert_called_once_with("test-plugin")
 
 
 @pytest.mark.unit
 class TestMarketplaceInstallFlow:
     """Tests for plugin installation workflow."""
 
-    def test_marketplace_preinstall_check(self, web_client_builder) -> None:
-        """Should validate plugin before installation."""
+    def test_marketplace_preinstall_check(self, web_client_builder, mock_marketplace_service) -> None:
+        """Should validate plugin before installation and handle errors."""
         client = web_client_builder(allowed_paths=[])
-        # Mock the MarketplaceService to handle validation
+        # Mock the MarketplaceService to simulate error for nonexistent plugin
         with patch("file_organizer.web.marketplace_routes.MarketplaceService") as mock_service_class:
-            mock_instance = _mock_marketplace_service()
-            mock_service_class.return_value = mock_instance
+            # Configure mock to raise error for nonexistent plugin
+            mock_marketplace_service.install.side_effect = MarketplaceError("Plugin not found")
+            mock_service_class.return_value = mock_marketplace_service
 
-            # Test that install endpoint rejects invalid plugin names or missing plugins
+            # Test that install endpoint handles nonexistent plugins
             response = client.post(
                 "/ui/marketplace/plugins/nonexistent-plugin/install",
                 data={
@@ -171,20 +163,20 @@ class TestMarketplaceInstallFlow:
                     "tag_csv": "",
                 },
             )
-            # Route always returns 200 (renders marketplace page with message)
+            # Route returns 200 (renders marketplace page with error message)
             assert response.status_code == 200
-            # Should return HTML marketplace page
-            assert any(tag in response.text.lower() for tag in ["<html", "<body", "marketplace"])
-            # Verify install was called even for nonexistent plugins (validation happens in service)
-            mock_instance.install.assert_called()
+            # Should return HTML marketplace page with error feedback
+            assert_html_tag_present(response.text, "<html", "<body")
+            assert_html_contains_any(response.text, "nonexistent-plugin", "not found")
+            # Verify install was called with the nonexistent plugin name
+            mock_marketplace_service.install.assert_called_once_with("nonexistent-plugin")
 
-    def test_marketplace_install_progress(self, web_client_builder) -> None:
+    def test_marketplace_install_progress(self, web_client_builder, mock_marketplace_service) -> None:
         """Should handle installation workflow."""
         client = web_client_builder(allowed_paths=[])
         # Mock the MarketplaceService to track install progress
         with patch("file_organizer.web.marketplace_routes.MarketplaceService") as mock_service_class:
-            mock_instance = _mock_marketplace_service()
-            mock_service_class.return_value = mock_instance
+            mock_service_class.return_value = mock_marketplace_service
 
             # Test the full install workflow by calling the install endpoint
             response = client.post(
@@ -198,9 +190,10 @@ class TestMarketplaceInstallFlow:
             # Route always returns 200 (renders marketplace page with message)
             assert response.status_code == 200
             # Should return HTML marketplace page with search preserved
-            assert any(tag in response.text.lower() for tag in ["<html", "<body", "marketplace"])
-            # Verify install was called for sample plugin
-            mock_instance.install.assert_called()
+            assert_html_tag_present(response.text, "<html", "<body")
+            assert_html_contains_any(response.text, "marketplace")
+            # Verify install was called with correct plugin name
+            mock_marketplace_service.install.assert_called_once_with("sample-plugin")
 
 
 @pytest.mark.unit
@@ -222,14 +215,39 @@ class TestMarketplaceInputValidation:
         # 422 is correct for pagination validation failure (page >= 1)
         assert response.status_code == 422
 
-    def test_marketplace_filter_result_count_accuracy(self, web_client_builder) -> None:
+    def test_marketplace_filter_result_count_accuracy(self, web_client_builder, mock_marketplace_service) -> None:
         """Filter results should accurately represent filtered content."""
         client = web_client_builder(allowed_paths=[])
+
+        # Mock list_plugins to return filtered results for category filter
+        # Note: MagicMock(name=...) sets the internal debug name, not .name attribute
+        pdf_plugin = MagicMock()
+        pdf_plugin.name = "pdf-reader"
+        pdf_plugin.category = "readers"
+        pdf_plugin.version = "1.0"
+        pdf_plugin.description = "PDF reader plugin"
+        pdf_plugin.author = "test-author"
+        pdf_plugin.downloads = 100
+        pdf_plugin.rating = 4.5
+        epub_plugin = MagicMock()
+        epub_plugin.name = "epub-reader"
+        epub_plugin.category = "readers"
+        epub_plugin.version = "1.0"
+        epub_plugin.description = "EPUB reader plugin"
+        epub_plugin.author = "test-author"
+        epub_plugin.downloads = 50
+        epub_plugin.rating = 4.0
+        reader_plugins = ([pdf_plugin, epub_plugin], 2)
+        mock_marketplace_service.list_plugins.return_value = reader_plugins
+
         # Search for specific category
-        response = client.get("/ui/marketplace?category=readers")
+        with patch("file_organizer.web.marketplace_routes.MarketplaceService") as mock_service_class:
+            mock_service_class.return_value = mock_marketplace_service
+            response = client.get("/ui/marketplace?category=readers")
+
         assert response.status_code == 200
-        # Verify response includes result counts or plugin list
-        assert "plugin" in response.text.lower() or "marketplace" in response.text.lower()
+        # Verify response includes BOTH filtered plugin names
+        assert_html_contains(response.text, "pdf-reader", "epub-reader")
 
 
 @pytest.mark.unit

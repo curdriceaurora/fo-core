@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from .test_helpers import assert_file_order_in_html
+
 
 @pytest.mark.unit
 class TestFilesBrowse:
@@ -46,33 +48,24 @@ class TestFilesBrowse:
 class TestFilesSorting:
     """Tests for file sorting endpoints."""
 
-    def test_files_sort_by_name(self, tmp_path: Path, web_client_builder) -> None:
-        """Should handle sort by name parameter."""
-        (tmp_path / "b.txt").write_text("test")
-        (tmp_path / "a.txt").write_text("test")
+    @pytest.mark.parametrize(
+        "sort_by,files,expected_order",
+        [
+            ("name", {"a.txt": "test", "b.txt": "test"}, ["a.txt", "b.txt"]),
+            ("size", {"small.txt": "x", "large.txt": "x" * 1000}, ["small.txt", "large.txt"]),
+            ("type", {"file.txt": "test", "file.pdf": "test"}, ["file.pdf", "file.txt"]),
+        ],
+        ids=["by_name", "by_size", "by_type"],
+    )
+    def test_files_sort(self, tmp_path: Path, web_client_builder, sort_by: str, files: dict, expected_order: list) -> None:
+        """Should handle various file sorting parameters."""
+        for filename, content in files.items():
+            (tmp_path / filename).write_text(content)
 
         client = web_client_builder(allowed_paths=[str(tmp_path)])
-        response = client.get("/ui/files?sort_by=name")
+        response = client.get(f"/ui/files?sort_by={sort_by}")
         assert response.status_code == 200
-        # Verify files are sorted by name (ascending)
-        content = response.text
-        assert "a.txt" in content
-        assert "b.txt" in content
-        assert content.index("a.txt") < content.index("b.txt")
-
-    def test_files_sort_by_size(self, tmp_path: Path, web_client_builder) -> None:
-        """Should handle sort by size parameter."""
-        (tmp_path / "large.txt").write_text("x" * 1000)
-        (tmp_path / "small.txt").write_text("x")
-
-        client = web_client_builder(allowed_paths=[str(tmp_path)])
-        response = client.get("/ui/files?sort_by=size")
-        assert response.status_code == 200
-        # Verify files are sorted by size (ascending - small before large)
-        content = response.text
-        assert "small.txt" in content
-        assert "large.txt" in content
-        assert content.index("small.txt") < content.index("large.txt")
+        assert_file_order_in_html(response.text, *expected_order)
 
     def test_files_sort_by_modified(self, tmp_path: Path, web_client_builder) -> None:
         """Should handle sort by modified time parameter."""
@@ -87,10 +80,7 @@ class TestFilesSorting:
         response = client.get("/ui/files?sort_by=modified")
         assert response.status_code == 200
         # Verify files are sorted by modified time (older before newer)
-        content = response.text
-        assert "file_old.txt" in content
-        assert "file_new.txt" in content
-        assert content.index("file_old.txt") < content.index("file_new.txt")
+        assert_file_order_in_html(response.text, "file_old.txt", "file_new.txt")
 
     @pytest.mark.skipif(
         platform.system() in ("Windows", "Darwin"),
@@ -110,25 +100,7 @@ class TestFilesSorting:
         response = client.get("/ui/files?sort_by=created")
         assert response.status_code == 200
         # Verify files are sorted by created time (first before second)
-        content = response.text
-        assert "file_first.txt" in content
-        assert "file_second.txt" in content
-        assert content.index("file_first.txt") < content.index("file_second.txt")
-
-    def test_files_sort_by_type(self, tmp_path: Path, web_client_builder) -> None:
-        """Should handle sort by type parameter."""
-        (tmp_path / "file.txt").write_text("test")
-        (tmp_path / "file.pdf").write_text("test")
-
-        client = web_client_builder(allowed_paths=[str(tmp_path)])
-        response = client.get("/ui/files?sort_by=type")
-        assert response.status_code == 200
-        # Verify files are sorted by type extension
-        content = response.text
-        assert "file.txt" in content
-        assert "file.pdf" in content
-        # PDF comes before TXT alphabetically by extension
-        assert content.index("file.pdf") < content.index("file.txt")
+        assert_file_order_in_html(response.text, "file_first.txt", "file_second.txt")
 
     def test_files_sort_descending(self, tmp_path: Path, web_client_builder) -> None:
         """Should handle descending sort order via sort_order parameter."""
@@ -138,11 +110,8 @@ class TestFilesSorting:
         client = web_client_builder(allowed_paths=[str(tmp_path)])
         response = client.get("/ui/files?sort_by=name&sort_order=desc")
         assert response.status_code == 200
-        content = response.text
-        assert "a.txt" in content
-        assert "b.txt" in content
         # In descending order by name, "b.txt" should appear before "a.txt"
-        assert content.index("b.txt") < content.index("a.txt")
+        assert_file_order_in_html(response.text, "b.txt", "a.txt")
 
 
 @pytest.mark.unit
