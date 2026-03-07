@@ -367,6 +367,139 @@ if [[ -n "$DOCS_FILES" ]]; then
   echo ""
 fi
 
+# 7a-3. Documentation Content Verification (Claims, Examples, Consistency)
+#        Ensures docs match reality and contain valid, tested examples
+if [[ -n "$DOCS_FILES" ]]; then
+  echo "📚 Running documentation content verification..."
+  DOC_VERIFICATION_FAILED=0
+
+  for doc_file in $DOCS_FILES; do
+    if [[ ! -f "$doc_file" ]]; then
+      continue
+    fi
+
+    # Check 1: Verify percentage claims match actual config/code
+    # Pattern: Looks for "XX%" references and validates against known sources
+    PERCENTAGE_CLAIMS=$(grep -n '[0-9]\+%' "$doc_file" | grep -iE 'coverage|gate|threshold' || true)
+    if [[ -n "$PERCENTAGE_CLAIMS" ]]; then
+      # Check for outdated 74% CI gate claims (should be 95%)
+      if grep -q '74%' "$doc_file"; then
+        echo "❌ $doc_file: Found outdated 74% CI gate reference (should be 95%)"
+        echo "   Fix: Update coverage gate claims to match actual CI enforcement"
+        DOC_VERIFICATION_FAILED=1
+      fi
+
+      # Check for 95% coverage gate accuracy
+      if grep -q '95%.*code.*coverage\|95%.*CI.*gate' "$doc_file"; then
+        # Verify this matches pyproject.toml
+        if ! grep -q 'cov-fail-under.*95\|--cov-fail-under=95' pyproject.toml 2>/dev/null; then
+          echo "❌ $doc_file: Claims 95% coverage gate but pyproject.toml doesn't enforce it"
+          DOC_VERIFICATION_FAILED=1
+        fi
+      fi
+    fi
+
+    # Check 2: Verify method/function examples exist in codebase
+    # Pattern: Looks for method calls like "ClassName.method_name(" and validates
+    METHOD_CALLS=$(grep -oE '[A-Z][a-zA-Z0-9_]*\.[a-z_][a-zA-Z0-9_]*\(' "$doc_file" | sort -u || true)
+    for method_call in $METHOD_CALLS; do
+      METHOD_NAME=$(echo "$method_call" | sed 's/($//')
+      CLASS_NAME=$(echo "$method_call" | cut -d. -f1)
+
+      # Search for this method in src/ (skip test files)
+      if ! grep -r "def ${METHOD_NAME#*.}" src/ 2>/dev/null | grep -q .; then
+        # Could be a private method or legitimately not in codebase
+        # Only warn if it looks like a public API method
+        if [[ "$METHOD_NAME" != *"_"* ]]; then
+          echo "⚠️  $doc_file: Method $METHOD_NAME may not exist in codebase (verify manually)"
+        fi
+      fi
+    done
+
+    # Check 3: Detect contradictions (same doc claims completion AND "not implemented")
+    if grep -qi 'complete\|✅.*done' "$doc_file" && grep -qi '0%.*coverage\|not.*implement' "$doc_file"; then
+      # Verify if this is a contradiction
+      COMPLETE_LINES=$(grep -n -i 'complete\|✅.*done' "$doc_file" | head -2 | cut -d: -f1)
+      NOT_IMPL_LINES=$(grep -n -i '0%.*coverage\|not.*implement' "$doc_file" | head -2 | cut -d: -f1)
+
+      if [[ -n "$COMPLETE_LINES" ]] && [[ -n "$NOT_IMPL_LINES" ]]; then
+        echo "⚠️  $doc_file: Found potential contradiction:"
+        echo "   - Line $(echo $COMPLETE_LINES | head -1): Claims completion"
+        echo "   - Line $(echo $NOT_IMPL_LINES | head -1): Claims 0% / not implemented"
+        echo "   Verify these statements are consistent (same module/feature)"
+      fi
+    fi
+
+    # Check 4: Verify coverage percentages are realistic
+    # Extracted coverage % values should be between 0-100
+    COVERAGE_PERCENTAGES=$(grep -oE '[0-9]{1,3}%' "$doc_file" | sed 's/%//' | sort -u)
+    for pct in $COVERAGE_PERCENTAGES; do
+      if [[ $pct -gt 100 ]]; then
+        echo "❌ $doc_file: Found unrealistic coverage percentage: $pct%"
+        DOC_VERIFICATION_FAILED=1
+      fi
+    done
+
+    # Check 5: Verify section categorization consistency
+    # E.g., "Medium Coverage (70-89%)" should only contain 70-89 values
+    if grep -q '(.*%.*%)' "$doc_file"; then
+      # Extract section headers with ranges like "(70-89%)"
+      SECTIONS=$(grep -oE '[A-Za-z ]*\([0-9]+%-[0-9]+%\)' "$doc_file" | sort -u || true)
+
+      for section in $SECTIONS; do
+        # Extract the range
+        RANGE=$(echo "$section" | grep -oE '[0-9]+-[0-9]+')
+        MIN=$(echo "$RANGE" | cut -d- -f1)
+        MAX=$(echo "$RANGE" | cut -d- -f2)
+
+        # Find all percentage values under this section until next heading
+        # This is a simplified check (full check would require more parsing)
+        SECTION_NAME=$(echo "$section" | sed "s/ ($RANGE%)//")
+        if [[ -n "$SECTION_NAME" ]]; then
+          # Warning only - detailed check requires more context
+          echo "  ℹ️  Section '$SECTION_NAME': verify all entries are $MIN%-$MAX%"
+        fi
+      done
+    fi
+
+    # Check 6: Verify claimed features in README actually exist
+    if echo "$doc_file" | grep -qi 'coverage.*badge\|README'; then
+      if grep -q 'badge.*README\|README.*badge' "$doc_file"; then
+        if ! grep -q 'coverage' README.md 2>/dev/null; then
+          echo "⚠️  $doc_file: Claims coverage badge in README, but not found"
+          echo "   Either add badge to README.md or remove claim from docs"
+        fi
+      fi
+    fi
+
+    # Check 7: Verify links to CI config are correct
+    if grep -qi 'github.*workflow\|\.github.*ci\.yml' "$doc_file"; then
+      if [[ ! -f '.github/workflows/ci.yml' ]]; then
+        echo "❌ $doc_file: References CI workflow, but .github/workflows/ci.yml not found"
+        DOC_VERIFICATION_FAILED=1
+      fi
+    fi
+
+  done
+
+  if [[ $DOC_VERIFICATION_FAILED -eq 1 ]]; then
+    echo ""
+    echo "❌ Documentation verification failed"
+    echo ""
+    echo "Common issues to fix:"
+    echo "  - Verify all percentages match actual code/config files"
+    echo "  - Verify all method examples exist in src/ files"
+    echo "  - Resolve contradictions between sections"
+    echo "  - Ensure section ranges match their content"
+    echo "  - Verify claims about features (badges, etc.)"
+    echo ""
+    exit 1
+  fi
+
+  echo "✓ Documentation content verification passed"
+  echo ""
+fi
+
 # 7b. Run ALL staged test files directly (catches new/modified tests even
 #     when no src/ file is staged — the blind spot that caused PR #415 failures)
 STAGED_TEST_FILES=$(git diff --name-only --cached -- 'tests/**/*.py' | grep -E '^tests/.*test_.*\.py$' || true)
