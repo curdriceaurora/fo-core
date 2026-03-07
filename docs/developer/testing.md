@@ -68,7 +68,7 @@ pytest -m "not slow"
 
 # CI gate tests only
 pytest -m ci
-```text
+```
 
 ## Coverage Metrics
 
@@ -109,7 +109,7 @@ pytest --cov=file_organizer --cov-report=html
 
 # Docstring coverage (requires interrogate)
 interrogate -v src/file_organizer --fail-under 90
-```text
+```
 
 ## Testing Patterns
 
@@ -192,7 +192,7 @@ async def test_app_loads():
     app = FileOrganizerApp()
     async with app.run_test() as pilot:
         assert pilot.app.title == "File Organizer"
-```text
+```
 
 ## Test Quality Standards
 
