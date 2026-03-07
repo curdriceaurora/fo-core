@@ -326,7 +326,7 @@ If reviewers request changes:
 1. **Extract all findings upfront** (don't iterate one at a time)
 2. **Verify each finding** against current code
 3. **Apply all fixes in one local pass** (no pushing between fixes)
-4. **Run quality gates** (simplify → code-reviewer → pre-commit)
+4. **Run quality gates** (pre-commit → code-reviewer → simplify)
 5. **Commit and push once** with comprehensive message
 6. **Don't monitor iteratively** — trust your quality gates did their job
 
