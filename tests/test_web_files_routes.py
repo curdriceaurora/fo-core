@@ -225,7 +225,7 @@ class TestFilesStateAndIntegration:
         assert "file_a.txt" in response.text or "file_b.txt" in response.text
 
     def test_files_browser_cache_headers(self, tmp_path: Path, web_client_builder) -> None:
-        """Response should include appropriate cache headers for browser."""
+        """Regular HTML file-browser responses should not set Cache-Control headers."""
         (tmp_path / "file.txt").write_text("test")
 
         client = web_client_builder(allowed_paths=[str(tmp_path)])
