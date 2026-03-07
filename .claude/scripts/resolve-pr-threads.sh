@@ -91,7 +91,7 @@ fi
 
 # Get all unresolved threads
 echo "📋 Fetching unresolved threads..."
-THREADS=$(gh api graphql --repo "$REPO_OWNER/$REPO_NAME" -f query='query {
+THREADS=$(gh api graphql -f query='query {
   repository(owner: "'$REPO_OWNER'", name: "'$REPO_NAME'") {
     pullRequest(number: '$PR_NUMBER') {
       reviewThreads(first: 100) {
@@ -107,7 +107,7 @@ THREADS=$(gh api graphql --repo "$REPO_OWNER/$REPO_NAME" -f query='query {
       }
     }
   }
-}' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id' 2>/dev/null || echo "")
+}' --jq '.data.repository.pullRequest.reviewThreads.nodes | map(select(.isResolved == false) | .id) | .[]' 2>&1)
 
 if [[ -z "$THREADS" ]]; then
   echo "✅ No unresolved threads found for PR #$PR_NUMBER"
