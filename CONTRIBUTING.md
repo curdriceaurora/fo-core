@@ -275,26 +275,31 @@ pytest tests/            # Full suite including regression tests (complete local
 
 ## Quality Gates
 
-Before committing code, this project enforces three quality gates (in order):
+Before committing code, this project enforces three quality gates (in order). **Note**: The `/simplify` and `/code-reviewer` commands are Claude Code-specific tools. For contributors not using Claude Code, follow the automated validation script only.
 
-1. **Code Simplification** (`/simplify` skill)
-   - Review code for efficiency and reuse
-   - Suggest optimizations and improvements
-   - Run after significant code changes (>50 lines)
-
-2. **Code Review** (`/code-reviewer` skill)
-   - Validate implementation against CLAUDE.md standards
-   - Check for architectural and design issues
-   - Verify test logic and assertions
-
-3. **Pre-Commit Validation** (`bash .claude/scripts/pre-commit-validation.sh`)
+1. **Pre-Commit Validation** (`bash .claude/scripts/pre-commit-validation.sh`)
    - Lint, format, type-check, test, validate patterns
    - Must PASS before committing
    - Prevents CI failures due to local issues
+   - **Fast**: ~30 seconds (fail fast on cheap checks)
 
-**Order matters**: Simplify → Code Review → Pre-Commit → Commit
+2. **Code Review** (`/code-reviewer` skill — Claude Code users only)
+   - Validate implementation against CLAUDE.md standards
+   - Check for architectural and design issues
+   - Verify test logic and assertions
+   - **Medium**: 30-60 seconds
 
-For details, see `.claude/rules/code-quality-validation.md`.
+3. **Code Simplification** (`/simplify` skill — Claude Code users only, optional)
+   - Review code for efficiency and reuse
+   - Suggest optimizations and improvements
+   - Run after significant code changes (>50 lines)
+   - **Expensive**: 1-5 minutes (improvement suggestions, not required)
+
+**Order matters**: Pre-Commit (required) → Code Review (required) → Simplify (optional improvements) → Commit
+
+**For non-Claude-Code contributors**: Run only step 1 (pre-commit validation script). GitHub CI enforces additional checks.
+
+For details, see `.claude/rules/code-quality-validation.md` and `.claude/rules/development-guidelines.md`.
 
 ---
 
@@ -302,10 +307,10 @@ For details, see `.claude/rules/code-quality-validation.md`.
 
 1. Create a feature branch from `main`: `git checkout -b feature/description`
 2. Make changes with tests
-3. Run quality gates:
-   - `/simplify` (if >50 lines of code changes)
-   - `/code-reviewer` (validate design and logic)
+3. Run quality gates (in order):
    - `bash .claude/scripts/pre-commit-validation.sh` (must pass)
+   - `/code-reviewer` (validate design and logic)
+   - `/simplify` (optional: if >50 lines of code changes)
 4. Commit with descriptive message following conventional commits
 5. Push and open a PR against `main`
 
