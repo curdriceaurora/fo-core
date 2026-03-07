@@ -131,6 +131,7 @@ Epic #571 "Desktop UI Test Coverage" increased project **docstring coverage from
 |--------|----------|-------|
 | routers/files | 91% | Most paths covered |
 | utils | 90% | Helper functions covered |
+| routers/realtime | 52% | WebSocket edge cases (lower outlier) |
 
 ### Low Coverage (< 70%)
 
