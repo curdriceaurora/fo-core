@@ -295,7 +295,7 @@ Before committing code, this project enforces three quality gates (in order). **
    - Run after significant code changes (>50 lines)
    - **Expensive**: 1-5 minutes (improvement suggestions, not required)
 
-**Order matters**: Pre-Commit (required) → Code Review (required) → Simplify (optional improvements) → Commit
+**Order matters**: Pre-Commit (required) → Code Review (Claude Code only) → Simplify (Claude Code only, optional) → Commit
 
 **For non-Claude-Code contributors**: Run only step 1 (pre-commit validation script). GitHub CI enforces additional checks.
 
@@ -308,9 +308,9 @@ For details, see `.claude/rules/code-quality-validation.md` and `.claude/rules/d
 1. Create a feature branch from `main`: `git checkout -b feature/description`
 2. Make changes with tests
 3. Run quality gates (in order):
-   - `bash .claude/scripts/pre-commit-validation.sh` (must pass)
-   - `/code-reviewer` (validate design and logic)
-   - `/simplify` (optional: if >50 lines of code changes)
+   - `bash .claude/scripts/pre-commit-validation.sh` (required, all contributors)
+   - `/code-reviewer` (Claude Code users only: validate design and logic)
+   - `/simplify` (Claude Code users only: optional if >50 lines of code changes)
 4. Commit with descriptive message following conventional commits
 5. Push and open a PR against `main`
 

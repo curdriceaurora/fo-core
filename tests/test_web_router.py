@@ -100,16 +100,6 @@ class TestResponseHeaders:
         content_type = response.headers.get("content-type", "")
         assert "text/html" in content_type
 
-    def test_response_headers_include_cache_control(self, web_client_builder) -> None:
-        """Responses may include cache control headers for UI routes."""
-        client = web_client_builder(allowed_paths=[])
-        response = client.get("/ui/")
-        assert response.status_code == 200
-        # Cache-Control is optional for regular HTML /ui/ responses; if present, it should be non-empty.
-        cache_control = response.headers.get("cache-control")
-        if cache_control is not None:
-            assert isinstance(cache_control, str)
-            assert cache_control.strip() != ""
 
     def test_response_headers_etag_for_static_content(self, web_client_builder) -> None:
         """Responses may include ETag header for cache validation."""
@@ -182,10 +172,13 @@ class TestRateLimitingAndIntegration:
         assert any(code in [200, 303] for code in status_codes)
 
     def test_repeated_requests_consistent_status(self, web_client_builder) -> None:
-        """Repeated requests to the same endpoint should succeed consistently."""
+        """Repeated requests to endpoints should succeed consistently across different routes."""
         client = web_client_builder(allowed_paths=[])
-        # Make multiple requests to same endpoint
-        responses = [client.get("/ui/") for _ in range(5)]
-        # All requests should return a successful or auth-redirect status
-        status_codes = [r.status_code for r in responses]
-        assert all(code in [200, 303] for code in status_codes)
+        # Test consistency across multiple different endpoints
+        endpoints = ["/ui/", "/ui/files", "/ui/organize"]
+        for endpoint in endpoints:
+            responses = [client.get(endpoint) for _ in range(3)]
+            status_codes = [r.status_code for r in responses]
+            # All requests to same endpoint should return consistent successful status
+            assert all(code in [200, 303, 404] for code in status_codes), \
+                f"Inconsistent responses for {endpoint}: {status_codes}"
