@@ -94,6 +94,12 @@ See **[PR Review Response Protocol](./.claude/rules/pr-review-response-protocol.
 
 **Core Principle**: Extract all findings → fix all locally → run quality gates → single push. Prevents iterative churn.
 
+**Automated Thread Resolution**: For Step 6 (replying to and resolving comment threads), use the automated script:
+```bash
+.claude/scripts/resolve-pr-threads.sh <PR_NUMBER> --replies replies.json
+```
+See `.claude/scripts/THREAD_RESOLUTION_GUIDE.md` for complete documentation and examples.
+
 ---
 
 ## Task Execution

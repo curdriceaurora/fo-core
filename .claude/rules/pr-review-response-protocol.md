@@ -153,94 +153,114 @@ git push origin <branch>
 
 ---
 
-## Step 5B: Resolve Review Threads via GraphQL (Mandatory)
+## Step 5B: Resolve Review Threads (Automated)
 
-**CRITICAL**: After pushing fixes, ALL review threads related to APPLY findings MUST be marked as resolved using GraphQL mutations. `gh` CLI cannot do this.
+**CRITICAL**: After pushing fixes, ALL review threads related to APPLY findings MUST be marked as resolved. Use the automated script instead of manual commands.
 
 ### Why This is Required
 
 - Marking threads as resolved indicates findings have been addressed
-- Leaving threads "resolved" manually on GitHub doesn't work - need GraphQL
 - Reviewers check thread resolution status to gauge PR readiness
 - Without resolution, threads stay open and create noise
+- Automated script eliminates manual GraphQL mutations and repetition
 
-### Resolution Process
+### Automated Resolution via Script
 
-```bash
-TOKEN=$(gh auth token)
-PR_NUM=644
-
-# First, fetch all unresolved threads to get their IDs
-curl -s -X POST https://api.github.com/graphql \
-  -H "Authorization: token $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "{ repository(owner: \"curdriceaurora\", name: \"Local-File-Organizer\") { pullRequest(number: '$PR_NUM') { reviewThreads(first: 50) { nodes { id isResolved } } } } }"
-  }' | jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id' > /tmp/thread_ids.txt
-
-# Then resolve each thread
-while read THREAD_ID; do
-  curl -s -X POST https://api.github.com/graphql \
-    -H "Authorization: token $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"query\": \"mutation { resolveReviewThread(input: {threadId: \\\"$THREAD_ID\\\"}) { thread { isResolved } } }\"
-    }"
-  echo "✓ Resolved thread $THREAD_ID"
-done < /tmp/thread_ids.txt
-```
-
-### Verify Resolution
+Use the dedicated script that automates the entire thread resolution process:
 
 ```bash
-# Check that all threads are resolved
-TOKEN=$(gh auth token)
-
-curl -s -X POST https://api.github.com/graphql \
-  -H "Authorization: token $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "{ repository(owner: \"curdriceaurora\", name: \"Local-File-Organizer\") { pullRequest(number: '$PR_NUM') { reviewThreads(first: 50) { nodes { isResolved } } } } }"
-  }' | jq '.data.repository.pullRequest.reviewThreads.nodes | map(.isResolved) | {total: length, resolved: (map(select(.)) | length), unresolved: (map(select(. | not)) | length)}'
-
-# Should show: all threads resolved, unresolved = 0
+.claude/scripts/resolve-pr-threads.sh <PR_NUMBER> --replies <replies.json>
 ```
 
-### Why GraphQL (Not gh CLI)
+**The script handles:**
+1. ✅ Fetching all unresolved threads
+2. ✅ Adding your replies to each thread (optional)
+3. ✅ Resolving all threads via GraphQL
+4. ✅ Reporting summary of resolved threads
 
-| Operation | gh CLI | GraphQL |
-|-----------|--------|---------|
-| Fetch reviews | ✅ Works | ✅ Works |
-| Fetch comments | ⚠️ Limited | ✅ Works |
-| Resolve threads | ❌ Cannot do | ✅ Works |
-| Batch operations | ❌ Sequential | ✅ Parallel |
+### Quick Start: Three Usage Patterns
 
-The `gh` CLI has no command to resolve review threads. GraphQL mutations are the only way.
+**Pattern 1: Resolve without replies**
+```bash
+.claude/scripts/resolve-pr-threads.sh 627
+```
+
+**Pattern 2: Resolve with replies from JSON**
+```bash
+# Create replies.json with your responses
+cat > replies.json << 'EOF'
+{
+  "THREAD_ID_1": "✅ Fixed: Description of fix",
+  "THREAD_ID_2": "✅ Fixed: Another fix"
+}
+EOF
+
+.claude/scripts/resolve-pr-threads.sh 627 --replies replies.json
+```
+
+**Pattern 3: Preview before executing (dry-run)**
+```bash
+.claude/scripts/resolve-pr-threads.sh 627 --replies replies.json --dry-run
+```
+
+### Example Workflow
+
+```bash
+# 1. Make all fixes locally
+# 2. Commit and push
+git push origin my-branch
+
+# 3. Create replies.json with your responses (optional)
+# 4. Resolve all threads with the script
+.claude/scripts/resolve-pr-threads.sh 627 --replies replies.json
+
+# 5. All threads now resolved with your replies visible
+```
+
+### Documentation
+
+For complete documentation, examples, and troubleshooting:
+- See: `.claude/scripts/THREAD_RESOLUTION_GUIDE.md`
+- Template: `.claude/scripts/example-replies.json`
 
 ---
 
-## Step 6: Do NOT Create Iterative Monitoring Loop
+## Step 6: Verify PR is Ready (No Iterative Loops)
 
-After pushing and resolving comment threads, do NOT:
+After Steps 1-5B are complete (commit pushed, threads resolved via script), do NOT:
 - ❌ Create background scripts to monitor review status
 - ❌ Iteratively fix issues as they appear in re-review
 - ❌ Push partial fixes and hope for the best
 - ❌ Monitor and wait for CI/review feedback to guide next fixes
 
 Instead:
-- ✅ Trust that running quality gates locally caught issues before pushing
-- ✅ Trust that GraphQL thread resolution properly marks findings as addressed
-- ✅ Verification comes from local testing and GraphQL resolution, not iterative PR reviews
-- ✅ PR review feedback should be minimal if quality gates ran properly
+- ✅ Trust that running quality gates locally caught issues before pushing (Step 4)
+- ✅ Trust that the automated script properly resolved all threads (Step 5B)
+- ✅ Verification comes from local testing and thread resolution, not iterative PR reviews
+- ✅ PR review feedback should be minimal if quality gates and thread resolution ran properly
 
-### Outcome Verification (After Comment Resolution)
+### Verification Checklist (Steps Complete)
 
-After push + GraphQL thread resolution, the PR review process has these requirements:
-- CI must pass
-- All review threads resolved (APPLY findings) via GraphQL mutations
-- SKIP/CLARIFY/DEFER findings replied to (separate comment)
-- 1 reviewer approval
-- Review decision: APPROVED
+After completing all steps of this protocol:
+
+- [x] Step 1: All findings extracted and categorized
+- [x] Step 2: Each finding verified against code
+- [x] Step 3: All APPLY fixes applied locally
+- [x] Step 4: All quality gates passed (pre-commit → code-reviewer → simplify)
+- [x] Step 5: Commit created and pushed
+- [x] Step 5B: Threads resolved via automated script (with optional replies)
+- [x] Step 6: This verification
+
+### PR Status After Protocol Completion
+
+Once all steps complete, the PR should have:
+- ✅ Fresh CI run triggered (after push)
+- ✅ All review threads resolved (showing address of findings)
+- ✅ Consolidated comment with fixes (if replies used in Step 5B)
+- ✅ Code quality gates previously validated locally
+- ⏳ Awaiting CI completion and reviewer approval
+
+**Expected outcome**: Minimal additional review feedback, clean merge when CI passes.
 
 If CI fails or new issues appear despite quality gates passing, treat as a NEW PR review cycle (return to Step 1).
 

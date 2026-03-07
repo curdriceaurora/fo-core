@@ -92,7 +92,23 @@ git commit --no-verify
 
 ## Pre-Push Checklist
 
-Before pushing changes, run these checks to avoid wasting CI minutes and Copilot Review quota:
+**MANDATORY**: Before EVERY push, run the pre-commit validation script:
+
+```bash
+bash .claude/scripts/pre-commit-validation.sh
+# Must pass (exit code 0) before proceeding to push
+```
+
+This script validates:
+- Code linting (ruff)
+- Type checking (mypy strict)
+- Test suite (smoke tests for speed)
+- Pattern validation (dict-style dataclass access, imports, etc.)
+- Documentation (links, markers, coverage gate claims)
+
+**Do not push if validation fails.** Fix violations and re-run until it passes.
+
+---
 
 ### Quick Check (recommended before every push)
 
@@ -236,10 +252,12 @@ pytest
 pytest --cov=file_organizer --cov-report=html
 
 # Run specific test subsets
-pytest -m smoke         # Fast smoke suite (~3.2s) — local pre-commit validation
-pytest -m ci            # CI validation tests — PR check suite
-pytest -m "not slow"    # Skip slow tests for faster local development
-pytest tests/            # Full suite including regression tests (local and CI)
+pytest -m unit           # Unit tests only
+pytest -m smoke          # Fast smoke suite (~3.5s) — local pre-commit validation
+pytest -m ci             # CI validation tests — PR check suite
+pytest -m "not slow"     # Skip slow tests for faster local development
+pytest -m "not regression"  # Full suite without regression (PR validation)
+pytest tests/            # Full suite including regression tests (complete local/CI run)
 ```
 
 ### Test Markers
@@ -247,11 +265,41 @@ pytest tests/            # Full suite including regression tests (local and CI)
 | Marker | Purpose | When Used |
 |--------|---------|-----------|
 | `@pytest.mark.unit` | Fast unit tests | Both local and CI |
-| `@pytest.mark.smoke` | Critical-path tests for pre-commit (deterministic, fast) | Local pre-commit only |
+| `@pytest.mark.smoke` | Critical-path tests for pre-commit (~3.5s, deterministic, fast) | Local pre-commit validation |
 | `@pytest.mark.ci` | PR validation tests | GitHub Actions PR checks |
 | `@pytest.mark.integration` | Integration tests | Full CI runs |
 | `@pytest.mark.regression` | Full regression suite | Complete CI runs, manual testing |
-| `@pytest.mark.slow` | Long-running tests | Skipped in pre-commit and CI PRs |
+| `@pytest.mark.slow` | Long-running tests | Skipped in pre-commit and PR CI |
+
+---
+
+## Quality Gates
+
+Before committing code, this project enforces three quality gates (in order). **Note**: The `/simplify` and `/code-reviewer` commands are Claude Code-specific tools. For contributors not using Claude Code, follow the automated validation script only.
+
+1. **Pre-Commit Validation** (`bash .claude/scripts/pre-commit-validation.sh`)
+   - Lint, format, type-check, test, validate patterns
+   - Must PASS before committing
+   - Prevents CI failures due to local issues
+   - **Fast**: ~30 seconds (fail fast on cheap checks)
+
+2. **Code Review** (`/code-reviewer` skill — Claude Code users only)
+   - Validate implementation against CLAUDE.md standards
+   - Check for architectural and design issues
+   - Verify test logic and assertions
+   - **Medium**: 30-60 seconds
+
+3. **Code Simplification** (`/simplify` skill — Claude Code users only, optional)
+   - Review code for efficiency and reuse
+   - Suggest optimizations and improvements
+   - Run after significant code changes (>50 lines)
+   - **Expensive**: 1-5 minutes (improvement suggestions, not required)
+
+**Order matters**: Pre-Commit (required) → Code Review (Claude Code only) → Simplify (Claude Code only, optional) → Commit
+
+**For non-Claude-Code contributors**: Run only step 1 (pre-commit validation script). GitHub CI enforces additional checks.
+
+For details, see `.claude/rules/code-quality-validation.md` and `.claude/rules/development-guidelines.md`.
 
 ---
 
@@ -259,10 +307,29 @@ pytest tests/            # Full suite including regression tests (local and CI)
 
 1. Create a feature branch from `main`: `git checkout -b feature/description`
 2. Make changes with tests
-3. Run `./scripts/test-local-matrix.sh --quick` (minimum) or full matrix
-4. Run `ruff check src/` for linting
-5. Commit with descriptive message
-6. Push and open a PR against `main`
+3. Run quality gates (in order):
+   - `bash .claude/scripts/pre-commit-validation.sh` (required, all contributors)
+   - `/code-reviewer` (Claude Code users only: validate design and logic)
+   - `/simplify` (Claude Code users only: optional if >50 lines of code changes)
+4. Commit with descriptive message following conventional commits
+5. Push and open a PR against `main`
 
 PRs trigger both CI workflows automatically. Copilot Review runs on every PR (premium feature),
-so catching issues locally saves real money.
+so catching issues locally via quality gates saves time and money.
+
+---
+
+## PR Review Response Protocol
+
+If reviewers request changes:
+
+1. **Extract all findings upfront** (don't iterate one at a time)
+2. **Verify each finding** against current code
+3. **Apply all fixes in one local pass** (no pushing between fixes)
+4. **Run quality gates** (pre-commit → code-reviewer → simplify)
+5. **Commit and push once** with comprehensive message
+6. **Don't monitor iteratively** — trust your quality gates did their job
+
+This single-pass approach prevents review churn and keeps PR history clean.
+
+See `.claude/rules/pr-review-response-protocol.md` for full details.
