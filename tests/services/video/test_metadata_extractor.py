@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -256,6 +257,7 @@ class TestBatchExtraction:
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 class TestParseDatetime:
     def test_iso_with_z(self) -> None:
         result = _parse_datetime("2025-06-15T10:30:00Z")
@@ -265,6 +267,9 @@ class TestParseDatetime:
         result = _parse_datetime("2025-06-15T10:30:00.123456Z")
         assert result is not None
         assert result.year == 2025
+        assert result.month == 6
+        assert result.microsecond == 123456
+        assert result.tzinfo == UTC
 
     def test_date_only(self) -> None:
         result = _parse_datetime("2025-06-15")
@@ -274,6 +279,223 @@ class TestParseDatetime:
         result = _parse_datetime("2025")
         assert result is not None
         assert result.year == 2025
+        assert result.tzinfo is not None  # implementation normalises naive → UTC
 
     def test_unparseable(self) -> None:
         assert _parse_datetime("not-a-date") is None
+
+    def test_timezone_offset(self) -> None:
+        result = _parse_datetime("2025-06-15T10:30:00+05:30")
+        assert result is not None
+        # Normalised to UTC: 10:30 IST (+05:30) = 05:00 UTC
+        assert result == datetime(2025, 6, 15, 5, 0, 0, tzinfo=UTC)
+
+    def test_datetime_with_microseconds_no_z(self) -> None:
+        result = _parse_datetime("2025-06-15T10:30:00.123456")
+        assert result == datetime(2025, 6, 15, 10, 30, 0, 123456, tzinfo=UTC)
+
+
+# ---------------------------------------------------------------------------
+# ffprobe error-handling tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestFfprobeErrorHandling:
+    @patch("subprocess.run", side_effect=subprocess.TimeoutExpired("ffprobe", 10))
+    def test_timeout_falls_back(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """ffprobe timeout must fall through to the next fallback."""
+        with patch.dict("sys.modules", {"cv2": None}):
+            metadata = extractor.extract(sample_video)
+        assert metadata.width is None
+        assert metadata.duration is None
+        assert metadata.file_size == 1024  # filesystem baseline preserved
+
+    @patch("subprocess.run")
+    def test_nonzero_return_code_falls_back(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """Non-zero ffprobe exit code must fall through to the next fallback."""
+        mock_run.return_value = MagicMock(returncode=1, stdout="")
+        with patch.dict("sys.modules", {"cv2": None}):
+            metadata = extractor.extract(sample_video)
+        assert metadata.width is None
+
+    @patch("subprocess.run")
+    def test_bad_json_falls_back(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """Malformed JSON from ffprobe must fall through to the next fallback."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="NOT_JSON{{{")
+        with patch.dict("sys.modules", {"cv2": None}):
+            metadata = extractor.extract(sample_video)
+        assert metadata.width is None
+
+    @patch("subprocess.run")
+    def test_audio_only_file_no_video_stream(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """Audio-only file (no video stream) should leave video fields as None."""
+        probe = {
+            "streams": [{"codec_type": "audio", "codec_name": "aac"}],
+            "format": {"duration": "180.0", "bit_rate": "128000", "tags": {}},
+        }
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(probe))
+        metadata = extractor.extract(sample_video)
+        assert metadata.width is None
+        assert metadata.height is None
+        assert metadata.codec is None
+        assert metadata.fps is None
+        # Duration and bitrate come from format section even without a video stream
+        assert metadata.duration == 180.0
+        assert metadata.bitrate == 128000
+
+
+# ---------------------------------------------------------------------------
+# ffprobe fps / duration edge-case tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestFfprobeFpsEdgeCases:
+    @patch("subprocess.run")
+    def test_zero_denominator_fps_not_set(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """r_frame_rate '30/0' must NOT cause a ZeroDivisionError; fps stays None."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=_ffprobe_output(
+                width=1280,
+                height=720,
+                fps="30/0",
+                duration="60.0",
+                bitrate="2000000",
+                creation_time=None,
+            ),
+        )
+        metadata = extractor.extract(sample_video)
+        assert metadata.fps is None  # zero denominator → skipped
+        assert metadata.width == 1280
+
+    @patch("subprocess.run")
+    def test_no_slash_fps_not_set(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """r_frame_rate without '/' means fps is left as None."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=_ffprobe_output(
+                width=640,
+                height=480,
+                fps="25",
+                duration="10.0",
+                bitrate="500000",
+                creation_time=None,
+            ),
+        )
+        metadata = extractor.extract(sample_video)
+        assert metadata.fps is None
+        # Confirm ffprobe path was taken — other fields from the stream are populated
+        assert metadata.width == 640
+        assert metadata.height == 480
+        assert metadata.codec == "h264"
+        assert metadata.duration == 10.0
+
+    @patch("subprocess.run")
+    def test_duration_falls_back_to_format_section(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """When the video stream has no duration field, format duration is used."""
+        probe = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "width": 1920,
+                    "height": 1080,
+                    "r_frame_rate": "24/1",
+                    "codec_name": "h264",
+                    # no "duration" key in stream
+                }
+            ],
+            "format": {"duration": "90.0", "bit_rate": "8000000", "tags": {}},
+        }
+        mock_run.return_value = MagicMock(returncode=0, stdout=json.dumps(probe))
+        metadata = extractor.extract(sample_video)
+        assert metadata.duration == 90.0
+
+
+# ---------------------------------------------------------------------------
+# OpenCV edge-case tests
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_cv2(
+    opened: bool = True,
+    width: float = 1280.0,
+    height: float = 720.0,
+    fps: float = 24.0,
+    frame_count: float = 2400.0,
+) -> MagicMock:
+    """Return a mock cv2 module with a pre-configured VideoCapture."""
+    mock_cv2 = MagicMock()
+    mock_cv2.CAP_PROP_FRAME_WIDTH = 3
+    mock_cv2.CAP_PROP_FRAME_HEIGHT = 4
+    mock_cv2.CAP_PROP_FPS = 5
+    mock_cv2.CAP_PROP_FRAME_COUNT = 7
+    mock_cap = MagicMock()
+    mock_cap.isOpened.return_value = opened
+    mock_cap.get.side_effect = lambda prop: {
+        3: width,  # CAP_PROP_FRAME_WIDTH
+        4: height,  # CAP_PROP_FRAME_HEIGHT
+        5: fps,  # CAP_PROP_FPS
+        7: frame_count,  # CAP_PROP_FRAME_COUNT
+    }.get(prop, 0.0)
+    mock_cv2.VideoCapture.return_value = mock_cap
+    return mock_cv2
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestOpencvEdgeCases:
+    @patch("subprocess.run", side_effect=FileNotFoundError)
+    def test_cap_not_opened_falls_through(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """When cap.isOpened() returns False, OpenCV path returns False and
+        falls through to the filesystem-only baseline."""
+        with patch.dict("sys.modules", {"cv2": _make_mock_cv2(opened=False)}):
+            metadata = extractor.extract(sample_video)
+
+        assert metadata.width is None
+        assert metadata.height is None
+        assert metadata.fps is None
+        assert metadata.file_size == 1024  # filesystem baseline
+
+    @patch("subprocess.run", side_effect=FileNotFoundError)
+    def test_zero_fps_does_not_set_duration(
+        self, mock_run: MagicMock, extractor: VideoMetadataExtractor, sample_video: Path
+    ) -> None:
+        """fps=0 from OpenCV must not cause division-by-zero when computing duration."""
+        with patch.dict("sys.modules", {"cv2": _make_mock_cv2(fps=0.0, frame_count=1000.0)}):
+            metadata = extractor.extract(sample_video)
+
+        assert metadata.fps is None  # 0.0 → falsy → or None
+        assert metadata.duration is None  # no valid fps → duration not computed
+
+
+# ---------------------------------------------------------------------------
+# Batch edge-case tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestBatchEdgeCases:
+    def test_empty_batch_returns_empty_list(self, extractor: VideoMetadataExtractor) -> None:
+        results = extractor.extract_batch([])
+        assert results == []

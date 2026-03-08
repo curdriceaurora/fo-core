@@ -34,7 +34,7 @@ def _make_metadata(
     file_size: int = 1024,
 ) -> VideoMetadata:
     """Build a VideoMetadata with sensible defaults."""
-    path = Path(f"/tmp/{filename}")
+    path = Path(filename)
     return VideoMetadata(
         file_path=path,
         file_size=file_size,
@@ -193,6 +193,7 @@ class TestGeneratePath:
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 class TestGenerateDescription:
     def test_full_description(self, organizer: VideoOrganizer) -> None:
         metadata = _make_metadata(
@@ -221,8 +222,8 @@ class TestGenerateDescription:
         metadata = _make_metadata(width=None, height=None)
         desc = organizer.generate_description(metadata)
         assert "Video" in desc
-        # Should not contain resolution label when unknown
-        assert "unknown" not in desc.lower() or "unknown" not in desc
+        # generate_description skips the label when resolution_label returns "unknown"
+        assert "unknown" not in desc.lower()
 
     def test_no_duration(self, organizer: VideoOrganizer) -> None:
         metadata = _make_metadata(duration=None)
@@ -234,3 +235,37 @@ class TestGenerateDescription:
         desc = organizer.generate_description(metadata)
         assert "Video" in desc
         assert "h264" not in desc
+
+    def test_hours_minutes_format(self, organizer: VideoOrganizer) -> None:
+        """5400 s = 1h30m."""
+        metadata = _make_metadata(duration=5400.0)
+        desc = organizer.generate_description(metadata)
+        assert "1h30m" in desc
+
+
+# ---------------------------------------------------------------------------
+# All-None optional fields (filesystem-only metadata baseline)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestAllNoneOptionalFields:
+    """Verify the organizer degrades gracefully when metadata is filesystem-only."""
+
+    def test_generate_path_with_all_none(self, organizer: VideoOrganizer) -> None:
+        # All optional fields left at their None defaults — filesystem-only baseline
+        metadata = VideoMetadata(file_path=Path("mystery.mp4"), file_size=512, format="mp4")
+        folder, name = organizer.generate_path(metadata)
+        assert folder == "Videos/Unsorted"
+        assert name == "mystery"
+
+    def test_generate_description_with_all_none(self, organizer: VideoOrganizer) -> None:
+        metadata = VideoMetadata(
+            file_path=Path("mystery.mp4"),
+            file_size=512,
+            format="mp4",
+        )
+        desc = organizer.generate_description(metadata)
+        # With all optional fields None, only "Video" is emitted
+        assert desc == "Video"
