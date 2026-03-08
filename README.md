@@ -77,7 +77,37 @@ Then visit `http://localhost:8000/ui/` for the HTMX interface.
 | Build | `pip install -e ".[build]"` | Executable packaging (PyInstaller) |
 | All | `pip install -e ".[all]"` | Everything above |
 
-Audio processing requires additional system dependencies (FFmpeg, optionally CUDA). See the [Installation Guide](docs/admin/installation.md) for details.
+### Audio system dependencies
+
+For full audio format support, the `[audio]` pack uses **FFmpeg** (all platforms) and optionally **CUDA + cuDNN** (NVIDIA GPU users).
+
+**FFmpeg** — required for non-`.wav` formats (MP3, M4A, FLAC, OGG); optional if you only transcribe raw `.wav`:
+
+```bash
+# macOS
+brew install ffmpeg
+
+# Ubuntu / Debian
+sudo apt install ffmpeg
+
+# Windows (winget)
+winget install ffmpeg
+```
+
+**CUDA + cuDNN** — optional, for significantly faster transcription (see [faster-whisper benchmarks](https://github.com/SYSTRAN/faster-whisper) for hardware-specific numbers):
+
+```bash
+# Install CUDA Toolkit from https://developer.nvidia.com/cuda-downloads
+# Install cuDNN from https://developer.nvidia.com/cudnn
+
+# Verify the full transcription backend (not just PyTorch)
+python3 -c "from faster_whisper import WhisperModel; print('faster-whisper OK')"
+python3 -c "import torch; print('CUDA:', torch.cuda.is_available())"
+```
+
+**Fallback behavior**: without FFmpeg, only `.wav` files are transcribed; other formats are organized by filename/metadata but not content-analyzed. Without CUDA, transcription runs on CPU (slower but fully functional).
+
+See the [Installation Guide](docs/admin/installation.md) for troubleshooting and advanced configuration.
 
 ## Development
 
