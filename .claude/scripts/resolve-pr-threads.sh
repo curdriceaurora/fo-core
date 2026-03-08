@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ##############################################################################
 # resolve-pr-threads.sh - Resolve GitHub PR review threads with optional replies
@@ -122,7 +122,9 @@ echo -e "${BLUE}Found $THREAD_COUNT unresolved thread(s)${NC}"
 echo ""
 
 # Load replies if provided
-declare -A REPLIES_MAP
+# Use temp file as associative map (bash 3.2 compatible — no declare -A)
+REPLIES_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$REPLIES_TMPDIR"' EXIT
 if [[ -n "$REPLIES_FILE" ]]; then
   if [[ ! -f "$REPLIES_FILE" ]]; then
     echo "❌ Replies file not found: $REPLIES_FILE"
@@ -134,13 +136,12 @@ if [[ -n "$REPLIES_FILE" ]]; then
   # Try to parse as JSON object (thread_id -> reply_text)
   if grep -q '"' "$REPLIES_FILE" && grep -q ':' "$REPLIES_FILE"; then
     # Likely a JSON object with thread IDs as keys
-    while IFS='=' read -r thread_id reply_text; do
-      thread_id=$(echo "$thread_id" | tr -d ' "')
-      reply_text=$(echo "$reply_text" | tr -d ' ",' | sed 's/\\//g')
+    # Store each reply as a file named by thread ID (bash 3.2 compatible)
+    while IFS= read -r thread_id && IFS= read -r reply_text; do
       if [[ -n "$thread_id" && -n "$reply_text" ]]; then
-        REPLIES_MAP["$thread_id"]="$reply_text"
+        printf '%s' "$reply_text" > "$REPLIES_TMPDIR/$thread_id"
       fi
-    done < <(jq -r 'to_entries[] | "\(.key)=\(.value)"' "$REPLIES_FILE" 2>/dev/null || echo "")
+    done < <(jq -r 'to_entries[] | (.key, .value)' "$REPLIES_FILE" 2>/dev/null || true)
   fi
 fi
 
@@ -148,15 +149,16 @@ fi
 RESOLVED_COUNT=0
 SKIPPED_COUNT=0
 
-for i in "${!THREAD_ARRAY[@]}"; do
-  THREAD_ID="${THREAD_ARRAY[$i]}"
-  THREAD_NUM=$((i + 1))
+i=0
+for THREAD_ID in "${THREAD_ARRAY[@]}"; do
+  i=$((i + 1))
+  THREAD_NUM=$i
 
   echo -e "${YELLOW}[$THREAD_NUM/$THREAD_COUNT]${NC} Thread: $THREAD_ID"
 
-  # Add reply if provided
-  if [[ -n "${REPLIES_MAP[$THREAD_ID]:-}" ]]; then
-    REPLY="${REPLIES_MAP[$THREAD_ID]}"
+  # Add reply if provided (lookup via tmpdir file)
+  if [[ -f "$REPLIES_TMPDIR/$THREAD_ID" ]]; then
+    REPLY=$(cat "$REPLIES_TMPDIR/$THREAD_ID")
     echo "  ↳ Adding reply: ${REPLY:0:60}..."
 
     if [[ "$DRY_RUN" != "true" ]]; then
