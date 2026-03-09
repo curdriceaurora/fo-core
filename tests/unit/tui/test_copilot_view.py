@@ -51,7 +51,7 @@ async def test_copilot_view_input_submitted():
         inp.value = "Test message"
         with patch.object(view, "_process_message") as mock_process:
             # We mock call_from_thread on the view to prevent workers from crashing
-            view.call_from_thread = MagicMock(side_effect=lambda func, *args: func(*args))
+            app.call_from_thread = MagicMock(side_effect=lambda func, *args: func(*args))
             # Textual 0.x input action_submit sometimes needs event explicitly called for parent binding
             view.on_input_submitted(Input.Submitted(inp, "Test message"))
             await pilot.pause()
@@ -82,7 +82,7 @@ async def test_copilot_view_process_message_success():
         view._get_engine = MagicMock(return_value=mock_engine)
 
         # Patch call_from_thread to execute immediately on the same thread for test purposes
-        view.call_from_thread = MagicMock(side_effect=lambda func, *args: func(*args))
+        app.call_from_thread = MagicMock(side_effect=lambda func, *args: func(*args))
 
         # Actually execute the thread worker synchronously for test using underlying func
         view._process_message.__wrapped__(view, "Test")
@@ -101,7 +101,7 @@ async def test_copilot_view_process_message_error():
         mock_engine.chat.side_effect = Exception("Crash")
         view._get_engine = MagicMock(return_value=mock_engine)
 
-        view.call_from_thread = MagicMock(side_effect=lambda func, *args: func(*args))
+        app.call_from_thread = MagicMock(side_effect=lambda func, *args: func(*args))
 
         view._process_message.__wrapped__(view, "Test")
         await pilot.pause()
