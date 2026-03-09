@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -53,7 +54,7 @@ def suggest(
         console.print("[dim]No files found in directory.[/dim]")
         raise typer.Exit(code=0)
 
-    all_results: list[dict] = []
+    all_results: list[dict[str, Any]] = []
 
     for file_path in files:
         try:
@@ -219,7 +220,7 @@ def batch(
         console.print(f"[red]Error during batch processing: {exc}[/red]")
         raise typer.Exit(code=1) from exc
 
-    output_data = []
+    output_data: list[dict[str, Any]] = []
     for fpath, recommendation in results.items():
         output_data.append(
             {

@@ -93,7 +93,7 @@ class RedisLoginRateLimiter:
 
     def _ttl(self, key: str) -> int:
         ttl = self.redis.ttl(key)
-        if ttl is None or ttl < 0:
+        if ttl is None or int(ttl) < 0:
             return self.window_seconds
         return int(ttl)
 
@@ -119,7 +119,7 @@ class RedisLoginRateLimiter:
         pipe.incr(redis_key)
         pipe.ttl(redis_key)
         count, ttl = pipe.execute()
-        if ttl is None or ttl < 0:
+        if ttl is None or int(ttl) < 0:
             self.redis.expire(redis_key, self.window_seconds)
             ttl = self.window_seconds
         blocked = int(count) >= self.max_attempts

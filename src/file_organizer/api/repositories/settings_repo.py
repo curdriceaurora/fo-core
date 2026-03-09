@@ -38,7 +38,7 @@ class SettingsRepository:
             .filter(SettingsStore.key == key, SettingsStore.user_id == user_id)
             .first()
         )
-        return row.value if row is not None else None
+        return str(row.value) if row is not None else None
 
     # ------------------------------------------------------------------
     # Write
@@ -129,4 +129,4 @@ class SettingsRepository:
             .order_by(SettingsStore.key)
             .all()
         )
-        return {row.key: row.value for row in rows}
+        return {str(row.key): str(row.value) for row in rows}

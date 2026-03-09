@@ -44,7 +44,6 @@ class InMemoryRateLimiter:
     ) -> None:
         """Initialize InMemoryRateLimiter with given capacity and sweep interval."""
         self._state: dict[str, RateLimitState] = {}
-        self._state: dict[str, RateLimitState] = {}
         self._last_sweep: int = 0
         self._max_entries = max_entries
         self._sweep_interval_seconds = sweep_interval_seconds

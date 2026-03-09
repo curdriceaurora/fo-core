@@ -40,7 +40,7 @@ class PatternUsageData:
     total_uses: int = 0
     successful_uses: int = 0
 
-    def add_usage(self, timestamp: datetime, success: bool, context: dict | None = None) -> None:
+    def add_usage(self, timestamp: datetime, success: bool, context: dict[str, Any] | None = None) -> None:
         """Add a usage record."""
         record = UsageRecord(timestamp=timestamp, success=success, context=context or {})
         self.usage_records.append(record)
@@ -238,10 +238,10 @@ class ConfidenceEngine:
 
     def decay_old_patterns(
         self,
-        patterns: list[dict],
+        patterns: list[dict[str, Any]],
         time_threshold: int | None = None,
         current_time: datetime | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Apply time decay to old patterns.
 
         Patterns older than the threshold have their confidence reduced
@@ -301,11 +301,11 @@ class ConfidenceEngine:
 
     def boost_recent_patterns(
         self,
-        patterns: list[dict],
+        patterns: list[dict[str, Any]],
         boost_threshold_days: int = 7,
         boost_factor: float = 1.15,
         current_time: datetime | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Boost confidence for recently used patterns.
 
         Patterns used within the threshold get a confidence boost to
@@ -453,7 +453,7 @@ class ConfidenceEngine:
         }
 
     def track_usage(
-        self, pattern_id: str, timestamp: datetime, success: bool, context: dict | None = None
+        self, pattern_id: str, timestamp: datetime, success: bool, context: dict[str, Any] | None = None
     ) -> None:
         """Track a pattern usage for confidence calculations.
 
@@ -489,3 +489,36 @@ class ConfidenceEngine:
             self._usage_data.clear()
         elif pattern_id in self._usage_data:
             del self._usage_data[pattern_id]
+
+    def get_stats(self) -> dict[str, Any]:
+        """Return summary statistics for tracked patterns.
+
+        Returns:
+            Dictionary with pattern count and aggregate usage totals.
+        """
+        total_uses = sum(d.total_uses for d in self._usage_data.values())
+        successful_uses = sum(d.successful_uses for d in self._usage_data.values())
+        return {
+            "total_patterns": len(self._usage_data),
+            "total_uses": total_uses,
+            "successful_uses": successful_uses,
+        }
+
+    def clear_stale_patterns(self, days: int) -> int:
+        """Remove usage data for patterns not seen within the given number of days.
+
+        Args:
+            days: Age threshold in days.
+
+        Returns:
+            Number of patterns whose usage data was removed.
+        """
+        cutoff = datetime.now(UTC) - timedelta(days=days)
+        stale = [
+            pid
+            for pid, data in self._usage_data.items()
+            if data.last_seen is not None and data.last_seen < cutoff
+        ]
+        for pid in stale:
+            del self._usage_data[pid]
+        return len(stale)
