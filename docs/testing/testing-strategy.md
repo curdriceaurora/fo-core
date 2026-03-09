@@ -24,6 +24,7 @@ pytest -k "backup or dedup"                     # Filter by name
 @pytest.mark.ci            # CI-specific tests
 @pytest.mark.slow          # Slow tests
 @pytest.mark.regression    # Regression tests (full suite only)
+@pytest.mark.no_ollama     # Tests for graceful degradation when Ollama is unavailable
 
 def test_example():
     pass
