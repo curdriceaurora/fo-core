@@ -82,7 +82,7 @@ class TestFileReaders:
             read_text_file(missing)
 
     @patch("file_organizer.utils.readers.documents.DOCX_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.docx.Document")
+    @patch("file_organizer.utils.readers.documents.docx.Document", create=True)
     def test_read_docx_file_success(self, mock_doc_cls: MagicMock, tmp_path: Path) -> None:
         """Test reading DOCX file."""
         # Setup mock doc
@@ -107,7 +107,7 @@ class TestFileReaders:
             read_docx_file("test.docx")
 
     @patch("file_organizer.utils.readers.documents.DOCX_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.docx.Document")
+    @patch("file_organizer.utils.readers.documents.docx.Document", create=True)
     def test_read_docx_error(self, mock_doc_cls: MagicMock, tmp_path: Path) -> None:
         """Test reading DOCX file with error."""
         mock_doc_cls.side_effect = Exception("Doc error")
@@ -118,7 +118,7 @@ class TestFileReaders:
             read_docx_file(test_file)
 
     @patch("file_organizer.utils.readers.documents.PYMUPDF_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.fitz.open")
+    @patch("file_organizer.utils.readers.documents.fitz.open", create=True)
     def test_read_pdf_file_success(self, mock_fitz_open: MagicMock, tmp_path: Path) -> None:
         """Test reading PDF file."""
         mock_doc = MagicMock()
@@ -145,7 +145,7 @@ class TestFileReaders:
             read_pdf_file("test.pdf")
 
     @patch("file_organizer.utils.readers.documents.PYMUPDF_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.fitz.open")
+    @patch("file_organizer.utils.readers.documents.fitz.open", create=True)
     def test_read_pdf_error(self, mock_fitz_open: MagicMock, tmp_path: Path) -> None:
         """Test PDF reading error."""
         mock_fitz_open.side_effect = Exception("PDF render error")
@@ -196,7 +196,7 @@ class TestFileReaders:
             read_spreadsheet_file(test_file)
 
     @patch("file_organizer.utils.readers.documents.PPTX_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.Presentation")
+    @patch("file_organizer.utils.readers.documents.Presentation", create=True)
     def test_read_presentation_file(self, mock_prs_cls: MagicMock, tmp_path: Path) -> None:
         """Test reading PPTX."""
         mock_prs = MagicMock()
@@ -221,7 +221,7 @@ class TestFileReaders:
 
     @pytest.mark.skipif(not EBOOKLIB_AVAILABLE, reason="ebooklib not installed")
     @patch("file_organizer.utils.readers.ebook.EBOOKLIB_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.ebook.epub.read_epub")
+    @patch("file_organizer.utils.readers.ebook.epub.read_epub", create=True)
     def test_read_ebook_file(self, mock_read_epub: MagicMock, tmp_path: Path) -> None:
         """Test reading EPUB."""
         mock_book = MagicMock()

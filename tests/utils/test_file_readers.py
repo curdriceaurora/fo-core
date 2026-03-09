@@ -82,7 +82,7 @@ class TestFileReaders:
             read_text_file(missing)
 
     @patch("file_organizer.utils.readers.documents.DOCX_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.docx.Document")
+    @patch("file_organizer.utils.readers.documents.docx.Document", create=True)
     def test_read_docx_file_success(self, mock_doc_cls: MagicMock, tmp_path: Path) -> None:
         """Test reading DOCX file."""
         # Setup mock doc
@@ -107,7 +107,7 @@ class TestFileReaders:
             read_docx_file("test.docx")
 
     @patch("file_organizer.utils.readers.documents.DOCX_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.docx.Document")
+    @patch("file_organizer.utils.readers.documents.docx.Document", create=True)
     def test_read_docx_error(self, mock_doc_cls: MagicMock, tmp_path: Path) -> None:
         """Test reading DOCX file with error."""
         mock_doc_cls.side_effect = Exception("Doc error")
@@ -118,7 +118,7 @@ class TestFileReaders:
             read_docx_file(test_file)
 
     @patch("file_organizer.utils.readers.documents.PYMUPDF_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.fitz.open")
+    @patch("file_organizer.utils.readers.documents.fitz.open", create=True)
     def test_read_pdf_file_success(self, mock_fitz_open: MagicMock, tmp_path: Path) -> None:
         """Test reading PDF file."""
         mock_doc = MagicMock()
@@ -145,7 +145,7 @@ class TestFileReaders:
             read_pdf_file("test.pdf")
 
     @patch("file_organizer.utils.readers.documents.PYMUPDF_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.fitz.open")
+    @patch("file_organizer.utils.readers.documents.fitz.open", create=True)
     def test_read_pdf_error(self, mock_fitz_open: MagicMock, tmp_path: Path) -> None:
         """Test PDF reading error."""
         mock_fitz_open.side_effect = Exception("PDF render error")
@@ -155,41 +155,40 @@ class TestFileReaders:
         with pytest.raises(FileReadError):
             read_pdf_file(test_file)
 
-    @patch("file_organizer.utils.readers.documents.PANDAS_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.pd.read_csv")
-    def test_read_spreadsheet_csv(self, mock_read_csv: MagicMock, tmp_path: Path) -> None:
+    def test_read_spreadsheet_csv(self, tmp_path: Path) -> None:
         """Test reading CSV spreadsheet."""
-        mock_df = MagicMock()
-        mock_df.to_string.return_value = "Col1,Col2\nA,B"
-        mock_read_csv.return_value = mock_df
-
         test_file = tmp_path / "test.csv"
-        test_file.touch()
+        test_file.write_text("Col1,Col2\nA,B")
 
         content = read_spreadsheet_file(test_file)
         assert "Col1,Col2" in content
-        mock_read_csv.assert_called_once()
+        assert "A,B" in content
 
-    @patch("file_organizer.utils.readers.documents.PANDAS_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.pd.read_excel")
-    def test_read_spreadsheet_xlsx(self, mock_read_excel: MagicMock, tmp_path: Path) -> None:
+    @patch("file_organizer.utils.readers.documents.OPENPYXL_AVAILABLE", True)
+    def test_read_spreadsheet_xlsx(self, tmp_path: Path) -> None:
         """Test reading XLSX spreadsheet."""
-        mock_df = MagicMock()
-        mock_df.to_string.return_value = "Sheet Data"
-        mock_read_excel.return_value = mock_df
+        import openpyxl
 
         test_file = tmp_path / "test.xlsx"
-        test_file.touch()
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws["A1"] = "Col1"
+        ws["B1"] = "Col2"
+        ws["A2"] = "A"
+        ws["B2"] = "B"
+        wb.save(test_file)
 
         content = read_spreadsheet_file(test_file)
-        assert "Sheet" in content
+        assert "Col1,Col2" in content
+        assert "A,B" in content
 
-    @patch("file_organizer.utils.readers.documents.PANDAS_AVAILABLE", False)
-    def test_read_spreadsheet_not_installed(self) -> None:
-        with pytest.raises(ImportError, match="pandas is not installed"):
-            read_spreadsheet_file("test.csv")
+    @patch("file_organizer.utils.readers.documents.OPENPYXL_AVAILABLE", False)
+    def test_read_spreadsheet_not_installed(self, tmp_path: Path) -> None:
+        test_file = tmp_path / "test.xlsx"
+        test_file.touch()
+        with pytest.raises(ImportError, match="openpyxl is not installed"):
+            read_spreadsheet_file(test_file)
 
-    @patch("file_organizer.utils.readers.documents.PANDAS_AVAILABLE", True)
     def test_read_spreadsheet_bad_format(self, tmp_path: Path) -> None:
         test_file = tmp_path / "test.unknown"
         test_file.touch()
@@ -197,7 +196,7 @@ class TestFileReaders:
             read_spreadsheet_file(test_file)
 
     @patch("file_organizer.utils.readers.documents.PPTX_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.documents.Presentation")
+    @patch("file_organizer.utils.readers.documents.Presentation", create=True)
     def test_read_presentation_file(self, mock_prs_cls: MagicMock, tmp_path: Path) -> None:
         """Test reading PPTX."""
         mock_prs = MagicMock()
@@ -222,7 +221,7 @@ class TestFileReaders:
 
     @pytest.mark.skipif(not EBOOKLIB_AVAILABLE, reason="ebooklib not installed")
     @patch("file_organizer.utils.readers.ebook.EBOOKLIB_AVAILABLE", True)
-    @patch("file_organizer.utils.readers.ebook.epub.read_epub")
+    @patch("file_organizer.utils.readers.ebook.epub.read_epub", create=True)
     def test_read_ebook_file(self, mock_read_epub: MagicMock, tmp_path: Path) -> None:
         """Test reading EPUB."""
         mock_book = MagicMock()

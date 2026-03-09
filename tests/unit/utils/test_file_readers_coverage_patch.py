@@ -41,7 +41,7 @@ def test_read_spreadsheet_xlsx_max_rows(tmp_path: Path) -> None:
 
 
 @patch("file_organizer.utils.readers.documents.PPTX_AVAILABLE", True)
-@patch("file_organizer.utils.readers.documents.Presentation")
+@patch("file_organizer.utils.readers.documents.Presentation", create=True)
 def test_read_presentation_file_error(mock_prs_cls: MagicMock, tmp_path: Path) -> None:
     mock_prs_cls.side_effect = Exception("Test error")
     test_file = tmp_path / "test.pptx"
@@ -51,7 +51,7 @@ def test_read_presentation_file_error(mock_prs_cls: MagicMock, tmp_path: Path) -
 
 
 @patch("file_organizer.utils.readers.ebook.EBOOKLIB_AVAILABLE", True)
-@patch("file_organizer.utils.readers.ebook.epub.read_epub")
+@patch("file_organizer.utils.readers.ebook.epub.read_epub", create=True)
 def test_read_ebook_file_max_chars(mock_read: MagicMock, tmp_path: Path) -> None:
     mock_book = MagicMock()
     mock_item = MagicMock()
@@ -68,7 +68,7 @@ def test_read_ebook_file_max_chars(mock_read: MagicMock, tmp_path: Path) -> None
 
 
 @patch("file_organizer.utils.readers.archives.PY7ZR_AVAILABLE", True)
-@patch("file_organizer.utils.readers.archives.py7zr.SevenZipFile")
+@patch("file_organizer.utils.readers.archives.py7zr.SevenZipFile", create=True)
 def test_read_7z_file_success(mock_7z: MagicMock, tmp_path: Path) -> None:
     mock_archive = MagicMock()
     mock_file = MagicMock()
@@ -88,7 +88,7 @@ def test_read_7z_file_success(mock_7z: MagicMock, tmp_path: Path) -> None:
 
 
 @patch("file_organizer.utils.readers.archives.RARFILE_AVAILABLE", True)
-@patch("file_organizer.utils.readers.archives.rarfile.RarFile")
+@patch("file_organizer.utils.readers.archives.rarfile.RarFile", create=True)
 def test_read_rar_file_success(mock_rar: MagicMock, tmp_path: Path) -> None:
     mock_rf = MagicMock()
     mock_info = MagicMock()
@@ -126,7 +126,7 @@ def test_read_tar_file_max_files(mock_tar_open: MagicMock, tmp_path: Path) -> No
 
 
 @patch("file_organizer.utils.readers.scientific.NETCDF4_AVAILABLE", True)
-@patch("file_organizer.utils.readers.scientific.netCDF4.Dataset")
+@patch("file_organizer.utils.readers.scientific.netCDF4.Dataset", create=True)
 def test_read_netcdf_file_max_vars(mock_ds_cls: MagicMock, tmp_path: Path) -> None:
     mock_ds = MagicMock()
     # Create > 20 variables
@@ -149,7 +149,7 @@ def test_read_netcdf_file_max_vars(mock_ds_cls: MagicMock, tmp_path: Path) -> No
 
 
 @patch("file_organizer.utils.readers.scientific.NETCDF4_AVAILABLE", True)
-@patch("file_organizer.utils.readers.scientific.netCDF4.Dataset")
+@patch("file_organizer.utils.readers.scientific.netCDF4.Dataset", create=True)
 def test_read_netcdf_file_error(mock_ds: MagicMock, tmp_path: Path) -> None:
     mock_ds.side_effect = Exception("Test error")
     test_file = tmp_path / "test.nc"
@@ -159,7 +159,7 @@ def test_read_netcdf_file_error(mock_ds: MagicMock, tmp_path: Path) -> None:
 
 
 @patch("file_organizer.utils.readers.scientific.SCIPY_AVAILABLE", True)
-@patch("file_organizer.utils.readers.scientific.loadmat")
+@patch("file_organizer.utils.readers.scientific.loadmat", create=True)
 def test_read_mat_file_max_vars(mock_loadmat: MagicMock, tmp_path: Path) -> None:
     # return > 30 variables
     mock_loadmat.return_value = {f"var{i}": 1 for i in range(35)}
@@ -171,7 +171,7 @@ def test_read_mat_file_max_vars(mock_loadmat: MagicMock, tmp_path: Path) -> None
 
 
 @patch("file_organizer.utils.readers.scientific.SCIPY_AVAILABLE", True)
-@patch("file_organizer.utils.readers.scientific.loadmat")
+@patch("file_organizer.utils.readers.scientific.loadmat", create=True)
 def test_read_mat_file_error(mock_loadmat: MagicMock, tmp_path: Path) -> None:
     mock_loadmat.side_effect = Exception("Test error")
     test_file = tmp_path / "test.mat"
@@ -181,7 +181,7 @@ def test_read_mat_file_error(mock_loadmat: MagicMock, tmp_path: Path) -> None:
 
 
 @patch("file_organizer.utils.readers.cad.EZDXF_AVAILABLE", True)
-@patch("file_organizer.utils.readers.cad.ezdxf.readfile")
+@patch("file_organizer.utils.readers.cad.ezdxf.readfile", create=True)
 def test_read_dxf_file_exceptions(mock_readfile: MagicMock, tmp_path: Path) -> None:
     mock_doc = MagicMock()
     # To hit the except branch inside $TITLE
@@ -200,7 +200,7 @@ def test_read_dxf_file_exceptions(mock_readfile: MagicMock, tmp_path: Path) -> N
 
 
 @patch("file_organizer.utils.readers.cad.EZDXF_AVAILABLE", True)
-@patch("file_organizer.utils.readers.cad.ezdxf.readfile")
+@patch("file_organizer.utils.readers.cad.ezdxf.readfile", create=True)
 @patch("file_organizer.utils.file_readers.read_dxf_file")
 def test_read_dwg_file_success(
     mock_dxf: MagicMock, mock_readfile: MagicMock, tmp_path: Path
