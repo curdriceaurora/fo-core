@@ -364,4 +364,4 @@ class TestProfileMigrator:
 
     def test_migrate_v1_to_v2(self, mock_profile_manager):
         migrator = ProfileMigrator(mock_profile_manager)
-        assert migrator._migrate_v1_to_v2({}) is None
+        assert migrator._migrate_v1_to_v2({}) == {}

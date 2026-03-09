@@ -109,11 +109,11 @@ Priority ordered by coverage gap × file size (biggest impact first):
   - Target: ≥90% coverage for this module
 
 #### 3C. TUI Components
-- [ ] **3C.1** Expand `tests/test_tui_app.py`
+- [ ] **3C.1** Expand `tests/tui/`
   - Source: `app.py` (259 LOC, 40% coverage)
   - Test: sidebar actions, status bar updates, compose/mount lifecycle
   - Target: ≥90% coverage for this module
-- [ ] **3C.2** Create `tests/test_tui_copilot_view.py`
+- [ ] **3C.2** Create `tests/tui/`
   - Source: `copilot_view.py` (189 LOC, 37% coverage)
   - Test: chat panel rendering, message log, input handling
   - Target: ≥90% coverage for this module

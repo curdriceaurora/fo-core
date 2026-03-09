@@ -271,7 +271,7 @@ Local-File-Organizer/
 | **AudioModel** | Audio transcription | `models/audio_model.py` | ✅ Active |
 | **TextProcessor** | Text file pipeline | `services/text_processor.py` | ✅ Active |
 | **VisionProcessor** | Image/video pipeline | `services/vision_processor.py` | ✅ Active |
-| **FileOrganizer** | Main orchestrator | `core/file_organizer.py` | ✅ Active |
+| **FileOrganizer** | Main orchestrator | `src/file_organizer/` | ✅ Active |
 | **PatternAnalyzer** | Naming pattern detection | `services/pattern_analyzer.py` | ✅ Active |
 | **SmartSuggestions** | Placement suggestions | `services/smart_suggestions.py` | ✅ Active |
 | **Intelligence** | User preference learning | `services/intelligence/` | ✅ Active |
