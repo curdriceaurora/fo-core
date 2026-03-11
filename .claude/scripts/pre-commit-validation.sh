@@ -73,6 +73,23 @@ fi
 echo "✓ No absolute paths found"
 echo ""
 
+# 3.6. Check for stale documentation references (staged .md files only)
+MD_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.md' || true)
+if [[ -n "$MD_FILES" ]]; then
+  echo "📄 Checking documentation references..."
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ -f "$SCRIPT_DIR/check-stale-doc-refs.sh" ]]; then
+    if ! bash "$SCRIPT_DIR/check-stale-doc-refs.sh" --staged-only; then
+      echo "❌ Stale documentation references found (see above)"
+      echo "   Fix references or update .claude/scripts/check-stale-doc-refs.sh exclusions"
+      exit 1
+    fi
+  else
+    echo "⚠️  check-stale-doc-refs.sh not found, skipping"
+  fi
+  echo ""
+fi
+
 # 4. Pattern checks on Python files
 PY_FILES=$(git diff --name-only --cached --diff-filter=ACM -- '*.py' || true)
 if [[ -n "$PY_FILES" ]]; then
