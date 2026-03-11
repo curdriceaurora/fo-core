@@ -24,9 +24,10 @@ async def health(response: Response) -> dict[str, object]:
     Response shape::
 
         {
-            "status":    "ok" | "degraded" | "error",
+            "status":    "ok" | "degraded" | "unknown" | "error",
             "readiness": "ready" | "starting" | "unhealthy",
             "version":   "<semver string>",
+            "provider":  "ollama" | "openai",
             "ollama":    true | false,
             "uptime":    <float seconds since startup>
         }
@@ -34,12 +35,13 @@ async def health(response: Response) -> dict[str, object]:
     The ``readiness`` field maps directly from ``status``:
 
     * ``"ok"``       -> ``"ready"``
+    * ``"unknown"``  -> ``"ready"``  (provider not probed, e.g. OpenAI-compatible endpoint)
     * ``"degraded"`` -> ``"starting"``
     * ``"error"``    -> ``"unhealthy"``
 
     HTTP status codes:
 
-    * ``200`` – status is "ok"
+    * ``200`` – status is "ok" or "unknown"
     * ``207`` – status is "degraded" (backend running but Ollama unreachable)
     * ``503`` – status is "error"
     """
@@ -55,11 +57,14 @@ async def health(response: Response) -> dict[str, object]:
         payload = {}
 
     # Use the status derived by the facade rather than re-deriving it here.
-    # The facade returns "ok" / "degraded"; we add "error" for total failure.
+    # The facade returns "ok" / "degraded" / "unknown"; we add "error" for
+    # total failure.  "unknown" means the provider has not been probed (e.g.
+    # OpenAI-compatible endpoint) — treat as ready so the sidecar starts.
     status: str = str(payload.get("status", "error")) if payload else "error"
 
     _READINESS_MAP: dict[str, str] = {
         "ok": "ready",
+        "unknown": "ready",  # provider not probed — optimistically ready
         "degraded": "starting",
         "error": "unhealthy",
     }
@@ -68,6 +73,7 @@ async def health(response: Response) -> dict[str, object]:
         "status": status,
         "readiness": _READINESS_MAP.get(status, "unhealthy"),
         "version": payload.get("version", ""),
+        "provider": payload.get("provider", "ollama"),
         "ollama": bool(payload.get("ollama", False)),
         "uptime": time.time() - _startup_time,
     }

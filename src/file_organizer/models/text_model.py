@@ -14,7 +14,18 @@ except ImportError:
 
 from loguru import logger
 
-from file_organizer.models.base import BaseModel, ModelConfig, ModelType
+from file_organizer.models._ollama_response import (
+    compute_retry_num_predict,
+    format_exhaustion_diagnostics,
+    is_token_exhausted,
+)
+from file_organizer.models.base import (
+    MIN_USEFUL_RESPONSE_LENGTH,
+    BaseModel,
+    ModelConfig,
+    ModelType,
+    TokenExhaustionError,
+)
 
 
 class TextModel(BaseModel):
@@ -49,10 +60,10 @@ class TextModel(BaseModel):
     def initialize(self) -> None:
         """Initialize the Ollama client and pull model if needed."""
         if self._initialized:
-            logger.debug(f"Text model {self.config.name} already initialized")
+            logger.debug("Text model {} already initialized", self.config.name)
             return
 
-        logger.info(f"Initializing text model: {self.config.name}")
+        logger.info("Initializing text model: {}", self.config.name)
 
         try:
             # Initialize Ollama client
@@ -61,17 +72,17 @@ class TextModel(BaseModel):
             # Check if model exists locally, pull if not
             try:
                 self.client.show(self.config.name)
-                logger.debug(f"Model {self.config.name} found locally")
+                logger.debug("Model {} found locally", self.config.name)
             except ollama.ResponseError:
-                logger.info(f"Model {self.config.name} not found locally, pulling...")
+                logger.info("Model {} not found locally, pulling...", self.config.name)
                 self.client.pull(self.config.name)
-                logger.info(f"Model {self.config.name} pulled successfully")
+                logger.info("Model {} pulled successfully", self.config.name)
 
             self._initialized = True
-            logger.info(f"Text model {self.config.name} initialized successfully")
+            logger.info("Text model {} initialized successfully", self.config.name)
 
         except Exception as e:
-            logger.error(f"Failed to initialize text model: {e}")
+            logger.error("Failed to initialize text model: {}", e)
             raise
 
     def generate(self, prompt: str, **kwargs: Any) -> str:
@@ -85,7 +96,10 @@ class TextModel(BaseModel):
             Generated text response
 
         Raises:
-            RuntimeError: If model is not initialized
+            RuntimeError: If model is not initialized.
+            TokenExhaustionError: If the model exhausts its token budget on
+                both the initial attempt and the retry without producing useful
+                output.
         """
         if not self._initialized or self.client is None:
             raise RuntimeError("Model not initialized. Call initialize() first.")
@@ -103,7 +117,7 @@ class TextModel(BaseModel):
             options.update(self.config.extra_params)
 
         try:
-            logger.debug(f"Generating text with model {self.config.name}")
+            logger.debug("Generating text with model {}", self.config.name)
             response = self.client.generate(
                 model=self.config.name,
                 prompt=prompt,
@@ -111,20 +125,49 @@ class TextModel(BaseModel):
                 stream=False,
             )
 
-            generated_text = str(response["response"])
+            # Detect token exhaustion and retry once with doubled budget
+            if is_token_exhausted(response):
+                diag = format_exhaustion_diagnostics(response, self.config.name)
+                logger.warning("Token exhaustion detected, retrying: {}", diag)
+
+                retry_num_predict = compute_retry_num_predict(options["num_predict"])
+                options["num_predict"] = retry_num_predict
+
+                response = self.client.generate(
+                    model=self.config.name,
+                    prompt=prompt,
+                    options=options,
+                    stream=False,
+                )
+
+                if is_token_exhausted(response):
+                    retry_diag = format_exhaustion_diagnostics(response, self.config.name)
+                    raise TokenExhaustionError(
+                        f"Model exhausted token budget on retry. {retry_diag}"
+                    )
+
+            generated_text = str(response.get("response", "") or "")
             logger.debug(
-                f"Generated {len(generated_text)} characters "
-                f"in {response.get('total_duration', 0) / 1e9:.2f}s"
+                "Generated {} characters in {:.2f}s",
+                len(generated_text),
+                response.get("total_duration", 0) / 1e9,
             )
 
             return generated_text.strip()
 
+        except TokenExhaustionError:
+            raise
         except Exception as e:
-            logger.error(f"Failed to generate text: {e}")
+            logger.error("Failed to generate text: {}", e)
             raise
 
     def generate_streaming(self, prompt: str, **kwargs: Any) -> Iterator[str]:
         """Generate text response with streaming.
+
+        .. note::
+            Streaming cannot retry on token exhaustion because chunks have
+            already been yielded to the caller.  If ``done_reason == "length"``
+            the method logs a warning (or error for empty output) instead.
 
         Args:
             prompt: Input prompt
@@ -156,17 +199,37 @@ class TextModel(BaseModel):
                 stream=True,
             )
 
+            accumulated_length = 0
+            last_chunk: Any = {}
+
             for chunk in stream:
+                last_chunk = chunk
                 if "response" in chunk:
-                    yield chunk["response"]
+                    text = chunk["response"]
+                    accumulated_length += len(text)
+                    yield text
+
+            # Post-stream: warn if token budget was exhausted
+            if (
+                last_chunk.get("done_reason") == "length"
+                and accumulated_length < MIN_USEFUL_RESPONSE_LENGTH
+            ):
+                diag = format_exhaustion_diagnostics(last_chunk, self.config.name)
+                logger.error("Streaming token exhaustion (no useful output): {}", diag)
+            elif last_chunk.get("done_reason") == "length":
+                logger.warning(
+                    "Streaming response truncated at {} chars (done_reason=length) for model {}",
+                    accumulated_length,
+                    self.config.name,
+                )
 
         except Exception as e:
-            logger.error(f"Failed to generate streaming text: {e}")
+            logger.error("Failed to generate streaming text: {}", e)
             raise
 
     def cleanup(self) -> None:
         """Cleanup model resources."""
-        logger.debug(f"Cleaning up text model {self.config.name}")
+        logger.debug("Cleaning up text model {}", self.config.name)
         self._initialized = False
         self.client = None
 
@@ -213,7 +276,7 @@ class TextModel(BaseModel):
                 "status": "connected",
             }
         except Exception as e:
-            logger.error(f"Failed to get model info: {e}")
+            logger.error("Failed to get model info: {}", e)
             return {
                 "name": self.config.name,
                 "status": "error",

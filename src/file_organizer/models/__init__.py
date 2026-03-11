@@ -14,7 +14,14 @@ from file_organizer.models.analytics import (
     TrendData,
 )
 from file_organizer.models.audio_model import AudioModel
-from file_organizer.models.base import BaseModel, DeviceType, ModelConfig, ModelType
+from file_organizer.models.base import (
+    BaseModel,
+    DeviceType,
+    ModelConfig,
+    ModelType,
+    TokenExhaustionError,
+)
+from file_organizer.models.provider_factory import get_text_model, get_vision_model
 from file_organizer.models.suggestion_types import (
     ConfidenceFactors,
     ConfidenceLevel,
@@ -30,8 +37,11 @@ __all__ = [
     "ModelConfig",
     "ModelType",
     "DeviceType",
+    "TokenExhaustionError",
     "TextModel",
     "VisionModel",
+    "get_text_model",
+    "get_vision_model",
     "AudioModel",
     "Suggestion",
     "SuggestionType",

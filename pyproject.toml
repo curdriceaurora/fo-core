@@ -127,6 +127,10 @@ dev = [
     "deptry>=0.16.0",  # Unused dependency detection
 ]
 
+cloud = [
+    "openai>=1.0.0",  # OpenAI-compatible API provider (OpenAI, Groq, LM Studio, vLLM)
+]
+
 gui = [
     "PyQt6>=6.6.0",
 ]
@@ -179,7 +183,7 @@ docs = [
 ]
 
 all = [
-    "local-file-organizer[dev,gui,audio,video,dedup,archive,scientific,cad,build,parsers,web]",
+    "local-file-organizer[dev,gui,cloud,audio,video,dedup,archive,scientific,cad,build,parsers,web]",
 ]
 
 [project.scripts]
@@ -229,9 +233,10 @@ select = [
     "DTZ",  # datetime timezone rules (DTZ001-DTZ007, DTZ011-DTZ012)
 ]
 ignore = [
-    "E501",  # line too long (handled by formatter)
-    "B008",  # do not perform function calls in argument defaults
-    "UP045", # type hint upgrades handled project-wide
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "UP045",  # type hint upgrades handled project-wide
+    "ANN401", # **kwargs: Any is acceptable in abstract/polymorphic interfaces
 ]
 
 [tool.ruff.lint.mccabe]
