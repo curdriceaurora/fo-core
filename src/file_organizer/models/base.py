@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import types
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -122,7 +123,16 @@ class ModelConfig:
 
 
 class BaseModel(ABC):
-    """Abstract base class for all AI models."""
+    """Abstract base class for all AI models.
+
+    Thread-safety: ``_initialized`` and ``client`` are protected by
+    ``_lifecycle_lock``.  A generation counter (``_active_generations``)
+    tracks in-flight ``generate()`` calls so that ``safe_cleanup()``
+    can wait for them to complete before tearing down the client.
+    """
+
+    #: Maximum seconds ``safe_cleanup`` will wait for in-flight generations.
+    CLEANUP_TIMEOUT: float = 30.0
 
     def __init__(self, config: ModelConfig) -> None:
         """Initialize the model with configuration.
@@ -134,10 +144,23 @@ class BaseModel(ABC):
         self.model: Any | None = None
         self._initialized = False
 
+        # Thread-safety primitives
+        self._lifecycle_lock = threading.Lock()
+        self._active_generations = 0
+        self._shutting_down = False
+        self._generation_done = threading.Condition(self._lifecycle_lock)
+
     @abstractmethod
     def initialize(self) -> None:
-        """Initialize the model. Must be called before inference."""
-        pass
+        """Initialize the model. Must be called before inference.
+
+        Subclasses **must** call ``super().initialize()`` after establishing
+        their resources (client, etc.) to reset ``_shutting_down`` and set
+        ``_initialized``.
+        """
+        with self._lifecycle_lock:
+            self._shutting_down = False
+            self._initialized = True
 
     @abstractmethod
     def generate(self, prompt: str, **kwargs: Any) -> str:
@@ -162,6 +185,46 @@ class BaseModel(ABC):
         """Check if model is initialized."""
         return self._initialized
 
+    # ------------------------------------------------------------------
+    # Thread-safe generation guards
+    # ------------------------------------------------------------------
+
+    def _enter_generate(self) -> None:
+        """Increment active generation count; raises if model is shutting down.
+
+        Must be called at the start of ``generate()`` in subclasses.
+        """
+        with self._lifecycle_lock:
+            if self._shutting_down:
+                raise RuntimeError("Model is shutting down.")
+            if not self._initialized:
+                raise RuntimeError("Model not initialized. Call initialize() first.")
+            self._active_generations += 1
+
+    def _exit_generate(self) -> None:
+        """Decrement active generation count and notify waiters.
+
+        Must be called in a ``finally`` block at the end of ``generate()``.
+        """
+        with self._generation_done:
+            self._active_generations -= 1
+            self._generation_done.notify_all()
+
+    def safe_cleanup(self) -> None:
+        """Wait for in-flight generations to finish, then call ``cleanup()``.
+
+        Sets ``_shutting_down`` under the lock to reject new ``generate()``
+        calls, waits up to ``CLEANUP_TIMEOUT`` seconds for in-flight
+        generations, then delegates to ``cleanup()``.
+        """
+        with self._generation_done:
+            self._shutting_down = True
+            self._generation_done.wait_for(
+                lambda: self._active_generations == 0,
+                timeout=self.CLEANUP_TIMEOUT,
+            )
+        self.cleanup()
+
     def __enter__(self) -> BaseModel:
         """Context manager entry."""
         if not self._initialized:
@@ -174,8 +237,8 @@ class BaseModel(ABC):
         exc_val: BaseException | None,
         exc_tb: types.TracebackType | None,
     ) -> None:
-        """Context manager exit."""
-        self.cleanup()
+        """Context manager exit — waits for in-flight generations."""
+        self.safe_cleanup()
 
     def __repr__(self) -> str:
         """String representation."""

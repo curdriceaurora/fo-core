@@ -35,7 +35,7 @@ class AudioModel(BaseModel):
     def initialize(self) -> None:
         """Initialize the audio model (not implemented yet)."""
         logger.warning("Audio model not fully implemented yet (Phase 3)")
-        self._initialized = True
+        super().initialize()
 
     def generate(self, prompt: str, **kwargs: Any) -> str:
         """Transcribe audio (not implemented yet).
@@ -55,7 +55,8 @@ class AudioModel(BaseModel):
     def cleanup(self) -> None:
         """Cleanup model resources."""
         logger.debug("Cleaning up audio model")
-        self._initialized = False
+        with self._lifecycle_lock:
+            self._initialized = False
 
     @staticmethod
     def get_default_config(
