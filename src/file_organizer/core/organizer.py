@@ -170,9 +170,6 @@ class FileOrganizer:
         self._last_transaction_id: str | None = None
         self._last_output_path: Path | None = None
 
-        # Graceful degradation: set to False when Ollama is unreachable
-        self._ollama_available: bool = True
-
         logger.info(
             "FileOrganizer initialized (dry_run={}, parallel={})", dry_run, parallel_workers
         )
@@ -233,57 +230,25 @@ class FileOrganizer:
             text_files, image_files, video_files, audio_files, cad_files, other_files
         )
 
-        # Reset Ollama availability and processors for this organize() call.
-        # A previous call may have marked Ollama unavailable; re-probe each time
-        # so that recovery (user starts Ollama between calls) is detected.
-        self._ollama_available = True
+        # Reset processors for this organize() call so that recovery
+        # (user starts Ollama between calls) is detected.
         self.text_processor = None
         self.vision_processor = None
 
-        # Initialize models
-        self.console.print("\n[bold blue]Initializing AI models...[/bold blue]")
-
-        # Initialize text processor for text and CAD files
-        if text_files or cad_files:
-            try:
-                self.text_processor = TextProcessor(config=self.text_model_config)
-                self.text_processor.initialize()
-                self.console.print("[green]✓[/green] Text model ready")
-            except OSError as e:
-                # ConnectionRefusedError, PermissionError, etc. — Ollama not reachable
-                self._ollama_available = False
-                self.console.print(
-                    f"[yellow]⚠ Ollama unavailable ({e.__class__.__name__}): "
-                    "falling back to extension-based organization[/yellow]"
-                )
-                logger.warning(
-                    "Ollama unavailable for text processing, using extension fallback: {}", e
-                )
-
-        # Initialize vision processor for image files only (video uses metadata now)
-        if image_files:
-            try:
-                self.vision_processor = VisionProcessor(config=self.vision_model_config)
-                self.vision_processor.initialize()
-                self.console.print("[green]✓[/green] Vision model ready")
-            except OSError as e:
-                # ConnectionRefusedError, PermissionError, etc. — Ollama not reachable
-                self._ollama_available = False
-                self.console.print(
-                    f"[yellow]⚠ Ollama unavailable ({e.__class__.__name__}): "
-                    "falling back to extension-based organization for images[/yellow]"
-                )
-                logger.warning(
-                    "Ollama unavailable for vision processing, using extension fallback: {}", e
-                )
-
-        # Process text files
+        # Process text files (initialize text model on demand)
         all_processed: list[ProcessedFile | ProcessedImage] = []
+        if text_files or cad_files:
+            self._init_text_processor()
+
+        text_ready = (
+            self.text_processor is not None and self.text_processor.text_model.is_initialized
+        )
+
         if text_files:
             self.console.print(
                 f"\n[bold blue]Processing {len(text_files)} text files...[/bold blue]"
             )
-            if self._ollama_available and self.text_processor is not None:
+            if text_ready:
                 processed_text = self._process_text_files(text_files)
             else:
                 processed_text = self._fallback_by_extension(text_files)
@@ -292,17 +257,27 @@ class FileOrganizer:
         # Process CAD files (treat as text files - extract metadata)
         if cad_files:
             self.console.print(f"\n[bold blue]Processing {len(cad_files)} CAD files...[/bold blue]")
-            if self._ollama_available and self.text_processor is not None:
+            if text_ready:
                 processed_cad = self._process_text_files(cad_files)
             else:
                 processed_cad = self._fallback_by_extension(cad_files)
             all_processed.extend(processed_cad)
 
-        # Process image files
+        # Release text model VRAM before loading vision model (only if vision needed)
+        if image_files and self.text_processor:
+            self.text_processor.cleanup()
+            self.text_processor = None  # prevent double-cleanup in finally block
+
+        # Process image files (initialize vision model on demand)
         if image_files:
+            self._init_vision_processor()
+            vision_ready = (
+                self.vision_processor is not None
+                and self.vision_processor.vision_model.is_initialized
+            )
             self.console.print(f"\n[bold blue]Processing {len(image_files)} images...[/bold blue]")
             processed_images: list[ProcessedImage] | list[ProcessedFile]
-            if self._ollama_available and self.vision_processor is not None:
+            if vision_ready:
                 processed_images = self._process_image_files(image_files)
             else:
                 processed_images = self._fallback_by_extension(image_files)
@@ -367,7 +342,9 @@ class FileOrganizer:
                 self.console.print(f"  [yellow]•[/yellow] {f.name} (unsupported type)")
             self.console.print("\n  [dim]These file types are not yet supported[/dim]")
 
-        # Cleanup
+        # Cleanup remaining processors.
+        # text_processor is cleaned up earlier (before vision init) when images
+        # are present; otherwise clean it up here.
         if self.text_processor:
             self.text_processor.cleanup()
         if self.vision_processor:
@@ -473,6 +450,56 @@ class FileOrganizer:
             )
             logger.debug("Fallback organized {} -> {}/{}", file_path.name, folder, file_path.name)
         return results
+
+    def _init_text_processor(self) -> None:
+        """Initialize text processor on demand.
+
+        Creates and initializes the text model. On any initialization failure
+        (for example, Ollama being unavailable, configuration/import errors, or
+        other runtime issues), this method logs a warning, attempts best-effort
+        cleanup, resets ``text_processor`` to *None*, and lets callers fall back
+        to extension-based organization.
+        """
+        try:
+            self.text_processor = TextProcessor(config=self.text_model_config)
+            self.text_processor.initialize()
+            self.console.print("[green]✓[/green] Text model ready")
+        except Exception as e:  # graceful degradation for any init failure
+            if self.text_processor is not None:
+                try:
+                    self.text_processor.cleanup()
+                except Exception:  # best-effort — don't mask the original error
+                    pass
+            self.text_processor = None
+            self.console.print(
+                f"[yellow]⚠ Text model unavailable ({e.__class__.__name__}): "
+                "falling back to extension-based organization[/yellow]"
+            )
+            logger.opt(exception=e).warning("Text model init failed, using extension fallback")
+
+    def _init_vision_processor(self) -> None:
+        """Initialize vision processor on demand.
+
+        Creates and initializes the vision model. On failure,
+        resets ``vision_processor`` to *None* so callers fall back to extension-based
+        organization for images.
+        """
+        try:
+            self.vision_processor = VisionProcessor(config=self.vision_model_config)
+            self.vision_processor.initialize()
+            self.console.print("[green]✓[/green] Vision model ready")
+        except Exception as e:  # graceful degradation for any init failure
+            if self.vision_processor is not None:
+                try:
+                    self.vision_processor.cleanup()
+                except Exception:  # best-effort — don't mask the original error
+                    pass
+            self.vision_processor = None
+            self.console.print(
+                f"[yellow]⚠ Vision model unavailable ({e.__class__.__name__}): "
+                "falling back to extension-based organization for images[/yellow]"
+            )
+            logger.opt(exception=e).warning("Vision model init failed, using extension fallback")
 
     def _process_text_files(self, files: list[Path]) -> list[ProcessedFile]:
         """Process text files with AI.
@@ -822,36 +849,6 @@ class FileOrganizer:
             organized[result.folder_name].append(new_filename)
 
         return organized
-
-    def _show_skipped_files(
-        self,
-        image_files: list[Path],
-        video_files: list[Path],
-        audio_files: list[Path],
-    ) -> None:
-        """Show information about skipped files.
-
-        Args:
-            image_files: List of image files that were skipped
-            video_files: List of video files that were skipped
-            audio_files: List of audio files that were skipped
-        """
-        self.console.print("\n[bold yellow]Skipped Files:[/bold yellow]")
-
-        if image_files:
-            self.console.print(
-                f"  [yellow]•[/yellow] {len(image_files)} images (need vision model - Week 2)"
-            )
-        if video_files:
-            self.console.print(
-                f"  [yellow]•[/yellow] {len(video_files)} videos (need vision model - Week 2)"
-            )
-        if audio_files:
-            self.console.print(
-                f"  [yellow]•[/yellow] {len(audio_files)} audio files (need audio model - Phase 3)"
-            )
-
-        self.console.print("\n  [dim]These will be supported in future phases[/dim]")
 
     def _show_summary(self, result: OrganizationResult, output_path: Path) -> None:
         """Show final summary.
