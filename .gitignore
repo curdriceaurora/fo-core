@@ -1,3 +1,10 @@
+# direnv
+.direnv/
+.envrc
+
+# Ephemeral context checkpoint (session state, not project code)
+.claude/context/checkpoint.md
+
 # Byte-compiled Python files
 __pycache__/
 *.py[cod]
