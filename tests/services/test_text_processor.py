@@ -149,7 +149,7 @@ class TestTextProcessor:
             with patch("file_organizer.services.text_processor.ensure_nltk_data"):
                 processor = TextProcessor()
                 processor.cleanup()
-                mock_model.cleanup.assert_called_once()
+                mock_model.safe_cleanup.assert_called_once()
 
     def test_cleanup_does_not_own_model(
         self, text_processor: TextProcessor, mock_text_model: MagicMock
@@ -169,7 +169,7 @@ class TestTextProcessor:
                 with TextProcessor() as processor:
                     assert processor.text_model == mock_model
                     mock_model.initialize.assert_called_once()
-                mock_model.cleanup.assert_called_once()
+                mock_model.safe_cleanup.assert_called_once()
 
     def test_context_manager_cleanup_on_exception(self) -> None:
         """Context manager calls cleanup even when an exception occurs."""
@@ -182,7 +182,7 @@ class TestTextProcessor:
                 with pytest.raises(RuntimeError, match="boom"):
                     with TextProcessor() as _processor:
                         raise RuntimeError("boom")
-                mock_model.cleanup.assert_called_once()
+                mock_model.safe_cleanup.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

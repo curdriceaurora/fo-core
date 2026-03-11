@@ -537,7 +537,7 @@ class TestVisionProcessorLifecycle:
 
                 processor.cleanup()
 
-                mock_model.cleanup.assert_called_once()
+                mock_model.safe_cleanup.assert_called_once()
 
     def test_cleanup_does_not_own_model(self, mock_vision_model: MagicMock) -> None:
         """Test cleanup skips model cleanup when processor doesn't own it."""

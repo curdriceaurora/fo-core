@@ -39,8 +39,15 @@ class TestFileOrganizer:
 
     def test_init(self, text_config, vision_config):
         """Test default and custom initialization."""
-        # Default
-        org = FileOrganizer()
+        # Default (mock config cascade to get predictable defaults)
+        with patch(
+            "file_organizer.config.provider_env.get_model_configs",
+            return_value=(
+                ModelConfig(name="qwen2.5:3b-instruct-q4_K_M", model_type=ModelType.TEXT),
+                ModelConfig(name="qwen2.5vl:7b-q4_K_M", model_type=ModelType.VISION),
+            ),
+        ):
+            org = FileOrganizer()
         assert org.text_model_config.name == "qwen2.5:3b-instruct-q4_K_M"
         assert org.dry_run is True
 
