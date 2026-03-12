@@ -17,6 +17,8 @@ MODULE = sys.modules[__name__]
 
 pytestmark = pytest.mark.ci
 
+_LAST_DIFF_BASE_ERROR: str | None = None
+
 
 def _is_literal_int(node: ast.AST, value: int) -> bool:
     return isinstance(node, ast.Constant) and type(node.value) is int and node.value == value
@@ -190,6 +192,9 @@ def _github_pr_changed_test_files() -> list[Path]:
 
 def _resolve_diff_base() -> str | None:
     """Resolve a commit-ish usable as the changed-files diff base."""
+    global _LAST_DIFF_BASE_ERROR
+
+    _LAST_DIFF_BASE_ERROR = None
     base_branch = os.environ.get("GITHUB_BASE_REF")
     merge_base = _merge_base_from_candidates()
     if merge_base:
@@ -200,7 +205,7 @@ def _resolve_diff_base() -> str | None:
         if base_parent and _git_ref_exists(base_parent):
             return base_parent
 
-        fetch_error = _fetch_base_ref(base_branch)
+        _LAST_DIFF_BASE_ERROR = _fetch_base_ref(base_branch)
         merge_base = _merge_base_from_candidates()
         if merge_base:
             return merge_base
@@ -212,11 +217,6 @@ def _resolve_diff_base() -> str | None:
                 return merge_base
 
     if base_branch:
-        if fetch_error:
-            pytest.fail(
-                "Unable to determine changed test files for PR guardrail checks. "
-                f"Base branch fetch failed: {fetch_error}."
-            )
         return None
 
     head_parent = _git_stdout("rev-parse", "--verify", "--quiet", "HEAD^1", check=False)
@@ -273,6 +273,13 @@ def _changed_test_files() -> list[Path]:
         changed_files = _github_pr_changed_test_files()
         if changed_files:
             return changed_files
+
+        if _LAST_DIFF_BASE_ERROR:
+            pytest.fail(
+                "Unable to determine changed test files for PR guardrail checks. "
+                "Git-based diff-base resolution failed, the GitHub PR files API "
+                f"did not provide a usable fallback, and the last git error was: {_LAST_DIFF_BASE_ERROR}"
+            )
 
         pytest.fail(
             "Unable to determine changed test files for PR guardrail checks. "
@@ -498,7 +505,7 @@ def test_resolve_diff_base_returns_none_in_pr_context_when_no_base_is_available(
     assert _resolve_diff_base() is None
 
 
-def test_resolve_diff_base_fails_with_fetch_timeout_details_in_pr_context(
+def test_resolve_diff_base_returns_none_when_fetch_times_out_in_pr_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GITHUB_BASE_REF", "main")
@@ -511,8 +518,7 @@ def test_resolve_diff_base_fails_with_fetch_timeout_details_in_pr_context(
     )
     monkeypatch.setattr(MODULE, "_git_stdout", lambda *args, check=True: "")
 
-    with pytest.raises(pytest.fail.Exception, match="timed out after 5 seconds"):
-        _resolve_diff_base()
+    assert _resolve_diff_base() is None
 
 
 def test_changed_test_files_returns_empty_when_no_distinct_diff_base(
@@ -532,8 +538,24 @@ def test_changed_test_files_use_github_pr_api_when_git_diff_base_is_unavailable(
 ) -> None:
     fallback_files = [FO_ROOT / "tests" / "ci" / "test_weak_test_assertions.py"]
     monkeypatch.setattr(MODULE, "_resolve_diff_base", lambda: None)
+    monkeypatch.setattr(MODULE, "_LAST_DIFF_BASE_ERROR", None)
     monkeypatch.setattr(MODULE, "_github_pr_changed_test_files", lambda: fallback_files)
     assert _changed_test_files() == fallback_files
+
+
+def test_changed_test_files_reports_fetch_timeout_when_api_fallback_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(MODULE, "_resolve_diff_base", lambda: None)
+    monkeypatch.setattr(
+        MODULE,
+        "_LAST_DIFF_BASE_ERROR",
+        "git fetch origin 'main' timed out after 5 seconds",
+    )
+    monkeypatch.setattr(MODULE, "_github_pr_changed_test_files", lambda: [])
+
+    with pytest.raises(pytest.fail.Exception, match="timed out after 5 seconds"):
+        _changed_test_files()
 
 
 def test_changed_test_files_includes_renames_in_diff_filter(

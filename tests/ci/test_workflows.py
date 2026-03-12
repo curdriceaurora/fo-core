@@ -45,6 +45,22 @@ def get_triggers(workflow: dict[str, Any]) -> dict[str, Any]:
     return triggers
 
 
+def get_effective_env(
+    workflow: dict[str, Any], job: dict[str, Any], step: dict[str, Any]
+) -> dict[str, Any]:
+    """Return the combined workflow, job, and step env maps for a step."""
+    effective_env: dict[str, Any] = {}
+    for env_source in (workflow.get("env", {}), job.get("env", {}), step.get("env", {})):
+        if isinstance(env_source, dict):
+            effective_env.update(env_source)
+    return effective_env
+
+
+def is_supported_github_token(value: Any) -> bool:
+    """Return whether *value* is a supported GitHub Actions token expression."""
+    return value in {"${{ secrets.GITHUB_TOKEN }}", "${{ github.token }}"}
+
+
 @pytest.mark.unit
 class TestWorkflowDirectory:
     """Tests for the workflows directory structure."""
@@ -187,6 +203,52 @@ class TestCIWorkflow:
     def test_ci_has_concurrency(self, workflow: dict[str, Any]) -> None:
         """Verify CI workflow has concurrency settings to cancel stale runs."""
         assert "concurrency" in workflow, "CI workflow should set concurrency to cancel stale runs"
+
+    def test_ci_exposes_permissions_and_token_for_ci_only_guardrails(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        """Verify CI-only guardrails have the workflow support they require."""
+        permissions = workflow.get("permissions", {})
+        assert permissions.get("pull-requests") == "read", (
+            "ci.yml must grant pull-requests: read so PR guardrails can query PR files"
+        )
+
+        jobs = workflow.get("jobs", {})
+        lint_job = jobs.get("lint", {})
+        test_job = jobs.get("test", {})
+        lint_steps = lint_job.get("steps", [])
+        test_steps = test_job.get("steps", [])
+
+        lint_pre_commit_step = next(
+            (
+                step
+                for step in lint_steps
+                if isinstance(step, dict)
+                and isinstance(step.get("run"), str)
+                and "pre-commit run" in step["run"]
+                and "--all-files" in step["run"]
+            ),
+            None,
+        )
+        assert lint_pre_commit_step is not None, "lint job must run pre-commit across the repo"
+        lint_env = get_effective_env(workflow, lint_job, lint_pre_commit_step)
+        assert is_supported_github_token(lint_env.get("GITHUB_TOKEN")), (
+            "lint pre-commit step must expose GITHUB_TOKEN for CI-only PR guardrails"
+        )
+
+        test_run_step = next(
+            (
+                step
+                for step in test_steps
+                if isinstance(step, dict) and step.get("name") == "Run tests"
+            ),
+            None,
+        )
+        assert test_run_step is not None, "test job must have a Run tests step"
+        test_env = get_effective_env(workflow, test_job, test_run_step)
+        assert is_supported_github_token(test_env.get("GITHUB_TOKEN")), (
+            "test job must expose GITHUB_TOKEN for CI-only PR guardrails"
+        )
 
     def test_ci_has_frontend_test_job(self, workflow: dict[str, Any]) -> None:
         """Verify CI workflow includes frontend testing capability.
