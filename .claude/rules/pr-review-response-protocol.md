@@ -96,23 +96,55 @@ For each finding:
 - **Config/environment changes**: Manual verification or related tests
 - **Linting/style fixes**: Syntax check is sufficient
 
----
+### Call-Site Verification (REQUIRED for security/validation fixes)
 
-## Step 4: Run Full Quality Gate Sequence
+When the fix adds a validation guard (e.g., `__setattr__`, `__post_init__`, input sanitization,
+path-traversal check), the fix is only complete if ALL call sites respect the invariant — not just
+the file you edited.
 
-All three gates are MANDATORY. Execute in order:
+Before marking a security/validation fix done:
 
 ```bash
-/simplify                     # Review changes for efficiency/reuse (REQUIRED)
-/code-reviewer                # Validate changes against standards (REQUIRED)
-bash .claude/scripts/pre-commit-validation.sh  # Must pass (REQUIRED)
+# 1. Find every place in src/ that touches the validated field/method
+rg "context\.category\s*=|context\.filename\s*=" src/ --type py
+rg "_active_models\[" src/ --type py
+
+# 2. For each result: does the assignment go THROUGH the validated path,
+#    or does it bypass it (e.g., via object.__setattr__, direct dict store, etc.)?
+
+# 3. Only reply "✅ Fixed" after verifying ALL call sites pass through the guard.
+```
+
+**Root cause of PR #749 re-review cycle**: `StageContext.__post_init__` was added but
+`analyzer.py` and `preprocessor.py` assigned `context.category = ...` directly after
+construction, bypassing `__post_init__`. The fix was incomplete. Call-site verification
+would have caught this before push.
+
+---
+
+## Step 4: Run Quality Gate Sequence
+
+Execute in order (fail fast — cheap checks first):
+
+```bash
+# Step 4a: Pre-commit validation (REQUIRED — deterministic, fast)
+bash .claude/scripts/pre-commit-validation.sh
+
+# Step 4b: Code reviewer (REQUIRED — logic, design, consistency)
+/code-reviewer
+
+# Step 4c: Simplify (OPTIONAL — run when touching shared utilities or extractable helpers)
+/simplify
+
+# Step 4d: Audit (OPTIONAL — run when touching auth, file paths, or new public APIs)
+/audit
 ```
 
 ### Quality Gate Expectations
 
-**If /simplify is unavailable**: Hard blocker - cannot proceed without it
+**If /code-reviewer is unavailable**: Hard blocker — cannot proceed without it
 
-**If /code-reviewer is unavailable**: Hard blocker - cannot proceed without it
+**If /simplify or /audit is unavailable**: Skip and proceed.
 
 **If /code-reviewer suggests refactoring**: Include it in this PR (don't defer)
 - It's part of the quality gate validation

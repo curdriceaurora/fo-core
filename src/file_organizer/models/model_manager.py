@@ -1,7 +1,8 @@
-"""Model manager — list, pull, and inspect AI models.
+"""Model manager - list, pull, inspect, and hot-swap AI models.
 
-Wraps the Ollama CLI and the static model registry to provide
-user-facing model operations.
+Wraps the Ollama CLI and the model registry to provide user-facing
+model operations, including atomic model swapping with drain and
+rollback semantics.
 """
 
 from __future__ import annotations
@@ -9,11 +10,19 @@ from __future__ import annotations
 import json
 import logging
 import subprocess
+import threading
+from collections.abc import Callable
 
 from rich.console import Console
 from rich.table import Table
 
-from file_organizer.models.registry import AVAILABLE_MODELS, ModelInfo
+from file_organizer.models.registry import (
+    ModelInfo,
+    get_all_models,
+    get_audio_models,
+    get_text_models,
+    get_vision_models,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +30,18 @@ logger = logging.getLogger(__name__)
 class ModelManager:
     """Manage AI models for File Organizer.
 
-    Combines the static :data:`AVAILABLE_MODELS` registry with live
-    ``ollama list`` data to show installed status, and delegates to
-    ``ollama pull`` for downloading new models.
+    Combines the static model registry with live ``ollama list`` data
+    to show installed status, and delegates to ``ollama pull`` for
+    downloading new models.  Supports atomic model hot-swapping with
+    drain/pre-warm/rollback semantics.
     """
 
     def __init__(self, console: Console | None = None) -> None:
         """Initialize ModelManager with optional Rich console."""
         self._console = console or Console()
+        self._swap_lock = threading.Lock()
+        self._active_models: dict[str, object] = {}  # model_type -> live model instance
+        self._active_model_ids: dict[str, str] = {}  # model_type -> selected model id
 
     # ------------------------------------------------------------------
     # Installed model detection
@@ -96,12 +109,20 @@ class ModelManager:
             List of ModelInfo with ``installed`` populated.
         """
         installed = self.check_installed()
-        models = []
-        for m in AVAILABLE_MODELS:
-            if type_filter and m.model_type != type_filter:
-                continue
+
+        if type_filter == "text":
+            models = get_text_models()
+        elif type_filter == "vision":
+            models = get_vision_models()
+        elif type_filter == "audio":
+            models = get_audio_models()
+        elif type_filter is None:
+            models = get_all_models()
+        else:
+            models = [m for m in get_all_models() if m.model_type == type_filter]
+
+        for m in models:
             m.installed = self._is_installed(m.name, installed)
-            models.append(m)
         return models
 
     def display_models(self, type_filter: str | None = None) -> None:
@@ -155,6 +176,106 @@ class ModelManager:
         except subprocess.TimeoutExpired:
             self._console.print("[red]Pull timed out.[/red]")
             return False
+
+    # ------------------------------------------------------------------
+    # Hot-swap
+    # ------------------------------------------------------------------
+
+    def swap_model(
+        self,
+        model_type: str,
+        new_model_id: str,
+        *,
+        model_factory: Callable[[], object] | None = None,
+    ) -> bool:
+        """Atomically swap the active model for *model_type*.
+
+        Swap sequence (under lock):
+
+        1. Pre-warm the new model synchronously via *model_factory*.
+        2. Atomic reference swap (old -> new) so callers immediately see
+           the new model; no drain window where the old model is visible
+           but already shutting down.
+        3. Drain the old model via ``safe_cleanup()`` (if supported).
+
+        On failure at step 1, the old model remains active (rollback).
+        On drain failure at step 3, the swap is already committed; the
+        drain error is logged but does not affect the return value.
+
+        Args:
+            model_type: ``"text"``, ``"vision"``, or ``"audio"``.
+            new_model_id: Model identifier to swap to.
+            model_factory: Optional factory callable that returns a new
+                model instance.  When *None*, the swap is recorded in
+                the registry but no live model is loaded.
+
+        Returns:
+            ``True`` on success, ``False`` on rollback.
+        """
+        if not self._swap_lock.acquire(blocking=False):
+            logger.warning("Swap already in progress for %s", model_type)
+            return False
+
+        try:
+            old_model = self._active_models.get(model_type)
+            # Step 1: Pre-warm new model
+            new_model: object | None = None
+            if model_factory is not None:
+                try:
+                    new_model = model_factory()
+                    if hasattr(new_model, "initialize"):
+                        new_model.initialize()
+                except Exception:
+                    logger.exception(
+                        "Failed to pre-warm new model %s for %s",
+                        new_model_id,
+                        model_type,
+                    )
+                    # Clean up partially initialized model
+                    if new_model is not None and hasattr(new_model, "cleanup"):
+                        try:
+                            new_model.cleanup()
+                        except Exception:
+                            logger.debug("Cleanup of partial model failed", exc_info=True)
+                    return False
+
+            # Step 2: Atomic swap — callers see new model before old is drained
+            self._active_model_ids[model_type] = new_model_id
+            if new_model is not None:
+                self._active_models[model_type] = new_model
+            else:
+                self._active_models.pop(model_type, None)
+
+            logger.info("Swapped %s model to %s", model_type, new_model_id)
+
+            # Step 3: Drain old model (best-effort; swap already committed)
+            if old_model is not None and hasattr(old_model, "safe_cleanup"):
+                try:
+                    old_model.safe_cleanup()
+                except Exception:
+                    logger.exception("Drain failed for old %s model (swap committed)", model_type)
+
+            return True
+
+        finally:
+            self._swap_lock.release()
+
+    def get_active_model(self, model_type: str) -> object | None:
+        """Return the currently loaded model instance for *model_type*.
+
+        Returns:
+            The loaded model instance, or ``None`` if no model is loaded.
+        """
+        return self._active_models.get(model_type)
+
+    def get_active_model_id(self, model_type: str) -> str | None:
+        """Return the selected model ID for *model_type*, whether loaded or not.
+
+        Returns:
+            The model ID string most recently swapped to, or ``None`` if
+            no swap has been performed for *model_type*.
+        """
+        return self._active_model_ids.get(model_type)
 
     # ------------------------------------------------------------------
     # Cache info
