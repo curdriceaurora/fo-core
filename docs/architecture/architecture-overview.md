@@ -43,13 +43,13 @@
 ## Data Flow
 
 ```text
-Input File → FileOrganizer → PipelineOrchestrator
-    ↓
-Stage-Based Pipeline (composable):
-  PreprocessorStage → File validation + metadata extraction
-  AnalyzerStage → FileRouter → Processor (Text/Vision/Audio)
-  PostprocessorStage → Destination path computation
-  WriterStage → File copy/move (skipped in dry-run)
+Input File → FileOrganizer → ParallelProcessor (current default path)
+
+Stage-Based Pipeline via PipelineOrchestrator (composable, double-buffered):
+  PreprocessorStage → File validation + metadata extraction  (prefetched in I/O thread pool; default prefetch_stages=1)
+  AnalyzerStage → FileRouter → Processor (Text/Vision/Audio) (runs on calling thread by default)
+  PostprocessorStage → Destination path computation          (runs on calling thread by default)
+  WriterStage → File copy/move (skipped in dry-run)         (runs on calling thread by default)
 
 Legacy Pipeline (backward compatible):
   File Type Detection → TextProcessor / VisionProcessor / AudioModel

@@ -97,6 +97,53 @@ config = ParallelConfig(
 )
 ```
 
+## Pipeline Prefetch (I/O-Compute Overlap)
+
+`PipelineOrchestrator` supports double-buffered processing: I/O stages (e.g.
+`PreprocessorStage`) run ahead in a thread pool while the compute stage (e.g.
+`AnalyzerStage` / LLM inference) runs on the current file. This hides file-read
+latency behind LLM inference time.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `prefetch_depth` | `2` | Files to pre-process ahead of current file. `0` disables prefetch. |
+| `prefetch_stages` | `1` | Requested number of leading stages to prefetch. The current implementation only supports the first stage; values greater than `1` log a warning and are effectively treated as `1`. |
+| `memory_limiter` | `None` | Optional `MemoryLimiter`; gates whether a new prefetch slot opens. |
+
+### Tuning Tips
+
+- Increase `prefetch_depth` (3–5) when files are large and disk I/O is the bottleneck
+- Keep `prefetch_depth=2` (default) for typical SSD + Ollama workloads
+- Set `prefetch_depth=0` to disable overlap and process files sequentially (useful
+  for debugging or on memory-constrained systems)
+- Keep `prefetch_stages=1`; higher values are currently capped to the first
+  stage for thread-safety
+- Pass a `MemoryLimiter` to automatically back off prefetch when RSS approaches
+  a configured ceiling
+- Note: `--no-prefetch` on the `file-organizer organize` CLI is currently a no-op
+  (that command uses `ParallelProcessor`). To disable prefetch, set `prefetch_depth=0`
+  when constructing `PipelineOrchestrator` directly
+
+```python
+from file_organizer.optimization.memory_limiter import MemoryLimiter, LimitAction
+from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+from file_organizer.pipeline.stages import PreprocessorStage, AnalyzerStage
+
+# Prefetch depth=3 with a 2 GB memory ceiling
+limiter = MemoryLimiter(max_memory_mb=2048, action=LimitAction.WARN)
+pipeline = PipelineOrchestrator(
+    stages=[PreprocessorStage(), AnalyzerStage()],
+    prefetch_depth=3,
+    memory_limiter=limiter,
+)
+results = pipeline.process_batch(files)
+```
+
+`PipelineOrchestrator` uses `MemoryLimiter.check()` only to decide whether to
+open another prefetch slot, so the `LimitAction` configured on `MemoryLimiter`
+in this example does not affect prefetch gating; it only changes what happens
+when you call `limiter.enforce()` or use the guarded context manager.
+
 ## Adaptive Batch Sizing
 
 `AdaptiveBatchSizer` calculates how many files to process per batch based on

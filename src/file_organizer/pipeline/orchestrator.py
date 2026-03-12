@@ -12,12 +12,13 @@ import shutil
 import threading
 import time
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from file_organizer.interfaces.pipeline import PipelineStage, StageContext
+from file_organizer.optimization.memory_limiter import MemoryLimiter
 
 from .config import PipelineConfig
 from .processor_pool import (
@@ -121,6 +122,9 @@ class PipelineOrchestrator:
         self,
         config: PipelineConfig | None = None,
         stages: Sequence[PipelineStage] | None = None,
+        prefetch_depth: int = 2,
+        prefetch_stages: int = 1,
+        memory_limiter: MemoryLimiter | None = None,
     ) -> None:
         """Initialize the pipeline orchestrator.
 
@@ -129,6 +133,22 @@ class PipelineOrchestrator:
             stages: Optional list of composable pipeline stages.
                 When provided, ``process_file`` delegates to these stages
                 instead of the legacy router/pool path.
+            prefetch_depth: Number of files to pre-process in parallel
+                using I/O threads while the current file's compute stages
+                run.  Set to 0 to disable prefetch (sequential fallback).
+                Defaults to 2.
+            prefetch_stages: Requested number of leading stages to treat
+                as I/O stages.  For thread-safety, the current
+                implementation caps the effective prefetched stage count
+                at 1, so only the first stage (typically
+                :class:`~file_organizer.pipeline.stages.PreprocessorStage`)
+                runs in the prefetch thread pool; remaining stages run on
+                the calling thread.  Values greater than 1 currently log
+                a warning and are treated as 1.  Defaults to 1.
+            memory_limiter: Optional limiter that gates whether a new
+                prefetch slot may be opened.  When ``limiter.check()``
+                returns *False*, no new prefetch futures are submitted
+                until memory is available.
         """
         self.config = config or PipelineConfig()
         self.router = FileRouter()
@@ -136,6 +156,10 @@ class PipelineOrchestrator:
         self.stats = PipelineStats()
         self._stats_lock = threading.Lock()
         self._stages: list[PipelineStage] = list(stages) if stages else []
+
+        self._prefetch_depth = max(0, prefetch_depth)
+        self._prefetch_stages = max(0, prefetch_stages)
+        self._memory_limiter = memory_limiter
 
         self._running = False
         self._lock = threading.Lock()
@@ -246,16 +270,24 @@ class PipelineOrchestrator:
     def process_batch(self, files: list[Path]) -> list[ProcessingResult]:
         """Process a batch of files through the pipeline.
 
-        Files are processed sequentially. Each file is routed, processed,
-        and optionally organized independently.
+        When stages are configured and ``prefetch_depth > 0``, the first
+        ``prefetch_stages`` stages are run in a background thread pool so
+        that I/O for file *N+1* overlaps with compute for file *N*.
+        Otherwise files are processed sequentially.
 
         Args:
             files: List of file paths to process.
 
         Returns:
-            List of ProcessingResult instances, one per file.
+            List of ProcessingResult instances, one per file, in order.
         """
-        return [self.process_file(f) for f in files]
+        # Snapshot once; set_stages() may replace self._stages concurrently.
+        stages = self._stages
+        if stages and self._prefetch_depth > 0 and self._prefetch_stages > 0 and len(files) > 1:
+            return self._process_batch_prefetch(files, stages)
+        if stages:
+            return [self._process_file_staged(f, stages) for f in files]
+        return [self._process_file_legacy(f) for f in files]
 
     @property
     def is_running(self) -> bool:
@@ -266,42 +298,52 @@ class PipelineOrchestrator:
     # Stage-based processing (new)
     # ------------------------------------------------------------------
 
-    def _process_file_staged(
-        self, file_path: Path, stages: list[PipelineStage]
-    ) -> ProcessingResult:
-        """Run *file_path* through the configured stages.
+    def _run_stages(self, context: StageContext, stages: list[PipelineStage]) -> StageContext:
+        """Run *context* through *stages*, stopping at the first error.
 
         Each stage is wrapped in a try/except so that an unexpected
         exception is recorded on the context rather than crashing the
-        caller.  A custom stage returning ``None`` is also treated as a
-        failure so downstream stages are not passed a ``None`` context.
+        caller.  A stage returning ``None`` is treated as a failure.
+        Already-failed contexts are passed through without re-running.
+
+        Args:
+            context: The pipeline context to thread through stages.
+            stages: Ordered list of stages to execute.
+
+        Returns:
+            The final context after all stages have run (or after the
+            first failure).
         """
-        start_time = time.monotonic()
-        file_path = Path(file_path)
-
-        context = StageContext(
-            file_path=file_path,
-            dry_run=not self.config.should_move_files,
-        )
-
         for stage in stages:
+            if context.failed:
+                break
             try:
                 returned = stage.process(context)
             except Exception as exc:
-                logger.exception("Stage %s raised for %s", stage.name, file_path)
+                logger.exception("Stage %s raised for %s", stage.name, context.file_path)
                 context.error = str(exc)
                 break
             if returned is None:
-                logger.error("Stage %s returned None for %s", stage.name, file_path)
+                logger.error("Stage %s returned None for %s", stage.name, context.file_path)
                 context.error = f"Stage {stage.name!r} returned None"
                 break
             context = returned
+        return context
 
+    def _finalize_result(self, context: StageContext, start_time: float) -> ProcessingResult:
+        """Convert a completed context into a ProcessingResult and update stats.
+
+        Args:
+            context: The final pipeline context after all stages ran.
+            start_time: ``time.monotonic()`` timestamp from before stage
+                execution began (used to compute ``duration_ms``).
+
+        Returns:
+            A :class:`ProcessingResult` reflecting the context state.
+        """
         duration_ms = (time.monotonic() - start_time) * 1000
-
         processor_type = context.extra.get("analyzer.processor_type", ProcessorType.UNKNOWN)
 
-        # Update stats (thread-safe for watch mode)
         with self._stats_lock:
             self.stats.total_processed += 1
             self.stats.total_duration_ms += duration_ms
@@ -310,10 +352,10 @@ class PipelineOrchestrator:
             else:
                 self.stats.successful += 1
 
-        self._notify(file_path, not context.failed)
+        self._notify(context.file_path, not context.failed)
 
         return ProcessingResult(
-            file_path=file_path,
+            file_path=context.file_path,
             success=not context.failed,
             category=context.category,
             destination=context.destination,
@@ -322,6 +364,116 @@ class PipelineOrchestrator:
             processor_type=processor_type,
             dry_run=context.dry_run,
         )
+
+    def _make_context(self, file_path: Path) -> StageContext:
+        """Create a fresh :class:`StageContext` for *file_path*.
+
+        Centralises the ``dry_run`` derivation so all three entry points
+        (``_process_file_staged``, the prefetch priming loop, and the
+        prefetch fallback path) stay in sync.
+        """
+        return StageContext(
+            file_path=file_path,
+            dry_run=not self.config.should_move_files,
+        )
+
+    def _process_file_staged(
+        self, file_path: Path, stages: list[PipelineStage]
+    ) -> ProcessingResult:
+        """Run *file_path* through the configured stages."""
+        start_time = time.monotonic()
+        context = self._make_context(file_path)
+        context = self._run_stages(context, stages)
+        return self._finalize_result(context, start_time)
+
+    def _process_batch_prefetch(
+        self, files: list[Path], stages: list[PipelineStage]
+    ) -> list[ProcessingResult]:
+        """Process a batch with I/O-compute overlap via a prefetch queue.
+
+        Splits *stages* at ``effective_prefetch_stages`` (capped at 1 for
+        thread-safety — shared components such as ``ProcessorPool`` are not
+        safe for concurrent initialisation): the I/O stages are submitted to
+        a dedicated :class:`~concurrent.futures.ThreadPoolExecutor` for
+        upcoming files while the compute stages run on the calling thread for
+        the current file.
+
+        At most ``self._prefetch_depth`` I/O futures are outstanding at
+        any time.  If a ``memory_limiter`` is configured, no new futures
+        are opened when ``limiter.check()`` returns *False*.
+
+        An error in a prefetched file's I/O stages does not crash the
+        batch; a failed :class:`~file_organizer.interfaces.StageContext`
+        is returned and the compute stages are still attempted (they will
+        short-circuit on ``context.failed``).
+
+        Args:
+            files: Ordered list of file paths to process.
+            stages: Snapshot of the stage list taken by the caller.
+
+        Returns:
+            List of :class:`ProcessingResult` instances in the same
+            order as *files*.
+        """
+        # Cap at 1: stages beyond the first (e.g. AnalyzerStage) rely on
+        # shared components (ProcessorPool) that are not thread-safe for
+        # concurrent initialisation.
+        effective_prefetch_stages = min(self._prefetch_stages, 1)
+        if self._prefetch_stages > 1:
+            logger.warning(
+                "prefetch_stages=%d is not fully supported; "
+                "capping effective prefetch stages to %d for thread-safety",
+                self._prefetch_stages,
+                effective_prefetch_stages,
+            )
+        io_stages = stages[:effective_prefetch_stages]
+        compute_stages = stages[effective_prefetch_stages:]
+
+        def _run_io(idx: int) -> StageContext:
+            ctx = self._make_context(files[idx])
+            return self._run_stages(ctx, io_stages)
+
+        futures: dict[int, tuple[Future[StageContext], float]] = {}
+        results: list[ProcessingResult] = []
+
+        with ThreadPoolExecutor(max_workers=self._prefetch_depth) as io_exec:
+            # Prime the queue with the first prefetch_depth files.
+            for i in range(min(self._prefetch_depth, len(files))):
+                if self._memory_limiter is not None and not self._memory_limiter.check():
+                    logger.warning("Prefetch depth capped at %d due to memory limit", i)
+                    break
+                futures[i] = (io_exec.submit(_run_io, i), time.monotonic())
+
+            for i in range(len(files)):
+                # Enqueue the next lookahead file as we consume one slot.
+                next_i = i + self._prefetch_depth
+                if next_i < len(files) and next_i not in futures:
+                    if self._memory_limiter is None or self._memory_limiter.check():
+                        futures[next_i] = (io_exec.submit(_run_io, next_i), time.monotonic())
+
+                # Retrieve the prefetched I/O context (or compute inline).
+                if i in futures:
+                    future, start_time = futures.pop(i)
+                    try:
+                        ctx = future.result()
+                    except Exception as exc:
+                        logger.warning(
+                            "Prefetch future failed for %s: %s",
+                            files[i],
+                            exc,
+                            exc_info=True,
+                        )
+                        ctx = self._make_context(files[i])
+                        ctx.error = str(exc)
+                else:
+                    start_time = time.monotonic()
+                    ctx = _run_io(i)
+
+                # Run compute stages on the calling thread.
+                ctx = self._run_stages(ctx, compute_stages)
+                results.append(self._finalize_result(ctx, start_time))
+
+        return results
 
     # ------------------------------------------------------------------
     # Legacy processing (backward compatible)
