@@ -349,26 +349,58 @@ class TestConcurrency:
         """Test concurrent preference additions."""
         import threading
 
-        def add_prefs():
-            for i in range(10):
+        worker_count = 3
+        prefs_per_worker = 10
+        start_barrier = threading.Barrier(worker_count + 1)
+
+        def add_prefs(worker_id: int) -> None:
+            # Rendezvous with main thread so all workers start together.
+            start_barrier.wait(timeout=5)
+
+            for i in range(prefs_per_worker):
                 db_manager.add_preference(
-                    "folder_mapping", f"key_{threading.get_ident()}_{i}", f"value_{i}", 0.5
+                    "folder_mapping", f"key_worker{worker_id}_{i}", f"value_{i}", 0.5
                 )
 
         # Create multiple threads
-        threads = [threading.Thread(target=add_prefs) for _ in range(3)]
+        threads = [
+            threading.Thread(target=add_prefs, args=(worker_id,))
+            for worker_id in range(worker_count)
+        ]
 
         # Start all threads
         for t in threads:
             t.start()
 
+        # Release all worker threads at once once startup has completed.
+        start_barrier.wait(timeout=5)
+
         # Wait for completion
         for t in threads:
-            t.join()
+            t.join(timeout=5)
+            assert not t.is_alive()
 
         # Verify all preferences were added
         prefs = db_manager.get_preferences_by_type("folder_mapping")
-        assert len(prefs) == 30  # 3 threads * 10 prefs each
+        expected_count = worker_count * prefs_per_worker
+        assert len(prefs) == expected_count
+        assert sum(int(pref["frequency"]) for pref in prefs) == expected_count
+        assert all(int(pref["frequency"]) == 1 for pref in prefs)
+
+        expected_keys = {
+            f"key_worker{worker_id}_{i}"
+            for worker_id in range(worker_count)
+            for i in range(prefs_per_worker)
+        }
+        actual_keys = {pref["key"] for pref in prefs}
+        assert actual_keys == expected_keys
+
+        worker_counts = dict.fromkeys(range(worker_count), 0)
+        for key in actual_keys:
+            assert isinstance(key, str)
+            worker_id = int(key.removeprefix("key_worker").split("_", 1)[0])
+            worker_counts[worker_id] += 1
+        assert worker_counts == dict.fromkeys(range(worker_count), prefs_per_worker)
 
 
 @pytest.mark.unit
