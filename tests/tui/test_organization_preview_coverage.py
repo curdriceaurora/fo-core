@@ -7,7 +7,7 @@ action_refresh_preview, action_confirm, action_cancel, _set_status.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, call, patch
 
 import pytest
 
@@ -97,7 +97,17 @@ class TestOrganizationPreviewViewLoadPreview:
 
     def test_load_preview_success(self) -> None:
         view = OrganizationPreviewView()
-        view.query_one = MagicMock()
+        before_after_panel = MagicMock()
+        summary_panel = MagicMock()
+
+        def _query_side_effect(panel_type):
+            mapping = {
+                BeforeAfterPanel: before_after_panel,
+                OrganizationSummary: summary_panel,
+            }
+            return mapping[panel_type]
+
+        view.query_one = MagicMock(side_effect=_query_side_effect)
 
         mock_result = SimpleNamespace(
             organized_structure={"Docs": ["a.pdf"]},
@@ -111,6 +121,7 @@ class TestOrganizationPreviewViewLoadPreview:
         mock_organizer.organize.return_value = mock_result
 
         mock_app = MagicMock()
+        mock_app.call_from_thread.side_effect = lambda fn, *a, **kw: fn(*a, **kw)
         with (
             patch(
                 "file_organizer.core.organizer.FileOrganizer",
@@ -120,14 +131,40 @@ class TestOrganizationPreviewViewLoadPreview:
         ):
             OrganizationPreviewView._load_preview.__wrapped__(view)
 
-        # Should update both panels + status
-        assert mock_app.call_from_thread.call_count >= 3
+        assert mock_app.call_from_thread.call_count == 3
+        before_after_panel.set_structure.assert_called_once_with(
+            {"Docs": ["a.pdf"]},
+            str(view._input_dir),
+        )
+        summary_panel.set_result.assert_called_once_with(
+            total=10,
+            processed=8,
+            skipped=1,
+            failed=1,
+            folders=1,
+            errors=[("bad.txt", "corrupt")],
+        )
+        assert mock_app.call_from_thread.call_args_list[-1] == call(
+            view._set_status,
+            "Preview loaded",
+        )
 
     def test_load_preview_exception(self) -> None:
         view = OrganizationPreviewView()
-        view.query_one = MagicMock()
+        before_after_panel = MagicMock()
+        summary_panel = MagicMock()
+
+        def _query_side_effect(panel_type):
+            mapping = {
+                BeforeAfterPanel: before_after_panel,
+                OrganizationSummary: summary_panel,
+            }
+            return mapping[panel_type]
+
+        view.query_one = MagicMock(side_effect=_query_side_effect)
 
         mock_app = MagicMock()
+        mock_app.call_from_thread.side_effect = lambda fn, *a, **kw: fn(*a, **kw)
         with (
             patch(
                 "file_organizer.core.organizer.FileOrganizer",
@@ -137,8 +174,12 @@ class TestOrganizationPreviewViewLoadPreview:
         ):
             OrganizationPreviewView._load_preview.__wrapped__(view)
 
-        # Should update panels with error messages
-        assert mock_app.call_from_thread.call_count >= 2
+        assert mock_app.call_from_thread.call_count == 2
+        before_after_panel.update.assert_called_once_with(
+            "[red]Models unavailable:[/red] model not found\n\n"
+            "[dim]Ensure Ollama is running with required models.[/dim]"
+        )
+        summary_panel.update.assert_called_once_with("[dim]No data available.[/dim]")
 
     def test_action_refresh_preview(self) -> None:
         view = OrganizationPreviewView()
