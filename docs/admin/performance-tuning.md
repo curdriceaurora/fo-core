@@ -345,17 +345,26 @@ with limiter.guarded():
 
 ## Benchmarking
 
-Use the built-in startup benchmark to measure initialization time:
+Use the benchmark CLI to profile specific processing surfaces:
 
 ```bash
-python scripts/benchmark_startup.py
+# Baseline file-system overhead
+file-organizer benchmark run ~/test-files --suite io --json
+
+# Text and vision processor paths
+file-organizer benchmark run ~/test-files --suite text --json
+file-organizer benchmark run ~/test-files --suite vision --json
+
+# Pipeline and full organizer passes
+file-organizer benchmark run ~/test-files --suite pipeline --json
+file-organizer benchmark run ~/test-files --suite e2e --json
 ```
 
-For per-file processing benchmarks, use the CLI with `--dry-run`:
-
-```bash
-file-organizer organize ~/test-files ~/organized-output --dry-run
-```
+Why this matters:
+- `io` gives a floor for disk-only overhead.
+- `text`/`vision`/`audio` isolate processor-stack latency without requiring live model backends.
+- `pipeline` and `e2e` capture orchestration overhead and write-path behavior.
+- Baseline JSON now includes `runner_profile_version`; treat baseline comparisons as valid only when this version matches.
 
 ## Environment Variables
 
