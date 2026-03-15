@@ -18,6 +18,7 @@ import statistics
 import tempfile
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 
@@ -60,10 +61,28 @@ class ComparisonResult(TypedDict):
     threshold: float
 
 
+@dataclass(frozen=True, slots=True)
+class _SuiteExecutionClassification:
+    """Runtime classification for one suite iteration."""
+
+    effective_suite: str
+    degraded: bool
+    degradation_reasons: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _SuiteIterationOutcome:
+    """Per-iteration suite runner outcome consumed by classification."""
+
+    processed_count: int
+    used_synthetic_audio_metadata: bool = False
+
+
 class _SuiteRunner(TypedDict):
     """Metadata for a benchmark suite runner."""
 
-    run: Callable[[list[Path]], int]
+    run: Callable[[list[Path]], _SuiteIterationOutcome]
+    classify: Callable[[list[Path], _SuiteIterationOutcome], _SuiteExecutionClassification]
     description: str
 
 
@@ -245,7 +264,7 @@ def _suite_candidates(
     return selected[: min(cap, len(selected))]
 
 
-def _run_io_suite(files: list[Path]) -> int:
+def _run_io_suite(files: list[Path]) -> _SuiteIterationOutcome:
     """Baseline I/O benchmark: measures file stat access overhead."""
     candidates = _suite_candidates(files, set(), fallback_to_all=True)
     for file_path in candidates:
@@ -253,15 +272,15 @@ def _run_io_suite(files: list[Path]) -> int:
             _ = file_path.stat()
         except OSError:
             pass
-    return len(candidates)
+    return _SuiteIterationOutcome(processed_count=len(candidates))
 
 
-def _run_text_suite(files: list[Path]) -> int:
+def _run_text_suite(files: list[Path]) -> _SuiteIterationOutcome:
     """Benchmark text processing path via TextProcessor.process_file()."""
     candidates = _suite_candidates(files, _TEXT_EXTENSIONS)
     if not candidates:
         typer.echo("Warning: no text files found for text suite; skipping benchmark.", err=True)
-        return 0
+        return _SuiteIterationOutcome(processed_count=0)
 
     from file_organizer.models.base import ModelType
     from file_organizer.services import TextProcessor
@@ -281,15 +300,15 @@ def _run_text_suite(files: list[Path]) -> int:
             processor.process_file(file_path)
     finally:
         processor.cleanup()
-    return len(candidates)
+    return _SuiteIterationOutcome(processed_count=len(candidates))
 
 
-def _run_vision_suite(files: list[Path]) -> int:
+def _run_vision_suite(files: list[Path]) -> _SuiteIterationOutcome:
     """Benchmark vision processing path via VisionProcessor.process_file()."""
     candidates = _suite_candidates(files, _VISION_EXTENSIONS)
     if not candidates:
         typer.echo("Warning: no vision files found for vision suite; skipping benchmark.", err=True)
-        return 0
+        return _SuiteIterationOutcome(processed_count=0)
 
     from file_organizer.models.base import ModelType
     from file_organizer.services import VisionProcessor
@@ -309,7 +328,7 @@ def _run_vision_suite(files: list[Path]) -> int:
             processor.process_file(file_path, perform_ocr=False)
     finally:
         processor.cleanup()
-    return len(candidates)
+    return _SuiteIterationOutcome(processed_count=len(candidates))
 
 
 def _synthesized_audio_metadata(file_path: Path) -> AudioMetadata:
@@ -328,7 +347,7 @@ def _synthesized_audio_metadata(file_path: Path) -> AudioMetadata:
     )
 
 
-def _run_audio_suite(files: list[Path]) -> int:
+def _run_audio_suite(files: list[Path]) -> _SuiteIterationOutcome:
     """Benchmark audio metadata + classification path."""
     candidates = _suite_candidates(files, _AUDIO_EXTENSIONS, fallback_to_all=False)
     if not candidates:
@@ -340,22 +359,27 @@ def _run_audio_suite(files: list[Path]) -> int:
 
     extractor = AudioMetadataExtractor(use_fallback=True)
     classifier = AudioClassifier()
+    used_synthetic_metadata = False
     for file_path in candidates:
         try:
             metadata = extractor.extract(file_path)
         except ImportError:
+            used_synthetic_metadata = True
             metadata = _synthesized_audio_metadata(file_path)
         except Exception as exc:
             raise RuntimeError(f"Audio benchmark runner failed for {file_path}: {exc}") from exc
         _ = classifier.classify(metadata)
-    return len(candidates)
+    return _SuiteIterationOutcome(
+        processed_count=len(candidates),
+        used_synthetic_audio_metadata=used_synthetic_metadata,
+    )
 
 
-def _run_pipeline_suite(files: list[Path]) -> int:
+def _run_pipeline_suite(files: list[Path]) -> _SuiteIterationOutcome:
     """Benchmark the PipelineOrchestrator stage path end-to-end."""
     candidates = _suite_candidates(files, set(), fallback_to_all=True)
     if not candidates:
-        return 0
+        return _SuiteIterationOutcome(processed_count=0)
 
     from file_organizer.pipeline.config import PipelineConfig
     from file_organizer.pipeline.orchestrator import PipelineOrchestrator
@@ -392,10 +416,10 @@ def _run_pipeline_suite(files: list[Path]) -> int:
         finally:
             orchestrator.stop()
             pool.cleanup()
-    return len(candidates)
+    return _SuiteIterationOutcome(processed_count=len(candidates))
 
 
-def _run_e2e_suite(files: list[Path]) -> int:
+def _run_e2e_suite(files: list[Path]) -> _SuiteIterationOutcome:
     """Benchmark full organizer flow including file writes."""
     preferred_extensions = _VISION_EXTENSIONS | _AUDIO_EXTENSIONS
     preferred = _suite_candidates(
@@ -411,7 +435,7 @@ def _run_e2e_suite(files: list[Path]) -> int:
         cap=_MAX_E2E_FILES,
     )
     if not candidates:
-        return 0
+        return _SuiteIterationOutcome(processed_count=0)
 
     from file_organizer.core.organizer import FileOrganizer
 
@@ -445,7 +469,7 @@ def _run_e2e_suite(files: list[Path]) -> int:
             )
 
         if not copied:
-            return 0
+            return _SuiteIterationOutcome(processed_count=0)
 
         organizer = FileOrganizer(
             dry_run=False,
@@ -463,24 +487,97 @@ def _run_e2e_suite(files: list[Path]) -> int:
                 organizer.organize(input_dir, output_dir, skip_existing=False)
         except Exception as exc:
             raise RuntimeError(f"E2E benchmark runner failed: {exc}") from exc
-    return len(copied)
+    return _SuiteIterationOutcome(processed_count=len(copied))
+
+
+def _classify_io_suite(
+    _: list[Path], _outcome: _SuiteIterationOutcome
+) -> _SuiteExecutionClassification:
+    return _SuiteExecutionClassification(effective_suite="io", degraded=False)
+
+
+def _classify_text_suite(
+    files: list[Path], _outcome: _SuiteIterationOutcome
+) -> _SuiteExecutionClassification:
+    candidates = _suite_candidates(files, _TEXT_EXTENSIONS)
+    if not candidates:
+        return _SuiteExecutionClassification(
+            effective_suite="text",
+            degraded=True,
+            degradation_reasons=("text-no-candidates-skip",),
+        )
+    return _SuiteExecutionClassification(effective_suite="text", degraded=False)
+
+
+def _classify_vision_suite(
+    files: list[Path], _outcome: _SuiteIterationOutcome
+) -> _SuiteExecutionClassification:
+    candidates = _suite_candidates(files, _VISION_EXTENSIONS)
+    if not candidates:
+        return _SuiteExecutionClassification(
+            effective_suite="vision",
+            degraded=True,
+            degradation_reasons=("vision-no-candidates-skip",),
+        )
+    return _SuiteExecutionClassification(effective_suite="vision", degraded=False)
+
+
+def _classify_audio_suite(
+    files: list[Path], outcome: _SuiteIterationOutcome
+) -> _SuiteExecutionClassification:
+    candidates = _suite_candidates(files, _AUDIO_EXTENSIONS, fallback_to_all=False)
+    if not candidates:
+        return _SuiteExecutionClassification(
+            effective_suite="io",
+            degraded=True,
+            degradation_reasons=("audio-no-candidates-fallback-to-io",),
+        )
+    if outcome.used_synthetic_audio_metadata:
+        return _SuiteExecutionClassification(
+            effective_suite="audio",
+            degraded=True,
+            degradation_reasons=("audio-synthesized-metadata-fallback",),
+        )
+    return _SuiteExecutionClassification(effective_suite="audio", degraded=False)
+
+
+def _classify_pipeline_suite(
+    _: list[Path], _outcome: _SuiteIterationOutcome
+) -> _SuiteExecutionClassification:
+    return _SuiteExecutionClassification(effective_suite="pipeline", degraded=False)
+
+
+def _classify_e2e_suite(
+    files: list[Path], outcome: _SuiteIterationOutcome
+) -> _SuiteExecutionClassification:
+    if files and outcome.processed_count == 0:
+        return _SuiteExecutionClassification(
+            effective_suite="e2e",
+            degraded=True,
+            degradation_reasons=("e2e-no-candidates-processed",),
+        )
+    return _SuiteExecutionClassification(effective_suite="e2e", degraded=False)
 
 
 _SUITE_RUNNERS: dict[str, _SuiteRunner] = {
     "io": {
         "run": _run_io_suite,
+        "classify": _classify_io_suite,
         "description": "File stat/read overhead only.",
     },
     "text": {
         "run": _run_text_suite,
+        "classify": _classify_text_suite,
         "description": "TextProcessor stack with deterministic benchmark model.",
     },
     "vision": {
         "run": _run_vision_suite,
+        "classify": _classify_vision_suite,
         "description": "VisionProcessor stack with deterministic benchmark model.",
     },
     "audio": {
         "run": _run_audio_suite,
+        "classify": _classify_audio_suite,
         "description": (
             "Audio metadata extraction + classification path "
             "(synthetic metadata fallback only when optional extractor deps are missing)."
@@ -488,10 +585,12 @@ _SUITE_RUNNERS: dict[str, _SuiteRunner] = {
     },
     "pipeline": {
         "run": _run_pipeline_suite,
+        "classify": _classify_pipeline_suite,
         "description": "PipelineOrchestrator real staged processing path (pre/analyze/post/write).",
     },
     "e2e": {
         "run": _run_e2e_suite,
+        "classify": _classify_e2e_suite,
         "description": "Full FileOrganizer run including output writes in temp workspace.",
     },
 }
@@ -540,26 +639,60 @@ def _check_baseline_profile_compatibility(
 
 def _execute_suite_iteration(
     *,
-    runner: Callable[[list[Path]], int],
+    runner: Callable[[list[Path]], _SuiteIterationOutcome],
+    classifier: Callable[[list[Path], _SuiteIterationOutcome], _SuiteExecutionClassification],
     files: list[Path],
     suite: str,
     console: Any,
-) -> tuple[float, int]:
+) -> tuple[float, int, _SuiteExecutionClassification]:
     """Run one suite iteration and validate returned processed count."""
     start = time.monotonic()
     try:
-        processed_count = runner(files)
+        outcome = runner(files)
     except Exception as e:
         console.print(f"[red]Benchmark suite '{suite}' failed: {e}[/red]")
         raise typer.Exit(code=1) from e
-    if processed_count < 0:
+    if outcome.processed_count < 0:
         console.print(
-            f"[red]Benchmark suite '{suite}' returned invalid processed count: {processed_count}[/red]"
+            f"[red]Benchmark suite '{suite}' returned invalid processed count: "
+            f"{outcome.processed_count}[/red]"
         )
         raise typer.Exit(code=1)
-
     elapsed_ms = (time.monotonic() - start) * 1000
-    return elapsed_ms, processed_count
+    try:
+        classification = classifier(files, outcome)
+    except Exception as e:
+        console.print(f"[red]Benchmark suite '{suite}' classification failed: {e}[/red]")
+        raise typer.Exit(code=1) from e
+    return elapsed_ms, outcome.processed_count, classification
+
+
+def _summarize_suite_classifications(
+    classifications: list[_SuiteExecutionClassification],
+    *,
+    warmup: int,
+    requested_suite: str,
+) -> tuple[str, bool, list[str]]:
+    """Return effective suite, degraded flag, and unique degradation reasons."""
+    measured = classifications[warmup:]
+    degradation_reasons = sorted(
+        {
+            reason
+            for classification in measured
+            if classification.degraded
+            for reason in classification.degradation_reasons
+        }
+    )
+    degraded = any(classification.degraded for classification in measured)
+    effective_suite_names = {classification.effective_suite for classification in measured}
+    effective_suite = (
+        measured[-1].effective_suite
+        if len(effective_suite_names) == 1 and measured
+        else "mixed"
+        if measured
+        else requested_suite
+    )
+    return effective_suite, degraded, degradation_reasons
 
 
 def _print_table(
@@ -606,6 +739,36 @@ def _print_comparison(console: Any, comp: dict[str, Any], *, json_output: bool) 
         )
     else:
         console.print("\n[bold green]No regression detected[/bold green]")
+
+
+def _maybe_attach_comparison_output(
+    *,
+    output: dict[str, Any],
+    compare_path: Path | None,
+    suite: str,
+    console: Any,
+    json_output: bool,
+) -> dict[str, Any]:
+    """Attach baseline comparison fields when ``compare_path`` is provided."""
+    if compare_path is None:
+        return output
+    try:
+        baseline = json.loads(compare_path.read_text())
+    except Exception as e:
+        console.print(f"[red]Failed to read baseline: {e}[/red]")
+        raise typer.Exit(code=1) from e
+
+    profile_warning = _check_baseline_profile_compatibility(
+        baseline,
+        suite=suite,
+        console=console,
+        json_output=json_output,
+    )
+    comp = compare_results(output, baseline)
+    output["comparison"] = comp
+    if profile_warning is not None:
+        output["comparison_profile_warning"] = profile_warning
+    return output
 
 
 # ---------------------------------------------------------------------------
@@ -680,6 +843,9 @@ def run(
                 json.dumps(
                     {
                         "suite": suite,
+                        "effective_suite": suite,
+                        "degraded": False,
+                        "degradation_reasons": [],
                         "runner_profile_version": _RUNNER_PROFILE_VERSION,
                         "files_count": 0,
                         "hardware_profile": _detect_hardware_profile(),
@@ -698,6 +864,7 @@ def run(
         console.print(f"[red]Unknown suite: {suite}[/red]")
         raise typer.Exit(code=1)
     runner = suite_spec["run"]
+    classifier = suite_spec["classify"]
 
     # Ensure we have enough iterations
     total_iterations = warmup + iterations
@@ -711,23 +878,31 @@ def run(
     # Run iterations
     all_times_ms: list[float] = []
     processed_counts: list[int] = []
+    classifications: list[_SuiteExecutionClassification] = []
     for i in range(total_iterations):
         if not json_output:
             label = "warmup" if i < warmup else f"{i - warmup + 1}/{iterations}"
             console.print(f"[dim]Iteration {i + 1}/{total_iterations} ({label})...[/dim]")
 
-        elapsed_ms, processed_count = _execute_suite_iteration(
+        elapsed_ms, processed_count, classification = _execute_suite_iteration(
             runner=runner,
+            classifier=classifier,
             files=files,
             suite=suite,
             console=console,
         )
         all_times_ms.append(elapsed_ms)
         processed_counts.append(processed_count)
+        classifications.append(classification)
 
     # Exclude warmup
     measured = all_times_ms[warmup:]
     actual_processed_count = _resolve_processed_count(processed_counts, warmup)
+    effective_suite, degraded, degradation_reasons = _summarize_suite_classifications(
+        classifications,
+        warmup=warmup,
+        requested_suite=suite,
+    )
 
     # Statistics
     stats = compute_stats(measured, actual_processed_count)
@@ -735,35 +910,34 @@ def run(
     # Build output
     output: dict[str, Any] = {
         "suite": suite,
+        "effective_suite": effective_suite,
+        "degraded": degraded,
+        "degradation_reasons": degradation_reasons,
         "runner_profile_version": _RUNNER_PROFILE_VERSION,
         "files_count": actual_processed_count,
         "hardware_profile": _detect_hardware_profile(),
         "results": stats,
     }
 
-    # Comparison (must be built before JSON print to emit a single document)
-    if compare_path is not None:
-        try:
-            baseline = json.loads(compare_path.read_text())
-        except Exception as e:
-            console.print(f"[red]Failed to read baseline: {e}[/red]")
-            raise typer.Exit(code=1) from e
-
-        profile_warning = _check_baseline_profile_compatibility(
-            baseline,
-            suite=suite,
-            console=console,
-            json_output=json_output,
-        )
-        comp = compare_results(output, baseline)
-        output["comparison"] = comp
-        if profile_warning is not None:
-            output["comparison_profile_warning"] = profile_warning
+    output = _maybe_attach_comparison_output(
+        output=output,
+        compare_path=compare_path,
+        suite=suite,
+        console=console,
+        json_output=json_output,
+    )
 
     if json_output:
         console.print(json.dumps(output, indent=2))
     else:
+        if degraded:
+            console.print(
+                f"[yellow]Degraded suite mode:[/yellow] requested={suite}, "
+                f"effective={effective_suite}"
+            )
+            for reason in degradation_reasons:
+                console.print(f"[yellow]- {reason}[/yellow]")
         _print_table(console, suite, warmup, stats, actual_processed_count)
-        if compare_path is not None:
+        if "comparison" in output:
             _print_comparison(console, output["comparison"], json_output=False)
         console.print("\n[bold green]Benchmark completed[/bold green]")
