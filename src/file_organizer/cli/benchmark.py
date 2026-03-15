@@ -171,11 +171,25 @@ def compare_results(
     )
 
 
-def _resolve_processed_count(processed_counts: list[int], warmup: int) -> int:
-    """Return processed file count from measured iterations, with safe fallback."""
+def _resolve_processed_count(
+    processed_counts: list[int],
+    warmup: int,
+    *,
+    suite: str,
+    console: Any,
+) -> int:
+    """Return processed file count, failing fast when measured counts drift."""
     measured = processed_counts[warmup:]
     if measured:
-        return measured[-1]
+        expected_count = measured[-1]
+        if any(count != expected_count for count in measured):
+            console.print(
+                "[red]Benchmark suite "
+                f"'{suite}' produced inconsistent processed counts across iterations: "
+                f"{measured}[/red]"
+            )
+            raise typer.Exit(code=1)
+        return expected_count
     if processed_counts:
         return processed_counts[-1]
     return 0
@@ -897,7 +911,12 @@ def run(
 
     # Exclude warmup
     measured = all_times_ms[warmup:]
-    actual_processed_count = _resolve_processed_count(processed_counts, warmup)
+    actual_processed_count = _resolve_processed_count(
+        processed_counts,
+        warmup,
+        suite=suite,
+        console=console,
+    )
     effective_suite, degraded, degradation_reasons = _summarize_suite_classifications(
         classifications,
         warmup=warmup,
