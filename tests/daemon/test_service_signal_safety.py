@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import signal
+import sys
 import threading
 import time
 from pathlib import Path
@@ -87,6 +88,7 @@ class TestSignalHandlerWritesToPipe:
 class TestRunLoopExitsOnPipeSignal:
     """TestRunLoopExitsOnPipeSignal test suite."""
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="signal pipe not available on Windows")
     def test_run_loop_exits_on_pipe_signal(self) -> None:
         """Verify run loop exits when signal is written to pipe."""
         daemon = DaemonService(_make_config())
@@ -118,6 +120,7 @@ class TestRunLoopExitsOnPipeSignal:
         assert daemon._stop_event.is_set(), "Stop event should be set after event.wait path"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="signal pipe not available on Windows")
 class TestPipeClosedOnRestore:
     """TestPipeClosedOnRestore test suite."""
 
@@ -156,6 +159,7 @@ class TestPipeClosedOnRestore:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="signal pipe not available on Windows")
 class TestInstallSignalHandlersMainThread:
     """TestInstallSignalHandlersMainThread test suite."""
 

@@ -97,12 +97,19 @@ class TestExecuteMigration:
         assert len(report.skipped) == 1
 
     def test_execute_migration_move_failure(
-        self, manager: PARAMigrationManager, tmp_path: Path
+        self, manager: PARAMigrationManager, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """File that fails to move is recorded as failed (lines 284-286)."""
         src = tmp_path / "source.txt"
         src.write_text("hello")
-        bad_target = Path("/proc/impossible/file.txt")
+        bad_target = tmp_path / "target" / "file.txt"
+
+        import shutil
+
+        def _raise_permission(*_a: object, **_k: object) -> None:
+            raise PermissionError("injected move failure")
+
+        monkeypatch.setattr(shutil, "move", _raise_permission)
 
         plan = MigrationPlan(
             files=[
@@ -139,14 +146,27 @@ class TestRollback:
         with pytest.raises(RollbackError, match="manifest not found"):
             manager.rollback("bad_backup")
 
-    def test_rollback_restore_failure(self, manager: PARAMigrationManager, tmp_path: Path) -> None:
+    def test_rollback_restore_failure(
+        self, manager: PARAMigrationManager, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Rollback with restore failure raises RollbackError."""
+        import shutil
+
         backup_dir = manager.backup_root / "test_backup"
         backup_dir.mkdir(parents=True)
 
         # Create a backup file
         backup_file = backup_dir / "file.txt"
         backup_file.write_text("backup content")
+
+        # Use a real tmp_path target so mkdir succeeds, but monkeypatch shutil.copy2
+        # to simulate a failure deterministically on all platforms.
+        restore_target = str(tmp_path / "restore" / "path.txt")
+
+        def _raise_permission(*_a: object, **_k: object) -> None:
+            raise PermissionError("injected copy failure")
+
+        monkeypatch.setattr(shutil, "copy2", _raise_permission)
 
         file_hash = PARAMigrationManager._calculate_file_hash(backup_file)
         manifest_data = {
@@ -158,7 +178,7 @@ class TestRollback:
             "checksum": PARAMigrationManager._calculate_manifest_checksum(
                 [
                     {
-                        "original_path": "/impossible/restore/path.txt",
+                        "original_path": restore_target,
                         "hash": file_hash,
                         "backup_path": str(backup_file),
                     }
@@ -168,7 +188,7 @@ class TestRollback:
             "status": "created",
             "file_entries": [
                 {
-                    "original_path": "/impossible/restore/path.txt",
+                    "original_path": restore_target,
                     "backup_path": str(backup_file),
                     "size": 14,
                     "hash": file_hash,

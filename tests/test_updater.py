@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -225,10 +226,11 @@ class TestUpdateInstaller:
         downloaded = tmp_path / "new-binary"
         downloaded.write_bytes(b"new-content")
 
+        expected_name = "file-organizer.exe" if sys.platform == "win32" else "file-organizer"
         result = installer.install(downloaded, target_name="file-organizer")
         assert result.success is True
-        assert (tmp_path / "file-organizer").exists()
-        assert (tmp_path / "file-organizer").read_bytes() == b"new-content"
+        assert (tmp_path / expected_name).exists()
+        assert (tmp_path / expected_name).read_bytes() == b"new-content"
 
     def test_install_uses_appimage_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -249,8 +251,10 @@ class TestUpdateInstaller:
     def test_install_creates_backup(self, tmp_path: Path) -> None:
         installer = UpdateInstaller(install_dir=tmp_path)
 
+        expected_name = "file-organizer.exe" if sys.platform == "win32" else "file-organizer"
+
         # Create existing binary
-        existing = tmp_path / "file-organizer"
+        existing = tmp_path / expected_name
         existing.write_bytes(b"old-content")
 
         # Create download
@@ -259,17 +263,19 @@ class TestUpdateInstaller:
 
         result = installer.install(downloaded, target_name="file-organizer")
         assert result.success is True
-        assert (tmp_path / "file-organizer.bak").read_bytes() == b"old-content"
-        assert (tmp_path / "file-organizer").read_bytes() == b"new-content"
+        assert (tmp_path / f"{expected_name}.bak").read_bytes() == b"old-content"
+        assert (tmp_path / expected_name).read_bytes() == b"new-content"
 
     def test_rollback(self, tmp_path: Path) -> None:
         installer = UpdateInstaller(install_dir=tmp_path)
 
+        expected_name = "file-organizer.exe" if sys.platform == "win32" else "file-organizer"
+
         # Create backup
-        (tmp_path / "file-organizer.bak").write_bytes(b"old-content")
+        (tmp_path / f"{expected_name}.bak").write_bytes(b"old-content")
 
         assert installer.rollback() is True
-        assert (tmp_path / "file-organizer").read_bytes() == b"old-content"
+        assert (tmp_path / expected_name).read_bytes() == b"old-content"
 
     def test_rollback_no_backup(self, tmp_path: Path) -> None:
         installer = UpdateInstaller(install_dir=tmp_path)
@@ -314,7 +320,8 @@ class TestUpdateManager:
 
     def test_rollback_delegates(self, tmp_path: Path) -> None:
         mgr = UpdateManager(install_dir=tmp_path)
-        (tmp_path / "file-organizer.bak").write_bytes(b"old")
+        expected_name = "file-organizer.exe" if sys.platform == "win32" else "file-organizer"
+        (tmp_path / f"{expected_name}.bak").write_bytes(b"old")
         assert mgr.rollback() is True
 
 

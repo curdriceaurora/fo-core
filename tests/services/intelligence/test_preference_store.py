@@ -508,6 +508,9 @@ class TestImportExport:
 
     def test_import_json(self, store, temp_storage):
         """Test importing preferences from JSON"""
+        # Use a platform-native resolved key so the round-trip via
+        # get_preference (which calls path.resolve()) works on all OSes.
+        import_key = str(Path("/imported/path").resolve())
         # Create export file
         data = {
             "version": "1.0",
@@ -518,7 +521,7 @@ class TestImportExport:
                 "category_overrides": {},
             },
             "directory_preferences": {
-                "/imported/path": {
+                import_key: {
                     "folder_mappings": {"*.md": "Notes"},
                     "naming_patterns": {},
                     "category_overrides": {},
@@ -538,7 +541,7 @@ class TestImportExport:
 
         assert result is True
         assert store._preferences["user_id"] == "imported"
-        pref = store.get_preference(Path("/imported/path"), fallback_to_parent=False)
+        pref = store.get_preference(Path("/imported/path").resolve(), fallback_to_parent=False)
         assert pref["folder_mappings"] == {"*.md": "Notes"}
 
     def test_import_invalid_json(self, store, temp_storage):
