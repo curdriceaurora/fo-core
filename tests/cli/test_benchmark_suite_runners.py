@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 import typer
@@ -143,6 +143,21 @@ def test_audio_suite_warns_when_falling_back_to_io() -> None:
         "Warning: no audio files found; falling back to IO-only benchmark.",
         err=True,
     )
+
+
+@pytest.mark.ci
+@pytest.mark.unit
+def test_io_suite_logs_oserror_traceback_for_failed_stat() -> None:
+    """I/O suite should keep OSError non-fatal while preserving traceback breadcrumbs."""
+    fake_path = MagicMock(spec=Path)
+    fake_path.suffix = ".txt"
+    fake_path.stat.side_effect = OSError("permission denied")
+
+    with patch("file_organizer.cli.benchmark.logger.debug") as mocked_debug:
+        result = benchmark_cli._run_io_suite([fake_path])
+
+    assert result.processed_count == 1
+    mocked_debug.assert_called_once_with(ANY, fake_path, exc_info=True)
 
 
 @pytest.mark.ci
