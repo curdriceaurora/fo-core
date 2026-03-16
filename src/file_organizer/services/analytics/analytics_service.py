@@ -23,6 +23,46 @@ from .storage_analyzer import StorageAnalyzer
 
 logger = logging.getLogger(__name__)
 
+# Extensions considered to have sufficient content-type metadata for reliable
+# downstream processing.  Defined at module level to avoid recreation per call.
+_KNOWN_EXTENSIONS = {
+    ".txt",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".md",
+    ".rst",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".svg",
+    ".webp",
+    ".mp3",
+    ".wav",
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".py",
+    ".js",
+    ".ts",
+    ".java",
+    ".go",
+    ".rs",
+    ".cpp",
+    ".c",
+    ".h",
+    ".csv",
+    ".json",
+    ".xml",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".zip",
+    ".tar",
+    ".gz",
+}
+
 
 class AnalyticsService:
     """Main analytics service that orchestrates all analytics components.
@@ -77,9 +117,7 @@ class AnalyticsService:
         duplicate_stats = self.get_duplicate_stats(duplicate_groups or [], storage_stats.total_size)
 
         # Get quality metrics
-        quality_metrics = self.get_quality_metrics(
-            directory, storage_stats.file_count, storage_stats.organized_size
-        )
+        quality_metrics = self.get_quality_metrics(directory, max_depth=max_depth)
 
         # Calculate time savings
         time_savings = self.calculate_time_saved(
@@ -182,50 +220,81 @@ class AnalyticsService:
         )
 
     def get_quality_metrics(
-        self, directory: Path, total_files: int, organized_size: int
+        self,
+        directory: Path,
+        max_depth: int | None = None,
     ) -> QualityMetrics:
         """Calculate organization quality metrics.
 
+        Computes four scores, all clamped to [0.0, 1.0]:
+        - naming_compliance: fraction of files following lowercase/delimiter conventions
+        - structure_consistency: fraction of files placed in subdirectories
+        - metadata_completeness: fraction of files with a recognized extension and
+          non-trivial stem (proxy for content-type discoverability)
+        - categorization_accuracy: fraction of files in subdirectories that have
+          at least 2 sibling files (proxy for intentional grouping)
+
         Args:
             directory: Directory to analyze
-            total_files: Total number of files
-            organized_size: Size of organized files
+            max_depth: Maximum directory depth to traverse (None = unlimited).
+                Must match the depth used when computing storage statistics to
+                ensure consistent denominators across all metrics.
 
         Returns:
-            QualityMetrics object
+            QualityMetrics object with all scores in [0.0, 1.0]
         """
         logger.info("Calculating quality metrics")
 
-        # Collect files for analysis
-        files = list(directory.rglob("*"))
-        file_paths = [f for f in files if f.is_file()]
+        # Collect files using the same depth limit as storage analysis so that
+        # all metric denominators are consistent with storage_stats.file_count.
+        file_paths = [
+            p for p in self.storage_analyzer.walk_directory(directory, max_depth) if p.is_file()
+        ]
 
         # Calculate individual metrics
         naming_compliance = self.metrics_calculator.measure_naming_compliance(
             file_paths[:1000]  # Sample for performance
         )
 
-        # Structure consistency: check if files are in organized subdirectories
-        organized_files = sum(1 for f in file_paths if len(f.relative_to(directory).parts) > 1)
-        structure_consistency = organized_files / max(total_files, 1)
+        # Single pass: compute organized_files, files_with_metadata, and dir_file_counts
+        # together to avoid iterating file_paths multiple times.
+        organized_files = 0
+        files_with_metadata = 0
+        dir_file_counts: dict[Path, int] = {}
+        for f in file_paths:
+            if len(f.relative_to(directory).parts) > 1:
+                organized_files += 1
+            if f.suffix.lower() in _KNOWN_EXTENSIONS and f.stem and not f.stem.isdigit():
+                files_with_metadata += 1
+            dir_file_counts[f.parent] = dir_file_counts.get(f.parent, 0) + 1
 
-        # Metadata completeness: estimate based on file properties
-        # In a real implementation, this would check for tags, descriptions, etc.
-        metadata_completeness = 0.5  # Placeholder
+        n = max(len(file_paths), 1)
+        structure_consistency = min(1.0, organized_files / n)
 
-        # Categorization accuracy: estimate based on directory structure
-        categorization_accuracy = 0.7  # Placeholder
+        # Metadata completeness: fraction of files with a recognized extension and
+        # a non-trivial stem (not purely numeric).  Files that match both criteria
+        # carry enough content-type metadata for reliable downstream processing.
+        metadata_completeness = min(1.0, files_with_metadata / n)
+
+        # Categorization accuracy: fraction of files that are in subdirectories
+        # with at least 2 sibling files.  Single-file "folders" suggest random
+        # scatter rather than intentional grouping; directories with multiple
+        # files suggest the organizer placed related content together.
+        well_categorized = sum(
+            1 for f in file_paths if f.parent != directory and dir_file_counts.get(f.parent, 0) >= 2
+        )
+        categorization_accuracy = min(1.0, well_categorized / n)
 
         # Calculate overall quality score
         quality_score = self.metrics_calculator.calculate_quality_score(
-            total_files=total_files,
+            total_files=len(file_paths),
             organized_files=organized_files,
             naming_compliance=naming_compliance,
             structure_consistency=structure_consistency,
         )
 
         return QualityMetrics(
-            quality_score=quality_score,
+            quality_score=quality_score,  # already clamped to [0, 100] by calculate_quality_score
             naming_compliance=naming_compliance,
             structure_consistency=structure_consistency,
             metadata_completeness=metadata_completeness,

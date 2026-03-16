@@ -321,49 +321,83 @@ class TestGetQualityMetrics:
     def test_basic_quality_metrics(self, temp_directory):
         """Test basic quality metrics calculation."""
         service = AnalyticsService()
-        metrics = service.get_quality_metrics(temp_directory, total_files=6, organized_size=1000)
+        metrics = service.get_quality_metrics(temp_directory)
 
         assert isinstance(metrics, QualityMetrics)
         assert 0 <= metrics.quality_score <= 100
         assert 0 <= metrics.naming_compliance <= 1
         assert 0 <= metrics.structure_consistency <= 1
-        assert metrics.metadata_completeness == 0.5
-        assert metrics.categorization_accuracy == 0.7
+        assert 0 <= metrics.metadata_completeness <= 1
+        assert 0 <= metrics.categorization_accuracy <= 1
 
     def test_quality_with_mocked_dependencies(self, mock_service, temp_directory):
-        """Test quality metrics with mocked calculator."""
-        metrics = mock_service.get_quality_metrics(
-            temp_directory, total_files=10, organized_size=500
-        )
+        """Test quality metrics with mocked calculator and deterministic traversal.
+
+        temp_directory contains 6 files:
+          docs/test1.txt, docs/test2.txt, images/image1.jpg,
+          images/image2.png, videos/video1.mp4, readme.md
+
+        Expected:
+          - structure_consistency = 5/6  (5 files in subdirs; readme.md is at root)
+          - metadata_completeness = 1.0  (all 6 have known extensions + non-numeric stems)
+          - categorization_accuracy = 4/6 (docs×2 + images×2; videos has only 1 file)
+        """
+        # Configure walk_directory to return the real files so metric computation
+        # is deterministic and independent of StorageAnalyzer internals.
+        real_paths = list(StorageAnalyzer().walk_directory(temp_directory))
+        mock_service.storage_analyzer.walk_directory.return_value = real_paths
+
+        metrics = mock_service.get_quality_metrics(temp_directory)
 
         assert isinstance(metrics, QualityMetrics)
         assert metrics.quality_score == 75.0
         assert metrics.naming_compliance == 0.85
+        assert metrics.structure_consistency == pytest.approx(5 / 6)
+        assert metrics.metadata_completeness == 1.0
+        assert metrics.categorization_accuracy == pytest.approx(4 / 6)
 
-    def test_quality_zero_total_files(self, temp_directory):
-        """Test quality metrics when total_files is zero."""
-        service = AnalyticsService()
-        metrics = service.get_quality_metrics(temp_directory, total_files=0, organized_size=0)
+    def test_quality_zero_files_directory(self):
+        """Test quality metrics on an empty directory — no division by zero."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = AnalyticsService()
+            metrics = service.get_quality_metrics(Path(tmpdir))
 
-        assert isinstance(metrics, QualityMetrics)
-        # structure_consistency uses max(total_files, 1) to avoid division by zero
-        assert metrics.structure_consistency >= 0
+            assert isinstance(metrics, QualityMetrics)
+            # Empty directory: n is clamped to 1 so scores are 0.0, not an error
+            assert metrics.structure_consistency == 0.0
+            assert metrics.metadata_completeness == 0.0
+            assert metrics.categorization_accuracy == 0.0
 
     def test_quality_score_boundaries(self, temp_directory):
-        """Test quality score stays within valid range."""
+        """Test quality score stays within valid range regardless of depth."""
         service = AnalyticsService()
-        for total_files in [0, 1, 10, 100, 1000]:
-            metrics = service.get_quality_metrics(
-                temp_directory, total_files=total_files, organized_size=100
-            )
+        for max_depth in [None, 0, 1, 2, 100]:
+            metrics = service.get_quality_metrics(temp_directory, max_depth=max_depth)
             assert 0 <= metrics.quality_score <= 100
 
     def test_empty_directory_quality(self):
         """Test quality metrics for empty directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AnalyticsService()
-            metrics = service.get_quality_metrics(Path(tmpdir), total_files=0, organized_size=0)
+            metrics = service.get_quality_metrics(Path(tmpdir))
             assert isinstance(metrics, QualityMetrics)
+
+    def test_quality_depth_sensitive(self, temp_directory):
+        """Test that max_depth limits traversal and changes metric values.
+
+        With no depth limit all 6 files are visited; with max_depth=0 only
+        root-level items are yielded (readme.md is the sole file), so
+        structure_consistency drops to 0.0.
+        """
+        service = AnalyticsService()
+
+        metrics_all = service.get_quality_metrics(temp_directory)
+        assert metrics_all.structure_consistency == pytest.approx(5 / 6)
+
+        # max_depth=0: only root-level items are traversed; readme.md is the
+        # only file at the root, so none of the files are in a subdirectory.
+        metrics_shallow = service.get_quality_metrics(temp_directory, max_depth=0)
+        assert metrics_shallow.structure_consistency == 0.0
 
 
 @pytest.mark.unit

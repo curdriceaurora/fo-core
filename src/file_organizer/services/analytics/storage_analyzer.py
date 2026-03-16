@@ -239,6 +239,26 @@ class StorageAnalyzer:
         except Exception as e:
             logger.error(f"Error walking {path}: {e}")
 
+    def walk_directory(self, path: Path, max_depth: int | None = None) -> Any:
+        """Walk directory with optional depth limit (public API).
+
+        Args:
+            path: Directory path
+            max_depth: Maximum depth (None = unlimited)
+
+        Raises:
+            FileNotFoundError: If ``path`` does not exist.
+            NotADirectoryError: If ``path`` exists but is not a directory.
+
+        Yields:
+            Path objects for all items up to max_depth
+        """
+        if not path.exists():
+            raise FileNotFoundError(f"Directory not found: {path}")
+        if not path.is_dir():
+            raise NotADirectoryError(f"Not a directory: {path}")
+        return self._walk_directory(path, max_depth)
+
     def clear_cache(self) -> None:
         """Clear the analysis cache."""
         self._cache.clear()
