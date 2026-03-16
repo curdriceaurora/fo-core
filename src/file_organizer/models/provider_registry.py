@@ -12,6 +12,8 @@ Built-in providers:
   :class:`~file_organizer.models.openai_vision_model.OpenAIVisionModel`
 - ``"llama_cpp"`` — :class:`~file_organizer.models.llama_cpp_text_model.LlamaCppTextModel`
   (text only; vision deferred to Phase 2)
+- ``"mlx"`` — :class:`~file_organizer.models.mlx_text_model.MLXTextModel`
+  (text only; vision deferred to Phase 3)
 """
 
 from __future__ import annotations
@@ -29,7 +31,7 @@ class ProviderRegistry:
     """Thread-safe registry mapping provider names to model factory callables.
 
     Factory callables are stored as plain callables (not class references) so
-    that optional packages (openai, llama_cpp) are imported lazily — only when
+    that optional packages (openai, llama_cpp, mlx_lm) are imported lazily — only when
     a model instance is actually requested.
     """
 
@@ -140,33 +142,87 @@ class ProviderRegistry:
 
 
 def _ollama_text_factory(config: ModelConfig) -> BaseModel:
+    """Lazy factory for Ollama text models.
+
+    Args:
+        config: Model configuration.
+
+    Returns:
+        A new ``TextModel`` instance.
+    """
     from file_organizer.models.text_model import TextModel
 
     return TextModel(config)
 
 
 def _ollama_vision_factory(config: ModelConfig) -> BaseModel:
+    """Lazy factory for Ollama vision models.
+
+    Args:
+        config: Model configuration.
+
+    Returns:
+        A new ``VisionModel`` instance.
+    """
     from file_organizer.models.vision_model import VisionModel
 
     return VisionModel(config)
 
 
 def _openai_text_factory(config: ModelConfig) -> BaseModel:
+    """Lazy factory for OpenAI text models.
+
+    Args:
+        config: Model configuration.
+
+    Returns:
+        A new ``OpenAITextModel`` instance.
+    """
     from file_organizer.models.openai_text_model import OpenAITextModel
 
     return OpenAITextModel(config)
 
 
 def _openai_vision_factory(config: ModelConfig) -> BaseModel:
+    """Lazy factory for OpenAI vision models.
+
+    Args:
+        config: Model configuration.
+
+    Returns:
+        A new ``OpenAIVisionModel`` instance.
+    """
     from file_organizer.models.openai_vision_model import OpenAIVisionModel
 
     return OpenAIVisionModel(config)
 
 
 def _llama_cpp_text_factory(config: ModelConfig) -> BaseModel:
+    """Lazy factory for llama.cpp text models.
+
+    Args:
+        config: Model configuration.
+
+    Returns:
+        A new ``LlamaCppTextModel`` instance.
+    """
     from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
 
     return LlamaCppTextModel(config)
+
+
+def _mlx_text_factory(config: ModelConfig) -> BaseModel:
+    """Lazy factory for MLX text models on Apple Silicon.
+
+    Args:
+        config: Model configuration.
+
+    Returns:
+        A new ``MLXTextModel`` instance.
+    """
+    from file_organizer.models.mlx_text_model import MLXTextModel
+
+    return MLXTextModel(config)
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +248,11 @@ def _register_builtins() -> None:
     _registry.register(
         "llama_cpp",
         text_factory=_llama_cpp_text_factory,
+    )
+    # mlx: text only in Phase 2; vision factory added in Phase 3
+    _registry.register(
+        "mlx",
+        text_factory=_mlx_text_factory,
     )
 
 
