@@ -175,6 +175,17 @@ class LazyModelLoader:
             model.initialize()
             return model
 
+        if framework == "claude":
+            from file_organizer.models.base import ModelType
+            from file_organizer.models.provider_factory import get_text_model, get_vision_model
+
+            if config.model_type == ModelType.VISION:
+                model = get_vision_model(config)
+            else:
+                model = get_text_model(config)
+            model.initialize()
+            return model
+
         raise ValueError(
             f"Unsupported framework '{framework}' for lazy loading. "
             f"Provide a custom loader callable."
