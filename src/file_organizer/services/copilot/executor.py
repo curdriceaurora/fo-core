@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -20,17 +20,29 @@ from file_organizer.services.copilot.models import (
     IntentType,
 )
 
+if TYPE_CHECKING:
+    from file_organizer.interfaces.search import RetrieverProtocol
+
 
 class CommandExecutor:
     """Execute copilot intents by delegating to the service layer.
 
     Args:
         working_directory: Default directory context for operations.
+        retriever: Optional :class:`RetrieverProtocol` for semantic FIND
+            intents.  When provided and initialised, ``_handle_find`` uses
+            it for context gathering instead of the default filename scan.
     """
 
-    def __init__(self, *, working_directory: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        working_directory: str | None = None,
+        retriever: RetrieverProtocol | None = None,
+    ) -> None:
         """Initialize CommandExecutor."""
         self._working_dir = Path(working_directory) if working_directory else Path.cwd()
+        self._retriever = retriever
 
     def execute(self, intent: Intent) -> ExecutionResult:
         """Dispatch an intent to the appropriate handler.
@@ -193,8 +205,57 @@ class CommandExecutor:
         except OSError as exc:
             return ExecutionResult(success=False, message=f"Rename failed: {exc}")
 
+    def _build_retriever_for_root(self, search_root: Path) -> RetrieverProtocol | None:
+        """Auto-build a HybridRetriever indexed on *search_root* (lazy optional dep).
+
+        Returns ``None`` when search dependencies are unavailable or the corpus
+        is too small to index.
+
+        Args:
+            search_root: Directory to index.
+
+        Returns:
+            An initialised :class:`HybridRetriever`, or ``None`` on failure.
+        """
+        try:
+            from file_organizer.services.search.hybrid_retriever import (
+                HybridRetriever,
+                read_text_safe,
+            )
+        except ImportError:
+            return None  # search deps not installed
+
+        retriever = HybridRetriever()
+        docs: list[str] = []
+        paths: list[Path] = []
+        try:
+            for entry in search_root.rglob("*"):
+                if entry.is_symlink() or not entry.is_file():
+                    continue
+                text = read_text_safe(entry)
+                docs.append(f"{entry.stem} {' '.join(entry.parts)} {text}".strip())
+                paths.append(entry)
+                if len(docs) >= 500:  # cap corpus for interactive use
+                    break
+        except PermissionError:
+            pass
+        if not docs:
+            return None
+        try:
+            retriever.index(docs, paths)
+        except ValueError:
+            return None  # corpus too small — fall through to filename scan
+        return retriever
+
     def _handle_find(self, intent: Intent) -> ExecutionResult:
         """Find files matching a query.
+
+        When a :class:`RetrieverProtocol` instance was supplied at construction
+        and is initialised, it is used for semantic context gathering.
+        When no retriever was injected, a :class:`HybridRetriever` is
+        auto-built from *search_root* if the optional search dependencies are
+        available.  Results are scoped to *search_root* in both cases.
+        Otherwise the default filename-scan fallback is used.
 
         Args:
             intent: Intent with ``query`` parameter.
@@ -202,7 +263,7 @@ class CommandExecutor:
         Returns:
             Execution result with matched files.
         """
-        query = intent.parameters.get("query", "").lower()
+        query = intent.parameters.get("query", "")
         search_paths = intent.parameters.get("paths", [str(self._working_dir)])
 
         if not query:
@@ -211,14 +272,43 @@ class CommandExecutor:
                 message="Please tell me what to search for.",
             )
 
-        matches: list[str] = []
         search_root = self._resolve_path(search_paths[0]) if search_paths else self._working_dir
         if not search_root.is_dir():
             search_root = self._working_dir
 
+        # ------------------------------------------------------------------
+        # Semantic path — use injected retriever or auto-build from search_root
+        # ------------------------------------------------------------------
+        retriever = self._retriever or self._build_retriever_for_root(search_root)
+
+        if retriever is not None and retriever.is_initialized:
+            try:
+                results = retriever.retrieve(query, top_k=20)
+                # Scope results to search_root only
+                matches = [str(p) for p, _ in results if Path(p).is_relative_to(search_root)]
+            except Exception as exc:
+                logger.warning("Retriever failed in _handle_find, falling back: {}", exc)
+                matches = []
+            if matches:
+                file_list = "\n".join(f"  - {m}" for m in matches[:10])
+                extra = f"\n  ... and {len(matches) - 10} more" if len(matches) > 10 else ""
+                return ExecutionResult(
+                    success=True,
+                    message=(
+                        f"Found {len(matches)} file(s) matching '{query}' (semantic):"
+                        f"\n{file_list}{extra}"
+                    ),
+                    affected_files=matches,
+                )
+
+        # ------------------------------------------------------------------
+        # Default path — filename substring scan
+        # ------------------------------------------------------------------
+        query_lower = query.lower()
+        matches = []
         try:
             for entry in search_root.rglob("*"):
-                if entry.is_file() and query in entry.name.lower():
+                if entry.is_file() and query_lower in entry.name.lower():
                     matches.append(str(entry))
                     if len(matches) >= 20:
                         break

@@ -543,3 +543,161 @@ class TestEdgeCases:
         response = engine.chat(special_msg)
 
         assert response is not None
+
+
+@pytest.mark.unit
+class TestCopilotEngineRetriever:
+    """Tests verifying HybridRetriever wiring through CopilotEngine."""
+
+    def test_init_accepts_retriever(self) -> None:
+        """CopilotEngine accepts a retriever= kwarg without error."""
+        retriever = MagicMock()
+        retriever.is_initialized = True
+        engine = CopilotEngine(retriever=retriever)
+        # Retriever is wired to the executor
+        assert engine._executor._retriever is retriever
+
+    def test_init_no_retriever_defaults_to_none(self) -> None:
+        """When no retriever is passed, executor._retriever is None."""
+        engine = CopilotEngine()
+        assert engine._executor._retriever is None
+
+    def test_find_intent_uses_retriever_when_initialized(self, tmp_path) -> None:
+        """FIND intent routes to retriever.retrieve() when it is initialised."""
+        from file_organizer.services.copilot.models import Intent, IntentType
+
+        mock_path = tmp_path / "finance_report.txt"
+        retriever = MagicMock()
+        retriever.is_initialized = True
+        retriever.retrieve.return_value = [(mock_path, 0.05)]
+
+        engine = CopilotEngine(
+            working_directory=str(tmp_path),
+            retriever=retriever,
+        )
+
+        intent = Intent(
+            intent_type=IntentType.FIND,
+            confidence=0.9,
+            parameters={"query": "finance report"},
+        )
+        result = engine._executor.execute(intent)
+
+        retriever.retrieve.assert_called_once_with("finance report", top_k=20)
+        assert result.success is True
+        assert str(mock_path) in result.affected_files
+
+    def test_find_intent_falls_back_when_retriever_not_initialized(self, tmp_path) -> None:
+        """When retriever.is_initialized is False, executor falls back to filename scan."""
+        from file_organizer.services.copilot.models import Intent, IntentType
+
+        (tmp_path / "finance.txt").write_text("content")
+
+        retriever = MagicMock()
+        retriever.is_initialized = False
+
+        engine = CopilotEngine(
+            working_directory=str(tmp_path),
+            retriever=retriever,
+        )
+
+        intent = Intent(
+            intent_type=IntentType.FIND,
+            confidence=0.9,
+            parameters={"query": "finance"},
+        )
+        result = engine._executor.execute(intent)
+
+        # retrieve() must NOT be called since retriever is not initialised
+        retriever.retrieve.assert_not_called()
+        assert result.success is True
+        assert any("finance" in f for f in result.affected_files)
+
+    def test_find_intent_no_retriever_uses_filename_scan(self, tmp_path) -> None:
+        """Without a retriever, FIND falls back to filename scan — existing behavior."""
+        from file_organizer.services.copilot.models import Intent, IntentType
+
+        (tmp_path / "notes.txt").write_text("content")
+
+        engine = CopilotEngine(working_directory=str(tmp_path))
+
+        intent = Intent(
+            intent_type=IntentType.FIND,
+            confidence=0.9,
+            parameters={"query": "notes"},
+        )
+        result = engine._executor.execute(intent)
+        assert result.success is True
+        assert any("notes" in f for f in result.affected_files)
+
+
+@pytest.mark.unit
+class TestCopilotEngineRetrieverIntegration:
+    """Integration tests with a real HybridRetriever (no mocks)."""
+
+    def test_find_with_injected_real_retriever(self, tmp_path) -> None:
+        """FIND intent returns scoped results using a real HybridRetriever."""
+        try:
+            from file_organizer.services.search.hybrid_retriever import (
+                HybridRetriever,
+                read_text_safe,
+            )
+        except ImportError:
+            pytest.fail(
+                "search dependencies not installed — run: pip install 'file-organizer[search]'"
+            )
+
+        finance_file = tmp_path / "finance_report.txt"
+        other_file = tmp_path / "meeting_notes.txt"
+        finance_file.write_text("quarterly finance budget summary")
+        other_file.write_text("meeting agenda notes items")
+
+        retriever = HybridRetriever()
+        docs = [read_text_safe(p) for p in [finance_file, other_file]]
+        retriever.index(docs, [finance_file, other_file])
+
+        engine = CopilotEngine(
+            working_directory=str(tmp_path),
+            retriever=retriever,
+        )
+        intent = Intent(
+            intent_type=IntentType.FIND,
+            confidence=0.9,
+            parameters={"query": "finance", "paths": [str(tmp_path)]},
+        )
+        result = engine._executor.execute(intent)
+
+        assert result.success is True
+        assert any("finance" in f for f in result.affected_files)
+        # Results must be scoped to tmp_path
+        for f in result.affected_files:
+            assert str(tmp_path) in f
+
+    def test_find_auto_builds_retriever_when_none_injected(self, tmp_path) -> None:
+        """FIND auto-builds a HybridRetriever from search_root when none is injected."""
+        try:
+            from file_organizer.services.search.hybrid_retriever import (
+                HybridRetriever,  # noqa: F401
+            )
+        except ImportError:
+            pytest.fail(
+                "search dependencies not installed — run: pip install 'file-organizer[search]'"
+            )
+
+        finance_file = tmp_path / "finance_report.txt"
+        other_file = tmp_path / "meeting_notes.txt"
+        finance_file.write_text("quarterly finance budget summary")
+        other_file.write_text("meeting agenda notes items")
+
+        # No retriever injected — executor must auto-build from search_root
+        engine = CopilotEngine(working_directory=str(tmp_path))
+        intent = Intent(
+            intent_type=IntentType.FIND,
+            confidence=0.9,
+            parameters={"query": "finance", "paths": [str(tmp_path)]},
+        )
+        result = engine._executor.execute(intent)
+
+        assert result.success is True
+        # Either semantic or filename scan succeeds — either way finance_report should appear
+        assert any("finance" in f for f in result.affected_files)
