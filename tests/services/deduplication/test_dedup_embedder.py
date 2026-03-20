@@ -161,6 +161,17 @@ class TestFitTransform:
         assert max_df_at_call == [1.0], "guard must pass max_df=1.0 to fit_transform"
         assert mock_vectorizer.max_df == 0.95, "max_df must be restored after fit_transform"
 
+    @pytest.mark.ci
+    def test_max_df_restored_on_exception_for_tiny_corpus(self, embedder, mock_vectorizer):
+        """max_df is restored via finally even when fit_transform raises."""
+        mock_vectorizer.max_df = 0.95  # triggers guard
+        mock_vectorizer.fit_transform.side_effect = RuntimeError("vectorizer error")
+
+        with pytest.raises(RuntimeError, match="vectorizer error"):
+            embedder.fit_transform(["single document"])
+
+        assert mock_vectorizer.max_df == 0.95, "max_df must be restored even on exception"
+
 
 # ---------------------------------------------------------------------------
 # transform (single document)
@@ -199,10 +210,10 @@ class TestTransform:
         import logging
 
         embedder.is_fitted = True
-        embedder.transform("cache test doc")  # populates cache
         with caplog.at_level(
             logging.DEBUG, logger="file_organizer.services.deduplication.embedder"
         ):
+            embedder.transform("cache test doc")  # populates cache
             embedder.transform("cache test doc")  # hits cache → executes logger.debug
         assert "Cache hit" in caplog.text
         assert mock_vectorizer.transform.call_count == 1
