@@ -9,7 +9,6 @@ import re
 import time
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,7 +23,7 @@ _PNG_BYTES = base64.b64decode(
 )
 
 
-def _build_client(tmp_path: Path, allowed_root: Optional[Path] = None) -> TestClient:
+def _build_client(tmp_path: Path, allowed_root: Path | None = None) -> TestClient:
     allowed_paths = [str(allowed_root)] if allowed_root else []
     settings = build_test_settings(
         tmp_path,
@@ -281,13 +280,13 @@ def test_organize_dashboard_end_to_end(monkeypatch, tmp_path: Path) -> None:
     job_id = _extract_attr(execute.text, "data-job-id")
 
     status_payload = {}
-    for _ in range(10):
+    deadline = time.time() + 1.0
+    while time.time() < deadline:
         status = client.get(f"/ui/organize/jobs/{job_id}/status", params={"format": "json"})
         assert status.status_code == 200
         status_payload = status.json()
         if status_payload["status"] in {"completed", "failed"}:
             break
-        time.sleep(0.01)
     assert status_payload["status"] == "completed"
     assert status_payload["processed_files"] == 3
 

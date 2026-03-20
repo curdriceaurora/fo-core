@@ -6,7 +6,6 @@ import logging
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -41,9 +40,9 @@ class SearchResult(BaseModel):
     filename: str
     path: str
     score: float
-    type: Optional[str] = None
-    size: Optional[int] = None
-    created: Optional[str] = None
+    type: str | None = None
+    size: int | None = None
+    created: str | None = None
 
 
 def _relative_path(fp: Path, roots: list[Path]) -> str:
@@ -92,7 +91,7 @@ def _compute_score(file_path: Path, query: str) -> float:
 def _collect_matching_files(
     root: Path,
     query: str,
-    file_type: Optional[str],
+    file_type: str | None,
     max_files: int = _MAX_TRAVERSAL,
 ) -> Iterator[Path]:
     """Yield files under *root* whose name or path matches *query*."""
@@ -181,7 +180,7 @@ def _build_semantic_corpus(
 def _semantic_search(
     roots: list[Path],
     query: str,
-    file_type: Optional[str],
+    file_type: str | None,
     top_k: int,
 ) -> list[SearchResult]:
     """Run hybrid BM25+vector retrieval over *roots* for *query*.
@@ -215,7 +214,7 @@ def _semantic_search(
     fetch_k = _MAX_SEMANTIC if file_type else min(top_k * 2, _MAX_SEMANTIC)
     raw_results = retriever.retrieve(query, top_k=fetch_k)
 
-    ext_filter: Optional[str] = None
+    ext_filter: str | None = None
     if file_type:
         ext_filter = file_type.lower() if file_type.startswith(".") else f".{file_type.lower()}"
 
@@ -247,11 +246,11 @@ def _semantic_search(
 
 @router.get("/search", response_model=None)
 def search(
-    q: Optional[str] = Query(None, description="Search query"),
-    type: Optional[str] = None,
-    limit: Optional[int] = None,
-    offset: Optional[int] = None,
-    path: Optional[str] = None,
+    q: str | None = Query(None, description="Search query"),
+    file_type: str | None = Query(None, alias="type"),
+    limit: int | None = None,
+    offset: int | None = None,
+    path: str | None = None,
     semantic: bool = Query(False, description="Use hybrid BM25+vector semantic search"),
     settings: ApiSettings = Depends(get_settings),
 ) -> list[SearchResult] | JSONResponse:
@@ -298,11 +297,11 @@ def search(
             if effective_limit is not None:
                 # Fetch skip + limit so pagination works correctly, but cap at _MAX_SEMANTIC
                 top_k = min(skip + effective_limit, _MAX_SEMANTIC)
-                results = _semantic_search(search_roots, q, type, top_k=top_k)
+                results = _semantic_search(search_roots, q, file_type, top_k=top_k)
                 return results[skip : skip + effective_limit]
             else:
                 # limit=0 or limit=None → no explicit cap (consistent with keyword path)
-                results = _semantic_search(search_roots, q, type, top_k=_MAX_SEMANTIC)
+                results = _semantic_search(search_roots, q, file_type, top_k=_MAX_SEMANTIC)
                 return results[skip:]
         except ImportError:
             return JSONResponse(
@@ -328,7 +327,7 @@ def search(
         remaining = _MAX_TRAVERSAL - total_traversed
         if remaining <= 0:
             break
-        for fp in _collect_matching_files(root, q, type, max_files=remaining):
+        for fp in _collect_matching_files(root, q, file_type, max_files=remaining):
             total_traversed += 1
             try:
                 stat = fp.stat()

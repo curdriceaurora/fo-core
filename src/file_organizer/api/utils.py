@@ -6,14 +6,13 @@ import mimetypes
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from file_organizer.api.exceptions import ApiError
 from file_organizer.api.models import FileInfo
 from file_organizer.utils import is_hidden as is_hidden
 
 
-def resolve_path(path_value: str, allowed_paths: Optional[list[str]] = None) -> Path:
+def resolve_path(path_value: str, allowed_paths: list[str] | None = None) -> Path:
     """Expand and normalize a filesystem path, then enforce allowed-root policy.
 
     Uses ``Path.resolve()`` + ``Path.is_relative_to()`` to evaluate containment,
