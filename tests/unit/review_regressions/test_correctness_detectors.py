@@ -15,6 +15,13 @@ def _fixture_root() -> Path:
     ).resolve()
 
 
+def _write_module(root: Path, rel_path: str, source: str) -> Path:
+    target = root / rel_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source, encoding="utf-8")
+    return target
+
+
 def test_stage_context_detector_flags_validated_field_bypass() -> None:
     detector = StageContextValidationBypassDetector()
 
@@ -90,3 +97,75 @@ def test_correctness_detector_pack_exports_first_wave_correctness_detectors() ->
         "correctness.stage-context-validation-bypass",
         "correctness.active-model-primitive-store",
     ]
+
+
+def test_stage_context_detector_does_not_leak_names_across_function_scopes(
+    tmp_path: Path,
+) -> None:
+    """StageContext names should only apply within their lexical scope."""
+    detector = StageContextValidationBypassDetector()
+    _write_module(
+        tmp_path,
+        "src/file_organizer/pipeline/scope_leak.py",
+        (
+            "from file_organizer.interfaces.pipeline import StageContext\n"
+            "def producer() -> None:\n"
+            "    ctx: StageContext\n"
+            "def unrelated() -> None:\n"
+            "    object.__setattr__(ctx, 'category', 'x')\n"
+        ),
+    )
+
+    findings = detector.find_violations(tmp_path)
+
+    assert findings == []
+
+
+def test_stage_context_detector_requires_explicit_canonical_provenance(
+    tmp_path: Path,
+) -> None:
+    """A local class named StageContext must not be treated as canonical provenance."""
+    detector = StageContextValidationBypassDetector()
+    _write_module(
+        tmp_path,
+        "src/file_organizer/pipeline/local_stage_context.py",
+        (
+            "class StageContext:\n"
+            "    pass\n"
+            "def f() -> None:\n"
+            "    ctx = StageContext()\n"
+            "    object.__setattr__(ctx, 'category', 'x')\n"
+        ),
+    )
+
+    findings = detector.find_violations(tmp_path)
+
+    assert findings == []
+
+
+def test_stage_context_detector_ignores_function_local_import_alias(
+    tmp_path: Path,
+) -> None:
+    """A function-local import alias must not pollute module-wide alias detection.
+
+    If function A imports ``StageContext as SC`` locally and function B uses an
+    unrelated variable also named ``SC``, the detector must NOT flag B's
+    ``object.__setattr__(sc, 'category', …)`` call — the ``SC`` name in B has no
+    canonical provenance from the pipeline module (T10 negative case).
+    """
+    detector = StageContextValidationBypassDetector()
+    _write_module(
+        tmp_path,
+        "src/file_organizer/pipeline/local_alias_no_spill.py",
+        (
+            "def importer() -> None:\n"
+            "    from file_organizer.interfaces.pipeline import StageContext as SC\n"
+            "    sc: SC\n"
+            "def unrelated(sc: object) -> None:\n"
+            "    object.__setattr__(sc, 'category', 'x')\n"
+        ),
+    )
+
+    findings = detector.find_violations(tmp_path)
+
+    assert findings == [], f"Function-local alias leaked into unrelated scope: {findings}"

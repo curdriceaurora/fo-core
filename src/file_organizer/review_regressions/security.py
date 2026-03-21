@@ -55,6 +55,14 @@ class _RawFieldAlias:
     field_name: str
     alias_name: str
     line: int
+    rebind_lines: tuple[int, ...] = ()
+    """Lines (after *line*) where this name is rebound to a non-raw-field value.
+
+    Used by sink-checking code to determine whether the alias still holds a
+    raw value at the time of the sink call.  A rebind *before* the sink means
+    the alias no longer carries the raw field value, so the sink should not be
+    flagged.
+    """
 
 
 def _parent_map(tree: ast.AST) -> dict[ast.AST, ast.AST]:
@@ -152,13 +160,15 @@ def _is_path_call(
 def _resolve_path_names(tree: ast.AST) -> set[str]:
     """Return all local names bound to ``resolve_path`` in *tree*.
 
-    Handles three binding forms:
+    Handles four binding forms:
 
     * ``from <pkg>.api.utils import resolve_path [as alias]`` — the canonical
       import form; adds the local name (or alias).
     * ``import <pkg>.api.utils as alias`` — module-alias form; adds the alias so
       that ``alias.resolve_path(...)`` is matched by the attribute branch of
       ``_is_resolve_path_call``.
+    * ``from <pkg>.api import utils [as alias]`` — package-level module import;
+      adds ``utils`` (or alias) so ``utils.resolve_path(...)`` is recognized.
     * ``def resolve_path(...)`` — locally re-implemented or re-defined; adds
       ``"resolve_path"`` so test fixtures and thin wrappers are covered.
 
@@ -172,6 +182,10 @@ def _resolve_path_names(tree: ast.AST) -> set[str]:
             if module.endswith("api.utils"):
                 for alias in node.names:
                     if alias.name == "resolve_path":
+                        names.add(alias.asname or alias.name)
+            elif module.endswith("api") or module.endswith(".api"):
+                for alias in node.names:
+                    if alias.name == "utils":
                         names.add(alias.asname or alias.name)
         elif isinstance(node, ast.Import):
             for alias in node.names:
@@ -404,7 +418,6 @@ def _find_raw_field_aliases(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
     *,
     validated: dict[tuple[str, str], _ValidatedField],
-    resolve_path_names: set[str],
 ) -> dict[str, _RawFieldAlias]:
     """Return local variables assigned from raw (unvalidated) request path fields in *node*.
 
@@ -416,14 +429,13 @@ def _find_raw_field_aliases(
     (``child.lineno > vf.line``) in ``_append_field_findings_from_expr`` is
     responsible for filtering sinks that precede validation.
 
-    Entries are additionally removed when a *later* validated assignment rebinds
-    the same name, preventing stale raw-field aliases from producing false
-    positives.  Because ``_find_validated_fields`` tracks only the *earliest*
-    validation line per field, we do a second walk here to find the *latest*
-    ``resolve_path()`` assignment to each alias, which is the line that
-    determines staleness.
+    Each returned alias carries ``rebind_lines``: the sorted tuple of lines at
+    which the name is re-assigned after the raw-field assignment.  The sink
+    checker uses this to skip the alias when a rebind happened *before* the
+    sink, meaning the alias no longer holds the raw value at call time.
     """
     aliases: dict[str, _RawFieldAlias] = {}
+    all_assignment_lines: dict[str, list[int]] = {}
     for child in _walk_function_body(node):
         value: ast.AST | None = None
         target: ast.Name | None = None
@@ -434,9 +446,16 @@ def _find_raw_field_aliases(
         ):
             target = child.targets[0]
             value = child.value
-        elif isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name):
+        elif (
+            isinstance(child, ast.AnnAssign)
+            and isinstance(child.target, ast.Name)
+            and child.value is not None
+        ):
             target = child.target
             value = child.value
+
+        if target is not None:
+            all_assignment_lines.setdefault(target.id, []).append(child.lineno)
 
         if (
             target is None
@@ -449,44 +468,27 @@ def _find_raw_field_aliases(
         if validated.get(key) is None:
             continue
 
-        aliases[target.id] = _RawFieldAlias(
+        candidate = _RawFieldAlias(
             request_name=value.value.id,
             field_name=value.attr,
             alias_name=target.id,
             line=child.lineno,
         )
-
-    # Remove stale entries: if a validated assignment later rebinds the same
-    # name (e.g. ``user_path = resolve_path(request.file_path)`` after a raw
-    # ``user_path = request.file_path``), the name now holds validated data.
-    # We need the *latest* such line for each alias, so we scan the body again
-    # rather than relying on ``validated`` which only stores the earliest line.
-    latest_revalidation_line: dict[str, int] = {}
-    for child in _walk_function_body(node):
-        alias_target: str | None = None
-        if (
-            isinstance(child, ast.Assign)
-            and len(child.targets) == 1
-            and isinstance(child.targets[0], ast.Name)
-            and isinstance(child.value, ast.Call)
-            and _is_resolve_path_call(child.value, resolve_path_names)
-        ):
-            alias_target = child.targets[0].id
-        elif (
-            isinstance(child, ast.AnnAssign)
-            and isinstance(child.target, ast.Name)
-            and isinstance(child.value, ast.Call)
-            and _is_resolve_path_call(child.value, resolve_path_names)
-        ):
-            alias_target = child.target.id
-        if alias_target is not None:
-            prev = latest_revalidation_line.get(alias_target, 0)
-            latest_revalidation_line[alias_target] = max(prev, child.lineno)
+        existing = aliases.get(target.id)
+        if existing is None or candidate.line > existing.line:
+            aliases[target.id] = candidate
 
     return {
-        name: alias
+        name: _RawFieldAlias(
+            request_name=alias.request_name,
+            field_name=alias.field_name,
+            alias_name=alias.alias_name,
+            line=alias.line,
+            rebind_lines=tuple(
+                sorted(ln for ln in all_assignment_lines.get(name, []) if ln > alias.line)
+            ),
+        )
         for name, alias in aliases.items()
-        if latest_revalidation_line.get(name, 0) <= alias.line
     }
 
 
@@ -618,9 +620,7 @@ class ValidatedPathBypassDetector:
         """Return all bypass violations found within a single route-handler function."""
         findings: list[Violation] = []
         seen: set[tuple[str, int, str]] = set()
-        raw_field_aliases = _find_raw_field_aliases(
-            node, validated=validated, resolve_path_names=resolve_path_names
-        )
+        raw_field_aliases = _find_raw_field_aliases(node, validated=validated)
         request_names = {item.request_name for item in validated.values()}
         earliest_validation_line = {
             request_name: min(
@@ -780,6 +780,7 @@ class ValidatedPathBypassDetector:
                 and alias.request_name == request_name
                 and child.lineno > alias.line
                 and child.lineno > alias_vf.line
+                and not any(r < child.lineno for r in alias.rebind_lines)
             ):
                 key = (
                     "raw-field-alias",
