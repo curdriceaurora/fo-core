@@ -71,11 +71,13 @@ def _counts_by_type(files: list[Path]) -> dict[str, int]:
 
 
 def _result_to_response(result: OrganizationResult) -> OrganizationResultResponse:
+    """Map an OrganizationResult dataclass to the HTTP response model."""
     return OrganizationResultResponse(
         total_files=result.total_files,
         processed_files=result.processed_files,
         skipped_files=result.skipped_files,
         failed_files=result.failed_files,
+        deduplicated_files=result.deduplicated_files,
         processing_time=result.processing_time,
         organized_structure=result.organized_structure,
         errors=[OrganizationError(file=err[0], error=err[1]) for err in result.errors],
