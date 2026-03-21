@@ -86,7 +86,11 @@ class TestSanitizeFilename:
         assert result == "untitled"
 
     def test_returns_string(self) -> None:
-        assert sanitize_filename("my_file") == "my_file"
+        # camelCase input: "zeta" and "alpha" survive filtering and are joined
+        result = sanitize_filename("zetaAlpha")
+        assert "zeta" in result
+        assert "alpha" in result
+        assert result != "untitled"
 
 
 # ---------------------------------------------------------------------------
