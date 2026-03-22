@@ -30,17 +30,21 @@ class TestRedisConnectionError:
     """RedisConnectionError is a real exception class that can be raised/caught."""
 
     def test_is_exception_subclass(self):
+        """RedisConnectionError is a subclass of Exception."""
         assert issubclass(RedisConnectionError, Exception)
 
     def test_can_raise_and_catch(self):
+        """RedisConnectionError can be raised and caught by its own type."""
         with pytest.raises(RedisConnectionError, match="no connection"):
             raise RedisConnectionError("no connection")
 
     def test_message_preserved(self):
+        """The error message passed at construction is preserved in str()."""
         exc = RedisConnectionError("custom message")
         assert str(exc) == "custom message"
 
     def test_not_caught_by_value_error(self):
+        """RedisConnectionError is not a subtype of ValueError."""
         with pytest.raises(RedisConnectionError):
             try:
                 raise RedisConnectionError("oops")
@@ -58,6 +62,7 @@ class TestParseTimestampFromIdBranches:
     """Covers the fallback branch in _parse_timestamp_from_id."""
 
     def test_non_numeric_ms_part_falls_back_to_now(self):
+        """Falls back to current UTC time when the ms portion of the ID is non-numeric."""
         from datetime import UTC, datetime
 
         before = datetime.now(UTC)
@@ -67,6 +72,7 @@ class TestParseTimestampFromIdBranches:
         assert before <= result <= after
 
     def test_missing_dash_falls_back_to_now(self):
+        """Falls back to current UTC time when the ID has no dash separator."""
         from datetime import UTC, datetime
 
         before = datetime.now(UTC)
@@ -75,6 +81,7 @@ class TestParseTimestampFromIdBranches:
         assert before <= result <= after
 
     def test_known_epoch_ms_parsed_correctly(self):
+        """A valid epoch-ms ID is parsed to the correct UTC datetime."""
         from datetime import UTC
 
         result = _parse_timestamp_from_id("1000000000000-0")
@@ -93,6 +100,7 @@ class TestConnectExactArgs:
 
     @patch("file_organizer.events.stream.redis")
     def test_connect_uses_configured_url(self, mock_redis_mod: MagicMock):
+        """connect() calls Redis.from_url with the URL from EventConfig."""
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis_mod.Redis.from_url.return_value = mock_client
@@ -109,6 +117,7 @@ class TestConnectExactArgs:
 
     @patch("file_organizer.events.stream.redis")
     def test_connect_override_url_used_not_config_url(self, mock_redis_mod: MagicMock):
+        """An explicit URL passed to connect() overrides the EventConfig URL."""
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis_mod.Redis.from_url.return_value = mock_client
@@ -125,6 +134,7 @@ class TestConnectExactArgs:
 
     @patch("file_organizer.events.stream.redis")
     def test_connect_sets_is_connected_true_on_success(self, mock_redis_mod: MagicMock):
+        """is_connected transitions from False to True after a successful connect()."""
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis_mod.Redis.from_url.return_value = mock_client
@@ -136,6 +146,7 @@ class TestConnectExactArgs:
 
     @patch("file_organizer.events.stream.redis")
     def test_connect_failure_clears_redis_attribute(self, mock_redis_mod: MagicMock):
+        """A failed connect() leaves _redis as None and is_connected as False."""
         mock_redis_mod.Redis.from_url.side_effect = RuntimeError("refused")
         manager = RedisStreamManager()
         manager.connect()
@@ -154,6 +165,7 @@ class TestPublishNoMaxlenBranch:
 
     @patch("file_organizer.events.stream.redis")
     def test_publish_no_maxlen_kwarg_when_config_none(self, mock_redis_mod: MagicMock):
+        """When max_stream_length is None, xadd is called without maxlen or approximate kwargs."""
         config = EventConfig(max_stream_length=None)
         mock_client = MagicMock()
         mock_client.ping.return_value = True
@@ -171,6 +183,7 @@ class TestPublishNoMaxlenBranch:
 
     @patch("file_organizer.events.stream.redis")
     def test_publish_with_explicit_max_len_overrides_none_config(self, mock_redis_mod: MagicMock):
+        """Passing max_len to publish() adds maxlen to xadd even when config is None."""
         config = EventConfig(max_stream_length=None)
         mock_client = MagicMock()
         mock_client.ping.return_value = True
@@ -188,6 +201,7 @@ class TestPublishNoMaxlenBranch:
 
     @patch("file_organizer.events.stream.redis")
     def test_publish_stream_name_prefixed_exactly(self, mock_redis_mod: MagicMock):
+        """The xadd name argument is the stream_prefix joined to the stream name."""
         config = EventConfig(stream_prefix="myns", max_stream_length=None)
         mock_client = MagicMock()
         mock_client.ping.return_value = True
@@ -213,6 +227,7 @@ class TestGetStreamLengthErrorBranch:
     """Covers the except branch in get_stream_length."""
 
     def test_xlen_exception_returns_zero(self):
+        """get_stream_length returns 0 when xlen raises an exception."""
         mock_redis = MagicMock()
         mock_redis.xlen.side_effect = RuntimeError("stream gone")
         manager = RedisStreamManager()
@@ -223,6 +238,7 @@ class TestGetStreamLengthErrorBranch:
         assert result == 0
 
     def test_xlen_uses_prefixed_name(self):
+        """get_stream_length calls xlen with the prefixed stream name."""
         config = EventConfig(stream_prefix="pfx")
         mock_redis = MagicMock()
         mock_redis.xlen.return_value = 7
@@ -245,6 +261,7 @@ class TestGetPendingCountBranches:
     """Covers None-info and exception branches in get_pending_count."""
 
     def test_xpending_returns_none_gives_zero(self):
+        """get_pending_count returns 0 when xpending returns None."""
         mock_redis = MagicMock()
         mock_redis.xpending.return_value = None
         manager = RedisStreamManager()
@@ -255,6 +272,7 @@ class TestGetPendingCountBranches:
         assert result == 0
 
     def test_xpending_empty_dict_gives_zero(self):
+        """get_pending_count returns 0 when xpending returns an empty dict."""
         mock_redis = MagicMock()
         mock_redis.xpending.return_value = {}
         manager = RedisStreamManager()
@@ -265,6 +283,7 @@ class TestGetPendingCountBranches:
         assert result == 0
 
     def test_xpending_exception_gives_zero(self):
+        """get_pending_count returns 0 when xpending raises an exception."""
         mock_redis = MagicMock()
         mock_redis.xpending.side_effect = RuntimeError("server gone")
         manager = RedisStreamManager()
@@ -275,6 +294,7 @@ class TestGetPendingCountBranches:
         assert result == 0
 
     def test_xpending_uses_custom_group_name(self):
+        """get_pending_count passes a custom group_name to xpending."""
         config = EventConfig(consumer_group="default-group")
         mock_redis = MagicMock()
         mock_redis.xpending.return_value = {"pending": 3}
@@ -297,6 +317,7 @@ class TestReadGroupExactArgs:
     """Verifies that xreadgroup is called with the correct argument structure."""
 
     def test_read_group_default_params_sent_to_xreadgroup(self):
+        """read_group forwards group, consumer, stream, count, and block to xreadgroup."""
         config = EventConfig(
             consumer_group="mygroup",
             batch_size=15,
@@ -319,6 +340,7 @@ class TestReadGroupExactArgs:
         )
 
     def test_read_group_custom_consumer_name_forwarded(self):
+        """A custom consumer_name argument is passed as consumername to xreadgroup."""
         mock_redis = MagicMock()
         mock_redis.xreadgroup.return_value = []
         manager = RedisStreamManager()
@@ -331,6 +353,7 @@ class TestReadGroupExactArgs:
         assert call_kwargs["consumername"] == "consumer-99"
 
     def test_read_group_with_block_ms_zero_non_blocking(self):
+        """block_ms=0 is forwarded to xreadgroup for non-blocking reads."""
         mock_redis = MagicMock()
         mock_redis.xreadgroup.return_value = []
         manager = RedisStreamManager()
@@ -343,6 +366,7 @@ class TestReadGroupExactArgs:
         assert call_kwargs["block"] == 0
 
     def test_read_group_event_timestamp_parsed_from_id(self):
+        """Returned Event objects have their timestamp parsed from the Redis message ID."""
         mock_redis = MagicMock()
         mock_redis.xreadgroup.return_value = [
             ("fileorg:events", [("1700000000000-0", {"event_type": "file.created"})])
@@ -358,6 +382,7 @@ class TestReadGroupExactArgs:
         assert events[0].stream == "fileorg:events"
 
     def test_read_group_multiple_messages_all_returned(self):
+        """read_group returns all messages from a single xreadgroup batch."""
         mock_redis = MagicMock()
         mock_redis.xreadgroup.return_value = [
             (
@@ -392,6 +417,7 @@ class TestAcknowledgeExactArgs:
     """Verifies xack receives prefixed stream name and correct group."""
 
     def test_acknowledge_uses_default_group(self):
+        """acknowledge() calls xack with the prefixed stream name and config group."""
         config = EventConfig(consumer_group="mygroup")
         mock_redis = MagicMock()
         mock_redis.xack.return_value = 1
@@ -404,6 +430,7 @@ class TestAcknowledgeExactArgs:
         mock_redis.xack.assert_called_once_with("fileorg:events", "mygroup", "5-0")
 
     def test_acknowledge_custom_group_overrides_config(self):
+        """A group_name passed to acknowledge() overrides the config group."""
         config = EventConfig(consumer_group="default-grp")
         mock_redis = MagicMock()
         mock_redis.xack.return_value = 1
@@ -416,6 +443,7 @@ class TestAcknowledgeExactArgs:
         mock_redis.xack.assert_called_once_with("fileorg:events", "override-grp", "7-0")
 
     def test_acknowledge_returns_false_when_ack_count_is_zero(self):
+        """acknowledge() returns False when xack reports zero messages acknowledged."""
         mock_redis = MagicMock()
         mock_redis.xack.return_value = 0
         manager = RedisStreamManager()
@@ -437,10 +465,12 @@ class TestSubscribeAsyncGenerator:
     connected-then-drained branches."""
 
     def test_subscribe_yields_nothing_when_disconnected(self):
+        """subscribe() yields no events when the manager is not connected."""
         manager = RedisStreamManager()
         assert manager.is_connected is False
 
         async def collect():
+            """Drain the subscribe generator into a list."""
             results = []
             async for event in manager.subscribe("events"):
                 results.append(event)
@@ -468,6 +498,7 @@ class TestSubscribeAsyncGenerator:
         read_calls = 0
 
         def fake_xreadgroup(**kwargs):
+            """Return one event on first call, then flip _connected off and return []."""
             nonlocal read_calls
             read_calls += 1
             if read_calls == 1:
@@ -479,6 +510,7 @@ class TestSubscribeAsyncGenerator:
         mock_client.xgroup_create.return_value = True
 
         async def run():
+            """Run subscribe and collect events into seen."""
             async for event in manager.subscribe("events"):
                 seen.append(event)
 
@@ -501,10 +533,12 @@ class TestSubscribeAsyncGenerator:
         call_order: list[str] = []
 
         def fake_xgroup_create(**kwargs):
+            """Record that group_create was called."""
             call_order.append("group_create")
             return True
 
         def fake_xreadgroup(**kwargs):
+            """Record that xreadgroup was called, then disconnect."""
             call_order.append("xreadgroup")
             manager._connected = False
             return []
@@ -513,6 +547,7 @@ class TestSubscribeAsyncGenerator:
         mock_client.xreadgroup.side_effect = fake_xreadgroup
 
         async def run():
+            """Exhaust the subscribe generator."""
             async for _ in manager.subscribe("events"):
                 pass
 
@@ -523,6 +558,7 @@ class TestSubscribeAsyncGenerator:
 
     @patch("file_organizer.events.stream.redis")
     def test_subscribe_with_custom_consumer_name(self, mock_redis_mod: MagicMock):
+        """subscribe() forwards a custom consumer_name to the xreadgroup call."""
         mock_client = MagicMock()
         mock_client.ping.return_value = True
         mock_redis_mod.Redis.from_url.return_value = mock_client
@@ -531,6 +567,7 @@ class TestSubscribeAsyncGenerator:
         manager.connect()
 
         def fake_xreadgroup(**kwargs):
+            """Disconnect after the first call so the loop terminates."""
             manager._connected = False
             return []
 
@@ -538,6 +575,7 @@ class TestSubscribeAsyncGenerator:
         mock_client.xgroup_create.return_value = True
 
         async def run():
+            """Exhaust the subscribe generator with a custom consumer name."""
             async for _ in manager.subscribe("events", consumer_name="custom-worker"):
                 pass
 
@@ -546,67 +584,14 @@ class TestSubscribeAsyncGenerator:
         call_kwargs = mock_client.xreadgroup.call_args.kwargs
         assert call_kwargs["consumername"] == "custom-worker"
 
-
-# ---------------------------------------------------------------------------
-# repr — connected state
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-class TestReprConnectedState:
-    """repr() reflects connected state accurately."""
-
-    @patch("file_organizer.events.stream.redis")
-    def test_repr_shows_connected_true_when_connected(self, mock_redis_mod: MagicMock):
-        mock_client = MagicMock()
-        mock_client.ping.return_value = True
-        mock_redis_mod.Redis.from_url.return_value = mock_client
-
+    def test_subscribe_yields_nothing_redis_none_but_flag_set(self) -> None:
+        """Guard checks both _connected and _redis; _redis=None trumps flag."""
         manager = RedisStreamManager()
-        manager.connect()
-        result = repr(manager)
-        assert "connected=True" in result
-        assert "redis://localhost:6379/0" in result
-
-    def test_repr_shows_connected_false_when_disconnected(self):
-        manager = RedisStreamManager()
-        result = repr(manager)
-        assert "connected=False" in result
-
-
-@pytest.fixture()
-def config() -> EventConfig:
-    return EventConfig()
-
-
-@pytest.fixture()
-def manager(config: EventConfig) -> RedisStreamManager:
-    return RedisStreamManager(config=config)
-
-
-@pytest.mark.integration
-class TestSubscribeNotConnected:
-    def test_subscribe_yields_nothing_when_not_connected(self, manager: RedisStreamManager) -> None:
-        """Line 332-334: early return when _connected is False and _redis is None."""
-
-        async def collect() -> list[Event]:
-            results: list[Event] = []
-            async for event in manager.subscribe("test-stream"):
-                results.append(event)
-            return results
-
-        events = asyncio.get_event_loop().run_until_complete(collect())
-        assert events == []
-        assert manager.is_connected is False
-
-    def test_subscribe_yields_nothing_redis_none_but_flag_set(
-        self, manager: RedisStreamManager
-    ) -> None:
-        """Line 332-334: guard checks both _connected and _redis; _redis=None trumps flag."""
         manager._connected = True
         manager._redis = None
 
         async def collect() -> list[Event]:
+            """Drain subscribe into a list when _redis is None."""
             results: list[Event] = []
             async for event in manager.subscribe("test-stream"):
                 results.append(event)
@@ -615,52 +600,18 @@ class TestSubscribeNotConnected:
         events = asyncio.get_event_loop().run_until_complete(collect())
         assert events == []
 
-
-@pytest.mark.integration
-class TestSubscribeConnected:
-    def _make_manager_with_mock_redis(
-        self, config: EventConfig
-    ) -> tuple[RedisStreamManager, MagicMock]:
+    def test_subscribe_sleeps_on_empty_then_disconnects(self) -> None:
+        """When read_group returns [], asyncio.sleep is awaited before next iteration."""
+        config = EventConfig()
         mgr = RedisStreamManager(config=config)
         mock_redis = MagicMock()
         mgr._redis = mock_redis
         mgr._connected = True
-        return mgr, mock_redis
 
-    def test_subscribe_yields_events_then_disconnects(self, config: EventConfig) -> None:
-        """Lines 339-347: connected path yields events; loop exits when _connected is set False."""
-        mgr, mock_redis = self._make_manager_with_mock_redis(config)
-        full_stream = config.get_stream_name("test-stream")
         call_count = 0
 
         def xreadgroup_side_effect(**kwargs: object) -> list | None:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return [(full_stream, [("1000000000000-0", {"action": "create"})])]
-            mgr._connected = False
-            return None
-
-        mock_redis.xreadgroup.side_effect = xreadgroup_side_effect
-        mock_redis.xgroup_create.return_value = True
-
-        async def collect() -> list[Event]:
-            results: list[Event] = []
-            async for event in mgr.subscribe("test-stream"):
-                results.append(event)
-            return results
-
-        events = asyncio.get_event_loop().run_until_complete(collect())
-        assert len(events) == 1
-        assert events[0].data == {"action": "create"}
-        assert events[0].stream == full_stream
-
-    def test_subscribe_sleeps_on_empty_then_disconnects(self, config: EventConfig) -> None:
-        """Lines 349-351: when read_group returns [], asyncio.sleep is awaited."""
-        mgr, mock_redis = self._make_manager_with_mock_redis(config)
-        call_count = 0
-
-        def xreadgroup_side_effect(**kwargs: object) -> list | None:
+            """Return None on first call, then disconnect."""
             nonlocal call_count
             call_count += 1
             mgr._connected = False
@@ -671,9 +622,11 @@ class TestSubscribeConnected:
         sleep_calls: list[float] = []
 
         async def fake_sleep(delay: float) -> None:
+            """Capture asyncio.sleep calls for assertion."""
             sleep_calls.append(delay)
 
         async def collect() -> list[Event]:
+            """Drain subscribe while intercepting asyncio.sleep."""
             results: list[Event] = []
             with patch("asyncio.sleep", side_effect=fake_sleep):
                 async for event in mgr.subscribe("test-stream"):
@@ -686,29 +639,17 @@ class TestSubscribeConnected:
         expected_delay = config.block_ms / 1000.0
         assert sleep_calls[0] == pytest.approx(expected_delay)
 
-    def test_subscribe_creates_consumer_group_before_reading(self, config: EventConfig) -> None:
-        """Line 337: create_consumer_group is called with correct stream name."""
-        mgr, mock_redis = self._make_manager_with_mock_redis(config)
-        mock_redis.xreadgroup.side_effect = lambda **_kw: setattr(mgr, "_connected", False) or None
-        mock_redis.xgroup_create.return_value = True
-
-        async def collect() -> list[Event]:
-            results: list[Event] = []
-            async for event in mgr.subscribe("my-stream"):
-                results.append(event)
-            return results
-
-        asyncio.get_event_loop().run_until_complete(collect())
-        mock_redis.xgroup_create.assert_called_once()
-        call_kwargs = mock_redis.xgroup_create.call_args
-        assert call_kwargs.kwargs["name"] == config.get_stream_name("my-stream")
-
-    def test_subscribe_with_custom_group_and_consumer(self, config: EventConfig) -> None:
-        """Lines 339-345: custom group_name and consumer_name are forwarded to read_group."""
-        mgr, mock_redis = self._make_manager_with_mock_redis(config)
+    def test_subscribe_with_custom_group_and_consumer(self) -> None:
+        """Custom group_name and consumer_name are forwarded to read_group."""
+        config = EventConfig()
+        mgr = RedisStreamManager(config=config)
+        mock_redis = MagicMock()
+        mgr._redis = mock_redis
+        mgr._connected = True
         captured_kwargs: dict = {}
 
         def xreadgroup_side_effect(**kwargs: object) -> list | None:
+            """Capture call kwargs, then disconnect."""
             captured_kwargs.update(kwargs)
             mgr._connected = False
             return None
@@ -717,6 +658,7 @@ class TestSubscribeConnected:
         mock_redis.xgroup_create.return_value = True
 
         async def collect() -> list[Event]:
+            """Drain subscribe with custom group and consumer names."""
             results: list[Event] = []
             async for event in mgr.subscribe(
                 "my-stream",
@@ -731,13 +673,18 @@ class TestSubscribeConnected:
         assert captured_kwargs["consumername"] == "worker-99"
         assert captured_kwargs["count"] == config.batch_size
 
-    def test_subscribe_multiple_events_in_one_batch(self, config: EventConfig) -> None:
-        """Lines 346-347: for-loop over events yields each one individually."""
-        mgr, mock_redis = self._make_manager_with_mock_redis(config)
+    def test_subscribe_multiple_events_in_one_batch(self) -> None:
+        """for-loop over events in one batch yields each one individually."""
+        config = EventConfig()
+        mgr = RedisStreamManager(config=config)
+        mock_redis = MagicMock()
+        mgr._redis = mock_redis
+        mgr._connected = True
         full_stream = config.get_stream_name("batch-stream")
         call_count = 0
 
         def xreadgroup_side_effect(**kwargs: object) -> list | None:
+            """Return 3 events on first call, then disconnect on subsequent calls."""
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -758,6 +705,7 @@ class TestSubscribeConnected:
         mock_redis.xgroup_create.return_value = True
 
         async def collect() -> list[Event]:
+            """Collect all events yielded by subscribe."""
             results: list[Event] = []
             async for event in mgr.subscribe("batch-stream"):
                 results.append(event)
@@ -768,3 +716,32 @@ class TestSubscribeConnected:
         assert events[0].data == {"idx": "0"}
         assert events[1].data == {"idx": "1"}
         assert events[2].data == {"idx": "2"}
+
+
+# ---------------------------------------------------------------------------
+# repr — connected state
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+class TestReprConnectedState:
+    """repr() reflects connected state accurately."""
+
+    @patch("file_organizer.events.stream.redis")
+    def test_repr_shows_connected_true_when_connected(self, mock_redis_mod: MagicMock):
+        """repr() includes connected=True and the Redis URL after a successful connect."""
+        mock_client = MagicMock()
+        mock_client.ping.return_value = True
+        mock_redis_mod.Redis.from_url.return_value = mock_client
+
+        manager = RedisStreamManager()
+        manager.connect()
+        result = repr(manager)
+        assert "connected=True" in result
+        assert "redis://localhost:6379/0" in result
+
+    def test_repr_shows_connected_false_when_disconnected(self):
+        """repr() includes connected=False for a manager that has not connected."""
+        manager = RedisStreamManager()
+        result = repr(manager)
+        assert "connected=False" in result
