@@ -271,29 +271,40 @@ class TestGetUserSelectionBatch:
 
 
 class TestDisplaySummary:
-    def test_dry_run_does_not_raise(self) -> None:
+    @pytest.mark.parametrize(
+        ("total_groups", "total_duplicates", "total_removed", "space_saved", "dry_run"),
+        [
+            pytest.param(5, 12, 10, 1024 * 1024, True, id="dry_run_mode"),
+            pytest.param(3, 8, 6, 512 * 1024, False, id="live_run_mode"),
+            pytest.param(0, 0, 0, 0, False, id="zero_files"),
+        ],
+    )
+    def test_display_summary(
+        self,
+        total_groups: int,
+        total_duplicates: int,
+        total_removed: int,
+        space_saved: int,
+        dry_run: bool,
+    ) -> None:
         from file_organizer.cli.dedupe import display_summary
 
         mock_console = MagicMock()
         with patch("file_organizer.cli.dedupe.console", mock_console):
-            display_summary(5, 12, 10, 1024 * 1024, dry_run=True)
+            display_summary(total_groups, total_duplicates, total_removed, space_saved, dry_run)
         assert mock_console.print.call_count == 4
-
-    def test_live_run_does_not_raise(self) -> None:
-        from file_organizer.cli.dedupe import display_summary
-
-        mock_console = MagicMock()
-        with patch("file_organizer.cli.dedupe.console", mock_console):
-            display_summary(3, 8, 6, 512 * 1024, dry_run=False)
-        assert mock_console.print.call_count == 4
-
-    def test_zero_files_removed(self) -> None:
-        from file_organizer.cli.dedupe import display_summary
-
-        mock_console = MagicMock()
-        with patch("file_organizer.cli.dedupe.console", mock_console):
-            display_summary(0, 0, 0, 0, dry_run=False)
-        assert mock_console.print.call_count == 4
+        # Verify the Panel content (4th print call, 1st positional arg)
+        panel = mock_console.print.call_args_list[3][0][0]
+        content = str(panel.renderable)
+        assert "Duplicate groups found:" in content
+        assert f"{total_groups}" in content
+        assert f"{total_duplicates}" in content
+        if dry_run:
+            assert "DRY RUN SUMMARY" in content
+            assert "would be removed" in content
+        else:
+            assert "DEDUPLICATION COMPLETE" in content
+            assert "Files removed:" in content
 
 
 # ---------------------------------------------------------------------------
