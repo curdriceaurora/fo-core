@@ -112,3 +112,9 @@ desktop/src-tauri/binaries/file-organizer-backend-*
 site/
 .claude/worktrees/
 /.worktrees/
+
+# Auto Claude generated artifacts
+.auto-claude/
+.auto-claude-security.json
+.auto-claude-status
+.claude_settings.json
