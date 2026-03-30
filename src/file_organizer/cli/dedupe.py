@@ -24,11 +24,16 @@ from loguru import logger
 from rich.console import Console
 
 from file_organizer.cli import dedupe_display, dedupe_removal
+from file_organizer.cli.dedupe_display import format_datetime, format_size  # noqa: F401
 from file_organizer.cli.dedupe_hash import (
     ProgressTracker,
     create_scan_options,
     initialize_hash_detector,
     scan_for_duplicates,
+)
+from file_organizer.cli.dedupe_strategy import (  # noqa: F401
+    get_user_selection,
+    select_files_to_keep,
 )
 
 console = Console()
