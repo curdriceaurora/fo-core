@@ -197,9 +197,9 @@ jobs:
     runs-on: ubuntu-latest
     # Shards run ~3 000-4 500 tests each with -n=auto (2 workers on ubuntu-latest).
     # API and web each run in their own in-process shard; see scripts/ci_shard_paths.sh.
-    # 20-minute hard cap prevents the GC-finaliser hang that caused indefinite hangs
-    # when all 17 000+ tests ran in a single job with only 2 workers.
-    timeout-minutes: 20
+    # The API-only shard gets a 40-minute budget because it remains the slowest
+    # in-process shard after the web split; other shards keep the 20-minute cap.
+    timeout-minutes: ${{ matrix.shard == 3 && 40 || 20 }}
     strategy:
       fail-fast: false
       matrix:

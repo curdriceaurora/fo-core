@@ -19,9 +19,9 @@ jobs:
   test-linux-full:
     name: "Test Linux (shard ${{ matrix.shard }}, py${{ matrix.python-version }})"
     runs-on: ubuntu-latest
-    # 20-minute hard cap prevents the GC-finaliser hang that occurs when all
-    # 17 000+ tests share 2 xdist workers on a single job.
-    timeout-minutes: 20
+    # The API-only shard gets a 40-minute budget because it remains the slowest
+    # in-process shard after the web split; other shards keep the 20-minute cap.
+    timeout-minutes: ${{ matrix.shard == 3 && 40 || 20 }}
     strategy:
       fail-fast: false
       matrix:
