@@ -195,14 +195,14 @@ jobs:
     needs: changes
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # Most shards run with xdist; API and web keep their own in-process shards.
-    # The sticky second API half is further split into tiny in-process shards.
+    # Domain-based shard split. After fixing realtime queue-task cleanup,
+    # all shards can use xdist again instead of the emergency micro-shard matrix.
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -228,16 +228,9 @@ jobs:
           # Shard → directory mapping lives in scripts/ci_shard_paths.sh so both
           # ci.yml and ci-full.yml stay in sync from a single source of truth.
           PATHS=$(bash scripts/ci_shard_paths.sh "${{ matrix.shard }}")
-          # API and web shards run in-process to avoid xdist worker shutdown
-          # entirely; TestClient GC finalizers can hang when a worker exits
-          # without a running event loop.
-          XDIST_ARGS=()
-          if [[ "${{ matrix.shard }}" != "3" && "${{ matrix.shard }}" != "6" && "${{ matrix.shard }}" -lt "7" ]]; then
-            XDIST_ARGS=(-n=auto)
-          fi
           pytest $PATHS --strict-markers -m "not benchmark and not e2e" \
             --cov=file_organizer --cov-report= \
-            --timeout=30 "${XDIST_ARGS[@]}" --override-ini="addopts="
+            --timeout=30 -n=auto --override-ini="addopts="
           # Rename .coverage so artifacts from all shards have distinct names
           mv .coverage .coverage.shard-${{ matrix.shard }}
       - name: Upload coverage data
@@ -245,6 +238,7 @@ jobs:
         with:
           name: coverage-${{ matrix.python-version }}-${{ matrix.shard }}
           path: .coverage.shard-${{ matrix.shard }}
+          include-hidden-files: true
           retention-days: 1
 
   coverage-gate:
