@@ -163,7 +163,7 @@ class TestCIWorkflow:
 
         ci.yml uses two separate jobs:
         - 'test': PR-only, Python 3.11 only (fast feedback, ~2 400 tests)
-        - 'test-full': push-only, 4 shards x Python 3.11+3.12 (~17 000 tests)
+        - 'test-full': push-only, 5 shards x Python 3.11+3.12 (~17 000 tests)
 
         This replaces the old single 'test' job that used a conditional matrix
         expression and timed out due to GC pressure with 17 000 tests/2 workers.
@@ -207,10 +207,10 @@ class TestCIWorkflow:
             f"'test-full' job must include both 3.11 and 3.12, got {full_python}"
         )
 
-        # Must use 4 shards (to keep per-worker memory below GC hang threshold)
+        # Must use 5 shards (shard 3 is lighter to keep async-heavy api/web tests below GC hang threshold)
         shards = full_matrix.get("shard", [])
-        assert shards == [1, 2, 3, 4], (
-            f"'test-full' job must define shards [1, 2, 3, 4], got {shards}"
+        assert shards == [1, 2, 3, 4, 5], (
+            f"'test-full' job must define shards [1, 2, 3, 4, 5], got {shards}"
         )
 
         # Must have a hard timeout
@@ -368,7 +368,7 @@ class TestCIFullWorkflow:
         """Verify ci-full.yml includes the Linux full-suite sharded job.
 
         The daily run validates the full ~17 000-test suite on Linux using the
-        same 4-shard matrix as the push CI in ci.yml.  This replaces the old
+        same 5-shard matrix as the push CI in ci.yml.  This replaces the old
         design where ci.yml owned all Linux testing — that design never
         completed because 17 000 tests/2 workers triggered a GC-finaliser hang.
         """
@@ -384,8 +384,8 @@ class TestCIFullWorkflow:
             f"'test-linux-full' must include both 3.11 and 3.12, got {python_versions}"
         )
         shards = matrix.get("shard", [])
-        assert shards == [1, 2, 3, 4], (
-            f"'test-linux-full' shards must be [1, 2, 3, 4], got {shards}"
+        assert shards == [1, 2, 3, 4, 5], (
+            f"'test-linux-full' shards must be [1, 2, 3, 4, 5], got {shards}"
         )
         assert job.get("timeout-minutes") is not None, (
             "'test-linux-full' job must set timeout-minutes"
@@ -649,3 +649,51 @@ class TestDependabotConfig:
         """Verify Dependabot monitors Docker base images."""
         ecosystems = [u["package-ecosystem"] for u in dependabot_data.get("updates", [])]
         assert "docker" in ecosystems, "Dependabot should monitor Docker base images"
+
+
+@pytest.mark.unit
+class TestShardCoverage:
+    """Verify that all test directories are assigned to a CI shard.
+
+    Prevents silent test exclusion — the exact failure mode that caused
+    tests/interfaces and tests/e2e to be skipped in all CI runs before
+    this guard was added.
+    """
+
+    # Directories intentionally excluded from shards (no test files or
+    # not standalone pytest-collectible directories).
+    _EXCLUDED: frozenset[str] = frozenset(
+        {
+            "auth",  # no test_*.py files yet; add to a shard when populated
+            "fixtures",  # test fixture data, not a collectible test directory
+            "__pycache__",
+        }
+    )
+
+    @pytest.fixture
+    def shard_script(self) -> str:
+        path = Path("scripts/ci_shard_paths.sh")
+        assert path.exists(), "scripts/ci_shard_paths.sh must exist"
+        return path.read_text()
+
+    def test_all_test_directories_assigned_to_shard(self, shard_script: str) -> None:
+        """Every subdirectory of tests/ must appear in ci_shard_paths.sh.
+
+        If a test directory is missing from the shard script it will be silently
+        skipped in all CI runs (both push and daily full matrix), because both
+        ci.yml and ci-full.yml source this script as the single mapping.
+        """
+        tests_root = Path("tests")
+        unassigned = []
+        for p in sorted(tests_root.iterdir()):
+            if not p.is_dir():
+                continue
+            if p.name in self._EXCLUDED:
+                continue
+            if p.name not in shard_script:
+                unassigned.append(p.name)
+        assert not unassigned, (
+            f"The following test directories are not assigned to any shard in "
+            f"scripts/ci_shard_paths.sh: {unassigned}. "
+            f"Add them to an appropriate shard or to _EXCLUDED if intentional."
+        )

@@ -28,6 +28,25 @@ def _build_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient
     return TestClient(app)
 
 
+def _get_csrf_token(client: TestClient) -> str:
+    """Issue a GET to seed the CSRF cookie and return the token value.
+
+    The CSRF middleware sets the ``_csrf_token`` cookie on every GET response.
+    ``TestClient`` (httpx) stores it in its cookie jar so subsequent POSTs
+    through the same client include the cookie automatically.  The token value
+    must still be submitted in the ``csrf_token`` form field on state-changing
+    requests.
+
+    Raises ``AssertionError`` if the middleware did not set the cookie (e.g.
+    the route is not mounted or middleware is misconfigured), failing the test
+    with a clear message rather than a confusing 403.
+    """
+    client.get("/ui/marketplace")
+    token = client.cookies.get("_csrf_token", "")
+    assert token, "CSRF cookie was not set — check middleware registration"
+    return token
+
+
 @pytest.mark.unit
 class TestMarketplacePage:
     """Tests for the main marketplace page."""
@@ -156,6 +175,7 @@ class TestMarketplaceHtmxEndpoints:
     ) -> None:
         """Should support plugin installation via HTMX POST request."""
         client = _build_client(tmp_path, monkeypatch)
+        csrf_token = _get_csrf_token(client)
         # Test the install endpoint with a valid plugin name
         response = client.post(
             "/ui/marketplace/plugins/test-plugin/install",
@@ -163,12 +183,73 @@ class TestMarketplaceHtmxEndpoints:
                 "q": "",
                 "category": "",
                 "tag_csv": "",
+                "csrf_token": csrf_token,
             },
         )
-        # Route always returns 200 (renders marketplace page with message)
+        # Route returns 200 when a valid CSRF token is supplied
+        # (middleware returns 403 if csrf_token is absent or mismatched)
         assert response.status_code == 200
         # Should return HTML marketplace page
         assert any(tag in response.text.lower() for tag in ["<html", "<body", "marketplace"])
+
+    def test_marketplace_install_post_without_csrf_returns_403(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """POST without a CSRF token must be rejected with 403.
+
+        Verifies that CSRFMiddleware is active on the /ui/ prefix and that the
+        marketplace install route is not accidentally added to exempt_paths.
+        """
+        client = _build_client(tmp_path, monkeypatch)
+        # Seed the cookie so middleware has a token to compare against,
+        # but deliberately omit the form field token.
+        seed_response = client.get("/ui/marketplace")
+        assert "_csrf_token" in seed_response.cookies, (
+            "Seed GET did not set CSRF cookie — middleware may not be registered"
+        )
+        response = client.post(
+            "/ui/marketplace/plugins/test-plugin/install",
+            data={"q": "", "category": "", "tag_csv": ""},
+        )
+        assert response.status_code == 403
+
+    def test_marketplace_uninstall_post_without_csrf_returns_403(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """POST to uninstall without a CSRF token must be rejected with 403.
+
+        Verifies that CSRFMiddleware covers the uninstall route and it has not
+        been accidentally added to exempt_paths.
+        """
+        client = _build_client(tmp_path, monkeypatch)
+        seed_response = client.get("/ui/marketplace")
+        assert "_csrf_token" in seed_response.cookies, (
+            "Seed GET did not set CSRF cookie — middleware may not be registered"
+        )
+        response = client.post(
+            "/ui/marketplace/plugins/test-plugin/uninstall",
+            data={"q": "", "category": "", "tag_csv": ""},
+        )
+        assert response.status_code == 403
+
+    def test_marketplace_update_post_without_csrf_returns_403(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """POST to update without a CSRF token must be rejected with 403.
+
+        Verifies that CSRFMiddleware covers the update route and it has not
+        been accidentally added to exempt_paths.
+        """
+        client = _build_client(tmp_path, monkeypatch)
+        seed_response = client.get("/ui/marketplace")
+        assert "_csrf_token" in seed_response.cookies, (
+            "Seed GET did not set CSRF cookie — middleware may not be registered"
+        )
+        response = client.post(
+            "/ui/marketplace/plugins/test-plugin/update",
+            data={"q": "", "category": "", "tag_csv": ""},
+        )
+        assert response.status_code == 403
 
 
 @pytest.mark.unit
@@ -180,6 +261,7 @@ class TestMarketplaceInstallFlow:
     ) -> None:
         """Should validate plugin before installation."""
         client = _build_client(tmp_path, monkeypatch)
+        csrf_token = _get_csrf_token(client)
         # Test that install endpoint rejects invalid plugin names or missing plugins
         response = client.post(
             "/ui/marketplace/plugins/nonexistent-plugin/install",
@@ -187,9 +269,11 @@ class TestMarketplaceInstallFlow:
                 "q": "",
                 "category": "",
                 "tag_csv": "",
+                "csrf_token": csrf_token,
             },
         )
-        # Route always returns 200 (renders marketplace page with message)
+        # Route returns 200 when a valid CSRF token is supplied
+        # (middleware returns 403 if csrf_token is absent or mismatched)
         assert response.status_code == 200
         # Should return HTML marketplace page
         assert any(tag in response.text.lower() for tag in ["<html", "<body", "marketplace"])
@@ -199,6 +283,7 @@ class TestMarketplaceInstallFlow:
     ) -> None:
         """Should handle installation workflow."""
         client = _build_client(tmp_path, monkeypatch)
+        csrf_token = _get_csrf_token(client)
         # Test the full install workflow by calling the install endpoint
         response = client.post(
             "/ui/marketplace/plugins/sample-plugin/install",
@@ -206,9 +291,11 @@ class TestMarketplaceInstallFlow:
                 "q": "sample",
                 "category": "",
                 "tag_csv": "",
+                "csrf_token": csrf_token,
             },
         )
-        # Route always returns 200 (renders marketplace page with message)
+        # Route returns 200 when a valid CSRF token is supplied
+        # (middleware returns 403 if csrf_token is absent or mismatched)
         assert response.status_code == 200
         # Should return HTML marketplace page with search preserved
         assert any(tag in response.text.lower() for tag in ["<html", "<body", "marketplace"])
