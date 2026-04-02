@@ -41,6 +41,10 @@ class ConnectionManager:
         await websocket.accept()
         current_loop = asyncio.get_running_loop()
         if self._loop is None or self._loop.is_closed() or self._loop is not current_loop:
+            old_task = self._queue_task
+            if old_task is not None and not old_task.done():
+                old_task.cancel()
+                await self._await_task(old_task)
             self._loop = current_loop
             self._queue = None
             self._queue_task = None
@@ -70,14 +74,23 @@ class ConnectionManager:
         loop = self._loop
         self._queue_task = None
         if task is not None:
-            task.cancel()
-            if loop is not None and loop.is_running():
+            if loop is None or loop.is_closed():
+                logger.debug("Skipping websocket queue task shutdown on closed event loop")
+            else:
+                task.cancel()
+            if loop is not None and loop.is_running() and not loop.is_closed():
                 try:
-                    future = asyncio.run_coroutine_threadsafe(
-                        self._await_task(task),
-                        loop,
-                    )
-                    future.result(timeout=2)
+                    try:
+                        running_loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        running_loop = None
+
+                    if running_loop is not loop:
+                        future = asyncio.run_coroutine_threadsafe(
+                            self._await_task(task),
+                            loop,
+                        )
+                        future.result(timeout=2)
                 except Exception:
                     logger.exception("Failed to await websocket queue task shutdown")
         if self._queue is not None:
@@ -146,23 +159,25 @@ class ConnectionManager:
         """Enqueue an event from a synchronous context using run_coroutine_threadsafe."""
         if self._loop is None or self._queue is None:
             return False
+        coro = self._queue.put(BroadcastEvent(channel=channel, payload=payload))
         try:
-            asyncio.run_coroutine_threadsafe(
-                self._queue.put(BroadcastEvent(channel=channel, payload=payload)),
-                self._loop,
-            )
+            asyncio.run_coroutine_threadsafe(coro, self._loop)
             return True
         except RuntimeError as exc:
+            coro.close()
             logger.debug("Failed to enqueue websocket event: {}", exc)
             return False
 
     async def _queue_consumer(self) -> None:
-        if self._queue is None:
+        queue = self._queue
+        if queue is None:
             return
         while True:
             try:
-                event = await self._queue.get()
+                event = await queue.get()
                 await self.broadcast(event.payload, channel=event.channel)
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 logger.exception("WebSocket queue consumer error")
 

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from starlette.websockets import WebSocketState
 
 from file_organizer.api.realtime import BroadcastEvent, ConnectionManager
@@ -30,9 +32,15 @@ class TestBroadcastEvent:
 class TestConnectionManager:
     """Tests for ConnectionManager."""
 
-    @pytest.fixture
-    def manager(self):
-        return ConnectionManager()
+    @pytest_asyncio.fixture
+    async def manager(self):
+        manager = ConnectionManager()
+        yield manager
+        task = manager._queue_task
+        manager.reset()
+        if task is not None:
+            with suppress(asyncio.CancelledError):
+                await task
 
     @pytest.fixture
     def mock_ws(self):
