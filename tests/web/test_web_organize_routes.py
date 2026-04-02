@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from file_organizer.api.main import create_app
 from file_organizer.api.test_utils import build_test_settings
 from file_organizer.core.organizer import OrganizationResult
+from tests.conftest import get_csrf_headers
 
 
 def _build_client(tmp_path: Path, allowed_paths: list[str] | None = None) -> TestClient:
@@ -91,6 +92,7 @@ class TestOrganizeScan:
         output_dir.mkdir()
 
         client = _build_client(tmp_path, allowed_paths=[str(tmp_path)])
+        csrf_headers = get_csrf_headers(client, seed_url="/ui/organize")
         response = client.post(
             "/ui/organize/scan",
             data={
@@ -98,6 +100,7 @@ class TestOrganizeScan:
                 "output_dir": str(output_dir),
                 "methodology": "content_based",
             },
+            headers=csrf_headers,
         )
         assert response.status_code == 200
         # Verify plan was generated (success path, not error path)
@@ -110,6 +113,7 @@ class TestOrganizeScan:
         output_dir.mkdir()
 
         client = _build_client(tmp_path, allowed_paths=[str(tmp_path)])
+        csrf_headers = get_csrf_headers(client, seed_url="/ui/organize")
         response = client.post(
             "/ui/organize/scan",
             data={
@@ -117,6 +121,7 @@ class TestOrganizeScan:
                 "output_dir": str(output_dir),
                 "methodology": "para",
             },
+            headers=csrf_headers,
         )
         assert response.status_code == 200
         # Verify plan was generated (success path, not error path)
@@ -131,6 +136,7 @@ class TestOrganizeScan:
         output_dir.mkdir()
 
         client = _build_client(tmp_path, allowed_paths=[str(tmp_path)])
+        csrf_headers = get_csrf_headers(client, seed_url="/ui/organize")
         response = client.post(
             "/ui/organize/scan",
             data={
@@ -138,6 +144,7 @@ class TestOrganizeScan:
                 "output_dir": str(output_dir),
                 "methodology": "johnny_decimal",
             },
+            headers=csrf_headers,
         )
         assert response.status_code == 200
         # Verify plan was generated (success path, not error path)
@@ -156,14 +163,17 @@ class TestScanOptions:
         output_dir.mkdir()
 
         client = _build_client(tmp_path, allowed_paths=[str(tmp_path)])
+        csrf_headers = get_csrf_headers(client, seed_url="/ui/organize")
         response = client.post(
             "/ui/organize/scan",
             data={
                 "input_dir": str(tmp_path),
                 "output_dir": str(output_dir),
             },
+            headers=csrf_headers,
         )
         assert response.status_code == 200
+        assert "plan" in response.text.lower()
 
     def test_scan_with_recursive_option(self, tmp_path: Path, mock_file_organizer: Any) -> None:
         """Scan should handle recursive directory traversal."""
@@ -174,6 +184,7 @@ class TestScanOptions:
         output_dir.mkdir()
 
         client = _build_client(tmp_path, allowed_paths=[str(tmp_path)])
+        csrf_headers = get_csrf_headers(client, seed_url="/ui/organize")
         response = client.post(
             "/ui/organize/scan",
             data={
@@ -181,12 +192,34 @@ class TestScanOptions:
                 "output_dir": str(output_dir),
                 "recursive": "1",
             },
+            headers=csrf_headers,
         )
         assert response.status_code == 200
+        assert "plan" in response.text.lower()
 
     def test_scan_with_hidden_files(self, tmp_path: Path) -> None:
         """Scan should reject hidden file inclusion."""
         (tmp_path / ".hidden").write_text("test")
+        output_dir = tmp_path / "organized"
+        output_dir.mkdir()
+
+        client = _build_client(tmp_path, allowed_paths=[str(tmp_path)])
+        csrf_headers = get_csrf_headers(client, seed_url="/ui/organize")
+        response = client.post(
+            "/ui/organize/scan",
+            data={
+                "input_dir": str(tmp_path),
+                "output_dir": str(output_dir),
+                "include_hidden": "1",
+            },
+            headers=csrf_headers,
+        )
+        assert response.status_code == 200
+        assert "not supported" in response.text.lower()
+
+    def test_organize_scan_post_without_csrf_returns_403(self, tmp_path: Path) -> None:
+        """POST to scan without CSRF token should be rejected with 403."""
+        (tmp_path / "file.txt").write_text("test")
         output_dir = tmp_path / "organized"
         output_dir.mkdir()
 
@@ -196,11 +229,10 @@ class TestScanOptions:
             data={
                 "input_dir": str(tmp_path),
                 "output_dir": str(output_dir),
-                "include_hidden": "1",
             },
+            # No x-csrf-token header — middleware must reject
         )
-        assert response.status_code == 200
-        assert "not supported" in response.text.lower()
+        assert response.status_code == 403
 
 
 @pytest.mark.unit
@@ -238,25 +270,29 @@ class TestOrganizeHtmxEndpoints:
 
         client = _build_client(tmp_path, allowed_paths=[str(tmp_path)])
         # Send scan request with HTMX header to indicate it's a partial update
+        csrf_headers = {"HX-Request": "true", **get_csrf_headers(client, seed_url="/ui/organize")}
         response = client.post(
             "/ui/organize/scan",
             data={
                 "input_dir": str(tmp_path),
                 "output_dir": str(output_dir),
             },
-            headers={"HX-Request": "true"},
+            headers=csrf_headers,
         )
         assert response.status_code == 200
+        assert "plan" in response.text.lower()
 
     def test_organize_scan_validation(self, tmp_path: Path) -> None:
         """Should validate scan parameters and return errors when needed."""
         client = _build_client(tmp_path, allowed_paths=[str(tmp_path)])
         # Missing required input_dir should error
+        csrf_headers = get_csrf_headers(client, seed_url="/ui/organize")
         response = client.post(
             "/ui/organize/scan",
             data={
                 "output_dir": str(tmp_path / "out"),
             },
+            headers=csrf_headers,
         )
         assert response.status_code == 200
         assert "Input directory is required" in response.text
