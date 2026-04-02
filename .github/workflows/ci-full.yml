@@ -13,20 +13,20 @@ permissions:
   contents: read
 
 jobs:
-  # Linux full-suite (7 shards, Python 3.11 + 3.12) — same shard split as ci.yml push jobs.
+  # Linux full-suite (14 shards, Python 3.11 + 3.12) — same shard split as ci.yml push jobs.
   # macOS and Windows run the portable ci/smoke subset only.
 
   test-linux-full:
     name: "Test Linux (shard ${{ matrix.shard }}, py${{ matrix.python-version }})"
     runs-on: ubuntu-latest
-    # The API shards keep a larger budget because they still run in-process
-    # while we isolate the hanging subset; other shards keep the 20-minute cap.
-    timeout-minutes: ${{ (matrix.shard == 3 || matrix.shard == 7) && 30 || 20 }}
+    # The API and web shards run in-process; the sticky second API half is
+    # broken into tiny shards so we can pinpoint the hanging cluster quickly.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
-        shard: [1, 2, 3, 4, 5, 6, 7]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -56,7 +56,7 @@ jobs:
           # entirely; TestClient GC finalizers can hang when a worker exits
           # without a running event loop.
           XDIST_ARGS=()
-          if [[ "${{ matrix.shard }}" != "3" && "${{ matrix.shard }}" != "6" && "${{ matrix.shard }}" != "7" ]]; then
+          if [[ "${{ matrix.shard }}" != "3" && "${{ matrix.shard }}" != "6" && "${{ matrix.shard }}" -lt "7" ]]; then
             XDIST_ARGS=(-n=auto)
           fi
           pytest $PATHS --strict-markers -m "not benchmark and not e2e" \

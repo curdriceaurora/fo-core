@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ci_shard_paths.sh — single source of truth for the 7-shard test split.
+# ci_shard_paths.sh — single source of truth for the 14-shard test split.
 #
 # Usage: bash scripts/ci_shard_paths.sh <shard_number>
 # Prints a space-separated list of pytest path arguments to stdout.
@@ -12,9 +12,9 @@
 # RAM below the threshold that triggers Python GC-finaliser hangs (~1.3 GB/worker).
 # The API and web suites run in-process because those tests create many async
 # HTTP-client objects that accumulate in GC differently from synchronous tests.
-# The API suite is split into two explicit file groups because a single in-process
-# API shard can stall for long stretches on main; splitting it makes the hot half
-# visible without blocking the whole suite behind one shard.
+# The API suite is split into one coarse shard plus eight tiny in-process shards
+# for the historically sticky second half. That keeps the problematic region
+# observable without letting one long-running API bucket hide the exact cluster.
 
 set -euo pipefail
 
@@ -61,30 +61,51 @@ tests/api/test_files_router.py"
         PATHS="\
 tests/api/test_health_endpoint.py \
 tests/api/test_health_router.py \
-tests/api/test_integrations_router.py \
+tests/api/test_integrations_router.py"
+        ;;
+    8)
+        PATHS="\
 tests/api/test_job_repo.py \
 tests/api/test_jobs.py \
-tests/api/test_main_app.py \
+tests/api/test_main_app.py"
+        ;;
+    9)
+        PATHS="\
 tests/api/test_marketplace_router.py \
 tests/api/test_middleware.py \
-tests/api/test_organize_router.py \
+tests/api/test_organize_router.py"
+        ;;
+    10)
+        PATHS="\
 tests/api/test_rate_limit.py \
 tests/api/test_realtime.py \
-tests/api/test_realtime_router.py \
+tests/api/test_realtime_router.py"
+        ;;
+    11)
+        PATHS="\
 tests/api/test_realtime_router_coverage.py \
 tests/api/test_realtime_ws_coverage.py \
-tests/api/test_search.py \
+tests/api/test_search.py"
+        ;;
+    12)
+        PATHS="\
 tests/api/test_search_router.py \
 tests/api/test_service_facade.py \
-tests/api/test_service_facade_coverage.py \
+tests/api/test_service_facade_coverage.py"
+        ;;
+    13)
+        PATHS="\
 tests/api/test_session_repo.py \
 tests/api/test_settings_repo.py \
-tests/api/test_system_router.py \
+tests/api/test_system_router.py"
+        ;;
+    14)
+        PATHS="\
 tests/api/test_utils.py \
 tests/api/test_workspace_repo.py"
         ;;
     *)
-        echo "Unknown shard: $SHARD (valid: 1-7)" >&2
+        echo "Unknown shard: $SHARD (valid: 1-14)" >&2
         exit 1
         ;;
 esac

@@ -195,15 +195,14 @@ jobs:
     needs: changes
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # Shards run ~3 000-4 500 tests each with -n=auto (2 workers on ubuntu-latest).
-    # API is split across two in-process shards and web keeps its own in-process shard;
-    # see scripts/ci_shard_paths.sh for the source-of-truth mapping.
-    timeout-minutes: ${{ (matrix.shard == 3 || matrix.shard == 7) && 30 || 20 }}
+    # Most shards run with xdist; API and web keep their own in-process shards.
+    # The sticky second API half is further split into tiny in-process shards.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
-        shard: [1, 2, 3, 4, 5, 6, 7]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -233,7 +232,7 @@ jobs:
           # entirely; TestClient GC finalizers can hang when a worker exits
           # without a running event loop.
           XDIST_ARGS=()
-          if [[ "${{ matrix.shard }}" != "3" && "${{ matrix.shard }}" != "6" && "${{ matrix.shard }}" != "7" ]]; then
+          if [[ "${{ matrix.shard }}" != "3" && "${{ matrix.shard }}" != "6" && "${{ matrix.shard }}" -lt "7" ]]; then
             XDIST_ARGS=(-n=auto)
           fi
           pytest $PATHS --strict-markers -m "not benchmark and not e2e" \
