@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ci_shard_paths.sh — single source of truth for the 14-shard test split.
+# ci_shard_paths.sh — single source of truth for the 16-shard test split.
 #
 # Usage: bash scripts/ci_shard_paths.sh <shard_number>
 # Prints a space-separated list of pytest path arguments to stdout.
@@ -12,9 +12,9 @@
 # RAM below the threshold that triggers Python GC-finaliser hangs (~1.3 GB/worker).
 # The API and web suites run in-process because those tests create many async
 # HTTP-client objects that accumulate in GC differently from synchronous tests.
-# The API suite is split into one coarse shard plus eight tiny in-process shards
-# for the historically sticky second half. That keeps the problematic region
-# observable without letting one long-running API bucket hide the exact cluster.
+# The API suite is split into one coarse shard plus tiny in-process shards for
+# the historically sticky second half. Shard 10 is further broken into single
+# files so the next CI run can identify the exact hanging test module.
 
 set -euo pipefail
 
@@ -77,35 +77,41 @@ tests/api/test_organize_router.py"
         ;;
     10)
         PATHS="\
-tests/api/test_rate_limit.py \
-tests/api/test_realtime.py \
-tests/api/test_realtime_router.py"
+tests/api/test_rate_limit.py"
         ;;
     11)
+        PATHS="\
+tests/api/test_realtime.py"
+        ;;
+    12)
+        PATHS="\
+tests/api/test_realtime_router.py"
+        ;;
+    13)
         PATHS="\
 tests/api/test_realtime_router_coverage.py \
 tests/api/test_realtime_ws_coverage.py \
 tests/api/test_search.py"
         ;;
-    12)
+    14)
         PATHS="\
 tests/api/test_search_router.py \
 tests/api/test_service_facade.py \
 tests/api/test_service_facade_coverage.py"
         ;;
-    13)
+    15)
         PATHS="\
 tests/api/test_session_repo.py \
 tests/api/test_settings_repo.py \
 tests/api/test_system_router.py"
         ;;
-    14)
+    16)
         PATHS="\
 tests/api/test_utils.py \
 tests/api/test_workspace_repo.py"
         ;;
     *)
-        echo "Unknown shard: $SHARD (valid: 1-14)" >&2
+        echo "Unknown shard: $SHARD (valid: 1-16)" >&2
         exit 1
         ;;
 esac
