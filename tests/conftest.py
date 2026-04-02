@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -410,6 +411,44 @@ def web_client_builder(tmp_path: Path):
         return TestClient(app)
 
     return _build
+
+
+def get_csrf_token(client: Any, seed_url: str = "/ui/") -> str:
+    """Seed the CSRF cookie via a GET request and return the token value.
+
+    The CSRF middleware sets the ``_csrf_token`` cookie on every GET response.
+    ``TestClient`` (httpx) stores it in its cookie jar so subsequent POSTs
+    through the same client automatically include the cookie.
+
+    Prefer :func:`get_csrf_headers` for POST requests that use FastAPI
+    ``Form(...)`` parameters — passing the token via ``x-csrf-token`` header
+    avoids the body-consumption issue described in :func:`get_csrf_headers`.
+
+    Raises ``AssertionError`` if the cookie was not set, failing the test with
+    a clear message rather than a confusing 403 downstream.
+    """
+    client.get(seed_url)
+    token = client.cookies.get("_csrf_token", "")
+    assert token, (
+        f"CSRF cookie '_csrf_token' was not set by GET {seed_url!r} — check middleware registration"
+    )
+    return token
+
+
+def get_csrf_headers(client: Any, seed_url: str = "/ui/") -> dict[str, str]:
+    """Seed the CSRF cookie and return a headers dict with the token.
+
+    Use this instead of adding ``csrf_token`` to form data when the POST
+    handler uses FastAPI ``Form(...)`` parameters.  When the CSRF middleware
+    calls ``request.form()`` to locate the form-field token, it internally
+    calls ``request.stream()``, which marks the body as consumed in
+    Starlette's ``BaseHTTPMiddleware`` caching layer; the route handler then
+    receives an empty body and all ``Form`` parameters are empty strings.
+    Sending the token via ``x-csrf-token`` is read from headers only, leaving
+    the body stream intact for FastAPI's ``Form(...)`` dependency injection.
+    """
+    token = get_csrf_token(client, seed_url=seed_url)
+    return {"x-csrf-token": token}
 
 
 @pytest.fixture
