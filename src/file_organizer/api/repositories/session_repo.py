@@ -3,14 +3,34 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from file_organizer.api.db_models import UserSession
 
 
 class SessionRepository:
     """CRUD and lifecycle operations for persistent user sessions."""
+
+    @staticmethod
+    def _active_filters(
+        *,
+        now: datetime,
+        user_id: str | None = None,
+        token_hash: str | None = None,
+    ) -> tuple[ColumnElement[bool], ...]:
+        """Build the standard active-session predicate set."""
+        filters: list[ColumnElement[bool]] = [
+            cast(ColumnElement[bool], UserSession.revoked_at.is_(None)),
+            cast(ColumnElement[bool], UserSession.expires_at > now),
+        ]
+        if token_hash is not None:
+            filters.append(cast(ColumnElement[bool], UserSession.token_hash == token_hash))
+        if user_id is not None:
+            filters.append(cast(ColumnElement[bool], UserSession.user_id == user_id))
+        return tuple(filters)
 
     @staticmethod
     def create(
@@ -24,13 +44,16 @@ class SessionRepository:
         ip_address: str | None = None,
     ) -> UserSession:
         """Create and persist a session record."""
-        row = UserSession(
-            user_id=user_id,
-            token_hash=token_hash,
-            refresh_token_hash=refresh_token_hash,
-            expires_at=expires_at,
-            user_agent=user_agent,
-            ip_address=ip_address,
+        row = cast(
+            UserSession,
+            cast(Any, UserSession)(
+                user_id=user_id,
+                token_hash=token_hash,
+                refresh_token_hash=refresh_token_hash,
+                expires_at=expires_at,
+                user_agent=user_agent,
+                ip_address=ip_address,
+            ),
         )
         session.add(row)
         session.flush()
@@ -45,15 +68,8 @@ class SessionRepository:
     ) -> UserSession | None:
         """Return an active (unrevoked, unexpired) session by token hash."""
         current = now or datetime.now(UTC)
-        return (
-            session.query(UserSession)
-            .filter(
-                UserSession.token_hash == token_hash,
-                UserSession.revoked_at.is_(None),
-                UserSession.expires_at > current,
-            )
-            .first()
-        )
+        filters = SessionRepository._active_filters(now=current, token_hash=token_hash)
+        return session.query(UserSession).filter(*filters).first()
 
     @staticmethod
     def list_active_for_user(
@@ -64,13 +80,10 @@ class SessionRepository:
     ) -> list[UserSession]:
         """List active sessions for a user."""
         current = now or datetime.now(UTC)
+        filters = SessionRepository._active_filters(now=current, user_id=user_id)
         return (
             session.query(UserSession)
-            .filter(
-                UserSession.user_id == user_id,
-                UserSession.revoked_at.is_(None),
-                UserSession.expires_at > current,
-            )
+            .filter(*filters)
             .order_by(UserSession.created_at.desc())
             .all()
         )
@@ -89,9 +102,13 @@ class SessionRepository:
     def prune_expired(session: Session, *, now: datetime | None = None) -> int:
         """Delete revoked/expired sessions and return deleted row count."""
         current = now or datetime.now(UTC)
+        expired_or_revoked = cast(
+            ColumnElement[bool],
+            (UserSession.expires_at <= current) | UserSession.revoked_at.is_not(None),
+        )
         count = (
             session.query(UserSession)
-            .filter((UserSession.expires_at <= current) | UserSession.revoked_at.is_not(None))
+            .filter(expired_or_revoked)
             .delete(synchronize_session="fetch")
         )
         session.flush()

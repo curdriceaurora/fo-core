@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import NoReturn
+from typing import Annotated, NoReturn
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from file_organizer.api.dependencies import UserLike, get_current_active_user
 from file_organizer.api.exceptions import ApiError
@@ -69,9 +69,12 @@ class MarketplaceUpdateResponse(BaseModel):
 class MarketplaceReviewRequest(BaseModel):
     """Request body for submitting a plugin review."""
 
-    rating: int = Field(..., ge=1, le=5)
-    title: str = Field(..., min_length=1, max_length=120)
-    content: str = Field(..., min_length=1, max_length=2000)
+    rating: Annotated[int, Field(ge=1, le=5)]
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    content: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=2000),
+    ]
 
 
 class MarketplaceReviewResponse(BaseModel):
@@ -150,6 +153,8 @@ def list_plugins(
     category: str | None = Query(None, max_length=60),
 ) -> MarketplacePluginListResponse:
     """List plugins from the marketplace with optional filters."""
+    items: list[PluginPackage] = []
+    total = 0
     try:
         items, total = _service().list_plugins(
             page=page,
@@ -173,14 +178,15 @@ def get_plugin(name: str) -> MarketplacePluginResponse:
     """Retrieve details for a single marketplace plugin by name."""
     try:
         package = _service().get_plugin(name)
+        return _package_to_response(package)
     except MarketplaceError as exc:
         _raise_marketplace_error(exc)
-    return _package_to_response(package)
 
 
 @router.get("/marketplace/installed", response_model=list[MarketplaceInstalledResponse])
 def list_installed_plugins() -> list[MarketplaceInstalledResponse]:
     """List all currently installed plugins."""
+    items: list[InstalledPlugin] = []
     try:
         items = _service().list_installed()
     except MarketplaceError as exc:
@@ -205,9 +211,9 @@ def install_plugin(
     """Install a marketplace plugin by name and optional version."""
     try:
         installed = _service().install(name, version=version)
+        return _installed_to_response(installed)
     except MarketplaceError as exc:
         _raise_marketplace_error(exc)
-    return _installed_to_response(installed)
 
 
 @router.delete("/marketplace/plugins/{name}")
@@ -223,6 +229,7 @@ def uninstall_plugin(name: str) -> dict[str, bool]:
 @router.post("/marketplace/plugins/{name}/update", response_model=MarketplaceUpdateResponse)
 def update_plugin(name: str) -> MarketplaceUpdateResponse:
     """Update an installed plugin to the latest version."""
+    updated: InstalledPlugin | None = None
     try:
         updated = _service().update(name)
     except MarketplaceError as exc:
@@ -238,6 +245,7 @@ def list_reviews(
     limit: int = Query(10, ge=1, le=100),
 ) -> list[MarketplaceReviewResponse]:
     """List reviews for a marketplace plugin."""
+    reviews: list[PluginReview] = []
     try:
         reviews = _service().get_reviews(name, limit=limit)
     except MarketplaceError as exc:
@@ -256,14 +264,15 @@ def add_review(
     if not isinstance(raw_user, str) or not raw_user:
         raw_user = getattr(user, "username", "anonymous")
     user_id_str: str = str(raw_user) if raw_user is not None else "anonymous"
-    review = PluginReview(
-        plugin_name=name,
-        user_id=user_id_str,
-        rating=request.rating,
-        title=request.title,
-        content=request.content,
-    )
+    latest: list[PluginReview] = []
     try:
+        review = PluginReview(
+            plugin_name=name,
+            user_id=user_id_str,
+            rating=request.rating,
+            title=request.title,
+            content=request.content,
+        )
         service = _service()
         service.add_review(review)
         latest = service.get_reviews(name, limit=1)
