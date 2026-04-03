@@ -7,7 +7,7 @@ that ``OpenAITextModel`` and ``OpenAIVisionModel`` do not duplicate it.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 try:
     from openai import OpenAI
@@ -19,6 +19,20 @@ except ImportError:
 from loguru import logger
 
 from file_organizer.models.base import ModelConfig
+
+
+def get_openai_api_error() -> type[BaseException]:
+    """Return the OpenAI API error type when available.
+
+    Falls back to ``Exception`` when the optional dependency is unavailable so
+    callers can build stable exception tuples without importing ``openai``
+    directly in modules that are type-checked without the package installed.
+    """
+    try:
+        from openai import APIError as openai_api_error
+    except ImportError:
+        return Exception
+    return cast(type[BaseException], openai_api_error)
 
 
 def create_openai_client(config: ModelConfig, model_type_label: str) -> Any:
@@ -57,7 +71,7 @@ def create_openai_client(config: ModelConfig, model_type_label: str) -> Any:
         client = OpenAI(**client_kwargs)
         logger.info("OpenAI {} model {} initialized", model_type_label, config.name)
         return client
-    except Exception as e:
+    except (TypeError, ValueError, RuntimeError, OSError) as e:
         # Log only the exception type — the message may contain partial api_key fragments.
         logger.error(
             "Failed to initialize OpenAI {} model {}: {}",

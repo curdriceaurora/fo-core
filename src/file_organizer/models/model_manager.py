@@ -74,7 +74,7 @@ class ModelManager:
         except FileNotFoundError:
             logger.warning("Ollama CLI not found. Install from https://ollama.ai")
             return set()
-        except Exception:
+        except (subprocess.SubprocessError, json.JSONDecodeError, OSError):
             logger.debug("Failed to query Ollama", exc_info=True)
             return self._parse_ollama_list_text()
 
@@ -93,7 +93,8 @@ class ModelManager:
                 if parts:
                     names.add(parts[0])
             return names
-        except Exception:
+        except (subprocess.SubprocessError, OSError) as e:
+            logger.debug("Failed to parse ollama model list: %s", e)
             return set()
 
     # ------------------------------------------------------------------
@@ -226,7 +227,7 @@ class ModelManager:
                     new_model = model_factory()
                     if hasattr(new_model, "initialize"):
                         new_model.initialize()
-                except Exception:
+                except Exception:  # Intentional catch-all: model_factory is user-provided
                     logger.exception(
                         "Failed to pre-warm new model %s for %s",
                         new_model_id,
@@ -303,7 +304,8 @@ class ModelManager:
                 "max_size": stats.max_size,
                 "memory_usage_bytes": stats.memory_usage_bytes,
             }
-        except Exception:
+        except (ImportError, RuntimeError, AttributeError) as e:
+            logger.debug("Model cache info unavailable: %s", e, exc_info=True)
             return {}
 
     # ------------------------------------------------------------------

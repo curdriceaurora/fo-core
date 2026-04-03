@@ -7,7 +7,11 @@ from typing import Any
 
 from loguru import logger
 
-from file_organizer.models._openai_client import OPENAI_AVAILABLE, create_openai_client
+from file_organizer.models._openai_client import (
+    OPENAI_AVAILABLE,
+    create_openai_client,
+    get_openai_api_error,
+)
 from file_organizer.models._openai_response import is_openai_token_exhausted
 from file_organizer.models._vision_helpers import bytes_to_data_url, image_to_data_url
 from file_organizer.models.base import (
@@ -19,6 +23,9 @@ from file_organizer.models.base import (
     ModelType,
     TokenExhaustionError,
 )
+
+OpenAIAPIError = get_openai_api_error()
+
 
 # Module-level aliases preserved for backward compatibility — external code that
 # imported the private helpers directly from this module will still work.
@@ -185,7 +192,7 @@ class OpenAIVisionModel(BaseModel):
             return content.strip()
         except (TokenExhaustionError, ValueError):
             raise
-        except Exception as e:
+        except (RuntimeError, ConnectionError, OSError, OpenAIAPIError) as e:
             logger.error("Failed to analyse image via OpenAI API: {}", type(e).__name__)
             raise
 
@@ -222,7 +229,7 @@ class OpenAIVisionModel(BaseModel):
             if self.client is not None:
                 try:
                     self.client.close()
-                except Exception:
+                except (RuntimeError, OSError):
                     logger.opt(exception=True).debug(
                         "Ignoring exception during OpenAI client close"
                     )

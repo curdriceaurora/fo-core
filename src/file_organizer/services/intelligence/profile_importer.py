@@ -104,7 +104,14 @@ class ProfileImporter:
             valid = len(errors) == 0
             return ValidationResult(valid, errors, warnings, profile_data)
 
-        except Exception as e:
+        except (
+            OSError,
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+            ValueError,
+            AttributeError,
+        ) as e:
             errors.append(f"Validation error: {e}")
             return ValidationResult(False, errors, warnings)
 
@@ -185,8 +192,12 @@ class ProfileImporter:
         """Validate selective export structure."""
         if "included_preferences" not in profile_data:
             errors.append("Selective export missing 'included_preferences'")
+        elif not isinstance(profile_data["included_preferences"], list):
+            errors.append("Invalid included_preferences structure")
         if "preferences" not in profile_data:
             errors.append("Missing 'preferences' field")
+        elif not isinstance(profile_data["preferences"], dict):
+            errors.append("Invalid preferences structure")
 
     def _validate_timestamps(self, profile_data: dict[str, Any], warnings: list[str]) -> None:
         """Validate timestamp fields."""
@@ -247,10 +258,11 @@ class ProfileImporter:
             # Count preferences
             if "preferences" in data:
                 prefs = data["preferences"]
-                preview["preferences_count"] = {
-                    "global": len(prefs.get("global", {})),
-                    "directory_specific": len(prefs.get("directory_specific", {})),
-                }
+                if isinstance(prefs, dict):
+                    preview["preferences_count"] = {
+                        "global": len(prefs.get("global", {})),
+                        "directory_specific": len(prefs.get("directory_specific", {})),
+                    }
 
             # Count learned patterns and confidence data
             preview["learned_patterns_count"] = len(data.get("learned_patterns", {}))
@@ -265,7 +277,7 @@ class ProfileImporter:
 
             return preview
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             print(f"Error creating import preview: {e}")
             return None
 
@@ -299,7 +311,7 @@ class ProfileImporter:
             # Full import
             return self._import_full_profile(data, profile_name)
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             print(f"Error importing profile: {e}")
             return None
 
@@ -461,7 +473,7 @@ class ProfileImporter:
 
             print(f"Created backup: {backup_path}")
 
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             print(f"Warning: Failed to create backup: {e}")
 
     def import_selective(
@@ -515,6 +527,6 @@ class ProfileImporter:
             # Import filtered data
             return self._import_selective_profile(filtered_data, filtered_data["profile_name"])
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             print(f"Error importing selective preferences: {e}")
             return None

@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime
 import os
 import shutil
+import sqlite3
 from pathlib import Path
 
 from loguru import logger
@@ -148,16 +149,19 @@ def organize_files(
                 shutil.copy2(result.file_path, new_path)
 
             if undo_manager is not None and transaction_id is not None:
-                undo_manager.history.log_operation(
-                    OperationType.COPY,
-                    source_path=result.file_path,
-                    destination_path=new_path,
-                    transaction_id=transaction_id,
-                )
+                try:
+                    undo_manager.history.log_operation(
+                        OperationType.COPY,
+                        source_path=result.file_path,
+                        destination_path=new_path,
+                        transaction_id=transaction_id,
+                    )
+                except (OSError, ValueError, RuntimeError, sqlite3.Error) as undo_err:
+                    logger.warning("Undo log failed for {}: {}", result.file_path, undo_err)
 
             organized.setdefault(result.folder_name, []).append(new_filename)
 
-        except Exception as e:
+        except OSError as e:
             logger.opt(exception=e).error("Failed to organize {}", result.file_path)
 
     return organized

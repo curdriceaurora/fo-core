@@ -329,7 +329,7 @@ class ProfileMigrator:
 
             return success
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             print(f"Error rolling back migration: {e}")
             return False
 

@@ -219,6 +219,7 @@ class DuplicateDetector:
                         try:
                             options.progress_callback(processed, total)
                         except Exception:
+                            # Intentional catch-all: user-provided callbacks should not abort scanning.
                             logger.debug("Progress callback failed", exc_info=True)
 
     def find_duplicates_of_file(
