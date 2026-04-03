@@ -192,11 +192,14 @@ class HealthChecker:
         names: set[str] = set()
 
         # From bus
-        names.update(self._bus.list_services())
+        bus = self._bus
+        assert bus is not None
+        names.update(bus.list_services())
 
         # From discovery
-        if self._discovery is not None:
-            for info in self._discovery.list_services():
+        discovery = self._discovery
+        if discovery is not None:
+            for info in discovery.list_services():
                 names.add(info.name)
 
         results: dict[str, ServiceHealth] = {}

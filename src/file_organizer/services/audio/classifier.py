@@ -290,7 +290,7 @@ class AudioClassifier:
         Returns:
             ClassificationResult with type, confidence, reasoning, and alternatives.
         """
-        scores: dict[AudioType, float] = dict.fromkeys(AudioType, 0.0)
+        scores: dict[AudioType, float] = {audio_type: 0.0 for audio_type in AudioType}  # noqa: C420
         reasons: dict[AudioType, list[str]] = {t: [] for t in AudioType}
 
         # ------------------------------------------------------------------

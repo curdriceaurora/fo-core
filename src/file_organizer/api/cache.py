@@ -17,13 +17,15 @@ from loguru import logger
 
 try:
     from redis import Redis
-    from redis.exceptions import RedisError
+    from redis.exceptions import RedisError as _RedisError
 except (
     ImportError,
     ModuleNotFoundError,
 ):  # pragma: no cover - optional dependency runtime fallback
     Redis = None
-    RedisError = Exception
+    _RedisError = Exception
+
+RedisError: type[Exception] = _RedisError
 
 
 class CacheBackend(Protocol):

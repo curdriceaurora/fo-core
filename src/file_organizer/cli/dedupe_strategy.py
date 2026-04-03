@@ -139,3 +139,5 @@ def get_user_selection(
                     return []  # Skip
                 else:
                     console.print("[red]Please enter 'y', 'n', or 's'.[/red]")
+
+    return []
