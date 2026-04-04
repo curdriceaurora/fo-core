@@ -75,7 +75,7 @@ Output ONLY the category name, nothing else."""
 
         return category
 
-    except (RuntimeError, ValueError, OSError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to generate category: {e}")
         return "general"
 
@@ -109,7 +109,7 @@ DESCRIPTION:"""
 
         return description if description else "Document content analysis"
 
-    except (RuntimeError, ValueError, OSError, AttributeError) as e:
+    except Exception as e:
         logger.error(f"Failed to generate description: {e}")
         return "Document content analysis"
 

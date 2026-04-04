@@ -205,7 +205,7 @@ class VisionProcessor:
                 processing_time=processing_time,
             )
 
-        except (RuntimeError, ValueError, OSError, AttributeError) as e:
+        except Exception as e:
             logger.exception(f"Failed to process {file_path.name}: {e}")
             return ProcessedImage(
                 file_path=file_path,

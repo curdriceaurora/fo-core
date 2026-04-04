@@ -123,7 +123,12 @@ class VisionModel(BaseModel):
         """
         self._enter_generate()
         try:
-            return self._do_generate(prompt, image_path, image_data, **kwargs)
+            return self._do_generate(
+                prompt,
+                image_path=image_path,
+                image_data=image_data,
+                **kwargs,
+            )
         finally:
             self._exit_generate()
 
