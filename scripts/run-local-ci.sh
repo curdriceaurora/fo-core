@@ -29,9 +29,8 @@ Tasks:
   test-full     run main-branch non-benchmark suite on Python 3.11.15 and 3.12.13 in parallel
   benchmark     run benchmark suite on Python 3.11.15 then 3.12.13 sequentially
   integration   integration coverage gate
-  rust          cargo check + cargo test for desktop/src-tauri
   security      pip-audit and bandit
-  all           quick + benchmark + integration + rust + security
+  all           quick + benchmark + integration + security
 
 Options:
   --python BIN  Python executable to use for non-matrix tasks (default: python3)
@@ -60,7 +59,6 @@ Available tasks:
   test-full
   benchmark
   integration
-  rust
   security
   all
 EOF
@@ -143,16 +141,6 @@ install_python_dependencies() {
   run_step "Upgrade pip" "$PYTHON_BIN" -m pip install --upgrade pip
   run_step "Install Python dependencies" "$PYTHON_BIN" -m pip install -e ".[dev,search]"
   run_step "Install CI helper packages" "$PYTHON_BIN" -m pip install faker pip-audit bandit[toml]
-}
-
-install_node_dependencies() {
-  if [[ -f desktop/package.json ]]; then
-    if command -v npm >/dev/null 2>&1; then
-      run_step "Install desktop npm dependencies" npm --prefix desktop install
-    else
-      echo "Skipping desktop npm install: npm not found."
-    fi
-  fi
 }
 
 run_in_matrix_parallel() {
@@ -343,30 +331,6 @@ run_integration() {
     --override-ini=addopts=
 }
 
-run_rust() {
-  require_cmd cargo
-  require_cmd rustc
-
-  local target_triple
-  target_triple="$(rustc -vV | awk "/^host:/ {print \$2}")"
-
-  run_step \
-    "Prepare Tauri sidecar placeholder" \
-    bash \
-    -lc \
-    "
-      cd desktop/src-tauri
-      sidecar_path=\"binaries/file-organizer-backend-${target_triple}\"
-      mkdir -p binaries
-      if [[ ! -f \"\${sidecar_path}\" ]]; then
-        printf '#!/usr/bin/env bash\nexit 0\n' > \"\${sidecar_path}\"
-        chmod +x \"\${sidecar_path}\"
-      fi
-    "
-  run_step "Run cargo check" bash -lc "cd desktop/src-tauri && cargo check --all-features"
-  run_step "Run cargo test" bash -lc "cd desktop/src-tauri && cargo test"
-}
-
 run_security() {
   run_step \
     "Run pip-audit" \
@@ -391,11 +355,10 @@ expand_task() {
         "test"
         "benchmark"
         "integration"
-        "rust"
         "security"
       )
       ;;
-    lint|unused-deps|type-check|links|test|test-full|benchmark|integration|rust|security)
+    lint|unused-deps|type-check|links|test|test-full|benchmark|integration|security)
       TASKS+=("$task")
       ;;
     *)
@@ -447,7 +410,6 @@ TASKS=("${EXPANDED_TASKS[@]}")
 
 if $RUN_INSTALL; then
   install_python_dependencies
-  install_node_dependencies
 fi
 
 echo "Running local CI tasks: ${TASKS[*]}"
@@ -478,9 +440,6 @@ for task in "${TASKS[@]}"; do
       ;;
     integration)
       run_integration
-      ;;
-    rust)
-      run_rust
       ;;
     security)
       run_security
