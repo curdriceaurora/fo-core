@@ -26,7 +26,13 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
-from build_config import BuildConfig, current_platform  # noqa: E402
+from build_config import (  # noqa: E402
+    DATA_FILES,
+    DESKTOP_DATA_FILES,
+    BuildConfig,
+    DesktopBuildConfig,
+    current_platform,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -63,6 +69,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Generate the spec file without building.",
     )
+    parser.add_argument(
+        "--desktop",
+        action="store_true",
+        help="Build the pywebview desktop app instead of the CLI.",
+    )
     return parser.parse_args()
 
 
@@ -93,6 +104,34 @@ def clean_build(config: BuildConfig) -> None:
             shutil.rmtree(target)
 
 
+def _entry_point(config: BuildConfig) -> Path:
+    """Return the source entry point for the given build config.
+
+    Args:
+        config: Build configuration.
+
+    Returns:
+        Path to the Python entry-point module.
+    """
+    if isinstance(config, DesktopBuildConfig):
+        return _PROJECT_ROOT / "src" / "file_organizer" / "desktop" / "app.py"
+    return _PROJECT_ROOT / "src" / "file_organizer" / "cli" / "main.py"
+
+
+def _spec_path(config: BuildConfig) -> Path:
+    """Return the spec file path for the given build config.
+
+    Args:
+        config: Build configuration.
+
+    Returns:
+        Path to the PyInstaller spec file.
+    """
+    if isinstance(config, DesktopBuildConfig):
+        return _PROJECT_ROOT / "file_organizer_desktop.spec"
+    return _PROJECT_ROOT / "file_organizer.spec"
+
+
 def build_command(config: BuildConfig, *, one_dir: bool = False, debug: bool = False) -> list[str]:
     """Construct the PyInstaller command line.
 
@@ -104,7 +143,7 @@ def build_command(config: BuildConfig, *, one_dir: bool = False, debug: bool = F
     Returns:
         Command as a list of strings.
     """
-    spec_file = _PROJECT_ROOT / "file_organizer.spec"
+    spec_file = _spec_path(config)
     if spec_file.exists():
         # Use the spec file if present
         return [sys.executable, "-m", "PyInstaller", str(spec_file)]
@@ -133,8 +172,7 @@ def build_command(config: BuildConfig, *, one_dir: bool = False, debug: bool = F
     if debug:
         cmd.extend(["--log-level", "DEBUG"])
 
-    # Entry point
-    cmd.append(str(_PROJECT_ROOT / "src" / "file_organizer" / "cli" / "main.py"))
+    cmd.append(str(_entry_point(config)))
 
     return cmd
 
@@ -148,10 +186,17 @@ def generate_spec(config: BuildConfig) -> Path:
     Returns:
         Path to the generated spec file.
     """
-    spec_path = _PROJECT_ROOT / "file_organizer.spec"
+    spec_file = _spec_path(config)
+    entry = _entry_point(config)
+
+    data_files = DESKTOP_DATA_FILES if isinstance(config, DesktopBuildConfig) else DATA_FILES
+    datas_lines = "\n        ".join(f"('{src}', '{dst}')," for src, dst in data_files)
 
     hidden = ",\n    ".join(f"'{h}'" for h in config.hidden_imports)
     excludes = ",\n    ".join(f"'{e}'" for e in config.excludes)
+
+    # Use posix-style path so spec file works on all platforms including Windows.
+    entry_rel = entry.relative_to(_PROJECT_ROOT).as_posix()
 
     spec_content = f"""\
 # -*- mode: python ; coding: utf-8 -*-
@@ -163,11 +208,11 @@ import platform
 block_cipher = None
 
 a = Analysis(
-    ['src/file_organizer/cli/main.py'],
+    ['{entry_rel}'],
     pathex=['src'],
     binaries=[],
     datas=[
-        ('src/file_organizer/config/*.yaml', 'file_organizer/config'),
+        {datas_lines}
     ],
     hiddenimports=[
         {hidden}
@@ -208,9 +253,13 @@ exe = EXE(
     entitlements_file=None,
 )
 """
-    spec_path.write_text(spec_content)
-    print(f"Generated spec file: {spec_path}")
-    return spec_path
+    try:
+        spec_file.write_text(spec_content)
+    except OSError as e:
+        print(f"ERROR: Failed to write spec file {spec_file}: {e}")
+        sys.exit(1)
+    print(f"Generated spec file: {spec_file}")
+    return spec_file
 
 
 def run_build(config: BuildConfig, *, one_dir: bool = False, debug: bool = False) -> int:
@@ -233,7 +282,11 @@ def run_build(config: BuildConfig, *, one_dir: bool = False, debug: bool = False
 def main() -> None:
     """Entry point for the build script."""
     args = parse_args()
-    config = BuildConfig(strip=not args.no_strip)
+    config: BuildConfig = (
+        DesktopBuildConfig(strip=not args.no_strip)
+        if args.desktop
+        else BuildConfig(strip=not args.no_strip)
+    )
 
     print(f"Build target: {config.output_name}")
     print(f"Platform: {config.platform} ({config.arch})")
@@ -254,8 +307,7 @@ def main() -> None:
         sys.exit(1)
 
     # Generate spec file if it doesn't exist
-    spec_file = _PROJECT_ROOT / "file_organizer.spec"
-    if not spec_file.exists():
+    if not _spec_path(config).exists():
         generate_spec(config)
 
     exit_code = run_build(config, one_dir=args.one_dir, debug=args.debug)
