@@ -158,6 +158,15 @@ gui = [
     "PyQt6~=6.6",
 ]
 
+desktop = [
+    # pywebview wraps the OS-native webview engine (WebKit on macOS/Linux,
+    # Edge WebView2 on Windows) — no Chromium/Electron overhead.
+    # 0.x numbering ended at 3.x; project uses SemVer from 4.0 onward.
+    "pywebview>=4.4",
+    # Server-side deps required at runtime inside the desktop process.
+    "uvicorn[standard]~=0.27",
+]
+
 audio = [
     "faster-whisper~=1.0",
     "torch~=2.1",  # GPU acceleration for audio transcription
@@ -217,6 +226,7 @@ all = [
 [project.scripts]
 file-organizer = "file_organizer.cli:main"
 fo = "file_organizer.cli:main"  # Short alias
+file-organizer-desktop = "file_organizer.desktop.app:launch"  # Native desktop window (requires [desktop] extra)
 
 [project.urls]
 Homepage = "https://github.com/curdriceaurora/Local-File-Organizer"
