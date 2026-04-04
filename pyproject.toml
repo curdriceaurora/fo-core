@@ -133,6 +133,7 @@ dev = [
     "deptry>=0.16.0",  # 0.x — unstable API, keep >=; Unused dependency detection
     "diff-cover~=7.0",  # Diff coverage gate (local pre-commit + CI validation)
     "asgi-lifespan~=2.1",  # ASGI lifespan management for integration tests
+    "pytest-playwright>=0.5.0",  # Browser-based E2E smoke tests (requires: playwright install chromium)
 ]
 
 cloud = [
@@ -346,6 +347,7 @@ markers = [
     "e2e: end-to-end tests against real file trees (no Ollama required)",
     "benchmark: performance benchmark tests (use --benchmark-only to run)",
     "asyncio: marks tests as async (requires pytest-asyncio)",
+    "playwright: browser-based E2E tests (requires playwright install chromium; run with --override-ini='addopts=')",
 ]
 filterwarnings = [
     "error::DeprecationWarning:file_organizer",
@@ -415,6 +417,7 @@ pep621_dev_dependency_groups = ["dev", "docs", "build"]
 "striprtf" = "striprtf"
 "llama-cpp-python" = "llama_cpp"
 "mlx-lm" = "mlx_lm"
+"pywebview" = "webview"
 [tool.deptry.per_rule_ignores]
 # netCDF4: in scientific optional group; deptry has mixed-case matching issues
 DEP001 = ["netCDF4"]
@@ -449,4 +452,6 @@ DEP002 = [
     "ecdsa",
     # Pygments: transitive via rich/textual; pinned for CVE-2026-4539
     "Pygments",
+    # pywebview: desktop GUI wrapper; import name is 'webview' (mapped above); used in desktop/app.py
+    "pywebview",
 ]
