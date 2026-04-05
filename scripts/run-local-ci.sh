@@ -324,7 +324,7 @@ run_integration() {
     --strict-markers \
     --cov=file_organizer \
     --cov-branch \
-    --cov-fail-under=60 \
+    --cov-fail-under=71.9 \
     --cov-report=term-missing \
     --cov-report=xml \
     --timeout=60 \
