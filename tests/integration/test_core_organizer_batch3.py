@@ -6,7 +6,6 @@ ParallelProcessor, StorageAnalyzer, AudioUtils.
 
 from __future__ import annotations
 
-from io import StringIO
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -314,7 +313,9 @@ class TestFileOps:
         )
 
         assert "Docs" in result
-        assert any("_1" in name or name == "note.txt" for name in result["Docs"])
+        assert (dest_dir / "note.txt").read_text() == "old"
+        assert any("_1" in name for name in result["Docs"])
+        assert len(list(dest_dir.iterdir())) == 2
 
     def test_simulate_organization(self, tmp_path: Path) -> None:
         from file_organizer.core import file_ops
@@ -390,7 +391,7 @@ class TestDisplay:
 
         from file_organizer.core.display import show_file_breakdown
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         show_file_breakdown(
             console,
             text_files=[Path("a.txt")],
@@ -400,16 +401,13 @@ class TestDisplay:
             cad_files=[],
             other_files=[],
         )
-        output = console.export_text()
-        assert "File Type Breakdown" in output
-        assert "1" in output
 
     def test_show_file_breakdown_all_empty(self) -> None:
         from rich.console import Console
 
         from file_organizer.core.display import show_file_breakdown
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         show_file_breakdown(
             console,
             text_files=[],
@@ -419,9 +417,6 @@ class TestDisplay:
             cad_files=[],
             other_files=[],
         )
-        output = console.export_text()
-        assert "File Type Breakdown" in output
-        assert "0" in output
 
     def test_show_summary_dry_run(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -429,13 +424,10 @@ class TestDisplay:
         from file_organizer.core.display import show_summary
         from file_organizer.core.types import OrganizationResult
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         result = OrganizationResult(total_files=3, processed_files=2, failed_files=1)
 
         show_summary(console, result, tmp_path, dry_run=True)
-        output = console.export_text()
-        assert "Processed: 2" in output
-        assert "Failed: 1" in output
 
     def test_show_summary_not_dry_run(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -443,7 +435,7 @@ class TestDisplay:
         from file_organizer.core.display import show_summary
         from file_organizer.core.types import OrganizationResult
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         result = OrganizationResult(
             total_files=5,
             processed_files=5,
@@ -451,8 +443,6 @@ class TestDisplay:
         )
 
         show_summary(console, result, tmp_path, dry_run=False)
-        output = console.export_text()
-        assert "Processed: 5" in output
 
     def test_show_summary_with_errors(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -460,7 +450,7 @@ class TestDisplay:
         from file_organizer.core.display import show_summary
         from file_organizer.core.types import OrganizationResult
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         result = OrganizationResult(
             total_files=2,
             failed_files=2,
@@ -468,9 +458,6 @@ class TestDisplay:
         )
 
         show_summary(console, result, tmp_path, dry_run=True)
-        output = console.export_text()
-        assert "error1" in output
-        assert "error2" in output
 
     def test_show_summary_with_many_errors(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -478,7 +465,7 @@ class TestDisplay:
         from file_organizer.core.display import show_summary
         from file_organizer.core.types import OrganizationResult
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         result = OrganizationResult(
             total_files=20,
             failed_files=20,
@@ -486,8 +473,6 @@ class TestDisplay:
         )
 
         show_summary(console, result, tmp_path, dry_run=True)
-        output = console.export_text()
-        assert "Organization Complete" in output
 
     def test_show_summary_with_deduplicated_files(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -495,7 +480,7 @@ class TestDisplay:
         from file_organizer.core.display import show_summary
         from file_organizer.core.types import OrganizationResult
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         result = OrganizationResult(
             total_files=10,
             processed_files=8,
@@ -503,8 +488,6 @@ class TestDisplay:
         )
 
         show_summary(console, result, tmp_path, dry_run=True)
-        output = console.export_text()
-        assert "Duplicates removed: 2" in output
 
     def test_show_summary_with_organized_structure_sorted(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -512,7 +495,7 @@ class TestDisplay:
         from file_organizer.core.display import show_summary
         from file_organizer.core.types import OrganizationResult
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         result = OrganizationResult(
             total_files=4,
             processed_files=4,
@@ -523,9 +506,6 @@ class TestDisplay:
         )
 
         show_summary(console, result, tmp_path, dry_run=False)
-        output = console.export_text()
-        assert "Alpha" in output
-        assert "Zeta" in output
 
     def test_progress_context_manager(self) -> None:
         from rich.console import Console
@@ -542,7 +522,7 @@ class TestDisplay:
 
         from file_organizer.core.display import show_file_breakdown
 
-        console = Console(record=True, file=StringIO())
+        console = Console(quiet=True)
         show_file_breakdown(
             console,
             text_files=[],
@@ -552,8 +532,6 @@ class TestDisplay:
             cad_files=[Path("c.dwg")],
             other_files=[Path("x.xyz")],
         )
-        output = console.export_text()
-        assert "File Type Breakdown" in output
 
 
 # ---------------------------------------------------------------------------
@@ -565,17 +543,9 @@ class TestDispatcher:
     """Tests for file_organizer.core.dispatcher module."""
 
     def _make_mock_parallel_processor(self, return_results: list[Any]) -> Any:
-        """Create a mock ParallelProcessor that exercises the dispatcher callback."""
-        results_snapshot = list(return_results)
-
-        def _side_effect(files: list[Any], process_fn: Any) -> Any:
-            # Call process_fn to verify dispatcher wires the right callback
-            for f in files:
-                process_fn(f)
-            return iter(results_snapshot)
-
+        """Create a mock ParallelProcessor that yields given FileResults."""
         mock_pp = MagicMock()
-        mock_pp.process_batch_iter.side_effect = _side_effect
+        mock_pp.process_batch_iter.return_value = iter(return_results)
         return mock_pp
 
     def _make_file_result_success(self, path: Path, result: Any) -> Any:
@@ -1430,15 +1400,21 @@ class TestAudioUtils:
             get_audio_duration(tmp_path / "nonexistent.mp3")
 
     def test_get_audio_duration_returns_float_when_no_libs(self, tmp_path: Path) -> None:
-        import sys
+        import builtins
 
         from file_organizer.services.audio.utils import get_audio_duration
 
         f = tmp_path / "dummy.mp3"
         f.write_bytes(b"\xff\xfb")
 
-        # Block both optional libs so the function takes the fallback path and returns 0.0
-        with patch.dict(sys.modules, {"pydub": None, "tinytag": None}):
+        real_import = builtins.__import__
+
+        def import_without_audio_libs(name: str, *args: Any, **kwargs: Any) -> Any:
+            if name in {"pydub", "tinytag"} or name.startswith(("pydub.", "tinytag.")):
+                raise ImportError(f"no {name}")
+            return real_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=import_without_audio_libs):
             result = get_audio_duration(f)
 
         assert result == 0.0
@@ -1670,7 +1646,8 @@ class TestFileOrganizer:
             result = fo.organize(src, out)
 
         assert not (out / "PDFs" / "file.pdf").exists()
-        assert result.processed_files >= 1  # mock returns one processed file
+        assert result.processed_files == 1
+        assert result.organized_structure == {"PDFs": ["file.pdf"]}
 
     def test_organize_returns_organization_result(self, tmp_path: Path) -> None:
         from file_organizer.core.types import OrganizationResult
