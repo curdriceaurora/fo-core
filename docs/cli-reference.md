@@ -102,42 +102,6 @@ fo preview ~/Downloads
 
 ---
 
-### `serve`
-
-Start the File Organizer web server and API.
-
-**Usage:**
-
-```bash
-file-organizer serve [OPTIONS]
-```
-
-**Options:**
-- `--host TEXT` — Bind address (default: `0.0.0.0`)
-- `--port INTEGER` — Port number (default: `8000`)
-- `--reload` — Auto-reload on code changes (development mode)
-- `--workers INTEGER` — Number of worker processes (default: `1`)
-
-**Examples:**
-
-```bash
-# Start with defaults (port 8000, all interfaces)
-file-organizer serve
-
-# Development mode with auto-reload
-file-organizer serve --reload
-
-# Custom host and port
-file-organizer serve --host 127.0.0.1 --port 9000
-
-# Production with multiple workers
-file-organizer serve --workers 4
-```
-
-> **Access:** Once running, open `http://localhost:8000/ui/` in your browser.
-
----
-
 ### `search`
 
 Search for files by name pattern with optional type filtering, or use hybrid
@@ -220,16 +184,6 @@ file-organizer analyze ~/Documents/report.pdf --json
 ```
 
 > **Note:** Requires Ollama to be installed and running with a text model available.
-
----
-
-### `tui`
-
-Launch the interactive Terminal User Interface.
-
-```bash
-file-organizer tui
-```
 
 ---
 
@@ -1064,99 +1018,6 @@ file-organizer marketplace update PLUGIN_NAME
 
 ---
 
-### `api` — Remote API Client
-
-Interact with a running File Organizer API server.
-
-#### `api health`
-
-Check API server health.
-
-```bash
-file-organizer api health [--base-url URL] [--json]
-```
-
-#### `api login`
-
-Authenticate and store access tokens.
-
-```bash
-file-organizer api login [--base-url URL] [--save-token PATH]
-```
-
-**Options:**
-- `--username` — Login username (prompted if not provided)
-- `--password` — Login password (prompted securely if not provided)
-
-#### `api me`
-
-Show current authenticated user.
-
-```bash
-file-organizer api me [--base-url URL] [--token TOKEN]
-```
-
-#### `api logout`
-
-Invalidate the current session token.
-
-```bash
-file-organizer api logout [--base-url URL] [--token TOKEN]
-```
-
-**Options:**
-- `--token` — Bearer token
-- `--refresh-token` — Refresh token to revoke
-
-#### `api files`
-
-List files via the API.
-
-```bash
-file-organizer api files PATH [OPTIONS]
-```
-
-**Arguments:**
-- `PATH` — Directory to list
-
-**Options:**
-- `--token` — Bearer token
-
-#### `api system-status`
-
-Show system status from the API server.
-
-```bash
-file-organizer api system-status [--base-url URL]
-```
-
-**Options:**
-- `--token` — Bearer token
-
-#### `api system-stats`
-
-Show system statistics from the API server.
-
-```bash
-file-organizer api system-stats [--base-url URL]
-```
-
-**Options:**
-- `--token` — Bearer token
-
-**Default base URL:** `http://localhost:8000`
-
-**Examples:**
-
-```bash
-file-organizer api health
-file-organizer api health --base-url http://myserver:8000
-file-organizer api login
-file-organizer api system-status
-```
-
----
-
 ### `update` — Application Updates
 
 Manage application updates.
@@ -1476,55 +1337,14 @@ file-organizer autotag batch ~/Documents --pattern "*.pdf" --json
 
 ---
 
-## `file-organizer-desktop` — Native Desktop Window
-
-Launch the File Organizer desktop application as a native OS window powered by
-pywebview.
-
-**Usage:**
-
-```bash
-file-organizer-desktop
-```
-
-The command starts the FastAPI web UI on a random free port in a background
-thread, waits up to 10 seconds for the server to become ready, then opens a
-native OS window (WebKit on macOS, Edge WebView2 on Windows, WebKitGTK on
-Linux) pointing at the local server.
-
-The process exits cleanly when the window is closed; no background server is
-left running.
-
-**Prerequisites:**
-
-- `pip install "local-file-organizer[desktop]"` (installs pywebview + uvicorn)
-- Ollama running with at least one model pulled
-- Linux: `sudo apt-get install -y gir1.2-webkit2-4.1`
-
-**Examples:**
-
-```bash
-# Start the desktop window
-file-organizer-desktop
-
-# Start with Ollama running in the background
-ollama serve & file-organizer-desktop
-```
-
-See [Desktop App Guide](desktop-app.md) for full documentation.
-
----
-
 ## Short Alias
 
 Use `fo` as a short alias for `file-organizer`:
 
 ```bash
-fo serve
 fo organize ~/Downloads ~/Organized
 fo search "*.pdf" ~/Documents
 fo analyze ~/Documents/report.pdf
-fo tui
 fo copilot chat
 fo dedupe scan ~/Pictures
 fo autotag suggest ~/Documents

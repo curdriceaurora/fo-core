@@ -321,16 +321,16 @@ plan = organizer.preview_organization(
 print(f"Planned moves: {len(plan.planned_moves)}")
 ```
 
-### TUI Integration
+### CLI Integration
 
-View audio files and transcriptions in the Terminal UI:
+View audio file metadata and transcriptions via the CLI:
 
 ```bash
-file-organizer tui
+file-organizer analyze ~/Music/podcast.mp3
 ```
 
-**Press `5` to access the Audio view**, which displays:
-- Discovered audio files in current directory
+The `analyze` command displays:
+
 - Metadata (title, artist, album, duration, bitrate)
 - Classification results (music, podcast, audiobook, etc.)
 - Transcription preview (if available)

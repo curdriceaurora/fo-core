@@ -63,12 +63,6 @@ Epic #571 "Desktop UI Test Coverage" increased project **docstring coverage from
 
 **Completed**: March 5-7, 2026
 
-#### Task #573: TUI View Tests
-
-- **Coverage**: 79% on `src/file_organizer/tui/`
-- **Tests**: 50+ tests for app, screens, widgets, key bindings
-- **Status**: ✅ Complete
-
 #### Task #574: Models, Client & Config Tests
 
 - **Coverage**: 90%+ on models, client, config modules
@@ -131,18 +125,6 @@ Epic #571 "Desktop UI Test Coverage" increased project **docstring coverage from
 |--------|----------|-------|
 | routers/files | 91% | Most paths covered |
 | utils | 90% | Helper functions covered |
-
-### Low Coverage (< 70%)
-
-| Module | Coverage | Reason |
-|--------|----------|--------|
-| routers/realtime | 52% | WebSocket edge cases (lower outlier) |
-
-### Low Coverage (< 70%)
-
-| Module | Coverage | Reason |
-|--------|----------|--------|
-| routers/realtime | 52% | WebSocket edge cases (lower outlier) |
 
 ### Known Gaps (0-50%)
 
@@ -214,12 +196,14 @@ Tests are integrated with GitHub Actions:
 ## How to Maintain Coverage
 
 1. **Before Committing Code**
+
    ```bash
    # Run smoke tests
    pytest -m smoke -x
    ```
 
 2. **Before Creating PR**
+
    ```bash
    # Full test validation
    bash .claude/scripts/pre-commit-validation.sh
@@ -231,6 +215,7 @@ Tests are integrated with GitHub Actions:
    - Mark complex tests with `@pytest.mark.slow` if > 5s
 
 4. **Adding Docstrings**
+
    ```bash
    # Check docstring coverage
    interrogate -v src/file_organizer --fail-under 95
@@ -243,7 +228,6 @@ Work remaining to reach 100% code coverage:
 - **Updater Module** (0% → 90%): Version checking, installation, rollback
 - **Watcher Module** (0% → 90%): File system monitoring, event handling
 - **CLI Subcommands** (65% → 90%): Remaining command coverage
-- **TUI Views** (79% → 95%): Complex state transitions
 - **Utility Readers** (9-43% → 90%): File format handling
 - **Text Processing** (14% → 80%): Advanced algorithms
 
@@ -252,7 +236,7 @@ Work remaining to reach 100% code coverage:
 
 ## Epic Completion
 
-**Epic #571: Desktop UI Test Coverage**
+**Epic #571: Test Coverage**
 - **Started**: March 2, 2026
 - **Completed**: March 7, 2026
 - **Duration**: 5 days
@@ -283,6 +267,7 @@ Credit to the testing effort that ensured:
 **Next Steps**: Review Phase C roadmap for remaining coverage gaps.
 
 **Questions?** See [Testing Guide](../developer/testing.md) or run:
+
 ```bash
 pytest --help
 interrogate --help

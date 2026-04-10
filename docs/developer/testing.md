@@ -24,11 +24,8 @@ Tests are organized by module under `tests/` mirroring the source structure:
 
 ```text
 tests/
-├── api/              # FastAPI routes, middleware, models (100+ tests)
 ├── cli/              # CLI commands (65+ tests)
 ├── services/         # Business logic (300+ tests)
-├── tui/              # Terminal UI (50+ tests)
-├── web/              # Web routes and templates (40+ tests)
 ├── models/           # Data models (40+ tests)
 ├── config/           # Configuration (30+ tests)
 ├── integration/      # Cross-module workflows (130+ tests)
@@ -44,7 +41,7 @@ Use pytest markers to categorize tests:
 @pytest.mark.smoke         # Critical path tests (< 30s total, pre-commit validation)
 @pytest.mark.integration   # Integration tests (cross-module workflows)
 @pytest.mark.e2e           # End-to-end tests (full user journeys)
-@pytest.mark.asyncio       # Async tests (FastAPI, TUI, services)
+@pytest.mark.asyncio       # Async tests (services)
 @pytest.mark.benchmark     # Performance tests
 @pytest.mark.ci            # CI-specific tests
 @pytest.mark.slow          # Long-running tests (>5s)
@@ -76,24 +73,21 @@ pytest -m ci
 
 | Module | Lines | Covered | Coverage | Target |
 |--------|-------|---------|----------|--------|
-| **api/** | 2,400+ | 2,200+ | 92% | 80% ✅ |
-| **services/** | 2,800+ | 2,300+ | 82% | 80% ✅ |
-| **cli/** | 1,200+ | 900+ | 75% | 80% 🔶 |
-| **tui/** | 1,400+ | 1,100+ | 79% | 90% 🔶 |
-| **web/** | 1,800+ | 1,400+ | 78% | 80% 🔶 |
-| **models/** | 500+ | 450+ | 90% | 90% ✅ |
-| **config/** | 400+ | 380+ | 95% | 90% ✅ |
-| **Docstrings** | 4,130 items | 3,924 | 95.0% | 95% ✅ |
+| **services/** | 2,800+ | 2,300+ | 82% | 80% |
+| **cli/** | 1,200+ | 900+ | 75% | 80% |
+| **models/** | 500+ | 450+ | 90% | 90% |
+| **config/** | 400+ | 380+ | 95% | 90% |
+| **Docstrings** | 4,130 items | 3,924 | 95.0% | 95% |
 
 **Overall**: 916+ tests, ~95%+ on tested modules, 95.0% docstring coverage
 
 ### Coverage Gaps
 
 Known areas with lower coverage (0-50%):
+
 - `updater/` - Application update system (0%)
 - `watcher/` - File system monitoring (0%)
 - `cli/` subcommands - Some commands untested
-- `tui/` views - Complex UI state logic (partial)
 
 These represent ~15% of the codebase and are marked for Phase C work.
 
@@ -101,7 +95,7 @@ These represent ~15% of the codebase and are marked for Phase C work.
 
 ```bash
 # Per-module coverage
-pytest --cov=file_organizer.api --cov-report=term-missing
+pytest --cov=file_organizer.services --cov-report=term-missing
 
 # Full project coverage with HTML report
 pytest --cov=file_organizer --cov-report=html
@@ -112,37 +106,6 @@ interrogate -v src/file_organizer --fail-under 95
 ```
 
 ## Testing Patterns
-
-### API Route Testing
-
-Use `httpx` with ASGI transport for testing FastAPI endpoints:
-
-```python
-import pytest
-from httpx import ASGITransport, AsyncClient, Client
-from file_organizer.api.main import create_app
-
-@pytest.fixture
-async def client():
-    app = create_app()
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-
-# Or for synchronous use:
-@pytest.fixture
-def sync_client():
-    app = create_app()
-    transport = ASGITransport(app=app)
-    with Client(transport=transport, base_url="http://test") as c:
-        yield c
-
-@pytest.mark.asyncio
-async def test_organize_endpoint(client):
-    response = await client.post("/api/organize", json={"path": "/tmp"})
-    assert response.status_code == 200
-    assert "organized" in response.json()
-```
 
 ### Service Testing
 
@@ -179,21 +142,6 @@ def test_organize_command():
     assert "organized" in result.output
 ```
 
-### TUI Testing
-
-Use Textual's `pilot` for testing terminal UI:
-
-```python
-import pytest
-from file_organizer.tui.app import FileOrganizerApp
-
-@pytest.mark.asyncio
-async def test_app_loads():
-    app = FileOrganizerApp()
-    async with app.run_test() as pilot:
-        assert pilot.app.title == "File Organizer"
-```
-
 ### Integration Testing
 
 Integration tests exercise real service instances with only external HTTP (Ollama/OpenAI) mocked at the `model._do_generate()` level. This verifies the wiring between components that unit tests mock away.
@@ -221,7 +169,6 @@ pytest tests/integration/test_error_propagation.py -v
 | `isolated_config_dir` | Temp config directory (no user config interference) |
 | `fake_text_model` | Pre-initialized `FakeTextModel` instance (concrete `BaseModel`, no external calls) |
 | `cli_runner` | `typer.testing.CliRunner` for invoking CLI commands without a real process |
-| `async_client` | `httpx.AsyncClient` wired to the full FastAPI app via ASGI transport (auth disabled) |
 
 **Helpers** (importable from `tests.integration.conftest`):
 
@@ -260,10 +207,10 @@ class TestModelErrors:
 
 **Key design decisions**:
 
-- Mock at `_do_generate()`, not at service level — exercises real service-to-model wiring
-- Real filesystem via `tmp_path` — tests actual file I/O
+- Mock at `_do_generate()`, not at service level -- exercises real service-to-model wiring
+- Real filesystem via `tmp_path` -- tests actual file I/O
 - `TextProcessor` uses graceful degradation: model errors produce fallback values (`"documents"`/`"document"`), not `failed_files`
-- All tests marked `@pytest.mark.integration` — CI runs them on main pushes only, not on every PR
+- All tests marked `@pytest.mark.integration` -- CI runs them on main pushes only, not on every PR
 
 See `.claude/epics/integration-test-harness/epic.md` for the full architecture and gap analysis.
 
@@ -272,12 +219,12 @@ See `.claude/epics/integration-test-harness/epic.md` for the full architecture a
 All tests must follow these standards:
 
 1. **Real Assertions**: Every test has meaningful assertions verifying behavior
-   - ✅ `assert result.status_code == 200`
-   - ❌ `assert True` (useless placeholder)
+   - `assert result.status_code == 200`
+   - Not `assert True` (useless placeholder)
 
 2. **No Internal Mocking**: Only mock external boundaries (HTTP, GPU, filesystem)
-   - ✅ Mock `httpx.post()` calls to external APIs
-   - ❌ Mock internal service methods
+   - Mock `httpx.post()` calls to external APIs
+   - Not internal service methods
 
 3. **Fast Execution**: Individual tests < 5 seconds
    - Use fixtures for setup
@@ -285,12 +232,11 @@ All tests must follow these standards:
 
 4. **Isolation**: Tests don't interfere with each other
    - Use temp directories for file operations
-   - Use unique ports for server tests
-   - Clear database state between tests
+   - Clear state between tests
 
 5. **Clear Names**: Test names describe what's being tested
-   - ✅ `test_organize_creates_subdirectories_for_file_types()`
-   - ❌ `test_organize()`
+   - `test_organize_creates_subdirectories_for_file_types()`
+   - Not `test_organize()`
 
 6. **Docstrings**: Module-level docstring in each test file
 
@@ -324,14 +270,16 @@ environments, so normalize rendered output before asserting exact help content.
 GitHub Actions runs automated checks on every PR and push to main:
 
 **Pull Request Validation:**
+
 - `pytest -m "ci"` test subset runs (selected critical tests)
 - Linting checks (ruff for Python, markdownlint for docs)
 - Type checking (mypy)
 - No coverage threshold enforced
 
 **Main Branch Pushes:**
+
 - Full test suite passes (`pytest`)
-- Coverage must be ≥ 95% (code) and ≥ 95% (docstrings) — both gates must pass
+- Coverage must be >= 95% (code) and >= 95% (docstrings) -- both gates must pass
 - Linting must pass (ruff and markdownlint)
 - Type checking must pass (mypy)
 
@@ -416,10 +364,10 @@ else:
 
 ## Test Coverage by Epic
 
-### Epic #571: Desktop UI Test Coverage
+### Epic #571: Test Coverage
 
-- **Phase A**: API, plugins, CLI, web, services (12% → 91% coverage) ✅ COMPLETE
-- **Phase B**: TUI, models, updater, watcher, docstrings (91% → 96.8%) ✅ COMPLETE
+- **Phase A**: Services, CLI (12% -> 91% coverage) -- COMPLETE
+- **Phase B**: Models, updater, watcher, docstrings (91% -> 96.8%) -- COMPLETE
 - **Phase C**: Remaining modules and integration (target: 95%+)
 
 See `.claude/epics/desktopui-test-coverage/` for detailed task tracking.
@@ -429,5 +377,3 @@ See `.claude/epics/desktopui-test-coverage/` for detailed task tracking.
 - [Testing Strategy Details](../testing/testing-strategy.md)
 - [Coverage Report](../testing/coverage-report.md)
 - [pytest Documentation](https://docs.pytest.org/)
-- [Textual Testing Guide](https://textual.textualize.io/guide/testing/)
-- [FastAPI Testing](https://fastapi.tiangolo.com/advanced/testing-dependencies/)

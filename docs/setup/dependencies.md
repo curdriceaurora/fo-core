@@ -40,7 +40,6 @@ pip install -e ".[archive]"     # Archive support (7z, RAR)
 pip install -e ".[scientific]"  # Scientific formats (HDF5, NetCDF, MATLAB)
 pip install -e ".[cloud]"       # OpenAI-compatible API providers (openai)
 pip install -e ".[cad]"         # CAD formats (ezdxf)
-pip install -e ".[desktop]"     # Native desktop window (pywebview + uvicorn)
 pip install -e ".[build]"       # Executable packaging (PyInstaller)
 pip install -e ".[llama]"       # llama.cpp provider — direct GGUF inference (no Ollama server)
 pip install -e ".[mlx]"         # Apple Silicon MLX provider (Darwin only)
@@ -49,7 +48,7 @@ pip install -e ".[search]"      # Hybrid BM25 + vector search (rank-bm25, scikit
 pip install -e ".[all]"         # Everything
 ```
 
-> **Note**: Additional extras (`gui`, `docs`, `dev`, `web`, `parsers`, `cloud`) are available in `pyproject.toml` for GUI support, documentation building, development tooling, and cloud/OpenAI-compatible provider support.
+> **Note**: Additional extras (`docs`, `dev`, `cloud`) are available in `pyproject.toml` for documentation building, development tooling, and cloud/OpenAI-compatible provider support.
 
 ## CLI Entrypoints
 
