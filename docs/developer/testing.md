@@ -366,7 +366,7 @@ else:
 
 ### Epic #571: Test Coverage
 
-- **Phase A**: Services, CLI, plugins (12% -> 91% coverage) -- COMPLETE
+- **Phase A**: Services, CLI (12% -> 91% coverage) -- COMPLETE
 - **Phase B**: Models, updater, watcher, docstrings (91% -> 96.8%) -- COMPLETE
 - **Phase C**: Remaining modules and integration (target: 95%+)
 

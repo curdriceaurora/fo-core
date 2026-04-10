@@ -34,7 +34,6 @@
 | **UndoManager** | Undo/redo system | `undo/` | ✅ Active |
 | **EventBus** | Inter-component events | `events/` | ✅ Active |
 | **Daemon** | Background file watching | `daemon/` | ✅ Active |
-| **PluginSystem** | Extension marketplace | `plugins/` | ✅ Active |
 | **Methodologies** | PARA, Johnny Decimal | `methodologies/` | ✅ Active |
 
 ## Data Flow

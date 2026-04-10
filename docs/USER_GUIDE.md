@@ -44,7 +44,6 @@ Extend functionality by installing optional dependency groups:
 
 | Pack | Install Command | Features |
 |------|----------------|----------|
-| Parsers | `pip install -e ".[parsers]"` | PDF, Word, Excel, PowerPoint, eBook, HTML parsing |
 | Search | `pip install -e ".[search]"` | BM25-based search ranking algorithms |
 | Cloud | `pip install -e ".[cloud]"` | OpenAI-compatible API providers (OpenAI, Groq, LM Studio, vLLM) |
 | Claude | `pip install -e ".[claude]"` | Anthropic Claude API provider (text + vision) |
@@ -56,7 +55,6 @@ Extend functionality by installing optional dependency groups:
 | Archive | `pip install -e ".[archive]"` | 7z and RAR archive support |
 | Scientific | `pip install -e ".[scientific]"` | HDF5, NetCDF, MATLAB file support |
 | CAD | `pip install -e ".[cad]"` | DXF and other CAD format support |
-| Search | `pip install -e ".[search]"` | BM25-based search ranking algorithms |
 | Build | `pip install -e ".[build]"` | Executable packaging (PyInstaller) |
 | All | `pip install -e ".[all]"` | All packs above, plus development tools and PyQt6 GUI dependencies |
 
@@ -89,7 +87,6 @@ File Organizer provides two equivalent entrypoints: `file-organizer` and the sho
 | `suggest` | Get smart file placement suggestions |
 | `update` | Check for and install application updates |
 | `profile` | Manage named configuration profiles |
-| `marketplace` | Browse and install community plugins |
 | `benchmark` | Run performance benchmarks |
 | `setup` | Interactive setup wizard |
 

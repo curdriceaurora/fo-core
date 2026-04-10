@@ -48,7 +48,7 @@ pip install -e ".[search]"      # Hybrid BM25 + vector search (rank-bm25, scikit
 pip install -e ".[all]"         # Everything
 ```
 
-> **Note**: Additional extras (`docs`, `dev`, `parsers`, `cloud`) are available in `pyproject.toml` for documentation building, development tooling, and cloud/OpenAI-compatible provider support.
+> **Note**: Additional extras (`docs`, `dev`, `cloud`) are available in `pyproject.toml` for documentation building, development tooling, and cloud/OpenAI-compatible provider support.
 
 ## CLI Entrypoints
 

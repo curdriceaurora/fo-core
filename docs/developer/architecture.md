@@ -169,19 +169,6 @@ class FileOrganizer:
 
 ## Extension Points
 
-### Plugin System
-
-Extend functionality via hooks:
-
-```python
-from file_organizer.plugins import register_hook
-
-@register_hook("on_file_processed")
-def my_plugin(file: ProcessedFile):
-    # Custom logic
-    pass
-```
-
 ### Custom Models
 
 Implement custom AI models:

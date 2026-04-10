@@ -64,7 +64,7 @@ file-organizer doctor .
 
 # Ollama status
 ollama ps
-ollama ls
+ollama list
 ```
 
 ### Report an Issue

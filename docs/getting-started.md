@@ -80,7 +80,6 @@ File Organizer supports modular installation through optional dependency groups.
 | Feature | Install Command | What It Enables | Platform Notes |
 |---------|----------------|-----------------|----------------|
 | **Core** | `pip install local-file-organizer` | Basic file organization, Ollama integration, YAML/JSON/TXT parsing | All platforms |
-| **parsers** | `pip install local-file-organizer[parsers]` | PDF, Word, Excel, PowerPoint, eBook, HTML parsing | All platforms |
 | **cloud** | `pip install local-file-organizer[cloud]` | OpenAI-compatible API providers (OpenAI, Groq, LM Studio, vLLM) | Requires `OPENAI_API_KEY` |
 | **llama** | `pip install local-file-organizer[llama]` | Direct GGUF inference via llama.cpp (no Ollama server needed) | All platforms |
 | **mlx** | `pip install local-file-organizer[mlx]` | Apple Silicon MLX acceleration for faster local inference | **macOS only** |
@@ -99,10 +98,10 @@ File Organizer supports modular installation through optional dependency groups.
 
 ```bash
 # Install multiple features at once
-pip install local-file-organizer[parsers,cloud]
+pip install local-file-organizer[cloud]
 
 # Install from source with features
-pip install -e .[parsers,audio]
+pip install -e .[audio]
 
 # Install everything
 pip install local-file-organizer[all]
