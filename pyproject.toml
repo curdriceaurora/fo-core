@@ -49,7 +49,7 @@ dependencies = [
     "jinja2~=3.1",
     "markupsafe~=3.0",  # Direct import in web csrf_input; also a jinja2 transitive dep
     "uvicorn[standard]~=0.27",
-    "websockets~=12.0",
+    "websockets~=16.0",
     "httpx~=0.26",
     "python-multipart>=0.0.9",  # 0.x — unstable API, keep >=
     # Security: ecdsa is transitive via python-jose. Pin >= 0.19.2 for CVE-2026-33936.
@@ -98,7 +98,7 @@ web = [
     "fastapi~=0.109",
     "jinja2~=3.1",
     "uvicorn[standard]~=0.27",
-    "websockets~=12.0",
+    "websockets~=16.0",
     "httpx~=0.26",
     "python-multipart>=0.0.9",  # 0.x — unstable API, keep >=
     # Security: ecdsa is transitive via python-jose. Pin >= 0.19.2 for CVE-2026-33936.
