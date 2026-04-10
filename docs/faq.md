@@ -2,13 +2,13 @@
 
 ## General Questions
 
-### What is File Organizer?
+### What is fo-core?
 
-File Organizer is an AI-powered local file management system that automatically organizes files using local LLMs (large language models). It supports multiple organization methodologies like PARA and Johnny Decimal, with zero cloud dependencies.
+fo-core is an AI-powered CLI file organizer that automatically categorizes files using local LLMs (large language models). It supports multiple organization methodologies like PARA and Johnny Decimal, with zero cloud dependencies.
 
 ### Is my data safe?
 
-Yes. File Organizer:
+Yes. fo-core:
 
 - Runs 100% locally
 - Never uploads files to cloud
@@ -24,23 +24,25 @@ Yes. File Organizer:
 
 ### Can I use it on Windows/Mac/Linux?
 
-Yes. File Organizer runs on all three platforms.
+Yes. fo-core runs on all three platforms.
 
 ## Installation Questions
 
-### How do I install File Organizer?
+### How do I install fo-core?
 
-Three options:
+```bash
+git clone https://github.com/curdriceaurora/fo-core.git
+cd fo-core
+pip install -e .
+```
 
-1. **Docker** (recommended): `docker-compose up -d`
-1. **Python Package**: `pip install local-file-organizer`
-1. **From Source**: Clone repo and `pip install -e .`
-
-See [Installation Guide](admin/installation.md).
+See [Getting Started](getting-started.md).
 
 ### Do I need Ollama?
 
-Yes, Ollama provides the AI models. Install from <https://ollama.ai>
+Yes by default. Ollama provides the AI models. Install from <https://ollama.ai>
+
+Alternative providers (OpenAI, Claude, llama.cpp, MLX) are available via optional extras.
 
 ### Which AI models should I use?
 
@@ -55,19 +57,19 @@ Both are optimized for balance between speed and accuracy.
 
 ### How do I organize my files?
 
-1. Upload files
-1. Click **Organize**
-1. Choose methodology (PARA, Johnny Decimal, etc.)
-1. Review preview
-1. Click **Apply**
+```bash
+fo organize ~/Downloads ~/Organized --dry-run   # Preview first
+fo organize ~/Downloads ~/Organized              # Do it
+fo undo                                          # Changed your mind
+```
 
 See the [Getting Started Guide](getting-started.md) for details.
 
 ### What file types does it support?
 
-File Organizer supports 43+ file types:
+fo-core supports 48+ file types:
 
-- Documents: PDF, Word, Excel, PowerPoint, Markdown
+- Documents: PDF, Word, Excel, PowerPoint, Markdown, EPUB
 - Images: JPEG, PNG, GIF, BMP, TIFF
 - Video: MP4, AVI, MKV, MOV, WMV
 - Audio: MP3, WAV, FLAC, M4A, OGG
@@ -77,17 +79,23 @@ File Organizer supports 43+ file types:
 
 ### How do I undo an organization?
 
-Click **Undo** immediately after organizing (or Ctrl+Z).
-
-Or use **Organize** → **Original Structure** to revert all organization.
-
-### Can I organize files without uploading them?
-
-Yes. Click **Organize** → **Browse Local Folder** to organize files already on your system.
+```bash
+fo undo       # Undo the last operation
+fo history    # View operation history
+fo redo       # Redo the last undone operation
+```
 
 ### How do I find duplicate files?
 
-Click **Analysis** → **Detect Duplicates**, choose folder(s) to scan, and wait for results.
+```bash
+fo dedupe ~/Documents    # Scan for duplicates
+```
+
+### How do I search files?
+
+```bash
+fo search "quarterly report" ~/Documents
+```
 
 ## Performance Questions
 
@@ -104,83 +112,30 @@ Optimizations:
 
 Solutions:
 
-- Close browser tabs
-- Reduce maximum file size
-- Limit batch size
-- Restart service
-
-### Files aren't being found in search
-
-- Check search syntax
-- Try broader search terms
-- Verify files aren't excluded
-- Refresh browser
-
-## API Questions
-
-### How do I use the API?
-
-1. Generate API key in **Settings** → **API Keys**
-1. Include in requests: `Authorization: Bearer YOUR_KEY`
-1. See the [API Clients Guide](developer/api-clients.md) for usage examples
-
-### Can I use API keys from scripts?
-
-Yes. Store in environment variables:
-
-```bash
-export FILE_ORGANIZER_API_KEY="fo_your_id_your_token"
-```
-
-Then use in your script.
-
-### Is the API rate-limited?
-
-Yes. Free tier: 100 requests/minute.
-
-See the [API Clients Guide](developer/api-clients.md) for details.
+- Process smaller batches
+- Use a smaller AI model
+- Close other applications
 
 ## Configuration Questions
 
-### How do I change the workspace path?
+### How do I change configuration?
 
-Click **Settings** → **Workspace** → **Path**
+```bash
+fo config show          # View current config
+fo config set key val   # Update a setting
+fo doctor               # Verify setup
+```
 
-**Note**: Service must be restarted.
-
-### How do I enable 2-factor authentication?
-
-Click **Settings** → **Security** → **2FA**
-
-Choose authenticator app or SMS.
+Config file lives at `~/.config/file-organizer/config.yaml`.
 
 ### Can I customize organization rules?
 
-Yes. Click **Organize** → **Custom** to create custom rules.
-
-## Deployment Questions
-
-### Can I run this in production?
-
-Yes. See [Deployment Guide](admin/deployment.md) for production setup.
-
-### How do I set up HTTPS?
-
-Configure reverse proxy (nginx, Apache) with SSL/TLS certificate.
-
-See [Deployment Guide](admin/deployment.md).
-
-### How do I backup my data?
+Yes. Use the `fo rules` command to manage YAML-based organization rules.
 
 ```bash
-# Backup database
-docker-compose exec db pg_dump -U postgres file_organizer > backup.sql
-
-# Backup files
-rsync -av /path/to/files /path/to/backup
+fo rules list           # List current rules
+fo rules add            # Add a new rule
 ```
-
-See [Admin Guide](admin/index.md).
 
 ## Troubleshooting Questions
 
@@ -194,13 +149,7 @@ ollama serve
 
 Verify: `curl http://localhost:11434/api/version`
 
-### Port already in use
-
-Use different port:
-
-```bash
-file-organizer serve --port 8001
-```
+Run diagnostics: `fo doctor`
 
 ### Out of memory
 
@@ -208,7 +157,7 @@ Solutions:
 
 - Increase available RAM
 - Process smaller batches
-- Reduce upload file size
+- Use a smaller model
 - Use CPU-only mode
 
 See [Troubleshooting Guide](troubleshooting.md) for more issues.
@@ -222,7 +171,7 @@ See [Troubleshooting Guide](troubleshooting.md) for more issues.
 1. Make changes with tests
 1. Create pull request
 
-See [GitHub Repository](https://github.com/curdriceaurora/Local-File-Organizer) for contribution guidelines.
+See [GitHub Repository](https://github.com/curdriceaurora/fo-core) for contribution guidelines.
 
 ### How do I report bugs?
 
@@ -233,13 +182,13 @@ See [GitHub Repository](https://github.com/curdriceaurora/Local-File-Organizer) 
    - System info
    - Error logs
 
-See [GitHub Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues).
+See [GitHub Issues](https://github.com/curdriceaurora/fo-core/issues).
 
 ## Getting Help
 
 Can't find your answer?
 
 - **Documentation**: Browse [full docs](index.md)
-- **Issues**: [GitHub Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/curdriceaurora/Local-File-Organizer/discussions)
+- **Issues**: [GitHub Issues](https://github.com/curdriceaurora/fo-core/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/curdriceaurora/fo-core/discussions)
 - **Troubleshooting**: [Troubleshooting Guide](troubleshooting.md)

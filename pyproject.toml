@@ -364,8 +364,7 @@ pep621_dev_dependency_groups = ["dev", "docs", "build"]
 "pywebview" = "webview"
 [tool.deptry.per_rule_ignores]
 # netCDF4: in scientific optional group; deptry has mixed-case matching issues
-# redis: optional import via try/except in events/stream.py
-DEP001 = ["netCDF4", "redis"]
+DEP001 = ["netCDF4"]
 # aiofiles: Starlette StaticFiles uses it for async file serving (no direct import)
 # python-multipart: FastAPI uses it for file uploads (no direct import)
 # lxml: used as bs4 parser string "lxml" (not imported directly)
@@ -375,7 +374,7 @@ DEP001 = ["netCDF4", "redis"]
 # jinja2: fastapi.templating wraps it (not imported directly)
 # alembic: used as CLI migration tool (not imported in application code)
 # openpyxl: pandas uses it for Excel I/O (not imported directly)
-# local-file-organizer: self-reference in the [all] optional group
+# fo-core: self-reference in the [all] optional group
 DEP002 = [
     "aiofiles",
     "python-multipart",
@@ -386,7 +385,7 @@ DEP002 = [
     "jinja2",
     "alembic",
     "openpyxl",
-    "local-file-organizer",
+    "fo-core",
     # pydantic-settings: pydantic's BaseSettings uses it internally; no direct import needed
     "pydantic-settings",
     # PyQt6: GUI-only dep; GUI application lives outside src/file_organizer/
@@ -404,3 +403,5 @@ DEP002 = [
     # pydantic: used transitively by pydantic-settings; no direct src/ import after refactor
     "pydantic",
 ]
+# redis: optional import via try/except in events/stream.py (transitive dep)
+DEP003 = ["redis"]
