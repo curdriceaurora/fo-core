@@ -98,12 +98,6 @@ repos:
         language: system
         pass_filenames: false
 
-      - id: pytest-websocket
-        name: pytest (websocket validations)
-        entry: bash -c "pytest tests/test_api_websocket.py -q --override-ini='addopts='"
-        language: system
-        pass_filenames: false
-
       # ----------------------------------------------------------------
       # Diff-coverage gate: changed lines must have ≥80% test coverage
       # Runs pytest with coverage, then diff-cover against merge base.
