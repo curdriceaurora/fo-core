@@ -364,7 +364,8 @@ pep621_dev_dependency_groups = ["dev", "docs", "build"]
 "pywebview" = "webview"
 [tool.deptry.per_rule_ignores]
 # netCDF4: in scientific optional group; deptry has mixed-case matching issues
-DEP001 = ["netCDF4"]
+# redis: optional import via try/except in events/stream.py
+DEP001 = ["netCDF4", "redis"]
 # aiofiles: Starlette StaticFiles uses it for async file serving (no direct import)
 # python-multipart: FastAPI uses it for file uploads (no direct import)
 # lxml: used as bs4 parser string "lxml" (not imported directly)
@@ -403,5 +404,3 @@ DEP002 = [
     # pydantic: used transitively by pydantic-settings; no direct src/ import after refactor
     "pydantic",
 ]
-# redis: optional import via try/except in events/stream.py (transitive dep)
-DEP003 = ["redis"]
