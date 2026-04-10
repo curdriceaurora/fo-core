@@ -9,10 +9,7 @@
 # file; both pipelines will pick up the change automatically.
 #
 # Shard sizing goal: ~3 000-4 500 test functions per shard, keeping runtime
-# balanced without over-fragmenting the matrix. After fixing the websocket
-# queue-task cleanup in tests/api/test_realtime.py, the async-heavy API and web
-# suites can run safely under xdist again, so the emergency micro-shards are no
-# longer needed.
+# balanced without over-fragmenting the matrix.
 
 set -euo pipefail
 
@@ -23,12 +20,12 @@ if [[ -z "$SHARD" ]]; then
 fi
 
 case "$SHARD" in
-    1) PATHS="tests/integration tests/e2e" ;;
+    1) PATHS="tests/integration" ;;
     2) PATHS="tests/services tests/models tests/events tests/optimization" ;;
-    3) PATHS="tests/api" ;;
-    4) PATHS="tests/cli tests/methodologies tests/ci tests/unit tests/plugins tests/tui tests/parallel tests/pipeline" ;;
-    5) PATHS="tests/utils tests/undo tests/history tests/daemon tests/deploy tests/watcher tests/updater tests/core tests/config tests/client tests/docs tests/desktop tests/integrations tests/interfaces tests/test_*.py" ;;
-    6) PATHS="tests/web" ;;
+    3) PATHS="tests/cli tests/methodologies tests/parallel tests/pipeline" ;;
+    4) PATHS="tests/ci tests/unit" ;;
+    5) PATHS="tests/utils tests/undo tests/history tests/daemon tests/watcher tests/updater tests/test_*.py" ;;
+    6) PATHS="tests/core tests/config tests/docs tests/integrations tests/interfaces" ;;
     *)
         echo "Unknown shard: $SHARD (valid: 1-6)" >&2
         exit 1

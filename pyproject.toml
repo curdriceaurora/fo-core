@@ -353,7 +353,6 @@ pep621_dev_dependency_groups = ["dev", "docs", "build"]
 "python-pptx" = "pptx"
 "beautifulsoup4" = "bs4"
 "pyyaml" = "yaml"
-"python-jose" = "jose"
 "scikit-learn" = "sklearn"
 "opencv-python" = "cv2"
 "pydantic-settings" = "pydantic_settings"
@@ -361,44 +360,27 @@ pep621_dev_dependency_groups = ["dev", "docs", "build"]
 "striprtf" = "striprtf"
 "llama-cpp-python" = "llama_cpp"
 "mlx-lm" = "mlx_lm"
-"pywebview" = "webview"
 [tool.deptry.per_rule_ignores]
 # netCDF4: in scientific optional group; deptry has mixed-case matching issues
 # redis: optional import via try/except in events/stream.py
 DEP001 = ["netCDF4", "redis"]
-# aiofiles: Starlette StaticFiles uses it for async file serving (no direct import)
-# python-multipart: FastAPI uses it for file uploads (no direct import)
 # lxml: used as bs4 parser string "lxml" (not imported directly)
-# email-validator: pydantic uses it for EmailStr (not imported directly)
-# websockets: starlette WebSocket support (must be installed, not imported)
 # python-dotenv: pydantic-settings reads .env files via this package
-# jinja2: fastapi.templating wraps it (not imported directly)
 # alembic: used as CLI migration tool (not imported in application code)
 # openpyxl: pandas uses it for Excel I/O (not imported directly)
 # fo-core: self-reference in the [all] optional group
 DEP002 = [
-    "aiofiles",
-    "python-multipart",
     "lxml",
-    "email-validator",
-    "websockets",
     "python-dotenv",
-    "jinja2",
     "alembic",
     "openpyxl",
     "fo-core",
     # pydantic-settings: pydantic's BaseSettings uses it internally; no direct import needed
     "pydantic-settings",
-    # PyQt6: GUI-only dep; GUI application lives outside src/file_organizer/
-    "PyQt6",
     # netCDF4: mixed-case name causes deptry matching issues; used in scientific.py
     "netCDF4",
-    # ecdsa: transitive via python-jose; pinned for CVE-2026-33936
-    "ecdsa",
-    # Pygments: transitive via rich/textual; pinned for CVE-2026-4539
+    # Pygments: transitive via rich; pinned for CVE-2026-4539
     "Pygments",
-    # pywebview: desktop GUI wrapper; import name is 'webview' (mapped above); used in desktop/app.py
-    "pywebview",
     # sqlalchemy: used by alembic migrations and undo/history at runtime; no direct src/ import
     "sqlalchemy",
     # pydantic: used transitively by pydantic-settings; no direct src/ import after refactor
