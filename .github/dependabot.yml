@@ -10,7 +10,6 @@ updates:
     labels:
       - "dependencies"
     ignore:
-      - dependency-name: "aiofiles"
       - dependency-name: "diff-cover"
       - dependency-name: "numpy"
       - dependency-name: "Pillow"
@@ -22,7 +21,6 @@ updates:
       - dependency-name: "pytest-cov"
       - dependency-name: "pytest-randomly"
       - dependency-name: "rich"
-      - dependency-name: "textual"
       - dependency-name: "tinytag"
       - dependency-name: "watchdog"
     groups:
@@ -35,8 +33,6 @@ updates:
           - "coverage"
       security:
         patterns:
-          - "bcrypt"
-          - "python-jose"
           - "cryptography"
 
   - package-ecosystem: "github-actions"
