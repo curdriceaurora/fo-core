@@ -1,22 +1,22 @@
-# File Organizer Documentation
+# fo-core Documentation
 
 Welcome to the **fo-core** documentation! A privacy-first, AI-powered CLI file organizer that categorizes files intelligently using local LLMs with zero cloud dependencies.
 
 ## Quick Navigation
 
-=== "🚀 Getting Started"
+### Getting Started
 
-    **New to fo-core?** Start here to understand the basics.
+**New to fo-core?** Start here to understand the basics.
 
-    - [Installation & Setup](getting-started.md)
-    - [CLI Reference](cli-reference.md)
+- [Installation & Setup](getting-started.md)
+- [CLI Reference](cli-reference.md)
 
-=== "👨‍💻 Development"
+### Development
 
-    **Extending fo-core?** Add methodologies, file handlers, and providers.
+**Extending fo-core?** Add methodologies, file handlers, and providers.
 
-    - [Architecture](developer/architecture.md)
-    - [Developer Guide](developer/index.md)
+- [Architecture](developer/architecture.md)
+- [Developer Guide](developer/index.md)
 
 ## Key Features
 
