@@ -75,7 +75,12 @@ jobs:
           if [ "${{ matrix.platform }}" = "windows" ]; then
             cli_exe=$(find dist -name "file-organizer-*.exe" -type f | head -1)
           else
-            cli_exe=$(find dist -maxdepth 1 -type f -name "file-organizer-*" -not -name "*.AppImage" -perm /111 | head -1)
+            cli_exe=$(find dist -maxdepth 1 -type f -name "file-organizer-*" -perm /111 \
+              -not -name "*.AppImage" \
+              -not -name "*.tar.gz" \
+              -not -name "*.zip" \
+              -not -name "*.sha256" \
+              -not -name "*.txt" | head -1)
           fi
 
           if [ -z "$cli_exe" ]; then
@@ -84,6 +89,16 @@ jobs:
             exit 1
           fi
           echo "CLI executable: $cli_exe ($(du -h "$cli_exe" | cut -f1))"
+
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            appimage=$(find dist -maxdepth 1 -type f -name "*.AppImage" | head -1)
+            if [ -z "$appimage" ]; then
+              echo "ERROR: No AppImage found in dist/ after Linux AppImage build"
+              ls -la dist/
+              exit 1
+            fi
+            echo "AppImage: $appimage ($(du -h "$appimage" | cut -f1))"
+          fi
 
           "$cli_exe" --help || true
 

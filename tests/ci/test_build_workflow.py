@@ -81,6 +81,19 @@ class TestCLIBuildStep:
         run_text = _build_step_run_text()
         assert "python scripts/build.py --clean" in run_text
 
+    def test_no_desktop_runtime_dependencies(self) -> None:
+        """CLI-only workflow should not install desktop GUI runtime deps."""
+        run_text = _build_step_run_text()
+        assert "pywebview" not in run_text
+        assert "libwebkit2gtk" not in run_text
+        assert "gir1.2-webkit2" not in run_text
+
+    def test_linux_verification_avoids_appimage_and_checks_appimage_exists(self) -> None:
+        """Linux verification should target CLI binary and separately assert AppImage output."""
+        run_text = _build_step_run_text()
+        assert "-not -name \"*.AppImage\"" in run_text
+        assert "No AppImage found in dist/" in run_text
+
 
 class TestArtifactUpload:
     def test_artifacts_from_dist(self) -> None:
