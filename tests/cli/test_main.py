@@ -141,11 +141,3 @@ def test_preview_command_error(mock_organizer_cls, _mock_setup, tmp_path):
 
     assert result.exit_code == 1
     assert "Error: Bad input" in result.stdout
-
-
-@patch("file_organizer.tui.run_tui")
-def test_tui_command(mock_run_tui):
-    """Test launching TUI."""
-    result = runner.invoke(app, ["tui"])
-    assert result.exit_code == 0
-    mock_run_tui.assert_called_once()

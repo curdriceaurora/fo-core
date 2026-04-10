@@ -117,30 +117,3 @@ def test_truncate_content_short() -> None:
     short_text = "hello"
     result = truncate_content(short_text)
     assert result == "hello"
-
-
-# ---------------------------------------------------------------------------
-# API router integration
-# ---------------------------------------------------------------------------
-
-
-def test_api_router_uses_shared_service() -> None:
-    """Verify API router imports from shared service (no duplicated logic)."""
-    import importlib
-
-    router_mod = importlib.import_module("file_organizer.api.routers.analyze")
-    service_mod = importlib.import_module("file_organizer.services.analyzer")
-
-    # The API router must import these from the shared service
-    for name in (
-        "generate_category",
-        "generate_description",
-        "calculate_confidence",
-        "truncate_content",
-    ):
-        router_obj = getattr(router_mod, name, None)
-        service_obj = getattr(service_mod, name, None)
-        assert router_obj is service_obj, (
-            f"API router's '{name}' is not the same object as services.analyzer.{name}. "
-            "The router should import from the shared service, not define its own copy."
-        )

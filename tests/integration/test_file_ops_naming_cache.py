@@ -1,24 +1,19 @@
-"""Integration tests for file_ops, naming_analyzer, api/cache, and api/rate_limit.
+"""Integration tests for file_ops, naming_analyzer, and text_processing.
 
 Covers uncovered branches in:
   - core/file_ops.py           — collect_files, fallback_by_extension, organize_files,
                                   simulate_organization, cleanup_empty_dirs
   - services/intelligence/naming_analyzer.py — naming styles, normalize, semantic components
-  - api/cache.py               — InMemoryCache TTL, build_cache_backend invalid URL
-  - api/rate_limit.py          — max_entries sweep trigger
   - utils/text_processing.py  — clean_text, sanitize_filename, extract_keywords
 """
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.api.cache import InMemoryCache, _is_valid_redis_url, build_cache_backend
-from file_organizer.api.rate_limit import InMemoryRateLimiter
 from file_organizer.core.file_ops import (
     cleanup_empty_dirs,
     collect_files,
@@ -506,114 +501,6 @@ class TestNamingAnalyzerEditDistance:
     def test_same_string(self) -> None:
         a = NamingAnalyzer()
         assert a._calculate_edit_distance("hello", "hello") == 0
-
-
-# ---------------------------------------------------------------------------
-# InMemoryCache
-# ---------------------------------------------------------------------------
-
-
-class TestInMemoryCacheTTL:
-    def test_expired_entry_returns_none(self) -> None:
-        cache = InMemoryCache()
-        cache.set("k", "v", ttl_seconds=1)
-        deadline = time.monotonic() + 5.0
-        while time.monotonic() < deadline:
-            if cache.get("k") is None:
-                break
-        assert cache.get("k") is None
-
-    def test_absent_key_returns_none(self) -> None:
-        cache = InMemoryCache()
-        assert cache.get("missing") is None
-
-    def test_set_and_get_within_ttl(self) -> None:
-        cache = InMemoryCache()
-        cache.set("k", "value", ttl_seconds=60)
-        assert cache.get("k") == "value"
-
-    def test_delete_removes_entry(self) -> None:
-        cache = InMemoryCache()
-        cache.set("k", "value", ttl_seconds=60)
-        cache.delete("k")
-        assert cache.get("k") is None
-
-    def test_close_clears_entries(self) -> None:
-        cache = InMemoryCache()
-        cache.set("a", "1", ttl_seconds=60)
-        cache.set("b", "2", ttl_seconds=60)
-        cache.close()
-        assert cache.get("a") is None
-        assert cache.get("b") is None
-
-    def test_zero_ttl_still_stores(self) -> None:
-        cache = InMemoryCache()
-        # ttl_seconds=0 → max(1, 0) = 1 → stored for at least 1 second
-        cache.set("k", "v", ttl_seconds=0)
-        assert cache.get("k") == "v"
-
-
-class TestBuildCacheBackend:
-    def test_none_url_returns_in_memory(self) -> None:
-        from file_organizer.api.cache import InMemoryCache
-
-        backend = build_cache_backend(None)
-        assert isinstance(backend, InMemoryCache)
-
-    def test_empty_url_returns_in_memory(self) -> None:
-        from file_organizer.api.cache import InMemoryCache
-
-        backend = build_cache_backend("")
-        assert isinstance(backend, InMemoryCache)
-
-    def test_invalid_scheme_returns_in_memory(self) -> None:
-        from file_organizer.api.cache import InMemoryCache
-
-        backend = build_cache_backend("ftp://localhost:6379")
-        assert isinstance(backend, InMemoryCache)
-
-    def test_valid_redis_url_attempts_connection(self) -> None:
-        # A valid URL that fails to connect returns either RedisCache or InMemoryCache fallback
-        backend = build_cache_backend("redis://nonexistent-host:9999/0")
-        # Verify the backend implements CacheBackend protocol
-        assert hasattr(backend, "get")
-        assert hasattr(backend, "set")
-        assert hasattr(backend, "delete")
-
-
-class TestIsValidRedisUrl:
-    def test_redis_scheme_valid(self) -> None:
-        assert _is_valid_redis_url("redis://localhost:6379") is True
-
-    def test_rediss_scheme_valid(self) -> None:
-        assert _is_valid_redis_url("rediss://localhost:6380") is True
-
-    def test_unix_scheme_valid(self) -> None:
-        assert _is_valid_redis_url("unix:///var/run/redis.sock") is True
-
-    def test_http_scheme_invalid(self) -> None:
-        assert _is_valid_redis_url("http://localhost:6379") is False
-
-    def test_ftp_scheme_invalid(self) -> None:
-        assert _is_valid_redis_url("ftp://localhost") is False
-
-
-# ---------------------------------------------------------------------------
-# InMemoryRateLimiter — max_entries sweep
-# ---------------------------------------------------------------------------
-
-
-class TestInMemoryRateLimiterMaxEntries:
-    def test_max_entries_triggers_sweep(self) -> None:
-        # Set max_entries=2 and sweep_interval=9999 (won't time-trigger)
-        # After 3 unique keys → size check triggers sweep
-        limiter = InMemoryRateLimiter(max_entries=2, sweep_interval_seconds=9999)
-        limiter.check("k1", limit=5, window_seconds=1)
-        limiter.check("k2", limit=5, window_seconds=1)
-        # k1/k2 windows are 1s; size-based sweep fires on the third unique key
-        # The third check triggers the size-based sweep
-        result = limiter.check("k3", limit=5, window_seconds=60)
-        assert result.allowed is True
 
 
 # ---------------------------------------------------------------------------

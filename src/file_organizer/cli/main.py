@@ -12,7 +12,6 @@ import typer
 from rich.console import Console
 
 import file_organizer.cli._globals as _g
-from file_organizer.cli.api import api_app
 from file_organizer.cli.autotag_v2 import autotag_app
 from file_organizer.cli.benchmark import benchmark_app
 from file_organizer.cli.config_cli import config_app
@@ -20,7 +19,6 @@ from file_organizer.cli.copilot import copilot_app
 from file_organizer.cli.daemon import daemon_app
 from file_organizer.cli.dedupe_v2 import dedupe_app
 from file_organizer.cli.doctor import doctor
-from file_organizer.cli.marketplace import marketplace_app
 from file_organizer.cli.models_cli import model_app
 from file_organizer.cli.organize import organize, preview
 from file_organizer.cli.rules import rules_app
@@ -99,52 +97,6 @@ def version() -> None:
     console.print(f"file-organizer {__version__}")
 
 
-@app.command()
-def serve(
-    host: str = typer.Option("0.0.0.0", help="Bind address."),
-    port: int = typer.Option(8000, help="Port number."),
-    reload: bool = typer.Option(False, help="Auto-reload on code changes."),
-    workers: int = typer.Option(1, help="Number of worker processes."),
-) -> None:
-    """Start the File Organizer web server and API."""
-    try:
-        import uvicorn
-    except ImportError as exc:
-        console.print(
-            "[red]Error: uvicorn is not installed.[/red]\n"
-            "Install it with: [bold]pip install uvicorn[standard][/bold]"
-        )
-        raise typer.Exit(code=1) from exc
-
-    console.print(f"[bold]Starting File Organizer[/bold] at http://{host}:{port}/ui/")
-
-    try:
-        uvicorn.run(
-            "file_organizer.api.main:create_app",
-            factory=True,
-            host=host,
-            port=port,
-            reload=reload,
-            workers=workers,
-        )
-    except OSError as exc:
-        console.print(f"[red]Error: {exc}[/red]")
-        if "address already in use" in str(exc).lower():
-            console.print(
-                f"[yellow]Port {port} is already in use. "
-                f"Try a different port: file-organizer serve --port {port + 1}[/yellow]"
-            )
-        raise typer.Exit(code=1) from exc
-
-
-@app.command(name="tui")
-def launch_tui() -> None:
-    """Launch the interactive terminal UI."""
-    from file_organizer.tui import run_tui
-
-    run_tui()
-
-
 @app.command(name="hardware-info")
 def hardware_info(
     json_out: bool = typer.Option(False, "--json", help="Output as JSON."),
@@ -184,8 +136,6 @@ app.add_typer(benchmark_app, name="benchmark")
 app.add_typer(copilot_app, name="copilot")
 app.add_typer(daemon_app, name="daemon")
 app.add_typer(dedupe_app, name="dedupe")
-app.add_typer(api_app, name="api")
-app.add_typer(marketplace_app, name="marketplace")
 app.add_typer(rules_app, name="rules")
 app.add_typer(setup_app, name="setup")
 app.add_typer(suggest_app, name="suggest")

@@ -11,19 +11,15 @@ from __future__ import annotations
 
 import struct
 import zlib
-from collections.abc import AsyncGenerator, Callable, Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import httpx
 import pytest
-from asgi_lifespan import LifespanManager
 from typer.testing import CliRunner
 
-from file_organizer.api.main import create_app
-from file_organizer.api.test_utils import build_test_settings
 from file_organizer.models.base import BaseModel, ModelConfig, ModelType
 
 # ---------------------------------------------------------------------------
@@ -416,30 +412,3 @@ def cli_runner() -> CliRunner:
     leak between tests.
     """
     return CliRunner()
-
-
-# ---------------------------------------------------------------------------
-# Full-stack AsyncClient fixture
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-async def async_client(tmp_path: Path) -> AsyncGenerator[httpx.AsyncClient, None]:
-    """``httpx.AsyncClient`` wired to the full FastAPI app via ASGI transport.
-
-    Auth is disabled so routes do not require a JWT token.  Use this fixture
-    when testing API routers, web routes, or any endpoint that requires the
-    full application stack (middleware, exception handlers, dependency graph).
-
-    The app is created fresh per test using ``tmp_path`` for the auth database
-    so tests are fully isolated.  ``LifespanManager`` ensures ASGI
-    startup/shutdown events fire so any lifespan-registered resources are
-    properly initialised and torn down.
-    """
-
-    settings = build_test_settings(tmp_path, auth_overrides={"auth_enabled": False})
-    app = create_app(settings)
-    async with LifespanManager(app) as manager:
-        transport = httpx.ASGITransport(app=manager.app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            yield client

@@ -47,8 +47,6 @@ PHANTOM_ENDPOINTS = [
 # Real importable modules under src/file_organizer/
 REAL_MODULES_CHECK = [
     "file_organizer",
-    "file_organizer.api",
-    "file_organizer.web",
 ]
 
 

@@ -100,8 +100,6 @@ HIDDEN_IMPORTS: list[str] = [
     "file_organizer",
     "file_organizer.cli",
     "file_organizer.cli.main",
-    "file_organizer.tui",
-    "file_organizer.tui.app",
     "file_organizer.models",
     "file_organizer.models.text_model",
     "file_organizer.models.vision_model",
@@ -129,34 +127,6 @@ DATA_FILES: list[tuple[str, str]] = [
     ("src/file_organizer/config/*.yaml", "file_organizer/config"),
 ]
 
-# Additional hidden imports for the pywebview desktop build.
-# Platform-specific webview backends are added by DesktopBuildConfig based on current_platform().
-DESKTOP_HIDDEN_IMPORTS: list[str] = [
-    "webview",
-    "uvicorn",
-    "uvicorn.config",
-    "uvicorn.main",
-    "uvicorn.lifespan.on",
-    "uvicorn.protocols.http.auto",
-    "fastapi",
-    "starlette",
-    "starlette.routing",
-    "starlette.middleware",
-    "jinja2",
-    "jinja2.ext",
-    "file_organizer.api",
-    "file_organizer.api.main",
-    "file_organizer.api.routers",
-    "file_organizer.desktop",
-    "file_organizer.desktop.app",
-]
-
-# Platform-specific pywebview backend imports.
-_WEBVIEW_PLATFORM_BACKENDS: dict[str, str] = {
-    "macos": "webview.platforms.cocoa",
-    "linux": "webview.platforms.gtk",
-    "windows": "webview.platforms.edgechromium",
-}
 
 # Data files for the desktop build (adds web UI templates/static assets).
 DESKTOP_DATA_FILES: list[tuple[str, str]] = [

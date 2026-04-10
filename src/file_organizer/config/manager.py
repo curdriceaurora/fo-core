@@ -300,20 +300,6 @@ class ConfigManager:
         overrides = config.events or {}
         return EventConfig(**overrides)
 
-    def to_deploy_config(self, config: AppConfig) -> Any:
-        """Create a DeploymentConfig from AppConfig overrides.
-
-        Args:
-            config: Application configuration.
-
-        Returns:
-            DeploymentConfig instance.
-        """
-        from file_organizer.deploy.config import DeploymentConfig
-
-        overrides = config.deploy or {}
-        return DeploymentConfig(**overrides)
-
     def to_para_config(self, config: AppConfig) -> Any:
         """Create a PARAConfig from AppConfig overrides.
 

@@ -1,7 +1,6 @@
-"""Integration tests for API rate limiter and updater state.
+"""Integration tests for updater state.
 
 Covers:
-  - api/rate_limit.py      — InMemoryRateLimiter, RateLimitResult, build_rate_limiter
   - updater/state.py       — UpdateState, UpdateStateStore
 """
 
@@ -12,120 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.api.rate_limit import (
-    InMemoryRateLimiter,
-    RateLimitResult,
-    RateLimitState,
-    build_rate_limiter,
-)
 from file_organizer.updater.state import UpdateState, UpdateStateStore
 
 pytestmark = pytest.mark.integration
-
-
-# ---------------------------------------------------------------------------
-# RateLimitResult
-# ---------------------------------------------------------------------------
-
-
-class TestRateLimitResult:
-    def test_created(self) -> None:
-        r = RateLimitResult(allowed=True, remaining=10, reset_at=1000)
-        assert r is not None
-
-    def test_fields(self) -> None:
-        r = RateLimitResult(allowed=False, remaining=0, reset_at=1234)
-        assert r.allowed is False
-        assert r.remaining == 0
-        assert r.reset_at == 1234
-
-
-# ---------------------------------------------------------------------------
-# RateLimitState
-# ---------------------------------------------------------------------------
-
-
-class TestApiRateLimitState:
-    def test_created(self) -> None:
-        import time
-
-        s = RateLimitState(count=1, reset_at=int(time.time()) + 60)
-        assert s.count == 1
-
-
-# ---------------------------------------------------------------------------
-# InMemoryRateLimiter
-# ---------------------------------------------------------------------------
-
-
-class TestInMemoryRateLimiter:
-    def test_created(self) -> None:
-        limiter = InMemoryRateLimiter()
-        assert limiter is not None
-
-    def test_first_request_allowed(self) -> None:
-        limiter = InMemoryRateLimiter()
-        result = limiter.check("user1", limit=10, window_seconds=60)
-        assert result.allowed is True
-
-    def test_remaining_decrements(self) -> None:
-        limiter = InMemoryRateLimiter()
-        r1 = limiter.check("user1", limit=5, window_seconds=60)
-        r2 = limiter.check("user1", limit=5, window_seconds=60)
-        assert r2.remaining < r1.remaining
-
-    def test_blocked_after_limit(self) -> None:
-        limiter = InMemoryRateLimiter()
-        for _ in range(3):
-            limiter.check("user1", limit=3, window_seconds=60)
-        result = limiter.check("user1", limit=3, window_seconds=60)
-        assert result.allowed is False
-
-    def test_different_keys_independent(self) -> None:
-        limiter = InMemoryRateLimiter()
-        for _ in range(3):
-            limiter.check("userA", limit=3, window_seconds=60)
-        r_a = limiter.check("userA", limit=3, window_seconds=60)
-        r_b = limiter.check("userB", limit=3, window_seconds=60)
-        assert r_a.allowed is False
-        assert r_b.allowed is True
-
-    def test_returns_rate_limit_result(self) -> None:
-        limiter = InMemoryRateLimiter()
-        result = limiter.check("key", limit=5, window_seconds=60)
-        assert isinstance(result, RateLimitResult)
-
-    def test_reset_at_positive(self) -> None:
-        import time
-
-        limiter = InMemoryRateLimiter()
-        result = limiter.check("key", limit=5, window_seconds=60)
-        assert result.reset_at > int(time.time())
-
-    def test_sweep_clears_expired_entries(self) -> None:
-        limiter = InMemoryRateLimiter(sweep_interval_seconds=0)
-        limiter.check("key", limit=5, window_seconds=1)
-        result = limiter.check("key", limit=5, window_seconds=60)
-        assert result.allowed is True
-
-
-# ---------------------------------------------------------------------------
-# build_rate_limiter
-# ---------------------------------------------------------------------------
-
-
-class TestBuildRateLimiter:
-    def test_no_redis_url_returns_in_memory(self) -> None:
-        limiter = build_rate_limiter(None)
-        assert isinstance(limiter, InMemoryRateLimiter)
-
-    def test_empty_redis_url_returns_in_memory(self) -> None:
-        limiter = build_rate_limiter("")
-        assert isinstance(limiter, InMemoryRateLimiter)
-
-    def test_invalid_redis_url_falls_back_to_in_memory(self) -> None:
-        limiter = build_rate_limiter("redis://nonexistent-host:9999/0")
-        assert isinstance(limiter, InMemoryRateLimiter)
 
 
 # ---------------------------------------------------------------------------

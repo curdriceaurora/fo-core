@@ -9,7 +9,7 @@ Run with: pytest -m no_ollama -x -q
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -314,40 +314,3 @@ class TestFallbackMapCoverage:
             f"These CAD_EXTENSIONS have no fallback folder: {missing}. "
             "Add them to FileOrganizer._TEXT_FALLBACK_MAP."
         )
-
-
-# ---------------------------------------------------------------------------
-# Tests: health response capabilities
-# ---------------------------------------------------------------------------
-
-
-class TestHealthResponseWhenDegraded:
-    """health_check() capabilities dict is accurate when Ollama is down."""
-
-    @pytest.mark.asyncio
-    async def test_degraded_capabilities_lists_rule_based_types(self) -> None:
-        from file_organizer.api.service_facade import ServiceFacade
-
-        facade = ServiceFacade()
-        with patch.object(facade, "_check_ollama", new=AsyncMock(return_value=False)):
-            health = await facade.health_check()
-
-        assert health["status"] == "degraded"
-        caps = health["capabilities"]
-        # audio and video always work via metadata
-        assert "audio" in caps["rule_based"]
-        assert "video" in caps["rule_based"]
-        # text and images degrade to extension-based, not broken
-        assert "text" in caps["extension_fallback"]
-        assert "images" in caps["extension_fallback"]
-
-    @pytest.mark.asyncio
-    async def test_ok_status_has_no_capabilities_key(self) -> None:
-        from file_organizer.api.service_facade import ServiceFacade
-
-        facade = ServiceFacade()
-        with patch.object(facade, "_check_ollama", new=AsyncMock(return_value=True)):
-            health = await facade.health_check()
-
-        assert health["status"] == "ok"
-        assert "capabilities" not in health, "capabilities key should only appear in degraded state"
