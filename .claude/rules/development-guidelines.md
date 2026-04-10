@@ -55,10 +55,10 @@ feat(text_processor): add batch processing support
 Allows processing multiple files in parallel using process pool.
 Reduces processing time by 40% for bulk operations.
 
-fix(api): prevent race condition in cache invalidation
+fix(pipeline): prevent race condition in embedding cache write
 
-Adds mutex lock around cache update operations to ensure
-atomic read-modify-write of cache entries.
+Adds atomic temp-file + os.replace() pattern to prevent
+corrupt cache on concurrent writes or mid-write crash.
 
 docs: add GraphQL query examples for PR comments API
 
@@ -98,7 +98,7 @@ A pre-commit configuration is defined in `.pre-commit-config.yaml`. After runnin
 
 **Configured hooks:**
 - `ruff check` — lint the full project and `src/`
-- `pytest` — websocket validations, CI guardrails, web UI, and non-regression tests
+- `pytest` — CI guardrails and non-regression tests (`-m "ci"` subset)
 - `codespell` — spell check `src/` and `docs/`
 - `absolute-path-check` — blocks absolute paths (e.g. `/Users/…`)
 - `pymarkdown` — markdown lint using `.pymarkdown.json` rules

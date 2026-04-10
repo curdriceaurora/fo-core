@@ -14,7 +14,7 @@ For any claim you plan to make, identify where it's verified in actual code:
 
 | Type of Claim | Source of Truth | How to Verify |
 |---------------|-----------------|---------------|
-| Coverage gates | `pyproject.toml` | `grep cov-fail-under` |
+| Coverage gates | `pyproject.toml` + `ci.yml` | See ci-generation-patterns.md C4 table |
 | CI behavior | `.github/workflows/ci.yml` | Read actual workflow |
 | Method exists | `src/file_organizer/...` | `grep "def method_name"` or `ast-grep` |
 | Feature exists | Actual codebase | `ls`, `grep`, or test imports |
@@ -31,14 +31,16 @@ Never assume values - always extract from source:
 **❌ Wrong approach:**
 ```
 "I remember the coverage gate is... probably 95%"
-→ Write "95% CI gate"
+→ Write "95% CI gate" without checking context
 ```
 
 **✅ Right approach:**
 ```bash
-grep cov-fail-under pyproject.toml
-→ Confirm "95" in output
-→ Write "95% code coverage gate (enforced via pytest --cov-fail-under=95)"
+# For unit test floor:
+grep cov-fail-under pyproject.toml          # → 95%
+# For CI gates:
+grep "cov-fail-under\|fail_under" .github/workflows/ci.yml
+# Multiple thresholds — 95% unit, 93% main, 71.9% integration, 80% PR diff
 ```
 
 ### Step 1C: Verify Method Examples Exist

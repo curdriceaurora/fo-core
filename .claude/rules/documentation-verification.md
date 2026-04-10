@@ -9,13 +9,21 @@ Prevent documentation errors before they reach code review by verifying that doc
 The pre-commit validation script includes comprehensive documentation verification that catches:
 
 ### 1. **Coverage Gate Claims**
+
 **Check**: Verifies percentage claims match actual CI configuration
 
-- ❌ Detects: "74% CI gate" (outdated)
-- ✅ Expects: "95% code coverage" or "95% docstring coverage"
-- **Source of Truth**: `pyproject.toml` (`cov-fail-under=95`)
+- ❌ Detects stale values (e.g. "74% CI gate")
+- ✅ Expects values from the active gate table:
 
-**Why**: Documented CI gates must match actual enforcement, or developers follow wrong targets
+| Gate | Threshold | Source |
+|------|-----------|--------|
+| Unit (local) | 95% line | `pyproject.toml` `cov-fail-under` |
+| PR diff | 80% line | `ci.yml` diff-cover step |
+| Main push | 93% line | `ci.yml` coverage-gate job |
+| Integration | 71.9% line+branch | `ci.yml` test-integration job |
+| Docstring | 95% | `ci.yml` interrogate check |
+
+**Why**: Documented CI gates must match actual enforcement
 
 ### 2. **Method/Function Examples**
 **Check**: Validates that documented examples reference actual code
@@ -78,9 +86,9 @@ Before committing documentation changes, manually verify:
 ### Accuracy Checks
 
 - [ ] **Coverage Thresholds**
-  - CI gate is 95% (code) and 95% (docstrings)
-  - Matches `pyproject.toml --cov-fail-under`
-  - PR vs main behavior differs (PR doesn't enforce)
+  - Unit: 95% (`pyproject.toml`), PR diff: 80%, main push: 93%, integration: 71.9%, docstring: 95%
+  - Use the gate that matches the context being documented
+  - PR CI runs `-m "ci"` tests with diff-coverage; main enforces full suite floors
 
 - [ ] **Method/Class Examples**
   - All methods exist in codebase

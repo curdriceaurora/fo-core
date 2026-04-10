@@ -1,31 +1,30 @@
 # Feature Generation Anti-Patterns
 
 Reference ruleset for writing feature code that passes PR review without correction.
-Sourced from CodeRabbit and Copilot review comments across 590 feature-type findings (115 PRs, issues #84–#655).
-
-**Frequency baseline**: 590 classified findings — ~17 findings per feature PR average.
+Sourced from CodeRabbit and Copilot review comments — fo-core is a **CLI-only** tool;
+there are no web routes, no HTTP server, no plugin system.
 
 ---
 
 ## Pre-Generation Security Boundary Checklist
 
-**Complete BEFORE writing any feature code touching auth, paths, or external input:**
+**Complete BEFORE writing any feature code touching paths, config, or external input:**
 
-- [ ] Auth tokens passed via query string? → Move to `Authorization: Bearer` header instead
-- [ ] User input used in file paths? → Validate against the allowed root (see F4 path validation pattern)
-- [ ] Any secrets logged? → Audit all `logger.*` calls in new code
-- [ ] API boundary validated? → Add `pydantic` model or manual validation at route handler entry
+- [ ] User input used in file paths? → Validate against the configured organize root (see F4)
+- [ ] Any secrets or API keys logged? → Audit all `logger.*` calls in new code
+- [ ] Config read directly from `os.environ`? → Use `AppConfig` / `ConfigManager` instead
 - [ ] Existing config system consulted? → Check `ConfigManager` before hardcoding any path
+- [ ] Writing search/index code? → Apply search-specific checklist (see `search-generation-patterns.md`)
 
 ---
 
 ## Pattern F1: MISSING_ERROR_HANDLING — 53 findings
 
-**What it is**: Error paths not implemented — exception raised by a dependency propagates unhandled to the caller, with no wrapping or user-facing message.
+**What it is**: Error paths not implemented — exception raised by a dependency propagates
+unhandled to the caller, with no wrapping or user-facing message.
 
 **Bad**:
 ```python
-# BAD — exception from dependency propagates raw to caller
 def process_file(path: Path) -> ProcessResult:
     content = self.reader.read(path)  # raises FileNotFoundError if missing
     return self._analyze(content)
@@ -33,7 +32,6 @@ def process_file(path: Path) -> ProcessResult:
 
 **Good**:
 ```python
-# GOOD — wrap with context and handle gracefully
 def process_file(path: Path) -> ProcessResult:
     try:
         content = self.reader.read(path)
@@ -46,17 +44,18 @@ def process_file(path: Path) -> ProcessResult:
     return self._analyze(content)
 ```
 
-**Pre-generation check**: For every external call (file I/O, DB, network, subprocess), ask: *"What exception can this raise, and does my code handle it?"*
+**Pre-generation check**: For every external call (file I/O, DB, network, subprocess),
+ask: *"What exception can this raise, and does my code handle it?"*
 
 ---
 
 ## Pattern F2: TYPE_ANNOTATION — 63 findings
 
-**What it is**: Missing or incorrect type hints; `Any` used where a concrete type is known; return type not declared. Mypy strict mode rejects these.
+**What it is**: Missing or incorrect type hints; `Any` used where a concrete type is
+known; return type not declared. Mypy strict mode rejects these.
 
 **Bad**:
 ```python
-# BAD — no type hints, Any used implicitly
 def get_metadata(file_path, config=None):
     result = self.processor.analyze(file_path)
     return result
@@ -64,22 +63,24 @@ def get_metadata(file_path, config=None):
 
 **Good**:
 ```python
-# GOOD — concrete types, explicit return
 def get_metadata(
     file_path: Path,
-    config: Optional[ProcessorConfig] = None,
+    config: Optional[AppConfig] = None,
 ) -> FileMetadata:
     result: FileMetadata = self.processor.analyze(file_path)
     return result
 ```
 
-**Pre-generation check**: Every function signature needs `->` return type. Every parameter needs a type annotation. `Any` is only acceptable at external system boundaries (e.g., JSON deserialization before validation).
+**Pre-generation check**: Every function signature needs `->` return type. Every
+parameter needs a type annotation. `Any` is only acceptable at external system
+boundaries (e.g., JSON deserialization before validation).
 
 ---
 
 ## Pattern F3: THREAD_SAFETY — 64 findings
 
-**What it is**: Race conditions, unprotected shared state, missing locks, non-atomic read-modify-write on shared data.
+**What it is**: Race conditions, unprotected shared state, missing locks,
+non-atomic read-modify-write on shared data.
 
 **Bad**:
 ```python
@@ -89,7 +90,7 @@ with open(cache_file, 'w') as f:
     json.dump(data, f)
 
 # BAD — non-atomic read-modify-write on shared counter
-self.count += 1  # read, increment, write — not atomic across threads
+self.count += 1
 ```
 
 **Good**:
@@ -110,131 +111,96 @@ with self._lock:
 ```
 
 **Pre-generation checklist for shared state**:
-- [ ] Is this variable accessed from multiple threads? → Lock required
-- [ ] Is this a read-modify-write sequence? → Must be atomic (lock or atomic op)
-- [ ] Is this a file write? → Use temp file + `os.replace()` pattern
-- [ ] Does `@lru_cache` decorate a function reading env vars? → Remove cache (env can change between calls)
+- [ ] Multiple threads access this variable? → Lock required
+- [ ] Read-modify-write sequence? → Must be atomic (lock or atomic op)
+- [ ] File write? → Use temp file + `os.replace()` pattern
+- [ ] `@lru_cache` on a function reading env vars? → Remove cache
 
 ---
 
-## Pattern F4: SECURITY_VULN — 74 findings (highest-frequency feature pattern)
+## Pattern F4: SECURITY_VULN — 74 findings (highest-frequency)
 
-**What it is**: Auth tokens in query strings (log exposure), unsanitized path inputs (directory traversal), secrets in logs, missing input validation at API boundary.
+**What it is**: Unsanitized path inputs (directory traversal), API keys in logs,
+config bypassed by reading `os.environ` directly instead of using the injected
+`AppConfig` / `ConfigManager` instance.
 
 **Bad**:
 ```python
-# BAD — token in query string; appears in access logs, browser history, proxies
-@router.get("/api/files")
-async def list_files(token: str = Query(...)):
-    user = authenticate(token)
-    ...
+# BAD — user-supplied path used directly → directory traversal
+def organize(target_dir: str) -> None:
+    for f in Path(target_dir).rglob("*"):  # attacker passes "../../etc"
+        self._process(f)
 
-# BAD — user-controlled path used directly → directory traversal
-@router.get("/api/download")
-async def download(path: str = Query(...)):
-    return FileResponse(path)  # attacker passes "../../../etc/passwd"
+# BAD — API key logged in plain text
+logger.info("Calling provider with key: %s", config.openai_api_key)
 
-# BAD — calling get_settings() directly, ignoring injected instance
-def health(settings: ApiSettings = Depends(get_settings)):
-    cfg = get_settings()  # ignores injected instance, reads fresh from env
+# BAD — reads env directly, bypasses AppConfig and test injection
+class TextProcessor:
+    def __init__(self) -> None:
+        self._model = os.environ.get("FO_TEXT_MODEL", "llama3")
 ```
 
 **Good**:
 ```python
-# GOOD — token in Authorization header
-@router.get("/api/files")
-async def list_files(authorization: str = Header(...)):
-    token = authorization.removeprefix("Bearer ").strip()
-    user = authenticate(token)
-    ...
+# GOOD — validate path against configured organize root
+def organize(target_dir: str, config: AppConfig) -> None:
+    requested = Path(target_dir).resolve()
+    allowed = config.organize_path.resolve()
+    if not str(requested).startswith(str(allowed)):
+        raise ValueError(f"Path {target_dir!r} is outside configured root")
+    for f in requested.rglob("*"):
+        self._process(f)
 
-# GOOD — validate path against allowed roots
-@router.get("/api/download")
-async def download(path: str = Query(...), settings: ApiSettings = Depends(get_api_settings)):
-    requested = Path(path).resolve()
-    allowed_root = settings.files_root.resolve()
-    if not str(requested).startswith(str(allowed_root)):
-        raise HTTPException(status_code=403, detail="Access denied")
-    return FileResponse(requested)
+# GOOD — log provider name, never the key
+logger.debug("Calling provider: %s", config.provider_name)
 
-# GOOD — use the injected instance
-def health(settings: ApiSettings = Depends(get_api_settings)):
-    return {"status": "ok", "version": settings.version}
+# GOOD — receive AppConfig through constructor injection
+class TextProcessor:
+    def __init__(self, config: AppConfig) -> None:
+        self._model = config.text_model
 ```
 
-**Security boundary checklist** (run before every new route/endpoint):
-- [ ] Auth via query string? → Must use Authorization header or cookie (httpOnly)
-- [ ] Path parameter? → Must validate against `allowed_root` before file ops
-- [ ] User input in SQL? → Must use parameterized query, never f-string
-- [ ] Secret in any log statement? → Remove or mask
-- [ ] Using injected dependency correctly? → Don't call `get_settings()` directly inside routes
-- [ ] Writing search/index code? → Apply search-specific checklist (see `.claude/rules/search-generation-patterns.md`)
+**Security boundary checklist** (run before every new file-touching function):
+- [ ] Path parameter from user/CLI? → Validate against `config.organize_path` before ops
+- [ ] Any `logger.*` call near a key/token/secret field? → Log name/type only, not value
+- [ ] Reading config values via `os.environ.get`? → Use injected `AppConfig` instead
+- [ ] User input in SQL (history DB)? → Parameterized query, never f-string
+- [ ] Writing search/index code? → Apply `search-generation-patterns.md` checklist
 
 ---
 
 ## Pattern F5: HARDCODED_VALUE — 36 findings
 
-**What it is**: Magic strings/numbers inline; paths like `~/.config/file-organizer/trash` hardcoded instead of using the config system.
+**What it is**: Magic strings/numbers inline; paths hardcoded instead of using the
+config system.
 
 **Bad**:
 ```python
-# BAD — hardcoded path, hardcoded magic number
 TRASH_DIR = Path("~/.config/file-organizer/trash").expanduser()
 MAX_RETRIES = 3  # scattered throughout codebase
-
-# BAD — hardcoded model name
 model = OllamaModel("qwen2.5:3b-instruct-q4_K_M")
 ```
 
 **Good**:
 ```python
-# GOOD — use ConfigManager for paths, settings for tunables
 from file_organizer.config import ConfigManager
 trash_dir = ConfigManager.get_path("trash")
-max_retries = settings.max_retries  # from ApiSettings/AppConfig
-
-# GOOD — model from config
-model = OllamaModel(settings.text_model)
+max_retries = config.max_retries  # from AppConfig
+model = OllamaModel(config.text_model)
 ```
 
-**Pre-generation check**: Before hardcoding any string/number, ask: *"Does `ConfigManager`, `AppConfig`, or `ApiSettings` already own this value?"*
-
----
-
-## Pattern F6: API_CONTRACT_BROKEN — ~12 findings
-
-**What it is**: Implemented API shape diverges from documented schema; field names inconsistent with actual plugin base class; response model doesn't match the Pydantic model.
-
-**Bad**:
-```python
-# BAD — plugin uses get_info()/run() but base class defines get_metadata()/execute()
-class MyPlugin(PluginBase):
-    def get_info(self) -> dict:  # wrong method name
-        ...
-```
-
-**Good**:
-```python
-# GOOD — always read the base class before implementing
-# Read: src/file_organizer/plugins/base.py → PluginBase
-class MyPlugin(PluginBase):
-    def get_metadata(self) -> PluginMetadata:  # correct method from base
-        ...
-    def execute(self, context: PluginContext) -> PluginResult:  # correct
-        ...
-```
-
-**Pre-generation check**: Read the base class/interface definition BEFORE implementing. Run `grep "def " src/file_organizer/plugins/base.py` first.
+**Pre-generation check**: Before hardcoding any string/number, ask:
+*"Does `ConfigManager` or `AppConfig` (`src/file_organizer/config/schema.py`) already own this value?"*
 
 ---
 
 ## Pattern F7: RESOURCE_NOT_CLOSED — ~10 findings
 
-**What it is**: File handles, DB connections, or async generators not wrapped in context managers; missing `finally` blocks.
+**What it is**: File handles, DB connections, or async generators not wrapped in
+context managers; missing `finally` blocks.
 
 **Bad**:
 ```python
-# BAD — connection not closed on exception
 conn = db.connect()
 results = conn.execute(query)
 conn.close()  # never called if execute() raises
@@ -242,64 +208,54 @@ conn.close()  # never called if execute() raises
 
 **Good**:
 ```python
-# GOOD — context manager guarantees close
 with db.connect() as conn:
     results = conn.execute(query)
-
-# GOOD — async generator with cleanup
-async def stream_results():
-    async with db.session() as session:
-        async for row in session.stream(query):
-            yield row
-        # session closed automatically
 ```
 
 ---
 
 ## Pattern F8: WRONG_ABSTRACTION — ~8 findings
 
-**What it is**: Mixed concerns in a single module; business logic in route handler instead of service layer; presentation logic in data layer.
+**What it is**: Mixed concerns — business logic in the CLI command layer instead of
+the service layer; presentation in the data layer.
 
 **Bad**:
 ```python
-# BAD — route handler doing business logic + DB access + formatting
-@router.post("/organize")
-async def organize_files(request: OrganizeRequest):
-    files = db.query(File).filter(File.status == "pending").all()
+# BAD — CLI command doing AI calls + file I/O + display directly
+@app.command()
+def organize(path: str) -> None:
+    files = list(Path(path).rglob("*"))
     for f in files:
-        new_name = generate_name(f.content)  # business logic in route
-        f.name = new_name
-    db.commit()
-    return {"organized": len(files)}
+        new_name = call_ollama(f)   # AI call in CLI layer
+        f.rename(f.parent / new_name)
+        console.print(f"Renamed {f.name} → {new_name}")
 ```
 
 **Good**:
 ```python
-# GOOD — route delegates to service
-@router.post("/organize")
-async def organize_files(
-    request: OrganizeRequest,
-    service: OrganizeService = Depends(get_organize_service),
-):
-    result = await service.organize(request)
-    return result
+# GOOD — CLI delegates; service owns logic; CLI owns display
+@app.command()
+def organize(path: str) -> None:
+    organizer = FileOrganizer(config=load_config())
+    result = organizer.organize(Path(path))
+    _display_result(result)
 
 # Service owns business logic
-class OrganizeService:
-    async def organize(self, request: OrganizeRequest) -> OrganizeResult:
-        files = await self.repo.get_pending()
+class FileOrganizer:
+    def organize(self, path: Path) -> OrganizeResult:
+        files = self._collect_files(path)
         ...
 ```
 
 ---
 
-## Pattern F9: DYNAMIC_IMPORT_ANTIPATTERN — 11 findings (Phase 1 triage — PR #562)
+## Pattern F9: DYNAMIC_IMPORT_ANTIPATTERN — 11 findings
 
-**What it is**: `__import__()` used inline (e.g., in `default_factory` lambdas) instead of top-level `import` statements. Makes code harder to analyze, breaks static analysis tools, and creates subtle behavior differences. Most common in `dataclasses.field(default_factory=lambda: __import__("module").something)`.
+**What it is**: `__import__()` used inline (e.g., in `default_factory` lambdas)
+instead of top-level `import` statements. Breaks static analysis and mypy.
 
 **Bad**:
 ```python
-# BAD — dynamic import in default_factory; mypy can't analyze; no tree-shaking
 @dataclass
 class Config:
     dirs: Any = field(default_factory=lambda: __import__("platformdirs").user_data_dir("app"))
@@ -307,7 +263,6 @@ class Config:
 
 **Good**:
 ```python
-# GOOD — top-level import; analyzable; explicit
 import platformdirs
 
 @dataclass
@@ -315,51 +270,52 @@ class Config:
     dirs: str = field(default_factory=lambda: platformdirs.user_data_dir("app"))
 ```
 
-**Pre-generation check**: Never use `__import__()` outside of true dynamic loading scenarios (plugin systems, optional dependency guards). Use `try/except ImportError` for optional deps instead.
+**Pre-generation check**: Never use `__import__()` inline. Use `try/except ImportError`
+for optional deps instead.
 
 ---
 
-## Pattern F10: DOCSTRING_DRIFT — PR #740 finding
+## Pattern F10: DOCSTRING_DRIFT
 
-**What it is**: Docstring describes old behavior after the implementation changed — e.g., docstring says "On failure (Ollama unavailable)" but code catches all exceptions, not just network errors.
+**What it is**: Docstring describes old behavior after the implementation changed.
 
 **Bad**:
 ```python
-# BAD — docstring says "Ollama unavailable" but except clause catches everything
 def _init_text_processor(self) -> None:
     """On failure (Ollama unavailable), resets to None."""
     try:
         ...
-    except Exception as e:  # catches ValueError, ImportError, etc.
+    except Exception as e:  # catches ValueError, ImportError, etc. too
         self.text_processor = None
 ```
 
 **Good**:
 ```python
-# GOOD — docstring matches actual exception scope
 def _init_text_processor(self) -> None:
     """On any initialization failure (Ollama unavailable, config errors,
-    import errors, etc.), resets to None and falls back."""
+    import errors), resets to None and falls back to no-text mode."""
     try:
         ...
     except Exception as e:
         self.text_processor = None
 ```
 
-**Pre-generation check**: When changing an `except` clause, a return type, or control flow, re-read the docstring and update it to match.
+**Pre-generation check**: When changing an `except` clause, return type, or control
+flow, re-read the docstring and update it to match.
 
 ---
 
 ## Rule of Thumb
 
-For every new feature, ask:
-1. **F4**: *"Does this touch auth, paths, or user input? Have I applied the security boundary checklist?"*
-2. **F3**: *"Is this shared state? Is the read-modify-write atomic?"*
-3. **F1**: *"For every external call, what exception can it raise and do I handle it?"*
-4. **F2**: *"Does every function have a concrete return type annotation?"*
-5. **F5**: *"Does ConfigManager already own this value?"*
-6. **F9**: *"Am I using `__import__()` inline? If yes — move to top-level import."*
-7. **F10**: *"Did I change exception handling, return types, or control flow? Does the docstring still match?"*
-8. **F4+**: *"Am I writing search/index code? Apply `.claude/rules/search-generation-patterns.md` checklist."*
+For every new feature:
 
-**Last audited PR**: #921
+1. **F4**: Path from user input? Config bypassed? API key near a logger? → Security checklist
+2. **F3**: Shared state? → Lock required; file write? → temp + `os.replace()`
+3. **F1**: Every external call → what exception, is it handled?
+4. **F2**: Every function signature → concrete `->` return type
+5. **F5**: `ConfigManager` / `AppConfig` already own this value?
+6. **F9**: `__import__()` inline? → Move to top-level import
+7. **F10**: Changed `except` / return type / control flow? → Update docstring
+8. **F4+**: Writing search/index code? → Apply `search-generation-patterns.md`
+
+**Last audited PR**: #23

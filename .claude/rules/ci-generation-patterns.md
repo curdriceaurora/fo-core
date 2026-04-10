@@ -162,21 +162,39 @@ grep "cov-fail-under\|fail_under" pyproject.toml
 # "Code coverage gate: 95% (enforced via pyproject.toml cov-fail-under=95)"
 ```
 
-**Pre-generation check**: Before writing any coverage percentage in any document, run:
+**Pre-generation check**: Before writing any coverage percentage, confirm which gate
+applies (see table above). For local unit test thresholds, run:
+
 ```bash
 grep "cov-fail-under\|fail_under" pyproject.toml
 ```
-Use only the number that command returns.
 
-**Post-change sweep** (run after ANY threshold change): Find all stale references to the old value:
+For CI gates, read `.github/workflows/ci.yml` directly — multiple jobs enforce
+different thresholds.
+
+**Post-change sweep** (run after ANY threshold change): Find all stale references:
+
 ```bash
-OLD=90; NEW=95
+OLD=93; NEW=95
 grep -rn "$OLD" docs/ .github/ README.md CONTRIBUTING.md .claude/rules/ | grep -i "cover\|docstring\|gate\|threshold\|fail-under"
 ```
-Update every hit before committing. A threshold change in `pyproject.toml` is incomplete until all doc references are also updated.
 
-**Current project values** (verify before using):
-- Code coverage gate: `cov-fail-under = 95` (in `pyproject.toml`)
+Update every hit before committing.
+
+**Current project coverage gates** (verify before using — all are enforced in CI):
+
+| Gate | Threshold | Where enforced | Trigger |
+|------|-----------|---------------|---------|
+| Unit test floor | **95%** line | `pyproject.toml` `cov-fail-under` | Local + all CI runs |
+| PR diff coverage | **80%** line | `ci.yml` diff-cover step (files ≤75 changed) | PR only |
+| Main push floor | **93%** line | `ci.yml` coverage-gate job | `push` to main |
+| Integration floor | **71.9%** line+branch | `ci.yml` test-integration job | `push` to main |
+| Docstring coverage | **95%** | `ci.yml` coverage-gate via interrogate | `push` to main |
+
+When documenting a single number, use the gate that matches the context:
+- Talking about local `pytest` runs → 95%
+- Talking about PR CI → 80% diff coverage
+- Talking about overall project health → 93% main
 
 ---
 

@@ -265,13 +265,30 @@ class TestFileValidator:      # unaffected; runs even without rank_bm25
     def test_validates_pdf(self): ...
 ```
 
-**Optional dependencies in this project** (require guards): `rank_bm25`, `sklearn`
-(scikit-learn), `fitz` (PyMuPDF), `docx` (python-docx), `openpyxl`, `pptx`
-(python-pptx), `ebooklib`, `bs4` (beautifulsoup4).
+**Optional dependencies in this project** (require guards — not installed unless the
+corresponding extra is present):
 
-**Pre-generation check**: Before writing any test that imports from the list above, add a
-class-level `@pytest.fixture(autouse=True)` that calls `pytest.importorskip("<package>")`.
-Never use a module-level guard in files with mixed classes.
+| Import name | Extra | Notes |
+|-------------|-------|-------|
+| `rank_bm25` | `search` | BM25 index |
+| `sklearn` | `search` or `dedup` | Scikit-learn |
+| `llama_cpp` | `llama` | llama.cpp bindings |
+| `mlx_lm` | `mlx` | Apple Silicon MLX |
+| `anthropic` | `claude` | Anthropic SDK |
+| `faster_whisper` | `audio` | Speech-to-text |
+| `cv2` | `video` | OpenCV |
+| `imagededup` | `dedup` | Image deduplication |
+| `py7zr` | `archive` | 7-zip support |
+| `rarfile` | `archive` | RAR support |
+| `h5py` | `scientific` | HDF5 |
+| `ezdxf` | `cad` | DXF/DWG |
+
+**Core deps — no guard needed**: `fitz` (PyMuPDF), `docx` (python-docx), `openpyxl`,
+`pptx` (python-pptx), `ebooklib`, `bs4` (beautifulsoup4) are in the base install.
+
+**Pre-generation check**: Before writing any test that imports from the optional list,
+add a class-level `@pytest.fixture(autouse=True)` that calls
+`pytest.importorskip("<package>")`. Never use a module-level guard in mixed files.
 
 ---
 

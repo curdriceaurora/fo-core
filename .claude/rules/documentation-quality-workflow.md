@@ -1,280 +1,73 @@
 # Documentation Quality Workflow
 
-**Goal**: Zero documentation errors in code review through prevention-first approach.
+**Goal**: Zero documentation errors in code review.
 
-## Quick Reference: Prevention → Verification
+## The Rule: Source First, Always
+
+Never write a documentation claim without first verifying it in actual source code.
+This prevents 90% of errors before they're generated.
+
+---
+
+## Per-Document Workflow
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ START: Document Generation Task                             │
-└────────────────────────┬────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ PHASE 1: Generation Checklist                               │
-│ .claude/rules/documentation-generation-checklist.md         │
-│                                                              │
-│ Before writing ANYTHING:                                    │
-│ ✓ Find source of truth (pyproject.toml, workflows, src/)   │
-│ ✓ Extract actual values (grep, ast-grep)                   │
-│ ✓ Verify methods exist (before documenting)                │
-│ ✓ List contradictions upfront (resolve before writing)     │
-│ ✓ Validate section ranges (define, then check)             │
-│ ✓ Create verification list (every claim gets checkbox)      │
-└────────────────────────┬────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ PHASE 2: Write Documentation                                │
-│ Use source-first approach                                   │
-│                                                              │
-│ For each section:                                           │
-│ 1. Read actual source code                                  │
-│ 2. Extract real values (don't assume)                       │
-│ 3. Copy examples from test files                            │
-│ 4. Include verification tags [VERIFIED in: file:linenum]    │
-│ 5. Check contradictions every 3-4 sections                  │
-│ 6. Validate section membership                              │
-│ 7. Run live verification (grep/ast-grep in real-time)       │
-└────────────────────────┬────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ PHASE 3: Pre-Submission Review                              │
-│                                                              │
-│ Complete checklist:                                         │
-│ ✓ Every claim has source reference                          │
-│ ✓ Every example from actual test file                       │
-│ ✓ Every feature claim verified                              │
-│ ✓ No contradictions                                         │
-│ ✓ All section entries match ranges                          │
-│ ✓ All links point to actual files                           │
-└────────────────────────┬────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ PHASE 4: Pre-Commit Validation (AUTOMATED)                  │
-│ bash .claude/scripts/pre-commit-validation.sh               │
-│                                                              │
-│ Runs:                                                       │
-│ ✓ Coverage gate verification (74% → 95%)                    │
-│ ✓ Method example validation                                 │
-│ ✓ Contradiction detection                                   │
-│ ✓ Percentage range checks                                   │
-│ ✓ Section categorization                                    │
-│ ✓ Feature claim verification                                │
-│ ✓ Config reference validation                               │
-│ ✓ Markdown linting                                          │
-│ ✓ Link validation                                           │
-└────────────────────────┬────────────────────────────────────┘
-                         ↓
-           ┌─────────────┴──────────────┐
-           ↓                            ↓
-      PASSES              ❌ FAILS (Fix and retry)
-           ↓                            ↓
-           ↓         ┌──────────────────┘
-           ↓         ↓
-           ├─────────┤
-           ↓
-┌─────────────────────────────────────────────────────────────┐
-│ PHASE 5: Commit & Push                                      │
-│                                                              │
-│ git add <doc-files>                                         │
-│ git commit -m "docs: [description]"                         │
-│ git push origin <branch>                                    │
-└────────────────────────┬────────────────────────────────────┘
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│ RESULT: Code Review (Should be zero findings!)              │
-│                                                              │
-│ If reviewer finds issues:                                   │
-│ ✓ You missed something (both checklists should prevent it)  │
-│ ✓ Fix and re-run both checklists before pushing again       │
-│ ✓ Update checklists if new pattern discovered              │
-└─────────────────────────────────────────────────────────────┘
+1. DISCOVER  →  read pyproject.toml, ci.yml, src/ BEFORE writing anything
+2. WRITE     →  source-first; copy examples from test files, not memory
+3. REVIEW    →  contradiction check + section range check
+4. VALIDATE  →  bash .claude/scripts/pre-commit-validation.sh (must pass)
+5. COMMIT    →  git add <doc-files> && git commit -m "docs: ..."
 ```
 
----
+### Step 1: Discover Sources
 
-## The Two Checklists
+| Claim type | Where to verify |
+|-----------|----------------|
+| Coverage gates | `pyproject.toml` + `.github/workflows/ci.yml` (multiple gates — see `ci-generation-patterns.md` C4) |
+| CI behavior | `.github/workflows/ci.yml` — read the actual job steps |
+| Method/class exists | `rg "def method_name\|class ClassName" src/file_organizer/` |
+| Feature exists | `ls src/file_organizer/<module>/` or grep test imports |
+| Config keys | `src/file_organizer/config/schema.py` — `AppConfig` Pydantic model |
 
-### 1. Generation Checklist (PREVENTION)
-**File**: `.claude/rules/documentation-generation-checklist.md`
-**When**: While writing documentation
-**Goal**: Prevent errors from being generated
+### Step 2: Write
 
-**Key Phases**:
-- Phase 1: Pre-writing discovery (verify all sources)
-- Phase 2: Writing with embedded checks (source-first approach)
-- Phase 3: Pre-finalization review (comprehensive validation)
-- Phase 4: AI prompt template (guidance for doc requests)
+- Read actual code first; extract real values; don't paraphrase
+- Copy code examples from actual test files (include file + line reference)
+- Document only what exists; no assumptions
 
-**Key Questions**:
-- Where is this value in actual code/config?
-- Does this method actually exist?
-- Does this contradict anything I wrote earlier?
-- Is this entry in the right section?
-- Is this feature actually implemented?
+### Step 3: Review
 
-### 2. Verification Checklist (CATCHING ERRORS)
-**File**: `.claude/rules/documentation-verification.md`
-**When**: During pre-commit validation (automated) + manual review
-**Goal**: Catch any errors that slipped through generation
+Before committing, answer:
+- Does any section contradict another? (feature "complete" vs "0% coverage")
+- Are section range entries correct? (e.g. "Medium 70–89%" contains only 70–89% values)
+- Do all code examples reference methods that actually exist?
 
-**Automated Checks**:
-- Coverage gate claims vs actual config
-- Method examples vs codebase
-- Contradictions vs logic
-- Percentages vs valid ranges
-- Section categorization vs content
-- Feature claims vs reality
-- Config references vs actual files
-
-**Manual Checks** (if needed):
-- Summary vs details match?
-- All links valid?
-- All examples tested?
-- Any contradictions?
-
----
-
-## Common Documentation Errors & Prevention
-
-| Error | Generation Prevention | Verification Catch |
-|-------|----------------------|-------------------|
-| "74% CI gate" | Run `grep cov-fail-under` BEFORE writing | Auto-check: detects "74%" |
-| `TextProcessor.extract_text()` | Run `grep "def extract_text"` BEFORE writing | Auto-check: validates methods exist |
-| "Complete" + "0% coverage" | List contradictions BEFORE writing | Auto-check: contradiction detection |
-| "Medium (70-89%)" with 52% | Validate entry BEFORE adding | Auto-check: range validation |
-| "Coverage badges in README" | Check README BEFORE claiming | Auto-check: feature verification |
-| Breaking code examples | Copy from test files, not memory | Auto-check: part of doc verification |
-
----
-
-## Implementation Checklist
-
-To implement this workflow on a project:
-
-### Setup Phase
+### Step 4: Validate
 
 ```bash
-# 1. Add generation checklist
-cp .claude/rules/documentation-generation-checklist.md <project>
-
-# 2. Add verification checklist
-cp .claude/rules/documentation-verification.md <project>
-
-# 3. Update pre-commit-validation.sh with section 7a-3
-# (Already done in this project)
-
-# 4. Create quick reference (this file)
-cp .claude/rules/documentation-quality-workflow.md <project>
-
-# 5. Onboard team
-# Show: generation checklist (how to write docs right)
-# Show: verification checklist (what automation catches)
-# Show: workflow (the full process)
-```
-
-### Per-Document Workflow
-
-```bash
-# 1. Start document task
-# Read: .claude/rules/documentation-generation-checklist.md
-# Complete: Phases 1-3
-
-# 2. Write documentation
-# Use: source-first approach
-# Embed: verification tags
-
-# 3. Before committing
 bash .claude/scripts/pre-commit-validation.sh
-# Should see: "✓ Documentation content verification passed"
-
-# 4. Commit
-git add <doc-files>
-git commit -m "docs: [description]"
+# Must show: ✓ Documentation content verification passed
 ```
 
 ---
 
-## Expected Results
+## Common Errors and Prevention
 
-### With Both Checklists
-
-**Before**: PR #642 had 24+ Copilot findings + CodeRabbit findings
-- 74% vs 95% gates
-- Non-existent method examples
-- Contradictory statements
-- Mismatched section categorization
-- False feature claims
-
-**After**: Documentation errors prevented during writing
-- Generation checklist catches issues BEFORE writing
-- Pre-commit validation catches anything missed
-- Code review has zero documentation findings
-
-### Metrics
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Doc errors in review | 24+ | 0 |
-| Review iterations needed | 3+ | 1 |
-| Time to merge | 2+ hours | 30 min |
-| Author confidence | Low | High |
-
----
-
-## Key Principles
-
-1. **Prevention > Verification**
-   - Better to prevent errors during writing
-   - Verification catches mistakes, prevention stops them
-
-2. **Source-First Documentation**
-   - Read actual code FIRST
-   - Then document SECOND
-   - Never document from memory
-
-3. **Every Claim Needs a Source**
-   - "95% coverage" → pyproject.toml:42
-   - "process_file() method" → src/.../file.py:123
-   - "Coverage in README" → README.md:45
-
-4. **Automated + Manual**
-   - Automated: catches known patterns
-   - Manual: catches contextual errors
-   - Together: comprehensive coverage
-
-5. **Shift Left**
-   - Prevention (during writing) > Verification (pre-commit)
-   - Pre-commit > Code review
-   - Earliest point catches most issues
-
----
-
-## For AI/Claude Code Users
-
-When asking for documentation generation:
-
-```markdown
-Use this workflow:
-1. Complete documentation-generation-checklist.md Phases 1-3
-2. Follow "source-first writing" approach
-3. Include verification metadata
-4. Run pre-commit-validation.sh
-5. Only commit if validation passes
-
-This ensures zero documentation errors in code review.
-```
+| Error | Prevention |
+|-------|-----------|
+| Wrong coverage % | Check `ci-generation-patterns.md` C4 gate table before writing any number |
+| Non-existent method | `rg "def method_name" src/` before writing |
+| Stale `parsers` extra | Removed — valid extras: `dev cloud llama mlx claude audio video dedup archive scientific cad build search all` |
+| Stale `plugins` reference | `file_organizer.plugins` package removed; no plugin system exists |
+| Stale API/web routes | fo-core is CLI-only; no FastAPI, no `@router` handlers |
+| `ollama ls` command | Correct command is `ollama list` |
 
 ---
 
 ## References
 
-- `.claude/rules/documentation-generation-checklist.md` - How to write docs correctly
-- `.claude/rules/documentation-verification.md` - What automated validation checks
-- `.claude/scripts/pre-commit-validation.sh` - Automated enforcement (section 7a-3)
-- `CLAUDE.md` - Project-wide standards
+- `documentation-generation-checklist.md` — full pre-writing discovery phases
+- `documentation-verification.md` — automated check descriptions and manual checklist
+- `ci-generation-patterns.md` (C4) — authoritative coverage gate table
 
----
-
-**Last Updated**: 2026-03-07
-**Status**: Active enforcement
-**Goal**: Zero documentation errors in code review
+**Last Updated**: 2026-04-10
