@@ -65,13 +65,8 @@ Local-File-Organizer/
 │   │   ├── suggest.py                # Suggestion commands
 │   │   ├── rules.py                  # Rules management
 │   │   ├── update.py                 # Self-update commands
-│   │   ├── api.py                    # API server commands
 │   │   └── completion.py             # Shell completion
 │   │
-│   ├── api/                          # FastAPI REST server
-│   ├── web/                          # Web UI (templates, routes, static)
-│   ├── desktop/                      # pywebview launcher (app.py — single-process desktop)
-│   ├── tui/                          # Textual TUI
 │   ├── daemon/                       # Background daemon & file watcher
 │   ├── events/                       # Event bus system
 │   ├── parallel/                     # Parallel processing framework
@@ -131,7 +126,6 @@ Local-File-Organizer/
 ├── .github/                          # GitHub Actions workflows & templates
 ├── alembic/                          # Database migrations
 ├── deploy/                           # Deployment automation
-├── desktop/                          # Desktop app assets (icons, build/, context-menus/)
 ├── docs/                             # Project documentation
 ├── examples/                         # Usage examples
 ├── packaging/                        # Installer packaging

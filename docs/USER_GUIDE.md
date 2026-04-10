@@ -45,7 +45,7 @@ Extend functionality by installing optional dependency groups:
 | Pack | Install Command | Features |
 |------|----------------|----------|
 | Parsers | `pip install -e ".[parsers]"` | PDF, Word, Excel, PowerPoint, eBook, HTML parsing |
-| Web | `pip install -e ".[web]"` | Web interface, REST API server, WebSocket support |
+| Search | `pip install -e ".[search]"` | BM25-based search ranking algorithms |
 | Cloud | `pip install -e ".[cloud]"` | OpenAI-compatible API providers (OpenAI, Groq, LM Studio, vLLM) |
 | Claude | `pip install -e ".[claude]"` | Anthropic Claude API provider (text + vision) |
 | LLaMA | `pip install -e ".[llama]"` | Local llama.cpp inference (GGUF models, no Ollama needed) |
@@ -73,8 +73,7 @@ File Organizer provides two equivalent entrypoints: `file-organizer` and the sho
 | `preview` | Preview organization changes without moving files |
 | `search` | Search files by filename pattern/keyword with optional `--type` filter |
 | `analyze` | Analyze a file and display AI-generated metadata |
-| `tui` | Launch the Terminal User Interface |
-| `serve` | Start the web UI server |
+| `doctor` | Check Ollama connection and dependencies |
 | `undo` | Undo the last file operation |
 | `redo` | Redo a previously undone operation |
 | `history` | Show operation history |
@@ -92,7 +91,7 @@ File Organizer provides two equivalent entrypoints: `file-organizer` and the sho
 | `profile` | Manage named configuration profiles |
 | `marketplace` | Browse and install community plugins |
 | `benchmark` | Run performance benchmarks |
-| `api` | Start the REST API server |
+| `setup` | Interactive setup wizard |
 
 ## Organizing Files
 
@@ -134,34 +133,6 @@ Inspect what the AI detects about a specific file:
 ```bash
 file-organizer analyze ~/Documents/report.pdf
 ```
-
-## Terminal UI (TUI)
-
-The TUI provides a rich, interactive terminal interface for managing your files.
-
-### Launching the TUI
-
-```bash
-file-organizer tui
-```
-
-### Views and Key Bindings
-
-| Key | View |
-|-----|------|
-| `1` | File browser |
-| `2` | Organized |
-| `3` | Storage analytics |
-| `4` | Methodology |
-| `5` | Audio |
-| `6` | History |
-| `7` | Settings |
-| `8` | Copilot chat |
-
-Navigation: Use arrow keys to move, `Enter` to select, `q` to quit, `?` for help.
-
-!!! tip
-    The Audio view (key `5`) provides transcription and analysis features. See the [Audio & Video Setup Guide](setup/audio-video.md) to enable audio transcription.
 
 ## Copilot
 
@@ -216,7 +187,7 @@ file-organizer daemon stop
 
 ## Organization Methodologies
 
-File Organizer supports multiple organization systems. Configure these through the `config edit` command or the TUI settings view.
+File Organizer supports multiple organization systems. Configure these through the `config edit` command.
 
 ### Default AI Organization
 
@@ -415,22 +386,6 @@ file-organizer redo
 file-organizer history
 ```
 
-## Web UI
-
-File Organizer includes a browser-based interface for managing files visually.
-
-### Starting the Web Server
-
-```bash
-# Start with default settings (localhost:8000)
-file-organizer serve
-
-# Specify host and port
-file-organizer serve --host 0.0.0.0 --port 9000
-```
-
-Then open `http://localhost:8000/ui/` in your browser.
-
 ## Configuration
 
 ### Viewing Configuration
@@ -565,10 +520,10 @@ file-organizer organize ~/Downloads ~/Organized --verbose
 
 ### Checking Health
 
-Verify the API server is responding:
+Verify Ollama and the application are working:
 
 ```bash
-curl http://localhost:8000/api/v1/health
+file-organizer doctor .
 ```
 
 For more detailed troubleshooting, see [Troubleshooting](troubleshooting.md).

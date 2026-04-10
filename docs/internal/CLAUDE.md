@@ -163,24 +163,17 @@ Local-File-Organizer/
 │   │   ├── suggest.py                # Suggestion commands
 │   │   ├── rules.py                  # Rules management
 │   │   ├── update.py                 # Self-update commands
-│   │   ├── api.py                    # API server commands
 │   │   └── completion.py             # Shell completion
 │   │
-│   ├── api/                          # FastAPI REST server
-│   ├── web/                          # Web UI (templates, routes, static)
-│   ├── tui/                          # Textual TUI
 │   ├── daemon/                       # Background daemon & file watcher
 │   ├── events/                       # Event bus system
 │   ├── parallel/                     # Parallel processing framework
 │   ├── pipeline/                     # Processing pipeline orchestration
 │   ├── methodologies/                # PARA, Johnny Decimal, etc.
-│   ├── plugins/                      # Plugin system & marketplace
 │   ├── integrations/                 # Third-party service integrations
 │   ├── interfaces/                   # Common interface definitions
 │   ├── optimization/                 # Performance optimization
-│   ├── deploy/                       # Deployment automation
 │   ├── watcher/                      # File system watching
-│   ├── client/                       # Client library
 │   ├── updater/                      # Self-update system
 │   ├── history/                      # Operation history (6 modules)
 │   ├── undo/                         # Undo/redo system (5 modules)
@@ -191,7 +184,6 @@ Local-File-Organizer/
 │   └── config/                       # Configuration management
 │
 ├── tests/                            # 237 test files
-│   ├── api/                          # API tests
 │   ├── ci/                           # CI pipeline tests
 │   ├── core/                         # Core tests
 │   ├── daemon/                       # Daemon tests
@@ -259,9 +251,6 @@ Local-File-Organizer/
 | **UndoManager** | Undo/redo system | `undo/` | ✅ Active |
 | **EventBus** | Inter-component events | `events/` | ✅ Active |
 | **Daemon** | Background file watching | `daemon/` | ✅ Active |
-| **API Server** | FastAPI REST endpoints | `api/` | ✅ Active |
-| **Web UI** | Browser-based interface | `web/` | ✅ Active |
-| **TUI** | Textual terminal UI | `tui/` | ✅ Active |
 | **PluginSystem** | Extension marketplace | `plugins/` | ✅ Active |
 | **Methodologies** | PARA, Johnny Decimal | `methodologies/` | ✅ Active |
 
@@ -277,7 +266,7 @@ Audio: AudioModel/AudioTranscriber → faster-whisper
 All Processors → PatternAnalyzer → SmartSuggestions
     ↓
 Intelligence Services → User Preference Learning
-EventBus → Daemon / Web UI / TUI notifications
+EventBus → Daemon notifications
 
 Final Output: Organized files + Operation history
 ```
@@ -563,11 +552,10 @@ pytest tests/ -m "integration" --cov=file_organizer --cov-fail-under=<floor> --t
 ## Phase Roadmap
 
 - ✅ **Phase 1**: Text + Image processing
-- ✅ **Phase 2**: TUI with Textual
-- ✅ **Phase 3**: Feature Expansion (Audio, PARA, Johnny Decimal, CAD, Archives, Scientific)
-- ✅ **Phase 4**: Intelligence & Learning (Dedup, Preferences, Undo/Redo, Analytics)
-- ✅ **Phase 5**: Architecture & Performance (Events, Daemon, Docker, CI/CD, Parallel)
-- ✅ **Phase 6**: Web Interface (FastAPI, Web UI, Plugin Marketplace)
+- ✅ **Phase 2**: Feature Expansion (Audio, PARA, Johnny Decimal, CAD, Archives, Scientific)
+- ✅ **Phase 3**: Intelligence & Learning (Dedup, Preferences, Undo/Redo, Analytics)
+- ✅ **Phase 4**: Architecture & Performance (Events, Daemon, CI/CD, Parallel)
+- ✅ **Phase 5**: CLI Streamline (CLI-only surface, Plugin Marketplace)
 
 ---
 

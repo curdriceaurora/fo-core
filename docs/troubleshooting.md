@@ -40,25 +40,6 @@ ollama pull qwen2.5vl:7b-q4_K_M             # Vision model (~6.0 GB)
 ollama list
 ```
 
-### Port Already in Use
-
-**Error**: "Port 8000 is already in use"
-
-**Cause**: Another process is already using the default port.
-
-**Solution**:
-
-```bash
-# Use different port
-file-organizer serve --port 8001
-
-# Or find and stop the process using port 8000
-lsof -i :8000
-kill <PID>          # graceful shutdown (SIGTERM)
-# If the process doesn't stop:
-kill -9 <PID>       # force kill (SIGKILL) as last resort
-```
-
 ## Optional Dependency Issues
 
 ### Module Not Found Error
@@ -264,78 +245,6 @@ export XDG_CONFIG_HOME=~/.config
 ```
 
 See [Path Standardization](config/path-standardization.md) for details on config migration.
-
-## Web UI Issues
-
-### Web Server Won't Start
-
-**Error**: `Error: uvicorn is not installed.`
-
-**Cause**: Web server dependencies are not installed.
-
-**Solution**:
-
-```bash
-# Install web dependencies
-pip install "local-file-organizer[web]"
-
-# Or install uvicorn directly
-pip install uvicorn[standard]
-
-# Start the web server
-file-organizer serve
-```
-
-### Redis Connection Failed
-
-**Error**: `ConnectionError: Error connecting to Redis`
-
-**Cause**: Redis is not running or not accessible at the configured URL.
-
-**Solution**:
-
-```bash
-# Option 1: Install and start Redis locally
-# macOS
-brew install redis
-brew services start redis
-
-# Ubuntu/Debian
-sudo apt-get install redis-server
-sudo systemctl start redis-server
-
-# Verify Redis is running
-redis-cli ping  # Should return "PONG"
-
-# Option 2: Use Docker
-docker run -d -p 6379:6379 redis:latest
-
-# Option 3: Configure different Redis URL
-export FO_REDIS_URL=redis://localhost:6379/0
-file-organizer serve
-```
-
-### FastAPI Startup Error
-
-**Error**: `RuntimeError: Application startup failed`
-
-**Cause**: Missing environment variables, database connection issues, or port conflicts.
-
-**Solution**:
-
-```bash
-# Check logs with verbose output
-file-organizer serve --verbose
-
-# Verify all dependencies
-pip install "local-file-organizer[web]"
-
-# Check for port conflicts
-lsof -i :8000
-
-# Use different port if needed
-file-organizer serve --port 8001
-```
 
 ## Audio Transcription Issues
 
@@ -841,9 +750,6 @@ If you can't find a solution here:
    ```bash
    # Enable verbose logging
    file-organizer organize /input /output --verbose
-
-   # Docker logs
-   docker-compose logs
 
    # Check system logs
    journalctl -u file-organizer

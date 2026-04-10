@@ -34,9 +34,6 @@
 | **UndoManager** | Undo/redo system | `undo/` | ✅ Active |
 | **EventBus** | Inter-component events | `events/` | ✅ Active |
 | **Daemon** | Background file watching | `daemon/` | ✅ Active |
-| **API Server** | FastAPI REST endpoints | `api/` | ✅ Active |
-| **Web UI** | Browser-based interface | `web/` | ✅ Active |
-| **TUI** | Textual terminal UI | `tui/` | ✅ Active |
 | **PluginSystem** | Extension marketplace | `plugins/` | ✅ Active |
 | **Methodologies** | PARA, Johnny Decimal | `methodologies/` | ✅ Active |
 
@@ -56,7 +53,7 @@ Legacy Pipeline (backward compatible):
   → PatternAnalyzer → SuggestionEngine
 
 All Paths → Intelligence Services → User Preference Learning
-EventBus → Daemon / Web UI / TUI notifications
+EventBus → Daemon notifications
 
 Final Output: Organized files + Operation history
 ```

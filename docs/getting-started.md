@@ -6,35 +6,12 @@ This guide will help you install and set up File Organizer quickly.
 
 Choose the installation method that best fits your needs:
 
-=== "Docker (Recommended)"
+### Python Package
 
-````markdown
-**Best for**: Production deployments, consistent environments
-
-**Prerequisites**:
-- Docker & Docker Compose installed
-- 4GB+ available disk space
-
-**Install**:
-
-```bash
-git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd Local-File-Organizer
-cp .env.example .env
-docker-compose up -d
-```
-
-**Access**: Open browser to `http://localhost:8000/ui/`
-
-See [Deployment Guide](admin/deployment.md) for detailed Docker setup.
-````
-
-=== "Python Package"
-
-````markdown
-**Best for**: Quick testing, simple deployments
+**Best for**: Quick setup, simple usage
 
 **Prerequisites**:
+
 - Python 3.11 or higher
 - Ollama installed and running
 - 4GB+ available disk space
@@ -44,59 +21,21 @@ See [Deployment Guide](admin/deployment.md) for detailed Docker setup.
 ```bash
 pip install local-file-organizer
 
-# Start the API server
-file-organizer serve
+# Verify installation
+file-organizer doctor .
 ```
-
-**Access**: Open browser to `http://localhost:8000/ui/`
 
 See [Installation Guide](admin/installation.md) for options.
-````
 
-=== "Desktop App"
+### From Source
 
-````markdown
-**Best for**: Users who want a native window without managing a browser tab
-
-**Prerequisites**:
-- Python 3.11 or higher
-- Ollama installed and running
-- Linux only: `sudo apt-get install -y gir1.2-webkit2-4.1`
-
-**Install**:
-
-```bash
-# From PyPI
-pip install "local-file-organizer[desktop]"
-
-# Or from source
-git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd Local-File-Organizer
-pip install -e ".[desktop]"
-```
-
-**Launch**:
-
-```bash
-ollama serve &
-file-organizer-desktop
-```
-
-A native OS window opens automatically — no browser required.
-
-See [Desktop App Guide](desktop-app.md) for installation options, configuration, and troubleshooting.
-````
-
-=== "From Source"
-
-````markdown
 **Best for**: Development, customization
 
 **Prerequisites**:
+
 - Python 3.11 or higher
 - Git
 - Ollama installed
-- Development tools (C compiler)
 
 **Install**:
 
@@ -109,12 +48,9 @@ pip install -e .
 ollama pull qwen2.5:3b-instruct-q4_K_M      # Text model
 ollama pull qwen2.5vl:7b-q4_K_M             # Vision model
 
-# Start the API server
-file-organizer serve
+# Verify installation
+file-organizer doctor .
 ```
-
-**Access**: Open browser to `http://localhost:8000/ui/`
-````
 
 ## System Requirements
 
@@ -136,8 +72,6 @@ file-organizer serve
 ### Optional
 
 - **FFmpeg**: For audio/video preprocessing
-- **Node.js**: For plugin development
-- **Docker**: For containerized deployment
 
 ## Optional Features
 
@@ -147,7 +81,6 @@ File Organizer supports modular installation through optional dependency groups.
 |---------|----------------|-----------------|----------------|
 | **Core** | `pip install local-file-organizer` | Basic file organization, Ollama integration, YAML/JSON/TXT parsing | All platforms |
 | **parsers** | `pip install local-file-organizer[parsers]` | PDF, Word, Excel, PowerPoint, eBook, HTML parsing | All platforms |
-| **web** | `pip install local-file-organizer[web]` | Web interface, REST API server, WebSocket support | All platforms |
 | **cloud** | `pip install local-file-organizer[cloud]` | OpenAI-compatible API providers (OpenAI, Groq, LM Studio, vLLM) | Requires `OPENAI_API_KEY` |
 | **llama** | `pip install local-file-organizer[llama]` | Direct GGUF inference via llama.cpp (no Ollama server needed) | All platforms |
 | **mlx** | `pip install local-file-organizer[mlx]` | Apple Silicon MLX acceleration for faster local inference | **macOS only** |
@@ -160,16 +93,16 @@ File Organizer supports modular installation through optional dependency groups.
 | **cad** | `pip install local-file-organizer[cad]` | DXF/DWG CAD file parsing | All platforms |
 | **build** | `pip install local-file-organizer[build]` | PyInstaller-based executable packaging | All platforms |
 | **search** | `pip install local-file-organizer[search]` | BM25-based search ranking algorithms | All platforms |
-| **all** | `pip install local-file-organizer[all]` | All optional packs above, plus development tools (`pytest`, `mypy`, `ruff`, etc.) and PyQt6 GUI dependencies | Includes `dev` and `gui` extras in addition to feature/build packs |
+| **all** | `pip install local-file-organizer[all]` | All optional packs above, plus development tools (`pytest`, `mypy`, `ruff`, etc.) | Includes `dev` extras in addition to feature/build packs |
 
 **Example usage:**
 
 ```bash
 # Install multiple features at once
-pip install local-file-organizer[parsers,web,cloud]
+pip install local-file-organizer[parsers,cloud]
 
 # Install from source with features
-pip install -e .[parsers,web]
+pip install -e .[parsers,audio]
 
 # Install everything
 pip install local-file-organizer[all]
@@ -179,15 +112,7 @@ pip install local-file-organizer[all]
 
 After installation, File Organizer will guide you through initial setup:
 
-### 1. Welcome Screen
-
-When you first access File Organizer, you'll see a welcome screen with:
-
-- License agreement
-- Basic configuration options
-- Link to full setup guide
-
-### 2. AI Model Configuration
+### 1. AI Model Configuration
 
 File Organizer supports two provider modes:
 
@@ -241,7 +166,7 @@ Claude supports both text and vision tasks natively — no separate vision model
 
 See [Configuration Guide](CONFIGURATION.md) for the full list of providers and options.
 
-### 3. Workspace Configuration
+### 2. Workspace Configuration
 
 Set up your workspace:
 
@@ -249,66 +174,11 @@ Set up your workspace:
 - **Watch Directories**: Which folders to monitor (optional)
 - **Organization Methodology**: Choose PARA, Johnny Decimal, or Custom
 
-### 4. API Configuration (Optional)
-
-For external integrations:
-
-- Generate API keys
-- Configure rate limits
-- Set security options
-
-## Web Interface Overview
-
-Once logged in, the web interface has these main sections:
-
-### Dashboard
-
-- Overview of recent activity
-- Quick access to main features
-- Storage statistics
-
-### File Browser
-
-- Browse and organize files
-- Upload new files
-- View file properties
-
-### Organization
-
-- Select methodology
-- Configure options
-- Start organization jobs
-- Monitor progress
-
-### Analysis
-
-- Duplicate detection
-- Storage analysis
-- Metadata extraction
-
-### Search
-
-- Full-text search
-- Apply filters
-- Save searches
-- Export results
-
-### Settings
-
-- Workspace management
-- User preferences
-- API configuration
-
 ## Using the CLI
-
-File Organizer also provides a command-line interface:
 
 ### Basic Commands
 
 ```bash
-# Start the web server and API
-file-organizer serve
-
 # Organize files
 file-organizer organize ./Downloads ./Organized
 
@@ -348,7 +218,6 @@ file-organizer copilot chat
 Use `fo` instead of `file-organizer`:
 
 ```bash
-fo serve
 fo organize ./Downloads ./Organized
 fo preview ./Downloads
 fo search "*.pdf" ~/Documents
@@ -404,42 +273,33 @@ Create your own organization system using rules and templates.
 
 ## Common First Tasks
 
-### 1. Upload Files
+### 1. Organize Files
 
-Click the **Upload Files** button or drag files directly into the browser.
+```bash
+file-organizer organize ./Downloads ./Organized
+file-organizer organize ./Downloads ./Organized --dry-run  # Preview first
+```
 
 Supported formats: 43+ file types including documents, images, videos, and more.
 
-### 2. Organize Files
+### 2. Find Duplicates
 
-1. Click **Organize**
-1. Select files to organize
-1. Choose methodology (PARA, Johnny Decimal, etc.)
-1. Review preview
-1. Click **Apply** to organize
+```bash
+file-organizer dedupe scan ./Documents
+```
 
-### 3. Find Duplicates
+### 3. Search Files
 
-1. Click **Analysis**
-1. Select **Duplicate Detection**
-1. Choose directory to scan
-1. Review results
-1. Choose files to keep or remove
+```bash
+file-organizer search "*.pdf" ~/Documents
+file-organizer search "report" ~/Documents --type text
+```
 
-### 4. Search Files
+### 4. Configure Settings
 
-1. Click **Search**
-1. Enter search terms
-1. Apply filters if needed
-1. View results
-1. Export or download
-
-### 5. Configure Settings
-
-1. Click **Settings** (gear icon)
-1. Update workspace preferences
-1. Generate API keys if needed
-1. Configure methodology options
+```bash
+file-organizer config edit
+```
 
 ## Troubleshooting Installation
 
@@ -455,22 +315,6 @@ ollama serve
 
 # Verify it's running
 curl http://localhost:11434/api/version
-```
-
-### Port Already in Use
-
-**Issue**: "Port 8000 is already in use"
-
-**Solution**:
-
-```bash
-# Find process using port 8000
-lsof -i :8000
-
-# Use a different port when starting the server
-file-organizer serve --port 8001
-
-# Or with Docker Compose, edit .env: APP_PORT=8001
 ```
 
 ### Models Not Found
@@ -515,4 +359,4 @@ For more issues, see [Troubleshooting Guide](troubleshooting.md).
 
 ______________________________________________________________________
 
-**Ready to start?** Access File Organizer at `http://localhost:8000/ui/` and begin organizing your files!
+**Ready to start?** Run `file-organizer --help` to see all available commands and begin organizing your files!

@@ -19,7 +19,7 @@ pytest -k "backup or dedup"                     # Filter by name
 @pytest.mark.smoke         # Fast critical-path tests (pre-commit validation)
 @pytest.mark.integration   # Integration tests
 @pytest.mark.e2e           # End-to-end tests
-@pytest.mark.asyncio       # Async tests (FastAPI, TUI, services)
+@pytest.mark.asyncio       # Async tests (services)
 @pytest.mark.benchmark     # Performance benchmarks
 @pytest.mark.ci            # CI-specific tests
 @pytest.mark.slow          # Slow tests
@@ -49,7 +49,7 @@ def test_example():
 | services | 80% | 82% | ✅ +2% |
 | models | 90% | 90% | ✅ Met |
 | cli | 80% | 75% | 🔶 -5% |
-| tui | 90% | 79% | 🔶 -11% |
+| config | 90% | 95% | ✅ +5% |
 | web | 80% | 78% | 🔶 -2% |
 
 See [Coverage Report](coverage-report.md) for detailed metrics by module.

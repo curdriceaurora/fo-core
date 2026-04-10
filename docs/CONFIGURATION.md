@@ -2,7 +2,7 @@
 
 ## Overview
 
-Configuration is managed via a YAML file located at `config/file-organizer/config.yaml` (relative to your system's config directory). You can also manage configuration via the CLI or TUI.
+Configuration is managed via a YAML file located at `config/file-organizer/config.yaml` (relative to your system's config directory). You can also manage configuration via the CLI.
 
 ## CLI Configuration
 

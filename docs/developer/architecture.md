@@ -6,11 +6,7 @@
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│                    Web Browser (UI)                     │
-├─────────────────────────────────────────────────────────┤
-│                  HTMX + HTML + CSS                      │
-├─────────────────────────────────────────────────────────┤
-│        FastAPI Web Server (REST API + WebSocket)        │
+│                    CLI Interface (Typer)                 │
 ├─────────────────────────────────────────────────────────┤
 │  File Organizer Core Engine (Python)                    │
 │  ├── Text Processor                                     │
@@ -21,60 +17,30 @@
 ├─────────────────────────────────────────────────────────┤
 │  External Services                                      │
 │  ├── Ollama (Local LLMs)                                │
-│  ├── PostgreSQL (Data Storage)                          │
-│  ├── Redis (Caching)                                    │
 │  └── File System (Storage)                              │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Backend Stack
+## CLI Layer
 
-### FastAPI Web Framework
+### Typer CLI Framework
 
-- **Purpose**: REST API and WebSocket server
-- **Location**: `file_organizer/api/`
+- **Purpose**: Command-line interface for all user interactions
+- **Location**: `file_organizer/cli/`
 - **Key Features**:
-  - Automatic API documentation (OpenAPI/Swagger)
-  - Built-in request validation
-  - WebSocket support
-  - Dependency injection
+  - Rich terminal output via Rich
+  - Subcommand groups (organize, search, dedupe, copilot, etc.)
+  - Shell completion support
+  - Short alias `fo` for `file-organizer`
 
 ### Core File Organizer Engine
 
 - **Purpose**: File organization logic
 - **Location**: `file_organizer/core/`
 - **Components**:
-  - `file_organizer.py` - Main orchestrator
+  - `organizer.py` - Main orchestrator
   - Model abstractions (text, vision, audio)
   - Service layer (processors, analyzers)
-
-### Database Layer
-
-- **ORM**: SQLAlchemy
-- **Database**: PostgreSQL
-- **Migrations**: Alembic
-- **Location**: `file_organizer/models/`, `alembic/`
-
-### Caching Layer
-
-- **Provider**: Redis
-- **Purpose**: Performance optimization
-- **Usage**: API results, processed metadata
-
-## Frontend Stack
-
-### HTMX + HTML + CSS
-
-- **HTMX**: AJAX interactions without JavaScript
-- **HTML**: Server-rendered templates
-- **CSS**: Responsive design with Bootstrap/Tailwind
-- **Location**: `templates/`, `static/`
-
-### Real-Time Communication
-
-- **WebSocket**: Live event streaming
-- **Endpoint**: `/api/v1/ws/{client_id}`
-- **Events**: File uploads, organization progress, notifications
 
 ## Key Components
 
@@ -131,50 +97,46 @@
 ### File Organization Workflow
 
 ```markdown
-1. User uploads file
-   ↓
-2. File stored temporarily
-   ↓
+1. User runs CLI command (e.g., fo organize)
+   |
+2. Files scanned in input directory
+   |
 3. Content analysis:
    - Text extraction
    - Vision analysis
    - Metadata extraction
-   ↓
+   |
 4. Pattern matching:
    - Analyze file properties
    - Check user preferences
    - Generate suggestions
-   ↓
+   |
 5. Organization preview:
    - Proposed folder
    - Suggested filename
    - Confidence score
-   ↓
-6. User confirmation
-   ↓
+   |
+6. User confirmation (or --dry-run preview)
+   |
 7. File move/copy to destination
-   ↓
+   |
 8. Update metadata and indices
 ```
 
-### API Request Flow
+### CLI Command Flow
 
 ```text
-HTTP Request
-   ↓
-FastAPI Router
-   ↓
-Authentication (API Key/JWT)
-   ↓
-Request Validation
-   ↓
+CLI Command (Typer)
+   |
+Argument Parsing & Validation
+   |
 Business Logic (Service Layer)
-   ↓
+   |
 Core Engine (File Organizer)
-   ↓
-Database/File System Operations
-   ↓
-HTTP Response
+   |
+File System Operations
+   |
+Rich Terminal Output
 ```
 
 ## Development Patterns
@@ -182,19 +144,19 @@ HTTP Response
 ### Service Layer Pattern
 
 ```python
-# Router (endpoint)
-@router.post("/api/v1/files/organize")
-async def organize_files(request: OrganizeRequest):
+# CLI command (endpoint)
+@app.command()
+def organize(input_dir: Path, output_dir: Path) -> None:
     service = OrganizationService()
-    result = await service.organize(request)
-    return result
+    result = service.organize(input_dir, output_dir)
+    display_results(result)
 
 # Service (business logic)
 class OrganizationService:
     def __init__(self):
         self.core = FileOrganizer()
 
-    async def organize(self, request):
+    def organize(self, input_dir, output_dir):
         # Business logic
         return result
 
@@ -203,23 +165,6 @@ class FileOrganizer:
     def organize(self, files):
         # Core organization logic
         return result
-```
-
-### Dependency Injection
-
-```python
-from fastapi import Depends
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-@router.get("/api/v1/files")
-async def list_files(db: Session = Depends(get_db)):
-    return db.query(File).all()
 ```
 
 ## Extension Points
@@ -231,8 +176,8 @@ Extend functionality via hooks:
 ```python
 from file_organizer.plugins import register_hook
 
-@register_hook("on_file_uploaded")
-async def my_plugin(file: UploadedFile):
+@register_hook("on_file_processed")
+def my_plugin(file: ProcessedFile):
     # Custom logic
     pass
 ```

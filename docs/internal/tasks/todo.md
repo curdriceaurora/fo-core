@@ -108,44 +108,34 @@ Priority ordered by coverage gap × file size (biggest impact first):
   - Focus on untested readers (mock optional deps as needed)
   - Target: ≥90% coverage for this module
 
-#### 3C. TUI Components
-- [ ] **3C.1** Expand `tests/tui/`
-  - Source: `app.py` (259 LOC, 40% coverage)
-  - Test: sidebar actions, status bar updates, compose/mount lifecycle
-  - Target: ≥90% coverage for this module
-- [ ] **3C.2** Create `tests/tui/`
-  - Source: `copilot_view.py` (189 LOC, 37% coverage)
-  - Test: chat panel rendering, message log, input handling
-  - Target: ≥90% coverage for this module
-
-#### 3D. Web Routes (biggest LOC gap)
-- [ ] **3D.1** Create `tests/web/test_files_routes.py`
+#### 3C. Web Routes (biggest LOC gap)
+- [ ] **3C.1** Create `tests/web/test_files_routes.py`
   - Source: `files_routes.py` (638 LOC, ~11% coverage)
   - Test: browse, preview, upload, thumbnails, HTMX partials
   - Target: ≥90% coverage
-- [ ] **3D.2** Create `tests/web/test_organize_routes.py`
+- [ ] **3C.2** Create `tests/web/test_organize_routes.py`
   - Source: `organize_routes.py` (866 LOC, ~20% coverage)
   - Test: dashboard, background jobs, reports, streaming
   - Target: ≥90% coverage
-- [ ] **3D.3** Create `tests/web/test_settings_routes.py` (expand existing)
+- [ ] **3C.3** Create `tests/web/test_settings_routes.py` (expand existing)
   - Source: `settings_routes.py` (630 LOC)
   - Existing: `tests/test_web_settings.py` (435 LOC)
   - Gap analysis: identify uncovered paths, add tests
   - Target: ≥90% coverage
-- [ ] **3D.4** Create `tests/web/test_profile_routes.py`
+- [ ] **3C.4** Create `tests/web/test_profile_routes.py`
   - Source: `profile_routes.py` (1,211 LOC, ~20% coverage)
   - Test: auth, profiles, API keys, collaboration, HTMX
   - **Largest single file** — may need 500+ LOC of tests
   - Target: ≥90% coverage
-- [ ] **3D.5** Expand `tests/web/test_marketplace_routes.py`
+- [ ] **3C.5** Expand `tests/web/test_marketplace_routes.py`
   - Source: `marketplace_routes.py` (193 LOC)
   - Test: plugin browsing, search, install triggers
   - Target: ≥90% coverage
 
-#### 3E. Additional Modules (if needed to reach 90% overall)
-- [ ] **3E.1** Run `pytest --cov=file_organizer --cov-report=term-missing` after 3A-3D
-- [ ] **3E.2** Identify remaining modules below 90% and add targeted tests
-- [ ] **3E.3** Focus on modules with highest LOC × coverage-gap product
+#### 3D. Additional Modules (if needed to reach 90% overall)
+- [ ] **3D.1** Run `pytest --cov=file_organizer --cov-report=term-missing` after 3A-3C
+- [ ] **3D.2** Identify remaining modules below 90% and add targeted tests
+- [ ] **3D.3** Focus on modules with highest LOC x coverage-gap product
 
 ### Phase 4: Increase Docstring Coverage (83.7% → 90%)
 **Effort: Medium | Risk: Low**
@@ -181,12 +171,11 @@ These work streams can run in parallel:
 | **A: Config** | 2.1–2.5 | None |
 | **B: Intelligence tests** | 3A.1–3A.2 | None |
 | **C: Utility tests** | 3B.1–3B.2 | None |
-| **D: TUI tests** | 3C.1–3C.2 | None |
-| **E: Web route tests** | 3D.1–3D.5 | None |
+| **D: Web route tests** | 3C.1–3C.5 | None |
 | **F: Docstrings** | 4.1–4.5 | None |
 | **G: Verification** | 5.1–5.5 | All above |
 
-Streams B–F are independent file-level work and can all proceed simultaneously.
+Streams B–E are independent file-level work and can all proceed simultaneously.
 
 ---
 
