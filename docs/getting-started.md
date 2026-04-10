@@ -346,7 +346,7 @@ For more issues, see [Troubleshooting Guide](troubleshooting.md).
 
 ## Next Steps
 
-- **Administrators**: Check [Deployment Guide](admin/deployment.md)
+- **Administrators**: Check [Admin Guide](admin/index.md)
 - **Developers**: Read [Developer Guide](developer/index.md)
 
 ## Getting Help
