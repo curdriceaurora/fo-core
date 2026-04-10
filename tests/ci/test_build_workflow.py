@@ -1,4 +1,4 @@
-"""Tests for build.yml CI/CD pipeline (pywebview desktop build pipeline)."""
+"""Tests for build.yml CI/CD pipeline (CLI-only build pipeline)."""
 
 from __future__ import annotations
 
@@ -75,51 +75,11 @@ class TestNoRustOrTauriSteps:
         assert "combined-artifacts" not in raw
 
 
-class TestDesktopBuildStep:
-    def test_desktop_build_step_present(self) -> None:
-        """A step building the pywebview desktop executable must exist."""
-        names = _build_step_names()
-        assert any("Desktop" in name or "desktop" in name for name in names), (
-            f"No desktop build step found in: {names}"
-        )
-
-    def test_desktop_build_uses_desktop_flag(self) -> None:
-        """The desktop build step must invoke build.py with --desktop."""
-        run_text = _build_step_run_text()
-        assert "--desktop" in run_text
-
+class TestCLIBuildStep:
     def test_cli_build_step_present(self) -> None:
-        """A step building the CLI executable must also exist."""
+        """A step building the CLI executable must exist."""
         run_text = _build_step_run_text()
         assert "python scripts/build.py --clean" in run_text
-
-
-class TestPywebviewLinuxDeps:
-    def test_pywebview_linux_deps_step(self) -> None:
-        """A Linux-conditional step must install GTK/WebKit pywebview deps."""
-        jobs = _load_workflow().get("jobs", {})
-        steps = jobs.get("build", {}).get("steps", [])
-        linux_dep_steps = [
-            s
-            for s in steps
-            if "libgirepository" in s.get("run", "") or "gir1.2-webkit2" in s.get("run", "")
-        ]
-        assert linux_dep_steps, "No pywebview GTK/WebKit Linux dependency step found"
-
-    def test_linux_deps_are_platform_conditional(self) -> None:
-        """The GTK/WebKit dep step must be guarded by a linux platform condition."""
-        jobs = _load_workflow().get("jobs", {})
-        steps = jobs.get("build", {}).get("steps", [])
-        found = False
-        for step in steps:
-            if "libgirepository" in step.get("run", "") or "gir1.2-webkit2" in step.get("run", ""):
-                found = True
-                cond = step.get("if", "")
-                assert "linux" in cond, (
-                    f"GTK/WebKit dep step must be linux-conditional, got if: {cond!r}"
-                )
-                break
-        assert found, "GTK/WebKit dep step not found"
 
 
 class TestArtifactUpload:

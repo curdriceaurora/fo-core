@@ -75,7 +75,7 @@ jobs:
           if [ "${{ matrix.platform }}" = "windows" ]; then
             cli_exe=$(find dist -name "file-organizer-*.exe" -type f | head -1)
           else
-            cli_exe=$(find dist -maxdepth 1 -type f -name "file-organizer-*" -perm /111 | head -1)
+            cli_exe=$(find dist -maxdepth 1 -type f -name "file-organizer-*" -not -name "*.AppImage" -perm /111 | head -1)
           fi
 
           if [ -z "$cli_exe" ]; then
