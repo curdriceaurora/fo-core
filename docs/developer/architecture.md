@@ -252,5 +252,4 @@ class CustomModel(BaseModel):
 
 ## See Also
 
-- [Plugin Development](plugin-development.md)
 - [Contributing Guide](contributing.md)

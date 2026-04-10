@@ -321,8 +321,11 @@ jobs:
           else
             OUT="benchmark-results.json"
           fi
+          rc=0
           pytest tests/ -m benchmark --benchmark-only --strict-markers --timeout=30 \
-            --benchmark-json="$OUT" --override-ini="addopts="
+            --benchmark-json="$OUT" --override-ini="addopts=" \
+            || rc=$?
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 5 ]; then exit "$rc"; fi
       - name: Compare against baseline (PR only, advisory)
         # Posts a markdown comment on the PR showing mean-time changes per benchmark.
         # Advisory only — does not block merge.  Threshold: 🔴 >10%, 🟡 >5%, 🟢 ≤5%.
@@ -389,6 +392,7 @@ jobs:
         with:
           name: benchmark-baseline
           path: benchmark-results.json
+          if-no-files-found: ignore
           retention-days: 30
 
   test-integration:

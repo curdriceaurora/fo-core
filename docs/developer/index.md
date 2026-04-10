@@ -35,7 +35,6 @@ python -m uvicorn main:app --reload
 
 ### Extending File Organizer
 
-- [Plugin Development](plugin-development.md) - Create custom plugins
 - Creating custom methodologies
 - Adding new file type handlers
 
@@ -123,8 +122,6 @@ class CustomMethod(BaseMethodology):
         # Your logic here
         return category
 ```
-
-See [Plugin Development](plugin-development.md).
 
 ### Create API Endpoint
 
@@ -219,7 +216,6 @@ pytest                    # Tests
 ### Documentation
 
 - This Developer Guide
-- [API Reference](../api/index.md)
 - Code comments and docstrings
 
 ### Community
@@ -239,7 +235,6 @@ pytest                    # Tests
 ### Documentation
 
 - Read the architecture guide
-- Check API documentation
 - Review existing code
 
 ### Support
@@ -251,5 +246,4 @@ pytest                    # Tests
 ## Next Steps
 
 - [Architecture Guide](architecture.md)
-- [Plugin Development](plugin-development.md)
-- [API Reference](../api/index.md)
+- [API Clients](api-clients.md)

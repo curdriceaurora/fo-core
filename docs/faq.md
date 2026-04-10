@@ -61,7 +61,7 @@ Both are optimized for balance between speed and accuracy.
 1. Review preview
 1. Click **Apply**
 
-See [Organization Guide](web-ui/organization.md).
+See the [Getting Started Guide](getting-started.md) for details.
 
 ### What file types does it support?
 
@@ -122,7 +122,7 @@ Solutions:
 
 1. Generate API key in **Settings** → **API Keys**
 1. Include in requests: `Authorization: Bearer YOUR_KEY`
-1. See [API Reference](api/index.md) for endpoints
+1. See the [API Clients Guide](developer/api-clients.md) for usage examples
 
 ### Can I use API keys from scripts?
 
@@ -138,7 +138,7 @@ Then use in your script.
 
 Yes. Free tier: 100 requests/minute.
 
-See [API Reference](api/index.md) for details.
+See the [API Clients Guide](developer/api-clients.md) for details.
 
 ## Configuration Questions
 

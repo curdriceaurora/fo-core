@@ -9,26 +9,7 @@ Welcome to the **File Organizer** documentation! A privacy-first, AI-powered loc
     **New to File Organizer?** Start here to understand the basics.
 
     - [Installation & Setup](getting-started.md)
-    - [Web UI Quick Start](web-ui/getting-started.md)
     - [CLI Reference](cli-reference.md)
-
-=== "🖥️ Web Interface"
-
-    **Using the web browser interface?** Learn how to use all features.
-
-    - [File Management](web-ui/file-management.md)
-    - [Organization Workflows](web-ui/organization.md)
-    - [Analysis & Search](web-ui/analysis-search.md)
-    - [Settings & Configuration](web-ui/settings.md)
-
-=== "📚 API Reference"
-
-    **Building integrations?** Use our REST API.
-
-    - [Authentication](api/authentication.md)
-    - [File Endpoints](api/file-endpoints.md)
-    - [Organization Endpoints](api/organization-endpoints.md)
-    - [Search & Analysis](api/search-endpoints.md)
 
 === "🔧 Deployment"
 
@@ -44,7 +25,6 @@ Welcome to the **File Organizer** documentation! A privacy-first, AI-powered loc
     **Extending File Organizer?** Build plugins and integrations.
 
     - [Architecture](developer/architecture.md)
-    - [Plugin Development](developer/plugin-development.md)
     - [API Clients](developer/api-clients.md)
 
 ## Key Features
@@ -55,7 +35,7 @@ Welcome to the **File Organizer** documentation! A privacy-first, AI-powered loc
 - 🔍 **Smart Search**: Full-text search with filters and saved searches
 - 📊 **Analytics**: Storage analysis, duplicate detection, and insights
 - 🔄 **Undo/Redo**: Reverse any operation instantly
-- 🎨 **Multiple Interfaces**: Web UI, CLI, Terminal UI, and native desktop app
+- 🎨 **Multiple Interfaces**: CLI, Terminal UI, and native desktop app
 - 🔌 **Extensible**: Plugin system for custom functionality
 
 ## Supported File Types
@@ -81,7 +61,6 @@ File Organizer processes **48+ file formats** including:
 
 ### User Guides
 
-- [Web UI Guide](web-ui/index.md) - Browser-based file management
 - [Getting Started](getting-started.md) - Initial setup and overview
 - [CLI Reference](cli-reference.md) - Command-line interface guide
 - [Troubleshooting](troubleshooting.md) - Common issues and solutions
@@ -91,12 +70,6 @@ File Organizer processes **48+ file formats** including:
 - [AI Provider Setup](setup/ai-providers.md) - Configure Ollama, OpenAI, Claude, and more
 - [Dependencies](setup/dependencies.md) - Installation and dependencies
 - [Models](setup/models.md) - AI model configuration
-
-### API & Integration
-
-- [API Reference](api/index.md) - Complete REST API documentation
-- [Authentication](api/authentication.md) - API key management
-- [WebSocket Events](api/websocket-api.md) - Real-time updates
 
 ### Deployment & Administration
 
@@ -110,7 +83,6 @@ File Organizer processes **48+ file formats** including:
 ### Development & Extension
 
 - [Architecture Guide](developer/architecture.md) - System design
-- [Plugin Development](developer/plugin-development.md) - Creating plugins
 - [API Clients](developer/api-clients.md) - Client libraries
 
 ## Getting Help

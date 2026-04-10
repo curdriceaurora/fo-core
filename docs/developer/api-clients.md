@@ -278,5 +278,4 @@ async def organize_with_retry(path):
 
 ## See Also
 
-- [API Reference](../api/index.md)
 - [Architecture Guide](architecture.md)
