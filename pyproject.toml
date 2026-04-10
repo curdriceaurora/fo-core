@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "local-file-organizer"
-version = "2.0.0-alpha.3"
-description = "AI-powered local file management with state-of-the-art models"
+name = "fo-core"
+version = "0.1.0"
+description = "Streamlined CLI file organizer powered by local AI (Ollama)"
 authors = [
     {name = "Local File Organizer Team", email = "noreply@example.com"}
 ]
@@ -29,88 +29,52 @@ dependencies = [
     # Core AI inference
     "ollama>=0.1.0",  # 0.x — unstable API, keep >=
 
-    # File processing (core image only)
+    # File processing
     "Pillow~=10.0",
+    "PyMuPDF~=1.23",           # PDF text/image extraction
+    "python-docx~=1.0",        # DOCX parsing
+    "openpyxl~=3.1",           # XLSX parsing
+    "python-pptx>=0.6.0",      # PPTX parsing
+    "ebooklib>=0.18",           # EPUB parsing
+    "beautifulsoup4~=4.12",    # HTML/XML parsing
+    "lxml~=6.0",               # XML backend for BS4
 
     # NLP and data science
     "nltk~=3.8",
-    "numpy~=1.24",  # Numerical computing (used in dedup, video, optimization)
-    "tqdm~=4.66",  # Progress bars (used in CLI dedup)
+    "numpy~=1.24",
+    "tqdm~=4.66",
 
-    # CLI and UI
+    # CLI
     "typer[all]~=0.12",
     "rich~=13.0",
-    "textual~=0.50",
+    "Pygments>=2.20.0",  # Transitive via rich; pin for CVE-2026-4539
 
-    # API and async
-    "fastapi~=0.109",
-    "starlette~=0.35",  # Direct imports: BaseHTTPMiddleware, Response, WebSocketState
-    "aiofiles~=23.0",  # Required by Starlette StaticFiles for async file serving
-    "jinja2~=3.1",
-    "markupsafe~=3.0",  # Direct import in web csrf_input; also a jinja2 transitive dep
-    "uvicorn[standard]~=0.27",
-    "websockets~=12.0",
-    "httpx~=0.26",
-    "python-multipart>=0.0.9",  # 0.x — unstable API, keep >=
-    # Security: ecdsa is transitive via python-jose. Pin >= 0.19.2 for CVE-2026-33936.
-    # Pygments is transitive via rich/textual. Pin >= 2.20.0 for CVE-2026-4539.
-    "ecdsa>=0.19.2",
-    "Pygments>=2.20.0",
-    "python-jose~=3.3",
-    "bcrypt>=4.0.0,<6.0.0",
-    # Database
+    # Database (undo/history)
     "sqlalchemy~=2.0",
     "alembic~=1.13",
 
-    # Task queue
-    "redis~=7.4",
     # Configuration
-    "pyyaml~=6.0",  # YAML config parsing
-    "platformdirs~=4.9",  # Cross-platform config/data directory resolution
-
-    # Utilities
+    "pyyaml~=6.0",
+    "platformdirs~=4.9",
     "pydantic~=2.5",
     "pydantic-settings~=2.1",
-    "email-validator~=2.1",
     "python-dotenv~=1.0",
     "click~=8.1",
-    "watchdog~=3.0",  # File system event handler
+
+    # File watching (daemon)
+    "watchdog~=3.0",
 
     # System utilities
-    "psutil~=5.9",  # System resource monitoring
+    "psutil~=5.9",
 
     # Logging
-    "loguru>=0.7.0",  # 0.x — unstable API, keep >=
+    "loguru>=0.7.0",
+
+    # HTTP client (updater)
+    "httpx~=0.27",
 ]
 
 [project.optional-dependencies]
-parsers = [
-    "PyMuPDF~=1.23",
-    "python-docx~=1.0",
-    "openpyxl~=3.1",
-    "python-pptx>=0.6.0",  # 0.x — unstable API, keep >=
-    "ebooklib>=0.18",  # 0.x — unstable API, keep >=
-    "beautifulsoup4~=4.12",
-    "lxml~=6.0",
-]
-
-web = [
-    "fastapi~=0.109",
-    "jinja2~=3.1",
-    "uvicorn[standard]~=0.27",
-    "websockets~=12.0",
-    "httpx~=0.26",
-    "python-multipart>=0.0.9",  # 0.x — unstable API, keep >=
-    # Security: ecdsa is transitive via python-jose. Pin >= 0.19.2 for CVE-2026-33936.
-    # Pygments is transitive via rich/textual. Pin >= 2.20.0 for CVE-2026-4539.
-    "ecdsa>=0.19.2",
-    "Pygments>=2.20.0",
-    "python-jose~=3.3",
-    "bcrypt>=4.0.0,<6.0.0",
-
-    "redis~=7.4",
-]
-
 dev = [
     "pytest~=7.4",
     "pytest-asyncio~=0.23",
@@ -132,8 +96,6 @@ dev = [
     "pymarkdownlnt>=0.9.25",  # 0.x — unstable API, keep >=; Markdown linting
     "deptry>=0.16.0",  # 0.x — unstable API, keep >=; Unused dependency detection
     "diff-cover~=7.0",  # Diff coverage gate (local pre-commit + CI validation)
-    "asgi-lifespan~=2.1",  # ASGI lifespan management for integration tests
-    "pytest-playwright>=0.5.0",  # Browser-based E2E smoke tests (requires: playwright install chromium)
 ]
 
 cloud = [
@@ -153,19 +115,6 @@ mlx = [
 
 claude = [
     "anthropic>=0.20.0",  # 0.x — unstable API, keep >=; Anthropic Claude API provider
-]
-
-gui = [
-    "PyQt6~=6.6",
-]
-
-desktop = [
-    # pywebview wraps the OS-native webview engine (WebKit on macOS/Linux,
-    # Edge WebView2 on Windows) — no Chromium/Electron overhead.
-    # 0.x numbering ended at 3.x; project uses SemVer from 4.0 onward.
-    "pywebview>=4.4",
-    # Server-side deps required at runtime inside the desktop process.
-    "uvicorn[standard]~=0.27",
 ]
 
 audio = [
@@ -221,20 +170,17 @@ search = [
 ]
 
 all = [
-    "local-file-organizer[dev,gui,cloud,llama,mlx,claude,audio,video,dedup,archive,scientific,cad,build,parsers,web,search]",
+    "fo-core[dev,cloud,llama,mlx,claude,audio,video,dedup,archive,scientific,cad,build,search]",
 ]
 
 [project.scripts]
 file-organizer = "file_organizer.cli:main"
 fo = "file_organizer.cli:main"  # Short alias
-file-organizer-desktop = "file_organizer.desktop.app:launch"  # Native desktop window (requires [desktop] extra)
 
 [project.urls]
-Homepage = "https://github.com/curdriceaurora/Local-File-Organizer"
-Documentation = "https://github.com/curdriceaurora/Local-File-Organizer#readme"
-Repository = "https://github.com/curdriceaurora/Local-File-Organizer"
-Issues = "https://github.com/curdriceaurora/Local-File-Organizer/issues"
-Changelog = "https://github.com/curdriceaurora/Local-File-Organizer/releases"
+Homepage = "https://github.com/curdriceaurora/fo-core"
+Repository = "https://github.com/curdriceaurora/fo-core"
+Issues = "https://github.com/curdriceaurora/fo-core/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -243,8 +189,6 @@ where = ["src"]
 file_organizer = [
     "py.typed",
     "config/*.yaml",
-    "web/templates/**/*.html",
-    "web/static/**/*",
 ]
 
 # Ruff configuration (linting and formatting)
@@ -420,7 +364,8 @@ pep621_dev_dependency_groups = ["dev", "docs", "build"]
 "pywebview" = "webview"
 [tool.deptry.per_rule_ignores]
 # netCDF4: in scientific optional group; deptry has mixed-case matching issues
-DEP001 = ["netCDF4"]
+# redis: optional import via try/except in events/stream.py
+DEP001 = ["netCDF4", "redis"]
 # aiofiles: Starlette StaticFiles uses it for async file serving (no direct import)
 # python-multipart: FastAPI uses it for file uploads (no direct import)
 # lxml: used as bs4 parser string "lxml" (not imported directly)
@@ -430,7 +375,7 @@ DEP001 = ["netCDF4"]
 # jinja2: fastapi.templating wraps it (not imported directly)
 # alembic: used as CLI migration tool (not imported in application code)
 # openpyxl: pandas uses it for Excel I/O (not imported directly)
-# local-file-organizer: self-reference in the [all] optional group
+# fo-core: self-reference in the [all] optional group
 DEP002 = [
     "aiofiles",
     "python-multipart",
@@ -441,7 +386,7 @@ DEP002 = [
     "jinja2",
     "alembic",
     "openpyxl",
-    "local-file-organizer",
+    "fo-core",
     # pydantic-settings: pydantic's BaseSettings uses it internally; no direct import needed
     "pydantic-settings",
     # PyQt6: GUI-only dep; GUI application lives outside src/file_organizer/
@@ -454,4 +399,8 @@ DEP002 = [
     "Pygments",
     # pywebview: desktop GUI wrapper; import name is 'webview' (mapped above); used in desktop/app.py
     "pywebview",
+    # sqlalchemy: used by alembic migrations and undo/history at runtime; no direct src/ import
+    "sqlalchemy",
+    # pydantic: used transitively by pydantic-settings; no direct src/ import after refactor
+    "pydantic",
 ]

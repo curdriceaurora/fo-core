@@ -1,14 +1,14 @@
 # Developer Guide
 
-Extend and customize File Organizer for your needs.
+Extend and customize fo-core for your needs.
 
 ## Quick Start
 
 ### Clone Repository
 
 ```bash
-git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd Local-File-Organizer
+git clone https://github.com/curdriceaurora/fo-core.git
+cd fo-core
 ```
 
 ### Install Development Environment
@@ -19,31 +19,17 @@ ollama pull qwen2.5:3b-instruct-q4_K_M
 ollama pull qwen2.5vl:7b-q4_K_M
 ```
 
-### Start Development Server
-
-```bash
-python -m uvicorn main:app --reload
-```
-
 ## Main Sections
 
 ### Understanding the System
 
 - [Architecture Guide](architecture.md) - System design and components
-- Understanding API structure
-- Database schema overview
+- Understanding the 4-stage pipeline (preprocess, analyze, postprocess, write)
 
-### Extending File Organizer
+### Extending fo-core
 
-- [Plugin Development](plugin-development.md) - Create custom plugins
 - Creating custom methodologies
 - Adding new file type handlers
-
-### Integration
-
-- [API Clients](api-clients.md) - Client libraries and examples
-- Webhook integration
-- Third-party service integration
 
 ### Best Practices
 
@@ -58,11 +44,12 @@ python -m uvicorn main:app --reload
 ## Architecture
 
 ```text
-File Organizer v2.0
-├── Web Interface (FastAPI)
-│   ├── REST API
-│   ├── WebSocket
-│   └── Static Files
+fo-core v0.1
+├── CLI (Typer)
+│   ├── organize, preview, search, analyze
+│   ├── dedupe, suggest, autotag, copilot
+│   ├── daemon, rules, config, doctor
+│   └── undo, redo, history
 │
 ├── Core Engine
 │   ├── File Processors
@@ -82,32 +69,29 @@ File Organizer v2.0
 │       └── Intelligence
 │
 ├── Storage
-│   ├── PostgreSQL Database
-│   ├── File System
-│   └── Redis Cache
+│   ├── SQLite Database
+│   └── File System
 │
 └── AI Inference
-    └── Ollama (Local LLMs)
+    ├── Ollama (default, local)
+    ├── OpenAI-compatible
+    ├── Anthropic Claude
+    ├── llama.cpp
+    └── MLX (Apple Silicon)
 ```
 
 ## Key Files
 
-**Web Server**
+**CLI**
 
-- `web_server/main.py` - FastAPI application
-- `web_server/routes/` - API endpoints
-- `web_server/models.py` - Pydantic models
+- `src/file_organizer/cli/main.py` - Typer CLI application
+- `src/file_organizer/cli/commands/` - CLI subcommands
 
 **Core Engine**
 
-- `file_organizer/core/` - Main orchestrator
-- `file_organizer/services/` - Business logic
-- `file_organizer/models/` - AI model interfaces
-
-**Database**
-
-- `file_organizer/db/` - Database models
-- `alembic/` - Database migrations
+- `src/file_organizer/core/` - Main orchestrator
+- `src/file_organizer/services/` - Business logic
+- `src/file_organizer/models/` - AI model interfaces
 
 ## Development Tasks
 
@@ -122,20 +106,6 @@ class CustomMethod(BaseMethodology):
     def categorize(self, file_path):
         # Your logic here
         return category
-```
-
-See [Plugin Development](plugin-development.md).
-
-### Create API Endpoint
-
-```python
-from fastapi import APIRouter
-
-router = APIRouter(prefix="/api/v1")
-
-@router.post("/custom-endpoint")
-async def custom_endpoint(data: MyModel):
-    return {"result": "success"}
 ```
 
 ### Add File Type Support
@@ -178,7 +148,7 @@ def test_my_feature():
 
 - Follow PEP 8
 - Use type hints
-- Max line length 88 (Black)
+- Max line length 100 (Black)
 - Sort imports (isort)
 
 ### Naming
@@ -219,27 +189,24 @@ pytest                    # Tests
 ### Documentation
 
 - This Developer Guide
-- [API Reference](../api/index.md)
 - Code comments and docstrings
 
 ### Community
 
-- [GitHub Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues)
-- [GitHub Discussions](https://github.com/curdriceaurora/Local-File-Organizer/discussions)
-- [GitHub Releases](https://github.com/curdriceaurora/Local-File-Organizer/releases)
+- [GitHub Issues](https://github.com/curdriceaurora/fo-core/issues)
+- [GitHub Discussions](https://github.com/curdriceaurora/fo-core/discussions)
+- [GitHub Releases](https://github.com/curdriceaurora/fo-core/releases)
 
 ### Related Projects
 
 - [Ollama](https://ollama.ai) - Local LLM inference
-- [FastAPI](https://fastapi.tiangolo.com) - Web framework
-- [SQLAlchemy](https://www.sqlalchemy.org) - Database ORM
+- [Typer](https://typer.tiangolo.com) - CLI framework
 
 ## Getting Help
 
 ### Documentation
 
 - Read the architecture guide
-- Check API documentation
 - Review existing code
 
 ### Support
@@ -251,5 +218,3 @@ pytest                    # Tests
 ## Next Steps
 
 - [Architecture Guide](architecture.md)
-- [Plugin Development](plugin-development.md)
-- [API Reference](../api/index.md)

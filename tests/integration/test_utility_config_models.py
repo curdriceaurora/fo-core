@@ -3,8 +3,6 @@
 Covers:
   - daemon/config.py               — DaemonConfig
   - events/config.py               — EventConfig
-  - plugins/sdk/testing.py         — PluginTestCase
-  - client/exceptions.py           — ClientError, AuthenticationError, etc.
   - models/_openai_response.py     — is_openai_token_exhausted
 """
 
@@ -15,17 +13,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from file_organizer.client.exceptions import (
-    AuthenticationError,
-    ClientError,
-    NotFoundError,
-    ServerError,
-    ValidationError,
-)
 from file_organizer.daemon.config import DaemonConfig
 from file_organizer.events.config import EventConfig
 from file_organizer.models._openai_response import is_openai_token_exhausted
-from file_organizer.plugins.sdk.testing import PluginTestCase
 
 pytestmark = pytest.mark.integration
 
@@ -122,122 +112,6 @@ class TestEventConfigGetStreamName:
         cfg = EventConfig()
         result = cfg.get_stream_name("anything")
         assert result == "fileorg:anything"
-
-
-# ---------------------------------------------------------------------------
-# PluginTestCase
-# ---------------------------------------------------------------------------
-
-
-class TestPluginTestCaseLifecycle:
-    def test_setUp_creates_test_dir(self) -> None:
-        tc = PluginTestCase()
-        tc.setUp()
-        try:
-            assert tc.test_dir.exists()
-        finally:
-            tc.tearDown()
-
-    def test_create_test_file_creates_file(self) -> None:
-        tc = PluginTestCase()
-        tc.setUp()
-        try:
-            f = tc.create_test_file("subdir/file.txt", content="hello")
-            assert f.exists()
-            assert f.read_text(encoding="utf-8") == "hello"
-        finally:
-            tc.tearDown()
-
-    def test_create_test_file_returns_path(self) -> None:
-        tc = PluginTestCase()
-        tc.setUp()
-        try:
-            result = tc.create_test_file("f.txt")
-            assert isinstance(result, Path)
-        finally:
-            tc.tearDown()
-
-    def test_assert_file_exists_passes(self) -> None:
-        tc = PluginTestCase()
-        tc.setUp()
-        try:
-            f = tc.create_test_file("f.txt", "x")
-            tc.assert_file_exists(f)
-        finally:
-            tc.tearDown()
-
-    def test_assert_file_not_exists_passes(self) -> None:
-        tc = PluginTestCase()
-        tc.setUp()
-        try:
-            missing = tc.test_dir / "missing.txt"
-            tc.assert_file_not_exists(missing)
-        finally:
-            tc.tearDown()
-
-    def test_teardown_cleans_up(self) -> None:
-        tc = PluginTestCase()
-        tc.setUp()
-        test_dir = tc.test_dir
-        tc.create_test_file("f.txt", "x")
-        tc.tearDown()
-        assert not test_dir.exists()
-
-
-# ---------------------------------------------------------------------------
-# ClientError hierarchy
-# ---------------------------------------------------------------------------
-
-
-class TestClientError:
-    def test_is_exception(self) -> None:
-        err = ClientError("bad request")
-        assert isinstance(err, Exception)
-
-    def test_message(self) -> None:
-        err = ClientError("bad request")
-        assert str(err) == "bad request"
-
-    def test_status_code(self) -> None:
-        err = ClientError("bad request", status_code=400)
-        assert err.status_code == 400
-
-    def test_detail(self) -> None:
-        err = ClientError("bad", detail="extra info")
-        assert err.detail == "extra info"
-
-    def test_default_status_code(self) -> None:
-        assert ClientError("x").status_code == 0
-
-    def test_default_detail(self) -> None:
-        assert ClientError("x").detail == ""
-
-
-class TestClientErrorSubclasses:
-    def test_authentication_error_is_client_error(self) -> None:
-        err = AuthenticationError("unauthorized", status_code=401)
-        assert isinstance(err, ClientError)
-        assert err.status_code == 401
-
-    def test_not_found_error_is_client_error(self) -> None:
-        err = NotFoundError("not found", status_code=404)
-        assert isinstance(err, ClientError)
-
-    def test_server_error_is_client_error(self) -> None:
-        err = ServerError("internal error", status_code=500)
-        assert isinstance(err, ClientError)
-
-    def test_validation_error_is_client_error(self) -> None:
-        err = ValidationError("invalid", status_code=422)
-        assert isinstance(err, ClientError)
-
-    def test_raise_and_catch_authentication(self) -> None:
-        with pytest.raises(ClientError):
-            raise AuthenticationError("unauthorized")
-
-    def test_raise_and_catch_specific(self) -> None:
-        with pytest.raises(AuthenticationError):
-            raise AuthenticationError("unauthorized")
 
 
 # ---------------------------------------------------------------------------

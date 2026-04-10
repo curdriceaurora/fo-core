@@ -10,23 +10,11 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-if TYPE_CHECKING:
-    from fastapi.testclient import TestClient
-
-from file_organizer.api.realtime import realtime_manager
-from file_organizer.tui.app import FileOrganizerApp
-
-# Review-regression fixtures include intentionally failing `test_*.py` files used as detector input.
-# Ignore them in normal pytest discovery so they don't execute as real tests in full-suite CI runs.
 collect_ignore_glob = [
-    # Review-regression fixtures contain intentionally failing test_*.py files used
-    # as detector input — exclude from normal pytest discovery.
-    "fixtures/review_regressions/**/tests/test_*.py",
     # Playwright browser tests require `playwright install chromium` and
     # --override-ini='addopts=' to suppress --cov interference.  Exclude from
     # default collection so `pytest tests/` does not attempt to import
@@ -79,21 +67,6 @@ skip_below_py312 = pytest.mark.skipif(
 # ---------------------------------------------------------------------------
 # Shared test fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _skip_setup_wizard():
-    """Bypass the setup wizard so the main app view is always shown."""
-    with patch.object(FileOrganizerApp, "_check_setup_needed", return_value=False):
-        yield
-
-
-@pytest.fixture(autouse=True)
-def reset_realtime_state() -> None:
-    """Reset realtime manager state between tests."""
-    realtime_manager.reset()
-    yield
-    realtime_manager.reset()
 
 
 @pytest.fixture(autouse=True)
@@ -341,7 +314,6 @@ def mock_nltk_ensure_data_no_op() -> None:
             # ensure_nltk_data() is mocked as a no-op
             ...
     """
-    from unittest.mock import patch
 
     with patch("file_organizer.utils.text_processing.ensure_nltk_data"):
         yield
@@ -361,131 +333,3 @@ def isolated_nltk_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     # Mock NLTK_AVAILABLE as False
     monkeypatch.setattr("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
-
-
-# ---------------------------------------------------------------------------
-# Database fixtures for API tests
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def db_session() -> MagicMock:
-    """Create a mock database session for API tests.
-
-    Used for dependency injection in tests that require a database session
-    but don't need a real database connection.
-
-    Returns:
-        A MagicMock session object suitable for API testing.
-    """
-    from sqlalchemy.orm import Session
-
-    session = MagicMock(spec=Session)
-    return session
-
-
-# ---------------------------------------------------------------------------
-# Web route test fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def web_client_builder(tmp_path: Path):
-    """Factory fixture for creating web test clients with customizable settings.
-
-    Centralizes _build_client logic to avoid duplication across test files.
-
-    Returns:
-        A callable that creates TestClient instances with specified options.
-    """
-    from fastapi.testclient import TestClient
-
-    from file_organizer.api.main import create_app
-    from file_organizer.api.test_utils import build_test_settings
-
-    def _build(allowed_paths: list[str] | None = None, auth_enabled: bool = False) -> TestClient:
-        """Build a test client with the specified settings.
-
-        Args:
-            allowed_paths: List of allowed directory paths. Defaults to [str(tmp_path)].
-            auth_enabled: Whether authentication is enabled. Defaults to False.
-
-        Returns:
-            A FastAPI TestClient for the app.
-        """
-        if allowed_paths is None:
-            allowed_paths = [str(tmp_path)]
-        settings = build_test_settings(
-            tmp_path,
-            allowed_paths=allowed_paths,
-            auth_overrides={"auth_enabled": auth_enabled},
-        )
-        app = create_app(settings)
-        return TestClient(app)
-
-    return _build
-
-
-def get_csrf_token(client: TestClient, seed_url: str = "/ui/") -> str:
-    """Seed the CSRF cookie via a GET request and return the token value.
-
-    The CSRF middleware sets the ``_csrf_token`` cookie on every GET response.
-    ``TestClient`` (httpx) stores it in its cookie jar so subsequent POSTs
-    through the same client automatically include the cookie.
-
-    Prefer :func:`get_csrf_headers` for POST requests that use FastAPI
-    ``Form(...)`` parameters — passing the token via ``x-csrf-token`` header
-    avoids the body-consumption issue described in :func:`get_csrf_headers`.
-
-    Raises ``AssertionError`` if the cookie was not set, failing the test with
-    a clear message rather than a confusing 403 downstream.
-    """
-    client.get(seed_url)
-    token = client.cookies.get("_csrf_token", "")
-    assert token, (
-        f"CSRF cookie '_csrf_token' was not set by GET {seed_url!r} — check middleware registration"
-    )
-    return token
-
-
-def get_csrf_headers(client: TestClient, seed_url: str = "/ui/") -> dict[str, str]:
-    """Seed the CSRF cookie and return a headers dict with the token.
-
-    Use this instead of adding ``csrf_token`` to form data when the POST
-    handler uses FastAPI ``Form(...)`` parameters.  When the CSRF middleware
-    calls ``request.form()`` to locate the form-field token, it internally
-    calls ``request.stream()``, which marks the body as consumed in
-    Starlette's ``BaseHTTPMiddleware`` caching layer; the route handler then
-    receives an empty body and all ``Form`` parameters are empty strings.
-    Sending the token via ``x-csrf-token`` is read from headers only, leaving
-    the body stream intact for FastAPI's ``Form(...)`` dependency injection.
-    """
-    token = get_csrf_token(client, seed_url=seed_url)
-    return {"x-csrf-token": token}
-
-
-@pytest.fixture
-def mock_marketplace_service() -> MagicMock:
-    """Create a marketplace service mock with deterministic test behavior.
-
-    Configured with:
-    - list_plugins() returns ([], 0) - empty list with count
-    - list_installed() returns [] - empty list, iterable for rendering
-    - install() returns stable object with name/version (no MagicMock string variation)
-
-    Returns:
-        A MagicMock configured as MarketplaceService instance.
-    """
-    mock_instance = MagicMock()
-    mock_instance.list_plugins.return_value = ([], 0)
-    mock_instance.list_installed.return_value = []
-
-    # Configure install() to return a stable object with name/version attributes
-    # Prevents non-deterministic responses if tests assert on flash messages
-    installed_plugin = MagicMock()
-    installed_plugin.name = "test-plugin"
-    installed_plugin.version = "1.0.0"
-    installed_plugin.source_url = "https://example.com/test-plugin.zip"
-    mock_instance.install.return_value = installed_plugin
-
-    return mock_instance

@@ -400,7 +400,7 @@ JD/
 
 Create your own organization system using rules and templates.
 
-**Learn more**: [Custom Methodologies](developer/plugin-development.md)
+**Learn more**: See the [Developer Guide](developer/index.md) for creating custom methodologies.
 
 ## Common First Tasks
 
@@ -503,8 +503,6 @@ For more issues, see [Troubleshooting Guide](troubleshooting.md).
 
 ## Next Steps
 
-- **Web Users**: Continue to [Web UI Guide](web-ui/index.md)
-- **API Users**: See [API Reference](api/index.md)
 - **Administrators**: Check [Deployment Guide](admin/deployment.md)
 - **Developers**: Read [Developer Guide](developer/index.md)
 
