@@ -75,9 +75,6 @@ def current_arch() -> str:
 # Hidden imports that PyInstaller cannot detect automatically.
 HIDDEN_IMPORTS: list[str] = [
     "ollama",
-    "textual",
-    "textual.app",
-    "textual.widgets",
     "typer",
     "typer.main",
     "click",
@@ -128,14 +125,6 @@ DATA_FILES: list[tuple[str, str]] = [
 ]
 
 
-# Data files for the desktop build (adds web UI templates/static assets).
-DESKTOP_DATA_FILES: list[tuple[str, str]] = [
-    *DATA_FILES,
-    ("src/file_organizer/web/templates", "file_organizer/web/templates"),
-    ("src/file_organizer/web/static", "file_organizer/web/static"),
-]
-
-
 @dataclass
 class BuildConfig:
     """Complete build configuration."""
@@ -169,37 +158,3 @@ class BuildConfig:
     def build_dir(self) -> Path:
         """Path to the build work directory."""
         return Path("build")
-
-
-def _desktop_hidden_imports() -> list[str]:
-    """Return the combined hidden imports for the desktop build."""
-    return list(HIDDEN_IMPORTS) + list(DESKTOP_HIDDEN_IMPORTS)
-
-
-@dataclass
-class DesktopBuildConfig(BuildConfig):
-    """Build configuration for the pywebview desktop application.
-
-    Overrides :attr:`BuildConfig.console` to ``False`` (windowed), sets the
-    output name to include ``desktop``, and extends hidden imports with
-    pywebview platform backends plus uvicorn/fastapi server imports.
-    """
-
-    console: bool = False  # Desktop app uses native window, no terminal
-    hidden_imports: list[str] = field(default_factory=_desktop_hidden_imports)
-
-    def __post_init__(self) -> None:
-        """Extend hidden imports with pywebview platform backend for current platform."""
-        backend = _WEBVIEW_PLATFORM_BACKENDS.get(self.platform)
-        if backend and backend not in self.hidden_imports:
-            self.hidden_imports = list(self.hidden_imports) + [backend]
-
-    @property
-    def output_name(self) -> str:
-        """Filename for the desktop executable.
-
-        Returns:
-            E.g. ``'file-organizer-desktop-2.0.0-macos-arm64'``.
-        """
-        suffix = ".exe" if self.platform == "windows" else ""
-        return f"file-organizer-desktop-{self.version}-{self.platform}-{self.arch}{suffix}"
