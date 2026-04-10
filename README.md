@@ -1,149 +1,109 @@
-# File Organizer v2.0
+# fo-core
 
-[![CI](https://github.com/curdriceaurora/Local-File-Organizer/actions/workflows/ci.yml/badge.svg)](https://github.com/curdriceaurora/Local-File-Organizer/actions/workflows/ci.yml)
-[![Docs](https://img.shields.io/badge/docs-user%20guide-blue)](docs/USER_GUIDE.md)
+> Streamlined CLI file organizer powered by local AI. Ollama-first, no cloud required.
 
-> AI-powered local file management. Local-first by default (Ollama, no cloud required) --
-> or connect any OpenAI-compatible endpoint or Anthropic Claude when you need it.
+## What it does
 
-**18k+ tests** | **407 modules** | **48+ file types** | Python 3.11+
-
-## Features
-
-- **AI-Powered Organization**: Qwen 2.5 3B (text) + Qwen 2.5-VL 7B (vision) via Ollama — or any OpenAI-compatible endpoint (OpenAI, LM Studio, vLLM) — or Anthropic Claude
-- **Audio Transcription**: Local speech-to-text with faster-whisper (GPU-accelerated)
-- **Video Analysis**: Scene detection and keyframe extraction
-- **Copilot Chat**: Natural-language assistant -- "organize ./Downloads", "find report.pdf", "undo"
-- **Organization Rules**: Automated sorting with conditions, preview, and YAML persistence
-- **Terminal UI**: 8-view Textual TUI (Files, Analytics, Audio, History, Copilot, and more)
-- **Web UI**: Browser-based interface via FastAPI and HTMX
-- **Full CLI**: Organize, rules, suggest, dedupe, daemon, analytics, update, profiles
-- **Auto-Update**: GitHub Releases checks with verified downloads and rollback
-- **Intelligence**: Pattern learning, preference tracking, smart suggestions, auto-tagging
-- **Deduplication**: Hash and semantic duplicate detection
-- **Undo/Redo**: Full operation history
-- **PARA + Johnny Decimal**: Built-in organizational methodologies
-- **Desktop App**: Native OS window via pywebview — single Python process, no Electron, no Rust
-- **Cross-Platform**: macOS (DMG), Windows (installer), Linux (AppImage) executables
-
-## Screenshots
-
-![TUI overview](docs/assets/tui-overview.svg)
-
-![TUI demo](docs/assets/tui-demo.gif)
-
-## Quick Start
+Point it at a directory, and it uses local AI to categorize and organize your files into a clean folder structure.
 
 ```bash
-pip install -e ".[desktop]"
+fo organize ~/Downloads ~/Organized --dry-run   # preview first
+fo organize ~/Downloads ~/Organized              # do it
+fo undo                                          # changed your mind
+```
 
-# Pull models
+## Install
+
+```bash
+pip install -e .
+
+# Pull AI models
 ollama pull qwen2.5:3b-instruct-q4_K_M
 ollama pull qwen2.5vl:7b-q4_K_M
-
-# Organize files (dry run first)
-file-organizer organize ./Downloads ./Organized --dry-run
-
-# Launch the TUI
-file-organizer tui
-
-# Launch the native desktop window
-file-organizer-desktop
 ```
 
-## Web UI (Preview)
+All document parsers (PDF, DOCX, XLSX, PPTX, EPUB) are included by default. No extras needed for core use.
 
-Start the FastAPI server and open the UI:
+## CLI Commands
 
-```bash
-uvicorn file_organizer.api.main:app --reload
+```
+fo organize [DIR] [OUTPUT]    Organize files using AI categorization
+fo preview [DIR]              Dry-run preview
+fo search [QUERY]             Full-text search across files
+fo analyze [DIR]              File statistics and analysis
+fo dedupe                     Find and remove duplicates
+fo suggest                    AI-powered organization suggestions
+fo autotag                    Auto-tag files based on content
+fo copilot                    Natural-language assistant
+fo rules                      Manage organization rules (YAML)
+fo config                     Show/set configuration
+fo doctor                     Check Ollama connection and deps
+fo daemon start|stop          Background file watcher
+fo undo / redo / history      Operation history
+fo model                      Model selection
+fo profile                    Hardware profiling
+fo benchmark                  Performance benchmarks
+fo setup                      Interactive setup wizard
+fo version                    Show version
 ```
 
-Then visit `http://localhost:8000/ui/` for the HTMX interface.
+## AI Providers
 
-## Documentation
+**Default**: Ollama (local, private, no API key needed)
 
-- [User Guide](docs/USER_GUIDE.md)
-- [CLI Reference](docs/cli-reference.md)
-- [Desktop App Guide](docs/desktop-app.md)
-- [Configuration Guide](docs/CONFIGURATION.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Getting Started](docs/getting-started.md)
+Optional cloud providers via extras:
+
+| Provider | Install | Models |
+|----------|---------|--------|
+| OpenAI-compatible | `pip install -e ".[cloud]"` | OpenAI, LM Studio, vLLM, Groq |
+| Anthropic Claude | `pip install -e ".[claude]"` | Claude (text + vision) |
+| llama.cpp | `pip install -e ".[llama]"` | GGUF models, no Ollama needed |
+| MLX (Apple Silicon) | `pip install -e ".[mlx]"` | MLX-optimized models |
 
 ## Optional Feature Packs
 
-| Pack | Install Command | Features |
-|------|----------------|----------|
-| Cloud | `pip install -e ".[cloud]"` | OpenAI-compatible API provider (OpenAI, LM Studio, vLLM) |
-| Claude | `pip install -e ".[claude]"` | Anthropic Claude API provider (text + vision) |
-| LLaMA | `pip install -e ".[llama]"` | Local llama.cpp inference (GGUF models, no Ollama needed) |
-| Audio | `pip install -e ".[audio]"` | Speech-to-text (faster-whisper, torch) |
-| Video | `pip install -e ".[video]"` | Scene detection (OpenCV, scenedetect) |
-| Dedup | `pip install -e ".[dedup]"` | Image deduplication (perceptual hashing) |
-| Archive | `pip install -e ".[archive]"` | 7z and RAR archive support |
+| Pack | Install | What it adds |
+|------|---------|-------------|
+| Audio | `pip install -e ".[audio]"` | Speech-to-text via faster-whisper |
+| Video | `pip install -e ".[video]"` | Scene detection, keyframe extraction |
+| Dedup | `pip install -e ".[dedup]"` | Image similarity, semantic dedup |
+| Archive | `pip install -e ".[archive]"` | 7z and RAR support |
 | Scientific | `pip install -e ".[scientific]"` | HDF5, NetCDF, MATLAB formats |
-| CAD | `pip install -e ".[cad]"` | DXF and CAD format support |
-| Desktop | `pip install -e ".[desktop]"` | Native desktop window via pywebview (uvicorn + WebKit/Edge) |
-| Build | `pip install -e ".[build]"` | Executable packaging (PyInstaller) |
+| CAD | `pip install -e ".[cad]"` | DXF/DWG support |
+| Search | `pip install -e ".[search]"` | BM25 + vector search |
 | All | `pip install -e ".[all]"` | Everything above |
 
-### Audio system dependencies
+## Under the Hood
 
-For full audio format support, the `[audio]` pack uses **FFmpeg** (all platforms) and optionally **CUDA + cuDNN** (NVIDIA GPU users).
+fo-core keeps the full engine from [Local-File-Organizer](https://github.com/curdriceaurora/Local-File-Organizer) with the UI surfaces stripped:
 
-**FFmpeg** — required for non-`.wav` formats (MP3, M4A, FLAC, OGG); optional if you only transcribe raw `.wav`:
+- **4-stage pipeline**: preprocess, analyze (AI), postprocess, write
+- **PARA + Johnny Decimal**: Built-in organizational methodologies
+- **Intelligence**: Pattern learning, preference tracking, smart suggestions
+- **Auto-tagging**: Content-aware tag recommendations
+- **Deduplication**: Content-hash + semantic duplicate detection
+- **Copilot**: Natural-language conversation engine (CLI)
+- **Daemon**: Background file watching with configurable rules
+- **Undo/Redo**: Full operation history with rollback
 
-```bash
-# macOS
-brew install ffmpeg
+## Configuration
 
-# Ubuntu / Debian
-sudo apt install ffmpeg
-
-# Windows (winget)
-winget install ffmpeg
-```
-
-**CUDA + cuDNN** — optional, for significantly faster transcription (see [faster-whisper benchmarks](https://github.com/SYSTRAN/faster-whisper) for hardware-specific numbers):
+Config lives in `~/.config/file-organizer/config.yaml`. Override with `FILE_ORGANIZER_CONFIG` env var.
 
 ```bash
-# Install CUDA Toolkit from https://developer.nvidia.com/cuda-downloads
-# Install cuDNN from https://developer.nvidia.com/cudnn
-
-# Verify the full transcription backend (not just PyTorch)
-python3 -c "from faster_whisper import WhisperModel; print('faster-whisper OK')"
-python3 -c "import torch; print('CUDA:', torch.cuda.is_available())"
+fo config show          # view current config
+fo config set key val   # update a setting
+fo doctor               # verify setup
 ```
-
-**Fallback behavior**: without FFmpeg, only `.wav` files are transcribed; other formats are organized by filename/metadata but not content-analyzed. Without CUDA, transcription runs on CPU (slower but fully functional).
-
-See the [Installation Guide](docs/admin/installation.md) for troubleshooting and advanced configuration.
 
 ## Development
 
 ```bash
-# Run tests
+pip install -e ".[dev]"
 pytest
-
-# Lint
 ruff check src/
 ```
 
-## Configuration
+## License
 
-Config lives in `config/file-organizer/config.yaml` relative to your config home. Override with `FILE_ORGANIZER_CONFIG`.
-
-## Release Status
-
-`2.0.0-alpha.3` is the current alpha milestone. Alpha 3 is a quality-and-stability release focused on hardening the existing CLI, TUI, web, desktop, deduplication, and analytics workflows rather than introducing a new surface area.
-
-Highlights of the current alpha3 status:
-
-- Integration and branch-coverage expansion across the main product areas
-- Native desktop packaging via `pywebview` and PyInstaller
-- Broader CI guardrails, diff-cover enforcement, and ratcheting coverage gates
-- Continued local-first AI support with optional cloud/Claude providers
-
----
-
-**Status**: Alpha 3 | **Version**: 2.0.0-alpha.3 | **Last Updated**: 2026-04-05
+MIT OR Apache-2.0
