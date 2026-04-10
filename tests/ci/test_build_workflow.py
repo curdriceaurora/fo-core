@@ -91,7 +91,7 @@ class TestCLIBuildStep:
     def test_linux_verification_avoids_appimage_and_checks_appimage_exists(self) -> None:
         """Linux verification should target CLI binary and separately assert AppImage output."""
         run_text = _build_step_run_text()
-        assert "-not -name \"*.AppImage\"" in run_text
+        assert '-not -name "*.AppImage"' in run_text
         assert "No AppImage found in dist/" in run_text
 
 
