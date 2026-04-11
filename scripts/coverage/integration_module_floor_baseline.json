@@ -46,7 +46,7 @@
     "src/file_organizer/config/manager.py": 69.0,
     "src/file_organizer/config/path_manager.py": 74.0,
     "src/file_organizer/config/path_migration.py": 90.0,
-    "src/file_organizer/config/provider_env.py": 58.0,
+    "src/file_organizer/config/provider_env.py": 98.0,
     "src/file_organizer/config/schema.py": 100.0,
     "src/file_organizer/core/__init__.py": 100.0,
     "src/file_organizer/core/backend_detector.py": 21.0,
