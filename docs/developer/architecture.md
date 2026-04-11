@@ -182,6 +182,156 @@ class CustomModel(BaseModel):
         pass
 ```
 
+## Design Principles
+
+1. **Privacy-First**: 100% local processing, zero cloud dependencies
+2. **Model Abstraction**: Abstract AI model interface for framework flexibility
+3. **Service Layer Pattern**: Business logic separate from models
+4. **Strategy Pattern**: Different processors for different file types
+5. **Event-Driven**: Event bus for loosely-coupled inter-component communication
+6. **Type Safety**: Full type hints with strict mypy configuration
+7. **Resource Management**: Context managers for automatic cleanup
+
+## Component Registry
+
+| Component | Purpose | Location | Status |
+|-----------|---------|----------|--------|
+| **BaseModel** | Abstract AI model interface | `models/base.py` | Active |
+| **ModelManager** | Model lifecycle + hot-swap | `models/model_manager.py` | Active |
+| **TextModel** | Ollama text generation | `models/text_model.py` | Active |
+| **VisionModel** | Vision-language wrapper | `models/vision_model.py` | Active |
+| **AudioModel** | Audio transcription | `models/audio_model.py` | Active |
+| **PipelineStage** | Composable processing protocol | `interfaces/pipeline.py` | Active |
+| **Pipeline Stages** | Preprocessor/Analyzer/Postprocessor/Writer | `pipeline/stages/` | Active |
+| **TextProcessor** | Text file pipeline | `services/text_processor.py` | Active |
+| **VisionProcessor** | Image/video pipeline | `services/vision_processor.py` | Active |
+| **FileOrganizer** | Main orchestrator | `src/file_organizer/core/organizer.py` | Active |
+| **PatternAnalyzer** | Naming pattern detection | `services/pattern_analyzer.py` | Active |
+| **SuggestionEngine** | Placement suggestions | `services/smart_suggestions.py` | Active |
+| **Intelligence** | User preference learning | `services/intelligence/` | Active |
+| **Deduplication** | Duplicate detection | `services/deduplication/` | Active |
+| **OperationHistory** | Operation tracking | `history/` | Active |
+| **UndoManager** | Undo/redo system | `undo/` | Active |
+| **EventBus** | Inter-component events | `events/` | Active |
+| **Daemon** | Background file watching | `daemon/` | Active |
+| **Methodologies** | PARA, Johnny Decimal | `methodologies/` | Active |
+
+## Pipeline Data Flow
+
+```text
+Input File → FileOrganizer → ParallelProcessor (current default path)
+
+Stage-Based Pipeline via PipelineOrchestrator (composable, double-buffered):
+  PreprocessorStage → File validation + metadata extraction
+  AnalyzerStage → FileRouter → Processor (Text/Vision/Audio)
+  PostprocessorStage → Destination path computation
+  WriterStage → File copy/move (skipped in dry-run)
+
+Legacy Pipeline (backward compatible):
+  File Type Detection → TextProcessor / VisionProcessor / AudioModel
+  → PatternAnalyzer → SuggestionEngine
+
+All Paths → Intelligence Services → User Preference Learning
+EventBus → Daemon notifications
+
+Final Output: Organized files + Operation history
+```
+
+## Project Structure
+
+```text
+Local-File-Organizer/
+├── .claude/                          # CCPM project management
+│   ├── commands/                     # PM commands
+│   ├── prds/                         # Product requirements
+│   ├── epics/                        # Epic planning workspace
+│   ├── rules/                        # Standard operation rules
+│   └── scripts/                      # Validation scripts
+│
+├── src/file_organizer/               # Main application (~78,800 LOC, 314 modules)
+│   ├── models/                       # AI model abstractions (9 modules)
+│   │   ├── base.py                   # BaseModel interface, ModelConfig
+│   │   ├── text_model.py             # Ollama text generation
+│   │   ├── vision_model.py           # Vision-language models
+│   │   ├── audio_model.py            # Audio transcription
+│   │   ├── audio_transcriber.py      # Comprehensive audio transcription
+│   │   ├── model_manager.py          # Unified model lifecycle management
+│   │   ├── registry.py               # Model registry
+│   │   ├── suggestion_types.py       # Type definitions
+│   │   └── analytics.py              # Model analytics
+│   │
+│   ├── services/                     # Business logic layer
+│   │   ├── analytics/                # Storage & metrics analysis
+│   │   ├── audio/                    # Audio file processing
+│   │   ├── auto_tagging/             # Tag recommendation & learning
+│   │   ├── copilot/                  # AI copilot features
+│   │   ├── deduplication/            # Image & document deduplication
+│   │   ├── intelligence/             # User preference learning (23 modules)
+│   │   ├── video/                    # Video processing
+│   │   ├── text_processor.py         # Text file pipeline
+│   │   ├── vision_processor.py       # Image/video pipeline
+│   │   ├── pattern_analyzer.py       # Pattern detection
+│   │   ├── smart_suggestions.py      # Placement suggestions
+│   │   ├── misplacement_detector.py  # Context analysis
+│   │   └── suggestion_feedback.py    # Feedback tracking
+│   │
+│   ├── core/                         # Main orchestrator
+│   │   ├── organizer.py              # FileOrganizer thin facade (~390 lines)
+│   │   ├── types.py                  # Core type definitions
+│   │   ├── display.py                # Output/display helpers
+│   │   ├── file_ops.py               # File operation primitives
+│   │   ├── dispatcher.py             # Request dispatching
+│   │   ├── initializer.py            # Service initialization
+│   │   └── hardware_profile.py       # Hardware capability detection
+│   │
+│   ├── cli/                          # Command-line interfaces (18 modules)
+│   ├── daemon/                       # Background daemon & file watcher
+│   ├── events/                       # Event bus system
+│   ├── parallel/                     # Parallel processing framework
+│   ├── pipeline/                     # Processing pipeline orchestration
+│   ├── methodologies/                # PARA, Johnny Decimal, etc.
+│   ├── plugins/                      # Plugin system & marketplace
+│   ├── interfaces/                   # Protocol definitions
+│   ├── optimization/                 # Performance optimization
+│   ├── history/                      # Operation history (6 modules)
+│   ├── undo/                         # Undo/redo system (5 modules)
+│   ├── utils/                        # Utilities (file_readers.py, text_processing.py)
+│   └── config/                       # Configuration management
+│
+├── tests/                            # 237 test files
+│   ├── ci/                           # CI pipeline tests
+│   ├── core/                         # Core tests
+│   ├── integration/                  # Integration tests
+│   ├── interfaces/                   # Protocol conformance tests
+│   ├── models/                       # Model tests
+│   ├── optimization/                 # Optimization tests
+│   ├── parallel/                     # Parallel processing tests
+│   ├── pipeline/                     # Pipeline tests
+│   └── services/                     # Service layer tests
+│
+├── scripts/                          # Build & utility scripts
+├── .github/                          # GitHub Actions workflows & templates
+├── docs/                             # Project documentation
+├── examples/                         # Usage examples
+└── pyproject.toml                    # Project configuration
+```
+
+## Deferred Features
+
+### GLM-OCR Integration
+
+**Issue**: [#853](https://github.com/rahulvijayy/local-file-organizer/issues/853)
+**Evaluated**: 2026-03-26
+**Decision**: DEFER — architectural mismatch
+
+[GLM-OCR](https://huggingface.co/THUDM/glm-ocr) is a 0.9B parameter multimodal model ranked #1 on OmniDocBench V1.5 for OCR tasks. The proposal aimed to add it as an optional OCR provider for scanned/image-based PDF processing.
+
+**Blocking constraint**: GLM-OCR requires a persistent HTTP sidecar daemon (vLLM, SGLang, or MLX server). The current provider abstraction is designed for in-process execution only. Additionally, GLM-OCR requires `transformers>=5.3.0` while vLLM requires `transformers<5` — these conflict.
+
+**Revisit when**: (1) a server-process provider type is added with sidecar lifecycle management, or (2) an in-process backend becomes available.
+
+**Alternatives**: Tesseract OCR, EasyOCR, PaddleOCR, cloud OCR APIs.
+
 ## See Also
 
 - [Contributing Guide](contributing.md)

@@ -164,6 +164,8 @@ file-organizer config edit --profile work --methodology para
 | `FO_CLAUDE_API_KEY` | Anthropic API key (falls back to `ANTHROPIC_API_KEY`) |
 | `FO_CLAUDE_MODEL` | Text model name when `FO_PROVIDER=claude` |
 | `FO_CLAUDE_VISION_MODEL` | Vision model name (defaults to `FO_CLAUDE_MODEL`) |
+| `LOG_LEVEL` | Logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+| `LOG_FORMAT` | Log output format (`json` or `text`) |
 
 ## Advanced Configuration
 

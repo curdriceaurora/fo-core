@@ -771,3 +771,33 @@ If you can't find a solution here:
    # Hardware details
    file-organizer hardware-info
    ```
+
+## Admin
+
+### Disk Space Issues
+
+**Problem**: Disk full or running low
+
+**Solution**:
+
+```bash
+# Check disk usage
+df -h
+
+# Check Ollama models size
+du -sh ~/.ollama/
+```
+
+### Model Inference Timeout
+
+**Problem**: Model requests timing out
+
+**Solution**:
+
+```bash
+# Check Ollama memory usage
+ollama ps
+
+# Restart Ollama if unresponsive
+ollama serve
+```
