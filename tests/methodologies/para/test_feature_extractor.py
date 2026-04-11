@@ -562,15 +562,45 @@ class TestEdgeCasesAndErrorHandling:
         assert len(features.action_items) >= 1
         assert "TODO" in features.action_items[0]
 
+    @pytest.mark.ci
+    def test_metadata_macos_platform_creation_time(
+        self,
+        extractor: FeatureExtractor,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Should use st_birthtime on macOS platform (try/except AttributeError path)."""
+        import file_organizer.methodologies.para.ai.feature_extractor as fe_module
+
+        class MockStat:
+            def __init__(self, *, now: float) -> None:
+                self.st_size = 7
+                self.st_atime = now - (2 * 86400)
+                self.st_ctime = now - 86400
+                self.st_mtime = now - (10 * 86400)
+                self.st_birthtime = now - (5 * 86400)  # macOS birth time
+                self.st_mode = 0o100644  # regular file — required by Path.is_dir()
+
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content")
+        now = 2_000_000_000.0
+
+        monkeypatch.setattr(fe_module.time, "time", lambda: now)
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
+
+        features = extractor.extract_metadata_features(test_file)
+        # st_birthtime is 5 days ago → days_since_created ≈ 5.0
+        assert features.days_since_created == pytest.approx(5.0)
+        assert features.file_size == 7
+
+    @pytest.mark.ci
     def test_metadata_windows_platform_creation_time(
         self,
         extractor: FeatureExtractor,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Should use st_ctime on Windows platform."""
-        import builtins
-
+        """Should use st_ctime on Windows platform (no st_birthtime → AttributeError)."""
         import file_organizer.methodologies.para.ai.feature_extractor as fe_module
 
         class MockStat:
@@ -580,39 +610,28 @@ class TestEdgeCasesAndErrorHandling:
                 self.st_ctime = now - 86400
                 self.st_mtime = now - (10 * 86400)
                 self.st_mode = 0o100644  # regular file — required by Path.is_dir()
+                # no st_birthtime — triggers AttributeError → Windows branch
 
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
         now = 2_000_000_000.0
 
-        # Mock os module in the feature_extractor namespace
         monkeypatch.setattr(fe_module.os, "name", "nt")
         monkeypatch.setattr(fe_module.time, "time", lambda: now)
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
-
-        # Mock hasattr to return False for st_birthtime
-        original_hasattr = builtins.hasattr
-
-        def mock_hasattr(obj: object, name: str) -> bool:
-            if name == "st_birthtime":
-                return False
-            return original_hasattr(obj, name)
-
-        monkeypatch.setattr(builtins, "hasattr", mock_hasattr)
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         features = extractor.extract_metadata_features(test_file)
         assert features.days_since_created == pytest.approx(1.0)
         assert features.file_size == 7
 
+    @pytest.mark.ci
     def test_metadata_linux_platform_creation_time(
         self,
         extractor: FeatureExtractor,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Should use st_mtime on Linux platform."""
-        import builtins
-
+        """Should use st_mtime on Linux platform (no st_birthtime → AttributeError)."""
         import file_organizer.methodologies.para.ai.feature_extractor as fe_module
 
         class MockStat:
@@ -622,25 +641,15 @@ class TestEdgeCasesAndErrorHandling:
                 self.st_ctime = now - 86400
                 self.st_mtime = now - (10 * 86400)
                 self.st_mode = 0o100644  # regular file — required by Path.is_dir()
+                # no st_birthtime — triggers AttributeError → Linux branch
 
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
         now = 2_000_000_000.0
 
-        # Mock os module in the feature_extractor namespace
         monkeypatch.setattr(fe_module.os, "name", "posix")
         monkeypatch.setattr(fe_module.time, "time", lambda: now)
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
-
-        # Mock hasattr to return False for st_birthtime
-        original_hasattr = builtins.hasattr
-
-        def mock_hasattr(obj: object, name: str) -> bool:
-            if name == "st_birthtime":
-                return False
-            return original_hasattr(obj, name)
-
-        monkeypatch.setattr(builtins, "hasattr", mock_hasattr)
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         features = extractor.extract_metadata_features(test_file)
         assert features.days_since_created == pytest.approx(10.0)

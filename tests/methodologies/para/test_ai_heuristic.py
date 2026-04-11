@@ -1279,7 +1279,7 @@ class TestPlatformSpecificPaths:
         # Simulate Windows platform
         monkeypatch.setattr(os, "name", "nt")
         now = time.time()
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "test.txt"
@@ -1306,7 +1306,7 @@ class TestPlatformSpecificPaths:
         # Simulate Linux platform
         monkeypatch.setattr(os, "name", "posix")
         now = time.time()
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "test.txt"
@@ -1364,10 +1364,39 @@ class TestAIHeuristicEnsureClientEdgeCases:
 class TestPlatformSpecificBranches:
     """Tests to cover platform-specific code branches."""
 
+    def test_macos_platform_stat_birthtime(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """macOS branch uses st_birthtime (try succeeds — no AttributeError)."""
+        import time
+
+        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+
+        f = tmp_path / "test.txt"
+        f.write_text("test")
+        real_mode = f.stat().st_mode
+
+        now = time.time()
+
+        class MockStat:
+            st_mtime = now - (5 * 86400)
+            st_atime = now - (2 * 86400)
+            st_ctime = now - (5 * 86400)
+            st_birthtime = now - (5 * 86400)  # macOS — true birth time present
+            st_mode = real_mode
+
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
+
+        h = TemporalHeuristic(weight=0.25)
+        result = h.evaluate(f)
+
+        # File was modified 5 days ago — recently_modified signal expected
+        assert "recently_modified" in result.scores[PARACategory.PROJECT].signals
+
     def test_windows_platform_stat_ctime(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Windows branch uses st_ctime when no st_birthtime."""
+        """Windows branch uses st_ctime when no st_birthtime (AttributeError → Windows branch)."""
 
         from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
 
@@ -1387,7 +1416,7 @@ class TestPlatformSpecificBranches:
 
         # Monkeypatch both os.name and Path.stat
         monkeypatch.setattr(os, "name", "nt")
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat())
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
 
         h = TemporalHeuristic(weight=0.25)
         result = h.evaluate(f)
@@ -1398,7 +1427,7 @@ class TestPlatformSpecificBranches:
     def test_linux_platform_stat_mtime_fallback(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Linux branch uses st_mtime as creation time proxy."""
+        """Linux branch uses st_mtime as creation time proxy (no st_birthtime → AttributeError)."""
 
         from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
 
@@ -1418,7 +1447,7 @@ class TestPlatformSpecificBranches:
 
         # Monkeypatch both os.name and Path.stat
         monkeypatch.setattr(os, "name", "posix")
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat())
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
 
         h = TemporalHeuristic(weight=0.25)
         result = h.evaluate(f)
@@ -1455,7 +1484,7 @@ class TestPlatformSpecificBranches:
             st_birthtime = birthtime_120_days_ago
             st_mode = real_mode  # required by Path.is_dir() via pathlib internals
 
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat())
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
 
         h = TemporalHeuristic(weight=0.25)
         result = h.evaluate(f)

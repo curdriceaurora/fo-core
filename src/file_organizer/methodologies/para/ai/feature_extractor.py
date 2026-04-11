@@ -318,12 +318,13 @@ class FeatureExtractor:
         #   macOS  → st_birthtime (true birth time)
         #   Windows → st_ctime    (creation time on NTFS)
         #   Linux  → st_mtime     (st_ctime is inode-change time, not creation)
-        if hasattr(stat, "st_birthtime"):  # macOS
-            creation_ref = stat.st_birthtime
-        elif os.name == "nt":  # Windows
-            creation_ref = getattr(stat, "st_ctime", stat.st_mtime)
-        else:  # Linux — use mtime as best available proxy
-            creation_ref = stat.st_mtime
+        try:
+            creation_ref = stat.st_birthtime  # macOS — true birth time
+        except AttributeError:
+            if os.name == "nt":  # Windows — NTFS creation time
+                creation_ref = getattr(stat, "st_ctime", stat.st_mtime)
+            else:  # Linux — use mtime as best available proxy
+                creation_ref = stat.st_mtime
 
         # Convert timestamps to datetime
         creation_date = datetime.fromtimestamp(creation_ref, tz=UTC)
