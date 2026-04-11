@@ -19,8 +19,8 @@ from loguru import logger
 from file_organizer.models.base import BaseModel, ModelConfig, ModelType
 
 try:
-    from mlx_lm import generate as mlx_generate  # pyre-ignore[21]
-    from mlx_lm import load as mlx_load  # pyre-ignore[21]
+    from mlx_lm import generate as mlx_generate  # pyre-ignore[21]  # pragma: no cover
+    from mlx_lm import load as mlx_load  # pyre-ignore[21]  # pragma: no cover
 
     MLX_LM_AVAILABLE = True
 except ImportError:
