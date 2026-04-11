@@ -1,8 +1,8 @@
-# File Organizer v2 User Guide
+# File Organizer User Guide
 
 ## Introduction
 
-File Organizer v2 is an AI-powered local file management system built with a privacy-first architecture. It uses local LLMs through Ollama to analyze, categorize, rename, and organize your files without sending any data to the cloud.
+File Organizer is an AI-powered local file management system built with a privacy-first architecture. It uses local LLMs through Ollama to analyze, categorize, rename, and organize your files without sending any data to the cloud.
 
 ## Installation
 
@@ -17,8 +17,8 @@ File Organizer v2 is an AI-powered local file management system built with a pri
 
 ```bash
 # Clone the repository
-git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd Local-File-Organizer
+git clone https://github.com/curdriceaurora/fo-core.git
+cd fo-core
 
 # Create a virtual environment
 python3 -m venv venv

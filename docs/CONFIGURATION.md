@@ -1,4 +1,4 @@
-# File Organizer v2 Configuration Guide
+# Configuration Guide
 
 ## Overview
 

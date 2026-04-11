@@ -73,8 +73,8 @@ ollama pull qwen2.5vl:7b-q4_K_M
 ## Support
 
 - **Documentation**: Full guides for each topic
-- **Issues**: [GitHub Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/curdriceaurora/Local-File-Organizer/discussions)
+- **Issues**: [GitHub Issues](https://github.com/curdriceaurora/fo-core/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/curdriceaurora/fo-core/discussions)
 
 ## Next Steps
 

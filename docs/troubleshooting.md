@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and solutions for Local File Organizer. For advanced deployment and production issues, see the [Admin Troubleshooting Guide](admin/troubleshooting.md).
+Common issues and solutions for File Organizer. For advanced deployment and production issues, see the [Admin Troubleshooting Guide](admin/troubleshooting.md).
 
 ## Installation Issues
 
@@ -756,8 +756,8 @@ If you can't find a solution here:
    ```
 
 3. **Community Support**:
-   - [GitHub Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues) - Report bugs
-   - [GitHub Discussions](https://github.com/curdriceaurora/Local-File-Organizer/discussions) - Ask questions
+   - [GitHub Issues](https://github.com/curdriceaurora/fo-core/issues) - Report bugs
+   - [GitHub Discussions](https://github.com/curdriceaurora/fo-core/discussions) - Ask questions
    - Include: OS, Python version, error message, and steps to reproduce
 
 4. **Diagnostic Information**:

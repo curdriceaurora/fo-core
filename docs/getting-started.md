@@ -40,8 +40,8 @@ See [Installation Guide](admin/installation.md) for options.
 **Install**:
 
 ```bash
-git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd Local-File-Organizer
+git clone https://github.com/curdriceaurora/fo-core.git
+cd fo-core
 pip install -e .
 
 # Pull required AI models
@@ -353,8 +353,8 @@ For more issues, see [Troubleshooting Guide](troubleshooting.md).
 
 - 📚 **Documentation**: [Full documentation](index.md)
 - ❓ **FAQ**: [Frequently Asked Questions](faq.md)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/curdriceaurora/Local-File-Organizer/discussions)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/curdriceaurora/fo-core/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/curdriceaurora/fo-core/discussions)
 
 ______________________________________________________________________
 

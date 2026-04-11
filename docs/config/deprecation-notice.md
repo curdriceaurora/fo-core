@@ -2,11 +2,11 @@
 
 ## Deprecated: Hardcoded Legacy Paths
 
-**Status**: Deprecated in v2.0 | Scheduled for Removal: v3.0
+**Status**: Deprecated | Scheduled for Removal: TBD
 
 ### Affected Paths
 
-The following hardcoded path patterns are **deprecated** and will be removed in v3.0:
+The following hardcoded path patterns are **deprecated** and will be removed in a future release:
 
 ```python
 # DEPRECATED - Do not use in new code
@@ -28,9 +28,7 @@ The hardcoded paths were inflexible and non-standard:
 
 **Timeline**:
 
-- **v2.0** (Current): New PathManager available, legacy paths still functional
-- **v2.1-2.4**: Deprecation warnings when using legacy patterns
-- **v3.0**: Legacy path handling removed
+The project is currently at v0.1.0 alpha. A specific removal milestone has not been set yet — the timeline is TBD. Legacy paths remain functional while migration to `PathManager` is in progress.
 
 **Action Required**:
 
@@ -70,7 +68,7 @@ if config_file.exists():
 
 ### Deprecation Warnings
 
-Starting in v2.0, the following patterns will generate warnings:
+The following patterns will generate warnings when used:
 
 ```python
 import warnings
@@ -89,8 +87,8 @@ The following modules will be updated to use `PathManager`:
 
 | Module | Path Type | Status | PR/Issue |
 |--------|-----------|--------|----------|
-| `ConfigManager` | config_dir | Supports custom path (v2.0) | #471 |
-| `PreferenceStore` | storage_path | Supports custom path (v2.0) | #471 |
+| `ConfigManager` | config_dir | Supports custom path | #471 |
+| `PreferenceStore` | storage_path | Supports custom path | #471 |
 | `EventDiscovery` | event logs | Pending update | #471 Task 6 |
 | `ParallelStatePersistence` | state_dir | Pending update | #471 Task 6 |
 | All CLI commands | Various | Gradual migration | Ongoing |
@@ -98,7 +96,7 @@ The following modules will be updated to use `PathManager`:
 ### FAQ
 
 **Q: Can I still use legacy paths?**
-A: Yes, v2.0 still supports them via automatic migration. v3.0 will remove this support.
+A: Yes, legacy paths are still supported via automatic migration. A future release will remove this support; the exact timeline is TBD.
 
 **Q: Will my data be migrated automatically?**
 A: Yes, PathMigrator handles automatic migration with backups on first run.
@@ -110,7 +108,7 @@ A: See the [Path Standardization Guide](./path-standardization.md) for migration
 A: Use environment variables (XDG_CONFIG_HOME, XDG_DATA_HOME, XDG_STATE_HOME) or pass PathManager to relevant classes.
 
 **Q: When will legacy support be removed?**
-A: v3.0 (estimated 3-6 months after v2.0 release).
+A: The removal milestone is TBD. Follow the project releases for updates.
 
 ### Suppressing Deprecation Warnings
 
@@ -133,7 +131,7 @@ If you encounter issues with path migration:
 
 1. **Check the guide**: [Path Standardization Guide](./path-standardization.md)
 2. **Run diagnostics**: `file-organizer config paths --verbose`
-3. **File an issue**: https://github.com/curdriceaurora/Local-File-Organizer/issues
+3. **File an issue**: https://github.com/curdriceaurora/fo-core/issues
 4. **Check backups**: Migration backups are preserved with `.backup.TIMESTAMP` suffix
 
 ## See Also

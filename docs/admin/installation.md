@@ -32,8 +32,8 @@ This guide covers installing the File Organizer system for deployment and admini
 1. **Clone the repository**:
 
    ```bash
-   git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-   cd Local-File-Organizer
+   git clone https://github.com/curdriceaurora/fo-core.git
+   cd fo-core
    ```
 
 1. **Create virtual environment**:

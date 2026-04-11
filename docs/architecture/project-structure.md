@@ -1,7 +1,7 @@
 # Project Structure
 
 ```text
-Local-File-Organizer/
+fo-core/
 ├── .claude/                          # CCPM project management
 │   ├── commands/                     # PM commands
 │   ├── prds/                         # Product requirements
