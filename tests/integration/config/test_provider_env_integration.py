@@ -3,7 +3,7 @@
 These tests exercise the full code paths in ``provider_env`` (including helper
 functions ``_get_llama_cpp_configs``, ``_get_mlx_configs``, and
 ``_get_claude_configs``) at the integration level, closing the gap that caused
-the per-module coverage floor regression from 58 % to 50 %.
+the per-module coverage floor regression from 58% to 50%.
 
 Coverage targets (missing lines before this file was added):
     51-56   – unknown-provider warning in ``get_current_provider``
@@ -427,7 +427,7 @@ class TestGetModelConfigsFromProfileIntegration:
         assert result is None
 
     def test_returns_none_on_import_error(self) -> None:
-        """ImportError (missing optional dep) is caught and None is returned."""
+        """ImportError (missing optional dependency) is caught and None is returned."""
         import sys
 
         with patch.dict(sys.modules, {"file_organizer.config.manager": None}):
