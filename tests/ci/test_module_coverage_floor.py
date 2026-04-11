@@ -18,6 +18,17 @@ pytestmark = pytest.mark.ci
 
 
 def _load_module():
+    """
+    Load and return the module defined by SCRIPT_PATH.
+    
+    Dynamically imports the Python file referenced by SCRIPT_PATH and returns the loaded module object.
+    
+    Returns:
+        module: The imported module object.
+    
+    Raises:
+        AssertionError: If the module spec or its loader could not be created.
+    """
     spec = importlib.util.spec_from_file_location("check_module_coverage_floor", SCRIPT_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
