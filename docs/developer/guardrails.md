@@ -49,63 +49,14 @@ Add a new rule to the narrowest layer that can enforce it cleanly:
 
 Do not add new blocking policy directly to `.claude/scripts/pre-commit-validation.sh`.
 
-## API Compatibility Rule Index
+## Retired Guardrail Packs
 
-Issue `#813` adds allowlisted public-signature compatibility checks. These are
-semantic checks and therefore belong in CI tests, not shell-script heuristics.
+The legacy API-compat and memory-lifecycle detector packs from the pre-CLI-only
+architecture are retired. References to `review_regressions` modules and their
+paired tests were removed to keep this document aligned with the active codebase.
 
-| Rule ID | Canonical enforced layer | Why this home |
-|---------|--------------------------|---------------|
-| `legacy-positional-prefix-changed` | `tests/ci/test_api_compat_guardrails.py` | Protects positional-call compatibility on allowlisted public callables |
-| `new-optional-param-must-be-keyword-only` | `tests/ci/test_api_compat_guardrails.py` | Prevents accidental API drift from newly optional positional parameters |
-| `allowlisted-callable-missing` | `tests/ci/test_api_compat_guardrails.py` | Fails fast when a tracked public API surface is renamed or removed without contract updates |
-
-Implementation detail:
-- Detector implementation lives in `src/file_organizer/review_regressions/api_compat.py`.
-- Deterministic positive/safe proofs live in `tests/unit/review_regressions/test_api_compat_detectors.py`.
-
-### Custom API-Compat Contracts
-
-When defining custom allowlists, import from the detector module directly:
-
-```python
-from pathlib import Path
-
-from file_organizer.review_regressions.api_compat import (
-    PublicApiCompatibilityDetector,
-    PublicCallableContract,
-)
-
-custom_detector = PublicApiCompatibilityDetector(
-    contracts=(
-        PublicCallableContract(
-            path=Path("src/file_organizer/core/organizer.py"),
-            qualname="FileOrganizer.__init__",
-            legacy_positional_params=("text_model_config", "vision_model_config"),
-        ),
-    )
-)
-```
-
-Why direct module import:
-- avoids ambiguity between pack-level exports and detector-specific types
-- keeps custom-contract code aligned with the detector's canonical module
-
-## Memory Lifecycle Rule Index
-
-Issue `#803` adds buffer/memory lifecycle regression checks. These are semantic
-invariants and therefore belong in CI tests, not shell-script heuristics.
-
-| Rule ID | Canonical enforced layer | Why this home |
-|---------|--------------------------|---------------|
-| `pooled-buffer-ownership-via-length` | `tests/ci/test_memory_lifecycle_guardrails.py` | Prevents ownership-state inference from `len(buffer)` in pool code paths |
-| `eager-buffer-pool-allocation` | `tests/ci/test_memory_lifecycle_guardrails.py` | Blocks eager `BufferPool()` creation in `__init__` before context is available |
-| `absolute-rss-in-batch-feedback` | `tests/ci/test_memory_lifecycle_guardrails.py` | Enforces RSS delta usage in feedback loops instead of raw absolute RSS |
-| `legacy-acquire-release-without-consume` | `tests/ci/test_memory_lifecycle_guardrails.py` | Catches no-op acquire/release sequences that indicate legacy dead paths |
-
-Implementation detail:
-- Detector implementation lives in `src/file_organizer/review_regressions/memory_lifecycle.py`.
-- Deterministic positive/safe proofs live in `tests/unit/review_regressions/test_memory_lifecycle_detectors.py`.
+If equivalent checks are reintroduced, document the canonical ownership again in
+this file and add corresponding `tests/ci/` coverage in the same change.
 
 ## Search Guardrail Rule Index
 

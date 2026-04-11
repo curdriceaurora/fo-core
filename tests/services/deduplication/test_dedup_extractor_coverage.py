@@ -161,9 +161,15 @@ class TestExtractDocx:
         assert result == ""
 
     def test_docx_runtime_error(self, extractor, tmp_path):
+        import docx
+
         f = tmp_path / "test.docx"
-        f.write_bytes(b"not a docx")
-        result = extractor._extract_docx(f)
+        doc = docx.Document()
+        doc.add_paragraph("sample")
+        doc.save(str(f))
+
+        with patch("docx.Document", side_effect=OSError("permission denied")):
+            result = extractor._extract_docx(f)
         assert result == ""
 
 
