@@ -205,7 +205,7 @@ class CustomModel(BaseModel):
 | **Pipeline Stages** | Preprocessor/Analyzer/Postprocessor/Writer | `pipeline/stages/` | Active |
 | **TextProcessor** | Text file pipeline | `services/text_processor.py` | Active |
 | **VisionProcessor** | Image/video pipeline | `services/vision_processor.py` | Active |
-| **FileOrganizer** | Main orchestrator | `src/file_organizer/core/organizer.py` | Active |
+| **FileOrganizer** | Main orchestrator | `core/organizer.py` | Active |
 | **PatternAnalyzer** | Naming pattern detection | `services/pattern_analyzer.py` | Active |
 | **SuggestionEngine** | Placement suggestions | `services/smart_suggestions.py` | Active |
 | **Intelligence** | User preference learning | `services/intelligence/` | Active |
@@ -276,7 +276,7 @@ fo-core/
 │   │   └── suggestion_feedback.py    # Feedback tracking
 │   │
 │   ├── core/                         # Main orchestrator
-│   │   ├── organizer.py              # FileOrganizer thin facade (~390 lines)
+│   │   ├── organizer.py              # FileOrganizer thin facade
 │   │   ├── types.py                  # Core type definitions
 │   │   ├── display.py                # Output/display helpers
 │   │   ├── file_ops.py               # File operation primitives
