@@ -558,7 +558,7 @@ class TestProviderRegistry:
     def test_register_provider_module_function(self) -> None:
         from file_organizer.models.provider_registry import _registry, register_provider
 
-        original_providers = set(_registry.registered_providers)
+        set(_registry.registered_providers)
         register_provider("test_custom_xyz", text_factory=MagicMock(return_value=MagicMock()))
         assert "test_custom_xyz" in _registry.registered_providers
         # Cleanup: remove so we don't pollute other tests
@@ -846,9 +846,7 @@ class TestConfigManager:
         config = mgr.load()
         assert config.profile_name == "default"
 
-    def test_load_custom_profile_returns_default_when_file_missing(
-        self, tmp_path: Path
-    ) -> None:
+    def test_load_custom_profile_returns_default_when_file_missing(self, tmp_path: Path) -> None:
         from file_organizer.config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)

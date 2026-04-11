@@ -1337,8 +1337,10 @@ class TestJohnnyDecimalMigratorBasic:
         # create_backup=True initialises RollbackInfo; mock _create_backup so no
         # real shutil.copytree call is needed, and mock _save_rollback_info to
         # avoid needing the real config data directory.
-        with patch.object(migrator, "_create_backup", return_value=fake_backup), \
-             patch.object(migrator, "_save_rollback_info"):
+        with (
+            patch.object(migrator, "_create_backup", return_value=fake_backup),
+            patch.object(migrator, "_save_rollback_info"),
+        ):
             migrator.execute_migration(plan, dry_run=False, create_backup=True)
 
         assert len(migrator._rollback_history) == 1
@@ -1372,7 +1374,7 @@ class TestJohnnyDecimalMigratorBasic:
     def test_rollback_invalid_migration_id_raises(self) -> None:
         from file_organizer.methodologies.johnny_decimal.migrator import JohnnyDecimalMigrator
 
-        src_path = Path("/tmp")
+        Path("/tmp")
         from datetime import UTC, datetime
 
         from file_organizer.methodologies.johnny_decimal.migrator import RollbackInfo

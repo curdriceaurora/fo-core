@@ -327,9 +327,7 @@ class TestFileRouterMutation:
         router = FileRouter()
         ext_map = router.get_extension_map()
         ext_map[".pdf"] = None  # type: ignore[assignment]
-        assert (
-            router.route(Path("file.pdf")) != None
-        )  # map mutation does not affect router  # noqa: E711
+        assert router.route(Path("file.pdf")) is not None  # map mutation does not affect router
 
     def test_get_extension_map_contains_pdf(self) -> None:
         from file_organizer.pipeline.router import FileRouter
