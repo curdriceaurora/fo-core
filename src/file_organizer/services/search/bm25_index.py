@@ -62,7 +62,7 @@ class BM25Index:
             )
 
         try:
-            from rank_bm25 import BM25Okapi
+            from rank_bm25 import BM25Okapi  # pyre-ignore[21]
         except ImportError as exc:
             raise ImportError(
                 "rank-bm25 is required for BM25Index. "

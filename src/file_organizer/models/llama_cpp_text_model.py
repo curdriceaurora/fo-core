@@ -29,7 +29,7 @@ from file_organizer.models.base import (
 )
 
 try:
-    from llama_cpp import Llama
+    from llama_cpp import Llama  # pyre-ignore[21]
 
     LLAMA_CPP_AVAILABLE = True
 except ImportError:

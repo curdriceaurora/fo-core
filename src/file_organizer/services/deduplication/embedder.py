@@ -40,7 +40,7 @@ class DocumentEmbedder:
             cache_path: Path to cache embeddings (optional)
         """
         try:
-            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.feature_extraction.text import TfidfVectorizer  # pyre-ignore[21]
 
             self.vectorizer = TfidfVectorizer(
                 max_features=max_features,

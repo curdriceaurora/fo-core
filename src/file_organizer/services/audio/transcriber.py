@@ -160,7 +160,7 @@ class AudioTranscriber:
             return self._model
 
         try:
-            from faster_whisper import WhisperModel
+            from faster_whisper import WhisperModel  # pyre-ignore[21]
 
             logger.info(f"Loading Whisper model: {self.model_size.value}")
             self._model = WhisperModel(

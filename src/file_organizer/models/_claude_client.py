@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 try:
-    from anthropic import Anthropic
+    from anthropic import Anthropic  # pyre-ignore[21]
 
     ANTHROPIC_AVAILABLE = True
 except ImportError:
