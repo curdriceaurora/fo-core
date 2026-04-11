@@ -35,10 +35,8 @@ These tests are **intentionally skipped** and should be documented in CHANGELOG 
 
 #### 2. SSE Streaming - 2 tests
 
-| Test File | Line | Test Function | Reason |
-|-----------|------|---------------|--------|
-| `tests/test_web_organize_routes.py` | 330 | `test_organize_stream_cancellation` | SSE streaming not implemented |
-| `tests/test_web_files_routes.py` | 246 | `test_files_sse_placeholder` | SSE routes not implemented |
+The web route tests that contained these skipped tests were removed in the CLI-only
+architecture rewrite. The skipped test count is retained in the summary for accuracy.
 
 ### PLATFORM Category (22 skip conditions - No Documentation Needed)
 
