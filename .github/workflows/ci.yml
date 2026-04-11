@@ -416,7 +416,9 @@ jobs:
           restore-keys: nltk-${{ runner.os }}-
       - name: Download NLTK data
         run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
-      - name: "Integration coverage gate (floor: 71.9% combined line+branch)"
+      - name: Run integration tests and capture coverage report
+        id: integration_tests
+        continue-on-error: true
         # Ratchet floor — bump threshold in the PR that closes each gap.
         # 2026-03-17: 35.43% line (173 integration tests, clean CI env with [dev,search] extras).
         # 2026-03-20: 30% branch (ratchet after enabling branch = true; issue #912). Target per issue #856: 90%.
@@ -428,9 +430,36 @@ jobs:
         # 2026-04-05: 71.9% combined (ratchet after batch3/batch4 integration coverage expansion on main).
         run: |
           set -o pipefail
-          pytest tests/ -m "integration" --strict-markers --cov=file_organizer --cov-branch --cov-fail-under=71.9 --cov-report=term-missing --cov-report=xml --timeout=60 --override-ini="addopts=" | tee /tmp/integration-coverage-report.txt
+          pytest tests/ -m "integration" --strict-markers --cov=file_organizer --cov-branch --cov-report=term-missing --cov-report=xml --timeout=60 --override-ini="addopts=" | tee "$RUNNER_TEMP/integration-coverage-report.txt"
+
+      - name: Check per-module integration coverage floors
+        id: per_module_gate
+        if: steps.integration_tests.outcome == 'success'
+        continue-on-error: true
+        run: |
           python scripts/check_module_coverage_floor.py \
-            --report-path /tmp/integration-coverage-report.txt \
+            --report-path "$RUNNER_TEMP/integration-coverage-report.txt" \
             --baseline-path scripts/coverage/integration_module_floor_baseline.json \
             --new-module-min 71.9 \
             --tolerance 0.5
+
+      - name: Check global integration coverage floor
+        id: global_gate
+        if: steps.integration_tests.outcome == 'success'
+        continue-on-error: true
+        run: coverage report --fail-under=71.9
+
+      - name: Enforce integration gate outcomes
+        run: |
+          if [ "${{ steps.integration_tests.outcome }}" != "success" ]; then
+            echo "FAIL: integration tests failed before coverage gates could run"
+            exit 1
+          fi
+          if [ "${{ steps.per_module_gate.outcome }}" != "success" ]; then
+            echo "FAIL: per-module integration coverage gate failed"
+            exit 1
+          fi
+          if [ "${{ steps.global_gate.outcome }}" != "success" ]; then
+            echo "FAIL: global integration coverage floor failed"
+            exit 1
+          fi

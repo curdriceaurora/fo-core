@@ -316,19 +316,26 @@ run_benchmark() {
 run_integration() {
   download_nltk_data
   run_step \
-    "Run integration coverage gate" \
-    pytest \
-    tests/ \
-    -m \
-    integration \
-    --strict-markers \
-    --cov=file_organizer \
-    --cov-branch \
-    --cov-fail-under=71.9 \
-    --cov-report=term-missing \
-    --cov-report=xml \
-    --timeout=60 \
-    --override-ini=addopts=
+    "Run integration coverage gates" \
+    bash \
+    -lc \
+    '
+      set -o pipefail
+      report_path="${RUNNER_TEMP:-/tmp}/integration-coverage-report.txt"
+      pytest tests/ -m integration \
+        --strict-markers \
+        --cov=file_organizer \
+        --cov-branch \
+        --cov-report=term-missing \
+        --cov-report=xml \
+        --timeout=60 \
+        --override-ini=addopts= \
+        | tee "$report_path"
+      python scripts/check_module_coverage_floor.py \
+        --report-path "$report_path" \
+        --baseline-path scripts/coverage/integration_module_floor_baseline.json
+      coverage report --fail-under=71.9
+    '
 }
 
 run_security() {

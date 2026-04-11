@@ -33,30 +33,11 @@ ROW_RE = re.compile(
 
 
 def _strip_ansi(text: str) -> str:
-    """
-    Remove ANSI escape sequences from a string.
-    
-    Returns:
-        str: The input string with all ANSI escape sequences removed.
-    """
     return ANSI_RE.sub("", text)
 
 
 def parse_report(report_path: Path) -> dict[str, float]:
-    """
-    Parse a pytest-cov "term-missing" report file and extract per-module coverage percentages.
-    
-    This function reads the given report file, ignores ANSI escape sequences and any
-    GitHub Actions leading metadata, then scans for table rows produced by
-    pytest-cov. It returns a mapping from module path (as shown in the report)
-    to the module's coverage percentage.
-    
-    Parameters:
-        report_path (Path): Path to the pytest-cov term-missing report file to parse.
-    
-    Returns:
-        dict[str, float]: Mapping of module path to coverage percentage (e.g., {"src/foo.py": 87.5}).
-    """
+    """Parse pytest-cov term report and return module -> coverage percent."""
     modules: dict[str, float] = {}
     for raw_line in report_path.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = _strip_ansi(raw_line)
@@ -72,67 +53,46 @@ def parse_report(report_path: Path) -> dict[str, float]:
 
 
 def load_baseline(path: Path) -> dict[str, Any]:
-    """
-    Load and validate a JSON baseline containing per-module coverage floors.
-    
-    Parameters:
-        path (Path): Filesystem path to the JSON baseline file.
-    
-    Returns:
-        dict[str, Any]: The parsed JSON object. The object is guaranteed to contain a top-level
-        "modules" key whose value is a dict mapping module paths to their coverage floor values.
-    
-    Raises:
-        ValueError: If the file's top-level "modules" key is missing or is not a dictionary.
-    """
     data = json.loads(path.read_text(encoding="utf-8"))
     if "modules" not in data or not isinstance(data["modules"], dict):
         raise ValueError(f"Invalid baseline file {path}: expected top-level 'modules' object")
     return data
 
 
+def _default_repo_root() -> Path:
+    # Script lives at <repo>/scripts/check_module_coverage_floor.py.
+    return Path(__file__).resolve().parents[1]
+
+
 def parse_args() -> argparse.Namespace:
-    """
-    Parse command-line arguments for the per-module coverage floor checker.
-    
-    Parameters:
-        None
-    
-    Returns:
-        args (argparse.Namespace): Parsed arguments with the following attributes:
-            report_path (Path): Path to the pytest-cov term-missing report file (required).
-            baseline_path (Path): Path to the JSON baseline file containing a top-level "modules" mapping (required).
-            new_module_min (float): Minimum coverage percent required for modules not present in the baseline.
-            tolerance (float): Allowed negative coverage drift (percent points) before reporting a failure.
-    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report-path", type=Path, required=True)
     parser.add_argument("--baseline-path", type=Path, required=True)
     parser.add_argument(
         "--new-module-min",
         type=float,
-        default=71.9,
-        help="Minimum coverage required for modules not yet present in baseline.",
+        default=None,
+        help="Override minimum coverage required for modules not yet present in baseline.",
     )
     parser.add_argument(
         "--tolerance",
         type=float,
-        default=0.5,
-        help="Allowed negative drift before failing (to absorb tiny CI variance).",
+        default=None,
+        help="Override allowed negative drift before failing (to absorb tiny CI variance).",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help=(
+            "Repository root for checking whether baseline modules still exist on disk. "
+            "Defaults to the script-anchored repository root."
+        ),
     )
     return parser.parse_args()
 
 
 def validate_inputs(args: argparse.Namespace) -> int:
-    """
-    Validate that the provided report and baseline file paths exist.
-    
-    Parameters:
-        args (argparse.Namespace): Namespace containing `report_path` and `baseline_path` (Path objects).
-    
-    Returns:
-        int: `0` if both paths exist, `2` if either path is missing (an error message is printed).
-    """
     if not args.report_path.exists():
         print(f"ERROR: report not found: {args.report_path}")
         return 2
@@ -150,25 +110,6 @@ def evaluate(
     new_module_min: float,
     repo_root: Path,
 ) -> tuple[list[tuple[str, float, float]], list[tuple[str, float]], list[str]]:
-    """
-    Determine coverage regressions, low-coverage new modules, and baseline modules missing from the report.
-    
-    Parameters:
-        report_modules (dict[str, float]): Mapping of module path to observed coverage percentage from the current report.
-        baseline_modules (dict[str, float]): Mapping of module path to configured coverage floor percentage from the baseline.
-        tolerance (float): Allowed negative drift (percentage points) before a module is considered failing the floor.
-        new_module_min (float): Minimum coverage percentage required for modules not present in the baseline.
-        repo_root (Path): Repository root used to check whether baseline-listed module files exist on disk.
-    
-    Returns:
-        tuple[list[tuple[str, float, float]], list[tuple[str, float]], list[str]]:
-            - regressions: list of (module, actual_coverage, floor) for baseline modules whose actual coverage plus
-              tolerance is less than the configured floor.
-            - low_new_modules: list of (module, actual_coverage) for modules absent from the baseline whose actual
-              coverage plus tolerance is less than new_module_min.
-            - missing_from_report: list of baseline module paths that were not found in the report but whose files
-              exist under repo_root.
-    """
     regressions: list[tuple[str, float, float]] = []
     low_new_modules: list[tuple[str, float]] = []
     missing_from_report: list[str] = []
@@ -198,49 +139,85 @@ def print_report(
     missing_from_report: list[str],
     *,
     new_module_min: float,
+    tolerance: float,
+    baseline_path: Path,
 ) -> None:
-    """
-    Print a human-readable summary of per-module coverage results and list any regressions, newly low modules, and baseline modules missing from the report.
-    
-    Parameters:
-        report_modules (dict[str, float]): Mapping of module path to observed coverage percentage.
-        regressions (list[tuple[str, float, float]]): Entries of (module, actual_coverage, baseline_floor) where actual coverage plus tolerance fell below the baseline floor.
-        low_new_modules (list[tuple[str, float]]): Entries of (module, actual_coverage) for modules not present in the baseline whose coverage is below the configured new-module minimum.
-        missing_from_report (list[str]): Baseline module paths that were not found in the parsed coverage report but exist in the repository.
-        new_module_min (float): Configured minimum coverage percentage used when reporting low new modules.
-    """
     print(
         f"Per-module coverage check: {len(report_modules)} modules parsed, "
         f"{len(regressions)} regressions, {len(low_new_modules)} low new modules"
     )
 
     if regressions:
-        print("\nCoverage regressions (actual < baseline floor):")
+        print("\nCoverage regressions (actual below effective baseline floor):")
         for module, actual, floor in sorted(regressions, key=lambda x: x[1] - x[2]):
-            print(f"  - {module}: actual={actual:.1f}% floor={floor:.1f}%")
+            effective_floor = floor - tolerance
+            print(
+                "  - "
+                f"{module}: actual={actual:.1f}% "
+                f"effective_floor={effective_floor:.1f}% "
+                f"(baseline={floor:.1f}% tolerance={tolerance:.1f}%)"
+            )
 
     if low_new_modules:
         print("\nNew modules below required minimum:")
+        effective_min = new_module_min - tolerance
         for module, actual in sorted(low_new_modules, key=lambda x: x[1]):
-            print(f"  - {module}: actual={actual:.1f}% min={new_module_min:.1f}%")
+            print(
+                "  - "
+                f"{module}: actual={actual:.1f}% "
+                f"effective_min={effective_min:.1f}% "
+                f"(nominal={new_module_min:.1f}% tolerance={tolerance:.1f}%)"
+            )
 
     if missing_from_report:
         print("\nBaseline modules missing from coverage report:")
         for module in sorted(missing_from_report):
             print(f"  - {module}")
+        print("\nThese modules exist on disk but were not reported by pytest-cov.")
+        print("This usually means they have lost all integration test coverage.")
+        print("To fix:")
+        print("  1. Add integration tests so each module appears in the report, or")
+        print("  2. If a module was renamed or moved, update the baseline file:")
+        print(f"     {baseline_path}")
+
+
+def _parse_baseline(path: Path) -> dict[str, Any] | None:
+    try:
+        return load_baseline(path)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: baseline file is not valid JSON: {path}\n{exc}")
+        return None
+    except OSError as exc:
+        print(f"ERROR: failed to read baseline file {path}: {exc}")
+        return None
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        return None
+
+
+def _resolve_policy(
+    baseline: dict[str, Any], args: argparse.Namespace
+) -> tuple[float, float] | None:
+    policy = baseline.get("policy", {})
+    if policy is None or not isinstance(policy, dict):
+        policy = {}
+    try:
+        new_module_min = float(
+            args.new_module_min
+            if args.new_module_min is not None
+            else policy.get("new_module_min_percent", 71.9)
+        )
+        tolerance = float(
+            args.tolerance if args.tolerance is not None else policy.get("tolerance_percent", 0.5)
+        )
+    except (TypeError, ValueError) as exc:
+        print(f"ERROR: invalid coverage policy in baseline: {exc}")
+        return None
+
+    return new_module_min, tolerance
 
 
 def main() -> int:
-    """
-    Run the per-module coverage-floor check using command-line arguments.
-    
-    Parses CLI arguments, validates input files, reads the coverage report and baseline, evaluates regressions and low-coverage new modules (with configured tolerance and new-module minimum), prints a summary and detailed findings, and determines the process exit status.
-    
-    Returns:
-        int: `0` on success (no regressions, no low new modules, and no missing baseline modules),
-             `1` if the coverage gate failed (any regressions, low new modules, or missing baseline modules),
-             `2` for input validation or report-parsing errors.
-    """
     args = parse_args()
     input_status = validate_inputs(args)
     if input_status:
@@ -251,24 +228,40 @@ def main() -> int:
         print("ERROR: no module coverage rows parsed from report")
         return 2
 
-    baseline = load_baseline(args.baseline_path)
-    baseline_modules: dict[str, float] = {
-        module: float(floor) for module, floor in baseline["modules"].items()
-    }
+    baseline = _parse_baseline(args.baseline_path)
+    if baseline is None:
+        return 2
+
+    policy = _resolve_policy(baseline, args)
+    if policy is None:
+        return 2
+    new_module_min, tolerance = policy
+
+    try:
+        baseline_modules: dict[str, float] = {
+            module: float(floor) for module, floor in baseline["modules"].items()
+        }
+    except (TypeError, ValueError) as exc:
+        print(f"ERROR: invalid module floor value in baseline: {exc}")
+        return 2
+
+    repo_root = args.repo_root.resolve() if args.repo_root else _default_repo_root()
 
     regressions, low_new_modules, missing_from_report = evaluate(
         report_modules,
         baseline_modules,
-        tolerance=args.tolerance,
-        new_module_min=args.new_module_min,
-        repo_root=Path.cwd(),
+        tolerance=tolerance,
+        new_module_min=new_module_min,
+        repo_root=repo_root,
     )
     print_report(
         report_modules,
         regressions,
         low_new_modules,
         missing_from_report,
-        new_module_min=args.new_module_min,
+        new_module_min=new_module_min,
+        tolerance=tolerance,
+        baseline_path=args.baseline_path,
     )
 
     if regressions or low_new_modules or missing_from_report:
