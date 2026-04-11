@@ -4,7 +4,7 @@ This directory contains the per-module integration coverage baseline used by CI.
 
 ## Policy
 
-1. The existing global integration gate stays in place (`--cov-fail-under=71.9`).
+1. The existing global integration gate stays in place (`coverage report --fail-under=71.9`).
 2. A per-module gate enforces non-regression for Python modules under `src/file_organizer/` (including nested paths, e.g. `src/file_organizer/**/*.py`) seen in integration coverage output.
 3. New modules must meet the same minimum bar (`71.9%` by default).
 

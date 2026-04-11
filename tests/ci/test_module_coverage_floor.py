@@ -216,6 +216,31 @@ def test_main_returns_2_for_malformed_baseline_json(
     assert "ERROR: baseline file is not valid JSON" in captured
 
 
+def test_main_returns_2_for_non_object_baseline_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+
+    report = tmp_path / "integration.log"
+    _write_report(report, ["src/file_organizer/cli/update.py  10  0  0  0  100%"])
+
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text("42", encoding="utf-8")
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        ["--report-path", str(report), "--baseline-path", str(baseline)],
+    )
+
+    captured = capsys.readouterr().out
+    assert rc == 2
+    assert "ERROR: Invalid baseline file" in captured
+    assert "expected top-level JSON object" in captured
+
+
 def test_main_returns_2_for_unparseable_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

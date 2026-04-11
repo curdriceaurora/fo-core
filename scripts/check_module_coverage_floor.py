@@ -54,6 +54,8 @@ def parse_report(report_path: Path) -> dict[str, float]:
 
 def load_baseline(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid baseline file {path}: expected top-level JSON object")
     if "modules" not in data or not isinstance(data["modules"], dict):
         raise ValueError(f"Invalid baseline file {path}: expected top-level 'modules' object")
     return data

@@ -439,9 +439,7 @@ jobs:
         run: |
           python scripts/check_module_coverage_floor.py \
             --report-path "$RUNNER_TEMP/integration-coverage-report.txt" \
-            --baseline-path scripts/coverage/integration_module_floor_baseline.json \
-            --new-module-min 71.9 \
-            --tolerance 0.5
+            --baseline-path scripts/coverage/integration_module_floor_baseline.json
 
       - name: Check global integration coverage floor
         id: global_gate

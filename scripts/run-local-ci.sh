@@ -331,7 +331,7 @@ run_integration() {
         --timeout=60 \
         --override-ini=addopts= \
         | tee "$report_path"
-      python scripts/check_module_coverage_floor.py \
+      "$PYTHON_BIN" scripts/check_module_coverage_floor.py \
         --report-path "$report_path" \
         --baseline-path scripts/coverage/integration_module_floor_baseline.json
       coverage report --fail-under=71.9
