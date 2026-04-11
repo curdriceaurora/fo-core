@@ -434,7 +434,7 @@ jobs:
 
       - name: Check per-module integration coverage floors
         id: per_module_gate
-        if: steps.integration_tests.outcome == 'success'
+        if: always() && steps.integration_tests.outcome != 'cancelled'
         continue-on-error: true
         run: |
           python scripts/check_module_coverage_floor.py \
@@ -443,7 +443,7 @@ jobs:
 
       - name: Check global integration coverage floor
         id: global_gate
-        if: steps.integration_tests.outcome == 'success'
+        if: always() && steps.integration_tests.outcome != 'cancelled'
         continue-on-error: true
         run: coverage report --fail-under=71.9
 

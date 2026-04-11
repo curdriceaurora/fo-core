@@ -317,10 +317,12 @@ run_integration() {
   download_nltk_data
   run_step \
     "Run integration coverage gates" \
+    env \
+    PYTHON_BIN="$PYTHON_BIN" \
     bash \
     -lc \
     '
-      set -o pipefail
+      set -e -o pipefail
       report_path="${RUNNER_TEMP:-/tmp}/integration-coverage-report.txt"
       pytest tests/ -m integration \
         --strict-markers \
