@@ -301,9 +301,11 @@ class TestLoadModel:
         assert result is mock_model
 
     def test_import_error(self, transcriber):
-        with patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", False):
-            with pytest.raises(ImportError, match="faster-whisper is required"):
-                transcriber._load_model()
+        with (
+            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=False),
+            pytest.raises(ImportError, match="faster-whisper is required"),
+        ):
+            transcriber._load_model()
 
     def test_model_load_error(self, transcriber):
         mock_whisper_cls = MagicMock(side_effect=RuntimeError("model load error"))
