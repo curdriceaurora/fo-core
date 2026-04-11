@@ -10,6 +10,25 @@ Why this exists:
 Expected report format is pytest-cov's table output (``--cov-report=term-missing``),
 for rows like:
     src/file_organizer/foo.py   123   10   20   4   88%   12-18, 44
+
+--update-baseline mode
+----------------------
+Pass ``--update-baseline`` to write the current report's coverage values back to
+the baseline file instead of running the gate check::
+
+    pytest ... | tee /tmp/report.txt
+    python scripts/check_module_coverage_floor.py \\
+      --report-path /tmp/report.txt \\
+      --baseline-path scripts/coverage/integration_module_floor_baseline.json \\
+      --update-baseline
+
+Behaviour:
+- Existing modules: floor is set to actual (floors are a ratchet — never lowered)
+- New modules: added with floor = actual
+- Deleted modules (in baseline but not in report and not on disk): removed
+- ``generated_at_utc`` and ``source`` block updated with current timestamp
+- Exits 0; does not run the gate check
+- Add ``--dry-run`` to print the diff without writing
 """
 
 from __future__ import annotations
@@ -17,6 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +110,22 @@ def parse_args() -> argparse.Namespace:
             "Repository root for checking whether baseline modules still exist on disk. "
             "Defaults to the script-anchored repository root."
         ),
+    )
+    parser.add_argument(
+        "--update-baseline",
+        action="store_true",
+        default=False,
+        help=(
+            "Write current coverage values back to the baseline file (ratchet mode). "
+            "Floors are never lowered; new modules are added; deleted modules are removed. "
+            "Exits 0 without running the gate check."
+        ),
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="With --update-baseline: print the diff without writing the file.",
     )
     return parser.parse_args()
 
@@ -219,6 +255,117 @@ def _resolve_policy(
     return new_module_min, tolerance
 
 
+def _compute_baseline_delta(
+    report_modules: dict[str, float],
+    existing: dict[str, float],
+    repo_root: Path,
+) -> tuple[dict[str, float], list[tuple[str, float, float]], list[tuple[str, float]], list[str]]:
+    """Compute the ratcheted module map and the three change lists.
+
+    Returns:
+        (new_modules, raised, added, removed) where:
+        - new_modules: updated module -> floor mapping
+        - raised: (module, old_floor, new_floor) for improved modules
+        - added: (module, actual) for brand-new modules
+        - removed: module names that were deleted from disk
+    """
+    raised: list[tuple[str, float, float]] = []
+    added: list[tuple[str, float]] = []
+    removed: list[str] = []
+    new_modules: dict[str, float] = {}
+
+    for module, actual in sorted(report_modules.items()):
+        if module in existing:
+            old_floor = existing[module]
+            new_floor = max(old_floor, actual)
+            new_modules[module] = new_floor
+            if new_floor > old_floor:
+                raised.append((module, old_floor, new_floor))
+        else:
+            new_modules[module] = actual
+            added.append((module, actual))
+
+    for module in existing:
+        if module not in report_modules:
+            if not (repo_root / module).exists():
+                removed.append(module)
+            else:
+                new_modules[module] = existing[module]
+
+    return new_modules, raised, added, removed
+
+
+def _print_baseline_diff(
+    raised: list[tuple[str, float, float]],
+    added: list[tuple[str, float]],
+    removed: list[str],
+) -> None:
+    if raised:
+        print(f"Raising {len(raised)} floor(s):")
+        for module, old, new in raised:
+            print(f"  {module}: {old:.1f}% → {new:.1f}%")
+    if added:
+        print(f"Adding {len(added)} new module(s):")
+        for module, actual in added:
+            print(f"  {module}: {actual:.1f}%")
+    if removed:
+        print(f"Removing {len(removed)} deleted module(s):")
+        for module in removed:
+            print(f"  {module}")
+    if not raised and not added and not removed:
+        print("No changes — baseline is already up-to-date.")
+
+
+def update_baseline(
+    report_modules: dict[str, float],
+    baseline: dict[str, Any],
+    *,
+    repo_root: Path,
+    dry_run: bool,
+    baseline_path: Path,
+) -> int:
+    """Ratchet baseline floors up to current coverage values and write the result.
+
+    Args:
+        report_modules: Module -> actual coverage % from the current run.
+        baseline: Full parsed baseline document (mutated in-place before serialisation).
+        repo_root: Repository root used to decide whether a missing module was deleted.
+        dry_run: When True, print the diff without writing.
+        baseline_path: Path to the baseline JSON file to (over)write.
+
+    Returns:
+        0 on success, 2 on write failure.
+    """
+    existing: dict[str, float] = {
+        module: float(floor) for module, floor in baseline.get("modules", {}).items()
+    }
+
+    new_modules, raised, added, removed = _compute_baseline_delta(
+        report_modules, existing, repo_root
+    )
+    _print_baseline_diff(raised, added, removed)
+
+    if dry_run:
+        print("(dry-run: baseline not written)")
+        return 0
+
+    baseline["modules"] = new_modules
+    baseline["generated_at_utc"] = datetime.now(tz=UTC).isoformat()
+    baseline["source"] = {"workflow_run_id": None, "job_id": None, "commit": None}
+
+    try:
+        baseline_path.write_text(
+            json.dumps(baseline, indent=2, sort_keys=False) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        print(f"ERROR: failed to write baseline file {baseline_path}: {exc}")
+        return 2
+
+    print(f"Baseline written to {baseline_path}")
+    return 0
+
+
 def main() -> int:
     args = parse_args()
     input_status = validate_inputs(args)
@@ -234,6 +381,23 @@ def main() -> int:
     if baseline is None:
         return 2
 
+    repo_root = args.repo_root.resolve() if args.repo_root else _default_repo_root()
+
+    if args.update_baseline:
+        if args.dry_run:
+            print("--update-baseline --dry-run: showing changes without writing")
+        return update_baseline(
+            report_modules,
+            baseline,
+            repo_root=repo_root,
+            dry_run=args.dry_run,
+            baseline_path=args.baseline_path,
+        )
+
+    if args.dry_run:
+        print("ERROR: --dry-run requires --update-baseline")
+        return 2
+
     policy = _resolve_policy(baseline, args)
     if policy is None:
         return 2
@@ -246,8 +410,6 @@ def main() -> int:
     except (TypeError, ValueError) as exc:
         print(f"ERROR: invalid module floor value in baseline: {exc}")
         return 2
-
-    repo_root = args.repo_root.resolve() if args.repo_root else _default_repo_root()
 
     regressions, low_new_modules, missing_from_report = evaluate(
         report_modules,

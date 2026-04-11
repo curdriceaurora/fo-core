@@ -435,6 +435,306 @@ def test_main_anchors_repo_root_to_script_location(
     assert module_path in captured
 
 
+def _make_baseline(tmp_path: Path, modules: dict[str, float]) -> Path:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(
+        json.dumps(
+            {
+                "generated_at_utc": "2026-01-01T00:00:00+00:00",
+                "source": {"workflow_run_id": 1, "job_id": 2, "commit": "abc"},
+                "policy": {"new_module_min_percent": 71.9, "tolerance_percent": 0.5},
+                "modules": modules,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return baseline
+
+
+def test_update_baseline_raises_floor_when_coverage_improves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+
+    report = tmp_path / "report.txt"
+    _write_report(report, ["src/file_organizer/cli/update.py  100  5  40  2  95%"])
+
+    baseline = _make_baseline(tmp_path, {"src/file_organizer/cli/update.py": 80.0})
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--update-baseline",
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    data = json.loads(baseline.read_text(encoding="utf-8"))
+    assert data["modules"]["src/file_organizer/cli/update.py"] == 95.0
+    captured = capsys.readouterr().out
+    assert "80.0% → 95.0%" in captured
+
+
+def test_update_baseline_ratchet_does_not_lower_floor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When actual coverage drops below the existing floor, the floor must not be lowered."""
+    module = _load_module()
+
+    report = tmp_path / "report.txt"
+    _write_report(report, ["src/file_organizer/cli/update.py  100  30  40  10  70%"])
+
+    baseline = _make_baseline(tmp_path, {"src/file_organizer/cli/update.py": 80.0})
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--update-baseline",
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    data = json.loads(baseline.read_text(encoding="utf-8"))
+    assert data["modules"]["src/file_organizer/cli/update.py"] == 80.0
+
+
+def test_update_baseline_adds_new_module(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+
+    report = tmp_path / "report.txt"
+    _write_report(report, ["src/file_organizer/new_module.py  50  5  10  1  88%"])
+
+    baseline = _make_baseline(tmp_path, {})
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--update-baseline",
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    data = json.loads(baseline.read_text(encoding="utf-8"))
+    assert data["modules"]["src/file_organizer/new_module.py"] == 88.0
+    captured = capsys.readouterr().out
+    assert "Adding 1 new module" in captured
+    assert "src/file_organizer/new_module.py: 88.0%" in captured
+
+
+def test_update_baseline_removes_deleted_module(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Modules in baseline but absent from report AND disk should be removed."""
+    module = _load_module()
+
+    report = tmp_path / "report.txt"
+    _write_report(report, ["src/file_organizer/kept.py  10  0  0  0  100%"])
+
+    baseline = _make_baseline(
+        tmp_path,
+        {
+            "src/file_organizer/kept.py": 100.0,
+            "src/file_organizer/deleted.py": 50.0,  # not on disk, not in report
+        },
+    )
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--update-baseline",
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    data = json.loads(baseline.read_text(encoding="utf-8"))
+    assert "src/file_organizer/deleted.py" not in data["modules"]
+    assert "src/file_organizer/kept.py" in data["modules"]
+    captured = capsys.readouterr().out
+    assert "Removing 1 deleted module" in captured
+
+
+def test_update_baseline_keeps_floor_for_module_still_on_disk(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Module missing from report but still on disk should keep its floor (not removed)."""
+    module = _load_module()
+
+    on_disk = tmp_path / "src" / "file_organizer" / "missing_from_report.py"
+    on_disk.parent.mkdir(parents=True, exist_ok=True)
+    on_disk.write_text("# placeholder", encoding="utf-8")
+
+    report = tmp_path / "report.txt"
+    _write_report(report, ["src/file_organizer/present.py  10  0  0  0  100%"])
+
+    baseline = _make_baseline(
+        tmp_path,
+        {
+            "src/file_organizer/present.py": 100.0,
+            "src/file_organizer/missing_from_report.py": 75.0,
+        },
+    )
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--update-baseline",
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    data = json.loads(baseline.read_text(encoding="utf-8"))
+    assert data["modules"]["src/file_organizer/missing_from_report.py"] == 75.0
+
+
+def test_update_baseline_dry_run_does_not_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+
+    report = tmp_path / "report.txt"
+    _write_report(report, ["src/file_organizer/cli/update.py  100  5  40  2  95%"])
+
+    original_content = json.dumps(
+        {
+            "generated_at_utc": "2026-01-01T00:00:00+00:00",
+            "source": {"workflow_run_id": 1, "job_id": 2, "commit": "abc"},
+            "policy": {"new_module_min_percent": 71.9, "tolerance_percent": 0.5},
+            "modules": {"src/file_organizer/cli/update.py": 80.0},
+        }
+    )
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(original_content, encoding="utf-8")
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--update-baseline",
+            "--dry-run",
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    assert baseline.read_text(encoding="utf-8") == original_content
+    captured = capsys.readouterr().out
+    assert "dry-run" in captured.lower()
+
+
+def test_update_baseline_updates_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_module()
+
+    report = tmp_path / "report.txt"
+    _write_report(report, ["src/file_organizer/cli/update.py  10  0  0  0  100%"])
+
+    baseline = _make_baseline(tmp_path, {"src/file_organizer/cli/update.py": 100.0})
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--update-baseline",
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    data = json.loads(baseline.read_text(encoding="utf-8"))
+    assert "generated_at_utc" in data
+    assert data["generated_at_utc"] != "2026-01-01T00:00:00+00:00"
+    assert data["source"]["workflow_run_id"] is None
+
+
+def test_dry_run_without_update_baseline_returns_2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_module()
+
+    report = tmp_path / "report.txt"
+    _write_report(report, ["src/file_organizer/cli/update.py  10  0  0  0  100%"])
+
+    baseline = _make_baseline(tmp_path, {"src/file_organizer/cli/update.py": 100.0})
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--dry-run",
+        ],
+    )
+
+    assert rc == 2
+    captured = capsys.readouterr().out
+    assert "ERROR" in captured
+    assert "--update-baseline" in captured
+
+
 def test_print_report_shows_effective_thresholds_and_guidance(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
