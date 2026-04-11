@@ -585,7 +585,7 @@ class TestEdgeCasesAndErrorHandling:
         now = 2_000_000_000.0
 
         monkeypatch.setattr(fe_module.time, "time", lambda: now)
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         features = extractor.extract_metadata_features(test_file)
         # st_birthtime is 5 days ago → days_since_created ≈ 5.0
@@ -616,7 +616,7 @@ class TestEdgeCasesAndErrorHandling:
 
         monkeypatch.setattr(fe_module.os, "name", "nt")
         monkeypatch.setattr(fe_module.time, "time", lambda: now)
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         features = extractor.extract_metadata_features(test_file)
         assert features.days_since_created == pytest.approx(1.0)
@@ -646,7 +646,7 @@ class TestEdgeCasesAndErrorHandling:
 
         monkeypatch.setattr(fe_module.os, "name", "posix")
         monkeypatch.setattr(fe_module.time, "time", lambda: now)
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         features = extractor.extract_metadata_features(test_file)
         assert features.days_since_created == pytest.approx(10.0)

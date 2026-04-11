@@ -1279,7 +1279,7 @@ class TestPlatformSpecificPaths:
         # Simulate Windows platform
         monkeypatch.setattr(os, "name", "nt")
         now = time.time()
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "test.txt"
@@ -1306,7 +1306,7 @@ class TestPlatformSpecificPaths:
         # Simulate Linux platform
         monkeypatch.setattr(os, "name", "posix")
         now = time.time()
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat(now=now))
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "test.txt"
@@ -1385,7 +1385,7 @@ class TestPlatformSpecificBranches:
             st_birthtime = now - (5 * 86400)  # macOS — true birth time present
             st_mode = real_mode
 
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat())
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
 
         h = TemporalHeuristic(weight=0.25)
         result = h.evaluate(f)
@@ -1416,7 +1416,7 @@ class TestPlatformSpecificBranches:
 
         # Monkeypatch both os.name and Path.stat
         monkeypatch.setattr(os, "name", "nt")
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat())
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
 
         h = TemporalHeuristic(weight=0.25)
         result = h.evaluate(f)
@@ -1447,7 +1447,7 @@ class TestPlatformSpecificBranches:
 
         # Monkeypatch both os.name and Path.stat
         monkeypatch.setattr(os, "name", "posix")
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat())
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
 
         h = TemporalHeuristic(weight=0.25)
         result = h.evaluate(f)
@@ -1484,7 +1484,7 @@ class TestPlatformSpecificBranches:
             st_birthtime = birthtime_120_days_ago
             st_mode = real_mode  # required by Path.is_dir() via pathlib internals
 
-        monkeypatch.setattr(Path, "stat", lambda _self, *args, **kwargs: MockStat())
+        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
 
         h = TemporalHeuristic(weight=0.25)
         result = h.evaluate(f)
