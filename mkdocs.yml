@@ -44,6 +44,7 @@ nav:
     - Contributing: developer/contributing.md
     - Architecture: developer/architecture.md
     - Testing: developer/testing.md
+    - Guardrails: developer/guardrails.md
   - Testing:
     - Strategy: testing/testing-strategy.md
     - Coverage Report: testing/coverage-report.md

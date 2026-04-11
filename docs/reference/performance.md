@@ -90,8 +90,8 @@ config = ParallelConfig(
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `prefetch_depth` | `2` | Files to pre-process ahead of current file (`0` disables) |
-| `prefetch_stages` | `1` | Leading stages to prefetch (values > 1 capped to 1) |
+| `prefetch_depth` | `2` | Files to pre-process ahead of current file. `0` disables prefetch. |
+| `prefetch_stages` | `1` | Requested number of leading stages to prefetch. The current implementation only supports the first stage; values greater than `1` log a warning and are effectively treated as `1`. |
 | `memory_limiter` | `None` | Optional `MemoryLimiter` to gate prefetch slots |
 
 ```python
@@ -107,6 +107,12 @@ pipeline = PipelineOrchestrator(
 )
 results = pipeline.process_batch(files)
 ```
+
+**Tuning guidance:**
+
+- Set `prefetch_depth=0` to disable overlap and process files sequentially (useful for debugging or low-memory environments).
+- Keep `prefetch_stages=1`; higher values are currently capped to the first stage.
+- `--no-prefetch` is the CLI flag that acts as alias for `--prefetch-depth 0` in the legacy `ParallelProcessor` path. For new code use `prefetch_depth=0` directly.
 
 ## Adaptive Batch Sizing
 

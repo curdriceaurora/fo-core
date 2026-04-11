@@ -15,7 +15,7 @@ from file_organizer.cli.main import app
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_PATH = REPO_ROOT / "tests" / "fixtures" / "benchmark_baseline.json"
 CLI_DOC_PATH = REPO_ROOT / "docs" / "cli-reference.md"
-PERF_DOC_PATH = REPO_ROOT / "docs" / "admin" / "performance-tuning.md"
+PERF_DOC_PATH = REPO_ROOT / "docs" / "reference" / "performance.md"
 RUNNER = CliRunner()
 
 

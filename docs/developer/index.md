@@ -37,6 +37,7 @@ ollama pull qwen2.5vl:7b-q4_K_M
 - Pull request process
 - Unit and integration testing
 - Code style and standards (see [Contributing](contributing.md))
+- [Guardrail Workflow](guardrails.md) - Where guardrails belong and how to add them
 
 ## Architecture
 
