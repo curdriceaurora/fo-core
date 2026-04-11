@@ -36,7 +36,9 @@ These tests are **intentionally skipped** and should be documented in CHANGELOG 
 #### 2. SSE Streaming - 2 tests
 
 The web route tests that contained these skipped tests were removed in the CLI-only
-architecture rewrite. The skipped test count is retained in the summary for accuracy.
+architecture rewrite. Those tests were previously skipped because SSE routes/streaming
+were not implemented, and the skipped test count is retained in the summary so that
+this Known Limitations rationale remains explicit.
 
 ### PLATFORM Category (22 skip conditions - No Documentation Needed)
 

@@ -164,9 +164,10 @@ class TestExtractDocx:
         f = tmp_path / "test.docx"
         f.write_bytes(b"")
 
-        with patch("docx.Document", side_effect=OSError("permission denied")):
+        with patch("docx.Document", side_effect=OSError("permission denied")) as mock_doc:
             result = extractor._extract_docx(f)
         assert result == ""
+        mock_doc.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
