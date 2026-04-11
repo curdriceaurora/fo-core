@@ -562,6 +562,7 @@ class TestEdgeCasesAndErrorHandling:
         assert len(features.action_items) >= 1
         assert "TODO" in features.action_items[0]
 
+    @pytest.mark.ci
     def test_metadata_macos_platform_creation_time(
         self,
         extractor: FeatureExtractor,
@@ -592,6 +593,7 @@ class TestEdgeCasesAndErrorHandling:
         assert features.days_since_created == pytest.approx(5.0)
         assert features.file_size == 7
 
+    @pytest.mark.ci
     def test_metadata_windows_platform_creation_time(
         self,
         extractor: FeatureExtractor,
@@ -622,6 +624,7 @@ class TestEdgeCasesAndErrorHandling:
         assert features.days_since_created == pytest.approx(1.0)
         assert features.file_size == 7
 
+    @pytest.mark.ci
     def test_metadata_linux_platform_creation_time(
         self,
         extractor: FeatureExtractor,
