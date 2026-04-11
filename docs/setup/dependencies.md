@@ -12,7 +12,7 @@
 ```bash
 # 1. Clone repository
 git clone <repo-url>
-cd Local-File-Organizer
+cd fo-core
 
 # 2. Install Ollama and pull models
 ollama pull qwen2.5:3b-instruct-q4_K_M    # Text: ~1.9 GB

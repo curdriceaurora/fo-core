@@ -25,7 +25,7 @@ pip install local-file-organizer
 file-organizer doctor .
 ```
 
-See [Installation Guide](admin/installation.md) for options.
+See the sections below for platform-specific options.
 
 ### From Source
 
@@ -40,8 +40,8 @@ See [Installation Guide](admin/installation.md) for options.
 **Install**:
 
 ```bash
-git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd Local-File-Organizer
+git clone https://github.com/curdriceaurora/fo-core.git
+cd fo-core
 pip install -e .
 
 # Pull required AI models
@@ -346,15 +346,70 @@ For more issues, see [Troubleshooting Guide](troubleshooting.md).
 
 ## Next Steps
 
-- **Administrators**: Check [Admin Guide](admin/index.md)
 - **Developers**: Read [Developer Guide](developer/index.md)
 
 ## Getting Help
 
 - 📚 **Documentation**: [Full documentation](index.md)
 - ❓ **FAQ**: [Frequently Asked Questions](faq.md)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/curdriceaurora/Local-File-Organizer/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/curdriceaurora/Local-File-Organizer/discussions)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/curdriceaurora/fo-core/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/curdriceaurora/fo-core/discussions)
+
+## Audio Processing Prerequisites
+
+Audio transcription and metadata extraction require additional system dependencies beyond the Python packages.
+
+### FFmpeg
+
+FFmpeg is required for audio format conversion (e.g. `.m4a` to `.wav`) and preprocessing before transcription.
+
+Install FFmpeg for your platform:
+
+- **macOS**: `brew install ffmpeg`
+- **Ubuntu / Debian**: `sudo apt update && sudo apt install -y ffmpeg`
+- **Windows**: `winget install ffmpeg` (or download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to your `PATH`)
+
+FFmpeg is required for any audio format other than raw `.wav`. Without it, audio files in formats like `.mp3`, `.m4a`, `.flac`, and `.ogg` cannot be processed.
+
+### GPU Acceleration (Optional)
+
+Audio transcription uses [faster-whisper](https://github.com/SYSTRAN/faster-whisper) which benefits from GPU acceleration. CPU inference works but is significantly slower.
+
+For NVIDIA GPUs, verify your setup:
+
+```bash
+nvidia-smi
+nvcc --version
+python3 -c "import torch; print('CUDA:', torch.cuda.is_available()); print('cuDNN:', torch.backends.cudnn.version())"
+```
+
+CPU-only inference works out of the box. Apple Silicon users get hardware acceleration via MPS automatically.
+
+### Installing the Audio Pack
+
+```bash
+pip install -e ".[audio]"
+```
+
+This installs: `faster-whisper`, `torch`, `mutagen`, `tinytag`, `pydub`, `ffmpeg-python`.
+
+The `torch` package is approximately 2 GB. For CPU-only environments, install the CPU-only variant first:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -e ".[audio]"
+```
+
+If the audio pack is not installed, audio files (`.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg`) are still detected and moved by the organizer but will not be transcribed or analyzed for content.
+
+### Verifying Audio Support
+
+```bash
+ffmpeg -version
+python3 -c "from faster_whisper import WhisperModel; print('faster-whisper OK')"
+python3 -c "import mutagen; print('mutagen OK')"
+python3 -c "import torch; print('Device:', 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')"
+```
 
 ______________________________________________________________________
 

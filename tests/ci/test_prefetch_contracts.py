@@ -19,8 +19,8 @@ from file_organizer.cli.main import app
 
 FO_ROOT = Path(__file__).resolve().parents[2]
 CLI_REFERENCE_DOC = FO_ROOT / "docs" / "cli-reference.md"
-PERFORMANCE_TUNING_DOC = FO_ROOT / "docs" / "admin" / "performance-tuning.md"
-ARCHITECTURE_OVERVIEW_DOC = FO_ROOT / "docs" / "architecture" / "architecture-overview.md"
+PERFORMANCE_TUNING_DOC = FO_ROOT / "docs" / "reference" / "performance.md"
+ARCHITECTURE_OVERVIEW_DOC = FO_ROOT / "docs" / "developer" / "architecture.md"
 
 pytestmark = pytest.mark.ci
 

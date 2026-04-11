@@ -1,8 +1,8 @@
-# File Organizer v2 User Guide
+# File Organizer User Guide
 
 ## Introduction
 
-File Organizer v2 is an AI-powered local file management system built with a privacy-first architecture. It uses local LLMs through Ollama to analyze, categorize, rename, and organize your files without sending any data to the cloud.
+File Organizer is an AI-powered file management system built with a privacy-first, local-first architecture. By default it uses local LLMs through Ollama; optional cloud providers can be enabled explicitly via provider configuration.
 
 ## Installation
 
@@ -17,8 +17,8 @@ File Organizer v2 is an AI-powered local file management system built with a pri
 
 ```bash
 # Clone the repository
-git clone https://github.com/curdriceaurora/Local-File-Organizer.git
-cd Local-File-Organizer
+git clone https://github.com/curdriceaurora/fo-core.git
+cd fo-core
 
 # Create a virtual environment
 python3 -m venv venv
@@ -475,7 +475,7 @@ file-organizer update install --dry-run
 | Scientific | `.hdf5`, `.h5`, `.hdf`, `.nc`, `.nc4`, `.netcdf`, `.mat` |
 | CAD | `.dxf`, `.dwg`, `.step`, `.stp`, `.iges`, `.igs` |
 
-*Legacy formats (`.doc`, `.xls`) have limited support and may return `None` or require additional dependencies. See the [File Format Reference](admin/file-format-reference.md) for details.
+*Legacy formats (`.doc`, `.xls`) have limited support and may return `None` or require additional dependencies. See the [File Format Reference](reference/file-formats.md) for details.
 
 !!! tip
     Some format categories require optional feature packs. See [Optional Feature Packs](#optional-feature-packs) above. For audio transcription and video analysis features, see the [Audio & Video Setup Guide](setup/audio-video.md).

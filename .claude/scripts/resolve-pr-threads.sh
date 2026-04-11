@@ -32,9 +32,10 @@
 
 set -euo pipefail
 
-# Configuration
-REPO_OWNER="curdriceaurora"
-REPO_NAME="Local-File-Organizer"
+# Configuration — derive from git remote so this works across forks/renames
+_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "curdriceaurora/fo-core")
+REPO_OWNER="${_REPO%%/*}"
+REPO_NAME="${_REPO##*/}"
 DRY_RUN=false
 REPLIES_FILE=""
 

@@ -1,5 +1,23 @@
 site_name: File Organizer Docs
+site_url: https://curdriceaurora.github.io/fo-core/
+repo_url: https://github.com/curdriceaurora/fo-core
+repo_name: curdriceaurora/fo-core
 docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+
+plugins:
+  - search
+  - minify:
+      minify_html: true
 
 nav:
   - Home: index.md
@@ -7,4 +25,31 @@ nav:
   - User Guide: USER_GUIDE.md
   - Configuration: CONFIGURATION.md
   - CLI Reference: cli-reference.md
+  - Setup:
+    - Dependencies: setup/dependencies.md
+    - AI Providers: setup/ai-providers.md
+    - Models: setup/models.md
+    - Audio & Video: setup/audio-video.md
+  - Methodologies:
+    - User Guide: methodologies/johnny-decimal/user-guide.md
+    - Migration: methodologies/johnny-decimal/migration.md
+    - API Reference: methodologies/johnny-decimal/api-reference.md
+    - FAQ: methodologies/johnny-decimal/faq.md
+    - PARA Compatibility: methodologies/johnny-decimal/para-compatibility.md
+  - Reference:
+    - File Formats: reference/file-formats.md
+    - Performance: reference/performance.md
+  - Developer:
+    - Overview: developer/index.md
+    - Contributing: developer/contributing.md
+    - Architecture: developer/architecture.md
+    - Testing: developer/testing.md
+    - Guardrails: developer/guardrails.md
+  - Testing:
+    - Strategy: testing/testing-strategy.md
+    - Coverage Report: testing/coverage-report.md
+  - Migration:
+    - Path Standardization: config/path-standardization.md
+    - Deprecation Notice: config/deprecation-notice.md
   - Troubleshooting: troubleshooting.md
+  - FAQ: faq.md
