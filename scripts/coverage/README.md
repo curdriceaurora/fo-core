@@ -22,7 +22,7 @@ This makes coverage improvements durable and prevents hidden regressions in low-
 Run the integration suite and pipe the output to the script with `--update-baseline`:
 
 ```bash
-bash scripts/measure-integration-coverage.sh | tee /tmp/integration-report.txt
+bash .claude/scripts/measure-integration-coverage.sh | tee /tmp/integration-report.txt
 
 python3 scripts/check_module_coverage_floor.py \
   --report-path /tmp/integration-report.txt \
@@ -49,7 +49,7 @@ python3 scripts/check_module_coverage_floor.py \
 ### Manual
 
 1. Improve integration tests for target modules.
-2. Run `bash scripts/measure-integration-coverage.sh | tee /tmp/report.txt`.
+2. Run `bash .claude/scripts/measure-integration-coverage.sh | tee /tmp/report.txt`.
 3. Edit `integration_module_floor_baseline.json` by hand, then commit.
 
 When coverage improves materially, update the baseline in the same PR so future changes cannot regress.
