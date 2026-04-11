@@ -2,7 +2,7 @@
 
 ## Introduction
 
-File Organizer is an AI-powered local file management system built with a privacy-first architecture. It uses local LLMs through Ollama to analyze, categorize, rename, and organize your files without sending any data to the cloud.
+File Organizer is an AI-powered file management system built with a privacy-first, local-first architecture. By default it uses local LLMs through Ollama; optional cloud providers can be enabled explicitly via provider configuration.
 
 ## Installation
 

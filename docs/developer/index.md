@@ -33,7 +33,6 @@ ollama pull qwen2.5vl:7b-q4_K_M
 
 ### Best Practices
 
-- Code style and standards
 - Pull request process
 - Unit and integration testing
 - Code style and standards (see [Contributing](contributing.md))

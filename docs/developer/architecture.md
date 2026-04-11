@@ -184,7 +184,7 @@ class CustomModel(BaseModel):
 
 ## Design Principles
 
-1. **Privacy-First**: 100% local processing, zero cloud dependencies
+1. **Privacy-First (Local-First by Default)**: Runs fully local with Ollama by default; cloud providers are optional and explicitly configured.
 2. **Model Abstraction**: Abstract AI model interface for framework flexibility
 3. **Service Layer Pattern**: Business logic separate from models
 4. **Strategy Pattern**: Different processors for different file types
@@ -290,7 +290,6 @@ fo-core/
 │   ├── parallel/                     # Parallel processing framework
 │   ├── pipeline/                     # Processing pipeline orchestration
 │   ├── methodologies/                # PARA, Johnny Decimal, etc.
-│   ├── plugins/                      # Plugin system & marketplace
 │   ├── interfaces/                   # Protocol definitions
 │   ├── optimization/                 # Performance optimization
 │   ├── history/                      # Operation history (6 modules)
@@ -320,7 +319,7 @@ fo-core/
 
 ### GLM-OCR Integration
 
-**Issue**: [#853](https://github.com/rahulvijayy/local-file-organizer/issues/853)
+**Issue**: [#853](https://github.com/curdriceaurora/fo-core/issues/853)
 **Evaluated**: 2026-03-26
 **Decision**: DEFER — architectural mismatch
 

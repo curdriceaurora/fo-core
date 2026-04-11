@@ -81,8 +81,8 @@ Only `.docx` (Office Open XML) is supported. Legacy `.doc` (binary format) files
 |-----------|---------|-------------|
 | `max_rows` | 100 | Maximum rows read from the spreadsheet |
 
-- CSV: `pandas.read_csv`; Excel: `pandas.read_excel` (requires `openpyxl` for `.xlsx`)
-- Requires: `pandas`, `openpyxl` (included in core dependencies)
+- CSV: built-in `csv` module; Excel: `openpyxl.load_workbook` (`.xlsx` only)
+- Requires: `openpyxl` (included in core dependencies)
 
 Only `.xlsx` is supported for Excel files. Legacy `.xls` files are registered but will fail at runtime.
 

@@ -3,7 +3,7 @@
 Handles loading, saving, and profile management for the unified
 application configuration.
 
-.. deprecated:: 2.0
+.. deprecated::
     Use PathManager for path resolution instead of hardcoded paths.
     For new code, pass config_dir from PathManager.config_dir:
 
