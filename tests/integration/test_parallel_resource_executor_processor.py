@@ -10,7 +10,6 @@ Covers:
 from __future__ import annotations
 
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
@@ -726,8 +725,8 @@ class TestRateThrottlerExtended:
             throttler.acquire()
         # Bucket is empty now
         assert throttler.acquire() is False
-        # Wait for refill
-        time.sleep(0.15)
+        # Manually advance the last_refill time to simulate elapsed time
+        throttler._last_refill = throttler._last_refill - 0.2
         # Should have refilled
         assert throttler.acquire() is True
 

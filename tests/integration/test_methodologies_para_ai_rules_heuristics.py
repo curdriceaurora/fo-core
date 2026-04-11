@@ -11,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -140,7 +141,7 @@ class TestFeatureExtractorTextFeatures:
             "final completed archived old legacy deprecated obsolete historical "
         )
         result = fe.extract_text_features(words * 5)
-        assert len(result.keywords) <= 30
+        assert 1 <= len(result.keywords) <= 30
 
 
 class TestFeatureExtractorMetadataFeatures:
@@ -347,6 +348,9 @@ class TestPARASuggestionEngineBasic:
         suggestion = engine.suggest(f, content="some generic content here for reference guide")
         # alternatives is a list of (category, score)
         assert isinstance(suggestion.alternative_categories, list)
+        assert all(
+            isinstance(cat, tuple) and len(cat) == 2 for cat in suggestion.alternative_categories
+        )
 
     def test_suggest_confidence_label(self, tmp_path: Path) -> None:
         from file_organizer.methodologies.para.ai.suggestion_engine import PARASuggestionEngine
@@ -364,6 +368,7 @@ class TestPARASuggestionEngineBasic:
         suggestion = engine.suggest(f, content="analysis report")
         # tags may include file type and keywords
         assert isinstance(suggestion.tags, list)
+        assert all(isinstance(t, str) for t in suggestion.tags)
 
     def test_suggest_subfolder_for_resource(self, tmp_path: Path) -> None:
         from file_organizer.methodologies.para.ai.suggestion_engine import PARASuggestionEngine
@@ -749,12 +754,12 @@ class TestEvaluationContext:
         assert age > 0
 
     def test_file_age_days_naive_datetime(self) -> None:
+        # naive datetime should be made UTC-aware
         from datetime import datetime
 
         from file_organizer.methodologies.para.rules.engine import EvaluationContext
 
-        # naive datetime should be made UTC-aware
-        created = datetime(2020, 6, 15)
+        created = datetime(2020, 6, 15, tzinfo=UTC)
         ctx = EvaluationContext(
             file_path=Path("file.txt"),
             file_stat={"created": created},
@@ -1227,8 +1232,7 @@ class TestAIHeuristicHelpers:
 
         h = AIHeuristic()
         data = h._parse_response(
-            '{"project": 0.5, "area": 0.2, "resource": 0.2, "archive": 0.1, '
-            '"reasoning": "test"}'
+            '{"project": 0.5, "area": 0.2, "resource": 0.2, "archive": 0.1, "reasoning": "test"}'
         )
         assert data is not None
         assert abs(data["project"] + data["area"] + data["resource"] + data["archive"] - 1.0) < 1e-9

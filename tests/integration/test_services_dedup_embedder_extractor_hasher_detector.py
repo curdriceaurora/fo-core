@@ -253,6 +253,8 @@ class TestDocumentExtractor:
         extractor = DocumentExtractor()
         text = extractor.extract_text(f)
         assert isinstance(text, str)
+        # Either striprtf parsed it (contains "Hello") or fell back to empty string
+        assert "Hello" in text or text == ""
 
     def test_extract_odt_basic(self, tmp_path: Path) -> None:
         import io
@@ -373,6 +375,8 @@ class TestDocumentEmbedder:
         embedder.fit_transform(["hello world", "world peace"])
         vocab = embedder.get_vocabulary()
         assert isinstance(vocab, dict)
+        assert len(vocab) > 0
+        assert all(isinstance(k, str) and isinstance(v, int) for k, v in vocab.items())
 
     def test_get_vocabulary_not_fitted(self) -> None:
         from file_organizer.services.deduplication.embedder import DocumentEmbedder
@@ -391,6 +395,7 @@ class TestDocumentEmbedder:
         vec = embedder.transform("machine learning")
         top_terms = embedder.get_top_terms(vec, top_n=3)
         assert isinstance(top_terms, list)
+        assert len(top_terms) == 3
 
     def test_get_top_terms_not_fitted(self) -> None:
         import numpy as np
@@ -472,11 +477,18 @@ class TestDocumentEmbedder:
         assert result.shape[0] == 1
 
     def test_import_error_when_sklearn_missing(self) -> None:
-        with patch.dict("sys.modules", {"sklearn": None, "sklearn.feature_extraction": None,
-                                         "sklearn.feature_extraction.text": None}):
+        with patch.dict(
+            "sys.modules",
+            {
+                "sklearn": None,
+                "sklearn.feature_extraction": None,
+                "sklearn.feature_extraction.text": None,
+            },
+        ):
             import importlib
 
             import file_organizer.services.deduplication.embedder as emb_mod
+
             importlib.reload(emb_mod)
             if not emb_mod._SKLEARN_AVAILABLE:
                 with pytest.raises(ImportError, match="scikit-learn"):
@@ -496,9 +508,10 @@ class TestDuplicateDetector:
         (tmp_path / "unique1.txt").write_text("unique content one")
         (tmp_path / "unique2.txt").write_text("unique content two")
         detector = DuplicateDetector()
-        index = detector.scan_directory(tmp_path)
+        detector.scan_directory(tmp_path)
         groups = detector.get_duplicate_groups()
         assert isinstance(groups, dict)
+        assert len(groups) == 0  # no duplicates in unique content
 
     def test_scan_directory_finds_duplicates(self, tmp_path: Path) -> None:
         from file_organizer.services.deduplication.detector import DuplicateDetector
@@ -617,6 +630,7 @@ class TestDuplicateDetector:
         detector.scan_directory(tmp_path)
         stats = detector.get_statistics()
         assert isinstance(stats, dict)
+        assert "total_groups" in stats or "duplicate_groups" in stats or len(stats) > 0
 
     def test_clear_resets_index(self, tmp_path: Path) -> None:
         from file_organizer.services.deduplication.detector import DuplicateDetector

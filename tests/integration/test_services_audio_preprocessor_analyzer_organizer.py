@@ -234,9 +234,7 @@ class TestAudioPreprocessorConvertToWav:
             preprocessor = AudioPreprocessor()
 
         # Simulate ffmpeg executable missing for the conversion call
-        with patch(
-            "subprocess.run", side_effect=FileNotFoundError("no ffmpeg")
-        ):
+        with patch("subprocess.run", side_effect=FileNotFoundError("no ffmpeg")):
             with patch.object(preprocessor, "_convert_with_pydub", return_value=out) as mock_pydub:
                 result = preprocessor.convert_to_wav(src, output_path=out)
 
@@ -275,7 +273,7 @@ class TestAudioPreprocessorNormalizeAndSilence:
         from file_organizer.services.audio.preprocessor import AudioPreprocessor
 
         wav = _write_wav(tmp_path / "audio.wav")
-        out = tmp_path / "norm.wav"
+        tmp_path / "norm.wav"
         with patch("subprocess.run", return_value=MagicMock(returncode=0)):
             preprocessor = AudioPreprocessor()
 
@@ -340,9 +338,7 @@ class TestAudioPreprocessorPipeline:
             preprocessor = AudioPreprocessor()
 
         with patch.object(preprocessor, "normalize_audio", return_value=out):
-            result = preprocessor.preprocess(
-                wav, output_path=out, convert_to_wav=False, normalize=True
-            )
+            preprocessor.preprocess(wav, output_path=out, convert_to_wav=False, normalize=True)
 
         assert out.exists()
 
@@ -391,14 +387,7 @@ class TestAudioPreprocessorGetAudioInfo:
 
         with patch.dict("sys.modules", {"pydub": mock_pydub}):
             with patch("pydub.AudioSegment", mock_pydub.AudioSegment):
-                # Import inside patch context
-
-
-                orig_pydub = None
-                try:
-                    import pydub as orig_pydub  # type: ignore[no-redef]
-                except ImportError:
-                    pass
+                pass  # patch context; actual call tested via direct mock below
 
         # Simpler: just verify the return value structure via direct mocking
         with patch(
@@ -516,9 +505,7 @@ class TestExtractTopics:
         from file_organizer.services.audio.content_analyzer import AudioContentAnalyzer
 
         analyzer = AudioContentAnalyzer()
-        topics = analyzer.extract_topics(
-            "health medical doctor patient treatment disease therapy"
-        )
+        topics = analyzer.extract_topics("health medical doctor patient treatment disease therapy")
         assert "Health" in topics
 
     def test_returns_empty_list_for_empty_text(self) -> None:
@@ -540,7 +527,7 @@ class TestExtractTopics:
             "student school university learning course"
         )
         topics = analyzer.extract_topics(text)
-        assert len(topics) <= 2
+        assert 1 <= len(topics) <= 2
 
     def test_returns_highest_scoring_topics_first(self) -> None:
         from file_organizer.services.audio.content_analyzer import AudioContentAnalyzer
@@ -556,9 +543,7 @@ class TestExtractTopics:
         from file_organizer.services.audio.content_analyzer import AudioContentAnalyzer
 
         analyzer = AudioContentAnalyzer()
-        text = (
-            "software code algorithm research experiment physics market finance investment"
-        )
+        text = "software code algorithm research experiment physics market finance investment"
         topics = analyzer.extract_topics(text)
         assert len(topics) >= 2
 
@@ -604,7 +589,7 @@ class TestExtractKeywords:
         analyzer = AudioContentAnalyzer(max_keywords=3)
         text = " ".join([f"word{i}" * 3 for i in range(20)])
         keywords = analyzer.extract_keywords(text)
-        assert len(keywords) <= 3
+        assert len(keywords) == 3
 
     def test_empty_text_returns_empty_list(self) -> None:
         from file_organizer.services.audio.content_analyzer import AudioContentAnalyzer
@@ -761,9 +746,7 @@ class TestAnalyzeFullPipeline:
             _make_segment(1, 8.0, 13.0, "yes"),
         ]
         meta = _make_audio_metadata(tmp_path / "interview.mp3")
-        transcription = _make_transcription(
-            text="hello yes", segments=segs, language="en"
-        )
+        transcription = _make_transcription(text="hello yes", segments=segs, language="en")
         analyzer = AudioContentAnalyzer()
         result = analyzer.analyze(meta, transcription=transcription)
         assert result.speaker_count >= 2
@@ -908,7 +891,7 @@ class TestSanitizePathComponent:
 
         long_name = "a" * 300
         result = sanitize_path_component(long_name)
-        assert len(result) <= 255
+        assert len(result) == 255
 
 
 class TestAudioOrganizerGeneratePath:
@@ -1037,9 +1020,7 @@ class TestAudioOrganizerOrganize:
         meta = _make_audio_metadata(src, artist="Artist", album="Album", title="Song", genre="Pop")
 
         organizer = AudioOrganizer()
-        result = organizer.organize(
-            [(src, AudioType.MUSIC, meta)], tmp_path / "out", dry_run=True
-        )
+        result = organizer.organize([(src, AudioType.MUSIC, meta)], tmp_path / "out", dry_run=True)
 
         assert result.total_moved == 1  # dry_run records as "moved"
         assert src.exists()  # file not actually moved
@@ -1054,9 +1035,7 @@ class TestAudioOrganizerOrganize:
         out_root = tmp_path / "organized"
 
         organizer = AudioOrganizer()
-        result = organizer.organize(
-            [(src, AudioType.MUSIC, meta)], out_root, dry_run=False
-        )
+        result = organizer.organize([(src, AudioType.MUSIC, meta)], out_root, dry_run=False)
 
         assert result.total_moved == 1
         assert result.total_failed == 0
@@ -1093,9 +1072,7 @@ class TestAudioOrganizerOrganize:
 
         organizer = AudioOrganizer()
         organizer.organize([(src1, AudioType.MUSIC, meta1)], out_root, dry_run=False)
-        result2 = organizer.organize(
-            [(src2, AudioType.MUSIC, meta2)], out_root, dry_run=False
-        )
+        result2 = organizer.organize([(src2, AudioType.MUSIC, meta2)], out_root, dry_run=False)
 
         assert result2.total_moved == 1
         assert result2.total_failed == 0

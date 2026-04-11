@@ -892,7 +892,7 @@ class TestCommandExecutorAdditional:
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("undo")
         result = executor.execute(intent)
-        assert isinstance(result.success, bool)
+        assert result.success is False
 
     def test_execute_redo_no_history(self, tmp_path: Path) -> None:
         from file_organizer.services.copilot.executor import CommandExecutor
@@ -900,7 +900,7 @@ class TestCommandExecutorAdditional:
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("redo")
         result = executor.execute(intent)
-        assert isinstance(result.success, bool)
+        assert result.success is False
 
     def test_execute_preview_non_directory(self, tmp_path: Path) -> None:
         from file_organizer.services.copilot.executor import CommandExecutor

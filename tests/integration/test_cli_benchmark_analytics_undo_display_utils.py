@@ -70,7 +70,17 @@ class TestBenchmarkRunCommand:
         (src / "file.txt").write_text("hello")
         result = cli_runner.invoke(
             app,
-            ["benchmark", "run", str(src), "--suite", "nonexistent", "--iterations", "1", "--warmup", "0"],
+            [
+                "benchmark",
+                "run",
+                str(src),
+                "--suite",
+                "nonexistent",
+                "--iterations",
+                "1",
+                "--warmup",
+                "0",
+            ],
         )
         assert result.exit_code == 1
         assert "unknown suite" in result.output.lower()
@@ -97,7 +107,18 @@ class TestBenchmarkRunCommand:
         (src / "a.txt").write_text("x")
         result = cli_runner.invoke(
             app,
-            ["benchmark", "run", str(src), "--suite", "io", "--iterations", "2", "--warmup", "0", "--json"],
+            [
+                "benchmark",
+                "run",
+                str(src),
+                "--suite",
+                "io",
+                "--iterations",
+                "2",
+                "--warmup",
+                "0",
+                "--json",
+            ],
         )
         assert result.exit_code == 0
         data = json.loads(result.output.strip())
@@ -149,7 +170,11 @@ class TestBenchmarkRunCommand:
             ],
         )
         assert result.exit_code == 0
-        assert "comparison" in result.output.lower() or "regression" in result.output.lower() or "no regression" in result.output.lower()
+        assert (
+            "comparison" in result.output.lower()
+            or "regression" in result.output.lower()
+            or "no regression" in result.output.lower()
+        )
 
     def test_run_with_compare_file_json(self, cli_runner, tmp_path: Path) -> None:
         from file_organizer.cli.main import app
@@ -279,7 +304,18 @@ class TestRunTextSuite:
 
         result = cli_runner.invoke(
             app,
-            ["benchmark", "run", str(src), "--suite", "text", "--iterations", "1", "--warmup", "0", "--json"],
+            [
+                "benchmark",
+                "run",
+                str(src),
+                "--suite",
+                "text",
+                "--iterations",
+                "1",
+                "--warmup",
+                "0",
+                "--json",
+            ],
         )
         assert result.exit_code == 0
         # The output contains a JSON object — find the braces and parse it
@@ -398,6 +434,7 @@ class TestBenchmarkSuiteHelpers:
 
         result = _detect_hardware_profile()
         assert isinstance(result, dict)
+        assert "cpu_cores" in result or "platform" in result or len(result) > 0
 
     def test_check_baseline_profile_compatibility_same_version(self) -> None:
         from file_organizer.cli.benchmark import (
@@ -1055,9 +1092,7 @@ class TestAnalyticsCommand:
             mock_svc = MagicMock()
             mock_svc_cls.return_value = mock_svc
             mock_svc.generate_dashboard.return_value = dashboard
-            result = analytics_command(
-                [str(src), "--export", str(export_path), "--format", "text"]
-            )
+            result = analytics_command([str(src), "--export", str(export_path), "--format", "text"])
         assert result == 0
         mock_svc.export_dashboard.assert_called_once()
 
@@ -1593,7 +1628,7 @@ class TestOutputSearchResults:
 
         from file_organizer.cli.utilities import _output_search_results
 
-        output = _io.StringIO()
+        _io.StringIO()
         with patch("typer.echo", wraps=typer.echo) as mock_echo:
             _output_search_results([], json_out=True)
         mock_echo.assert_called_once_with("[]")
@@ -1823,9 +1858,7 @@ class TestMainEntryPoints:
 
         with (
             patch("sys.argv", ["fo-history", "--limit", "5"]),
-            patch(
-                "file_organizer.cli.undo_redo.history_command", return_value=0
-            ) as mock_cmd,
+            patch("file_organizer.cli.undo_redo.history_command", return_value=0) as mock_cmd,
             patch("sys.exit"),
         ):
             main_history()
@@ -1842,9 +1875,7 @@ class TestSearchCommandLimitZero:
         from file_organizer.cli.main import app
 
         (tmp_path / "file.txt").write_text("x")
-        result = cli_runner.invoke(
-            app, ["search", "file", str(tmp_path), "--limit", "0"]
-        )
+        result = cli_runner.invoke(app, ["search", "file", str(tmp_path), "--limit", "0"])
         assert result.exit_code == 0
 
 
@@ -2144,8 +2175,24 @@ class TestCompareResults:
     def test_regression_detected(self) -> None:
         from file_organizer.cli.benchmark import compare_results
 
-        current = {"results": {"median_ms": 50.0, "p95_ms": 120.0, "p99_ms": 150.0, "stddev_ms": 5.0, "throughput_fps": 20.0}}
-        baseline = {"results": {"median_ms": 10.0, "p95_ms": 50.0, "p99_ms": 60.0, "stddev_ms": 2.0, "throughput_fps": 100.0}}
+        current = {
+            "results": {
+                "median_ms": 50.0,
+                "p95_ms": 120.0,
+                "p99_ms": 150.0,
+                "stddev_ms": 5.0,
+                "throughput_fps": 20.0,
+            }
+        }
+        baseline = {
+            "results": {
+                "median_ms": 10.0,
+                "p95_ms": 50.0,
+                "p99_ms": 60.0,
+                "stddev_ms": 2.0,
+                "throughput_fps": 100.0,
+            }
+        }
         result = compare_results(current, baseline, threshold=1.2)
         assert result["regression"] is True
         assert result["deltas_pct"]["median_ms"] == pytest.approx(400.0, abs=1.0)
@@ -2153,16 +2200,48 @@ class TestCompareResults:
     def test_no_regression(self) -> None:
         from file_organizer.cli.benchmark import compare_results
 
-        current = {"results": {"median_ms": 10.0, "p95_ms": 50.0, "p99_ms": 60.0, "stddev_ms": 2.0, "throughput_fps": 100.0}}
-        baseline = {"results": {"median_ms": 10.0, "p95_ms": 50.0, "p99_ms": 60.0, "stddev_ms": 2.0, "throughput_fps": 100.0}}
+        current = {
+            "results": {
+                "median_ms": 10.0,
+                "p95_ms": 50.0,
+                "p99_ms": 60.0,
+                "stddev_ms": 2.0,
+                "throughput_fps": 100.0,
+            }
+        }
+        baseline = {
+            "results": {
+                "median_ms": 10.0,
+                "p95_ms": 50.0,
+                "p99_ms": 60.0,
+                "stddev_ms": 2.0,
+                "throughput_fps": 100.0,
+            }
+        }
         result = compare_results(current, baseline, threshold=1.2)
         assert result["regression"] is False
 
     def test_zero_baseline_value_returns_zero_delta(self) -> None:
         from file_organizer.cli.benchmark import compare_results
 
-        current = {"results": {"median_ms": 10.0, "p95_ms": 0.0, "p99_ms": 0.0, "stddev_ms": 0.0, "throughput_fps": 0.0}}
-        baseline = {"results": {"median_ms": 0.0, "p95_ms": 0.0, "p99_ms": 0.0, "stddev_ms": 0.0, "throughput_fps": 0.0}}
+        current = {
+            "results": {
+                "median_ms": 10.0,
+                "p95_ms": 0.0,
+                "p99_ms": 0.0,
+                "stddev_ms": 0.0,
+                "throughput_fps": 0.0,
+            }
+        }
+        baseline = {
+            "results": {
+                "median_ms": 0.0,
+                "p95_ms": 0.0,
+                "p99_ms": 0.0,
+                "stddev_ms": 0.0,
+                "throughput_fps": 0.0,
+            }
+        }
         result = compare_results(current, baseline)
         assert result["deltas_pct"]["p95_ms"] == 0.0
 
@@ -2217,7 +2296,17 @@ class TestBenchmarkSuiteVisionAndPipeline:
         (src / "a.txt").write_text("pipeline content")
         result = cli_runner.invoke(
             app,
-            ["benchmark", "run", str(src), "--suite", "pipeline", "--iterations", "1", "--warmup", "0"],
+            [
+                "benchmark",
+                "run",
+                str(src),
+                "--suite",
+                "pipeline",
+                "--iterations",
+                "1",
+                "--warmup",
+                "0",
+            ],
         )
         assert result.exit_code == 0
 
@@ -2241,9 +2330,7 @@ class TestBenchmarkSuiteVisionAndPipeline:
 
         audio_file = tmp_path / "track.mp3"
         audio_file.write_bytes(b"\xff\xfb" + b"\x00" * 50)
-        outcome = _SuiteIterationOutcome(
-            processed_count=1, used_synthetic_audio_metadata=True
-        )
+        outcome = _SuiteIterationOutcome(processed_count=1, used_synthetic_audio_metadata=True)
         cls = _classify_audio_suite([audio_file], outcome)
         assert cls.degraded is True
 
