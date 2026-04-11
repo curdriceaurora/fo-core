@@ -1,15 +1,14 @@
 """Integration tests for CLI main commands.
 
-Covers: version, serve (ImportError + OSError paths), hardware-info (json/text),
-undo/redo/history, analytics, global callback flags (--verbose, --dry-run, --json,
---yes, --no-interactive).
+Covers: version, hardware-info (json/text), undo/redo/history, analytics,
+and global callback flags (--verbose, --dry-run, --json, --yes, --no-interactive).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -35,34 +34,6 @@ class TestVersionCommand:
 
         result = runner.invoke(app, ["version"])
         assert __version__ in result.output
-
-
-class TestServeCommand:
-    def test_serve_missing_uvicorn_exits_1(self) -> None:
-        """When uvicorn is not installed the command must exit with code 1."""
-        with patch.dict("sys.modules", {"uvicorn": None}):
-            result = runner.invoke(app, ["serve", "--port", "9999"])
-        assert result.exit_code == 1
-        assert "uvicorn" in result.output.lower() or result.exception is not None
-
-    def test_serve_address_in_use_exits_1(self) -> None:
-        """OSError 'address already in use' causes exit 1 with hint message."""
-        mock_uvicorn = MagicMock()
-        mock_uvicorn.run.side_effect = OSError("address already in use")
-        with patch.dict("sys.modules", {"uvicorn": mock_uvicorn}):
-            result = runner.invoke(app, ["serve", "--port", "8000"])
-        assert result.exit_code == 1
-        # Must show the port hint
-        assert "8001" in result.output or "port" in result.output.lower()
-
-    def test_serve_generic_oserror_exits_1(self) -> None:
-        """Generic OSError exits 1 without port hint."""
-        mock_uvicorn = MagicMock()
-        mock_uvicorn.run.side_effect = OSError("permission denied")
-        with patch.dict("sys.modules", {"uvicorn": mock_uvicorn}):
-            result = runner.invoke(app, ["serve"])
-        assert result.exit_code == 1
-        assert "error" in result.output.lower()
 
 
 def _make_hw_profile() -> SimpleNamespace:

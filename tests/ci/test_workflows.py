@@ -110,11 +110,17 @@ class TestWorkflowDirectory:
         assert WORKFLOWS_DIR.exists(), ".github/workflows directory must exist"
 
     def test_all_expected_workflows_exist(self) -> None:
-        """Verify all expected workflow files are present."""
-        expected_workflows = ["ci.yml", "ci-full.yml", "release.yml", "docker.yml", "security.yml"]
+        """Verify all expected workflow files are present for the CLI-only pipeline."""
+        expected_workflows = ["ci.yml", "ci-full.yml", "release.yml", "security.yml"]
         for workflow in expected_workflows:
             path = WORKFLOWS_DIR / workflow
             assert path.exists(), f"Expected workflow file not found: {workflow}"
+
+    def test_docker_workflow_removed(self) -> None:
+        """Docker publish workflow is intentionally removed in CLI-only scope."""
+        assert not (WORKFLOWS_DIR / "docker.yml").exists(), (
+            "docker.yml should not exist for CLI-only CI scope"
+        )
 
     def test_all_workflow_files_are_valid_yaml(self) -> None:
         """Verify all workflow files in the directory are valid YAML."""
@@ -528,53 +534,6 @@ class TestReleaseWorkflow:
         assert environment_name == "pypi", (
             "publish-pypi job must use the 'pypi' GitHub environment for OIDC"
         )
-
-
-@pytest.mark.unit
-class TestDockerWorkflow:
-    """Tests for the Docker workflow (docker.yml)."""
-
-    @pytest.fixture
-    def workflow(self) -> dict[str, Any]:
-        return load_workflow("docker.yml")
-
-    def test_docker_triggers(self, workflow: dict[str, Any]) -> None:
-        """Verify Docker workflow triggers on push and tags."""
-        triggers = get_triggers(workflow)
-        assert "push" in triggers, "Docker workflow should trigger on push"
-
-    def test_docker_uses_buildx(self, workflow: dict[str, Any]) -> None:
-        """Verify Docker workflow uses Buildx for multi-arch builds."""
-        workflow_text = yaml.dump(workflow)
-        assert "buildx" in workflow_text.lower(), "Docker workflow should use Docker Buildx"
-
-    def test_docker_builds_multi_arch(self, workflow: dict[str, Any]) -> None:
-        """Verify Docker workflow builds for multiple architectures."""
-        workflow_text = yaml.dump(workflow)
-        assert "amd64" in workflow_text, "Docker workflow should build for linux/amd64"
-        assert "arm64" in workflow_text, "Docker workflow should build for linux/arm64"
-
-    def test_docker_pushes_to_ghcr(self, workflow: dict[str, Any]) -> None:
-        """Verify Docker workflow pushes to GitHub Container Registry."""
-        jobs = workflow.get("jobs", {})
-        build_job = jobs.get("build-and-push", {})
-        steps = build_job.get("steps", [])
-
-        has_ghcr_login = False
-        for step in steps:
-            uses = step.get("uses", "")
-            if isinstance(uses, str) and "docker/login-action" in uses:
-                registry = step.get("with", {}).get("registry")
-                if registry == "ghcr.io":
-                    has_ghcr_login = True
-                    break
-
-        assert has_ghcr_login, "Docker workflow must log in to ghcr.io"
-
-    def test_docker_uses_caching(self, workflow: dict[str, Any]) -> None:
-        """Verify Docker workflow uses build caching."""
-        workflow_text = yaml.dump(workflow)
-        assert "cache" in workflow_text.lower(), "Docker workflow should use build caching"
 
 
 @pytest.mark.unit
