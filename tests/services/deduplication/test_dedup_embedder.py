@@ -48,22 +48,17 @@ def mock_vectorizer():
 @pytest.fixture
 def embedder(mock_vectorizer):
     """Create a DocumentEmbedder with mocked sklearn."""
+    from file_organizer.services.deduplication.embedder import DocumentEmbedder
+
     mock_tfidf_cls = MagicMock(return_value=mock_vectorizer)
 
-    with patch.dict(
-        "sys.modules",
-        {
-            "sklearn": MagicMock(),
-            "sklearn.feature_extraction": MagicMock(),
-            "sklearn.feature_extraction.text": MagicMock(),
-        },
+    with (
+        patch("file_organizer.services.deduplication.embedder._SKLEARN_AVAILABLE", True),
+        patch("file_organizer.services.deduplication.embedder.TfidfVectorizer", mock_tfidf_cls),
     ):
-        with patch("sklearn.feature_extraction.text.TfidfVectorizer", mock_tfidf_cls):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder(max_features=100, ngram_range=(1, 2))
-            emb.vectorizer = mock_vectorizer
-            return emb
+        emb = DocumentEmbedder(max_features=100, ngram_range=(1, 2))
+        emb.vectorizer = mock_vectorizer
+        return emb
 
 
 # ---------------------------------------------------------------------------

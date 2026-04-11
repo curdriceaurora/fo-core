@@ -281,10 +281,12 @@ class TestLoadModel:
 
     def test_lazy_load(self, transcriber):
         mock_whisper_model = MagicMock()
-        mock_fw = MagicMock()
-        mock_fw.WhisperModel.return_value = mock_whisper_model
+        mock_whisper_cls = MagicMock(return_value=mock_whisper_model)
 
-        with patch.dict("sys.modules", {"faster_whisper": mock_fw}):
+        with (
+            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", True),
+            patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
+        ):
             model = transcriber._load_model()
 
         assert model is mock_whisper_model
@@ -298,23 +300,17 @@ class TestLoadModel:
         assert result is mock_model
 
     def test_import_error(self, transcriber):
-        def fake_import(name, *args, **kwargs):
-            if "faster_whisper" in name:
-                raise ImportError("no faster_whisper")
-            return original_import(name, *args, **kwargs)
-
-        import builtins
-
-        original_import = builtins.__import__
-        with patch("builtins.__import__", side_effect=fake_import):
+        with patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", False):
             with pytest.raises(ImportError, match="faster-whisper is required"):
                 transcriber._load_model()
 
     def test_model_load_error(self, transcriber):
-        mock_fw = MagicMock()
-        mock_fw.WhisperModel.side_effect = RuntimeError("model load error")
+        mock_whisper_cls = MagicMock(side_effect=RuntimeError("model load error"))
 
-        with patch.dict("sys.modules", {"faster_whisper": mock_fw}):
+        with (
+            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", True),
+            patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
+        ):
             with pytest.raises(RuntimeError, match="model load error"):
                 transcriber._load_model()
 
@@ -327,11 +323,14 @@ class TestLoadModel:
                 cache_dir=cache_dir,
             )
 
-        mock_fw = MagicMock()
-        with patch.dict("sys.modules", {"faster_whisper": mock_fw}):
+        mock_whisper_cls = MagicMock()
+        with (
+            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", True),
+            patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
+        ):
             t._load_model()
 
-        call_kwargs = mock_fw.WhisperModel.call_args
+        call_kwargs = mock_whisper_cls.call_args
         # Build an independent expected value and resolve both sides so the
         # assertion is path-normalisation-agnostic across all platforms.
         expected = cache_dir.resolve()
