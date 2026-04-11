@@ -359,9 +359,9 @@ cmd_resolve_all() {
     echo -e "${BLUE}Found $total unresolved thread(s)${NC}"
 
     # Load replies (bash 3.2 compatible — use temp dir instead of associative array)
-    local replies_tmpdir
+    local replies_tmpdir=""
     replies_tmpdir=$(mktemp -d)
-    trap 'rm -rf "$replies_tmpdir"' EXIT
+    trap '[[ -n "${replies_tmpdir:-}" ]] && rm -rf "$replies_tmpdir"' EXIT
 
     if [[ -n "$replies_file" ]]; then
         if [[ ! -f "$replies_file" ]]; then
