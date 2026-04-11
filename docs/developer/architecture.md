@@ -248,13 +248,13 @@ fo-core/
 │   ├── rules/                        # Standard operation rules
 │   └── scripts/                      # Validation scripts
 │
-├── src/file_organizer/               # Main application (~78,800 LOC, 314 modules)
+├── src/file_organizer/               # Main application (several hundred modules)
 │   ├── models/                       # AI model abstractions (9 modules)
 │   │   ├── base.py                   # BaseModel interface, ModelConfig
 │   │   ├── text_model.py             # Ollama text generation
 │   │   ├── vision_model.py           # Vision-language models
 │   │   ├── audio_model.py            # Audio transcription
-│   │   ├── audio_transcriber.py      # Comprehensive audio transcription
+│   │   ├── audio_transcriber.py      # Core audio transcription engine
 │   │   ├── model_manager.py          # Unified model lifecycle management
 │   │   ├── registry.py               # Model registry
 │   │   ├── suggestion_types.py       # Type definitions
@@ -297,7 +297,7 @@ fo-core/
 │   ├── utils/                        # Utilities (file_readers.py, text_processing.py)
 │   └── config/                       # Configuration management
 │
-├── tests/                            # 237 test files
+├── tests/                            # Test suite
 │   ├── ci/                           # CI pipeline tests
 │   ├── core/                         # Core tests
 │   ├── integration/                  # Integration tests

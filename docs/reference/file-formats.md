@@ -215,7 +215,7 @@ If an optional dependency is missing, the reader raises `ImportError` with insta
 ## Adding Support for New Formats
 
 1. Create or extend a reader function in `src/file_organizer/utils/readers/`
-2. Register the extension in the `READERS` dict in `__init__.py`
+2. Register the extension in the `readers` mapping inside `read_file()` in `src/file_organizer/utils/readers/__init__.py`
 3. If the format requires an optional dependency, add it to `pyproject.toml` under the appropriate install group
 4. Use the `_check_file_size()` helper for size validation
 5. Raise `FileReadError` on read failures

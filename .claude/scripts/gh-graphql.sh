@@ -12,6 +12,7 @@
 # Commands:
 #   pr-comments <PR_NUMBER>                       Fetch all PR comments
 #   pr-threads  <PR_NUMBER>                       List unresolved review threads
+#   pr-thread-status <PR_NUMBER>                  Show ALL threads with resolved status
 #   pr-reviews  <PR_NUMBER>                       Fetch all reviews with comments
 #   resolve-thread <THREAD_ID>                    Resolve a single review thread
 #   reply-thread <THREAD_ID> <BODY>               Reply to a review thread
@@ -21,6 +22,7 @@
 # Examples:
 #   bash .claude/scripts/gh-graphql.sh pr-comments 965
 #   bash .claude/scripts/gh-graphql.sh pr-threads 965
+#   bash .claude/scripts/gh-graphql.sh pr-thread-status 965
 #   bash .claude/scripts/gh-graphql.sh resolve-all 965 --dry-run
 #   bash .claude/scripts/gh-graphql.sh resolve-all 965 --replies replies.json
 ##############################################################################
@@ -169,6 +171,58 @@ cmd_pr_threads() {
         }
       }
     }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | {id, preview: .comments.nodes[0].body[:80]}'
+}
+
+##############################################################################
+# pr-thread-status — Show ALL review threads with resolved/unresolved status
+# Use this to verify after resolve-all that every thread is resolved.
+##############################################################################
+
+cmd_pr_thread_status() {
+    local pr_number="$1"
+    require_pr_number "$pr_number"
+
+    local data
+    data=$(gh api graphql -f query='query {
+      repository(owner: "'"$OWNER"'", name: "'"$REPO_NAME"'") {
+        pullRequest(number: '"$pr_number"') {
+          reviewThreads(first: 100) {
+            nodes {
+              id
+              isResolved
+              comments(first: 1) {
+                nodes {
+                  author { login }
+                  path
+                  body
+                }
+              }
+            }
+          }
+        }
+      }
+    }')
+
+    local total resolved unresolved
+    total=$(echo "$data" | jq '.data.repository.pullRequest.reviewThreads.nodes | length')
+    resolved=$(echo "$data" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == true)] | length')
+    unresolved=$(echo "$data" | jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length')
+
+    echo "## PR #$pr_number — Thread Status ($resolved/$total resolved)"
+    echo ""
+
+    echo "$data" | jq -r '.data.repository.pullRequest.reviewThreads.nodes[] |
+        (if .isResolved then "✅" else "❌" end) + " " +
+        (.id) + "\n" +
+        "   author: " + (.comments.nodes[0].author.login // "?") + "  path: " + (.comments.nodes[0].path // "?") + "\n" +
+        "   " + ((.comments.nodes[0].body // "") | .[0:80] | gsub("\n"; " ")) + "\n"'
+
+    echo "---"
+    echo "Total: $total  Resolved: $resolved  Unresolved: $unresolved"
+
+    if [[ "$unresolved" -gt 0 ]]; then
+        return 1
+    fi
 }
 
 ##############################################################################
@@ -382,6 +436,9 @@ case "$COMMAND" in
     pr-threads)
         cmd_pr_threads "${1:-}"
         ;;
+    pr-thread-status)
+        cmd_pr_thread_status "${1:-}"
+        ;;
     pr-reviews)
         cmd_pr_reviews "${1:-}"
         ;;
@@ -400,6 +457,7 @@ case "$COMMAND" in
         echo "Commands:"
         echo "  pr-comments <PR>                          Fetch all PR comments"
         echo "  pr-threads  <PR>                          List unresolved threads"
+        echo "  pr-thread-status <PR>                     Show all threads with resolved status"
         echo "  pr-reviews  <PR>                          Fetch reviews with comments"
         echo "  resolve-thread <THREAD_ID>                Resolve a single thread"
         echo "  reply-thread <THREAD_ID> <BODY>           Reply to a thread"
