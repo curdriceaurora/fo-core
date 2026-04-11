@@ -14,11 +14,16 @@ from typing import Any
 
 from file_organizer._compat import StrEnum
 
+_FASTER_WHISPER_IMPORT_ERROR = (
+    "faster-whisper is required for audio transcription. "
+    "Install it with: pip install faster-whisper"
+)
+
 try:
     from faster_whisper import WhisperModel  # pyre-ignore[21]
 
-    _FASTER_WHISPER_AVAILABLE = True
-except ImportError:
+    _FASTER_WHISPER_AVAILABLE = True  # pragma: no cover
+except ImportError:  # pragma: no cover
     WhisperModel = None  # type: ignore[assignment, misc]
     _FASTER_WHISPER_AVAILABLE = False
 
@@ -167,11 +172,8 @@ class AudioTranscriber:
         if self._model is not None:
             return self._model
 
-        if not _FASTER_WHISPER_AVAILABLE:
-            raise ImportError(
-                "faster-whisper is required for audio transcription. "
-                "Install it with: pip install faster-whisper"
-            )
+        if not _FASTER_WHISPER_AVAILABLE:  # pragma: no cover
+            raise ImportError(_FASTER_WHISPER_IMPORT_ERROR)
 
         try:
             logger.info(f"Loading Whisper model: {self.model_size.value}")

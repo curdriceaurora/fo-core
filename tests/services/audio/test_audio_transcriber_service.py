@@ -276,6 +276,7 @@ class TestDetectDevice:
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 class TestLoadModel:
     """Tests for _load_model."""
 
@@ -284,7 +285,7 @@ class TestLoadModel:
         mock_whisper_cls = MagicMock(return_value=mock_whisper_model)
 
         with (
-            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", True),
+            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
             patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
         ):
             model = transcriber._load_model()
@@ -308,7 +309,7 @@ class TestLoadModel:
         mock_whisper_cls = MagicMock(side_effect=RuntimeError("model load error"))
 
         with (
-            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", True),
+            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
             patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
         ):
             with pytest.raises(RuntimeError, match="model load error"):
@@ -325,7 +326,7 @@ class TestLoadModel:
 
         mock_whisper_cls = MagicMock()
         with (
-            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", True),
+            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
             patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
         ):
             t._load_model()

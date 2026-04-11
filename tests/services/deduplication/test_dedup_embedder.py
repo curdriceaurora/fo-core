@@ -53,7 +53,7 @@ def embedder(mock_vectorizer):
     mock_tfidf_cls = MagicMock(return_value=mock_vectorizer)
 
     with (
-        patch("file_organizer.services.deduplication.embedder._SKLEARN_AVAILABLE", True),
+        patch("file_organizer.services.deduplication.embedder._SKLEARN_AVAILABLE", new=True),
         patch("file_organizer.services.deduplication.embedder.TfidfVectorizer", mock_tfidf_cls),
     ):
         emb = DocumentEmbedder(max_features=100, ngram_range=(1, 2))

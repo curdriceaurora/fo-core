@@ -16,7 +16,7 @@ try:
     from sklearn.feature_extraction.text import TfidfVectorizer  # pyre-ignore[21]
 
     _SKLEARN_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover
     TfidfVectorizer = None  # type: ignore[assignment, misc]
     _SKLEARN_AVAILABLE = False
 
