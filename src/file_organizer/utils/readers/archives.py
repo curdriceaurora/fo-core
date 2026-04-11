@@ -113,8 +113,8 @@ def read_7z_file(file_path: str | Path, max_files: int = 50) -> str:
 
             # Calculate statistics
             total_files = len(all_files)
-            total_compressed = sum(f.compressed for f in all_files)
-            total_uncompressed = sum(f.uncompressed for f in all_files)
+            total_compressed = sum(f.compressed or 0 for f in all_files)
+            total_uncompressed = sum(f.uncompressed or 0 for f in all_files)
             compression_ratio = (
                 (1 - total_compressed / total_uncompressed) * 100 if total_uncompressed > 0 else 0
             )
@@ -137,8 +137,8 @@ def read_7z_file(file_path: str | Path, max_files: int = 50) -> str:
 
             # List files
             for file_info in all_files[:max_files]:
-                size_kb = file_info.uncompressed / 1024
-                compressed_kb = file_info.compressed / 1024
+                size_kb = (file_info.uncompressed or 0) / 1024
+                compressed_kb = (file_info.compressed or 0) / 1024
                 lines.append(
                     f"  - {file_info.filename} ({size_kb:.2f} KB → {compressed_kb:.2f} KB)"
                 )
