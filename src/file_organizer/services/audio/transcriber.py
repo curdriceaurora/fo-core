@@ -14,6 +14,19 @@ from typing import Any
 
 from file_organizer._compat import StrEnum
 
+_FASTER_WHISPER_IMPORT_ERROR = (
+    "faster-whisper is required for audio transcription. "
+    "Install it with: pip install faster-whisper"
+)
+
+try:
+    from faster_whisper import WhisperModel  # pyre-ignore[21]
+
+    _FASTER_WHISPER_AVAILABLE = True  # pragma: no cover
+except ImportError:  # pragma: no cover
+    WhisperModel = None  # type: ignore[assignment, misc]
+    _FASTER_WHISPER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,13 +168,14 @@ class AudioTranscriber:
         return "cpu"
 
     def _load_model(self) -> Any:
-        """Lazy load the Whisper model."""
+        """Load the Whisper model, raising ImportError if faster-whisper is not installed."""
         if self._model is not None:
             return self._model
 
-        try:
-            from faster_whisper import WhisperModel  # pyre-ignore[21]  # pragma: no cover
+        if not _FASTER_WHISPER_AVAILABLE:  # pragma: no cover
+            raise ImportError(_FASTER_WHISPER_IMPORT_ERROR)
 
+        try:
             logger.info(f"Loading Whisper model: {self.model_size.value}")
             self._model = WhisperModel(
                 self.model_size.value,
@@ -172,12 +186,6 @@ class AudioTranscriber:
             )
             logger.info("Model loaded successfully")
             return self._model
-
-        except ImportError as e:
-            raise ImportError(
-                "faster-whisper is required for audio transcription. "
-                "Install it with: pip install faster-whisper"
-            ) from e
         except (OSError, RuntimeError, ValueError) as e:
             logger.error(f"Failed to load model: {e}")
             raise

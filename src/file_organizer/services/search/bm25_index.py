@@ -15,6 +15,17 @@ from pathlib import Path
 
 from loguru import logger
 
+_BM25_IMPORT_ERROR: ImportError | None = None
+
+try:
+    from rank_bm25 import BM25Okapi  # pyre-ignore[21]
+
+    _BM25_AVAILABLE = True
+except ImportError as _exc:  # pragma: no cover
+    BM25Okapi = None  # type: ignore[assignment, misc]
+    _BM25_AVAILABLE = False
+    _BM25_IMPORT_ERROR = _exc
+
 
 def _tokenise(text: str) -> list[str]:
     """Lower-case, split on non-alphanumeric runs, filter empty tokens."""
@@ -61,13 +72,11 @@ class BM25Index:
                 f"documents ({len(documents)}) and paths ({len(paths)}) must have equal length"
             )
 
-        try:
-            from rank_bm25 import BM25Okapi  # pyre-ignore[21]
-        except ImportError as exc:
+        if not _BM25_AVAILABLE:
             raise ImportError(
                 "rank-bm25 is required for BM25Index. "
                 "Install it with: pip install 'file-organizer[search]'"
-            ) from exc
+            ) from _BM25_IMPORT_ERROR
 
         tokenised = [_tokenise(doc) for doc in documents]
         self._bm25 = BM25Okapi(tokenised)
