@@ -16,7 +16,7 @@ from typing import Literal
 from PIL import Image
 
 try:
-    from imagededup.methods import AHash, DHash, PHash
+    from imagededup.methods import AHash, DHash, PHash  # pyre-ignore[21]
 
     _IMAGEDEDUP_AVAILABLE = True
 except ImportError:

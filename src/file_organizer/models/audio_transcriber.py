@@ -12,7 +12,7 @@ from typing import Any
 from loguru import logger
 
 try:
-    from faster_whisper import WhisperModel
+    from faster_whisper import WhisperModel  # pyre-ignore[21]
 
     _FASTER_WHISPER_AVAILABLE = True
 except ImportError:
