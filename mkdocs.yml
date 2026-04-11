@@ -40,6 +40,7 @@ nav:
     - File Formats: reference/file-formats.md
     - Performance: reference/performance.md
   - Developer:
+    - Overview: developer/index.md
     - Contributing: developer/contributing.md
     - Architecture: developer/architecture.md
     - Testing: developer/testing.md

@@ -63,7 +63,7 @@ fo-core processes **48+ file formats** including:
 
 ### Configuration
 
-- [Configuration](admin/configuration.md) - Environment setup
+- [Configuration](CONFIGURATION.md) - Environment setup
 - [Audio & Video Processing](setup/audio-video.md) - Audio and video processing setup
 
 ### Development & Extension

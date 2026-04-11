@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and solutions for File Organizer. For advanced deployment and production issues, see the [Admin Troubleshooting Guide](admin/troubleshooting.md).
+Common issues and solutions for File Organizer.
 
 ## Installation Issues
 
@@ -149,7 +149,7 @@ done
 file-organizer organize /path/to/input /path/to/output --no-vision
 ```
 
-For production deployments with high memory demands, see [Performance Tuning](admin/performance-tuning.md).
+For production deployments with high memory demands, see [Performance Tuning](reference/performance.md).
 
 ### Audio Transcription Out of Memory
 
@@ -741,8 +741,7 @@ If you can't find a solution here:
 
 1. **Check documentation**:
    - [Getting Started Guide](getting-started.md)
-   - [Admin Troubleshooting](admin/troubleshooting.md) - Deployment and production issues
-   - [Performance Tuning](admin/performance-tuning.md) - Memory and optimization
+   - [Performance Tuning](reference/performance.md) - Memory and optimization
    - [FAQ](faq.md) - Frequently Asked Questions
 
 2. **Review logs**:

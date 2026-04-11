@@ -475,7 +475,7 @@ file-organizer update install --dry-run
 | Scientific | `.hdf5`, `.h5`, `.hdf`, `.nc`, `.nc4`, `.netcdf`, `.mat` |
 | CAD | `.dxf`, `.dwg`, `.step`, `.stp`, `.iges`, `.igs` |
 
-*Legacy formats (`.doc`, `.xls`) have limited support and may return `None` or require additional dependencies. See the [File Format Reference](admin/file-format-reference.md) for details.
+*Legacy formats (`.doc`, `.xls`) have limited support and may return `None` or require additional dependencies. See the [File Format Reference](reference/file-formats.md) for details.
 
 !!! tip
     Some format categories require optional feature packs. See [Optional Feature Packs](#optional-feature-packs) above. For audio transcription and video analysis features, see the [Audio & Video Setup Guide](setup/audio-video.md).

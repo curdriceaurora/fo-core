@@ -25,7 +25,7 @@ pip install local-file-organizer
 file-organizer doctor .
 ```
 
-See [Installation Guide](admin/installation.md) for options.
+See the sections below for platform-specific options.
 
 ### From Source
 
@@ -346,7 +346,6 @@ For more issues, see [Troubleshooting Guide](troubleshooting.md).
 
 ## Next Steps
 
-- **Administrators**: Check [Admin Guide](admin/index.md)
 - **Developers**: Read [Developer Guide](developer/index.md)
 
 ## Getting Help
