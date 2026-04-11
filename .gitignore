@@ -96,6 +96,8 @@ logs/
 # Test results and coverage
 test-results/
 coverage/
+!scripts/coverage/
+!scripts/coverage/**
 .nyc_output/
 *.lcov
 
