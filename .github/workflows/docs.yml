@@ -1,0 +1,77 @@
+name: Build and Deploy Documentation
+on:
+  push:
+    branches: [main, develop]
+    paths: ['docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
+  pull_request:
+    branches: [main]
+    paths: ['docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -e ".[docs]"
+      - run: mkdocs build --strict
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: documentation
+          path: site/
+          retention-days: 30
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check GitHub Pages is enabled
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          status=$(gh api repos/${{ github.repository }}/pages --jq '.status' 2>/dev/null || echo "disabled")
+          if [ "$status" = "disabled" ] || [ "$status" = "null" ]; then
+            echo "❌ GitHub Pages is not enabled."
+            echo "   Go to Settings → Pages → Source: GitHub Actions"
+            echo "   Then re-run this workflow."
+            exit 1
+          fi
+          echo "✅ GitHub Pages is enabled (status: $status)"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: documentation
+          path: ./site
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b  # v4.0.0
+        with:
+          path: ./site
+      - id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128  # v5.0.0
+
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -e ".[docs]"
+      - run: mkdocs build --strict
