@@ -375,9 +375,15 @@ class TestTextProcessingNLTKPaths:
     def test_sanitize_filename_length_truncation(self) -> None:
         from file_organizer.utils.text_processing import sanitize_filename
 
-        long_name = "very_long_filename_that_exceeds_fifty_characters_definitely"
+        # Use space-separated words so clean_text tokenizes them individually.
+        # Underscore-joined words fail isalpha() and are entirely pruned → "untitled".
+        # The five words produce "jungle_kingdom_laurel_mansion_nautical" (37 chars);
+        # truncated at 20: "jungle_kingdom_laure" — last char is 'e', not '_',
+        # so rstrip("_") is a no-op and len is exactly 20.
+        long_name = "jungle kingdom laurel mansion nautical octopus paradise quantum"
         result = sanitize_filename(long_name, max_length=20)
-        assert len(result) == 20
+        assert result == "jungle_kingdom_laure"
+        assert result[-1] != "_"
 
     def test_get_unwanted_words_includes_stopwords(self) -> None:
         from file_organizer.utils.text_processing import get_unwanted_words

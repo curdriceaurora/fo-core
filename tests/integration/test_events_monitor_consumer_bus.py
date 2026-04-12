@@ -276,6 +276,10 @@ class TestEventMonitorConnected:
 class TestRedisStreamManagerConnect:
     """RedisStreamManager connection and disconnect lifecycle."""
 
+    @pytest.fixture(autouse=True)
+    def _require_redis(self) -> None:
+        pytest.importorskip("redis")
+
     def test_connect_calls_ping_and_sets_connected(self) -> None:
         mock_redis = MagicMock()
         mock_redis.ping.return_value = True

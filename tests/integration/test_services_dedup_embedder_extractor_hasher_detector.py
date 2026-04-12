@@ -24,7 +24,7 @@ pytestmark = pytest.mark.integration
 
 
 def _require_sklearn() -> None:
-    pytest.importorskip("sklearn")
+    pytest.importorskip("sklearn.feature_extraction.text")
 
 
 # ---------------------------------------------------------------------------

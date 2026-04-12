@@ -160,7 +160,7 @@ def watch(
             for event in events:
                 event_type = getattr(event, "event_type", "unknown")
                 event_path = getattr(event, "path", getattr(event, "src_path", "?"))
-                console.print(f"  [{event_type}] {event_path}")
+                console.print(f"  [{event_type}] {event_path}", markup=False)
     except KeyboardInterrupt:
         console.print("\n[dim]Stopped watching.[/dim]")
     finally:
