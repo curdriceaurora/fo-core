@@ -145,4 +145,5 @@ class TestMaxFileSizeConstant:
     def test_max_file_size_bytes_is_int(self) -> None:
         from file_organizer.utils.readers._base import MAX_FILE_SIZE_BYTES
 
+        assert isinstance(MAX_FILE_SIZE_BYTES, int)
         assert MAX_FILE_SIZE_BYTES == 524288000

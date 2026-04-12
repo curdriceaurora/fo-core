@@ -98,7 +98,7 @@ class TestGetLlamaCppConfigs:
         monkeypatch.setenv("FO_LLAMA_CPP_N_GPU_LAYERS", "not_a_number")
 
         with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
-            text_cfg, vision_cfg = _get_llama_cpp_configs()
+            text_cfg, _vision_cfg = _get_llama_cpp_configs()
 
         # Should not crash; n_gpu_layers absent from extra_params
         assert "n_gpu_layers" not in text_cfg.extra_params
@@ -415,9 +415,7 @@ class TestGetModelConfigsPriorityCascade:
 
 
 class TestGetModelConfigsFromProfile:
-    def test_returns_none_when_profile_uses_default_preset(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_returns_none_when_profile_uses_default_preset(self) -> None:
         """Profile with default ModelPreset → None (fall through)."""
         from file_organizer.config.schema import AppConfig, ModelPreset
 
@@ -432,9 +430,7 @@ class TestGetModelConfigsFromProfile:
 
         assert result is None
 
-    def test_returns_configs_when_profile_has_custom_models(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_returns_configs_when_profile_has_custom_models(self) -> None:
         """Profile with non-default models → (text_cfg, vision_cfg)."""
         from file_organizer.config.schema import AppConfig, ModelPreset
         from file_organizer.models.base import ModelConfig, ModelType

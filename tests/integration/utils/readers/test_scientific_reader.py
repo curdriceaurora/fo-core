@@ -302,8 +302,8 @@ class TestReadMatFile:
 
         path = _make_mat(tmp_path)
         result = read_mat_file(path)
-        # y is a 2x2 matrix; shape info should appear in output
-        assert "2" in result
+        # y is a 2x2 matrix; shape info should appear in output as "2x2"
+        assert "2x2" in result
 
     def test_mat_file_read_error_on_corrupt_file(self, tmp_path: Path) -> None:
         from file_organizer.utils.readers._base import FileReadError
