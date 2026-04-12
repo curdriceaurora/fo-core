@@ -126,6 +126,18 @@ jobs:
           echo "✅ All documentation links are valid"
 
   test:
+    # Per-commit fast gate for pull requests.
+    #
+    # Three-tier CI strategy:
+    #   1. This job (per-commit)  — runs tests marked `ci`, ~2 min, every push to a PR branch.
+    #   2. pr-integration.yml     — runs `integration`-marked tests, ~3–5 min, once per PR
+    #                               lifecycle event (opened / ready_for_review) — NOT every push.
+    #   3. test-full (push only)  — runs the full suite across 6 shards × 2 pythons after merge.
+    #
+    # Why integration tests are NOT in this job:
+    #   Adding `integration` to this filter would run ~140 extra test files on every fixup
+    #   commit, which adds 3–5 min to each push. pr-integration.yml gives integration
+    #   feedback at PR open and ready-for-review gates without taxing every commit.
     name: "Test PR suite (py${{ matrix.python-version }})"
     needs: changes
     if: github.event_name == 'pull_request'

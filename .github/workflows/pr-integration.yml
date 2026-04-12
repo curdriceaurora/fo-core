@@ -1,0 +1,74 @@
+name: PR Integration Tests
+
+# Runs the full integration test suite once per PR lifecycle event:
+#   opened          — first feedback when the PR is created
+#   reopened        — re-validation after a PR is un-closed
+#   ready_for_review — final gate before requesting reviewers (draft → ready)
+#
+# Intentionally NOT triggered on every push (synchronize) — the fast ci-suite
+# in ci.yml already covers every commit via `-m "ci and not benchmark"`.
+# Integration tests are expensive (~3–5 min with -n=auto) and add value at
+# the PR open/ready gates, not on every fixup commit.
+#
+# Relationship to other jobs:
+#   ci.yml test         → per-commit fast gate  (ci-marked tests, ~2 min)
+#   pr-integration.yml  → per-PR-lifecycle gate  (integration tests, ~3–5 min)
+#   ci.yml test-full    → post-merge full suite   (6 shards × 2 pythons, main push)
+#   ci-full.yml         → nightly full matrix     (Linux + macOS + Windows)
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, ready_for_review]
+    paths-ignore:
+      - ".claude/**"
+      - "docs/**"
+      - "*.md"
+  workflow_dispatch:
+
+concurrency:
+  group: pr-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  test-integration-pr:
+    name: "Integration tests (PR)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev,search]"
+          pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
+      - name: Cache NLTK data
+        uses: actions/cache@v5
+        with:
+          path: ~/nltk_data
+          key: nltk-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: nltk-${{ runner.os }}-
+      - name: Download NLTK data
+        run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
+      - name: Run integration tests
+        # Runs ALL integration-marked tests (including those without the ci marker).
+        # This catches test files added in PRs that target integration scenarios
+        # but were never dual-tagged ci+integration.
+        # -n=auto: xdist parallelises across available CPUs (~2 workers on ubuntu-latest).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pytest tests/ \
+            --strict-markers \
+            -m "integration and not benchmark" \
+            --timeout=60 \
+            -n=auto \
+            --override-ini="addopts=" \
+            -q
