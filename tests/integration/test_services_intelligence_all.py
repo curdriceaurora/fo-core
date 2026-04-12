@@ -559,6 +559,8 @@ class TestPreferenceStore:
         store2 = PreferenceStore(storage_path=tmp_path / "prefs2")
         result = store2.import_json(out)
         assert result is True
+        # Verify the schema version survives the round-trip
+        assert store2._preferences.get("version") == PreferenceStore.SCHEMA_VERSION
 
     def test_import_json_missing_file(self, tmp_path: Path) -> None:
         from file_organizer.services.intelligence.preference_store import PreferenceStore
@@ -1208,3 +1210,4 @@ class TestFolderPreferenceLearner:
         learner2 = FolderPreferenceLearner(storage_path=storage)
         pref = learner2.get_preferred_folder("mp4", confidence_threshold=0.5)
         assert pref is not None
+        assert pref == folder  # restored path must equal the original tracked folder

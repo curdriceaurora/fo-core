@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -35,7 +36,7 @@ def _exhausted_response(text: str = "") -> dict:
     return {"response": text, "done_reason": "length", "total_duration": 1_000_000_000}
 
 
-def _make_text_model():
+def _make_text_model() -> Any:
     from file_organizer.models.text_model import TextModel
 
     config = TextModel.get_default_config("test-text-model")
@@ -46,7 +47,7 @@ def _make_text_model():
     return model
 
 
-def _make_vision_model():
+def _make_vision_model() -> Any:
     from file_organizer.models.vision_model import VisionModel
 
     config = VisionModel.get_default_config("test-vision-model")
@@ -1086,8 +1087,11 @@ class TestConfigManager:
         from file_organizer.config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
+        from file_organizer.methodologies.johnny_decimal.config import JohnnyDecimalConfig
+
         config = mgr.to_johnny_decimal_config(AppConfig())
-        assert config is not None
+        assert isinstance(config, JohnnyDecimalConfig)
+        assert config.scheme is not None
 
     def test_list_profiles_returns_empty_when_yaml_not_dict(self, tmp_path: Path) -> None:
         from file_organizer.config.manager import ConfigManager

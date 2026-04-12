@@ -153,7 +153,7 @@ class TestFolderScannerPatternDetection:
         result = scanner.scan_directory(tmp_path)
         assert any("top-level folders" in w for w in result.warnings)
 
-    def test_looks_like_jd_number_area(self, tmp_path: Path) -> None:
+    def test_looks_like_jd_number_area(self) -> None:
         from file_organizer.methodologies.johnny_decimal.scanner import FolderScanner
 
         scanner = FolderScanner()
@@ -161,7 +161,7 @@ class TestFolderScannerPatternDetection:
         assert scanner._looks_like_jd_number("99 Something") is True
         assert scanner._looks_like_jd_number("1") is False
 
-    def test_looks_like_jd_number_category(self, tmp_path: Path) -> None:
+    def test_looks_like_jd_number_category(self) -> None:
         from file_organizer.methodologies.johnny_decimal.scanner import FolderScanner
 
         scanner = FolderScanner()
@@ -730,7 +730,7 @@ class TestJohnnyDecimalNumberDataclass:
     def test_from_string_invalid_raises(self) -> None:
         from file_organizer.methodologies.johnny_decimal.categories import JohnnyDecimalNumber
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid Johnny Decimal format"):
             JohnnyDecimalNumber.from_string("11.01.001.002")
 
     def test_equality_based_on_numbers_only(self) -> None:
@@ -1260,7 +1260,7 @@ class TestJohnnyDecimalMigratorBasic:
         from file_organizer.methodologies.johnny_decimal.migrator import JohnnyDecimalMigrator
 
         migrator = JohnnyDecimalMigrator()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Path does not exist"):
             migrator.create_migration_plan(tmp_path / "nonexistent")
 
     def test_validate_plan_calls_validator(self, tmp_path: Path) -> None:
@@ -1372,12 +1372,12 @@ class TestJohnnyDecimalMigratorBasic:
         assert "Transformed" in report
 
     def test_rollback_invalid_migration_id_raises(self) -> None:
-        from file_organizer.methodologies.johnny_decimal.migrator import JohnnyDecimalMigrator
-
-        Path("/tmp")
         from datetime import UTC, datetime
 
-        from file_organizer.methodologies.johnny_decimal.migrator import RollbackInfo
+        from file_organizer.methodologies.johnny_decimal.migrator import (
+            JohnnyDecimalMigrator,
+            RollbackInfo,
+        )
 
         migrator = JohnnyDecimalMigrator()
         migrator._rollback_history.append(

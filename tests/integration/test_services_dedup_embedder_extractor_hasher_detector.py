@@ -150,7 +150,7 @@ class TestFileHasher:
     def test_validate_algorithm_invalid(self) -> None:
         from file_organizer.services.deduplication.hasher import FileHasher
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Unsupported algorithm"):
             FileHasher.validate_algorithm("sha512")
 
 
@@ -343,7 +343,8 @@ class TestDocumentEmbedder:
         docs = ["alpha beta gamma", "delta epsilon zeta", "eta theta iota"]
         embedder.fit_transform(docs)
         batch = embedder.transform_batch(["alpha beta", "delta epsilon"])
-        assert batch.shape == (2, batch.shape[1])
+        assert batch.shape[0] == 2
+        assert batch.shape[1] > 0
 
     def test_transform_batch_not_fitted_raises(self) -> None:
         from file_organizer.services.deduplication.embedder import DocumentEmbedder
@@ -673,7 +674,7 @@ class TestDuplicateDetector:
         (tmp_path / "ex1.txt").write_text(content)
         (tmp_path / "ex2.txt").write_text(content)
 
-        def bad_cb(current: int, total: int) -> None:
+        def bad_cb(_current: int, _total: int) -> None:
             raise RuntimeError("callback boom")
 
         detector = DuplicateDetector()

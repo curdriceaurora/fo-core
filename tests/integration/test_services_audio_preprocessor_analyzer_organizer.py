@@ -762,8 +762,8 @@ class TestAnalyzeFullPipeline:
         result = analyzer.analyze(meta, transcription=None)
 
         assert isinstance(result, ContentAnalysis)
-        assert result.topic_count >= 0
-        assert result.keyword_count >= 0
+        assert result.topic_count == 0
+        assert result.keyword_count == 0
 
 
 class TestContentAnalysisProperties:
@@ -924,7 +924,8 @@ class TestAudioOrganizerGeneratePath:
         organizer = AudioOrganizer()
         path = organizer.generate_path(AudioType.UNKNOWN, meta)
 
-        assert "Unsorted" in str(path) or path.suffix == ".mp3"
+        assert "Unsorted" in str(path)
+        assert path.suffix == ".mp3"
 
     def test_path_uses_fallback_values_when_metadata_missing(self, tmp_path: Path) -> None:
         from file_organizer.services.audio.classifier import AudioType
@@ -938,9 +939,11 @@ class TestAudioOrganizerGeneratePath:
             genre=None,
         )
         organizer = AudioOrganizer()
-        # Should not raise
+        # Should not raise; fallback values fill in the template slots
         path = organizer.generate_path(AudioType.MUSIC, meta)
         assert isinstance(path, Path)
+        assert path.suffix == ".mp3"
+        assert "Unknown" in str(path)  # fallback labels appear when metadata is None
 
     def test_podcast_path_contains_show_or_episode(self, tmp_path: Path) -> None:
         from file_organizer.services.audio.classifier import AudioType
@@ -1077,7 +1080,7 @@ class TestAudioOrganizerOrganize:
         assert result2.total_moved == 1
         assert result2.total_failed == 0
 
-    def test_report_string_generated(self, tmp_path: Path) -> None:
+    def test_report_string_generated(self) -> None:
         from file_organizer.services.audio.organizer import OrganizationResult
 
         result = OrganizationResult()

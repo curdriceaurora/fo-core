@@ -579,7 +579,7 @@ class TestRuleCondition:
             RuleCondition,
         )
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="requires values or threshold"):
             RuleCondition(type=ConditionType.CONTENT_KEYWORD)
 
     def test_valid_keyword_condition(self) -> None:
@@ -740,7 +740,7 @@ class TestEvaluationContext:
         assert ctx.file_age_days is None
 
     def test_file_age_days_computed(self) -> None:
-        from datetime import UTC, datetime
+        from datetime import datetime
 
         from file_organizer.methodologies.para.rules.engine import EvaluationContext
 
@@ -754,12 +754,12 @@ class TestEvaluationContext:
         assert age > 0
 
     def test_file_age_days_naive_datetime(self) -> None:
-        # naive datetime should be made UTC-aware
+        # naive datetime should still produce a file_age_days value (treated as UTC)
         from datetime import datetime
 
         from file_organizer.methodologies.para.rules.engine import EvaluationContext
 
-        created = datetime(2020, 6, 15, tzinfo=UTC)
+        created = datetime(2020, 6, 15)  # noqa: DTZ001 — intentionally naive to test naive-datetime handling
         ctx = EvaluationContext(
             file_path=Path("file.txt"),
             file_stat={"created": created},
@@ -1215,8 +1215,11 @@ class TestHeuristicEngineEvaluate:
 
         f = _make_file(tmp_path, "test.txt")
         result = engine.evaluate(f)
-        # Should still get a result (non-abstained heuristics dominate)
+        # Abstained heuristic must not dilute the weighted average:
+        # overall_confidence must be in [0.0, 1.0] and scores must be populated
         assert result is not None
+        assert 0.0 <= result.overall_confidence <= 1.0
+        assert len(result.scores) > 0
 
 
 # ===========================================================================
@@ -1585,9 +1588,9 @@ class TestCategoryFolderMapper:
         mapper = CategoryFolderMapper(strategy=strategy)
         result = mapper.map_file(f, tmp_path, use_rules=False)
 
-        # subfolder_path should contain a date component
-        if result.subfolder_path:
-            assert "/" in result.subfolder_path or len(result.subfolder_path) > 0
+        # date_format="%Y/%m" produces "YYYY/MM" which must contain "/"
+        assert result.subfolder_path is not None
+        assert "/" in result.subfolder_path
 
     def test_mapping_strategy_type_folders(self, tmp_path: Path) -> None:
         from file_organizer.methodologies.para.folder_mapper import (

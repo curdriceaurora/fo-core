@@ -139,7 +139,7 @@ class TestTagLearningEngine:
             }
         ]
         engine.update_model(feedback)
-        assert engine.tag_usage["rej_tag"].count <= initial_count
+        assert engine.tag_usage["rej_tag"].count < initial_count
 
     def test_get_popular_tags(self, tmp_path: Path) -> None:
         from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
@@ -686,7 +686,7 @@ class TestPreviewEngine:
         result = engine.preview(rule_set, f)
         assert len(result.errors) == 1
 
-    def test_preview_summary_string(self, tmp_path: Path) -> None:
+    def test_preview_summary_string(self) -> None:
         from file_organizer.services.copilot.rules.preview import PreviewResult
 
         result = PreviewResult(total_files=5)
@@ -957,8 +957,8 @@ class TestSuggestionFeedback:
         return Suggestion(
             suggestion_id=suggestion_id,
             suggestion_type=SuggestionType(stype),
-            file_path=Path("/tmp/file.txt"),
-            target_path=Path("/tmp/dest/"),
+            file_path=Path("/fake/file.txt"),
+            target_path=Path("/fake/dest/"),
             confidence=confidence,
         )
 
@@ -1138,8 +1138,8 @@ class TestSuggestionFeedback:
         s = Suggestion(
             suggestion_id="h1",
             suggestion_type=SuggestionType.MOVE,
-            file_path=Path("/tmp/doc.pdf"),
-            target_path=Path("/tmp/archive/doc.pdf"),
+            file_path=Path("/fake/doc.pdf"),
+            target_path=Path("/fake/archive/doc.pdf"),
             confidence=85.0,
         )
         fb.record_action(s, "accepted")
@@ -1156,7 +1156,7 @@ class TestSuggestionFeedback:
             suggestion_id="old1",
             suggestion_type=SuggestionType.MOVE,
             action="accepted",
-            file_path="/tmp/old.txt",
+            file_path="/fake/old.txt",
             target_path=None,
             confidence=70.0,
             timestamp=datetime.now(UTC) - timedelta(days=100),
@@ -1194,8 +1194,8 @@ class TestSuggestionFeedback:
             suggestion_id="e1",
             suggestion_type=SuggestionType.TAG,
             action="accepted",
-            file_path="/tmp/f.txt",
-            target_path="/tmp/dest/",
+            file_path="/fake/f.txt",
+            target_path="/fake/dest/",
             confidence=80.0,
             timestamp=now,
             metadata={"key": "val"},

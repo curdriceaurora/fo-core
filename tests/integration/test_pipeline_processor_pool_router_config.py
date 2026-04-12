@@ -85,6 +85,7 @@ class TestPipelineConfigValidation:
 
         cfg = PipelineConfig(output_directory=Path("some/dir"))
         assert isinstance(cfg.output_directory, Path)
+        assert cfg.output_directory == Path("some/dir")
 
     def test_supported_extensions_normalized_with_dot(self) -> None:
         from file_organizer.pipeline.config import PipelineConfig
@@ -141,7 +142,7 @@ class TestPipelineConfigProperties:
         assert ".txt" in eff
         assert ".jpg" not in eff
 
-    def test_is_supported_txt_file(self, tmp_path: Path) -> None:
+    def test_is_supported_txt_file(self) -> None:
         from file_organizer.pipeline.config import PipelineConfig
 
         cfg = PipelineConfig()

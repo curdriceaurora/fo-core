@@ -614,7 +614,6 @@ class TestBenchmarkSuiteHelpers:
             console=mock_console,
         )
         assert count == 2
-        assert elapsed >= 0.0
         assert classification.effective_suite == "io"
 
     def test_execute_suite_iteration_runner_exception(self, tmp_path: Path) -> None:

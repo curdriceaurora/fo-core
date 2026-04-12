@@ -572,6 +572,8 @@ class TestParallelProcessorExtended:
 
         proc = ParallelProcessor(None)
         assert isinstance(proc.config, ParallelConfig)
+        assert proc.config.max_workers is None  # None means use os.cpu_count()
+        assert proc.config.retry_count == 2  # default retry count
 
     def test_process_batch_files_per_second_positive(self, tmp_path: Path) -> None:
         from file_organizer.parallel.config import ParallelConfig
@@ -587,7 +589,7 @@ class TestParallelProcessorExtended:
         proc = ParallelProcessor(cfg)
         result = proc.process_batch(files, lambda p: "ok")
 
-        assert result.files_per_second >= 0
+        assert result.files_per_second > 0
 
     def test_process_executor_type_uses_create_executor(self, tmp_path: Path) -> None:
         from file_organizer.parallel.config import ExecutorType, ParallelConfig
