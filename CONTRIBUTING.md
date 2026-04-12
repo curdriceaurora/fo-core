@@ -218,22 +218,27 @@ The `.actrc` file in the project root pins the Docker image and architecture aut
 
 ### Workflow ownership
 
+CI uses a **three-tier strategy** — see [Testing Strategy](docs/testing/testing-strategy.md)
+for the full table and marker guidance.
+
 | Workflow | File | Triggers | What it runs |
 |----------|------|----------|-------------|
-| **CI** | `.github/workflows/ci.yml` | push to `main`, PRs | Lint; PR suite (Python 3.11, ci marker); push suite (4 shards × Python 3.11+3.12, `not benchmark and not e2e`); coverage-gate job; benchmark-only lane; Rust desktop checks |
-| **CI Full Matrix** | `.github/workflows/ci-full.yml` | daily (06:00 UTC), manual | Linux full-suite (4 shards × Python 3.11+3.12) + coverage gate; macOS + Windows cross-platform (Python 3.12, ci/smoke markers) |
+| **CI** | `.github/workflows/ci.yml` | push to `main`, PRs | Lint; per-commit PR suite (Python 3.11, `ci` marker, ~2 min); push suite (6 shards × Python 3.11+3.12, `not benchmark and not e2e`); coverage-gate job; benchmark lane |
+| **PR Integration** | `.github/workflows/pr-integration.yml` | PR opened, reopened, ready\_for\_review | Integration tests (Python 3.11, `integration` marker, ~3–5 min) — once per PR lifecycle, not on every push |
+| **CI Full Matrix** | `.github/workflows/ci-full.yml` | daily (06:00 UTC), manual | Linux full-suite (6 shards × Python 3.11+3.12) + coverage gate; macOS + Windows cross-platform (Python 3.12, ci/smoke markers) |
 | **Security** | `.github/workflows/security.yml` | weekly (Monday), PRs | pip-audit + bandit + CodeQL |
 
 **Rule**: each check lives in exactly one workflow.
 
-- `ci.yml` is the *fast-path gate*: runs on PRs and pushes to `main`.
-  - **PR test lane**: single Python 3.11 job, `ci` marker only (~2 400 tests), diff-coverage gate
-  - **Push to main**: 4 parallel shards × Python 3.11+3.12, each ~4 000 tests with
-    `timeout-minutes: 20`; a separate `coverage-gate` job merges `.coverage` artifacts
-    and enforces the 93% floor. Sharding prevents the GC-finaliser hang that occurred
-    when all 17 000+ tests shared 2 xdist workers in a single job.
-  - benchmark-only lane runs without xdist (`--benchmark-only`)
-- `ci-full.yml` is the *breadth gate*: runs daily and includes the same 4-shard Linux
+- `ci.yml` is the *per-commit fast gate*: runs on every PR push and on merges to `main`.
+  - **PR test lane**: single Python 3.11 job, `ci` marker only, diff-coverage gate (~2 min)
+  - **Push to main**: 6 parallel shards × Python 3.11+3.12 with `timeout-minutes: 20`;
+    a separate `coverage-gate` job merges `.coverage` artifacts and enforces the 93% floor
+  - benchmark lane runs without xdist (`--benchmark-only`)
+- `pr-integration.yml` is the *per-PR-lifecycle integration gate*: runs `integration`-marked
+  tests at PR open, reopened, and ready-for-review events. Keeps per-commit CI fast while
+  ensuring all integration tests (not just dual-tagged `ci+integration` ones) get PR feedback.
+- `ci-full.yml` is the *breadth gate*: runs daily and includes the same 6-shard Linux
   full-suite run plus macOS and Windows cross-platform validation.
 - `security.yml` owns all security tooling.
 
@@ -346,7 +351,7 @@ def test_organizer_creates_output(
     assert result.processed_files == 3
 ```
 
-Integration tests run on main branch pushes only (`pytest -m integration`), not on every PR. See [Testing Guide](docs/developer/testing.md#integration-testing) for the full fixture reference.
+Integration tests run via `pr-integration.yml` on PR open, reopened, and ready-for-review events, and also on main branch pushes via the `test-full` job (`pytest -m integration`). See [Testing Guide](docs/developer/testing.md#integration-testing) for the full fixture reference.
 
 ---
 

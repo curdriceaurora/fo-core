@@ -259,6 +259,16 @@ warn_no_return = true
 follow_imports = "normal"
 ignore_missing_imports = true
 
+# Optional-dep model wrappers: mlx_lm and llama_cpp have no stubs and their
+# type signatures are only visible when the packages are installed.  The files
+# already carry `# pyre-ignore-all-errors` for the same reason.
+[[tool.mypy.overrides]]
+module = [
+    "file_organizer.models.mlx_text_model",
+    "file_organizer.models.llama_cpp_text_model",
+]
+ignore_errors = true
+
 # Pytest configuration
 [tool.pytest.ini_options]
 pythonpath = ["src"]
