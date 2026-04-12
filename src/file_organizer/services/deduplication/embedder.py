@@ -153,7 +153,7 @@ class DocumentEmbedder:
             return np.asarray(dense_embeddings)
 
         except ValueError:
-            logger.error("Error during fit_transform", exc_info=True)
+            logger.exception("Error during fit_transform")
             raise
 
     def transform(self, document: str) -> np.ndarray:
