@@ -894,9 +894,7 @@ class TestBrowserExtensionManager:
             allowed_origins=["https://a.com", "https://a.com", "https://b.com"]
         )
         cfg = mgr.get_config()
-        assert len(cfg["allowed_origins"]) == 2
-        assert "https://a.com" in cfg["allowed_origins"]
-        assert "https://b.com" in cfg["allowed_origins"]
+        assert set(cfg["allowed_origins"]) == {"https://a.com", "https://b.com"}
 
     def test_expired_tokens_are_pruned_on_verify(self) -> None:
         from datetime import UTC, timedelta
