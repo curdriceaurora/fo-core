@@ -5,14 +5,14 @@
 | Tier | Workflow | Trigger | Marker filter | Approx time |
 |------|----------|---------|--------------|-------------|
 | Per-commit (fast) | `ci.yml` `test` job | Every push to PR branch | `ci and not benchmark` | ~2 min |
-| Per-PR lifecycle | `pr-integration.yml` | PR opened / ready-for-review | `integration and not benchmark` | ~3–5 min |
-| Post-merge full | `ci.yml` `test-full` | Push to main | all (6 shards × py3.11+3.12) | ~2–3 min/shard |
+| Per-PR lifecycle | `pr-integration.yml` | PR opened / reopened / ready-for-review | `integration and not benchmark` | ~3–5 min |
+| Post-merge full | `ci.yml` `test-full` | Push to main | non-benchmark/non-e2e (6 shards × py3.11+3.12) | ~2–3 min/shard |
 | Nightly matrix | `ci-full.yml` | Daily 06:00 UTC | Linux: full-suite (6 shards, py3.11+3.12); macOS + Windows: `ci/smoke` subset | ~15 min |
 
 **Marker rules for new tests:**
 
 - `@pytest.mark.ci` — runs on every PR push. Use for fast unit-style tests (no I/O, no external deps).
-- `@pytest.mark.integration` — runs at PR open/ready gates and on main push. Use when the test
+- `@pytest.mark.integration` — runs at PR open/reopened/ready-for-review gates and on main push. Use when the test
   touches real files, DB, or service interactions. No need to also add `ci`; the integration
   workflow picks these up automatically.
 - Dual-tagging `ci + integration` is **not required** and was a historical artefact — the

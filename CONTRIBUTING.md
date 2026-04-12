@@ -236,8 +236,8 @@ for the full table and marker guidance.
     a separate `coverage-gate` job merges `.coverage` artifacts and enforces the 93% floor
   - benchmark lane runs without xdist (`--benchmark-only`)
 - `pr-integration.yml` is the *per-PR-lifecycle integration gate*: runs `integration`-marked
-  tests at PR open and ready-for-review events. Keeps per-commit CI fast while ensuring
-  all integration tests (not just dual-tagged `ci+integration` ones) get PR feedback.
+  tests at PR open, reopened, and ready-for-review events. Keeps per-commit CI fast while
+  ensuring all integration tests (not just dual-tagged `ci+integration` ones) get PR feedback.
 - `ci-full.yml` is the *breadth gate*: runs daily and includes the same 6-shard Linux
   full-suite run plus macOS and Windows cross-platform validation.
 - `security.yml` owns all security tooling.
@@ -351,7 +351,7 @@ def test_organizer_creates_output(
     assert result.processed_files == 3
 ```
 
-Integration tests run on main branch pushes only (`pytest -m integration`), not on every PR. See [Testing Guide](docs/developer/testing.md#integration-testing) for the full fixture reference.
+Integration tests run via `pr-integration.yml` on PR open, reopened, and ready-for-review events, and also on main branch pushes via the `test-full` job (`pytest -m integration`). See [Testing Guide](docs/developer/testing.md#integration-testing) for the full fixture reference.
 
 ---
 
