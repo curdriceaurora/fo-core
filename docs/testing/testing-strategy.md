@@ -7,7 +7,7 @@
 | Per-commit (fast) | `ci.yml` `test` job | Every push to PR branch | `ci and not benchmark` | ~2 min |
 | Per-PR lifecycle | `pr-integration.yml` | PR opened / ready-for-review | `integration and not benchmark` | ~3–5 min |
 | Post-merge full | `ci.yml` `test-full` | Push to main | all (6 shards × py3.11+3.12) | ~2–3 min/shard |
-| Nightly matrix | `ci-full.yml` | Daily 06:00 UTC | all (Linux + macOS + Windows) | ~15 min |
+| Nightly matrix | `ci-full.yml` | Daily 06:00 UTC | Linux: full-suite (6 shards, py3.11+3.12); macOS + Windows: `ci/smoke` subset | ~15 min |
 
 **Marker rules for new tests:**
 
