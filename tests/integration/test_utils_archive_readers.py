@@ -295,6 +295,20 @@ class TestRead7zFile:
             with pytest.raises(ImportError, match="py7zr"):
                 read_7z_file(tmp_path / "dummy.7z")
 
+    def test_reads_real_7z_archive(self, tmp_path: Path) -> None:
+        py7zr = pytest.importorskip("py7zr")
+        from file_organizer.utils.readers.archives import read_7z_file
+
+        content_file = tmp_path / "sample.txt"
+        content_file.write_bytes(b"Hello from 7z archive content for coverage testing")
+        archive_path = tmp_path / "test.7z"
+        with py7zr.SevenZipFile(archive_path, "w") as zf:
+            zf.write(content_file, "sample.txt")
+
+        result = read_7z_file(archive_path)
+        assert "7Z Archive" in result
+        assert "sample.txt" in result
+
 
 # ---------------------------------------------------------------------------
 # read_rar_file (ImportError path when rarfile not available)
