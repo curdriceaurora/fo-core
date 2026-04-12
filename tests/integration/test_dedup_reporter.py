@@ -97,9 +97,11 @@ def test_storage_reporter_export_to_csv_oserror(
 ) -> None:
     reporter = StorageReporter()
     out_file = tmp_path / "report.csv"
-    with patch("builtins.open", side_effect=OSError("disk full")):
-        with pytest.raises(OSError):
-            reporter.export_to_csv(sample_duplicate_groups, out_file)
+    with (
+        patch("builtins.open", side_effect=OSError("disk full")),
+        pytest.raises(OSError, match="disk full"),
+    ):
+        reporter.export_to_csv(sample_duplicate_groups, out_file)
 
 
 def test_storage_reporter_export_to_json_oserror(
@@ -107,6 +109,8 @@ def test_storage_reporter_export_to_json_oserror(
 ) -> None:
     reporter = StorageReporter()
     out_file = tmp_path / "report.json"
-    with patch("builtins.open", side_effect=OSError("disk full")):
-        with pytest.raises(OSError):
-            reporter.export_to_json(sample_results, out_file)
+    with (
+        patch("builtins.open", side_effect=OSError("disk full")),
+        pytest.raises(OSError, match="disk full"),
+    ):
+        reporter.export_to_json(sample_results, out_file)
