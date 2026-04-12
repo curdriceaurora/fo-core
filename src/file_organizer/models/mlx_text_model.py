@@ -24,8 +24,8 @@ try:
 
     MLX_LM_AVAILABLE = True
 except ImportError:
-    mlx_generate = None
-    mlx_load = None
+    mlx_generate = None  # type: ignore[assignment]
+    mlx_load = None  # type: ignore[assignment]
     MLX_LM_AVAILABLE = False
 
 
@@ -88,7 +88,7 @@ class MLXTextModel(BaseModel):
             if mlx_load is None:  # guarded by MLX_LM_AVAILABLE in __init__; belt-and-suspenders
                 raise RuntimeError("mlx_load is None — mlx-lm is required; should not be reachable")
             try:
-                loaded = mlx_load(self.config.model_path)
+                loaded = mlx_load(self.config.model_path)  # type: ignore[arg-type]
             except (RuntimeError, OSError, ValueError, ImportError) as exc:
                 raise RuntimeError(
                     f"Could not load MLX model from '{self.config.model_path}': {exc}"
@@ -176,13 +176,16 @@ class MLXTextModel(BaseModel):
         # Fast path: reuse the variant that succeeded on the first call.
         if self._working_variant_idx is not None:
             return mlx_generate(
-                self._model, self._tokenizer, prompt, **call_variants[self._working_variant_idx]
+                self._model,
+                self._tokenizer,  # type: ignore[arg-type]
+                prompt,
+                **call_variants[self._working_variant_idx],
             )
 
         last_error: TypeError | None = None
         for idx, variant in enumerate(call_variants):
             try:
-                result = mlx_generate(self._model, self._tokenizer, prompt, **variant)
+                result = mlx_generate(self._model, self._tokenizer, prompt, **variant)  # type: ignore[arg-type]
                 self._working_variant_idx = idx  # cache for all subsequent calls
                 return result
             except TypeError as exc:

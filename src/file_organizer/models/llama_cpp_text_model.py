@@ -33,7 +33,7 @@ try:
 
     LLAMA_CPP_AVAILABLE = True
 except ImportError:
-    Llama = None
+    Llama = None  # type: ignore[assignment, misc]
     LLAMA_CPP_AVAILABLE = False
 
 
@@ -94,7 +94,7 @@ class LlamaCppTextModel(BaseModel):
         n_gpu_layers = self._device_to_gpu_layers()
         try:
             self.client = Llama(
-                model_path=self.config.model_path,
+                model_path=self.config.model_path,  # type: ignore[arg-type]
                 n_ctx=self.config.context_window,
                 n_gpu_layers=n_gpu_layers,
                 verbose=False,
