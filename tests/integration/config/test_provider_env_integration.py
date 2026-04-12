@@ -121,9 +121,7 @@ class TestGetModelConfigsFromEnvOllamaIntegration:
 
 
 class TestGetLlamaCppConfigsIntegration:
-    def test_model_path_propagates_to_both_configs(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_model_path_propagates_to_both_configs(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """FO_LLAMA_CPP_MODEL_PATH is reflected in both text and vision configs."""
         monkeypatch.setenv("FO_PROVIDER", "llama_cpp")
         monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/llama.gguf")
@@ -194,9 +192,7 @@ class TestGetLlamaCppConfigsIntegration:
 
 
 class TestGetMlxConfigsIntegration:
-    def test_model_path_propagates_to_both_configs(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_model_path_propagates_to_both_configs(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """FO_MLX_MODEL_PATH appears in both text and vision configs."""
         monkeypatch.setenv("FO_MLX_MODEL_PATH", "mlx-community/Qwen2.5-3B-4bit")
 
@@ -281,9 +277,7 @@ class TestGetClaudeConfigsIntegration:
 
         assert text_cfg.name == "claude-3-haiku-20240307"
 
-    def test_vision_model_falls_back_to_text_model(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_vision_model_falls_back_to_text_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When FO_CLAUDE_VISION_MODEL is unset, vision model name matches text model."""
         monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test")
         monkeypatch.setenv("FO_CLAUDE_MODEL", "claude-3-haiku-20240307")
@@ -319,9 +313,7 @@ class TestGetClaudeConfigsIntegration:
         assert text_cfg.provider == "claude"
         assert vision_cfg.provider == "claude"
 
-    def test_anthropic_sdk_key_suppresses_warning(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_anthropic_sdk_key_suppresses_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """ANTHROPIC_API_KEY present means the SDK will pick it up — no warning needed."""
         monkeypatch.delenv("FO_CLAUDE_API_KEY", raising=False)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-sdk-key")
