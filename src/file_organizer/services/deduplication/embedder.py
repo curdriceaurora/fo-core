@@ -82,9 +82,22 @@ class DocumentEmbedder:
     def fit_transform(self, documents: list[str]) -> np.ndarray:
         """Fit the vectorizer and transform documents to embeddings.
 
-        For very small corpora where ``len(documents) * max_df < 1``, ``max_df``
-        is temporarily set to 1.0 for this call only and restored afterwards, so
-        the configured value is preserved for subsequent calls on the same instance.
+        Two corpus-size guards are applied before calling sklearn:
+
+        1. *Fraction rounding*: when ``max_df`` is a float and
+           ``len(documents) * max_df < 1``, ``max_df`` is temporarily set to
+           1.0 so that sklearn's internal threshold rounds to at least one
+           document.
+        2. *All-terms-pruned retry*: if sklearn still raises
+           ``ValueError("After pruning, no terms remain …")`` (every remaining
+           term appeared in every document and was pruned by ``max_df``), the
+           call is retried once with ``max_df=1.0``.  Any other ``ValueError``
+           (bad tokenizer params, mismatched vocabulary, etc.) is **not**
+           caught and propagates to the caller.
+
+        In both cases the original ``max_df`` value is restored by a
+        ``finally`` block, so subsequent calls on the same instance use the
+        configured value.
 
         Args:
             documents: List of document texts
@@ -111,13 +124,17 @@ class DocumentEmbedder:
 
             try:
                 embeddings = self.vectorizer.fit_transform(documents)
-            except ValueError:
-                # All terms exceeded max_df threshold (every term appears in every doc).
-                # Retry with max_df=1.0 so no terms are pruned.
+            except ValueError as _exc:
+                # Only retry for the sklearn pruning error: every term appeared
+                # in every document and was pruned by max_df.  Any other
+                # ValueError (bad params, tokenizer errors, etc.) propagates.
+                _PRUNING_MSG = "After pruning, no terms remain"
+                if _PRUNING_MSG not in str(_exc):
+                    raise
                 logger.warning(
-                    "fit_transform raised ValueError (all terms pruned by max_df=%.2f); "
-                    "retrying with max_df=1.0",
+                    "fit_transform: all terms pruned by max_df=%.2f; retrying with max_df=1.0",
                     self.vectorizer.max_df,
+                    exc_info=True,
                 )
                 self.vectorizer.max_df = 1.0
                 embeddings = self.vectorizer.fit_transform(documents)
@@ -135,8 +152,8 @@ class DocumentEmbedder:
 
             return np.asarray(dense_embeddings)
 
-        except ValueError as e:
-            logger.error(f"Error during fit_transform: {e}")
+        except ValueError:
+            logger.error("Error during fit_transform", exc_info=True)
             raise
 
     def transform(self, document: str) -> np.ndarray:
