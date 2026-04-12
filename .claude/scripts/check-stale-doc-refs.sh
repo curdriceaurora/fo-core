@@ -17,12 +17,8 @@ fi
 if $STAGED_ONLY; then
   MD_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.md' || true)
 else
-  MD_FILES=$(find "$REPO_ROOT" -name '*.md' \
-    -not -path '*/node_modules/*' \
-    -not -path '*/.git/*' \
-    -not -path '*/docs/plans/*' \
-    -not -path '*/.claude/worktrees/*' \
-    | sed "s|^$REPO_ROOT/||")
+  MD_FILES=$(git -C "$REPO_ROOT" ls-files '*.md' \
+    | grep -v -E '^(docs/plans/|\.claude/worktrees/)')
 fi
 
 if [[ -z "$MD_FILES" ]]; then

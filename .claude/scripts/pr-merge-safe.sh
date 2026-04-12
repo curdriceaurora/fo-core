@@ -57,7 +57,8 @@ REVIEW_DECISION=$(echo "$DATA" | jq -r '.reviewDecision // "NONE"')
 BASE_REF=$(echo "$DATA" | jq -r '.baseRefName')
 PR_BASE_OID=$(echo "$DATA" | jq -r '.baseRefOid[0:8]')
 
-MAIN_HEAD=$(git log "$BASE_REF" --oneline -1 2>/dev/null | awk '{print $1}' || echo "unknown")
+git fetch origin "$BASE_REF" --quiet 2>/dev/null || true
+MAIN_HEAD=$(git log "origin/$BASE_REF" --oneline -1 2>/dev/null | awk '{print $1}' || echo "unknown")
 
 # Step 2: Handle stale branch
 if [[ "$PR_BASE_OID" != "$MAIN_HEAD" && "$MAIN_HEAD" != "unknown" ]]; then

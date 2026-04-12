@@ -29,6 +29,12 @@
 
 set -euo pipefail
 
+# Verify required tools
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq not found. Install it (e.g. brew install jq) to use gh-graphql.sh." >&2
+    exit 1
+fi
+
 # Derive repo owner/name from git remote
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "")
 if [[ -z "$REPO" ]]; then
