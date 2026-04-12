@@ -72,14 +72,32 @@ def test_storage_reporter_generate_report_text(sample_results: dict[str, Any]) -
 def test_storage_reporter_export_to_csv(
     tmp_path: Path, sample_duplicate_groups: list[dict[str, Any]]
 ) -> None:
+    import csv as csv_module
+
     reporter = StorageReporter()
     out_file = tmp_path / "report.csv"
     reporter.export_to_csv(sample_duplicate_groups, out_file)
 
     assert out_file.exists()
-    content = out_file.read_text(encoding="utf-8")
-    assert "Group ID,File Count,Avg Similarity" in content
-    assert "rep1.txt" in content
+    with open(out_file, newline="", encoding="utf-8") as f:
+        rows = list(csv_module.reader(f))
+
+    header = rows[0]
+    assert header == [
+        "Group ID",
+        "File Count",
+        "Avg Similarity",
+        "Total Size (MB)",
+        "Representative",
+        "All Files",
+    ]
+    data_rows = rows[1:]
+    assert len(data_rows) == len(sample_duplicate_groups)
+    # Row 1: representative is "rep1.txt" (index 4), group ID is "1" (index 0)
+    assert data_rows[0][0] == "1"
+    assert data_rows[0][4] == "rep1.txt"
+    # Row 2: representative is "rep2.png"
+    assert data_rows[1][4] == "rep2.png"
 
 
 def test_storage_reporter_export_to_json(tmp_path: Path, sample_results: dict[str, Any]) -> None:
@@ -90,6 +108,11 @@ def test_storage_reporter_export_to_json(tmp_path: Path, sample_results: dict[st
     assert out_file.exists()
     parsed = json.loads(out_file.read_text(encoding="utf-8"))
     assert parsed["num_groups"] == 2
+    assert parsed["analyzed_documents"] == 5
+    groups = parsed["duplicate_groups"]
+    assert len(groups) == 2
+    assert groups[0]["representative"] == "/path/to/rep1.txt"
+    assert groups[1]["count"] == 2
 
 
 def test_storage_reporter_export_to_csv_oserror(
