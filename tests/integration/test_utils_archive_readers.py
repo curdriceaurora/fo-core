@@ -295,19 +295,39 @@ class TestRead7zFile:
             with pytest.raises(ImportError, match="py7zr"):
                 read_7z_file(tmp_path / "dummy.7z")
 
-    def test_reads_real_7z_archive(self, tmp_path: Path) -> None:
-        py7zr = pytest.importorskip("py7zr")
+    def test_reads_7z_archive_with_mock(self, tmp_path: Path) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        from file_organizer.utils.readers import archives
         from file_organizer.utils.readers.archives import read_7z_file
 
-        content_file = tmp_path / "sample.txt"
-        content_file.write_bytes(b"Hello from 7z archive content for coverage testing")
-        archive_path = tmp_path / "test.7z"
-        with py7zr.SevenZipFile(archive_path, "w") as zf:
-            zf.write(content_file, "sample.txt")
+        fake_file = SimpleNamespace(
+            filename="sample.txt",
+            compressed=512,
+            uncompressed=1024,
+        )
+        fake_archive = MagicMock()
+        fake_archive.list.return_value = [fake_file]
+        fake_archive.password_protected = False
+        fake_archive.__enter__ = lambda s: fake_archive
+        fake_archive.__exit__ = MagicMock(return_value=False)
 
-        result = read_7z_file(archive_path)
+        mock_py7zr = MagicMock()
+        mock_py7zr.SevenZipFile.return_value = fake_archive
+
+        archive_path = tmp_path / "test.7z"
+        archive_path.write_bytes(b"dummy")
+
+        with (
+            patch.object(archives, "PY7ZR_AVAILABLE", True),
+            patch.object(archives, "py7zr", mock_py7zr, create=True),
+        ):
+            result = read_7z_file(archive_path)
+
         assert "7Z Archive" in result
         assert "sample.txt" in result
+        assert "1.00 KB" in result
 
 
 # ---------------------------------------------------------------------------
