@@ -1,10 +1,12 @@
+from pathlib import Path
+
 import pytest
 
 from file_organizer.services.misplacement_detector import MisplacementDetector
 
 
 @pytest.fixture
-def misplacement_dir_tree(tmp_path):
+def misplacement_dir_tree(tmp_path: Path) -> Path:
     root = tmp_path / "misplacement_test"
     root.mkdir()
 
@@ -25,23 +27,20 @@ def misplacement_dir_tree(tmp_path):
     return root
 
 
-def test_misplacement_detector_detects_misplaced_file(misplacement_dir_tree):
+def test_misplacement_detector_detects_misplaced_file(misplacement_dir_tree: Path) -> None:
     detector = MisplacementDetector(min_mismatch_score=40.0)
 
-    # We test the docs directory
     docs_dir = misplacement_dir_tree / "documents"
     misplaced = detector.detect_misplaced(docs_dir)
 
-    # We expect `image1.jpg` to be flagged as misplaced
-    assert len(misplaced) >= 1
-    misplaced_file = next((m for m in misplaced if m.file_path.name == "image1.jpg"), None)
-
-    assert misplaced_file is not None
+    # Exactly one file is misplaced: the jpg among document files
+    assert [m.file_path.name for m in misplaced] == ["image1.jpg"]
+    misplaced_file = misplaced[0]
     assert misplaced_file.current_location == docs_dir
-    assert misplaced_file.mismatch_score >= 40.0
+    assert misplaced_file.mismatch_score > 45.0
 
 
-def test_misplacement_detector_analyze_context(misplacement_dir_tree):
+def test_misplacement_detector_analyze_context(misplacement_dir_tree: Path) -> None:
     detector = MisplacementDetector()
     docs_dir = misplacement_dir_tree / "documents"
 
@@ -55,23 +54,42 @@ def test_misplacement_detector_analyze_context(misplacement_dir_tree):
     assert context.parent_category == "images"
 
 
-def test_misplacement_detector_type_mismatch_score(misplacement_dir_tree):
-    detector = MisplacementDetector()
+def test_misplacement_detector_type_mismatch_score(misplacement_dir_tree: Path) -> None:
+    """Type mismatch is flagged via the public detect_misplaced API."""
+    detector = MisplacementDetector(min_mismatch_score=40.0)
     docs_dir = misplacement_dir_tree / "documents"
 
-    context = detector.analyze_context(docs_dir / "image1.jpg")
-    type_score = detector._calculate_type_mismatch(context)
+    misplaced = detector.detect_misplaced(docs_dir)
+    misplaced_file = next((m for m in misplaced if m.file_path.name == "image1.jpg"), None)
 
-    # High mismatch since it's an image among docs
-    assert type_score == 80.0
+    # Image among documents → file_type_mismatch flagged in public result metadata
+    assert misplaced_file is not None
+    assert misplaced_file.metadata["file_type_mismatch"] is True
+    assert misplaced_file.mismatch_score > 45.0
 
 
-def test_misplacement_detector_naming_mismatch(misplacement_dir_tree):
+def test_misplacement_detector_naming_mismatch(misplacement_dir_tree: Path) -> None:
     detector = MisplacementDetector()
-    docs_dir = misplacement_dir_tree / "documents"
 
-    (docs_dir / "outlier-name_weird").touch()
-    context = detector.analyze_context(docs_dir / "outlier-name_weird")
-    naming_score = detector._calculate_naming_mismatch(docs_dir / "outlier-name_weird", context)
+    # Build a directory with a strong underscore naming convention
+    naming_dir = misplacement_dir_tree / "naming_patterns"
+    naming_dir.mkdir()
+    (naming_dir / "project_notes.txt").touch()
+    (naming_dir / "meeting_minutes.txt").touch()
+    (naming_dir / "release_summary.txt").touch()
+    # This file uses dashes — breaks the prevailing underscore convention
+    (naming_dir / "outlier-name.txt").touch()
 
-    assert naming_score > 0
+    context = detector.analyze_context(naming_dir / "outlier-name.txt")
+    naming_score = detector._calculate_naming_mismatch(naming_dir / "outlier-name.txt", context)
+
+    # has_dash=True, siblings_underscore=3 > siblings_dash=0 → mismatch branch fires
+    assert naming_score == 60.0
+
+
+def test_misplacement_detector_rejects_invalid_directory(tmp_path: Path) -> None:
+    detector = MisplacementDetector()
+    missing_dir = tmp_path / "does-not-exist"
+
+    with pytest.raises(ValueError, match="Invalid directory"):
+        detector.detect_misplaced(missing_dir)

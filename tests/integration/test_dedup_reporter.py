@@ -1,4 +1,7 @@
 import json
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -6,7 +9,7 @@ from file_organizer.services.deduplication.reporter import StorageReporter
 
 
 @pytest.fixture
-def sample_duplicate_groups():
+def sample_duplicate_groups() -> list[dict[str, Any]]:
     return [
         {
             "count": 3,
@@ -26,7 +29,7 @@ def sample_duplicate_groups():
 
 
 @pytest.fixture
-def sample_results(sample_duplicate_groups):
+def sample_results(sample_duplicate_groups: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "analyzed_documents": 5,
         "num_groups": 2,
@@ -35,7 +38,9 @@ def sample_results(sample_duplicate_groups):
     }
 
 
-def test_storage_reporter_calculate_reclamation(sample_duplicate_groups):
+def test_storage_reporter_calculate_reclamation(
+    sample_duplicate_groups: list[dict[str, Any]],
+) -> None:
     reporter = StorageReporter()
     metrics = reporter.calculate_reclamation(sample_duplicate_groups)
 
@@ -43,10 +48,10 @@ def test_storage_reporter_calculate_reclamation(sample_duplicate_groups):
     assert metrics["total_duplicate_groups"] == 2
     assert metrics["total_size"] == 7000
     assert metrics["recoverable_space"] == 4000
-    assert metrics["recovery_percentage"] == (4000 / 7000 * 100)
+    assert metrics["recovery_percentage"] == pytest.approx(4000 / 7000 * 100)
 
 
-def test_storage_reporter_generate_report_json(sample_results):
+def test_storage_reporter_generate_report_json(sample_results: dict[str, Any]) -> None:
     reporter = StorageReporter()
     report = reporter.generate_report(sample_results, output_format="json")
     parsed = json.loads(report)
@@ -54,7 +59,7 @@ def test_storage_reporter_generate_report_json(sample_results):
     assert parsed["analyzed_documents"] == 5
 
 
-def test_storage_reporter_generate_report_text(sample_results):
+def test_storage_reporter_generate_report_text(sample_results: dict[str, Any]) -> None:
     reporter = StorageReporter()
     report = reporter.generate_report(sample_results, output_format="text")
     assert "DOCUMENT DEDUPLICATION REPORT" in report
@@ -64,7 +69,9 @@ def test_storage_reporter_generate_report_text(sample_results):
     assert "dup3.png" in report
 
 
-def test_storage_reporter_export_to_csv(tmp_path, sample_duplicate_groups):
+def test_storage_reporter_export_to_csv(
+    tmp_path: Path, sample_duplicate_groups: list[dict[str, Any]]
+) -> None:
     reporter = StorageReporter()
     out_file = tmp_path / "report.csv"
     reporter.export_to_csv(sample_duplicate_groups, out_file)
@@ -75,7 +82,7 @@ def test_storage_reporter_export_to_csv(tmp_path, sample_duplicate_groups):
     assert "rep1.txt" in content
 
 
-def test_storage_reporter_export_to_json(tmp_path, sample_results):
+def test_storage_reporter_export_to_json(tmp_path: Path, sample_results: dict[str, Any]) -> None:
     reporter = StorageReporter()
     out_file = tmp_path / "report.json"
     reporter.export_to_json(sample_results, out_file)
@@ -83,3 +90,23 @@ def test_storage_reporter_export_to_json(tmp_path, sample_results):
     assert out_file.exists()
     parsed = json.loads(out_file.read_text(encoding="utf-8"))
     assert parsed["num_groups"] == 2
+
+
+def test_storage_reporter_export_to_csv_oserror(
+    tmp_path: Path, sample_duplicate_groups: list[dict[str, Any]]
+) -> None:
+    reporter = StorageReporter()
+    out_file = tmp_path / "report.csv"
+    with patch("builtins.open", side_effect=OSError("disk full")):
+        with pytest.raises(OSError):
+            reporter.export_to_csv(sample_duplicate_groups, out_file)
+
+
+def test_storage_reporter_export_to_json_oserror(
+    tmp_path: Path, sample_results: dict[str, Any]
+) -> None:
+    reporter = StorageReporter()
+    out_file = tmp_path / "report.json"
+    with patch("builtins.open", side_effect=OSError("disk full")):
+        with pytest.raises(OSError):
+            reporter.export_to_json(sample_results, out_file)
