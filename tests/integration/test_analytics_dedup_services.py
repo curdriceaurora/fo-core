@@ -17,8 +17,6 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("sklearn.feature_extraction.text")
-
 from file_organizer.services.analytics.metrics_calculator import MetricsCalculator
 from file_organizer.services.copilot.rules.models import (
     ActionType,
@@ -268,6 +266,10 @@ def deduplicator() -> DocumentDeduplicator:
 
 
 class TestDocumentDeduplicatorInit:
+    @pytest.fixture(autouse=True)
+    def _require_sklearn(self) -> None:
+        pytest.importorskip("sklearn.feature_extraction.text")
+
     def test_default_threshold(self) -> None:
         d = DocumentDeduplicator()
         assert d is not None
@@ -282,6 +284,10 @@ class TestDocumentDeduplicatorInit:
 
 
 class TestFindDuplicates:
+    @pytest.fixture(autouse=True)
+    def _require_sklearn(self) -> None:
+        pytest.importorskip("sklearn.feature_extraction.text")
+
     def test_empty_list(self, deduplicator: DocumentDeduplicator) -> None:
         result = deduplicator.find_duplicates([])
         assert "duplicate_groups" in result
@@ -333,6 +339,10 @@ class TestFindDuplicates:
 
 
 class TestCompareDocuments:
+    @pytest.fixture(autouse=True)
+    def _require_sklearn(self) -> None:
+        pytest.importorskip("sklearn.feature_extraction.text")
+
     def test_same_file_returns_value(
         self, deduplicator: DocumentDeduplicator, tmp_path: Path
     ) -> None:
