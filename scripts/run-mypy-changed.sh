@@ -8,4 +8,11 @@ if [[ $# -eq 0 ]]; then
     exit 0
 fi
 
-exec mypy "$@"
+if [[ -x .venv/bin/mypy ]]; then
+    exec .venv/bin/mypy "$@"
+elif command -v mypy &>/dev/null; then
+    exec mypy "$@"
+else
+    echo "error: mypy not found — run 'pip install mypy' or activate your venv" >&2
+    exit 1
+fi

@@ -8,6 +8,9 @@
 # Ephemeral context checkpoint (session state, not project code)
 .claude/context/checkpoint.md
 
+# Claude Code scheduled-task process lock (runtime state, cleaned up on exit)
+.claude/scheduled_tasks.lock
+
 # Byte-compiled Python files
 __pycache__/
 *.py[cod]
