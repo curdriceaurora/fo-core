@@ -216,6 +216,37 @@ class TestArchiveReaders:
         finally:
             _arc.PY7ZR_AVAILABLE = original
 
+    @pytest.mark.ci
+    def test_read_7z_file_with_mock_archive(self, tmp_path: Path) -> None:
+        """Cover archives.py lines 116-117,140-141 via a mocked py7zr."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import file_organizer.utils.readers.archives as _arc
+
+        fake_file = SimpleNamespace(filename="doc.txt", compressed=256, uncompressed=512)
+        fake_archive = MagicMock()
+        fake_archive.list.return_value = [fake_file]
+        fake_archive.password_protected = False
+        fake_archive.__enter__ = lambda s: fake_archive
+        fake_archive.__exit__ = MagicMock(return_value=False)
+
+        mock_py7zr = MagicMock()
+        mock_py7zr.SevenZipFile.return_value = fake_archive
+
+        archive_path = tmp_path / "test.7z"
+        archive_path.write_bytes(b"dummy")
+
+        with (
+            patch.object(_arc, "PY7ZR_AVAILABLE", True),
+            patch.object(_arc, "py7zr", mock_py7zr, create=True),
+        ):
+            result = read_7z_file(archive_path)
+
+        assert "7Z Archive" in result
+        assert "doc.txt" in result
+        assert "0.50 KB" in result
+
     def test_read_rar_file_not_installed(self, tmp_path: Path) -> None:
         """Test that missing rarfile raises appropriate error."""
         file_path = tmp_path / "test.rar"
