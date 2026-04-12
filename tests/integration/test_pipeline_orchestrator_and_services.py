@@ -1110,7 +1110,7 @@ class TestProfileMigratorHistory:
 class TestDocumentEmbedderInit:
     @pytest.fixture(autouse=True)
     def _require_sklearn(self) -> None:
-        pytest.importorskip("sklearn")
+        pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_init_defaults(self) -> None:
         from file_organizer.services.deduplication.embedder import DocumentEmbedder
@@ -1144,7 +1144,7 @@ class TestDocumentEmbedderInit:
 class TestDocumentEmbedderFitTransform:
     @pytest.fixture(autouse=True)
     def _require_sklearn(self) -> None:
-        pytest.importorskip("sklearn")
+        pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_fit_transform_returns_array(self) -> None:
         import numpy as np
@@ -1219,7 +1219,7 @@ class TestDocumentEmbedderFitTransform:
 class TestDocumentEmbedderVocabulary:
     @pytest.fixture(autouse=True)
     def _require_sklearn(self) -> None:
-        pytest.importorskip("sklearn")
+        pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_get_feature_names_after_fit(self) -> None:
         from file_organizer.services.deduplication.embedder import DocumentEmbedder
@@ -1267,7 +1267,7 @@ class TestDocumentEmbedderVocabulary:
 class TestDocumentEmbedderPersistence:
     @pytest.fixture(autouse=True)
     def _require_sklearn(self) -> None:
-        pytest.importorskip("sklearn")
+        pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_save_and_load_model(self, tmp_path: Path) -> None:
         import numpy as np
