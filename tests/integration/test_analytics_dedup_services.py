@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("sklearn")
+pytest.importorskip("sklearn.feature_extraction.text")
 
 from file_organizer.services.analytics.metrics_calculator import MetricsCalculator
 from file_organizer.services.copilot.rules.models import (
