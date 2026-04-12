@@ -111,6 +111,16 @@ class DocumentEmbedder:
 
             try:
                 embeddings = self.vectorizer.fit_transform(documents)
+            except ValueError:
+                # All terms exceeded max_df threshold (every term appears in every doc).
+                # Retry with max_df=1.0 so no terms are pruned.
+                logger.warning(
+                    "fit_transform raised ValueError (all terms pruned by max_df=%.2f); "
+                    "retrying with max_df=1.0",
+                    self.vectorizer.max_df,
+                )
+                self.vectorizer.max_df = 1.0
+                embeddings = self.vectorizer.fit_transform(documents)
             finally:
                 self.vectorizer.max_df = _original_max_df
             self.is_fitted = True
@@ -206,7 +216,7 @@ class DocumentEmbedder:
         if not self.is_fitted:
             raise RuntimeError("Vectorizer not fitted. Call fit_transform() first.")
 
-        return dict(self.vectorizer.vocabulary_)
+        return {k: int(v) for k, v in self.vectorizer.vocabulary_.items()}
 
     def get_top_terms(self, embedding: np.ndarray, top_n: int = 10) -> list[tuple[str, float]]:
         """Get top N terms from an embedding by weight.
