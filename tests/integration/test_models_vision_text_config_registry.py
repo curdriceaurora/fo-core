@@ -15,10 +15,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from file_organizer.models.analytics import AnalyticsDashboard, StorageStats
+    from file_organizer.models.provider_registry import ProviderRegistry
+    from file_organizer.models.text_model import TextModel
+    from file_organizer.models.vision_model import VisionModel
 
 pytestmark = pytest.mark.integration
 
@@ -36,7 +42,7 @@ def _exhausted_response(text: str = "") -> dict:
     return {"response": text, "done_reason": "length", "total_duration": 1_000_000_000}
 
 
-def _make_text_model() -> Any:
+def _make_text_model() -> TextModel:
     from file_organizer.models.text_model import TextModel
 
     config = TextModel.get_default_config("test-text-model")
@@ -47,7 +53,7 @@ def _make_text_model() -> Any:
     return model
 
 
-def _make_vision_model() -> Any:
+def _make_vision_model() -> VisionModel:
     from file_organizer.models.vision_model import VisionModel
 
     config = VisionModel.get_default_config("test-vision-model")
@@ -461,7 +467,7 @@ class TestVisionModelGenerate:
 
 
 class TestProviderRegistry:
-    def _fresh_registry(self):
+    def _fresh_registry(self) -> ProviderRegistry:
         from file_organizer.models.provider_registry import ProviderRegistry
 
         r = ProviderRegistry()
@@ -533,7 +539,7 @@ class TestProviderRegistry:
         r = self._fresh_registry()
         r.register("text_only", text_factory=MagicMock(return_value=MagicMock()))
         cfg = ModelConfig(name="m", model_type=ModelType.VISION, provider="text_only")
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="no vision factory"):
             r.get_vision_model(cfg)
 
     def test_registered_providers_sorted(self) -> None:
@@ -1138,7 +1144,7 @@ class TestPathManagerFunctions:
 
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         result = get_config_dir()
-        assert result.name == "file-organizer" or "file-organizer" in str(result)
+        assert result.name == "file-organizer"
 
     def test_get_data_dir_uses_xdg_data_home(self, tmp_path: Path, monkeypatch) -> None:
         from file_organizer.config.path_manager import get_data_dir
@@ -1275,7 +1281,7 @@ class TestPathManagerClass:
 
 
 class TestStorageStats:
-    def _make_stats(self, **kwargs) -> object:
+    def _make_stats(self, **kwargs) -> StorageStats:
         from file_organizer.models.analytics import StorageStats
 
         defaults = {
@@ -1552,7 +1558,7 @@ class TestTrendData:
 
 
 class TestAnalyticsDashboard:
-    def _make_dashboard(self):
+    def _make_dashboard(self) -> AnalyticsDashboard:
         from file_organizer.models.analytics import (
             AnalyticsDashboard,
             DuplicateStats,

@@ -317,6 +317,8 @@ class TestTagRecommender:
         recommender = TagRecommender(learning_engine=learning, min_confidence=0.0)
         rec = recommender.recommend_tags(target)
         assert rec.file_path == target
+        suggested_tags = [s.tag for s in rec.suggestions]
+        assert "text" in suggested_tags
 
     def test_recommend_tags_filters_existing(self, tmp_path: Path) -> None:
         from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
@@ -463,6 +465,8 @@ class TestAutoTaggingService:
             }
         ]
         svc.provide_feedback(feedback)
+        popular_tags = [tag for tag, _ in svc.get_popular_tags()]
+        assert "fb_tag" in popular_tags
 
     def test_get_popular_tags_empty(self, tmp_path: Path) -> None:
         from file_organizer.services.auto_tagging import AutoTaggingService
@@ -935,6 +939,8 @@ class TestCommandExecutorAdditional:
         intent = self._make_intent("find", {"query": "content", "paths": [str(tmp_path)]})
         result = executor.execute(intent)
         assert result.success is True
+        mock_retriever.retrieve.assert_called_once()
+        assert mock_retriever.retrieve.call_args.args[0] == "content"
 
     def test_execute_organize_directory_not_found(self, tmp_path: Path) -> None:
         from file_organizer.services.copilot.executor import CommandExecutor

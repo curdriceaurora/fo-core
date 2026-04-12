@@ -174,6 +174,36 @@ cmd_pr_threads() {
 }
 
 ##############################################################################
+# pr-thread-details — List unresolved threads with file path, line, full body
+##############################################################################
+
+cmd_pr_thread_details() {
+    local pr_number="$1"
+    require_pr_number "$pr_number"
+
+    gh api graphql -f query='query {
+      repository(owner: "'"$OWNER"'", name: "'"$REPO_NAME"'") {
+        pullRequest(number: '"$pr_number"') {
+          reviewThreads(first: 100) {
+            nodes {
+              id
+              isResolved
+              comments(first: 1) {
+                nodes {
+                  body
+                  path
+                  line
+                  originalLine
+                }
+              }
+            }
+          }
+        }
+      }
+    }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | {id, path: .comments.nodes[0].path, line: (.comments.nodes[0].line // .comments.nodes[0].originalLine), body: .comments.nodes[0].body}'
+}
+
+##############################################################################
 # pr-thread-status — Show ALL review threads with resolved/unresolved status
 # Use this to verify after resolve-all that every thread is resolved.
 ##############################################################################
@@ -436,6 +466,9 @@ case "$COMMAND" in
     pr-threads)
         cmd_pr_threads "${1:-}"
         ;;
+    pr-thread-details)
+        cmd_pr_thread_details "${1:-}"
+        ;;
     pr-thread-status)
         cmd_pr_thread_status "${1:-}"
         ;;
@@ -456,7 +489,8 @@ case "$COMMAND" in
         echo ""
         echo "Commands:"
         echo "  pr-comments <PR>                          Fetch all PR comments"
-        echo "  pr-threads  <PR>                          List unresolved threads"
+        echo "  pr-threads  <PR>                          List unresolved threads (preview only)
+  pr-thread-details <PR>                    Unresolved threads with path/line/body"
         echo "  pr-thread-status <PR>                     Show all threads with resolved status"
         echo "  pr-reviews  <PR>                          Fetch reviews with comments"
         echo "  resolve-thread <THREAD_ID>                Resolve a single thread"

@@ -356,8 +356,8 @@ class TestFileRouterCustomRules:
         from file_organizer.pipeline.router import FileRouter, ProcessorType
 
         router = FileRouter()
-        router.add_custom_rule(lambda p: True, ProcessorType.AUDIO)
-        router.add_custom_rule(lambda p: True, ProcessorType.VIDEO)
+        router.add_custom_rule(lambda _p: True, ProcessorType.AUDIO)
+        router.add_custom_rule(lambda _p: True, ProcessorType.VIDEO)
         assert router.route(Path("any.txt")) == ProcessorType.AUDIO
 
     def test_custom_rule_exception_falls_through(self) -> None:
@@ -376,7 +376,7 @@ class TestFileRouterCustomRules:
         from file_organizer.pipeline.router import FileRouter, ProcessorType
 
         router = FileRouter()
-        router.add_custom_rule(lambda p: True, ProcessorType.AUDIO)
+        router.add_custom_rule(lambda _p: True, ProcessorType.AUDIO)
         router.clear_custom_rules()
         assert router.custom_rule_count == 0
         assert router.route(Path("doc.pdf")) == ProcessorType.TEXT
@@ -385,8 +385,8 @@ class TestFileRouterCustomRules:
         from file_organizer.pipeline.router import FileRouter, ProcessorType
 
         router = FileRouter()
-        router.add_custom_rule(lambda p: False, ProcessorType.AUDIO)
-        router.add_custom_rule(lambda p: False, ProcessorType.VIDEO)
+        router.add_custom_rule(lambda _p: False, ProcessorType.AUDIO)
+        router.add_custom_rule(lambda _p: False, ProcessorType.VIDEO)
         assert router.custom_rule_count == 2
 
 

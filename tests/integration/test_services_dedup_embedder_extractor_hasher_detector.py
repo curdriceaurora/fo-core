@@ -253,8 +253,8 @@ class TestDocumentExtractor:
         extractor = DocumentExtractor()
         text = extractor.extract_text(f)
         assert isinstance(text, str)
-        # Either striprtf parsed it (contains "Hello") or fell back to empty string
-        assert "Hello" in text or text == ""
+        # Both striprtf and basic-stripping fallback extract "Hello" from the test input
+        assert "Hello" in text
 
     def test_extract_odt_basic(self, tmp_path: Path) -> None:
         import io
@@ -631,7 +631,8 @@ class TestDuplicateDetector:
         detector.scan_directory(tmp_path)
         stats = detector.get_statistics()
         assert isinstance(stats, dict)
-        assert "total_groups" in stats or "duplicate_groups" in stats or len(stats) > 0
+        assert "duplicate_groups" in stats
+        assert stats["duplicate_groups"] >= 1
 
     def test_clear_resets_index(self, tmp_path: Path) -> None:
         from file_organizer.services.deduplication.detector import DuplicateDetector

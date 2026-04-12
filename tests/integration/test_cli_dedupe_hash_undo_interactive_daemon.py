@@ -312,10 +312,11 @@ class TestDedupeCommandIntegration:
             patch(
                 "file_organizer.cli.dedupe_removal.process_duplicate_group",
                 return_value=(0, 0),
-            ),
+            ) as mock_process,
         ):
             result = dedupe_command([str(tmp_path), "--dry-run"])
         assert result == 0
+        assert mock_process.call_args.kwargs["dry_run"] is True
 
     def test_with_duplicates_calls_process_group(self, tmp_path: Path) -> None:
         """dedupe_command calls process_duplicate_group for each group found."""

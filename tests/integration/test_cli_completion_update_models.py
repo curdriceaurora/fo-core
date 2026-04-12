@@ -407,7 +407,7 @@ class TestModelPullCommand:
             result = cli_runner.invoke(app, ["model", "pull", "llama3:8b"])
 
         assert result.exit_code == 0
-        MockMgr.return_value.pull_model.assert_called_once_with("llama3:8b")
+        MockMgr.return_value.pull_model.assert_called_once_with(name="llama3:8b")
 
     def test_pull_failure_exits_1(self, cli_runner: object) -> None:
         from file_organizer.cli.main import app
@@ -467,33 +467,38 @@ class TestCliInitLazyImports:
 
     def test_app_attribute_resolves(self) -> None:
         import file_organizer.cli as cli_pkg
+        from file_organizer.cli.main import app as real_app
 
         app = cli_pkg.app
-        assert app is not None
+        assert app is real_app
 
     def test_complete_directory_resolves(self) -> None:
         import file_organizer.cli as cli_pkg
+        from file_organizer.cli.completion import complete_directory as real_fn
 
         fn = cli_pkg.complete_directory
-        assert callable(fn)
+        assert fn is real_fn
 
     def test_complete_file_resolves(self) -> None:
         import file_organizer.cli as cli_pkg
+        from file_organizer.cli.completion import complete_file as real_fn
 
         fn = cli_pkg.complete_file
-        assert callable(fn)
+        assert fn is real_fn
 
     def test_update_app_resolves(self) -> None:
         import file_organizer.cli as cli_pkg
+        from file_organizer.cli.update import update_app as real_app
 
         app = cli_pkg.update_app
-        assert app is not None
+        assert app is real_app
 
     def test_copilot_app_resolves(self) -> None:
         import file_organizer.cli as cli_pkg
+        from file_organizer.cli.copilot import copilot_app as real_app
 
         app = cli_pkg.copilot_app
-        assert app is not None
+        assert app is real_app
 
     def test_unknown_attribute_raises_attribute_error(self) -> None:
         import file_organizer.cli as cli_pkg
@@ -502,10 +507,16 @@ class TestCliInitLazyImports:
             _ = cli_pkg.this_does_not_exist_at_all  # type: ignore[attr-defined]
 
     def test_cached_after_first_access(self) -> None:
-        """Accessing the same attribute twice returns the same object."""
+        """Accessing the same attribute twice returns the same object, and the
+        name is stored in the module's __dict__ after first access."""
         import file_organizer.cli as cli_pkg
 
+        # Ensure it's not already cached (may have been loaded by other tests)
+        cli_pkg.__dict__.pop("complete_directory", None)
+
         first = cli_pkg.complete_directory
+        # After first access the value must be cached in module dict
+        assert "complete_directory" in cli_pkg.__dict__
         second = cli_pkg.complete_directory
         assert first is second
 

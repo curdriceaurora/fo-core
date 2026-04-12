@@ -102,21 +102,28 @@ class TestAudioPreprocessorInit:
         assert preprocessor.config.sample_rate == 44100
         assert preprocessor.config.channels == 2
 
-    def test_ffmpeg_not_found_logs_warning(self) -> None:
+    def test_ffmpeg_not_found_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        import logging
+
         from file_organizer.services.audio.preprocessor import AudioPreprocessor
 
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            # Should not raise – just logs a warning
-            preprocessor = AudioPreprocessor()
+        with caplog.at_level(logging.WARNING, logger="file_organizer.services.audio.preprocessor"):
+            with patch("subprocess.run", side_effect=FileNotFoundError):
+                preprocessor = AudioPreprocessor()
         assert preprocessor.config is not None
+        assert any("ffmpeg" in record.message.lower() for record in caplog.records)
 
-    def test_ffmpeg_nonzero_returncode_logs_warning(self) -> None:
+    def test_ffmpeg_nonzero_returncode_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        import logging
+
         from file_organizer.services.audio.preprocessor import AudioPreprocessor
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=1)
-            preprocessor = AudioPreprocessor()
+        with caplog.at_level(logging.WARNING, logger="file_organizer.services.audio.preprocessor"):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=1)
+                preprocessor = AudioPreprocessor()
         assert preprocessor.config is not None
+        assert any("ffmpeg" in record.message.lower() for record in caplog.records)
 
 
 class TestAudioPreprocessorIsSupported:
@@ -1043,6 +1050,7 @@ class TestAudioOrganizerOrganize:
         assert result.total_moved == 1
         assert result.total_failed == 0
         assert not src.exists()  # file was moved
+        assert result.moved_files[0].destination.exists()  # verify destination exists
 
     def test_actual_move_missing_file_is_skipped(self, tmp_path: Path) -> None:
         from file_organizer.services.audio.classifier import AudioType
@@ -1079,6 +1087,7 @@ class TestAudioOrganizerOrganize:
 
         assert result2.total_moved == 1
         assert result2.total_failed == 0
+        assert result2.moved_files[0].destination.exists()  # conflict suffix applied
 
     def test_report_string_generated(self) -> None:
         from file_organizer.services.audio.organizer import OrganizationResult

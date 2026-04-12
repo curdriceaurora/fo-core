@@ -331,15 +331,21 @@ class TestCopilotChatCommand:
         MockEngine.assert_called_once_with(working_directory=str(tmp_path))
         MockEngine.return_value.chat.assert_called_once_with("organise my documents")
 
-    def test_single_shot_uses_cwd_when_no_dir(self, cli_runner: object) -> None:
+    def test_single_shot_uses_cwd_when_no_dir(
+        self, cli_runner: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+
         from file_organizer.cli.main import app
 
+        monkeypatch.chdir(tmp_path)
         with patch("file_organizer.services.copilot.engine.CopilotEngine") as MockEngine:
             MockEngine.return_value.chat.return_value = "Done."
             result = cli_runner.invoke(app, ["copilot", "chat", "hello"])
 
         assert result.exit_code == 0
         assert "Done." in result.output
+        MockEngine.assert_called_once_with(working_directory=str(tmp_path))
+        MockEngine.return_value.chat.assert_called_once_with("hello")
 
     def test_interactive_repl_quit(self, cli_runner: object) -> None:
         """Sending 'quit' to the REPL should exit cleanly."""

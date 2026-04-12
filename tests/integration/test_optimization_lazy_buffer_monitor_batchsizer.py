@@ -80,12 +80,13 @@ class TestLazyModelLoaderDefaultLoader:
         fake_model = _make_base_model("openai-model")
 
         with patch(
-            "file_organizer.optimization.lazy_loader.LazyModelLoader._default_loader",
+            "file_organizer.models.provider_factory.get_text_model",
             return_value=fake_model,
-        ):
-            lazy = LazyModelLoader(config)
-            result = lazy.model
+        ) as mock_gtm:
+            result = LazyModelLoader._default_loader(config)
 
+        mock_gtm.assert_called_once_with(config)
+        fake_model.initialize.assert_called_once()
         assert result is fake_model
 
     def test_default_loader_unsupported_framework_raises(self) -> None:
@@ -132,12 +133,13 @@ class TestLazyModelLoaderDefaultLoader:
         fake_model = _make_base_model()
 
         with patch(
-            "file_organizer.optimization.lazy_loader.LazyModelLoader._default_loader",
+            "file_organizer.models.provider_factory.get_text_model",
             return_value=fake_model,
-        ):
-            lazy = LazyModelLoader(config)
-            result = lazy.model
+        ) as mock_gtm:
+            result = LazyModelLoader._default_loader(config)
 
+        mock_gtm.assert_called_once_with(config)
+        fake_model.initialize.assert_called_once()
         assert result is fake_model
 
     def test_default_loader_claude_text_branch(self) -> None:
@@ -149,12 +151,13 @@ class TestLazyModelLoaderDefaultLoader:
         fake_model = _make_base_model()
 
         with patch(
-            "file_organizer.optimization.lazy_loader.LazyModelLoader._default_loader",
+            "file_organizer.models.provider_factory.get_text_model",
             return_value=fake_model,
-        ):
-            lazy = LazyModelLoader(config)
-            result = lazy.model
+        ) as mock_gtm:
+            result = LazyModelLoader._default_loader(config)
 
+        mock_gtm.assert_called_once_with(config)
+        fake_model.initialize.assert_called_once()
         assert result is fake_model
 
     def test_default_loader_claude_vision_branch(self) -> None:
@@ -166,12 +169,13 @@ class TestLazyModelLoaderDefaultLoader:
         fake_model = _make_base_model()
 
         with patch(
-            "file_organizer.optimization.lazy_loader.LazyModelLoader._default_loader",
+            "file_organizer.models.provider_factory.get_vision_model",
             return_value=fake_model,
-        ):
-            lazy = LazyModelLoader(config)
-            result = lazy.model
+        ) as mock_gvm:
+            result = LazyModelLoader._default_loader(config)
 
+        mock_gvm.assert_called_once_with(config)
+        fake_model.initialize.assert_called_once()
         assert result is fake_model
 
 
@@ -352,17 +356,19 @@ class TestBufferPoolAcquireEdgeCases:
 
         acquired: list[bytearray] = []
         error: list[Exception] = []
+        about_to_acquire = threading.Event()
 
         def waiter() -> None:
             try:
+                about_to_acquire.set()
                 acquired.append(pool.acquire(timeout=2.0))
             except Exception as exc:
                 error.append(exc)
 
         t = threading.Thread(target=waiter)
         t.start()
-        # Give the waiter thread time to block
-        t.join(timeout=0.05)
+        # Wait until the waiter has signalled it is about to call acquire()
+        about_to_acquire.wait(timeout=5.0)
         pool.release(held)
         t.join(timeout=2.0)
 
@@ -381,13 +387,15 @@ class TestBufferPoolAcquireEdgeCases:
         buf_b = pool.acquire()
 
         acquired: list[bytearray] = []
+        about_to_acquire = threading.Event()
 
         def waiter() -> None:
+            about_to_acquire.set()
             acquired.append(pool.acquire(timeout=2.0))
 
         t = threading.Thread(target=waiter)
         t.start()
-        t.join(timeout=0.05)
+        about_to_acquire.wait(timeout=5.0)
         pool.release(buf_a)
         t.join(timeout=2.0)
 

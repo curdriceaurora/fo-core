@@ -12,9 +12,20 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from file_organizer.models.analytics import (
+        AnalyticsDashboard,
+        DuplicateStats,
+        FileDistribution,
+        QualityMetrics,
+        StorageStats,
+        TimeSavings,
+    )
 
 pytestmark = pytest.mark.integration
 
@@ -572,7 +583,7 @@ class TestBenchmarkSuiteHelpers:
 
         c1 = _SuiteExecutionClassification(effective_suite="io", degraded=False)
         c2 = _SuiteExecutionClassification(effective_suite="text", degraded=False)
-        eff, degraded, reasons = _summarize_suite_classifications(
+        eff, _degraded, _reasons = _summarize_suite_classifications(
             [c1, c2], warmup=0, requested_suite="text"
         )
         assert eff == "mixed"
@@ -584,7 +595,7 @@ class TestBenchmarkSuiteHelpers:
         )
 
         c = _SuiteExecutionClassification(effective_suite="io", degraded=False)
-        eff, degraded, reasons = _summarize_suite_classifications(
+        eff, _degraded, _reasons = _summarize_suite_classifications(
             [c], warmup=1, requested_suite="io"
         )
         # warmup eats the only iteration → empty measured → falls back to requested_suite
@@ -606,7 +617,7 @@ class TestBenchmarkSuiteHelpers:
             return _SuiteExecutionClassification(effective_suite="io", degraded=False)
 
         mock_console = MagicMock()
-        elapsed, count, classification = _execute_suite_iteration(
+        _elapsed, count, classification = _execute_suite_iteration(
             runner=fake_runner,
             classifier=fake_classifier,
             files=[tmp_path / "a.txt", tmp_path / "b.txt"],
@@ -765,7 +776,7 @@ class TestAnalyticsFormatDuration:
 
 
 class TestAnalyticsDisplayHelpers:
-    def _make_storage_stats(self):
+    def _make_storage_stats(self) -> StorageStats:
         from datetime import UTC, datetime
 
         from file_organizer.models.analytics import FileInfo, StorageStats
@@ -787,7 +798,7 @@ class TestAnalyticsDisplayHelpers:
             ],
         )
 
-    def _make_quality_metrics(self):
+    def _make_quality_metrics(self) -> QualityMetrics:
         from file_organizer.models.analytics import QualityMetrics
 
         return QualityMetrics(
@@ -798,7 +809,7 @@ class TestAnalyticsDisplayHelpers:
             categorization_accuracy=0.90,
         )
 
-    def _make_duplicate_stats_no_dupes(self):
+    def _make_duplicate_stats_no_dupes(self) -> DuplicateStats:
         from file_organizer.models.analytics import DuplicateStats
 
         return DuplicateStats(
@@ -809,7 +820,7 @@ class TestAnalyticsDisplayHelpers:
             by_type={},
         )
 
-    def _make_duplicate_stats_with_dupes(self):
+    def _make_duplicate_stats_with_dupes(self) -> DuplicateStats:
         from file_organizer.models.analytics import DuplicateStats
 
         return DuplicateStats(
@@ -820,7 +831,7 @@ class TestAnalyticsDisplayHelpers:
             by_type={".txt": 3, ".pdf": 2},
         )
 
-    def _make_time_savings(self):
+    def _make_time_savings(self) -> TimeSavings:
         from file_organizer.models.analytics import TimeSavings
 
         return TimeSavings(
@@ -831,7 +842,7 @@ class TestAnalyticsDisplayHelpers:
             estimated_time_saved_seconds=3240,
         )
 
-    def _make_file_distribution(self):
+    def _make_file_distribution(self) -> FileDistribution:
         from file_organizer.models.analytics import FileDistribution
 
         return FileDistribution(
@@ -919,7 +930,7 @@ class TestAnalyticsDisplayHelpers:
         display_file_distribution(distribution, None)
 
 
-def _make_full_dashboard():
+def _make_full_dashboard() -> AnalyticsDashboard:
     """Build a real AnalyticsDashboard with all required fields populated."""
     from datetime import UTC, datetime
 
@@ -1026,6 +1037,8 @@ class TestAnalyticsCommand:
             mock_svc.generate_dashboard.return_value = dashboard
             result = analytics_command([str(src), "--max-depth", "2"])
         assert result == 0
+        mock_svc.generate_dashboard.assert_called_once()
+        assert mock_svc.generate_dashboard.call_args.kwargs["max_depth"] == 2
 
     def test_with_export_json(self, tmp_path: Path) -> None:
         from file_organizer.cli.analytics import analytics_command
@@ -1048,12 +1061,17 @@ class TestAnalyticsCommand:
         src = tmp_path / "src"
         src.mkdir()
         dashboard = _make_full_dashboard()
-        with patch("file_organizer.cli.analytics.AnalyticsService") as mock_svc_cls:
+        with (
+            patch("file_organizer.cli.analytics.AnalyticsService") as mock_svc_cls,
+            patch("file_organizer.cli.analytics.ChartGenerator") as mock_cg,
+        ):
             mock_svc = MagicMock()
             mock_svc_cls.return_value = mock_svc
             mock_svc.generate_dashboard.return_value = dashboard
             result = analytics_command([str(src), "--no-charts"])
         assert result == 0
+        mock_svc.generate_dashboard.assert_called_once()
+        mock_cg.assert_not_called()
 
     def test_exception_returns_1(self, tmp_path: Path) -> None:
         from file_organizer.cli.analytics import analytics_command
@@ -1079,6 +1097,7 @@ class TestAnalyticsCommand:
             mock_svc.generate_dashboard.return_value = dashboard
             result = analytics_command([str(src), "--verbose"])
         assert result == 0
+        mock_svc.generate_dashboard.assert_called_once()
 
     def test_export_text_format(self, tmp_path: Path) -> None:
         from file_organizer.cli.analytics import analytics_command
@@ -1094,6 +1113,7 @@ class TestAnalyticsCommand:
             result = analytics_command([str(src), "--export", str(export_path), "--format", "text"])
         assert result == 0
         mock_svc.export_dashboard.assert_called_once()
+        assert mock_svc.export_dashboard.call_args.kwargs["format"] == "text"
 
 
 # ===========================================================================
@@ -1709,7 +1729,7 @@ class TestValidateSearchParams:
     def test_limit_zero_returns_should_exit_true(self, tmp_path: Path) -> None:
         from file_organizer.cli.utilities import _validate_search_params
 
-        resolved, should_exit = _validate_search_params(0, tmp_path, None)
+        _resolved, should_exit = _validate_search_params(0, tmp_path, None)
         assert should_exit is True
 
     def test_valid_params_returns_resolved_dir(self, tmp_path: Path) -> None:
@@ -2035,7 +2055,7 @@ class TestValidateBenchmarkPayload:
                 "iterations": 5,
             },
         }
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="non-empty"):
             validate_benchmark_payload(payload)
 
     def test_degraded_true_with_empty_reasons_raises(self) -> None:
@@ -2104,7 +2124,7 @@ class TestValidateBenchmarkPayload:
                 "iterations": 5,
             },
         }
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="non-negative"):
             validate_benchmark_payload(payload)
 
     def test_non_dict_hardware_profile_raises(self) -> None:
@@ -2166,7 +2186,7 @@ class TestValidateBenchmarkPayload:
                 "iterations": 5,
             },
         }
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="non-negative"):
             validate_benchmark_payload(payload)
 
 
