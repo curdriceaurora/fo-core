@@ -778,8 +778,8 @@ class TestMiddlewarePipelineExceptionIsolation:
         pipeline.add(NormalMW())
         result = pipeline.run_before_publish("t", {"x": 1})
         assert "normal" in side_effects
-        # Chain continues with whatever current was (may be unchanged after exception)
-        assert result is not None or result is None  # just no exception raised
+        # Chain continues with the original payload despite the earlier exception
+        assert result == {"x": 1}
 
     def test_after_publish_exception_does_not_propagate(self) -> None:
         class ExplodingMW:

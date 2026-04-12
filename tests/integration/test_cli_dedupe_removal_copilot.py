@@ -7,6 +7,7 @@ Coverage targets:
 
 from __future__ import annotations
 
+import io
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -55,13 +56,12 @@ class TestRemoveFiles:
         f.write_text("data")
 
         files = [_make_file_dict(f, size=100)]
-        console = Console(file=open("/dev/null", "w"), no_color=True)
+        console = Console(file=io.StringIO(), no_color=True)
         removed, saved = remove_files(files, [0], None, dry_run=True, console=console)
 
         assert removed == 1
         assert saved == 100
         assert f.exists(), "dry run must not delete the file"
-        console.file.close()
 
     def test_actual_removal(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -72,13 +72,12 @@ class TestRemoveFiles:
         f.write_text("content")
 
         files = [_make_file_dict(f, size=200)]
-        console = Console(file=open("/dev/null", "w"), no_color=True)
+        console = Console(file=io.StringIO(), no_color=True)
         removed, saved = remove_files(files, [0], None, dry_run=False, console=console)
 
         assert removed == 1
         assert saved == 200
         assert not f.exists(), "file should have been deleted"
-        console.file.close()
 
     def test_multiple_indices(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -91,14 +90,13 @@ class TestRemoveFiles:
         f2.write_text("b")
 
         files = [_make_file_dict(f1, size=50), _make_file_dict(f2, size=75)]
-        console = Console(file=open("/dev/null", "w"), no_color=True)
+        console = Console(file=io.StringIO(), no_color=True)
         removed, saved = remove_files(files, [0, 1], None, dry_run=False, console=console)
 
         assert removed == 2
         assert saved == 125
         assert not f1.exists()
         assert not f2.exists()
-        console.file.close()
 
     def test_empty_indices(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -109,13 +107,12 @@ class TestRemoveFiles:
         f.write_text("keep me")
 
         files = [_make_file_dict(f)]
-        console = Console(file=open("/dev/null", "w"), no_color=True)
+        console = Console(file=io.StringIO(), no_color=True)
         removed, saved = remove_files(files, [], None, dry_run=False, console=console)
 
         assert removed == 0
         assert saved == 0
         assert f.exists()
-        console.file.close()
 
     def test_oserror_is_handled_gracefully(self, tmp_path: Path) -> None:
         """OSError on unlink should not propagate; counter stays at 0."""
@@ -126,13 +123,12 @@ class TestRemoveFiles:
         missing = tmp_path / "gone_already.txt"
         # File doesn't exist — unlink() will raise FileNotFoundError (an OSError)
         files = [_make_file_dict(missing, size=512)]
-        console = Console(file=open("/dev/null", "w"), no_color=True)
+        console = Console(file=io.StringIO(), no_color=True)
         removed, saved = remove_files(files, [0], None, dry_run=False, console=console)
 
         # The function catches OSError so removed stays 0
         assert removed == 0
         assert saved == 0
-        console.file.close()
 
     def test_backup_is_created_when_backup_manager_provided(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -146,12 +142,11 @@ class TestRemoveFiles:
         backup_mgr.create_backup.return_value = tmp_path / "backup" / "tobackup.txt"
 
         files = [_make_file_dict(f, size=300)]
-        console = Console(file=open("/dev/null", "w"), no_color=True)
+        console = Console(file=io.StringIO(), no_color=True)
         removed, saved = remove_files(files, [0], backup_mgr, dry_run=False, console=console)
 
         assert removed == 1
         backup_mgr.create_backup.assert_called_once_with(f)
-        console.file.close()
 
     def test_backup_skipped_in_dry_run(self, tmp_path: Path) -> None:
         from rich.console import Console
@@ -163,11 +158,10 @@ class TestRemoveFiles:
 
         backup_mgr = MagicMock()
         files = [_make_file_dict(f, size=10)]
-        console = Console(file=open("/dev/null", "w"), no_color=True)
+        console = Console(file=io.StringIO(), no_color=True)
         remove_files(files, [0], backup_mgr, dry_run=True, console=console)
 
         backup_mgr.create_backup.assert_not_called()
-        console.file.close()
 
 
 # ---------------------------------------------------------------------------
@@ -178,11 +172,10 @@ class TestRemoveFiles:
 class TestProcessDuplicateGroup:
     """Tests for process_duplicate_group()."""
 
-    def _make_console(self, tmp_path: Path) -> tuple[object, object]:
+    def _make_console(self) -> object:
         from rich.console import Console
 
-        null_file = open(tmp_path / "console_out.txt", "w")
-        return Console(file=null_file, no_color=True), null_file
+        return Console(file=io.StringIO(), no_color=True)
 
     def test_skip_returns_zero(self, tmp_path: Path) -> None:
         """When get_user_selection returns [] the group is skipped."""
@@ -194,7 +187,7 @@ class TestProcessDuplicateGroup:
         f2.write_text("data")
 
         group = _make_duplicate_group([_make_file_meta(f1), _make_file_meta(f2)])
-        console, null_file = self._make_console(tmp_path)
+        console = self._make_console()
 
         with (
             patch("file_organizer.cli.dedupe_display.display_duplicate_group"),
@@ -221,7 +214,6 @@ class TestProcessDuplicateGroup:
 
         assert removed == 0
         assert saved == 0
-        null_file.close()
 
     def test_remove_files_called_when_indices_present(self, tmp_path: Path) -> None:
         """When get_user_selection returns indices, remove_files is called."""
@@ -233,7 +225,7 @@ class TestProcessDuplicateGroup:
         f2.write_text("copy")
 
         group = _make_duplicate_group([_make_file_meta(f1, 100), _make_file_meta(f2, 100)])
-        console, null_file = self._make_console(tmp_path)
+        console = self._make_console()
 
         with (
             patch("file_organizer.cli.dedupe_display.display_duplicate_group"),
@@ -261,7 +253,6 @@ class TestProcessDuplicateGroup:
         assert removed == 1
         assert saved == 100
         assert not f2.exists()
-        null_file.close()
 
 
 # ---------------------------------------------------------------------------

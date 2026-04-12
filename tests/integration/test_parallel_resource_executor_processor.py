@@ -718,19 +718,23 @@ class TestRateThrottlerExtended:
             RateThrottler(max_rate=1.0, window_seconds=-1.0)
 
     def test_token_refill_over_time(self) -> None:
+        import file_organizer.parallel.throttle as _throttle_mod
         from file_organizer.parallel.throttle import RateThrottler
 
-        # Rate of 100 tokens / 0.1s = 1000 tokens/s refill rate
-        throttler = RateThrottler(max_rate=100.0, window_seconds=0.1)
-        # Drain the bucket
-        for _ in range(100):
-            throttler.acquire()
-        # Bucket is empty now
-        assert throttler.acquire() is False
-        # Manually advance the last_refill time to simulate elapsed time
-        throttler._last_refill = throttler._last_refill - 0.2
-        # Should have refilled
-        assert throttler.acquire() is True
+        current_time = [1000.0]
+
+        with patch.object(_throttle_mod.time, "monotonic", side_effect=lambda: current_time[0]):
+            # Rate of 100 tokens / 0.1s = 1000 tokens/s refill rate
+            throttler = RateThrottler(max_rate=100.0, window_seconds=0.1)
+            # Drain the bucket
+            for _ in range(100):
+                throttler.acquire()
+            # Bucket is empty now
+            assert throttler.acquire() is False
+            # Advance mocked clock to simulate elapsed time
+            current_time[0] += 0.2
+            # Should have refilled
+            assert throttler.acquire() is True
 
     def test_stats_allowed_increments_on_each_acquire(self) -> None:
         from file_organizer.parallel.throttle import RateThrottler

@@ -540,18 +540,19 @@ class TestResourceMonitorGetSystemMemoryTotal:
         from file_organizer.optimization.resource_monitor import ResourceMonitor
 
         monitor = ResourceMonitor()
+        _8gb = 8 * 1024 * 1024 * 1024
         with (
+            patch("psutil.virtual_memory", side_effect=ImportError("psutil not installed")),
             patch.object(
-                monitor,
-                "get_system_memory_total",
-                wraps=monitor.get_system_memory_total,
-            ),
-            patch(
-                "file_organizer.optimization.resource_monitor.ResourceMonitor.get_system_memory_total",
-                side_effect=ImportError("psutil not installed"),
-            ),
+                ResourceMonitor,
+                "_get_total_memory_fallback",
+                return_value=_8gb,
+            ) as mock_fallback,
         ):
-            pass  # just verify method exists; real fallback tested below
+            total = monitor.get_system_memory_total()
+
+        assert total == _8gb
+        mock_fallback.assert_called_once_with()
 
     def test_get_total_memory_fallback_proc_meminfo(self) -> None:
         """_get_total_memory_fallback reads MemTotal from /proc/meminfo on Linux."""

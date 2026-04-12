@@ -66,9 +66,6 @@ def _make_embedder_with_fake_sklearn(tmp_path: Path | None = None, **kw: Any):
     """Return a DocumentEmbedder instance backed by a fake sklearn."""
     import file_organizer.services.deduplication.embedder as _mod
 
-    fake_sklearn = MagicMock()
-    fake_sklearn.feature_extraction.text.TfidfVectorizer = _FakeTfidfVectorizer
-
     with (
         patch.object(_mod, "_SKLEARN_AVAILABLE", True),
         patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
@@ -556,11 +553,17 @@ class TestBackendDetectorCLIList:
 
         with (
             patch.object(_bd, "OLLAMA_AVAILABLE", False),
-            patch("subprocess.run", return_value=version_result),
+            patch(
+                "file_organizer.core.backend_detector.subprocess.run",
+                return_value=version_result,
+            ),
         ):
             from file_organizer.core.backend_detector import OllamaStatus, detect_ollama
 
-            with patch("subprocess.run", side_effect=[version_result, OSError]):
+            with patch(
+                "file_organizer.core.backend_detector.subprocess.run",
+                side_effect=[version_result, OSError],
+            ):
                 status = detect_ollama()
         assert isinstance(status, OllamaStatus)
 
@@ -793,8 +796,9 @@ class TestPreferenceStoreSchemaAndBackup:
             {"folder_mappings": {}, "naming_patterns": {}, "category_overrides": {}},
         )
         # Child doesn't have preference, should fall back to parent
+        parent_pref = store.get_preference(Path("/docs"))
         result = store.get_preference(Path("/docs/subdir"), fallback_to_parent=True)
-        assert result is not None or result is None  # may or may not find parent
+        assert result == parent_pref
 
     def test_update_confidence_increases_score(self, store) -> None:
         store.load_preferences()
