@@ -119,7 +119,7 @@ class TestTextModelInit:
         import ollama
 
         mock_client.show.side_effect = ollama.ResponseError("not found")
-        with patch("ollama.Client", return_value=mock_client):
+        with patch("file_organizer.models.text_model.ollama.Client", return_value=mock_client):
             model.initialize()
 
         mock_client.pull.assert_called_once_with("pull-me")
@@ -132,9 +132,14 @@ class TestTextModelInit:
         with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
             model = TextModel(config)
 
-        with patch("ollama.Client", side_effect=ConnectionError("refused")):
-            with pytest.raises(ConnectionError):
-                model.initialize()
+        with (
+            patch(
+                "file_organizer.models.text_model.ollama.Client",
+                side_effect=ConnectionError("refused"),
+            ),
+            pytest.raises(ConnectionError),
+        ):
+            model.initialize()
 
 
 class TestTextModelGenerate:
@@ -312,7 +317,7 @@ class TestVisionModelInit:
         import ollama
 
         mock_client.show.side_effect = ollama.ResponseError("not found")
-        with patch("ollama.Client", return_value=mock_client):
+        with patch("file_organizer.models.vision_model.ollama.Client", return_value=mock_client):
             model.initialize()
 
         mock_client.pull.assert_called_once_with("pull-vision")

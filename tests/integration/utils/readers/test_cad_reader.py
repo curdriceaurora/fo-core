@@ -322,6 +322,9 @@ class TestReadDxfFile:
         """Exercise read_dxf_file using a fully mocked ezdxf document."""
         from file_organizer.utils.readers import cad as cad_module
 
+        if not cad_module.EZDXF_AVAILABLE:
+            pytest.skip("ezdxf not installed")
+
         path = tmp_path / "mocked.dxf"
         path.write_text("placeholder")
 
@@ -379,6 +382,9 @@ class TestReadDwgFile:
         """When ezdxf cannot parse the DWG, fallback metadata is returned."""
         from file_organizer.utils.readers import cad as cad_module
 
+        if not cad_module.EZDXF_AVAILABLE:
+            pytest.skip("ezdxf not installed")
+
         path = tmp_path / "unknown.dwg"
         path.write_bytes(b"NOT A REAL DWG FILE CONTENT")
 
@@ -402,6 +408,9 @@ class TestReadDwgFile:
         """Fallback path: file doesn't exist → FileReadError."""
         from file_organizer.utils.readers import cad as cad_module
         from file_organizer.utils.readers._base import FileReadError
+
+        if not cad_module.EZDXF_AVAILABLE:
+            pytest.skip("ezdxf not installed")
 
         path = tmp_path / "ghost.dwg"
 
