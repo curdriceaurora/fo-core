@@ -37,16 +37,18 @@ print_files() {
 collect_changed_files() {
   local tracked_files=()
   local untracked_files=()
+  changed_files=()
 
   if git diff --cached --quiet; then
     while IFS= read -r line; do [[ -n "$line" ]] && tracked_files+=("$line"); done \
       < <(git diff --name-only --diff-filter=ACMR HEAD 2>/dev/null || true)
     while IFS= read -r line; do [[ -n "$line" ]] && untracked_files+=("$line"); done \
       < <(git ls-files --others --exclude-standard)
-    changed_files=("${tracked_files[@]+"${tracked_files[@]}"}" "${untracked_files[@]+"${untracked_files[@]}"}")
+    changed_files=()
+    [[ ${#tracked_files[@]} -gt 0 ]] && changed_files+=("${tracked_files[@]}")
+    [[ ${#untracked_files[@]} -gt 0 ]] && changed_files+=("${untracked_files[@]}")
     changed_mode="working tree vs HEAD + untracked"
   else
-    changed_files=()
     while IFS= read -r line; do [[ -n "$line" ]] && changed_files+=("$line"); done \
       < <(git diff --cached --name-only --diff-filter=ACMR)
     changed_mode="staged diff"

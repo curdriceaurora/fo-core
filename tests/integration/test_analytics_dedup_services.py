@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -33,6 +34,9 @@ from file_organizer.services.deduplication.viewer import (
     UserAction,
 )
 from file_organizer.services.intelligence.directory_prefs import DirectoryPrefs
+
+if TYPE_CHECKING:
+    from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
 
 pytestmark = pytest.mark.integration
 

@@ -396,3 +396,5 @@ DEP002 = [
     # pydantic: used transitively by pydantic-settings; no direct src/ import after refactor
     "pydantic",
 ]
+# redis: optional import via try/except in events/stream.py (transitive dependency)
+DEP003 = ["redis"]
