@@ -272,7 +272,12 @@ def deduplicator() -> DocumentDeduplicator:
 
     from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
 
-    return DocumentDeduplicator()
+    try:
+        return DocumentDeduplicator()
+    except ImportError as e:
+        if "scikit-learn is required" in str(e):
+            pytest.skip("sklearn required for deduplication")
+        raise
 
 
 class TestDocumentDeduplicatorInit:
