@@ -12,14 +12,6 @@ from pathlib import Path
 
 import numpy as np
 
-try:
-    from sklearn.feature_extraction.text import TfidfVectorizer  # pyre-ignore[21]
-
-    _SKLEARN_AVAILABLE = True
-except ImportError:  # pragma: no cover
-    TfidfVectorizer = None  # type: ignore[assignment, misc]
-    _SKLEARN_AVAILABLE = False
-
 logger = logging.getLogger(__name__)
 
 
@@ -47,11 +39,13 @@ class DocumentEmbedder:
             max_df: Maximum document frequency (ignore terms appearing in >max_df of documents)
             cache_path: Path to cache embeddings (optional)
         """
-        if not _SKLEARN_AVAILABLE:
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer  # pyre-ignore[21]
+        except ImportError as e:
             raise ImportError(
                 "scikit-learn is required for document embedding. "
                 "Install with: pip install scikit-learn>=1.4.0"
-            )
+            ) from e
 
         self.vectorizer = TfidfVectorizer(
             max_features=max_features,
