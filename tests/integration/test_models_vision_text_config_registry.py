@@ -132,11 +132,14 @@ class TestTextModelInit:
         with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
             model = TextModel(config)
 
-        with patch(
-            "file_organizer.models.text_model.ollama.Client", side_effect=ConnectionError("refused")
+        with (
+            patch(
+                "file_organizer.models.text_model.ollama.Client",
+                side_effect=ConnectionError("refused"),
+            ),
+            pytest.raises(ConnectionError),
         ):
-            with pytest.raises(ConnectionError):
-                model.initialize()
+            model.initialize()
 
 
 class TestTextModelGenerate:
