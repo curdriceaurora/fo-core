@@ -478,6 +478,11 @@ class TestDocumentEmbedder:
         assert result.shape[0] == 1
 
     def test_import_error_when_sklearn_missing(self) -> None:
+        """Verify DocumentEmbedder raises ImportError when sklearn is unavailable.
+
+        The sklearn import is deferred to __init__, so the module loads successfully
+        but instantiation fails when sklearn is not available.
+        """
         with patch.dict(
             "sys.modules",
             {
@@ -491,9 +496,9 @@ class TestDocumentEmbedder:
             import file_organizer.services.deduplication.embedder as emb_mod
 
             importlib.reload(emb_mod)
-            if not emb_mod._SKLEARN_AVAILABLE:
-                with pytest.raises(ImportError, match="scikit-learn"):
-                    emb_mod.DocumentEmbedder()
+            # Module loads fine, but instantiation should raise ImportError
+            with pytest.raises(ImportError, match="scikit-learn"):
+                emb_mod.DocumentEmbedder()
             importlib.reload(emb_mod)
 
 
