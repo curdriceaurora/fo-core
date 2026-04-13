@@ -220,6 +220,7 @@ class TestDocumentEmbedderWithFakeSklearn:
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("ensure_nltk_available")
 class TestTextProcessingNLTKPaths:
     """Cover NLTK-dependent branches in text_processing.py."""
 
