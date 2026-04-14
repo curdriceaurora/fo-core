@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -220,7 +221,7 @@ class TestReadHdf5File:
         try:
             sci_module.H5PY_AVAILABLE = True
             sci_module.h5py = SimpleNamespace(
-                File=lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("bad hdf5")),
+                File=MagicMock(side_effect=OSError("bad hdf5")),
                 Dataset=object,
                 Group=object,
             )
@@ -417,7 +418,7 @@ class TestReadNetcdfFile:
         try:
             sci_module.NETCDF4_AVAILABLE = True
             sci_module.netCDF4 = SimpleNamespace(
-                Dataset=lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("bad netcdf"))
+                Dataset=MagicMock(side_effect=OSError("bad netcdf"))
             )
             with pytest.raises(FileReadError):
                 sci_module.read_netcdf_file(path)
@@ -536,9 +537,7 @@ class TestReadMatFile:
         original_available = sci_module.SCIPY_AVAILABLE
         try:
             sci_module.SCIPY_AVAILABLE = True
-            sci_module.loadmat = lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                ValueError("bad mat")
-            )
+            sci_module.loadmat = MagicMock(side_effect=ValueError("bad mat"))
             with pytest.raises(FileReadError):
                 sci_module.read_mat_file(path)
         finally:

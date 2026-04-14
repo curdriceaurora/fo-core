@@ -214,13 +214,14 @@ class TestHybridRetriever:
         with patch(
             "file_organizer.services.search.hybrid_retriever.VectorIndex.index",
             side_effect=ValueError("vectorizer rejected corpus"),
-        ):
+        ) as mock_vector_index:
             r.index(docs, paths)
 
         assert r.is_initialized is True
         assert r.corpus_size == 2
         assert r._vector.size == 0
         assert r._bm25.size == 2
+        mock_vector_index.assert_called_once_with(docs, paths)
 
 
 # ---------------------------------------------------------------------------

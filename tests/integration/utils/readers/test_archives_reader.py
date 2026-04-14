@@ -16,7 +16,7 @@ import tarfile
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -265,7 +265,7 @@ class TestRead7zMockedPaths:
         try:
             archives.PY7ZR_AVAILABLE = True
             archives.py7zr = SimpleNamespace(
-                SevenZipFile=lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("bad 7z"))
+                SevenZipFile=MagicMock(side_effect=OSError("bad 7z")),
             )
             with pytest.raises(FileReadError):
                 read_7z_file(path)

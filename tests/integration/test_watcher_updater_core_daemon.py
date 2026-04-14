@@ -10,6 +10,7 @@ import io
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1515,11 +1516,18 @@ class TestDetectHardware:
 
         assert cores == 12
 
-    def test_get_system_ram_returns_non_negative(self) -> None:
+    def test_get_system_ram_uses_psutil_when_available(self) -> None:
         from file_organizer.core.hardware_profile import _get_system_ram
 
-        ram = _get_system_ram()
-        assert ram >= 0
+        fake_psutil = SimpleNamespace(
+            virtual_memory=MagicMock(return_value=SimpleNamespace(total=32 * 1024**3))
+        )
+
+        with patch.dict("sys.modules", {"psutil": fake_psutil}):
+            ram = _get_system_ram()
+
+        assert ram == 32 * 1024**3
+        fake_psutil.virtual_memory.assert_called_once_with()
 
     def test_get_system_ram_darwin_fallback_uses_sysctl(self) -> None:
         from file_organizer.core.hardware_profile import _get_system_ram
@@ -1581,6 +1589,9 @@ class TestDetectHardware:
                 return_value=("Apple M2 Pro", 32 * 1024**3),
             ),
             patch(
+                "file_organizer.core.hardware_profile._detect_amd", return_value=("unused", 1)
+            ) as mock_detect_amd,
+            patch(
                 "file_organizer.core.hardware_profile._get_system_ram", return_value=32 * 1024**3
             ),
             patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=10),
@@ -1591,6 +1602,8 @@ class TestDetectHardware:
 
         assert profile.gpu_type == GpuType.APPLE_MPS
         assert profile.gpu_name == "Apple M2 Pro"
+        assert profile.vram_bytes == 32 * 1024**3
+        mock_detect_amd.assert_not_called()
 
     def test_detect_hardware_amd_detected(self) -> None:
         from file_organizer.core.hardware_profile import GpuType, detect_hardware
@@ -1601,7 +1614,7 @@ class TestDetectHardware:
             patch(
                 "file_organizer.core.hardware_profile._detect_amd",
                 return_value=("Radeon 7900", 24 * 1024**3),
-            ),
+            ) as mock_detect_amd,
             patch(
                 "file_organizer.core.hardware_profile._get_system_ram", return_value=64 * 1024**3
             ),
@@ -1613,6 +1626,8 @@ class TestDetectHardware:
 
         assert profile.gpu_type == GpuType.AMD
         assert profile.gpu_name == "Radeon 7900"
+        assert profile.vram_bytes == 24 * 1024**3
+        mock_detect_amd.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------

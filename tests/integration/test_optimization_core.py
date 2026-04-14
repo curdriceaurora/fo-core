@@ -995,6 +995,7 @@ class TestMemoryLimiter:
             rss = MemoryLimiter._get_rss()
 
         assert rss == 4096
+        fake_resource.getrusage.assert_called_once_with(fake_resource.RUSAGE_SELF)
 
     def test_get_rss_returns_zero_when_proc_and_resource_unavailable(self) -> None:
         from file_organizer.optimization.memory_limiter import MemoryLimiter
@@ -1002,7 +1003,7 @@ class TestMemoryLimiter:
         import_error = ImportError("no resource")
         original_import = __import__
 
-        def _import_side_effect(name: str, *args: Any, **kwargs: Any) -> Any:
+        def _import_side_effect(name: str, *args: object, **kwargs: object) -> Any:
             if name == "resource":
                 raise import_error
             return original_import(name, *args, **kwargs)
