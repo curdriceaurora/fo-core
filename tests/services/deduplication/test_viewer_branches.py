@@ -468,6 +468,38 @@ class TestGenerateAsciiPreviewIntegration:
         lines = result.split("\n")
         assert len(lines) == 5
 
+    def test_get_flattened_data_branch_executed(self, tmp_path: Path) -> None:
+        """Force the callable get_flattened_data branch used by some Pillow builds."""
+        viewer = ComparisonViewer(console=_silent_console())
+        img_path = _make_png(tmp_path, "flattened.png", (20, 20))
+
+        resized = MagicMock()
+        resized.width = 10
+        resized.height = 5
+        resized.get_flattened_data.return_value = [128] * 50
+
+        fake_img = MagicMock()
+        fake_img.width = 20
+        fake_img.height = 20
+        fake_img.convert.return_value = fake_img
+        fake_img.resize.return_value = resized
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=fake_img)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+
+        with patch(
+            "file_organizer.services.deduplication.viewer.Image.open",
+            return_value=mock_cm,
+        ):
+            result = viewer._generate_ascii_preview(img_path, max_width=10, max_height=5)
+
+        resized.get_flattened_data.assert_called_once_with()
+        resized.getdata.assert_not_called()
+        assert result is not None
+        lines = result.split("\n")
+        assert len(lines) == 5
+
     def test_nonexistent_file_returns_none(self, tmp_path: Path) -> None:
         """_generate_ascii_preview returns None when the image path does not exist."""
         viewer = ComparisonViewer(console=_silent_console())
