@@ -38,6 +38,10 @@ class DocumentEmbedder:
             min_df: Minimum document frequency for terms
             max_df: Maximum document frequency (ignore terms appearing in >max_df of documents)
             cache_path: Path to cache embeddings (optional)
+
+        Raises:
+            ImportError: If scikit-learn (sklearn) cannot be imported.
+                Install with: pip install scikit-learn>=1.4.0
         """
         try:
             from sklearn.feature_extraction.text import TfidfVectorizer  # pyre-ignore[21]

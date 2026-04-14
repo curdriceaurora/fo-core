@@ -225,18 +225,17 @@ class TestDocumentEmbedderWithFakeSklearn:
 
 
 @pytest.mark.integration
-@pytest.mark.usefixtures("ensure_nltk_available")
 class TestTextProcessingNLTKPaths:
     """Cover NLTK-dependent branches in text_processing.py."""
 
-    def test_clean_text_with_nltk_tokenize(self) -> None:
+    def test_clean_text_with_nltk_tokenize(self, ensure_nltk_available: None) -> None:
         from file_organizer.utils.text_processing import clean_text
 
         result = clean_text("The quick brown Fox jumps", max_words=5, lemmatize=False)
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_clean_text_lemmatize_enabled(self) -> None:
+    def test_clean_text_lemmatize_enabled(self, ensure_nltk_available: None) -> None:
         from file_organizer.utils.text_processing import clean_text
 
         result = clean_text("running jumps flying", max_words=5, lemmatize=True)
@@ -263,7 +262,7 @@ class TestTextProcessingNLTKPaths:
         assert isinstance(result, str)
         assert len(result) > 0
 
-    def test_extract_keywords_with_nltk(self) -> None:
+    def test_extract_keywords_with_nltk(self, ensure_nltk_available: None) -> None:
         from file_organizer.utils.text_processing import extract_keywords
 
         keywords = extract_keywords("machine learning deep neural network algorithm", top_n=3)
@@ -285,13 +284,13 @@ class TestTextProcessingNLTKPaths:
             result = _tp.extract_keywords("test text", top_n=3)
         assert result == []
 
-    def test_sanitize_filename_empty_after_cleaning(self) -> None:
+    def test_sanitize_filename_empty_after_cleaning(self, ensure_nltk_available: None) -> None:
         from file_organizer.utils.text_processing import sanitize_filename
 
         result = sanitize_filename("123 456 789")
         assert result == "untitled"
 
-    def test_sanitize_filename_length_truncation(self) -> None:
+    def test_sanitize_filename_length_truncation(self, ensure_nltk_available: None) -> None:
         from file_organizer.utils.text_processing import sanitize_filename
 
         # Use space-separated words so clean_text tokenizes them individually.
@@ -304,7 +303,7 @@ class TestTextProcessingNLTKPaths:
         assert result == "jungle_kingdom_laure"
         assert result[-1] != "_"
 
-    def test_get_unwanted_words_includes_stopwords(self) -> None:
+    def test_get_unwanted_words_includes_stopwords(self, ensure_nltk_available: None) -> None:
         from file_organizer.utils.text_processing import get_unwanted_words
 
         words = get_unwanted_words()
@@ -327,7 +326,7 @@ class TestTextProcessingNLTKPaths:
         assert isinstance(result, set)
         assert len(result) > 0
 
-    def test_ensure_nltk_data_idempotent(self) -> None:
+    def test_ensure_nltk_data_idempotent(self, ensure_nltk_available: None) -> None:
         import file_organizer.utils.text_processing as _tp
 
         _tp._nltk_ready = False

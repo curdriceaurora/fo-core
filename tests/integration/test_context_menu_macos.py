@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-
 # Skip tests if either: (1) not macOS, or (2) deployment files don't exist in repo.
 # These tests check files that exist in deployed installations, not source repo.
 _MACOS_DIR = Path("desktop/context-menus/macos")

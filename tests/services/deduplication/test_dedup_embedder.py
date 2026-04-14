@@ -49,30 +49,25 @@ def mock_vectorizer():
 @pytest.fixture
 def embedder(mock_vectorizer):
     """Create a DocumentEmbedder with mocked sklearn."""
+    from unittest.mock import patch
+
     from file_organizer.services.deduplication.embedder import DocumentEmbedder
 
     # DocumentEmbedder defers sklearn import to __init__
-    # Mock the import at instantiation by patching sys.modules temporarily
+    # Mock the import at instantiation using patch.dict for atomic cleanup
     mock_sklearn = MagicMock()
     mock_sklearn.feature_extraction.text.TfidfVectorizer = MagicMock(return_value=mock_vectorizer)
 
-    # Temporarily mock sklearn before instantiation
-    saved_sklearn = sys.modules.get("sklearn")
-    try:
-        sys.modules["sklearn"] = mock_sklearn
-        sys.modules["sklearn.feature_extraction"] = mock_sklearn.feature_extraction
-        sys.modules["sklearn.feature_extraction.text"] = mock_sklearn.feature_extraction.text
+    # Use patch.dict to atomically mock sklearn modules and restore on exit
+    mock_modules = {
+        "sklearn": mock_sklearn,
+        "sklearn.feature_extraction": mock_sklearn.feature_extraction,
+        "sklearn.feature_extraction.text": mock_sklearn.feature_extraction.text,
+    }
 
+    with patch.dict(sys.modules, mock_modules):
         emb = DocumentEmbedder(max_features=100, ngram_range=(1, 2))
         emb.vectorizer = mock_vectorizer
-    finally:
-        # Restore original sklearn state
-        if saved_sklearn is None:
-            sys.modules.pop("sklearn", None)
-            sys.modules.pop("sklearn.feature_extraction", None)
-            sys.modules.pop("sklearn.feature_extraction.text", None)
-        else:
-            sys.modules["sklearn"] = saved_sklearn
 
     return emb
 
