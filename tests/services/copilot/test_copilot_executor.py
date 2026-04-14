@@ -310,6 +310,13 @@ class TestHandleFind:
         )
         assert result.success
 
+    def test_find_retriever_setup_index_error_falls_back(self, executor, tmp_path):
+        (tmp_path / "alpha.txt").write_text("x")
+        with patch.object(executor, "_build_retriever_for_root", side_effect=IndexError("boom")):
+            result = executor.execute(_intent(IntentType.FIND, query="alpha"))
+        assert result.success
+        assert len(result.affected_files) == 1
+
     def test_find_caps_at_20(self, executor, tmp_path):
         for i in range(25):
             (tmp_path / f"match_{i}.txt").write_text("x")
