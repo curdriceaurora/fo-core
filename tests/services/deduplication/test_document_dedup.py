@@ -16,6 +16,11 @@ import pytest
 class TestDocumentDeduplicator(unittest.TestCase):
     """Test cases for DocumentDeduplicator."""
 
+    @pytest.fixture(autouse=True)
+    def _require_sklearn(self) -> None:
+        """Ensure sklearn is available before running tests."""
+        pytest.importorskip("sklearn")
+
     @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
     @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
     @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")

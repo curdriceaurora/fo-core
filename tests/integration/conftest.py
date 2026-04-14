@@ -222,7 +222,6 @@ def _isolate_user_env(tmp_path: Path) -> Iterator[None]:
     so that NLTK can find downloaded datasets even with isolated HOME.
     """
     import os
-    import pwd
 
     fake_home = tmp_path / "home"
     fake_home.mkdir()
@@ -236,9 +235,11 @@ def _isolate_user_env(tmp_path: Path) -> Iterator[None]:
     # Get real user's home directory for NLTK data
     # Use cross-platform approach: pwd/getuid are Unix-only
     try:
+        import pwd
+
         real_uid = os.getuid()
         real_user_home = pwd.getpwuid(real_uid).pw_dir
-    except (AttributeError, KeyError):
+    except (ImportError, AttributeError, KeyError):
         # Windows or other platforms without pwd/getuid
         real_user_home = os.path.expanduser("~")
 
