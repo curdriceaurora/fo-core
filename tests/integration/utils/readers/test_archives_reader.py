@@ -232,9 +232,10 @@ class TestRead7zMockedPaths:
         sentinel = object()
         original_py7zr = getattr(archives, "py7zr", sentinel)
         original_available = archives.PY7ZR_AVAILABLE
+        seven_zip_ctor = MagicMock(return_value=FakeArchive())
         try:
             archives.PY7ZR_AVAILABLE = True
-            archives.py7zr = SimpleNamespace(SevenZipFile=lambda *_args, **_kwargs: FakeArchive())
+            archives.py7zr = SimpleNamespace(SevenZipFile=seven_zip_ctor)
             result = read_7z_file(path, max_files=2)
         finally:
             archives.PY7ZR_AVAILABLE = original_available
@@ -243,6 +244,7 @@ class TestRead7zMockedPaths:
             else:
                 archives.py7zr = original_py7zr
 
+        seven_zip_ctor.assert_called_once_with(path, "r")
         assert "7Z Archive: mocked.7z" in result
         assert "Encrypted: Yes" in result
         assert "a.txt" in result
@@ -262,11 +264,10 @@ class TestRead7zMockedPaths:
         sentinel = object()
         original_py7zr = getattr(archives, "py7zr", sentinel)
         original_available = archives.PY7ZR_AVAILABLE
+        seven_zip_ctor = MagicMock(side_effect=OSError("bad 7z"))
         try:
             archives.PY7ZR_AVAILABLE = True
-            archives.py7zr = SimpleNamespace(
-                SevenZipFile=MagicMock(side_effect=OSError("bad 7z")),
-            )
+            archives.py7zr = SimpleNamespace(SevenZipFile=seven_zip_ctor)
             with pytest.raises(FileReadError):
                 read_7z_file(path)
         finally:
@@ -275,6 +276,8 @@ class TestRead7zMockedPaths:
                 del archives.py7zr
             else:
                 archives.py7zr = original_py7zr
+
+        seven_zip_ctor.assert_called_once_with(path, "r")
 
 
 # ---------------------------------------------------------------------------

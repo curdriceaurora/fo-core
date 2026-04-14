@@ -320,7 +320,7 @@ class TestReadNetcdfFile:
         path.write_text("placeholder", encoding="utf-8")
 
         class FakeDimension:
-            def __init__(self, size: int, unlimited: bool = False) -> None:
+            def __init__(self, size: int, *, unlimited: bool = False) -> None:
                 self._size = size
                 self._unlimited = unlimited
 
