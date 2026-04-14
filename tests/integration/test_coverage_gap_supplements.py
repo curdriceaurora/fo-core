@@ -13,11 +13,14 @@ from __future__ import annotations
 import json
 from datetime import UTC
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+
+if TYPE_CHECKING:
+    from file_organizer.services.deduplication.embedder import DocumentEmbedder
 
 pytestmark = pytest.mark.integration
 
@@ -62,17 +65,29 @@ class _FakeTfidfVectorizer:
         return np.array(sorted(self.vocabulary_.keys()))
 
 
-def _make_embedder_with_fake_sklearn(tmp_path: Path | None = None, **kw: Any):
-    """Return a DocumentEmbedder instance backed by a fake sklearn."""
-    import file_organizer.services.deduplication.embedder as _mod
+def _make_embedder_with_fake_sklearn(**kw: Any) -> DocumentEmbedder:
+    """Return a DocumentEmbedder instance backed by a fake sklearn.
 
-    with (
-        patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-        patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
+    The sklearn import is deferred to DocumentEmbedder.__init__, so we need to patch
+    sys.modules to provide a fake sklearn when the import happens at instantiation.
+    """
+    import sys
+
+    # Create mock sklearn modules
+    mock_sklearn = MagicMock()
+    mock_sklearn.feature_extraction.text.TfidfVectorizer = _FakeTfidfVectorizer
+
+    with patch.dict(
+        sys.modules,
+        {
+            "sklearn": mock_sklearn,
+            "sklearn.feature_extraction": mock_sklearn.feature_extraction,
+            "sklearn.feature_extraction.text": mock_sklearn.feature_extraction.text,
+        },
     ):
         from file_organizer.services.deduplication.embedder import DocumentEmbedder
 
-        return DocumentEmbedder(cache_path=tmp_path, **kw)
+        return DocumentEmbedder(**kw)
 
 
 @pytest.mark.integration
@@ -80,225 +95,128 @@ class TestDocumentEmbedderWithFakeSklearn:
     """Cover lines 56-322 in embedder.py via a fake TfidfVectorizer."""
 
     def test_fit_transform_returns_array(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            result = emb.fit_transform(["hello world", "foo bar"])
+        emb = _make_embedder_with_fake_sklearn()
+        result = emb.fit_transform(["hello world", "foo bar"])
         assert isinstance(result, np.ndarray)
         assert result.shape[0] == 2
         assert emb.is_fitted is True
 
     def test_fit_transform_empty_returns_empty(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            result = emb.fit_transform([])
+        emb = _make_embedder_with_fake_sklearn()
+        result = emb.fit_transform([])
         assert result.size == 0
 
     def test_fit_transform_small_corpus_max_df_restored(self) -> None:
         """When corpus is tiny, max_df is temporarily set to 1.0 then restored."""
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder(max_df=0.5)
-            original_max_df = emb.vectorizer.max_df
-            emb.fit_transform(["single doc"])
+        emb = _make_embedder_with_fake_sklearn(max_df=0.5)
+        original_max_df = emb.vectorizer.max_df
+        emb.fit_transform(["single doc"])
         assert emb.vectorizer.max_df == original_max_df
 
     def test_transform_after_fit(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            emb.fit_transform(["hello world"])
-            vec = emb.transform("hello")
+        emb = _make_embedder_with_fake_sklearn()
+        emb.fit_transform(["hello world"])
+        vec = emb.transform("hello")
         assert isinstance(vec, np.ndarray)
 
     def test_transform_not_fitted_raises(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            with pytest.raises(RuntimeError, match="not fitted"):
-                emb.transform("hello")
+        emb = _make_embedder_with_fake_sklearn()
+        with pytest.raises(RuntimeError, match="not fitted"):
+            emb.transform("hello")
 
     def test_transform_uses_cache(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            emb.fit_transform(["hello world"])
-            v1 = emb.transform("hello")
-            v2 = emb.transform("hello")  # cache hit
+        emb = _make_embedder_with_fake_sklearn()
+        emb.fit_transform(["hello world"])
+        v1 = emb.transform("hello")
+        v2 = emb.transform("hello")  # cache hit
         assert np.array_equal(v1, v2)
         assert len(emb.embedding_cache) == 1
 
     def test_transform_batch(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            emb.fit_transform(["a b c"])
-            result = emb.transform_batch(["a", "b"])
+        emb = _make_embedder_with_fake_sklearn()
+        emb.fit_transform(["a b c"])
+        result = emb.transform_batch(["a", "b"])
         assert result.shape[0] == 2
 
     def test_get_feature_names(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            emb.fit_transform(["alpha beta gamma"])
-            names = emb.get_feature_names()
+        emb = _make_embedder_with_fake_sklearn()
+        emb.fit_transform(["alpha beta gamma"])
+        names = emb.get_feature_names()
         assert isinstance(names, list)
         assert "alpha" in names
 
     def test_get_vocabulary(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            emb.fit_transform(["alpha beta"])
-            vocab = emb.get_vocabulary()
+        emb = _make_embedder_with_fake_sklearn()
+        emb.fit_transform(["alpha beta"])
+        vocab = emb.get_vocabulary()
         assert isinstance(vocab, dict)
         assert "alpha" in vocab
 
     def test_get_top_terms(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            emb.fit_transform(["alpha beta gamma"])
-            v = emb.transform("alpha")
-            terms = emb.get_top_terms(v, top_n=3)
+        emb = _make_embedder_with_fake_sklearn()
+        emb.fit_transform(["alpha beta gamma"])
+        v = emb.transform("alpha")
+        terms = emb.get_top_terms(v, top_n=3)
         assert isinstance(terms, list)
         assert len(terms) == 3
 
     def test_save_and_load_model(self, tmp_path: Path) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
         model_path = tmp_path / "vectorizer.pkl"
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        emb = _make_embedder_with_fake_sklearn()
+        emb.fit_transform(["hello world"])
+        emb.save_model(model_path)
+        assert model_path.exists()
 
-            emb = DocumentEmbedder()
-            emb.fit_transform(["hello world"])
-            emb.save_model(model_path)
-            assert model_path.exists()
-
-            emb2 = DocumentEmbedder()
-            emb2.load_model(model_path)
+        emb2 = _make_embedder_with_fake_sklearn()
+        emb2.load_model(model_path)
         assert emb2.is_fitted is True
 
     def test_save_model_unfitted_is_noop(self, tmp_path: Path) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
         model_path = tmp_path / "noop.pkl"
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            emb.save_model(model_path)
+        emb = _make_embedder_with_fake_sklearn()
+        emb.save_model(model_path)
         assert not model_path.exists()
 
     def test_clear_cache(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
-
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder()
-            emb.fit_transform(["hello world"])
-            emb.transform("hello")
-            assert len(emb.embedding_cache) == 1
-            emb.clear_cache()
+        emb = _make_embedder_with_fake_sklearn()
+        emb.fit_transform(["hello world"])
+        emb.transform("hello")
+        assert len(emb.embedding_cache) == 1
+        emb.clear_cache()
         assert len(emb.embedding_cache) == 0
 
     def test_cache_persisted_on_disk(self, tmp_path: Path) -> None:
         """Embedder saves/loads embedding cache from disk."""
-        import file_organizer.services.deduplication.embedder as _mod
-
         cache_file = tmp_path / "cache.pkl"
-        with (
-            patch.object(_mod, "_SKLEARN_AVAILABLE", True),
-            patch.object(_mod, "TfidfVectorizer", _FakeTfidfVectorizer),
-        ):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
-
-            emb = DocumentEmbedder(cache_path=cache_file)
-            emb.fit_transform(["test document"])
-            emb.transform("test document")
-            emb._save_cache()
+        emb = _make_embedder_with_fake_sklearn(cache_path=cache_file)
+        emb.fit_transform(["test document"])
+        emb.transform("test document")
+        emb._save_cache()
         assert cache_file.exists()
 
     def test_sklearn_not_available_raises_import_error(self) -> None:
-        import file_organizer.services.deduplication.embedder as _mod
+        """When sklearn is not available, DocumentEmbedder raises ImportError on instantiation."""
+        import importlib
+        import sys
 
-        with patch.object(_mod, "_SKLEARN_AVAILABLE", False):
-            from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from file_organizer.services.deduplication import embedder as embedder_mod
+
+        # Mock sys.modules to make sklearn unavailable
+        sklearn_modules = {
+            "sklearn": None,
+            "sklearn.feature_extraction": None,
+            "sklearn.feature_extraction.text": None,
+        }
+
+        with patch.dict(sys.modules, sklearn_modules):
+            # Force reimport by removing from cache
+            importlib.reload(embedder_mod)
 
             with pytest.raises(ImportError, match="scikit-learn"):
-                DocumentEmbedder()
+                embedder_mod.DocumentEmbedder()
+
+        # Restore embedder module to working state after test
+        importlib.reload(embedder_mod)
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +225,7 @@ class TestDocumentEmbedderWithFakeSklearn:
 
 
 @pytest.mark.integration
+@pytest.mark.usefixtures("ensure_nltk_available")
 class TestTextProcessingNLTKPaths:
     """Cover NLTK-dependent branches in text_processing.py."""
 

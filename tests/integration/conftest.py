@@ -161,6 +161,50 @@ def stub_nltk() -> Iterator[None]:
         yield
 
 
+@pytest.fixture()
+def ensure_nltk_available() -> Iterator[None]:
+    """Ensure NLTK data is downloaded and available for tests that need it.
+
+    Tests that call real NLTK functions (not mocked) require the actual NLTK data
+    files (punkt, stopwords, wordnet). The _isolate_user_env fixture sets NLTK_DATA
+    to point to the real user's .nltk_data directory (outside test isolation), so
+    NLTK can find data even with isolated HOME.
+
+    This fixture downloads required datasets if not already present.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        import nltk
+    except ImportError:
+        pytest.skip("NLTK not installed")
+
+    # Ensure required datasets exist
+    for dataset in ["punkt_tab", "stopwords", "wordnet"]:
+        try:
+            nltk.download(dataset, quiet=True, raise_errors=True)
+        except (LookupError, OSError) as e:
+            # Try older dataset name if punkt_tab fails
+            if dataset == "punkt_tab":
+                try:
+                    nltk.download("punkt", quiet=True, raise_errors=True)
+                except (LookupError, OSError) as fallback_e:
+                    logger.warning(
+                        "Failed to download NLTK dataset %s: %s (fallback also failed: %s)",
+                        dataset,
+                        e,
+                        fallback_e,
+                    )
+                    pytest.skip(f"Required NLTK dataset '{dataset}' could not be downloaded")
+            else:
+                logger.warning("Failed to download NLTK dataset %s: %s", dataset, e)
+                pytest.skip(f"Required NLTK dataset '{dataset}' could not be downloaded")
+
+    yield
+
+
 # ---------------------------------------------------------------------------
 # Environment isolation
 # ---------------------------------------------------------------------------
@@ -173,7 +217,13 @@ def _isolate_user_env(tmp_path: Path) -> Iterator[None]:
     Sets HOME and XDG_* dirs to per-test temp directories so that
     OperationHistory, ConfigManager, and resolve_legacy_path never
     touch real user data.  Also clears FO_* env vars.
+
+    Preserves NLTK_DATA to point to the real user's .nltk_data directory
+    so that NLTK can find downloaded datasets even with isolated HOME.
     """
+    import os
+    import pwd
+
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     fake_config = tmp_path / "xdg_config"
@@ -183,11 +233,21 @@ def _isolate_user_env(tmp_path: Path) -> Iterator[None]:
     fake_state = tmp_path / "xdg_state"
     fake_state.mkdir()
 
+    # Get real user's home directory for NLTK data
+    # Use cross-platform approach: pwd/getuid are Unix-only
+    try:
+        real_uid = os.getuid()
+        real_user_home = pwd.getpwuid(real_uid).pw_dir
+    except (AttributeError, KeyError):
+        # Windows or other platforms without pwd/getuid
+        real_user_home = os.path.expanduser("~")
+
     env_overrides = {
         "HOME": str(fake_home),
         "XDG_CONFIG_HOME": str(fake_config),
         "XDG_DATA_HOME": str(fake_data),
         "XDG_STATE_HOME": str(fake_state),
+        "NLTK_DATA": str(Path(real_user_home) / "nltk_data"),
     }
     # Clear FO_* vars that might leak from the real environment
     env_clears = {

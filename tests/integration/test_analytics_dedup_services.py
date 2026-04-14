@@ -265,19 +265,10 @@ class TestExportToCsv:
 
 @pytest.fixture()
 def deduplicator() -> DocumentDeduplicator:
-    try:
-        import sklearn.feature_extraction.text  # noqa: F401
-    except ImportError:
-        pytest.skip("sklearn required for deduplication")
-
+    pytest.importorskip("sklearn.feature_extraction.text")
     from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
 
-    try:
-        return DocumentDeduplicator()
-    except ImportError as e:
-        if "scikit-learn is required" in str(e):
-            pytest.skip("sklearn required for deduplication")
-        raise
+    return DocumentDeduplicator()
 
 
 class TestDocumentDeduplicatorInit:
