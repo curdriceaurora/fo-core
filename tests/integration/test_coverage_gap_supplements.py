@@ -13,11 +13,14 @@ from __future__ import annotations
 import json
 from datetime import UTC
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+
+if TYPE_CHECKING:
+    from file_organizer.services.deduplication.embedder import DocumentEmbedder
 
 pytestmark = pytest.mark.integration
 
@@ -62,7 +65,7 @@ class _FakeTfidfVectorizer:
         return np.array(sorted(self.vocabulary_.keys()))
 
 
-def _make_embedder_with_fake_sklearn(**kw: Any):
+def _make_embedder_with_fake_sklearn(**kw: Any) -> DocumentEmbedder:
     """Return a DocumentEmbedder instance backed by a fake sklearn.
 
     The sklearn import is deferred to DocumentEmbedder.__init__, so we need to patch

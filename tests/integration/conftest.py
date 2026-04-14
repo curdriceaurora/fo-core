@@ -220,8 +220,13 @@ def _isolate_user_env(tmp_path: Path) -> Iterator[None]:
     fake_state.mkdir()
 
     # Get real user's home directory for NLTK data
-    real_uid = os.getuid()
-    real_user_home = pwd.getpwuid(real_uid).pw_dir
+    # Use cross-platform approach: pwd/getuid are Unix-only
+    try:
+        real_uid = os.getuid()
+        real_user_home = pwd.getpwuid(real_uid).pw_dir
+    except (AttributeError, KeyError):
+        # Windows or other platforms without pwd/getuid
+        real_user_home = os.path.expanduser("~")
 
     env_overrides = {
         "HOME": str(fake_home),

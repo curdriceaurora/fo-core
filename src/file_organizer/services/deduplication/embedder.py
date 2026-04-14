@@ -163,7 +163,7 @@ class DocumentEmbedder:
             RuntimeError: If vectorizer not fitted
         """
         if not self.is_fitted:
-            raise RuntimeError("Vectorizer not fitted. Call fit_transform() from e first.")
+            raise RuntimeError("Vectorizer not fitted. Call fit_transform() first.")
 
         # Check cache
         doc_hash = self._hash_document(document)
