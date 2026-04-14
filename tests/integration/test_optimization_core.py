@@ -13,8 +13,9 @@ from __future__ import annotations
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
@@ -956,6 +957,64 @@ class TestMemoryLimiter:
         limiter = MemoryLimiter(max_memory_mb=999_999, action=LimitAction.WARN)
         limiter.enforce()
         assert limiter.violation_count == 0
+
+    def test_guarded_context_manager_raises_on_exit(self) -> None:
+        from file_organizer.optimization.memory_limiter import (
+            LimitAction,
+            MemoryLimiter,
+            MemoryLimitError,
+        )
+
+        limiter = MemoryLimiter(max_memory_mb=1, action=LimitAction.RAISE)
+        rss_values = iter([0, 2 * 1024 * 1024])
+
+        with patch.object(type(limiter), "_get_rss", staticmethod(lambda: next(rss_values))):
+            with pytest.raises(MemoryLimitError):
+                with limiter.guarded():
+                    pass
+
+    def test_get_rss_reads_proc_status(self) -> None:
+        from file_organizer.optimization.memory_limiter import MemoryLimiter
+
+        with patch("builtins.open", mock_open(read_data="VmRSS:\t2048 kB\n")):
+            rss = MemoryLimiter._get_rss()
+
+        assert rss == 2048 * 1024
+
+    def test_get_rss_uses_resource_module_on_darwin(self) -> None:
+        from file_organizer.optimization.memory_limiter import MemoryLimiter
+
+        fake_usage = SimpleNamespace(ru_maxrss=4096)
+        fake_resource = SimpleNamespace(RUSAGE_SELF=1, getrusage=MagicMock(return_value=fake_usage))
+
+        with (
+            patch("builtins.open", side_effect=FileNotFoundError),
+            patch("sys.platform", "darwin"),
+            patch.dict("sys.modules", {"resource": fake_resource}),
+        ):
+            rss = MemoryLimiter._get_rss()
+
+        assert rss == 4096
+        fake_resource.getrusage.assert_called_once_with(fake_resource.RUSAGE_SELF)
+
+    def test_get_rss_returns_zero_when_proc_and_resource_unavailable(self) -> None:
+        from file_organizer.optimization.memory_limiter import MemoryLimiter
+
+        import_error = ImportError("no resource")
+        original_import = __import__
+
+        def _import_side_effect(name: str, *args: object, **kwargs: object) -> Any:
+            if name == "resource":
+                raise import_error
+            return original_import(name, *args, **kwargs)
+
+        with (
+            patch("builtins.open", side_effect=FileNotFoundError),
+            patch("builtins.__import__", side_effect=_import_side_effect),
+        ):
+            rss = MemoryLimiter._get_rss()
+
+        assert rss == 0
 
 
 # ===========================================================================

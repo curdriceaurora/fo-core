@@ -15,7 +15,8 @@ import io
 import tarfile
 import zipfile
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -194,6 +195,89 @@ class TestRead7zImportError:
         with patch.object(archives, "PY7ZR_AVAILABLE", False):
             with pytest.raises(ImportError, match="py7zr"):
                 read_7z_file(tmp_path / "dummy.7z")
+
+
+class TestRead7zMockedPaths:
+    def test_mocked_success_without_py7zr_dependency(self, tmp_path: Path) -> None:
+        from file_organizer.utils.readers import archives
+        from file_organizer.utils.readers.archives import read_7z_file
+
+        path = tmp_path / "mocked.7z"
+        path.write_bytes(b"7z placeholder")
+
+        class FakeEntry:
+            def __init__(
+                self, filename: str, compressed: int | None, uncompressed: int | None
+            ) -> None:
+                self.filename = filename
+                self.compressed = compressed
+                self.uncompressed = uncompressed
+
+        class FakeArchive:
+            password_protected = True
+
+            def __enter__(self) -> FakeArchive:
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def list(self) -> list[FakeEntry]:
+                return [
+                    FakeEntry("a.txt", 100, 200),
+                    FakeEntry("b.txt", None, 300),
+                    FakeEntry("c.txt", 50, None),
+                ]
+
+        sentinel = object()
+        original_py7zr = getattr(archives, "py7zr", sentinel)
+        original_available = archives.PY7ZR_AVAILABLE
+        seven_zip_ctor = MagicMock(return_value=FakeArchive())
+        try:
+            archives.PY7ZR_AVAILABLE = True
+            archives.py7zr = SimpleNamespace(SevenZipFile=seven_zip_ctor)
+            result = read_7z_file(path, max_files=2)
+        finally:
+            archives.PY7ZR_AVAILABLE = original_available
+            if original_py7zr is sentinel:
+                del archives.py7zr
+            else:
+                archives.py7zr = original_py7zr
+
+        seven_zip_ctor.assert_called_once_with(path, "r")
+        assert "7Z Archive: mocked.7z" in result
+        assert "Encrypted: Yes" in result
+        assert "a.txt" in result
+        assert "b.txt" in result
+        assert "and 1 more files" in result
+
+    def test_mocked_error_without_py7zr_dependency_raises_file_read_error(
+        self, tmp_path: Path
+    ) -> None:
+        from file_organizer.utils.readers import archives
+        from file_organizer.utils.readers._base import FileReadError
+        from file_organizer.utils.readers.archives import read_7z_file
+
+        path = tmp_path / "broken.7z"
+        path.write_bytes(b"7z placeholder")
+
+        sentinel = object()
+        original_py7zr = getattr(archives, "py7zr", sentinel)
+        original_available = archives.PY7ZR_AVAILABLE
+        seven_zip_ctor = MagicMock(side_effect=OSError("bad 7z"))
+        try:
+            archives.PY7ZR_AVAILABLE = True
+            archives.py7zr = SimpleNamespace(SevenZipFile=seven_zip_ctor)
+            with pytest.raises(FileReadError):
+                read_7z_file(path)
+        finally:
+            archives.PY7ZR_AVAILABLE = original_available
+            if original_py7zr is sentinel:
+                del archives.py7zr
+            else:
+                archives.py7zr = original_py7zr
+
+        seven_zip_ctor.assert_called_once_with(path, "r")
 
 
 # ---------------------------------------------------------------------------

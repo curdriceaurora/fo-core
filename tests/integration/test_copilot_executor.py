@@ -7,6 +7,7 @@ Covers:
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -225,3 +226,29 @@ class TestCommandExecutorExecute:
         )
         result = executor.execute(intent)
         assert isinstance(result, ExecutionResult)
+
+    def test_execute_find_retriever_setup_index_error_falls_back(
+        self, executor: CommandExecutor, tmp_path: Path
+    ) -> None:
+        alpha = tmp_path / "alpha.txt"
+        alpha.write_text("hello", encoding="utf-8")
+
+        with patch.object(
+            executor,
+            "_build_retriever_for_root",
+            side_effect=IndexError("boom"),
+        ) as mock_build:
+            result = executor.execute(
+                Intent(
+                    intent_type=IntentType.FIND,
+                    confidence=0.9,
+                    parameters={"query": "alpha", "paths": [str(tmp_path)]},
+                )
+            )
+
+        mock_build.assert_called_once_with(tmp_path)
+        assert result == ExecutionResult(
+            success=True,
+            message=f"Found 1 file(s) matching 'alpha':\n  - {alpha}",
+            affected_files=[str(alpha)],
+        )

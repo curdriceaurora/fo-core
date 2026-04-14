@@ -6,7 +6,9 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -90,6 +92,18 @@ class TestBackupManagerCreate:
         # Should create two separate backups
         assert b1.exists()
         assert b2.exists()
+
+    def test_create_backup_missing_source_raises(
+        self, backup_mgr: BackupManager, tmp_path: Path
+    ) -> None:
+        with pytest.raises(FileNotFoundError):
+            backup_mgr.create_backup(tmp_path / "missing.txt")
+
+    def test_create_backup_directory_path_raises(
+        self, backup_mgr: BackupManager, tmp_path: Path
+    ) -> None:
+        with pytest.raises(ValueError, match="Path is not a file"):
+            backup_mgr.create_backup(tmp_path)
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +204,22 @@ class TestBackupManagerVerify:
         # Healthy backups should produce empty list (no errors)
         assert result == []
 
+    def test_verify_reports_missing_and_size_mismatch(
+        self, backup_mgr: BackupManager, tmp_path: Path
+    ) -> None:
+        first = _make_file(tmp_path / "first.txt", b"one")
+        second = _make_file(tmp_path / "second.txt", b"two")
+        first_backup = backup_mgr.create_backup(first)
+        second_backup = backup_mgr.create_backup(second)
+
+        first_backup.unlink()
+        second_backup.write_bytes(b"changed-size")
+
+        issues = backup_mgr.verify_backups()
+
+        assert any("Missing:" in issue for issue in issues)
+        assert any("Size mismatch:" in issue for issue in issues)
+
 
 # ---------------------------------------------------------------------------
 # BackupManager — get_statistics
@@ -232,3 +262,26 @@ class TestBackupManagerCleanup:
         removed = backup_mgr.cleanup_old_backups(max_age_days=365)
         # Recent backups should not be removed
         assert len(removed) == 0
+
+
+class TestBackupManagerManifest:
+    def test_load_manifest_corrupt_json_returns_empty(self, backup_mgr: BackupManager) -> None:
+        backup_mgr.manifest_path.write_text("{not-json", encoding="utf-8")
+
+        assert backup_mgr._load_manifest() == {}
+
+    def test_cleanup_old_backups_ignores_unlink_errors(
+        self, backup_mgr: BackupManager, tmp_path: Path
+    ) -> None:
+        source = _make_file(tmp_path / "old.txt", b"stale")
+        backup_path = backup_mgr.create_backup(source)
+        manifest = backup_mgr._load_manifest()
+        manifest[str(backup_path)]["backup_time"] = "2000-01-01T00:00:00Z"
+        backup_mgr.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with patch.object(Path, "unlink", side_effect=OSError("busy")) as mock_unlink:
+            removed = backup_mgr.cleanup_old_backups(max_age_days=1)
+
+        mock_unlink.assert_called_once_with()
+        assert removed == []
+        assert backup_mgr._load_manifest() == {}

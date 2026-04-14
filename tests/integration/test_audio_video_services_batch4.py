@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -958,6 +959,130 @@ class TestVideoMetadataExtractor:
         assert metadata.creation_date is not None
         assert metadata.creation_date.year == 2024
         assert metadata.creation_date.month == 6
+
+    def test_extract_ffprobe_uses_format_duration_when_stream_duration_missing(
+        self, tmp_path: Path
+    ) -> None:
+        import json
+
+        from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor
+
+        fp = tmp_path / "format-duration.mp4"
+        fp.write_bytes(b"\x00" * 2048)
+
+        probe_data = {
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "width": 1280,
+                    "height": 720,
+                    "codec_name": "h265",
+                    "r_frame_rate": "not-a-fraction",
+                }
+            ],
+            "format": {
+                "duration": "42.5",
+                "bit_rate": "2500000",
+                "tags": {"date": "2024-06-15"},
+            },
+        }
+
+        mock_result = MagicMock(returncode=0, stdout=json.dumps(probe_data))
+
+        with patch("subprocess.run", return_value=mock_result):
+            metadata = VideoMetadataExtractor().extract(fp)
+
+        assert metadata.duration == 42.5
+        assert metadata.fps is None
+        assert metadata.creation_date is not None
+        assert metadata.creation_date.tzinfo == UTC
+
+    def test_extract_uses_opencv_when_ffprobe_fails(self, tmp_path: Path) -> None:
+        from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor
+
+        fp = tmp_path / "opencv.mp4"
+        fp.write_bytes(b"\x00" * 1024)
+
+        cap = MagicMock()
+        cap.isOpened.return_value = True
+        cap.get.side_effect = lambda prop: {
+            3: 640,
+            4: 360,
+            5: 24.0,
+            7: 240.0,
+        }[prop]
+
+        fake_cv2 = SimpleNamespace(
+            CAP_PROP_FRAME_WIDTH=3,
+            CAP_PROP_FRAME_HEIGHT=4,
+            CAP_PROP_FPS=5,
+            CAP_PROP_FRAME_COUNT=7,
+            VideoCapture=MagicMock(return_value=cap),
+        )
+
+        with (
+            patch("subprocess.run", return_value=MagicMock(returncode=1)),
+            patch.dict("sys.modules", {"cv2": fake_cv2}),
+        ):
+            metadata = VideoMetadataExtractor().extract(fp)
+
+        assert metadata.width == 640
+        assert metadata.height == 360
+        assert metadata.fps == 24.0
+        assert metadata.duration == 10.0
+        cap.release.assert_called_once_with()
+
+    def test_try_opencv_returns_false_when_capture_not_opened(self, tmp_path: Path) -> None:
+        from file_organizer.services.video.metadata_extractor import (
+            VideoMetadata,
+            VideoMetadataExtractor,
+        )
+
+        fp = tmp_path / "closed.mp4"
+        fp.write_bytes(b"\x00")
+        metadata = VideoMetadata(file_path=fp, file_size=1, format="mp4")
+
+        cap = MagicMock()
+        cap.isOpened.return_value = False
+        fake_cv2 = SimpleNamespace(VideoCapture=MagicMock(return_value=cap))
+
+        with patch.dict("sys.modules", {"cv2": fake_cv2}):
+            ok = VideoMetadataExtractor()._try_opencv(fp, metadata)
+
+        assert ok is False
+        cap.release.assert_called_once_with()
+
+    def test_try_opencv_exception_returns_false(self, tmp_path: Path) -> None:
+        from file_organizer.services.video.metadata_extractor import (
+            VideoMetadata,
+            VideoMetadataExtractor,
+        )
+
+        fp = tmp_path / "broken.mp4"
+        fp.write_bytes(b"\x00")
+        metadata = VideoMetadata(file_path=fp, file_size=1, format="mp4")
+
+        cap = MagicMock()
+        cap.isOpened.return_value = True
+        cap.get.side_effect = RuntimeError("capture failed")
+        fake_cv2 = SimpleNamespace(
+            CAP_PROP_FRAME_WIDTH=3,
+            CAP_PROP_FRAME_HEIGHT=4,
+            CAP_PROP_FPS=5,
+            CAP_PROP_FRAME_COUNT=7,
+            VideoCapture=MagicMock(return_value=cap),
+        )
+
+        with patch.dict("sys.modules", {"cv2": fake_cv2}):
+            ok = VideoMetadataExtractor()._try_opencv(fp, metadata)
+
+        assert ok is False
+        cap.release.assert_called_once_with()
+
+    def test_safe_float_invalid_returns_none(self) -> None:
+        from file_organizer.services.video.metadata_extractor import _safe_float
+
+        assert _safe_float("not-a-float") is None
 
     def test_resolution_label_4k(self) -> None:
         from file_organizer.services.video.metadata_extractor import resolution_label
