@@ -126,6 +126,7 @@ class TestTextModelInit:
         ):
             model.initialize()
 
+        mock_client.show.assert_called_once_with("pull-me")
         mock_client.pull.assert_called_once_with("pull-me")
         assert model._initialized is True
 
@@ -328,6 +329,7 @@ class TestVisionModelInit:
         ):
             model.initialize()
 
+        mock_client.show.assert_called_once_with("pull-vision")
         mock_client.pull.assert_called_once_with("pull-vision")
         assert model._initialized is True
 
