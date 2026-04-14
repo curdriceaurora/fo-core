@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import pickle
+import sys
 import unittest.mock
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -50,15 +51,30 @@ def embedder(mock_vectorizer):
     """Create a DocumentEmbedder with mocked sklearn."""
     from file_organizer.services.deduplication.embedder import DocumentEmbedder
 
-    mock_tfidf_cls = MagicMock(return_value=mock_vectorizer)
+    # DocumentEmbedder defers sklearn import to __init__
+    # Mock the import at instantiation by patching sys.modules temporarily
+    mock_sklearn = MagicMock()
+    mock_sklearn.feature_extraction.text.TfidfVectorizer = MagicMock(return_value=mock_vectorizer)
 
-    with (
-        patch("file_organizer.services.deduplication.embedder._SKLEARN_AVAILABLE", new=True),
-        patch("file_organizer.services.deduplication.embedder.TfidfVectorizer", mock_tfidf_cls),
-    ):
+    # Temporarily mock sklearn before instantiation
+    saved_sklearn = sys.modules.get("sklearn")
+    try:
+        sys.modules["sklearn"] = mock_sklearn
+        sys.modules["sklearn.feature_extraction"] = mock_sklearn.feature_extraction
+        sys.modules["sklearn.feature_extraction.text"] = mock_sklearn.feature_extraction.text
+
         emb = DocumentEmbedder(max_features=100, ngram_range=(1, 2))
         emb.vectorizer = mock_vectorizer
-        return emb
+    finally:
+        # Restore original sklearn state
+        if saved_sklearn is None:
+            sys.modules.pop("sklearn", None)
+            sys.modules.pop("sklearn.feature_extraction", None)
+            sys.modules.pop("sklearn.feature_extraction.text", None)
+        else:
+            sys.modules["sklearn"] = saved_sklearn
+
+    return emb
 
 
 # ---------------------------------------------------------------------------
