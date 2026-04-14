@@ -265,7 +265,6 @@ class TestExportToCsv:
 
 @pytest.fixture()
 def deduplicator() -> DocumentDeduplicator:
-    pytest.importorskip("sklearn.feature_extraction.text")
     from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
 
     return DocumentDeduplicator()
