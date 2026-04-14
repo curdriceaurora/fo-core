@@ -172,6 +172,10 @@ def ensure_nltk_available() -> Iterator[None]:
 
     This fixture downloads required datasets if not already present.
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     try:
         import nltk
     except ImportError:
@@ -181,13 +185,23 @@ def ensure_nltk_available() -> Iterator[None]:
     for dataset in ["punkt_tab", "stopwords", "wordnet"]:
         try:
             nltk.download(dataset, quiet=True, raise_errors=True)
-        except (OSError, Exception):
+        except (LookupError, OSError) as e:
             # Try older dataset name if punkt_tab fails
             if dataset == "punkt_tab":
                 try:
                     nltk.download("punkt", quiet=True, raise_errors=True)
-                except (OSError, Exception):
-                    pass
+                except (LookupError, OSError) as fallback_e:
+                    logger.warning(
+                        "Failed to download NLTK dataset %s: %s (fallback also failed: %s)",
+                        dataset,
+                        e,
+                        fallback_e,
+                    )
+                    pytest.skip(f"Required NLTK dataset '{dataset}' could not be downloaded")
+            else:
+                logger.warning("Failed to download NLTK dataset %s: %s", dataset, e)
+                pytest.skip(f"Required NLTK dataset '{dataset}' could not be downloaded")
+
     yield
 
 

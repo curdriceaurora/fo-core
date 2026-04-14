@@ -196,7 +196,10 @@ class TestDocumentEmbedderWithFakeSklearn:
 
     def test_sklearn_not_available_raises_import_error(self) -> None:
         """When sklearn is not available, DocumentEmbedder raises ImportError on instantiation."""
+        import importlib
         import sys
+
+        from file_organizer.services.deduplication import embedder as embedder_mod
 
         # Mock sys.modules to make sklearn unavailable
         sklearn_modules = {
@@ -207,14 +210,13 @@ class TestDocumentEmbedderWithFakeSklearn:
 
         with patch.dict(sys.modules, sklearn_modules):
             # Force reimport by removing from cache
-            import importlib
-
-            from file_organizer.services.deduplication import embedder as embedder_mod
-
             importlib.reload(embedder_mod)
 
             with pytest.raises(ImportError, match="scikit-learn"):
                 embedder_mod.DocumentEmbedder()
+
+        # Restore embedder module to working state after test
+        importlib.reload(embedder_mod)
 
 
 # ---------------------------------------------------------------------------
