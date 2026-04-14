@@ -184,12 +184,12 @@ def ensure_nltk_available() -> Iterator[None]:
     # Ensure required datasets exist
     for dataset in ["punkt_tab", "stopwords", "wordnet"]:
         try:
-            nltk.download(dataset, quiet=True, raise_errors=True)
+            nltk.download(dataset, quiet=True, raise_on_error=True)
         except (LookupError, OSError) as e:
             # Try older dataset name if punkt_tab fails
             if dataset == "punkt_tab":
                 try:
-                    nltk.download("punkt", quiet=True, raise_errors=True)
+                    nltk.download("punkt", quiet=True, raise_on_error=True)
                 except (LookupError, OSError) as fallback_e:
                     logger.warning(
                         "Failed to download NLTK dataset %s: %s (fallback also failed: %s)",

@@ -283,14 +283,25 @@ class CommandExecutor:
         # ------------------------------------------------------------------
         # Semantic path — use injected retriever or auto-build from search_root
         # ------------------------------------------------------------------
-        retriever = self._retriever or self._build_retriever_for_root(search_root)
+        try:
+            retriever = self._retriever or self._build_retriever_for_root(search_root)
+        except (RuntimeError, ValueError, OSError, TypeError, AttributeError, IndexError) as exc:
+            logger.warning("Retriever setup failed in _handle_find, falling back: {}", exc)
+            retriever = None
 
         if retriever is not None and retriever.is_initialized:
             try:
                 results = retriever.retrieve(query, top_k=20)
                 # Scope results to search_root only
                 matches = [str(p) for p, _ in results if Path(p).is_relative_to(search_root)]
-            except (RuntimeError, ValueError, OSError, TypeError, AttributeError) as exc:
+            except (
+                RuntimeError,
+                ValueError,
+                OSError,
+                TypeError,
+                AttributeError,
+                IndexError,
+            ) as exc:
                 logger.warning("Retriever failed in _handle_find, falling back: {}", exc)
                 matches = []
             if matches:

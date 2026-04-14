@@ -116,12 +116,17 @@ class TestTextModelInit:
             model = TextModel(config)
         mock_client = MagicMock()
 
-        import ollama
+        class FakeResponseError(Exception):
+            pass
 
-        mock_client.show.side_effect = ollama.ResponseError("not found")
-        with patch("file_organizer.models.text_model.ollama.Client", return_value=mock_client):
+        mock_client.show.side_effect = FakeResponseError("not found")
+        with (
+            patch("file_organizer.models.text_model.ollama.Client", return_value=mock_client),
+            patch("file_organizer.models.text_model.ollama.ResponseError", FakeResponseError),
+        ):
             model.initialize()
 
+        mock_client.show.assert_called_once_with("pull-me")
         mock_client.pull.assert_called_once_with("pull-me")
         assert model._initialized is True
 
@@ -314,12 +319,17 @@ class TestVisionModelInit:
             model = VisionModel(config)
         mock_client = MagicMock()
 
-        import ollama
+        class FakeResponseError(Exception):
+            pass
 
-        mock_client.show.side_effect = ollama.ResponseError("not found")
-        with patch("file_organizer.models.vision_model.ollama.Client", return_value=mock_client):
+        mock_client.show.side_effect = FakeResponseError("not found")
+        with (
+            patch("file_organizer.models.vision_model.ollama.Client", return_value=mock_client),
+            patch("file_organizer.models.vision_model.ollama.ResponseError", FakeResponseError),
+        ):
             model.initialize()
 
+        mock_client.show.assert_called_once_with("pull-vision")
         mock_client.pull.assert_called_once_with("pull-vision")
         assert model._initialized is True
 
