@@ -102,7 +102,7 @@ class TestBackupManagerCreate:
     def test_create_backup_directory_path_raises(
         self, backup_mgr: BackupManager, tmp_path: Path
     ) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Path is not a file"):
             backup_mgr.create_backup(tmp_path)
 
 
@@ -279,8 +279,9 @@ class TestBackupManagerManifest:
         manifest[str(backup_path)]["backup_time"] = "2000-01-01T00:00:00Z"
         backup_mgr.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-        with patch.object(Path, "unlink", side_effect=OSError("busy")):
+        with patch.object(Path, "unlink", side_effect=OSError("busy")) as mock_unlink:
             removed = backup_mgr.cleanup_old_backups(max_age_days=1)
 
+        mock_unlink.assert_called_once_with()
         assert removed == []
         assert backup_mgr._load_manifest() == {}

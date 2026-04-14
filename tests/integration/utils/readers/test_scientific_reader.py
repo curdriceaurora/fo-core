@@ -11,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -66,6 +67,29 @@ def _make_mat(tmp_path: Path, name: str = "test.mat") -> Path:
     path = tmp_path / name
     savemat(str(path), {"x": np.array([1.0, 2.0, 3.0]), "y": np.array([[1, 2], [3, 4]])})
     return path
+
+
+@contextmanager
+def _patched_optional_dependency(
+    module: object,
+    availability_attr: str,
+    dependency_attr: str,
+    dependency_value: object,
+):
+    """Temporarily install an optional-dependency shim on a reader module."""
+    sentinel = object()
+    original_dependency = getattr(module, dependency_attr, sentinel)
+    original_available = getattr(module, availability_attr)
+    try:
+        setattr(module, availability_attr, True)
+        setattr(module, dependency_attr, dependency_value)
+        yield
+    finally:
+        setattr(module, availability_attr, original_available)
+        if original_dependency is sentinel:
+            delattr(module, dependency_attr)
+        else:
+            setattr(module, dependency_attr, original_dependency)
 
 
 # ---------------------------------------------------------------------------
@@ -183,24 +207,17 @@ class TestReadHdf5File:
                     FakeDataset((1,), 128, "int32", {}),
                 )
 
-        sentinel = object()
-        original_h5py = getattr(sci_module, "h5py", sentinel)
-        original_available = sci_module.H5PY_AVAILABLE
-        try:
-            sci_module.H5PY_AVAILABLE = True
-            sci_module.h5py = SimpleNamespace(
+        with _patched_optional_dependency(
+            sci_module,
+            "H5PY_AVAILABLE",
+            "h5py",
+            SimpleNamespace(
                 File=lambda *_args, **_kwargs: FakeFile(),
                 Dataset=FakeDataset,
                 Group=FakeGroup,
-            )
-
+            ),
+        ):
             result = sci_module.read_hdf5_file(path, max_datasets=1)
-        finally:
-            sci_module.H5PY_AVAILABLE = original_available
-            if original_h5py is sentinel:
-                del sci_module.h5py
-            else:
-                sci_module.h5py = original_h5py
 
         assert "HDF5 File: mocked.h5" in result
         assert "Group: measurements/" in result
@@ -215,24 +232,18 @@ class TestReadHdf5File:
         path = tmp_path / "corrupt.h5"
         path.write_bytes(b"\x00\x01NOT AN HDF5 FILE\xff\xfe")
 
-        sentinel = object()
-        original_h5py = getattr(sci_module, "h5py", sentinel)
-        original_available = sci_module.H5PY_AVAILABLE
-        try:
-            sci_module.H5PY_AVAILABLE = True
-            sci_module.h5py = SimpleNamespace(
+        with _patched_optional_dependency(
+            sci_module,
+            "H5PY_AVAILABLE",
+            "h5py",
+            SimpleNamespace(
                 File=MagicMock(side_effect=OSError("bad hdf5")),
                 Dataset=object,
                 Group=object,
-            )
+            ),
+        ):
             with pytest.raises(FileReadError):
                 sci_module.read_hdf5_file(path)
-        finally:
-            sci_module.H5PY_AVAILABLE = original_available
-            if original_h5py is sentinel:
-                del sci_module.h5py
-            else:
-                sci_module.h5py = original_h5py
 
     def test_hdf5_raises_import_error_when_h5py_unavailable(self, tmp_path: Path) -> None:
         from file_organizer.utils.readers import scientific as sci_module
@@ -381,20 +392,13 @@ class TestReadNetcdfFile:
             def getncattr(self, name: str) -> str:
                 return self._attrs[name]
 
-        sentinel = object()
-        original_netcdf4 = getattr(sci_module, "netCDF4", sentinel)
-        original_available = sci_module.NETCDF4_AVAILABLE
-        try:
-            sci_module.NETCDF4_AVAILABLE = True
-            sci_module.netCDF4 = SimpleNamespace(Dataset=lambda *_args, **_kwargs: FakeDataset())
-
+        with _patched_optional_dependency(
+            sci_module,
+            "NETCDF4_AVAILABLE",
+            "netCDF4",
+            SimpleNamespace(Dataset=lambda *_args, **_kwargs: FakeDataset()),
+        ):
             result = sci_module.read_netcdf_file(path)
-        finally:
-            sci_module.NETCDF4_AVAILABLE = original_available
-            if original_netcdf4 is sentinel:
-                del sci_module.netCDF4
-            else:
-                sci_module.netCDF4 = original_netcdf4
 
         assert "NetCDF File: mocked.nc" in result
         assert "time: 3" in result
@@ -412,22 +416,14 @@ class TestReadNetcdfFile:
         path = tmp_path / "corrupt.nc"
         path.write_bytes(b"\x89NOT A NETCDF FILE\x00\x01")
 
-        sentinel = object()
-        original_netcdf4 = getattr(sci_module, "netCDF4", sentinel)
-        original_available = sci_module.NETCDF4_AVAILABLE
-        try:
-            sci_module.NETCDF4_AVAILABLE = True
-            sci_module.netCDF4 = SimpleNamespace(
-                Dataset=MagicMock(side_effect=OSError("bad netcdf"))
-            )
+        with _patched_optional_dependency(
+            sci_module,
+            "NETCDF4_AVAILABLE",
+            "netCDF4",
+            SimpleNamespace(Dataset=MagicMock(side_effect=OSError("bad netcdf"))),
+        ):
             with pytest.raises(FileReadError):
                 sci_module.read_netcdf_file(path)
-        finally:
-            sci_module.NETCDF4_AVAILABLE = original_available
-            if original_netcdf4 is sentinel:
-                del sci_module.netCDF4
-            else:
-                sci_module.netCDF4 = original_netcdf4
 
     def test_netcdf_raises_import_error_when_unavailable(self, tmp_path: Path) -> None:
         from file_organizer.utils.readers import scientific as sci_module
@@ -497,26 +493,19 @@ class TestReadMatFile:
             def __init__(self, shape: tuple[int, ...]) -> None:
                 self.shape = shape
 
-        sentinel = object()
-        original_loadmat = getattr(sci_module, "loadmat", sentinel)
-        original_available = sci_module.SCIPY_AVAILABLE
-        try:
-            sci_module.SCIPY_AVAILABLE = True
-            sci_module.loadmat = lambda *_args, **_kwargs: {
+        with _patched_optional_dependency(
+            sci_module,
+            "SCIPY_AVAILABLE",
+            "loadmat",
+            lambda *_args, **_kwargs: {
                 "__header__": "ignored",
                 "x": FakeArray((3,)),
                 "y": FakeArray((2, 2)),
                 "scalar": 7,
                 **{f"var_{i}": FakeArray((1,)) for i in range(32)},
-            }
-
+            },
+        ):
             result = sci_module.read_mat_file(path)
-        finally:
-            sci_module.SCIPY_AVAILABLE = original_available
-            if original_loadmat is sentinel:
-                del sci_module.loadmat
-            else:
-                sci_module.loadmat = original_loadmat
 
         assert "MATLAB File: mocked.mat" in result
         assert "Variables" in result
@@ -532,20 +521,14 @@ class TestReadMatFile:
         path = tmp_path / "corrupt.mat"
         path.write_bytes(b"\x00\x01NOT A MAT FILE\xff\xfe")
 
-        sentinel = object()
-        original_loadmat = getattr(sci_module, "loadmat", sentinel)
-        original_available = sci_module.SCIPY_AVAILABLE
-        try:
-            sci_module.SCIPY_AVAILABLE = True
-            sci_module.loadmat = MagicMock(side_effect=ValueError("bad mat"))
+        with _patched_optional_dependency(
+            sci_module,
+            "SCIPY_AVAILABLE",
+            "loadmat",
+            MagicMock(side_effect=ValueError("bad mat")),
+        ):
             with pytest.raises(FileReadError):
                 sci_module.read_mat_file(path)
-        finally:
-            sci_module.SCIPY_AVAILABLE = original_available
-            if original_loadmat is sentinel:
-                del sci_module.loadmat
-            else:
-                sci_module.loadmat = original_loadmat
 
     def test_mat_raises_import_error_when_scipy_unavailable(self, tmp_path: Path) -> None:
         from file_organizer.utils.readers import scientific as sci_module
@@ -562,6 +545,7 @@ class TestReadMatFile:
 
     def test_mat_many_variables_truncated(self, tmp_path: Path) -> None:
         """Files with more than 30 variables produce truncation notice."""
+        pytest.importorskip("scipy")
         import numpy as np
         from scipy.io import savemat
 

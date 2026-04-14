@@ -54,6 +54,7 @@ def test_comparison_viewer_interactive_select_ignores_invalid_entries(
     viewer = ComparisonViewer()
     selected = viewer.interactive_select(duplicate_images)
     assert selected == [duplicate_images[0]]
+    mock_ask.assert_called_once_with("Your selection", default="all")
 
 
 @patch("file_organizer.services.deduplication.viewer.Prompt.ask")
@@ -64,6 +65,7 @@ def test_comparison_viewer_interactive_select_none(
     viewer = ComparisonViewer()
     selected = viewer.interactive_select(duplicate_images)
     assert selected == []
+    mock_ask.assert_called_once_with("Your selection", default="all")
 
 
 @patch("file_organizer.services.deduplication.viewer.Prompt.ask")

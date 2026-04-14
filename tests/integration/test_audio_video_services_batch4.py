@@ -1030,7 +1030,7 @@ class TestVideoMetadataExtractor:
         assert metadata.height == 360
         assert metadata.fps == 24.0
         assert metadata.duration == 10.0
-        cap.release.assert_called_once()
+        cap.release.assert_called_once_with()
 
     def test_try_opencv_returns_false_when_capture_not_opened(self, tmp_path: Path) -> None:
         from file_organizer.services.video.metadata_extractor import (
@@ -1050,7 +1050,7 @@ class TestVideoMetadataExtractor:
             ok = VideoMetadataExtractor()._try_opencv(fp, metadata)
 
         assert ok is False
-        cap.release.assert_called_once()
+        cap.release.assert_called_once_with()
 
     def test_try_opencv_exception_returns_false(self, tmp_path: Path) -> None:
         from file_organizer.services.video.metadata_extractor import (
@@ -1077,7 +1077,7 @@ class TestVideoMetadataExtractor:
             ok = VideoMetadataExtractor()._try_opencv(fp, metadata)
 
         assert ok is False
-        cap.release.assert_called_once()
+        cap.release.assert_called_once_with()
 
     def test_safe_float_invalid_returns_none(self) -> None:
         from file_organizer.services.video.metadata_extractor import _safe_float
