@@ -472,3 +472,20 @@ def cli_runner() -> CliRunner:
     leak between tests.
     """
     return CliRunner()
+
+
+# ---------------------------------------------------------------------------
+# Auto-mark integration tests
+# ---------------------------------------------------------------------------
+
+
+def pytest_collection_modifyitems(items: list) -> None:
+    """Mark all tests in tests/integration/ with @pytest.mark.integration.
+
+    This ensures integration tests can be filtered with pytest -m "integration"
+    without requiring manual markers on each test file.
+    """
+    for item in items:
+        # Add integration marker if not already present
+        if not any(mark.name == "integration" for mark in item.iter_markers("integration")):
+            item.add_marker(pytest.mark.integration)

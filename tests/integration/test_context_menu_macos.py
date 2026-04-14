@@ -8,10 +8,25 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.skipif(sys.platform != "darwin", reason="macOS-only test")
+# Skip tests if either: (1) not macOS, or (2) deployment files don't exist in repo.
+# These tests check files that exist in deployed installations, not source repo.
+_MACOS_DIR = Path("desktop/context-menus/macos")
+_macos_files_exist = _MACOS_DIR.exists()
+_skip_reason = (
+    "macOS-only test"
+    if sys.platform != "darwin"
+    else (
+        "macOS deployment files (desktop/context-menus/macos) not found in this environment"
+        if not _macos_files_exist
+        else None
+    )
+)
+
+
+@pytest.mark.skipif(_skip_reason is not None, reason=_skip_reason)
 class TestMacOSQuickAction(unittest.TestCase):
     def setUp(self):
-        self.macos_dir = Path("desktop/context-menus/macos")
+        self.macos_dir = _MACOS_DIR
         self.quick_action_sh = self.macos_dir / "organize-quick-action.sh"
         self.workflow_dir = self.macos_dir / "OrganizeWithFileOrganizer.workflow"
         self.info_plist = self.workflow_dir / "Contents" / "Info.plist"
