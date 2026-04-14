@@ -14,7 +14,8 @@ Covers:
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -322,9 +323,6 @@ class TestReadDxfFile:
         """Exercise read_dxf_file using a fully mocked ezdxf document."""
         from file_organizer.utils.readers import cad as cad_module
 
-        if not cad_module.EZDXF_AVAILABLE:
-            pytest.skip("ezdxf not installed")
-
         path = tmp_path / "mocked.dxf"
         path.write_text("placeholder")
 
@@ -346,17 +344,79 @@ class TestReadDxfFile:
         mock_doc.modelspace.return_value = [mock_entity]
         mock_doc.blocks = []
 
+        sentinel = object()
+        original_ezdxf = getattr(cad_module, "ezdxf", sentinel)
         original = cad_module.EZDXF_AVAILABLE
         try:
             cad_module.EZDXF_AVAILABLE = True
-            with patch.object(cad_module.ezdxf, "readfile", return_value=mock_doc):
-                result = cad_module.read_dxf_file(path)
+            cad_module.ezdxf = SimpleNamespace(readfile=MagicMock(return_value=mock_doc))
+            result = cad_module.read_dxf_file(path, max_layers=1)
         finally:
             cad_module.EZDXF_AVAILABLE = original
+            if original_ezdxf is sentinel:
+                del cad_module.ezdxf
+            else:
+                cad_module.ezdxf = original_ezdxf
 
-        assert "DXF Version" in result
-        assert "AC1015" in result
-        assert "LINE" in result
+        assert "=== DXF Document Metadata ===" in result
+        assert "Title: Test Drawing" in result
+        assert "Author: TestUser" in result
+        assert "=== Layers (1 total) ===" in result
+        assert "Layer: 0 (Color: 7)" in result
+        assert "=== Entities ===" in result
+        assert "Total entities: 1" in result
+        assert "LINE: 1" in result
+
+    def test_dxf_mocked_blocks_and_layer_truncation_without_ezdxf_dependency(
+        self, tmp_path: Path
+    ) -> None:
+        from file_organizer.utils.readers import cad as cad_module
+
+        path = tmp_path / "mocked_blocks.dxf"
+        path.write_text("placeholder")
+
+        mock_layers = []
+        for idx in range(3):
+            layer = MagicMock()
+            layer.dxf.name = f"Layer{idx}"
+            layer.dxf.color = idx + 1
+            mock_layers.append(layer)
+
+        mock_entities = [MagicMock(), MagicMock()]
+        mock_entities[0].dxftype.return_value = "LINE"
+        mock_entities[1].dxftype.return_value = "CIRCLE"
+
+        user_block = MagicMock()
+        user_block.name = "TitleBlock"
+        internal_block = MagicMock()
+        internal_block.name = "*Model_Space"
+
+        mock_doc = MagicMock()
+        mock_doc.dxfversion = "AC1018"
+        mock_doc.header.get.side_effect = lambda key, default="": {"$TITLE": ""}.get(key, default)
+        mock_doc.layers = mock_layers
+        mock_doc.modelspace.return_value = mock_entities
+        mock_doc.blocks = [user_block, internal_block]
+
+        sentinel = object()
+        original_ezdxf = getattr(cad_module, "ezdxf", sentinel)
+        original_available = cad_module.EZDXF_AVAILABLE
+        try:
+            cad_module.EZDXF_AVAILABLE = True
+            cad_module.ezdxf = SimpleNamespace(readfile=MagicMock(return_value=mock_doc))
+            result = cad_module.read_dxf_file(path, max_layers=2)
+        finally:
+            cad_module.EZDXF_AVAILABLE = original_available
+            if original_ezdxf is sentinel:
+                del cad_module.ezdxf
+            else:
+                cad_module.ezdxf = original_ezdxf
+
+        assert "DXF Version: AC1018" in result
+        assert "... and 1 more layers" in result
+        assert "LINE: 1" in result
+        assert "CIRCLE: 1" in result
+        assert "Block definitions: 1" in result
 
 
 # ---------------------------------------------------------------------------
@@ -382,23 +442,24 @@ class TestReadDwgFile:
         """When ezdxf cannot parse the DWG, fallback metadata is returned."""
         from file_organizer.utils.readers import cad as cad_module
 
-        if not cad_module.EZDXF_AVAILABLE:
-            pytest.skip("ezdxf not installed")
-
         path = tmp_path / "unknown.dwg"
         path.write_bytes(b"NOT A REAL DWG FILE CONTENT")
 
+        sentinel = object()
+        original_ezdxf = getattr(cad_module, "ezdxf", sentinel)
         original = cad_module.EZDXF_AVAILABLE
         try:
             cad_module.EZDXF_AVAILABLE = True
-            with patch.object(
-                cad_module.ezdxf,
-                "readfile",
-                side_effect=Exception("Cannot parse DWG"),
-            ):
-                result = cad_module.read_dwg_file(path)
+            cad_module.ezdxf = SimpleNamespace(
+                readfile=MagicMock(side_effect=Exception("Cannot parse DWG"))
+            )
+            result = cad_module.read_dwg_file(path)
         finally:
             cad_module.EZDXF_AVAILABLE = original
+            if original_ezdxf is sentinel:
+                del cad_module.ezdxf
+            else:
+                cad_module.ezdxf = original_ezdxf
 
         assert "DWG File Information" in result
         assert "unknown.dwg" in result
@@ -409,23 +470,70 @@ class TestReadDwgFile:
         from file_organizer.utils.readers import cad as cad_module
         from file_organizer.utils.readers._base import FileReadError
 
-        if not cad_module.EZDXF_AVAILABLE:
-            pytest.skip("ezdxf not installed")
-
         path = tmp_path / "ghost.dwg"
 
+        sentinel = object()
+        original_ezdxf = getattr(cad_module, "ezdxf", sentinel)
         original = cad_module.EZDXF_AVAILABLE
         try:
             cad_module.EZDXF_AVAILABLE = True
-            with patch.object(
-                cad_module.ezdxf,
-                "readfile",
-                side_effect=Exception("Cannot parse"),
-            ):
-                with pytest.raises(FileReadError):
-                    cad_module.read_dwg_file(path)
+            cad_module.ezdxf = SimpleNamespace(
+                readfile=MagicMock(side_effect=Exception("Cannot parse"))
+            )
+            with pytest.raises(FileReadError):
+                cad_module.read_dwg_file(path)
         finally:
             cad_module.EZDXF_AVAILABLE = original
+            if original_ezdxf is sentinel:
+                del cad_module.ezdxf
+            else:
+                cad_module.ezdxf = original_ezdxf
+
+    def test_dwg_mocked_ezdxf_success_without_dependency(self, tmp_path: Path) -> None:
+        from file_organizer.utils.readers import cad as cad_module
+
+        path = tmp_path / "mocked.dwg"
+        path.write_bytes(b"dwg-placeholder")
+
+        layer = MagicMock()
+        layer.dxf.name = "Model"
+        layer.dxf.color = 2
+
+        entity = MagicMock()
+        entity.dxftype.return_value = "ARC"
+
+        block = MagicMock()
+        block.name = "Detail"
+
+        mock_doc = MagicMock()
+        mock_doc.dxfversion = "AC1024"
+        mock_doc.header.get.side_effect = lambda key, default="": {
+            "$TITLE": "DWG Mock",
+            "$AUTHOR": "CADUser",
+        }.get(key, default)
+        mock_doc.layers = [layer]
+        mock_doc.modelspace.return_value = [entity]
+        mock_doc.blocks = [block]
+
+        sentinel = object()
+        original_ezdxf = getattr(cad_module, "ezdxf", sentinel)
+        original_available = cad_module.EZDXF_AVAILABLE
+        try:
+            cad_module.EZDXF_AVAILABLE = True
+            cad_module.ezdxf = SimpleNamespace(readfile=MagicMock(return_value=mock_doc))
+            result = cad_module.read_dwg_file(path)
+        finally:
+            cad_module.EZDXF_AVAILABLE = original_available
+            if original_ezdxf is sentinel:
+                del cad_module.ezdxf
+            else:
+                cad_module.ezdxf = original_ezdxf
+
+        assert "Title: DWG Mock" in result
+        assert "Author: CADUser" in result
+        assert "DXF Version: AC1024" in result
+        assert "ARC: 1" in result
+        assert "Block definitions: 1" in result
 
 
 # ---------------------------------------------------------------------------

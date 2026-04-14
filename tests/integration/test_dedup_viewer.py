@@ -47,6 +47,26 @@ def test_comparison_viewer_interactive_select_specific(
 
 
 @patch("file_organizer.services.deduplication.viewer.Prompt.ask")
+def test_comparison_viewer_interactive_select_ignores_invalid_entries(
+    mock_ask: MagicMock, duplicate_images: list[Path]
+) -> None:
+    mock_ask.return_value = "1,invalid,9"
+    viewer = ComparisonViewer()
+    selected = viewer.interactive_select(duplicate_images)
+    assert selected == [duplicate_images[0]]
+
+
+@patch("file_organizer.services.deduplication.viewer.Prompt.ask")
+def test_comparison_viewer_interactive_select_none(
+    mock_ask: MagicMock, duplicate_images: list[Path]
+) -> None:
+    mock_ask.return_value = "none"
+    viewer = ComparisonViewer()
+    selected = viewer.interactive_select(duplicate_images)
+    assert selected == []
+
+
+@patch("file_organizer.services.deduplication.viewer.Prompt.ask")
 def test_comparison_viewer_show_comparison_auto(
     mock_ask: MagicMock, duplicate_images: list[Path]
 ) -> None:

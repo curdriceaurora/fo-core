@@ -14,7 +14,7 @@ Covers:
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -205,6 +205,22 @@ class TestHybridRetriever:
         results = r.retrieve("quick fox", top_k=5)
         assert isinstance(results, list)
         assert all(isinstance(p, Path) and isinstance(s, float) for p, s in results)
+
+    def test_vector_index_value_error_falls_back_to_bm25_only(self, tmp_path: Path) -> None:
+        r = self._make_retriever()
+        docs = ["finance budget report", "meeting summary notes"]
+        paths = [tmp_path / "finance.txt", tmp_path / "meeting.txt"]
+
+        with patch(
+            "file_organizer.services.search.hybrid_retriever.VectorIndex.index",
+            side_effect=ValueError("vectorizer rejected corpus"),
+        ):
+            r.index(docs, paths)
+
+        assert r.is_initialized is True
+        assert r.corpus_size == 2
+        assert r._vector.size == 0
+        assert r._bm25.size == 2
 
 
 # ---------------------------------------------------------------------------

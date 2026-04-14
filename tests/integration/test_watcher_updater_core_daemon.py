@@ -6,6 +6,7 @@ Target: ≥80% integration coverage for each module.
 
 from __future__ import annotations
 
+import io
 import threading
 import time
 from pathlib import Path
@@ -1459,17 +1460,159 @@ class TestDetectHardware:
 
         assert name is None
 
+    def test_detect_apple_mps_darwin_apple_chip_returns_unified_memory(self) -> None:
+        from file_organizer.core.hardware_profile import _detect_apple_mps
+
+        brand_result = MagicMock(returncode=0, stdout="Apple M3 Max")
+        mem_result = MagicMock(returncode=0, stdout="68719476736")
+
+        with (
+            patch("platform.system", return_value="Darwin"),
+            patch("subprocess.run", side_effect=[brand_result, mem_result]),
+        ):
+            name, vram = _detect_apple_mps()
+
+        assert name == "Apple M3 Max"
+        assert vram == 68719476736
+
+    def test_detect_apple_mps_darwin_subprocess_error_returns_none(self) -> None:
+        from file_organizer.core.hardware_profile import _detect_apple_mps
+
+        with (
+            patch("platform.system", return_value="Darwin"),
+            patch("subprocess.run", side_effect=FileNotFoundError("sysctl missing")),
+        ):
+            name, vram = _detect_apple_mps()
+
+        assert name is None
+        assert vram == 0
+
+    def test_detect_nvidia_malformed_output_returns_none(self) -> None:
+        from file_organizer.core.hardware_profile import _detect_nvidia
+
+        malformed = MagicMock(returncode=0, stdout="Tesla T4 only")
+
+        with patch("subprocess.run", return_value=malformed):
+            name, vram = _detect_nvidia()
+
+        assert name is None
+        assert vram == 0
+
     def test_get_cpu_cores_returns_positive(self) -> None:
         from file_organizer.core.hardware_profile import _get_cpu_cores
 
         cores = _get_cpu_cores()
         assert cores >= 1
 
+    def test_get_cpu_cores_importerror_falls_back_to_os_cpu_count(self) -> None:
+        from file_organizer.core.hardware_profile import _get_cpu_cores
+
+        with (
+            patch.dict("sys.modules", {"psutil": None}),
+            patch("os.cpu_count", return_value=12),
+        ):
+            cores = _get_cpu_cores()
+
+        assert cores == 12
+
     def test_get_system_ram_returns_non_negative(self) -> None:
         from file_organizer.core.hardware_profile import _get_system_ram
 
         ram = _get_system_ram()
         assert ram >= 0
+
+    def test_get_system_ram_darwin_fallback_uses_sysctl(self) -> None:
+        from file_organizer.core.hardware_profile import _get_system_ram
+
+        sysctl_result = MagicMock(returncode=0, stdout="17179869184")
+
+        with (
+            patch.dict("sys.modules", {"psutil": None}),
+            patch("platform.system", return_value="Darwin"),
+            patch("subprocess.run", return_value=sysctl_result),
+        ):
+            ram = _get_system_ram()
+
+        assert ram == 17179869184
+
+    def test_get_system_ram_linux_proc_meminfo_fallback(self) -> None:
+        from file_organizer.core.hardware_profile import _get_system_ram
+
+        with (
+            patch.dict("sys.modules", {"psutil": None}),
+            patch("platform.system", return_value="Linux"),
+            patch("builtins.open", return_value=io.StringIO("MemTotal: 2048 kB\n")),
+        ):
+            ram = _get_system_ram()
+
+        assert ram == 2048 * 1024
+
+    def test_detect_amd_default_name_with_missing_rows(self) -> None:
+        from file_organizer.core.hardware_profile import _detect_amd
+
+        name_result = MagicMock(returncode=0, stdout="GPU,Name\n")
+        mem_result = MagicMock(returncode=0, stdout="VRAM\n")
+
+        with patch("subprocess.run", side_effect=[name_result, mem_result]):
+            name, vram = _detect_amd()
+
+        assert name == "AMD GPU"
+        assert vram == 0
+
+    def test_detect_amd_invalid_vram_keeps_name_and_zero_vram(self) -> None:
+        from file_organizer.core.hardware_profile import _detect_amd
+
+        name_result = MagicMock(returncode=0, stdout="GPU,Name\nRadeon Pro,foo\n")
+        mem_result = MagicMock(returncode=0, stdout="VRAM\nnot-a-number,foo\n")
+
+        with patch("subprocess.run", side_effect=[name_result, mem_result]):
+            name, vram = _detect_amd()
+
+        assert name == "Radeon Pro"
+        assert vram == 0
+
+    def test_detect_hardware_apple_mps_detected(self) -> None:
+        from file_organizer.core.hardware_profile import GpuType, detect_hardware
+
+        with (
+            patch("file_organizer.core.hardware_profile._detect_nvidia", return_value=(None, 0)),
+            patch(
+                "file_organizer.core.hardware_profile._detect_apple_mps",
+                return_value=("Apple M2 Pro", 32 * 1024**3),
+            ),
+            patch(
+                "file_organizer.core.hardware_profile._get_system_ram", return_value=32 * 1024**3
+            ),
+            patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=10),
+            patch("platform.system", return_value="Darwin"),
+            patch("platform.machine", return_value="arm64"),
+        ):
+            profile = detect_hardware()
+
+        assert profile.gpu_type == GpuType.APPLE_MPS
+        assert profile.gpu_name == "Apple M2 Pro"
+
+    def test_detect_hardware_amd_detected(self) -> None:
+        from file_organizer.core.hardware_profile import GpuType, detect_hardware
+
+        with (
+            patch("file_organizer.core.hardware_profile._detect_nvidia", return_value=(None, 0)),
+            patch("file_organizer.core.hardware_profile._detect_apple_mps", return_value=(None, 0)),
+            patch(
+                "file_organizer.core.hardware_profile._detect_amd",
+                return_value=("Radeon 7900", 24 * 1024**3),
+            ),
+            patch(
+                "file_organizer.core.hardware_profile._get_system_ram", return_value=64 * 1024**3
+            ),
+            patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=16),
+            patch("platform.system", return_value="Linux"),
+            patch("platform.machine", return_value="x86_64"),
+        ):
+            profile = detect_hardware()
+
+        assert profile.gpu_type == GpuType.AMD
+        assert profile.gpu_name == "Radeon 7900"
 
 
 # ---------------------------------------------------------------------------
@@ -1623,6 +1766,17 @@ class TestDaemonSchedulerRunning:
 
         scheduler = DaemonScheduler()
         assert scheduler.task_names == []
+
+    def test_tick_skips_task_when_interval_not_elapsed(self) -> None:
+        from file_organizer.daemon.scheduler import DaemonScheduler
+
+        callback = MagicMock()
+        scheduler = DaemonScheduler()
+        scheduler.schedule_task("later", 60.0, callback)
+        scheduler._tasks["later"].last_run = time.monotonic()
+        scheduler._tick()
+
+        callback.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
