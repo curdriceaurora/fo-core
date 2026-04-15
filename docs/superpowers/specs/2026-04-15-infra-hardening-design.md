@@ -33,12 +33,14 @@ the `test-integration` job in `ci.yml`:
 **Step changes:**
 
 1. Add to the pytest command:
+
    ```
    --cov=file_organizer --cov-branch --cov-report=xml --cov-report=term-missing
    ```
 
 2. Pipe pytest output to a report file and run the per-module floor script (exact shape
    mirrors `ci.yml` lines 449–458):
+
    ```bash
    pytest tests/ \
      -m "integration and not benchmark" \
@@ -51,16 +53,19 @@ the `test-integration` job in `ci.yml`:
      --report-path "$RUNNER_TEMP/integration-coverage-report.txt" \
      --baseline-path scripts/coverage/integration_module_floor_baseline.json
    ```
+
    Uses `continue-on-error: true` on the floor step (id: `per_module_gate`) so the global
    gate can also run and both outcomes are inspected by an enforcer step — same pattern as
    main CI.
 
 3. Add global floor step (`id: global_gate`, `continue-on-error: true`):
+
    ```bash
    coverage report --fail-under=71.9
    ```
 
 4. Add enforcer step that exits non-zero if either gate failed:
+
    ```bash
    if [ "${{ steps.per_module_gate.outcome }}" != "success" ]; then exit 1; fi
    if [ "${{ steps.global_gate.outcome }}"   != "success" ]; then exit 1; fi
@@ -210,6 +215,7 @@ shard 3, GC-finalizer hang), `37f4dd9` (MockStat xdist teardown crash).
 **Phase 2 — Audit current xdist surface**
 
 Add `scripts/ci/run-xdist-audit.sh`:
+
 ```bash
 #!/usr/bin/env bash
 # Run the non-integration, non-benchmark suite 3 times under xdist.
@@ -229,7 +235,7 @@ Run the audit and commit findings to `docs/internal/xdist-audit-2026-04-15.md`.
 For each confirmed flake:
 - Categorize: shared state / env race / module-level singleton / fixture scope
 - Apply the minimal fix (monkeypatch, xdist_group marker, patch.dict, or fixture conversion)
-- Do not pre-emptively convert 77 module-level `CliRunner` singletons unless confirmed failing
+- Do not preemptively convert 77 module-level `CliRunner` singletons unless confirmed failing
 
 **Phase 4 — Re-enable xdist for test-full (if justified)**
 

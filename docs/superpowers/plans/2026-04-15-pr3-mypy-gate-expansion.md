@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Remove stale `# type: ignore` comments from Tier 2 packages
+## Task 1: Remove stale `# type: ignore` comments from Tier 2 packages
 
 All 6 errors are `[unused-ignore]` — the codebase was improved and the suppression comments
 are no longer needed. Removing them is the entire fix; no logic changes.
@@ -162,7 +162,7 @@ Prepares methodologies, integrations, utils, config for strict mypy gate."
 
 ---
 
-### Task 2: Expand the mypy gate in CI and pre-commit
+## Task 2: Expand the mypy gate in CI and pre-commit
 
 **Files:**
 - Modify: `.github/workflows/ci.yml` (type-check job)
