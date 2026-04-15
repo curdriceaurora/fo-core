@@ -1,0 +1,112 @@
+name: Extras Validation
+
+# Validates that each optional extra can be installed, imported, and (for
+# file-capability extras) passes a minimal smoke canary test.
+#
+# Extras classification:
+#   file-capability (install + import + smoke): audio, video, dedup, archive, scientific, cad
+#   platform/API    (install + import only):    cloud, llama, claude, mlx
+#
+# mlx is Darwin-only and runs on macos-latest.
+# llama/audio may take 5-10 min to install due to large binary wheels (llama-cpp, torch).
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - ".claude/**"
+      - "docs/**"
+      - "*.md"
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".claude/**"
+      - "docs/**"
+
+permissions:
+  contents: read
+
+jobs:
+  extras-validate:
+    name: "Extras [${{ matrix.extra }}]"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # --- File capability extras (install + import + smoke canary) ---
+          - extra: archive
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import py7zr; import rarfile; print('OK')"
+            smoke: "true"
+          - extra: scientific
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import h5py; import netCDF4; import scipy; print('OK')"
+            smoke: "true"
+          - extra: cad
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import ezdxf; print('OK')"
+            smoke: "true"
+          - extra: dedup
+            os: ubuntu-latest
+            timeout_minutes: 15
+            key_import: "import imagededup; import sklearn; print('OK')"
+            smoke: "true"
+          - extra: video
+            os: ubuntu-latest
+            timeout_minutes: 15
+            key_import: "import cv2; import scenedetect; print('OK')"
+            smoke: "true"
+          - extra: audio
+            os: ubuntu-latest
+            timeout_minutes: 20  # torch download is large
+            key_import: "import faster_whisper; import mutagen; import tinytag; print('OK')"
+            smoke: "true"
+          # --- Platform/API extras (install + import only) ---
+          - extra: cloud
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import openai; print('OK')"
+            smoke: "false"
+          - extra: claude
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import anthropic; print('OK')"
+            smoke: "false"
+          - extra: llama
+            os: ubuntu-latest
+            timeout_minutes: 20  # llama-cpp-python build is large
+            key_import: "import llama_cpp; print('OK')"
+            smoke: "false"
+          - extra: mlx
+            os: macos-latest
+            timeout_minutes: 15
+            key_import: "import mlx_lm; print('OK')"
+            smoke: "false"
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install extra with dev dependencies
+        # .[dev,extra] ensures pytest and repo test toolchain are present for canary runs
+        run: pip install -e ".[dev,${{ matrix.extra }}]"
+
+      - name: Verify key imports
+        run: python -c "${{ matrix.key_import }}"
+
+      - name: Run smoke canary
+        if: matrix.smoke == 'true'
+        run: |
+          pytest tests/extras/test_extras_${{ matrix.extra }}.py \
+            -m "smoke" \
+            -x \
+            -v \
+            --override-ini="addopts="
