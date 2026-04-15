@@ -128,16 +128,18 @@ jobs:
   test:
     # Per-commit fast gate for pull requests.
     #
-    # Three-tier CI strategy:
+    # Four-tier CI strategy:
     #   1. This job (per-commit)  — runs tests marked `ci`, ~2 min, every push to a PR branch.
-    #   2. pr-integration.yml     — runs `integration`-marked tests, ~3–5 min, once per PR
-    #                               lifecycle event (opened / reopened / ready_for_review) — NOT every push.
+    #   2. pr-integration.yml     — runs `integration`-marked tests, ~3–5 min, on every push
+    #                               to the PR branch (own cancel-in-progress concurrency group).
     #   3. test-full (push only)  — runs the non-benchmark/non-e2e suite across 6 shards × 2 pythons after merge.
+    #   4. ci-full.yml (nightly)  — full matrix (Linux + macOS + Windows) at 06:00 UTC.
     #
     # Why integration tests are NOT in this job:
     #   Adding `integration` to this filter would run ~140 extra test files on every fixup
-    #   commit, which adds 3–5 min to each push. pr-integration.yml gives integration
-    #   feedback at PR open, reopened, and ready-for-review gates without taxing every commit.
+    #   commit, increasing per-commit latency and CI spend. pr-integration.yml keeps this
+    #   workload isolated (with its own cancel-in-progress), so only the latest PR push
+    #   completes integration tests — keeping the per-commit job lean and fast.
     name: "Test PR suite (py${{ matrix.python-version }})"
     needs: changes
     if: github.event_name == 'pull_request'
