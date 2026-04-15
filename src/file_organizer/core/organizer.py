@@ -210,7 +210,7 @@ class FileOrganizer:
 
         if all_processed:
             all_processed = self._deduplicate_processed(all_processed, result)
-            failed_cnt = len([p for p in all_processed if p.error])
+            failed_cnt = sum(1 for p in all_processed if p.error)
             result.processed_files = len(all_processed) - failed_cnt
             result.failed_files = failed_cnt
             self._execute_organization(
@@ -364,7 +364,7 @@ class FileOrganizer:
 
         Mutates ``result.deduplicated_files``. Returns the deduplicated list.
         """
-        seen_hashes: dict[str, ProcessedFile | ProcessedImage] = {}
+        seen_hashes: set[str] = set()
         deduped: list[ProcessedFile | ProcessedImage] = []
         for pf in all_processed:
             try:
@@ -377,7 +377,7 @@ class FileOrganizer:
                 deduped.append(pf)
                 continue
             if file_hash not in seen_hashes:
-                seen_hashes[file_hash] = pf
+                seen_hashes.add(file_hash)
                 deduped.append(pf)
             else:
                 logger.info("Duplicate file detected by content: {}, skipping.", pf.file_path.name)

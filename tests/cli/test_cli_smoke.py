@@ -61,14 +61,11 @@ class TestOrganizeSmoke:
 class TestSearchSmoke:
     """fo search glob exits 0 and names at least one match."""
 
-    def test_search_glob_exits_zero(self, tmp_path: object) -> None:
-        import pathlib
+    def test_search_glob_exits_zero(self, tmp_path: Path) -> None:
+        (tmp_path / "report.txt").write_text("hello")
+        (tmp_path / "notes.txt").write_text("world")
 
-        d = pathlib.Path(str(tmp_path))
-        (d / "report.txt").write_text("hello")
-        (d / "notes.txt").write_text("world")
-
-        result = runner.invoke(app, ["search", "*.txt", str(d)])
+        result = runner.invoke(app, ["search", "*.txt", str(tmp_path)])
 
         assert result.exit_code == 0, result.output
         assert "report.txt" in result.output or "notes.txt" in result.output
@@ -78,9 +75,7 @@ class TestDedupeScanSmoke:
     """fo dedupe scan exits 0 and reports no duplicates."""
 
     @patch("file_organizer.cli.dedupe_v2._get_detector")
-    def test_dedupe_scan_no_duplicates(
-        self, mock_get_detector: MagicMock, tmp_path: object
-    ) -> None:
+    def test_dedupe_scan_no_duplicates(self, mock_get_detector: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_detector.return_value = mock_det
         mock_det.get_duplicate_groups.return_value = {}
@@ -89,7 +84,7 @@ class TestDedupeScanSmoke:
 
         assert result.exit_code == 0, result.output
         assert "No duplicates" in result.output
-        mock_det.scan_directory.assert_called_once_with(Path(str(tmp_path)), ANY)
+        mock_det.scan_directory.assert_called_once_with(tmp_path, ANY)
 
 
 class TestCopilotStatusSmoke:
