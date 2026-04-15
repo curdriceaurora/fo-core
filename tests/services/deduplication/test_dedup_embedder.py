@@ -52,27 +52,22 @@ def embedder(mock_vectorizer):
     from file_organizer.services.deduplication.embedder import DocumentEmbedder
 
     # DocumentEmbedder defers sklearn import to __init__
-    # Mock the import at instantiation by patching sys.modules temporarily
+    # Mock the import at instantiation using patch.dict so ALL three entries are
+    # restored on exit (the manual try/finally approach only restored "sklearn",
+    # leaving "sklearn.feature_extraction.text" pointing at the mock, which
+    # caused cross-test contamination in xdist workers).
     mock_sklearn = MagicMock()
     mock_sklearn.feature_extraction.text.TfidfVectorizer = MagicMock(return_value=mock_vectorizer)
 
-    # Temporarily mock sklearn before instantiation
-    saved_sklearn = sys.modules.get("sklearn")
-    try:
-        sys.modules["sklearn"] = mock_sklearn
-        sys.modules["sklearn.feature_extraction"] = mock_sklearn.feature_extraction
-        sys.modules["sklearn.feature_extraction.text"] = mock_sklearn.feature_extraction.text
+    mock_modules = {
+        "sklearn": mock_sklearn,
+        "sklearn.feature_extraction": mock_sklearn.feature_extraction,
+        "sklearn.feature_extraction.text": mock_sklearn.feature_extraction.text,
+    }
 
+    with unittest.mock.patch.dict(sys.modules, mock_modules):
         emb = DocumentEmbedder(max_features=100, ngram_range=(1, 2))
         emb.vectorizer = mock_vectorizer
-    finally:
-        # Restore original sklearn state
-        if saved_sklearn is None:
-            sys.modules.pop("sklearn", None)
-            sys.modules.pop("sklearn.feature_extraction", None)
-            sys.modules.pop("sklearn.feature_extraction.text", None)
-        else:
-            sys.modules["sklearn"] = saved_sklearn
 
     return emb
 
