@@ -233,11 +233,6 @@ convention = "google"
 "tests/**/*.py" = ["D"]
 "scripts/**/*.py" = ["D"]
 "scripts/docker_utils.py" = ["D", "C901"]
-# C901 ratchet baseline — functions exceeding complexity 15 (2026-02-28)
-# Each entry allows existing complex functions; new ones must stay under 15.
-# Note: 9 files refactored in 2026-03 (task 005), 3 more in issue #1022.
-# Remaining files with complexity > 15:
-"src/file_organizer/core/organizer.py" = ["C901"]  # organize: 33
 
 # MyPy configuration (type checking)
 [tool.mypy]
