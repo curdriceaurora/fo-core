@@ -5,9 +5,15 @@
 | Tier | Workflow | Trigger | Marker filter | Approx time |
 |------|----------|---------|--------------|-------------|
 | Per-commit (fast) | `ci.yml` `test` job | Every push to PR branch | `ci and not benchmark` | ~2 min |
-| Per-push integration | `pr-integration.yml` | Every push to PR branch (opened / reopened / ready-for-review / synchronize) | `integration and not benchmark` | ~3–5 min |
+| Per-push integration | `pr-integration.yml` | Every push to PR branch (opened / reopened / ready-for-review / synchronize) | `integration and not benchmark` | ~4–6 min; coverage floor enforcement |
 | Post-merge full | `ci.yml` `test-full` | Push to main | non-benchmark/non-e2e (6 shards × py3.11+3.12) | ~2–3 min/shard |
 | Nightly matrix | `ci-full.yml` | Daily 06:00 UTC | Linux: full-suite (6 shards, py3.11+3.12); macOS + Windows: `ci/smoke` subset | ~15 min |
+
+> **PR integration coverage gate:** The `pr-integration.yml` workflow enforces the same
+> integration coverage floors as main: 287 per-module floors via
+> `scripts/check_module_coverage_floor.py` and a 71.9% global floor. A PR whose changes
+> cause an integration coverage regression will fail the `Integration tests (PR)` check
+> before merge. To reproduce locally: `bash scripts/run-local-ci.sh integration`.
 
 **Marker rules for new tests:**
 
