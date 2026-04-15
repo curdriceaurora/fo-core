@@ -169,10 +169,11 @@ class TestCIWorkflow:
 
         ci.yml uses two separate jobs:
         - 'test': PR-only, Python 3.11 only (fast feedback, ~2 400 tests)
-        - 'test-full': push-only, 6 shards x Python 3.11+3.12 (~17 000 tests)
+        - 'test-full': push to main only, Python 3.11+3.12, full suite with -n auto
 
-        This replaces the old single 'test' job that used a conditional matrix
-        expression and timed out due to GC pressure with 17 000 tests/2 workers.
+        The shard matrix was removed after the xdist audit (2026-04-15) confirmed
+        zero parallelism races. The full suite now runs with -n auto across both
+        Python versions in two parallel jobs instead of 12 (6 shards × 2 pythons).
         """
         jobs = workflow.get("jobs", {})
 
@@ -200,9 +201,11 @@ class TestCIWorkflow:
         assert "test-full" in jobs, "CI workflow must have a 'test-full' job for push runs"
         full_job = jobs["test-full"]
 
-        # Must be restricted to push events
-        assert full_job.get("if") == "github.event_name == 'push'", (
-            "'test-full' job must have if: github.event_name == 'push'"
+        # Must be restricted to push to main (not all pushes — branch protection
+        # means only main receives pushes after PR merge).
+        full_if = full_job.get("if", "")
+        assert "github.event_name == 'push'" in full_if, (
+            "'test-full' job must restrict to push events"
         )
 
         # Must run both Python versions
@@ -213,19 +216,14 @@ class TestCIWorkflow:
             f"'test-full' job must include both 3.11 and 3.12, got {full_python}"
         )
 
-        # Must use 6 shards so the suite stays domain-shaped instead of
-        # retaining the emergency micro-shard matrix used for debugging.
+        # Shard matrix replaced by xdist parallelism (-n auto) after 2026-04-15 audit.
+        # No shard dimension required; parallelism is handled within each job.
         shards = full_matrix.get("shard", [])
-        assert shards == [1, 2, 3, 4, 5, 6], (
-            f"'test-full' job must define shards [1, 2, 3, 4, 5, 6], got {shards}"
+        assert shards == [], (
+            f"'test-full' must not use shard matrix after xdist re-enablement, got {shards}"
         )
 
-        # Must have a hard timeout
-        assert full_job.get("timeout-minutes") is not None, (
-            "'test-full' job must set timeout-minutes to prevent GC-finaliser hangs"
-        )
-
-        # Must have a coverage-gate job that aggregates shard artifacts
+        # Must have a coverage-gate job that aggregates artifacts
         assert "coverage-gate" in jobs, "CI workflow must have a 'coverage-gate' job for push runs"
         assert jobs["coverage-gate"].get("needs") == "test-full", (
             "'coverage-gate' must depend on 'test-full'"
@@ -372,12 +370,12 @@ class TestCIFullWorkflow:
         )
 
     def test_ci_full_has_linux_shards(self, workflow: dict[str, Any]) -> None:
-        """Verify ci-full.yml includes the Linux full-suite sharded job.
+        """Verify ci-full.yml includes the Linux full-suite job.
 
-        The daily run validates the full ~17 000-test suite on Linux using the
-        same 6-shard matrix as the push CI in ci.yml. This replaces the old
-        design where ci.yml owned all Linux testing — that design never
-        completed because 17 000 tests/2 workers triggered a GC-finaliser hang.
+        The daily run validates the full suite on Linux using Python 3.11+3.12
+        with -n auto (xdist). The shard matrix was removed after the xdist audit
+        (2026-04-15) confirmed zero parallelism races — two parallel Python-version
+        jobs replace the former 12-job (6 shards × 2 pythons) matrix.
         """
         jobs = workflow.get("jobs", {})
         assert "test-linux-full" in jobs, (
@@ -390,9 +388,10 @@ class TestCIFullWorkflow:
         assert set(python_versions) == {"3.11", "3.12"}, (
             f"'test-linux-full' must include both 3.11 and 3.12, got {python_versions}"
         )
+        # Shard matrix replaced by xdist parallelism after 2026-04-15 audit.
         shards = matrix.get("shard", [])
-        assert shards == [1, 2, 3, 4, 5, 6], (
-            f"'test-linux-full' shards must be [1, 2, 3, 4, 5, 6], got {shards}"
+        assert shards == [], (
+            f"'test-linux-full' must not use shard matrix after xdist re-enablement, got {shards}"
         )
         assert job.get("timeout-minutes") is not None, (
             "'test-linux-full' job must set timeout-minutes"
@@ -612,49 +611,24 @@ class TestDependabotConfig:
 
 
 @pytest.mark.unit
-class TestShardCoverage:
-    """Verify that all test directories are assigned to a CI shard.
+class TestNoShardReferences:
+    """Guard: verifies both workflow files no longer reference the retired shard script.
 
-    Prevents silent test exclusion — the exact failure mode that caused
-    tests/interfaces and tests/e2e to be skipped in all CI runs before
-    this guard was added.
+    The shard matrix was removed after the 2026-04-15 xdist audit.  Any future re-introduction
+    of shard paths would be a regression — this test catches an accidental revert.
     """
 
-    # Directories intentionally excluded from shards (no test files or
-    # not standalone pytest-collectible directories).
-    _EXCLUDED: frozenset[str] = frozenset(
-        {
-            "auth",  # no test_*.py files yet; add to a shard when populated
-            "fixtures",  # test fixture data, not a collectible test directory
-            "__pycache__",
-            "playwright",  # browser E2E tests; require `playwright install chromium`, excluded from CI shards
-        }
-    )
-
     @pytest.fixture
-    def shard_script(self) -> str:
-        path = Path("scripts/ci_shard_paths.sh")
-        assert path.exists(), "scripts/ci_shard_paths.sh must exist"
-        return path.read_text()
+    def workflows_dir(self) -> Path:
+        return WORKFLOWS_DIR
 
-    def test_all_test_directories_assigned_to_shard(self, shard_script: str) -> None:
-        """Every subdirectory of tests/ must appear in ci_shard_paths.sh.
-
-        If a test directory is missing from the shard script it will be silently
-        skipped in all CI runs (both push and daily full matrix), because both
-        ci.yml and ci-full.yml source this script as the single mapping.
-        """
-        tests_root = Path("tests")
-        unassigned = []
-        for p in sorted(tests_root.iterdir()):
-            if not p.is_dir():
-                continue
-            if p.name in self._EXCLUDED:
-                continue
-            if p.name not in shard_script:
-                unassigned.append(p.name)
-        assert not unassigned, (
-            f"The following test directories are not assigned to any shard in "
-            f"scripts/ci_shard_paths.sh: {unassigned}. "
-            f"Add them to an appropriate shard or to _EXCLUDED if intentional."
+    @pytest.mark.parametrize("workflow", ["ci.yml", "ci-full.yml"])
+    def test_workflow_does_not_reference_shard_script(
+        self, workflow: str, workflows_dir: Path
+    ) -> None:
+        content = (workflows_dir / workflow).read_text()
+        assert "ci_shard_paths" not in content, (
+            f"{workflow} still references ci_shard_paths — the shard matrix was removed "
+            "after the 2026-04-15 xdist audit and should not be re-introduced without "
+            "also re-enabling the full shard infrastructure."
         )
