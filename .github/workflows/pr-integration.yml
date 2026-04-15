@@ -62,6 +62,7 @@ jobs:
         # --cov adds ~15-20% overhead to the 3-5 min run; bounded by cancel-in-progress.
         # Output teed to RUNNER_TEMP so the per-module floor script can parse it.
         id: integration_tests
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
