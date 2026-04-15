@@ -25,7 +25,7 @@ case "${MODE}" in
     ;;
 esac
 
-REPORT="$(mktemp /tmp/integration-coverage-report.XXXXXX.txt)"
+REPORT="$(mktemp "${TMPDIR:-/tmp}/integration-coverage-report.XXXXXX.txt")"
 trap 'rm -f "${REPORT}"' EXIT
 
 echo "==> [1/2] Measuring integration coverage (mode: ${MODE})..."
