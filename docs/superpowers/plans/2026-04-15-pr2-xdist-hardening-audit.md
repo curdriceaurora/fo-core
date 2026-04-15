@@ -233,8 +233,11 @@ def mock_sklearn():
 After each fix, run the affected test file in isolation to confirm it passes:
 
 ```bash
-pytest <affected-test-file.py> -v
+pytest <affected-test-file.py> -v --override-ini="addopts="
 ```
+
+(`--override-ini="addopts="` suppresses the `--cov-fail-under=95` injected by `pyproject.toml`
+so the single-file run does not fail for unrelated coverage reasons.)
 
 - [ ] **Fix pattern B — xdist_group for shared singletons**
 
@@ -259,7 +262,7 @@ If the affected tests are part of the integration suite (run via `pr-integration
 - [ ] **Fix pattern C — direct os.environ mutation**
 
 ```python
-# BAD — mutates process-level env shared across xdist workers in the same process
+# BAD — mutates process-level env; leaks to later tests in the same worker process
 os.environ["FO_PROVIDER"] = "openai"
 # ... test ...
 del os.environ["FO_PROVIDER"]
