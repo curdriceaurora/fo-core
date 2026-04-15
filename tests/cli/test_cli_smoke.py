@@ -4,7 +4,8 @@ Markers: smoke + ci + unit. Runtime target: <30s.
 """
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -19,6 +20,8 @@ _SETUP_PATCH = "file_organizer.cli.organize._check_setup_completed"
 class TestOrganizeSmoke:
     """fo organize --dry-run exits 0 and reports processed count."""
 
+    # FileOrganizer is lazy-imported inside organize(); patching at definition
+    # site because cli.organize holds no module-level reference to the class.
     @patch("file_organizer.core.organizer.FileOrganizer")
     @patch(_SETUP_PATCH, return_value=True)
     def test_organize_dry_run_exits_zero(
@@ -88,7 +91,7 @@ class TestDedupeScanSmoke:
 
         assert result.exit_code == 0, result.output
         assert "No duplicates" in result.output
-        mock_det.scan_directory.assert_called_once()
+        mock_det.scan_directory.assert_called_once_with(Path(str(tmp_path)), ANY)
 
 
 class TestCopilotStatusSmoke:
