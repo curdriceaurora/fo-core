@@ -24,7 +24,7 @@ Is the test work already covered by an in-flight PR or issue?
 └── No
     ↓
 Does it fit cleanly into a nearby src/ change landing this sprint (<10 test lines)?
-├── Yes → Bundle: add as a commit on that branch, reference this issue in the PR body
+├── Yes → Bundle: commit on that branch, reference this issue in the PR body
 └── No
     ↓
 Is the cleanup genuinely valuable (removes confusing tests, improves readability)?
