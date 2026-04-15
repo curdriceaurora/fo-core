@@ -133,7 +133,7 @@ repos:
         name: mypy (changed models files)
         entry: bash scripts/run-mypy-changed.sh
         language: system
-        files: ^src/file_organizer/models/.*\.py$
+        files: ^src/file_organizer/(models|optimization|parallel|events|daemon|undo|history|interfaces|updater|pipeline|methodologies|integrations|utils|config)/.*\.py$
         pass_filenames: true
 
       # ----------------------------------------------------------------

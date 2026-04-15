@@ -341,6 +341,8 @@ class PipelineOrchestrator:
             ),
         )
 
+        results: list[ProcessingResult] = []
+
         if stages and self._prefetch_depth > 0 and self._prefetch_stages > 0 and len(files) > 1:
             # Keep prefetch behavior deterministic (Issue #713 contracts) while
             # still applying proactive memory feedback to the shared buffer pool.
@@ -348,7 +350,7 @@ class PipelineOrchestrator:
             self._rebalance_buffer_pool()
             return results
 
-        results: list[ProcessingResult] = []
+        results = []
         index = 0
         while index < len(files):
             upper = min(index + batch_size, len(files))
