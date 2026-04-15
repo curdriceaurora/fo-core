@@ -17,17 +17,14 @@ This makes coverage improvements durable and prevents hidden regressions in low-
 
 ## How to ratchet floors upward
 
-### Automated (recommended)
+### Single command (recommended)
 
-Run the integration suite and pipe the output to the script with `--update-baseline`:
+Run from the repository root:
 
 ```bash
-bash .claude/scripts/measure-integration-coverage.sh | tee /tmp/integration-report.txt
-
-python3 scripts/check_module_coverage_floor.py \
-  --report-path /tmp/integration-report.txt \
-  --baseline-path scripts/coverage/integration_module_floor_baseline.json \
-  --update-baseline
+bash scripts/coverage/ratchet.sh check    # gate-check (mirrors CI)
+bash scripts/coverage/ratchet.sh update   # ratchet baseline upward
+bash scripts/coverage/ratchet.sh dry-run  # preview changes without writing
 ```
 
 The script will:
@@ -37,14 +34,7 @@ The script will:
 - **Remove** modules that have been deleted from disk.
 - Update `generated_at_utc` in the baseline JSON.
 
-Preview changes first with `--dry-run` (prints the diff without writing):
-
-```bash
-python3 scripts/check_module_coverage_floor.py \
-  --report-path /tmp/integration-report.txt \
-  --baseline-path scripts/coverage/integration_module_floor_baseline.json \
-  --update-baseline --dry-run
-```
+After improving tests, run `update` and commit the updated baseline file.
 
 ### Manual
 

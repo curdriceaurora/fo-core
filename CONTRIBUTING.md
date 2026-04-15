@@ -163,6 +163,9 @@ ruff check src/
 
 # Type check
 mypy src/file_organizer/ --strict
+
+# Ratchet integration coverage baseline (after improving integration tests)
+bash scripts/coverage/ratchet.sh update
 ```
 
 ### Full CI in Docker with `act` (ubuntu-latest parity)
