@@ -22,6 +22,7 @@ on:
     paths-ignore:
       - ".claude/**"
       - "docs/**"
+      - "*.md"
 
 permissions:
   contents: read
@@ -54,7 +55,7 @@ jobs:
           - extra: dedup
             os: ubuntu-latest
             timeout_minutes: 15
-            key_import: "import imagededup; import sklearn; print('OK')"
+            key_import: "import imagededup; import sklearn; import pypdf; import striprtf; print('OK')"
             smoke: "true"
           - extra: video
             os: ubuntu-latest

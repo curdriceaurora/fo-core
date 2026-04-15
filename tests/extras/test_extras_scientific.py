@@ -23,9 +23,8 @@ def test_scientific_reads_hdf5_file(tmp_path: Path) -> None:
     # read_hdf5_file returns HDF5 structure metadata, not raw dataset values
     result = read_hdf5_file(hdf5_path)
 
-    assert result is not None
     assert isinstance(result, str)
-    assert len(result) > 0
+    assert "measurements" in result  # dataset name must appear in HDF5 structure output
 
 
 @pytest.mark.smoke

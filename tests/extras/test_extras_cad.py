@@ -22,6 +22,5 @@ def test_cad_reads_dxf_file(tmp_path: Path) -> None:
     # read_dxf_file returns metadata + layer information, not raw DXF text
     result = read_dxf_file(dxf_path)
 
-    assert result is not None
     assert isinstance(result, str)
-    assert len(result) > 0
+    assert "LINE" in result  # the added LINE entity must appear in entity metadata
