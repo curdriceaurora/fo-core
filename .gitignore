@@ -137,5 +137,6 @@ logs/security/
 
 coverage.json
 
-# Claude Code agents (auto-generated, not committed)
-.agents/
+# Superpowers scaffolding (implementation artifacts, not permanent docs)
+docs/superpowers/plans/
+docs/superpowers/specs/
