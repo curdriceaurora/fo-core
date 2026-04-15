@@ -15,17 +15,21 @@ def test_image_deduplicator_finds_identical_images(tmp_path: Path) -> None:
     from file_organizer.services.deduplication.image_dedup import ImageDeduplicator
 
     # Use PNG (lossless) so both saves produce bit-identical files and the
-    # perceptual hash distance is guaranteed to be 0.  threshold=0 requires
-    # exact hash match, making the assertion deterministic.
+    # perceptual hash distance is guaranteed to be 0.
+    # Use cluster_by_similarity (direct Hamming distance, <= comparison) rather
+    # than find_duplicates (delegates to imagededup whose threshold semantics
+    # vary by version) to keep the assertion deterministic.
     img = Image.new("RGB", (64, 64), color=(128, 64, 32))
     img.save(tmp_path / "img1.png")
     img.save(tmp_path / "img2.png")
 
     deduplicator = ImageDeduplicator(threshold=0)
-    result = deduplicator.find_duplicates(tmp_path)
+    clusters = deduplicator.cluster_by_similarity(
+        [tmp_path / "img1.png", tmp_path / "img2.png"]
+    )
 
-    assert isinstance(result, dict)
-    assert len(result) >= 1  # identical PNGs must produce a duplicate group
+    assert len(clusters) == 1  # identical PNGs must form exactly one cluster
+    assert len(clusters[0]) == 2  # both images in the cluster
 
 
 @pytest.mark.smoke
