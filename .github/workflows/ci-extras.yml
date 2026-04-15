@@ -64,7 +64,7 @@ jobs:
           - extra: audio
             os: ubuntu-latest
             timeout_minutes: 20  # torch download is large
-            key_import: "import faster_whisper; import mutagen; import tinytag; import torch; print('OK')"
+            key_import: "import faster_whisper; import mutagen; import tinytag; import pydub; import torch; print('OK')"
             smoke: "true"
           # --- Platform/API extras (install + import only) ---
           - extra: cloud
