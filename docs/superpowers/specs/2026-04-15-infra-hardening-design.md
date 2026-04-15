@@ -21,7 +21,7 @@ independent PR. Execution order follows the issue recommendation:
 ### Problem
 
 `pr-integration.yml` runs `pytest -m "integration"` with `-n=auto` but without `--cov`.
-The 71.9% global floor and 264 per-module floors from `scripts/coverage/integration_module_floor_baseline.json`
+The 71.9% global floor and 287 per-module floors from `scripts/coverage/integration_module_floor_baseline.json`
 are only enforced on main-push. A PR can introduce integration coverage regressions that are
 invisible until after merge.
 
