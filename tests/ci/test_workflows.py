@@ -611,50 +611,24 @@ class TestDependabotConfig:
 
 
 @pytest.mark.unit
-class TestShardCoverage:
-    """Verify that all test directories are assigned to a CI shard.
+class TestNoShardReferences:
+    """Guard: verifies both workflow files no longer reference the retired shard script.
 
-    Prevents silent test exclusion — the exact failure mode that caused
-    tests/interfaces and tests/e2e to be skipped in all CI runs before
-    this guard was added.
+    The shard matrix was removed after the 2026-04-15 xdist audit.  Any future re-introduction
+    of shard paths would be a regression — this test catches an accidental revert.
     """
 
-    # Directories intentionally excluded from shards (no test files or
-    # not standalone pytest-collectible directories).
-    _EXCLUDED: frozenset[str] = frozenset(
-        {
-            "auth",  # no test_*.py files yet; add to a shard when populated
-            "extras",  # empty placeholder; will be populated by PR4 (extras validation workstream)
-            "fixtures",  # test fixture data, not a collectible test directory
-            "__pycache__",
-            "playwright",  # browser E2E tests; require `playwright install chromium`, excluded from CI shards
-        }
-    )
-
     @pytest.fixture
-    def shard_script(self) -> str:
-        path = Path("scripts/ci_shard_paths.sh")
-        assert path.exists(), "scripts/ci_shard_paths.sh must exist"
-        return path.read_text()
+    def workflows_dir(self) -> Path:
+        return WORKFLOWS_DIR
 
-    def test_all_test_directories_assigned_to_shard(self, shard_script: str) -> None:
-        """Every subdirectory of tests/ must appear in ci_shard_paths.sh.
-
-        If a test directory is missing from the shard script it will be silently
-        skipped in all CI runs (both push and daily full matrix), because both
-        ci.yml and ci-full.yml source this script as the single mapping.
-        """
-        tests_root = Path("tests")
-        unassigned = []
-        for p in sorted(tests_root.iterdir()):
-            if not p.is_dir():
-                continue
-            if p.name in self._EXCLUDED:
-                continue
-            if p.name not in shard_script:
-                unassigned.append(p.name)
-        assert not unassigned, (
-            f"The following test directories are not assigned to any shard in "
-            f"scripts/ci_shard_paths.sh: {unassigned}. "
-            f"Add them to an appropriate shard or to _EXCLUDED if intentional."
+    @pytest.mark.parametrize("workflow", ["ci.yml", "ci-full.yml"])
+    def test_workflow_does_not_reference_shard_script(
+        self, workflow: str, workflows_dir: Path
+    ) -> None:
+        content = (workflows_dir / workflow).read_text()
+        assert "ci_shard_paths" not in content, (
+            f"{workflow} still references ci_shard_paths — the shard matrix was removed "
+            "after the 2026-04-15 xdist audit and should not be re-introduced without "
+            "also re-enabling the full shard infrastructure."
         )
