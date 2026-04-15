@@ -37,6 +37,22 @@ _imagededup_methods_mod.AHash = _mock_ahash_cls  # type: ignore[attr-defined]
 sys.modules.setdefault("imagededup", _imagededup_mod)
 sys.modules.setdefault("imagededup.methods", _imagededup_methods_mod)
 
+
+@pytest.fixture(scope="session", autouse=True)
+def _cleanup_imagededup_sys_modules() -> None:
+    """Remove injected imagededup mocks from sys.modules after the session.
+
+    The module-level setdefault() calls above inject mock modules when imagededup
+    is not installed.  Without cleanup, the mock persists across xdist workers
+    in the same process, causing smoke-canary tests to receive mock PHash
+    instances instead of being skipped via pytest.importorskip.
+    """
+    yield  # type: ignore[misc]
+    if sys.modules.get("imagededup") is _imagededup_mod:
+        del sys.modules["imagededup"]
+    if sys.modules.get("imagededup.methods") is _imagededup_methods_mod:
+        del sys.modules["imagededup.methods"]
+
 # Now import the module under test – the mocked modules will satisfy the
 # ``from imagededup.methods import …`` statement.
 import file_organizer.services.deduplication.image_dedup as _image_dedup_module  # noqa: E402

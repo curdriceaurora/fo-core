@@ -33,7 +33,7 @@ in the test suite or missing assets; they are out of scope for xdist hardening.
 | Test group | Count | Root cause |
 |------------|-------|-----------|
 | `tests/integration/test_context_menu_macos.py::TestMacOSQuickAction::*` | 12 | `desktop/context-menus/macos/` directory does not exist in repo. Tests lack `@pytest.mark.integration` marker so they are not excluded by the audit filter. |
-| `tests/docs/test_doc_file_paths.py::test_referenced_path_exists[...pr4-extras-*]` | 9 | Plan doc `docs/superpowers/plans/2026-04-15-pr4-extras-validation.md` references files that do not yet exist (`tests/extras/`, `.github/workflows/ci-extras.yml`). |
+| `tests/docs/test_doc_file_paths.py::test_referenced_path_exists[...pr4-extras-*]` | 9 | Plan doc `docs/superpowers/plans/2026-04-15-pr4-extras-validation.md` references files that do not yet exist (`tests/extras/` directory and `ci-extras.yml` workflow). |
 | `tests/ci/test_workflows.py::TestShardCoverage::test_all_test_directories_assigned_to_shard` | 1 | `tests/extras/` directory not assigned to any shard in `scripts/ci_shard_paths.sh`. |
 | `tests/ci/test_md031_ratchet.py::test_no_new_md031_violations_in_changed_files` | 1 | MD031 fenced-code-block violations in plan/spec docs changed on this branch. |
 
