@@ -21,7 +21,7 @@ independent PR. Execution order follows the issue recommendation:
 ### Problem
 
 `pr-integration.yml` runs `pytest -m "integration"` with `-n=auto` but without `--cov`.
-The 71.9% global floor and 287 per-module floors from `scripts/coverage/integration_module_floor_baseline.json`
+The 71.9% global floor and 264 per-module floors from `scripts/coverage/integration_module_floor_baseline.json`
 are only enforced on main-push. A PR can introduce integration coverage regressions that are
 invisible until after merge.
 
@@ -33,42 +33,19 @@ the `test-integration` job in `ci.yml`:
 **Step changes:**
 
 1. Add to the pytest command:
-
    ```
    --cov=file_organizer --cov-branch --cov-report=xml --cov-report=term-missing
    ```
 
-2. Pipe pytest output to a report file and run the per-module floor script (exact shape
-   mirrors `ci.yml` lines 449–458):
-
+2. Add a step after tests pass:
    ```bash
-   pytest tests/ \
-     -m "integration and not benchmark" \
-     --strict-markers --cov=file_organizer --cov-branch \
-     --cov-report=term-missing --cov-report=xml \
-     --timeout=60 -n=auto --override-ini="addopts=" \
-     | tee "$RUNNER_TEMP/integration-coverage-report.txt"
-
-   python scripts/check_module_coverage_floor.py \
-     --report-path "$RUNNER_TEMP/integration-coverage-report.txt" \
-     --baseline-path scripts/coverage/integration_module_floor_baseline.json
+   python scripts/coverage/check_module_coverage_floor.py
    ```
+   This is the same script used on main push — enforces 264 per-module floors.
 
-   Uses `continue-on-error: true` on the floor step (id: `per_module_gate`) so the global
-   gate can also run and both outcomes are inspected by an enforcer step — same pattern as
-   main CI.
-
-3. Add global floor step (`id: global_gate`, `continue-on-error: true`):
-
+3. Add a global floor step:
    ```bash
    coverage report --fail-under=71.9
-   ```
-
-4. Add enforcer step that exits non-zero if either gate failed:
-
-   ```bash
-   if [ "${{ steps.per_module_gate.outcome }}" != "success" ]; then exit 1; fi
-   if [ "${{ steps.global_gate.outcome }}"   != "success" ]; then exit 1; fi
    ```
 
 **Failure semantics:** Hard gate — PR fails if either the per-module floor or global floor
@@ -149,9 +126,7 @@ New `ci-extras.yml` workflow. Keeps `ci.yml` clean. Triggered on PR push and mai
 
 **Matrix job:** One job per extra using a GitHub Actions matrix. Each job:
 
-1. `pip install -e ".[dev,extra]"` — installs both the extra and the repo's test toolchain
-   (pytest, pytest-asyncio, pytest-cov, faker, etc.). This ensures `pytest` is present
-   and the canary tests can run without a separate tooling install step.
+1. `pip install -e ".[extra]"` — install succeeds
 2. `python -c "import key_module; print('OK')"` — top-level import succeeds
 3. (File capability only) `pytest tests/extras/test_extras_<extra>.py -m "smoke" -x` — canary passes
 
@@ -159,8 +134,7 @@ New `ci-extras.yml` workflow. Keeps `ci.yml` clean. Triggered on PR push and mai
 
 **New `tests/extras/` directory:** One canary test file per file-capability extra. Each
 contains a single `@pytest.mark.smoke` test that:
-- Creates a minimal fixture file of the relevant type in `tmp_path` (e.g. a 1-second WAV,
-  a minimal 7z archive — **not ZIP**, which is core and would not exercise the optional dep)
+- Creates a minimal fixture file of the relevant type (e.g. a 1-second WAV, a tiny ZIP)
 - Instantiates the core reader/processor class that the extra provides
 - Asserts a non-None result — no external calls, no network
 
@@ -171,7 +145,7 @@ contains a single `@pytest.mark.smoke` test that:
 | audio | `faster_whisper`, `mutagen` | Audio metadata reader |
 | video | `cv2`, `scenedetect` | Video frame extractor |
 | dedup | `imagededup`, `sklearn` | Image deduplicator |
-| archive | `py7zr`, `rarfile` | Archive reader (7z/RAR fixture file, not ZIP — ZIP is core) |
+| archive | `py7zr`, `rarfile` | Archive reader |
 | scientific | `h5py`, `scipy` | HDF5 reader |
 | cad | `ezdxf` | DXF reader |
 | cloud | `openai` | (import only) |
@@ -215,7 +189,6 @@ shard 3, GC-finalizer hang), `37f4dd9` (MockStat xdist teardown crash).
 **Phase 2 — Audit current xdist surface**
 
 Add `scripts/ci/run-xdist-audit.sh`:
-
 ```bash
 #!/usr/bin/env bash
 # Run the non-integration, non-benchmark suite 3 times under xdist.
@@ -235,7 +208,7 @@ Run the audit and commit findings to `docs/internal/xdist-audit-2026-04-15.md`.
 For each confirmed flake:
 - Categorize: shared state / env race / module-level singleton / fixture scope
 - Apply the minimal fix (monkeypatch, xdist_group marker, patch.dict, or fixture conversion)
-- Do not preemptively convert 77 module-level `CliRunner` singletons unless confirmed failing
+- Do not pre-emptively convert 77 module-level `CliRunner` singletons unless confirmed failing
 
 **Phase 4 — Re-enable xdist for test-full (if justified)**
 
@@ -249,10 +222,7 @@ Add `.claude/rules/xdist-safe-patterns.md` documenting:
 - Use `monkeypatch.setenv` not `os.environ` mutation
 - Use `tmp_path` not shared temp dirs
 - Use `patch.dict(sys.modules, ...)` for optional-dep mocking
-- Use `@pytest.mark.xdist_group(name="...")` for tests sharing a singleton — **requires
-  `--dist=loadgroup` in the pytest invocation**; without it the marker is parsed but does
-  not provide serialization. Any pytest command or CI step that relies on xdist_group
-  isolation must pass `--dist=loadgroup` (not `-n auto` alone).
+- Use `@pytest.mark.xdist_group(name="...")` for tests sharing a singleton
 - Module-level `CliRunner` instances are safe (stateless per `.invoke()`) but prefer fixtures
 
 ### Out of scope
