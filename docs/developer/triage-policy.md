@@ -23,7 +23,7 @@ Is the test work already covered by an in-flight PR or issue?
 ├── Yes → Close as Duplicate: link the in-flight item, label `duplicate`
 └── No
     ↓
-Does it fit cleanly into a nearby src/ change landing this sprint (<10 test lines)?
+Is there an open branch/PR touching related src/ code? (<10 test lines)
 ├── Yes → Bundle: commit on that branch, reference this issue in the PR body
 └── No
     ↓
@@ -55,5 +55,5 @@ PR references it. Close with:
 ## What Does Not Belong Here
 
 - Issues touching `src/` beyond comments → normal review process applies
-- Coverage ratchet updates (see `scripts/coverage/README.md`)
+- Coverage ratchet updates (see `scripts/coverage/README.md` at repo root)
 - Issues with failing CI → fix the failures first, then triage
