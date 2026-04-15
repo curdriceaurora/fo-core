@@ -53,4 +53,4 @@ def test_faster_whisper_importable() -> None:
 
 @pytest.mark.smoke
 def test_pydub_importable() -> None:
-    pytest.importorskip("pydub")
+    import pydub  # noqa: F401 — assert the dep is present in the [audio] extra
