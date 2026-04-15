@@ -416,8 +416,6 @@ class TestInitializer:
 class TestCategorizeFiles:
     """Unit tests for FileOrganizer._categorize_files()."""
 
-    @pytest.mark.unit
-    @pytest.mark.ci
     def test_routes_by_extension(self, tmp_path: Path) -> None:
         """Files are routed to the correct bucket based on extension."""
         organizer = FileOrganizer.__new__(FileOrganizer)
@@ -436,8 +434,6 @@ class TestCategorizeFiles:
         assert cad == []
         assert other == []
 
-    @pytest.mark.unit
-    @pytest.mark.ci
     def test_unknown_goes_to_other(self, tmp_path: Path) -> None:
         """Files with unrecognized extensions go to the other bucket."""
         organizer = FileOrganizer.__new__(FileOrganizer)
@@ -449,20 +445,16 @@ class TestCategorizeFiles:
         assert len(other) == 1
         assert other[0].name == "mystery.xyz"
 
-    @pytest.mark.unit
-    @pytest.mark.ci
     def test_cad_extension(self, tmp_path: Path) -> None:
         """DWG files are categorized as CAD."""
         organizer = FileOrganizer.__new__(FileOrganizer)
         f = tmp_path / "drawing.dwg"
 
-        text, image, video, audio, cad, other = organizer._categorize_files([f])
+        _text, _image, _video, _audio, cad, _other = organizer._categorize_files([f])
 
         assert len(cad) == 1
         assert cad[0].name == "drawing.dwg"
 
-    @pytest.mark.unit
-    @pytest.mark.ci
     def test_empty_returns_empty_buckets(self) -> None:
         """Empty input yields six empty lists."""
         organizer = FileOrganizer.__new__(FileOrganizer)
@@ -487,8 +479,6 @@ class TestDeduplicateProcessed:
         organizer.console = MagicMock()
         return organizer
 
-    @pytest.mark.unit
-    @pytest.mark.ci
     def test_identical_content_deduplicated(self, tmp_path: Path) -> None:
         """Two files with identical content: only the first is kept."""
         organizer = self._make_organizer()
@@ -507,8 +497,6 @@ class TestDeduplicateProcessed:
         assert len(deduped) == 1
         assert result.deduplicated_files == 1
 
-    @pytest.mark.unit
-    @pytest.mark.ci
     def test_unique_content_all_kept(self, tmp_path: Path) -> None:
         """Files with distinct content are all retained."""
         organizer = self._make_organizer()
@@ -527,8 +515,6 @@ class TestDeduplicateProcessed:
         assert len(deduped) == 2
         assert result.deduplicated_files == 0
 
-    @pytest.mark.unit
-    @pytest.mark.ci
     def test_unreadable_file_kept(self, tmp_path: Path) -> None:
         """A file that raises OSError on read is kept (handled downstream)."""
         organizer = self._make_organizer()

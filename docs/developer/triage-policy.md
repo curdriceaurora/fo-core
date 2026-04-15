@@ -23,13 +23,13 @@ Is the test work already covered by an in-flight PR or issue?
 ├── Yes → Close as Duplicate: link the in-flight item, label `duplicate`
 └── No
     ↓
-Is there an open branch/PR touching related src/ code? (<10 test lines)
+Is there an open branch/PR touching related src/ code? (fewer than 10 test lines changed)
 ├── Yes → Bundle: commit on that branch, reference this issue in the PR body
 └── No
     ↓
 Is the cleanup genuinely valuable (removes confusing tests, improves readability)?
 ├── No  → Close as Won't Fix: add label `wontfix`, leave a one-line explanation
-└── Yes → Standalone PR: branch cleanup/test-<slug>, title prefix "test:"
+└── Yes → Standalone PR: branch cleanup/test-<short-slug>, title prefix "test:"
 ```
 
 ## Standalone PR Rules

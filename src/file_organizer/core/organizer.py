@@ -380,7 +380,7 @@ class FileOrganizer:
                 seen_hashes[file_hash] = pf
                 deduped.append(pf)
             else:
-                logger.info(f"Duplicate file detected by content: {pf.file_path.name}, skipping.")
+                logger.info("Duplicate file detected by content: {}, skipping.", pf.file_path.name)
                 result.deduplicated_files += 1
         return deduped
 
@@ -458,9 +458,11 @@ class FileOrganizer:
     # ------------------------------------------------------------------
 
     def _collect_files(self, path: Path) -> list[Path]:
+        """Collect all files under *path* recursively (delegates to file_ops)."""
         return file_ops.collect_files(path, self.console)
 
     def _fallback_by_extension(self, files: list[Path]) -> list[ProcessedFile]:
+        """Classify *files* by extension when AI processing is unavailable."""
         return file_ops.fallback_by_extension(files)
 
     def _organize_files(
@@ -469,6 +471,7 @@ class FileOrganizer:
         output_path: Path,
         skip_existing: bool,
     ) -> dict[str, list[str]]:
+        """Copy/move processed files into *output_path*, respecting undo history."""
         return file_ops.organize_files(
             processed,
             output_path,
@@ -483,12 +486,15 @@ class FileOrganizer:
         processed: list[ProcessedFile | ProcessedImage],
         output_path: Path,
     ) -> dict[str, list[str]]:
+        """Simulate organization without writing any files (dry-run helper)."""
         return file_ops.simulate_organization(processed, output_path)
 
     def _cleanup_empty_dirs(self, root: Path) -> None:
+        """Remove empty directories left behind after organization under *root*."""
         file_ops.cleanup_empty_dirs(root)
 
     def _init_text_processor(self) -> None:
+        """Initialize the text processor; sets ``self.text_processor`` or leaves it None."""
         self.text_processor = initializer.init_text_processor(
             self.text_model_config,
             self.console,
@@ -496,6 +502,7 @@ class FileOrganizer:
         )
 
     def _init_vision_processor(self) -> None:
+        """Initialize the vision processor; sets ``self.vision_processor`` or leaves it None."""
         self.vision_processor = initializer.init_vision_processor(
             self.vision_model_config,
             self.console,
@@ -503,19 +510,23 @@ class FileOrganizer:
         )
 
     def _process_text_files(self, files: list[Path]) -> list[ProcessedFile]:
+        """Dispatch *files* to the initialized text processor."""
         assert self.text_processor is not None
         return dispatcher.process_text_files(
             files, self.text_processor, self.parallel_processor, self.console
         )
 
     def _process_image_files(self, files: list[Path]) -> list[ProcessedImage]:
+        """Dispatch *files* to the initialized vision processor."""
         assert self.vision_processor is not None
         return dispatcher.process_image_files(
             files, self.vision_processor, self.parallel_processor, self.console
         )
 
     def _process_audio_files(self, files: list[Path]) -> list[ProcessedFile]:
+        """Extract metadata from audio *files* and return processed results."""
         return dispatcher.process_audio_files(files, extractor_cls=AudioMetadataExtractor)
 
     def _process_video_files(self, files: list[Path]) -> list[ProcessedFile]:
+        """Extract metadata from video *files* and return processed results."""
         return dispatcher.process_video_files(files, extractor_cls=VideoMetadataExtractor)

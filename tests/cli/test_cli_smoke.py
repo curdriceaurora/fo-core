@@ -26,12 +26,10 @@ class TestOrganizeSmoke:
     @patch("file_organizer.core.organizer.FileOrganizer")
     @patch(_SETUP_PATCH, return_value=True)
     def test_organize_dry_run_exits_zero(
-        self, _setup: MagicMock, mock_cls: MagicMock, tmp_path: object
+        self, _setup: MagicMock, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
-        import pathlib
-
-        input_dir = pathlib.Path(str(tmp_path)) / "input"
-        output_dir = pathlib.Path(str(tmp_path)) / "output"
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
         input_dir.mkdir()
         output_dir.mkdir()
         for name in ("a.txt", "b.md", "c.csv"):
