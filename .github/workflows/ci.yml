@@ -88,7 +88,22 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev]"
       - name: Run mypy on gated modules
-        run: mypy src/file_organizer/models/
+        run: |
+          mypy \
+            src/file_organizer/models/ \
+            src/file_organizer/optimization/ \
+            src/file_organizer/parallel/ \
+            src/file_organizer/events/ \
+            src/file_organizer/daemon/ \
+            src/file_organizer/undo/ \
+            src/file_organizer/history/ \
+            src/file_organizer/interfaces/ \
+            src/file_organizer/updater/ \
+            src/file_organizer/pipeline/ \
+            src/file_organizer/methodologies/ \
+            src/file_organizer/integrations/ \
+            src/file_organizer/utils/ \
+            src/file_organizer/config/
 
   link-integrity:
     runs-on: ubuntu-latest
