@@ -1,25 +1,26 @@
 name: PR Integration Tests
 
-# Runs the full integration test suite once per PR lifecycle event:
+# Runs the full integration test suite on every push to an open PR.
+# Triggered on:
 #   opened          — first feedback when the PR is created
 #   reopened        — re-validation after a PR is un-closed
 #   ready_for_review — final gate before requesting reviewers (draft → ready)
+#   synchronize     — re-validation on every push to the PR (fixup commits, code updates)
 #
-# Intentionally NOT triggered on every push (synchronize) — the fast ci-suite
-# in ci.yml already covers every commit via `-m "ci and not benchmark"`.
-# Integration tests are expensive (~3–5 min with -n=auto) and add value at
-# the PR open/ready gates, not on every fixup commit.
+# Cost is bounded by concurrency.cancel-in-progress: true, which cancels any
+# in-flight run when a new push arrives. This ensures only the latest commit
+# on the PR runs integration tests, preventing stale results from blocking merge.
 #
 # Relationship to other jobs:
-#   ci.yml test         → per-commit fast gate  (ci-marked tests, ~2 min)
-#   pr-integration.yml  → per-PR-lifecycle gate  (integration tests, ~3–5 min)
-#   ci.yml test-full    → post-merge full suite   (6 shards × 2 pythons, main push)
-#   ci-full.yml         → nightly full matrix     (Linux + macOS + Windows)
+#   ci.yml test         → per-commit fast gate        (ci-marked tests, ~2 min)
+#   pr-integration.yml  → on every push to open PR    (integration tests, ~3–5 min, bounded by concurrency)
+#   ci.yml test-full    → post-merge full suite       (6 shards × 2 pythons, main push)
+#   ci-full.yml         → nightly full matrix         (Linux + macOS + Windows)
 
 on:
   pull_request:
     branches: [main]
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, synchronize]
     paths-ignore:
       - ".claude/**"
       - "docs/**"
