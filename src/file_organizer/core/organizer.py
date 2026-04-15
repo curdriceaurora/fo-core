@@ -12,6 +12,7 @@ delegates to extracted modules for specific concerns:
 
 from __future__ import annotations
 
+import hashlib
 import time
 from pathlib import Path
 from typing import ClassVar
@@ -363,8 +364,6 @@ class FileOrganizer:
 
         Mutates ``result.deduplicated_files``. Returns the deduplicated list.
         """
-        import hashlib
-
         seen_hashes: dict[str, ProcessedFile | ProcessedImage] = {}
         deduped: list[ProcessedFile | ProcessedImage] = []
         for pf in all_processed:

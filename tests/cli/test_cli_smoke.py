@@ -2,6 +2,7 @@
 
 Markers: smoke + ci + unit. Runtime target: <30s.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
