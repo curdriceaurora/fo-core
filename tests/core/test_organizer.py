@@ -192,7 +192,10 @@ class TestFileOps:
         out_path = tmp_path / "out"
         structure = simulate_organization([p1, p2, p3, err], out_path)
 
-        assert structure == {"docs": ["file_1.txt", "file_2.txt"], "images": ["img_1.jpg"]}
+        assert structure == {
+            "docs": ["file_1.txt", "file_2.txt"],
+            "images": ["img_1.jpg"],
+        }
         assert not out_path.exists()
 
     @patch("file_organizer.core.file_ops.shutil.copy2")
@@ -401,3 +404,187 @@ class TestInitializer:
         result = init_vision_processor(config, console)
 
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _categorize_files tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestCategorizeFiles:
+    """Unit tests for FileOrganizer._categorize_files()."""
+
+    def test_routes_by_extension(self, tmp_path: Path) -> None:
+        """Files are routed to the correct bucket based on extension."""
+        organizer = FileOrganizer.__new__(FileOrganizer)
+
+        text, image, video, audio, cad, other = organizer._categorize_files(
+            [tmp_path / "doc.txt", tmp_path / "photo.jpg", tmp_path / "movie.mp4"]
+        )
+
+        assert len(text) == 1
+        assert text[0].name == "doc.txt"
+        assert len(image) == 1
+        assert image[0].name == "photo.jpg"
+        assert len(video) == 1
+        assert video[0].name == "movie.mp4"
+        assert audio == []
+        assert cad == []
+        assert other == []
+
+    def test_unknown_goes_to_other(self, tmp_path: Path) -> None:
+        """Files with unrecognized extensions go to the other bucket."""
+        organizer = FileOrganizer.__new__(FileOrganizer)
+        f = tmp_path / "mystery.xyz"
+
+        text, image, video, audio, cad, other = organizer._categorize_files([f])
+
+        assert text == image == video == audio == cad == []
+        assert len(other) == 1
+        assert other[0].name == "mystery.xyz"
+
+    def test_cad_extension(self, tmp_path: Path) -> None:
+        """DWG files are categorized as CAD."""
+        organizer = FileOrganizer.__new__(FileOrganizer)
+        f = tmp_path / "drawing.dwg"
+
+        _text, _image, _video, _audio, cad, _other = organizer._categorize_files([f])
+
+        assert len(cad) == 1
+        assert cad[0].name == "drawing.dwg"
+
+    def test_empty_returns_empty_buckets(self) -> None:
+        """Empty input yields six empty lists."""
+        organizer = FileOrganizer.__new__(FileOrganizer)
+
+        result = organizer._categorize_files([])
+
+        assert all(lst == [] for lst in result)
+
+
+# ---------------------------------------------------------------------------
+# _deduplicate_processed tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestDeduplicateProcessed:
+    """Unit tests for FileOrganizer._deduplicate_processed()."""
+
+    def _make_organizer(self) -> FileOrganizer:
+        organizer = FileOrganizer.__new__(FileOrganizer)
+        organizer.console = MagicMock()
+        return organizer
+
+    def test_identical_content_deduplicated(self, tmp_path: Path) -> None:
+        """Two files with identical content: only the first is kept."""
+        organizer = self._make_organizer()
+        result = OrganizationResult(total_files=2)
+
+        f1 = tmp_path / "a.txt"
+        f2 = tmp_path / "b.txt"
+        f1.write_bytes(b"same content")
+        f2.write_bytes(b"same content")
+
+        pf1 = ProcessedFile(f1, "", "document", "a")
+        pf2 = ProcessedFile(f2, "", "document", "b")
+
+        deduped = organizer._deduplicate_processed([pf1, pf2], result)
+
+        assert len(deduped) == 1
+        assert result.deduplicated_files == 1
+
+    def test_unique_content_all_kept(self, tmp_path: Path) -> None:
+        """Files with distinct content are all retained."""
+        organizer = self._make_organizer()
+        result = OrganizationResult(total_files=2)
+
+        f1 = tmp_path / "a.txt"
+        f2 = tmp_path / "b.txt"
+        f1.write_bytes(b"content A")
+        f2.write_bytes(b"content B")
+
+        pf1 = ProcessedFile(f1, "", "document", "a")
+        pf2 = ProcessedFile(f2, "", "document", "b")
+
+        deduped = organizer._deduplicate_processed([pf1, pf2], result)
+
+        assert len(deduped) == 2
+        assert result.deduplicated_files == 0
+
+    def test_unreadable_file_kept(self, tmp_path: Path) -> None:
+        """A file that raises OSError on read is kept (handled downstream)."""
+        organizer = self._make_organizer()
+        result = OrganizationResult(total_files=1)
+
+        # Point to a nonexistent path — open() raises OSError
+        f = tmp_path / "ghost.txt"
+        pf = ProcessedFile(f, "", "document", "ghost")
+
+        deduped = organizer._deduplicate_processed([pf], result)
+
+        assert len(deduped) == 1
+        assert result.deduplicated_files == 0
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestProcessImageType:
+    """Unit tests for FileOrganizer._process_image_type()."""
+
+    def _make_organizer(self, enable_vision: bool = True) -> FileOrganizer:
+        organizer = FileOrganizer.__new__(FileOrganizer)
+        organizer.console = MagicMock()
+        organizer.enable_vision = enable_vision
+        organizer.vision_processor = None
+        return organizer
+
+    def test_vision_disabled_uses_fallback(self, tmp_path: Path) -> None:
+        """When enable_vision is False, _fallback_by_extension is called."""
+        organizer = self._make_organizer(enable_vision=False)
+        fallback_result = [ProcessedFile(tmp_path / "a.jpg", "", "image", "a")]
+
+        with patch.object(
+            organizer, "_fallback_by_extension", return_value=fallback_result
+        ) as mock_fb:
+            result = organizer._process_image_type([tmp_path / "a.jpg"])
+
+        mock_fb.assert_called_once_with([tmp_path / "a.jpg"])
+        assert result == fallback_result
+
+    def test_vision_enabled_not_initialized_uses_fallback(self, tmp_path: Path) -> None:
+        """When vision is enabled but processor fails to init, falls back to extension."""
+        organizer = self._make_organizer(enable_vision=True)
+        fallback_result = [ProcessedFile(tmp_path / "a.jpg", "", "image", "a")]
+
+        # _init_vision_processor sets vision_processor = None (init failed)
+        with patch.object(organizer, "_init_vision_processor"):
+            organizer.vision_processor = None  # not initialized
+            with patch.object(
+                organizer, "_fallback_by_extension", return_value=fallback_result
+            ) as mock_fb:
+                result = organizer._process_image_type([tmp_path / "a.jpg"])
+
+        mock_fb.assert_called_once_with([tmp_path / "a.jpg"])
+        assert result == fallback_result
+
+    def test_vision_enabled_and_ready_uses_vision_pipeline(self, tmp_path: Path) -> None:
+        """When vision processor is ready, _process_image_files is called."""
+        organizer = self._make_organizer(enable_vision=True)
+        image_results = [MagicMock(spec=ProcessedImage)]
+
+        mock_processor = MagicMock()
+        mock_processor.vision_model.is_initialized = True
+
+        with patch.object(organizer, "_init_vision_processor"):
+            organizer.vision_processor = mock_processor
+            with patch.object(
+                organizer, "_process_image_files", return_value=image_results
+            ) as mock_pif:
+                result = organizer._process_image_type([tmp_path / "a.jpg"])
+
+        mock_pif.assert_called_once_with([tmp_path / "a.jpg"])
+        assert result == image_results

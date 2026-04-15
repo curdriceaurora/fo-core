@@ -12,6 +12,7 @@ delegates to extracted modules for specific concerns:
 
 from __future__ import annotations
 
+import hashlib
 import time
 from pathlib import Path
 from typing import ClassVar
@@ -189,7 +190,58 @@ class FileOrganizer:
             self.console.print("[yellow]No files found to organize[/yellow]")
             return result
 
-        # Categorize files (single pass)
+        text_files, image_files, video_files, audio_files, cad_files, other_files = (
+            self._categorize_files(files)
+        )
+
+        display.show_file_breakdown(
+            self.console,
+            text_files=text_files,
+            image_files=image_files,
+            video_files=video_files,
+            audio_files=audio_files,
+            cad_files=cad_files,
+            other_files=other_files,
+        )
+
+        all_processed = self._process_all_file_types(
+            text_files, image_files, video_files, audio_files, cad_files
+        )
+
+        if all_processed:
+            all_processed = self._deduplicate_processed(all_processed, result)
+            failed_cnt = sum(1 for p in all_processed if p.error)
+            result.processed_files = len(all_processed) - failed_cnt
+            result.failed_files = failed_cnt
+            self._execute_organization(
+                all_processed, input_path, output_path, skip_existing, result
+            )
+
+        # Skipped files
+        if other_files:
+            result.skipped_files = len(other_files)
+            self.console.print("\n[bold yellow]Skipped Files:[/bold yellow]")
+            for f in other_files:
+                self.console.print(f"  [yellow]•[/yellow] {f.name} (unsupported type)")
+            self.console.print("\n  [dim]These file types are not yet supported[/dim]")
+
+        result.processing_time = time.time() - start_time
+        display.show_summary(self.console, result, output_path, dry_run=self.dry_run)
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Private helpers extracted from organize()
+    # ------------------------------------------------------------------
+
+    def _categorize_files(
+        self, files: list[Path]
+    ) -> tuple[list[Path], list[Path], list[Path], list[Path], list[Path], list[Path]]:
+        """Categorize files by type using extension sets.
+
+        Returns:
+            Six lists: (text, image, video, audio, cad, other)
+        """
         text_files: list[Path] = []
         image_files: list[Path] = []
         video_files: list[Path] = []
@@ -212,23 +264,44 @@ class FileOrganizer:
             else:
                 other_files.append(f)
 
-        display.show_file_breakdown(
-            self.console,
-            text_files=text_files,
-            image_files=image_files,
-            video_files=video_files,
-            audio_files=audio_files,
-            cad_files=cad_files,
-            other_files=other_files,
-        )
+        return text_files, image_files, video_files, audio_files, cad_files, other_files
 
-        # Process each file type
+    def _process_image_type(self, image_files: list[Path]) -> list[ProcessedFile | ProcessedImage]:
+        """Process image files, using vision model if available and enabled."""
+        self.console.print(f"\n[bold blue]Processing {len(image_files)} images...[/bold blue]")
+        if self.enable_vision:
+            self._init_vision_processor()
+            vision_ready = (
+                self.vision_processor is not None
+                and self.vision_processor.vision_model.is_initialized
+            )
+            if vision_ready:
+                return list(self._process_image_files(image_files))
+            return list(self._fallback_by_extension(image_files))
+        self.console.print(
+            "[yellow]⚠ Vision processing disabled (--no-vision/--text-only): "
+            "using extension-based organization for images[/yellow]"
+        )
+        return list(self._fallback_by_extension(image_files))
+
+    def _process_all_file_types(
+        self,
+        text_files: list[Path],
+        image_files: list[Path],
+        video_files: list[Path],
+        audio_files: list[Path],
+        cad_files: list[Path],
+    ) -> list[ProcessedFile | ProcessedImage]:
+        """Initialize processors and process all file type groups.
+
+        Manages VRAM hand-off between text and vision models and ensures
+        cleanup on success or failure.
+        """
         all_processed: list[ProcessedFile | ProcessedImage] = []
         self.text_processor = None
         self.vision_processor = None
 
         try:
-            # Text + CAD
             if text_files or cad_files:
                 self._init_text_processor()
 
@@ -259,36 +332,15 @@ class FileOrganizer:
                 self.text_processor.cleanup()
                 self.text_processor = None
 
-            # Images
             if image_files:
-                self.console.print(
-                    f"\n[bold blue]Processing {len(image_files)} images...[/bold blue]"
-                )
-                if self.enable_vision:
-                    self._init_vision_processor()
-                    vision_ready = (
-                        self.vision_processor is not None
-                        and self.vision_processor.vision_model.is_initialized
-                    )
-                    if vision_ready:
-                        all_processed.extend(self._process_image_files(image_files))
-                    else:
-                        all_processed.extend(self._fallback_by_extension(image_files))
-                else:
-                    self.console.print(
-                        "[yellow]⚠ Vision processing disabled (--no-vision/--text-only): "
-                        "using extension-based organization for images[/yellow]"
-                    )
-                    all_processed.extend(self._fallback_by_extension(image_files))
+                all_processed.extend(self._process_image_type(image_files))
 
-            # Audio
             if audio_files:
                 self.console.print(
                     f"\n[bold blue]Processing {len(audio_files)} audio files...[/bold blue]"
                 )
                 all_processed.extend(self._process_audio_files(audio_files))
 
-            # Video
             if video_files:
                 self.console.print(
                     f"\n[bold blue]Processing {len(video_files)} videos...[/bold blue]"
@@ -301,88 +353,82 @@ class FileOrganizer:
             if self.vision_processor:
                 self.vision_processor.cleanup()
 
-        # Organize
-        # Content‑based deduplication: remove duplicate files based on file content hash
-        if all_processed:
-            import hashlib
+        return all_processed
 
-            seen_hashes: dict[str, ProcessedFile | ProcessedImage] = {}
-            deduped_processed: list[ProcessedFile | ProcessedImage] = []
-            for pf in all_processed:
-                try:
-                    hasher = hashlib.sha256()
-                    with pf.file_path.open("rb") as f:
-                        for chunk in iter(lambda: f.read(65536), b""):
-                            hasher.update(chunk)
-                    file_hash = hasher.hexdigest()
-                except OSError:
-                    # If we cannot read the file, keep it (it will be handled later)
-                    deduped_processed.append(pf)
-                    continue
-                if file_hash not in seen_hashes:
-                    seen_hashes[file_hash] = pf
-                    deduped_processed.append(pf)
-                else:
-                    # Duplicate detected – skip this file
-                    logger.info(
-                        f"Duplicate file detected by content: {pf.file_path.name}, skipping."
-                    )
-                    result.deduplicated_files += 1
-            all_processed = deduped_processed
-            failed_cnt = len([p for p in all_processed if p.error])
-            result.processed_files = len(all_processed) - failed_cnt
-            result.failed_files = failed_cnt
+    def _deduplicate_processed(
+        self,
+        all_processed: list[ProcessedFile | ProcessedImage],
+        result: OrganizationResult,
+    ) -> list[ProcessedFile | ProcessedImage]:
+        """Remove duplicate files based on SHA-256 content hash.
 
-            if not self.dry_run:
-                self.console.print("\n[bold blue]Organizing files...[/bold blue]")
-                if self._undo_manager is None:
-                    self._undo_manager = UndoManager()
-                self._last_transaction_id = self._undo_manager.history.start_transaction(
-                    metadata={"input_path": str(input_path), "output_path": str(output_path)}
-                )
-                self._last_output_path = output_path
-
-                try:
-                    organized = file_ops.organize_files(
-                        all_processed,
-                        output_path,
-                        skip_existing,
-                        use_hardlinks=self.use_hardlinks,
-                        undo_manager=self._undo_manager,
-                        transaction_id=self._last_transaction_id,
-                    )
-                except (OSError, RuntimeError):
-                    logger.exception(
-                        "Error while organizing files; leaving transaction {} uncommitted",
-                        self._last_transaction_id,
-                    )
-                    raise
-                else:
-                    undo_manager = self._undo_manager
-                    assert undo_manager is not None
-                    history = undo_manager.history
-                    history.commit_transaction(self._last_transaction_id)
-                    result.organized_structure = organized
+        Mutates ``result.deduplicated_files``. Returns the deduplicated list.
+        """
+        seen_hashes: set[str] = set()
+        deduped: list[ProcessedFile | ProcessedImage] = []
+        for pf in all_processed:
+            try:
+                hasher = hashlib.sha256()
+                with pf.file_path.open("rb") as f:
+                    for chunk in iter(lambda: f.read(65536), b""):
+                        hasher.update(chunk)
+                file_hash = hasher.hexdigest()
+            except OSError:
+                deduped.append(pf)
+                continue
+            if file_hash not in seen_hashes:
+                seen_hashes.add(file_hash)
+                deduped.append(pf)
             else:
-                self.console.print(
-                    "\n[bold yellow]DRY RUN - Simulating organization...[/bold yellow]"
+                logger.info("Duplicate file detected by content: {}, skipping.", pf.file_path.name)
+                result.deduplicated_files += 1
+        return deduped
+
+    def _execute_organization(
+        self,
+        all_processed: list[ProcessedFile | ProcessedImage],
+        input_path: Path,
+        output_path: Path,
+        skip_existing: bool,
+        result: OrganizationResult,
+    ) -> None:
+        """Execute file organization or dry-run simulation.
+
+        Mutates ``result.organized_structure``.
+        """
+        if not self.dry_run:
+            self.console.print("\n[bold blue]Organizing files...[/bold blue]")
+            if self._undo_manager is None:
+                self._undo_manager = UndoManager()
+            self._last_transaction_id = self._undo_manager.history.start_transaction(
+                metadata={"input_path": str(input_path), "output_path": str(output_path)}
+            )
+            self._last_output_path = output_path
+
+            try:
+                organized = file_ops.organize_files(
+                    all_processed,
+                    output_path,
+                    skip_existing,
+                    use_hardlinks=self.use_hardlinks,
+                    undo_manager=self._undo_manager,
+                    transaction_id=self._last_transaction_id,
                 )
-                result.organized_structure = file_ops.simulate_organization(
-                    all_processed, output_path
+            except (OSError, RuntimeError):
+                logger.exception(
+                    "Error while organizing files; leaving transaction {} uncommitted",
+                    self._last_transaction_id,
                 )
-
-        # Skipped files
-        if other_files:
-            result.skipped_files = len(other_files)
-            self.console.print("\n[bold yellow]Skipped Files:[/bold yellow]")
-            for f in other_files:
-                self.console.print(f"  [yellow]•[/yellow] {f.name} (unsupported type)")
-            self.console.print("\n  [dim]These file types are not yet supported[/dim]")
-
-        result.processing_time = time.time() - start_time
-        display.show_summary(self.console, result, output_path, dry_run=self.dry_run)
-
-        return result
+                raise
+            else:
+                undo_manager = self._undo_manager
+                assert undo_manager is not None
+                history = undo_manager.history
+                history.commit_transaction(self._last_transaction_id)
+                result.organized_structure = organized
+        else:
+            self.console.print("\n[bold yellow]DRY RUN - Simulating organization...[/bold yellow]")
+            result.organized_structure = file_ops.simulate_organization(all_processed, output_path)
 
     # ------------------------------------------------------------------
     # Undo / Redo
@@ -412,9 +458,11 @@ class FileOrganizer:
     # ------------------------------------------------------------------
 
     def _collect_files(self, path: Path) -> list[Path]:
+        """Collect all files under *path* recursively (delegates to file_ops)."""
         return file_ops.collect_files(path, self.console)
 
     def _fallback_by_extension(self, files: list[Path]) -> list[ProcessedFile]:
+        """Classify *files* by extension when AI processing is unavailable."""
         return file_ops.fallback_by_extension(files)
 
     def _organize_files(
@@ -423,6 +471,7 @@ class FileOrganizer:
         output_path: Path,
         skip_existing: bool,
     ) -> dict[str, list[str]]:
+        """Copy/move processed files into *output_path*, respecting undo history."""
         return file_ops.organize_files(
             processed,
             output_path,
@@ -437,12 +486,15 @@ class FileOrganizer:
         processed: list[ProcessedFile | ProcessedImage],
         output_path: Path,
     ) -> dict[str, list[str]]:
+        """Simulate organization without writing any files (dry-run helper)."""
         return file_ops.simulate_organization(processed, output_path)
 
     def _cleanup_empty_dirs(self, root: Path) -> None:
+        """Remove empty directories left behind after organization under *root*."""
         file_ops.cleanup_empty_dirs(root)
 
     def _init_text_processor(self) -> None:
+        """Initialize the text processor; sets ``self.text_processor`` or leaves it None."""
         self.text_processor = initializer.init_text_processor(
             self.text_model_config,
             self.console,
@@ -450,6 +502,7 @@ class FileOrganizer:
         )
 
     def _init_vision_processor(self) -> None:
+        """Initialize the vision processor; sets ``self.vision_processor`` or leaves it None."""
         self.vision_processor = initializer.init_vision_processor(
             self.vision_model_config,
             self.console,
@@ -457,19 +510,23 @@ class FileOrganizer:
         )
 
     def _process_text_files(self, files: list[Path]) -> list[ProcessedFile]:
+        """Dispatch *files* to the initialized text processor."""
         assert self.text_processor is not None
         return dispatcher.process_text_files(
             files, self.text_processor, self.parallel_processor, self.console
         )
 
     def _process_image_files(self, files: list[Path]) -> list[ProcessedImage]:
+        """Dispatch *files* to the initialized vision processor."""
         assert self.vision_processor is not None
         return dispatcher.process_image_files(
             files, self.vision_processor, self.parallel_processor, self.console
         )
 
     def _process_audio_files(self, files: list[Path]) -> list[ProcessedFile]:
+        """Extract metadata from audio *files* and return processed results."""
         return dispatcher.process_audio_files(files, extractor_cls=AudioMetadataExtractor)
 
     def _process_video_files(self, files: list[Path]) -> list[ProcessedFile]:
+        """Extract metadata from video *files* and return processed results."""
         return dispatcher.process_video_files(files, extractor_cls=VideoMetadataExtractor)
