@@ -145,7 +145,7 @@ pip install -e ".[dev,scientific]" --quiet
 pytest tests/extras/test_extras_scientific.py -m "smoke" -v --override-ini="addopts="
 ```
 
-Expected: both tests PASS.
+Expected: all three tests PASS (h5py HDF5 read, scipy import, netCDF4 import).
 
 - [ ] **Step 3: Commit**
 
