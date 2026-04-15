@@ -290,34 +290,63 @@ import pytest
 
 
 @pytest.mark.smoke
-def test_video_metadata_extractor_reads_video(tmp_path: Path) -> None:
+def test_opencv_read_write_cycle(tmp_path: Path) -> None:
+    """Validate the opencv-python install end-to-end without going through ffprobe."""
     cv2 = pytest.importorskip("cv2")
-    import numpy as np  # numpy is a dep of opencv-python
-    from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor
+    import numpy as np  # numpy is a transitive dep of opencv-python
 
-    # Create a minimal video file: 5 blank frames at 1 fps, 64×64 px
+    # Write a minimal video using cv2 (not ffprobe)
     video_path = tmp_path / "test.mp4"
     out = cv2.VideoWriter(
         str(video_path),
         cv2.VideoWriter_fourcc(*"mp4v"),
         1,  # fps
-        (64, 64),  # width, height
+        (64, 64),  # width × height
     )
     frame = np.zeros((64, 64, 3), dtype=np.uint8)
     for _ in range(5):
         out.write(frame)
     out.release()
 
-    extractor = VideoMetadataExtractor()
-    result = extractor.extract(video_path)
-
-    assert result is not None
+    # Read it back with cv2 — exercises the full opencv install path, not ffprobe
+    cap = cv2.VideoCapture(str(video_path))
+    assert cap.isOpened(), "cv2 could not open the written video"
+    frame_count = 0
+    while True:
+        ret, _ = cap.read()
+        if not ret:
+            break
+        frame_count += 1
+    cap.release()
+    assert frame_count >= 1
 
 
 @pytest.mark.smoke
-def test_scenedetect_importable() -> None:
-    pytest.importorskip("scenedetect")
-    import scenedetect  # noqa: F401
+def test_scenedetect_detects_scenes(tmp_path: Path) -> None:
+    """Validate scenedetect performs actual scene detection (not just an import check)."""
+    cv2 = pytest.importorskip("cv2")
+    scenedetect = pytest.importorskip("scenedetect")
+    import numpy as np
+
+    # Write a minimal video for scenedetect to process
+    video_path = tmp_path / "scenes.mp4"
+    out = cv2.VideoWriter(
+        str(video_path),
+        cv2.VideoWriter_fourcc(*"mp4v"),
+        10,  # fps (scenedetect needs > 1 fps to resolve timecodes)
+        (64, 64),
+    )
+    frame = np.zeros((64, 64, 3), dtype=np.uint8)
+    for _ in range(30):
+        out.write(frame)
+    out.release()
+
+    video = scenedetect.open_video(str(video_path))
+    scene_manager = scenedetect.SceneManager()
+    scene_manager.add_detector(scenedetect.ContentDetector())
+    scene_manager.detect_scenes(video)
+    scenes = scene_manager.get_scene_list()
+    assert isinstance(scenes, list)  # may be empty — that is fine for a canary
 ```
 
 - [ ] **Step 2: Install the video extra and run the test**
@@ -571,7 +600,9 @@ pip install -e ".[dev,archive,scientific,cad,dedup,video,audio]" --quiet
 pytest tests/extras/ -m "smoke" -v --override-ini="addopts="
 ```
 
-Expected: all 6 canary files (11 tests total) PASS.
+Expected: all 6 canary files (14 tests total) PASS.
+
+Test breakdown: archive(2) + scientific(3) + cad(1) + dedup(2) + video(2) + audio(4) = 14.
 
 - [ ] **Step 4: Run pre-commit validation**
 

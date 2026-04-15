@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Expand the strict mypy CI gate from `models/` only (28 files) to 13 packages (136 files) by gating 9 zero-error packages immediately and fixing 6 stale `# type: ignore` comments in 4 more packages.
+**Goal:** Expand the strict mypy CI gate from `models/` only (1 package, 28 files) to 14 packages (164 files total) by gating 9 zero-error packages immediately and fixing 6 stale `# type: ignore` comments in 4 more packages. `models/` remains in the gate; the expansion adds 13 new packages (136 new files).
 
 **Architecture:** Two sequential sub-tasks: (1) remove stale suppression comments from Tier 2 packages — all are `[unused-ignore]` one-liners with no logic change; (2) update the `type-check` CI job and `mypy-changed` pre-commit hook to cover all Tier 1+2 packages. Tier 3 (core, cli, watcher) and services are tracked in issue #93.
 
@@ -133,8 +133,12 @@ Expected: `All 13 packages clean`
 - [ ] **Step 7: Run the existing test suite for the modified packages to confirm no regressions**
 
 ```bash
-pytest tests/config/ tests/utils/ tests/integrations/ tests/methodologies/ -v --timeout=30
+pytest tests/config/ tests/utils/ tests/integrations/ tests/methodologies/ \
+  -v --timeout=30 --override-ini="addopts="
 ```
+
+`--override-ini="addopts="` suppresses the repo-wide `--cov-fail-under=95` from
+`pyproject.toml` so the run validates correctness only, not global coverage thresholds.
 
 Expected: all tests pass.
 
@@ -220,18 +224,16 @@ Find the hook entry — it currently passes `src/file_organizer/models/*.py` or 
 
 Find the hook entry that includes `src/file_organizer/models/` and update its `files` pattern to include all 13 gated packages. The pattern is a regex matching file paths:
 
-Replace the existing `files:` value with:
+Replace the existing `files:` value with a single-line pattern (do **not** use a folded
+`>-` block — YAML folded scalars insert spaces between continuation lines, which would embed
+literal spaces in the regex and silently break path matching):
 
 ```yaml
-        files: >-
-          ^src/file_organizer/(
-            models|optimization|parallel|events|daemon|undo|
-            history|interfaces|updater|pipeline|methodologies|
-            integrations|utils|config
-          )/
+        files: ^src/file_organizer/(models|optimization|parallel|events|daemon|undo|history|interfaces|updater|pipeline|methodologies|integrations|utils|config)/
 ```
 
-(The `>-` scalar folding means the value is one continuous string; the regex allows mypy-changed to run only when files in any of those packages change.)
+The regex is intentionally on one line so the value contains no whitespace, and the hook
+triggers whenever any file under the 14 gated packages changes.
 
 - [ ] **Step 6: Run the expanded mypy gate locally to confirm it passes**
 
@@ -267,11 +269,12 @@ Expected: passes.
 
 ```bash
 git add .github/workflows/ci.yml .pre-commit-config.yaml
-git commit -m "ci: expand strict mypy gate from 1 package to 13 (136 files)
+git commit -m "ci: expand strict mypy gate from 1 to 14 packages (164 files)
 
-Gates optimization, parallel, events, daemon, undo, history, interfaces,
-updater, pipeline (Tier 1 — zero errors) and methodologies, integrations,
-utils, config (Tier 2 — stale ignores removed in previous commit).
+Adds 13 new packages to the existing models/ gate: optimization, parallel,
+events, daemon, undo, history, interfaces, updater, pipeline (Tier 1 — zero
+errors) and methodologies, integrations, utils, config (Tier 2 — stale
+ignores removed in previous commit). Total gated: 164 files across 14 packages.
 
 Tier 3 (core, cli, watcher) and services tracked in issue #93.
 

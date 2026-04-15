@@ -91,10 +91,16 @@ git commit -m "ci: add xdist audit script for parallelism race detection"
 **Files:**
 - Create: `docs/internal/xdist-audit-2026-04-15.md`
 
-- [ ] **Step 1: Install dependencies and run the audit**
+- [ ] **Step 1: Install dependencies, download NLTK data, and run the audit**
+
+The `test-full` CI job (which the audit mimics) installs `[dev,search]`, downloads NLTK data,
+and exports `GITHUB_TOKEN`. Omitting these can cause failures that are not xdist races —
+NLTK lookups error on missing corpora, and some tests branch on `GITHUB_TOKEN` presence.
 
 ```bash
 pip install -e ".[dev,search]" --quiet
+python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
+export GITHUB_TOKEN="${GITHUB_TOKEN:-dummy-token-for-local-audit}"
 bash scripts/ci/run-xdist-audit.sh /tmp/xdist-audit-results
 ```
 
@@ -123,7 +129,10 @@ grep -n "os.environ\|monkeypatch\|tmp_path\|sys.modules\|module-level\|singleton
 ```
 
 Root cause categories:
-- **env race**: test sets `os.environ` directly (not via monkeypatch) and another worker reads it
+- **env race**: test sets `os.environ` directly (not via monkeypatch); under xdist each worker
+  is a separate process so the mutation is **not** visible to other workers, but it is visible
+  to later tests running sequentially **in the same worker process** after the mutating test —
+  if that later test expects the variable to be absent or to have a different value, it races
 - **sys.modules leak**: a mock of an optional dep leaves `sys.modules` entries after teardown — fix with `patch.dict(sys.modules, ...)`
 - **shared singleton**: a module-level object (e.g. `_registry`) is mutated by one test and read by another — fix with `@pytest.mark.xdist_group(name="<group>")` **and `--dist=loadgroup`** in the pytest command
 - **tmp_path collision**: two tests write to the same non-`tmp_path` path — fix by using `tmp_path` fixture
@@ -301,11 +310,15 @@ Edit the table in `docs/internal/xdist-audit-2026-04-15.md` with real data from 
 If all confirmed flakes are fixed AND the after-fixes audit is clean:
 
 Edit `docs/internal/xdist-audit-2026-04-15.md` — set the re-enablement decision to:
-> "xdist re-enabled for test-full in this PR — see ci.yml change below"
+> "xdist re-enabled for test-full and nightly in this PR — see ci.yml and ci-full.yml changes"
 
-Then update `.github/workflows/ci.yml` — in the `test-full` job, replace the 6-shard directory matrix with a single xdist run:
+Then update **both** workflow files that carry the 6-shard fallback. Each has the comment
+*"all shards can use xdist again instead of the emergency micro-shard matrix"* and must be
+updated together so the Linux nightly and the main push use the same concurrency shape.
 
-In `ci.yml`, find the `Test (shard ${{ matrix.shard }}, ...)` job and replace its `strategy.matrix` and `Run test shard` step with:
+**In `.github/workflows/ci.yml`** — find the `Test (shard ${{ matrix.shard }}, ...)` job
+and replace its matrix and test step. Keep the existing pinned SHA action refs exactly as
+they appear in the current file (do not introduce new action versions):
 
 ```yaml
   test-full:
@@ -316,14 +329,26 @@ In `ci.yml`, find the `Test (shard ${{ matrix.shard }}, ...)` job and replace it
       matrix:
         python-version: ["3.11", "3.12"]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install dependencies
-        run: pip install -e ".[dev,search]"
+        run: |
+          pip install -e ".[dev,search]"
+          pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
+      - name: Cache NLTK data
+        uses: actions/cache@v5
+        with:
+          path: ~/nltk_data
+          key: nltk-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: nltk-${{ runner.os }}-
+      - name: Download NLTK data
+        run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
       - name: Run full test suite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pytest tests/ \
             -m "not benchmark and not e2e" \
@@ -335,24 +360,115 @@ In `ci.yml`, find the `Test (shard ${{ matrix.shard }}, ...)` job and replace it
             --cov-report=xml \
             --override-ini="addopts="
           mv .coverage .coverage.py${{ matrix.python-version }}
-      - name: Upload coverage
+      - name: Upload coverage data
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.python-version }}
           path: .coverage.py${{ matrix.python-version }}
+          include-hidden-files: true
+          retention-days: 1
+```
+
+**In `.github/workflows/ci-full.yml`** — find the `test-linux-full` job and replace its
+matrix and test step. Keep the existing `@v6` / `@v7.0.1` action refs that are already in
+that file (do not pin to SHAs — that would introduce unrelated workflow churn):
+
+```yaml
+  test-linux-full:
+    name: "Test Linux (py${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev,search]"
+          pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
+      - name: Cache NLTK data
+        uses: actions/cache@v5
+        with:
+          path: ~/nltk_data
+          key: nltk-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: nltk-${{ runner.os }}-
+      - name: Download NLTK data
+        run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
+      - name: Run full test suite
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pytest tests/ \
+            -m "not benchmark and not e2e" \
+            --strict-markers \
+            -n auto \
+            --timeout=60 \
+            --cov=file_organizer \
+            --cov-report= \
+            --override-ini="addopts="
+          mv .coverage .coverage.py${{ matrix.python-version }}
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: daily-coverage-${{ matrix.python-version }}
+          path: .coverage.py${{ matrix.python-version }}
+          include-hidden-files: true
+          retention-days: 1
+```
+
+**Also update both downstream coverage-gate jobs** — the test-full / test-linux-full
+rewrites change the artifact names (from `coverage-<ver>-shard-<N>` / `daily-coverage-<ver>-<N>`
+to `coverage-<ver>` / `daily-coverage-<ver>`) and the file names (from `.coverage.shard-*` to
+`.coverage.py*`). The coverage-gate jobs in both workflow files must be updated together or the
+gate will find no artifacts and `coverage combine` will fail.
+
+In **`ci.yml`** find the `coverage-gate` job (currently `needs: test-full`) and update two lines:
+
+```yaml
+      - name: Download coverage data (py3.11 shards)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-3.11    # was: coverage-3.11-*
+          merge-multiple: true
+      - name: Combine and enforce gate
+        run: |
+          coverage combine .coverage.py*    # was: .coverage.shard-*
+          coverage report --fail-under=93
+          coverage xml
+```
+
+In **`ci-full.yml`** find the `coverage-gate` job (currently `needs: test-linux-full`) and update
+two lines:
+
+```yaml
+      - name: Download coverage data (py3.11 shards)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: daily-coverage-3.11    # was: daily-coverage-3.11-*
+          merge-multiple: true
+      - name: Combine and enforce gate
+        run: |
+          coverage combine .coverage.py*    # was: .coverage.shard-*
+          coverage report --fail-under=93
 ```
 
 **If the audit finds unfixed flakes** — set the re-enablement decision to:
 > "Deferred — N flakes remain unfixed (see table). Follow-up issue: #<new-issue>"
 
-Leave the shard matrix in `ci.yml` unchanged.
+Leave both shard matrices unchanged.
 
-- [ ] **Step 3: Commit the updated document (and ci.yml change if applicable)**
+- [ ] **Step 3: Commit the updated document (and workflow changes if applicable)**
 
 ```bash
 git add docs/internal/xdist-audit-2026-04-15.md
 # If re-enabling xdist:
-# git add .github/workflows/ci.yml
+# git add .github/workflows/ci.yml .github/workflows/ci-full.yml
 git commit -m "docs: complete xdist audit findings and re-enablement decision
 
 Part of workstream 4 of #92."
