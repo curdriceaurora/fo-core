@@ -4,7 +4,7 @@ name: PR Integration Tests
 # Triggered on:
 #   opened          — first feedback when the PR is created
 #   reopened        — re-validation after a PR is un-closed
-#   ready_for_review — final gate before requesting reviewers (draft → ready)
+#   ready_for_review — re-validation when a draft PR transitions to ready
 #   synchronize     — re-validation on every push to the PR (fixup commits, code updates)
 #
 # Cost is bounded by concurrency.cancel-in-progress: true, which cancels any
