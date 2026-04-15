@@ -132,7 +132,7 @@ jobs:
     #   1. This job (per-commit)  — runs tests marked `ci`, ~2 min, every push to a PR branch.
     #   2. pr-integration.yml     — runs `integration`-marked tests, ~3–5 min, on every push
     #                               to the PR branch (own cancel-in-progress concurrency group).
-    #   3. test-full (push only)  — runs the non-benchmark/non-e2e suite across 6 shards × 2 pythons after merge.
+    #   3. test-full (push only)  — runs the non-benchmark/non-e2e suite with -n auto across Python 3.11 and 3.12 after merge.
     #   4. ci-full.yml (nightly)  — full matrix (Linux + macOS + Windows) at 06:00 UTC.
     #
     # Why integration tests are NOT in this job:
@@ -263,7 +263,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -e ".[dev]"
-      - name: Download coverage data (py3.11 shards)
+      - name: Download coverage data (py3.11)
         uses: actions/download-artifact@v8
         with:
           pattern: coverage-3.11

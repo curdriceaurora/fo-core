@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  # Linux full-suite (6 shards, Python 3.11 + 3.12) — same shard split as ci.yml push jobs.
+  # Linux full-suite (Python 3.11 + 3.12, -n auto) — shard matrix removed after 2026-04-15 xdist audit.
   # macOS and Windows run the portable ci/smoke subset only.
 
   test-linux-full:
@@ -74,7 +74,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -e ".[dev]"
-      - name: Download coverage data (py3.11 shards)
+      - name: Download coverage data (py3.11)
         uses: actions/download-artifact@v8
         with:
           pattern: daily-coverage-3.11
