@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Create smoke canary for `archive` extra
+## Task 1: Create smoke canary for `archive` extra
 
 **Files:**
 - Create: `tests/extras/__init__.py`
@@ -89,7 +89,7 @@ git commit -m "test: add smoke canary for [archive] extra (py7zr / rarfile)"
 
 ---
 
-### Task 2: Create smoke canary for `scientific` extra
+## Task 2: Create smoke canary for `scientific` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_scientific.py`
@@ -156,7 +156,7 @@ git commit -m "test: add smoke canary for [scientific] extra (h5py / netCDF4 / s
 
 ---
 
-### Task 3: Create smoke canary for `cad` extra
+## Task 3: Create smoke canary for `cad` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_cad.py`
@@ -211,7 +211,7 @@ git commit -m "test: add smoke canary for [cad] extra (ezdxf)"
 
 ---
 
-### Task 4: Create smoke canary for `dedup` extra
+## Task 4: Create smoke canary for `dedup` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_dedup.py`
@@ -271,7 +271,7 @@ git commit -m "test: add smoke canary for [dedup] extra (imagededup / sklearn)"
 
 ---
 
-### Task 5: Create smoke canary for `video` extra
+## Task 5: Create smoke canary for `video` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_video.py`
@@ -367,7 +367,7 @@ git commit -m "test: add smoke canary for [video] extra (opencv-python / scenede
 
 ---
 
-### Task 6: Create smoke canary for `audio` extra
+## Task 6: Create smoke canary for `audio` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_audio.py`
@@ -459,7 +459,7 @@ git commit -m "test: add smoke canary for [audio] extra (faster-whisper / mutage
 
 ---
 
-### Task 7: Create the ci-extras.yml workflow
+## Task 7: Create the ci-extras.yml workflow
 
 **Files:**
 - Create: `.github/workflows/ci-extras.yml`

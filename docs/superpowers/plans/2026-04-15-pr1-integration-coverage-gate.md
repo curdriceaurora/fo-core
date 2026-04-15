@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Add coverage measurement and gate steps to pr-integration.yml
+## Task 1: Add coverage measurement and gate steps to pr-integration.yml
 
 **Files:**
 - Modify: `.github/workflows/pr-integration.yml`
@@ -156,11 +156,13 @@ global 71.9% floor) succeed.
   but Step 4b failed, the discrepancy is measurement noise from sequential vs parallel
   collection — document it in the PR description and do not block the merge.
 - If both Step 4a and Step 4b fail, check whether the failures exist on current `main`:
+
   ```bash
   git stash
   bash scripts/run-local-ci.sh integration
   git stash pop
   ```
+
   - If the failure also appears on `main`: it is a **pre-existing main regression** — do not
     fix in this PR; open a separate issue.
   - If the failure only appears on your branch: it is a **regression introduced by this PR's

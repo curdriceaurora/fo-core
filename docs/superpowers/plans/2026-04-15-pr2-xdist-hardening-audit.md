@@ -12,7 +12,7 @@
 
 ---
 
-### Task 1: Create the xdist audit script
+## Task 1: Create the xdist audit script
 
 **Files:**
 - Create: `scripts/ci/run-xdist-audit.sh`
@@ -86,7 +86,7 @@ git commit -m "ci: add xdist audit script for parallelism race detection"
 
 ---
 
-### Task 2: Run the audit and document findings
+## Task 2: Run the audit and document findings
 
 **Files:**
 - Create: `docs/internal/xdist-audit-2026-04-15.md`
@@ -192,7 +192,7 @@ git commit -m "docs: add xdist audit findings document (in progress)"
 
 ---
 
-### Task 3: Fix each confirmed flake
+## Task 3: Fix each confirmed flake
 
 **Files:** Varies per flake — typically test files under `tests/`
 
@@ -299,7 +299,7 @@ Part of workstream 4 of #92."
 
 ---
 
-### Task 4: Update the findings document
+## Task 4: Update the findings document
 
 **Files:**
 - Modify: `docs/internal/xdist-audit-2026-04-15.md`
@@ -479,7 +479,7 @@ Part of workstream 4 of #92."
 
 ---
 
-### Task 5: Write the xdist-safe patterns guidance doc
+## Task 5: Write the xdist-safe patterns guidance doc
 
 **Files:**
 - Create: `.claude/rules/xdist-safe-patterns.md`
@@ -645,6 +645,7 @@ def runner() -> CliRunner:
 **Last Updated**: 2026-04-15
 **Status**: Active
 **Related**: `tests/integration/conftest.py` (`_isolate_user_env`), issue #92 workstream 4
+
 ```
 
 - [ ] **Step 2: Run pre-commit validation**
