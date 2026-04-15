@@ -10,7 +10,7 @@
 
 ---
 
-## Task 1: Add coverage measurement and gate steps to pr-integration.yml
+### Task 1: Add coverage measurement and gate steps to pr-integration.yml
 
 **Files:**
 - Modify: `.github/workflows/pr-integration.yml`
@@ -109,66 +109,38 @@ python3 -c "import yaml; yaml.safe_load(open('.github/workflows/pr-integration.y
 
 Expected output: `YAML OK`
 
-- [ ] **Step 4a: Validate the PR-specific pytest invocation directly**
+- [ ] **Step 4: Verify the full integration coverage gate passes locally using the repo's maintained harness**
 
-`scripts/run-local-ci.sh integration` mirrors the main CI `test-integration` job, which runs
-sequentially and without `-m "integration and not benchmark"`. The PR workflow uses `-n=auto` and
-excludes benchmarks. Validate the PR-specific shape explicitly first so the xdist + coverage
-combination is confirmed locally before the harness run:
+The repo provides `scripts/run-local-ci.sh` which runs the exact same commands as the main CI
+`test-integration` job (pytest + per-module floor script + global floor). Use it instead of
+constructing an ad-hoc command:
 
 ```bash
 pip install -e ".[dev,search]" --quiet
-set -o pipefail
-pytest tests/ \
-  --strict-markers \
-  -m "integration and not benchmark" \
-  --cov=file_organizer \
-  --cov-branch \
-  --cov-report=term-missing \
-  --cov-report=xml \
-  --timeout=60 \
-  -n=auto \
-  --override-ini="addopts=" \
-  | tee /tmp/pr-integration-coverage-report.txt
-```
-
-Expected: pytest exits 0 (all integration tests pass) and coverage output is visible in
-`/tmp/pr-integration-coverage-report.txt`. If tests fail here but not under
-`run-local-ci.sh integration`, the failure is specific to the xdist + coverage combination
-introduced by this PR and must be investigated before merging.
-
-- [ ] **Step 4b: Verify the full integration coverage gate passes locally using the repo's maintained harness**
-
-The repo provides `scripts/run-local-ci.sh` which runs the exact same commands as the main CI
-`test-integration` job (pytest + per-module floor script + global floor). This confirms the
-floor enforcement logic is unbroken:
-
-```bash
 bash scripts/run-local-ci.sh integration
 ```
 
 Expected: `[PASS] Run integration coverage gates` — all three steps (pytest, per-module floor,
 global 71.9% floor) succeed.
 
-**If Step 4b reports floor failures:** Distinguish carefully before deciding how to proceed:
+**If the harness reports floor failures:** Distinguish carefully before deciding how to proceed:
 
-- Check whether Step 4a also failed (same tests, same coverage numbers). If Step 4a passed
-  but Step 4b failed, the discrepancy is measurement noise from sequential vs parallel
-  collection — document it in the PR description and do not block the merge.
-- If both Step 4a and Step 4b fail, check whether the failures exist on current `main`:
-
+- Run `git log --oneline -5` and check if the same failures appear on current `main` by
+  running `bash scripts/run-local-ci.sh integration` on a clean checkout of `main`:
   ```bash
   git stash
   bash scripts/run-local-ci.sh integration
   git stash pop
   ```
-
   - If the failure also appears on `main`: it is a **pre-existing main regression** — do not
     fix in this PR; open a separate issue.
   - If the failure only appears on your branch: it is a **regression introduced by this PR's
     changes** — investigate and fix before merging (this should not happen for a workflow-only
     change, but could indicate a coverage measurement difference introduced by adding `--cov`
     alongside `-n=auto` xdist).
+  - If the failure does not appear on `main` but also does not appear to be caused by your
+    changes: it may be a **coverage measurement artifact** from running with `-n=auto` vs
+    the harness's sequential mode — document the discrepancy in the PR description.
 
 - [ ] **Step 5: Update `docs/testing/testing-strategy.md` to reflect the new PR coverage enforcement**
 

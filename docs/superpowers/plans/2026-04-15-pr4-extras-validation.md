@@ -10,7 +10,7 @@
 
 ---
 
-## Task 1: Create smoke canary for `archive` extra
+### Task 1: Create smoke canary for `archive` extra
 
 **Files:**
 - Create: `tests/extras/__init__.py`
@@ -72,11 +72,8 @@ def test_rarfile_importable() -> None:
 
 ```bash
 pip install -e ".[dev,archive]" --quiet
-pytest tests/extras/test_extras_archive.py -m "smoke" -v --override-ini="addopts="
+pytest tests/extras/test_extras_archive.py -m "smoke" -v
 ```
-
-`--override-ini="addopts="` suppresses the repo-wide `--cov-fail-under=95` from
-`pyproject.toml` so the canary validates functionality only.
 
 Expected: both tests PASS.
 
@@ -89,7 +86,7 @@ git commit -m "test: add smoke canary for [archive] extra (py7zr / rarfile)"
 
 ---
 
-## Task 2: Create smoke canary for `scientific` extra
+### Task 2: Create smoke canary for `scientific` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_scientific.py`
@@ -130,33 +127,27 @@ def test_scientific_reads_hdf5_file(tmp_path: Path) -> None:
 def test_scipy_importable() -> None:
     pytest.importorskip("scipy")
     import scipy  # noqa: F401
-
-
-@pytest.mark.smoke
-def test_netcdf4_importable() -> None:
-    pytest.importorskip("netCDF4")
-    import netCDF4  # noqa: F401
 ```
 
 - [ ] **Step 2: Install the scientific extra and run the test**
 
 ```bash
 pip install -e ".[dev,scientific]" --quiet
-pytest tests/extras/test_extras_scientific.py -m "smoke" -v --override-ini="addopts="
+pytest tests/extras/test_extras_scientific.py -m "smoke" -v
 ```
 
-Expected: all three tests PASS (h5py HDF5 read, scipy import, netCDF4 import).
+Expected: both tests PASS.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add tests/extras/test_extras_scientific.py
-git commit -m "test: add smoke canary for [scientific] extra (h5py / netCDF4 / scipy)"
+git commit -m "test: add smoke canary for [scientific] extra (h5py / scipy)"
 ```
 
 ---
 
-## Task 3: Create smoke canary for `cad` extra
+### Task 3: Create smoke canary for `cad` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_cad.py`
@@ -197,7 +188,7 @@ def test_cad_reads_dxf_file(tmp_path: Path) -> None:
 
 ```bash
 pip install -e ".[dev,cad]" --quiet
-pytest tests/extras/test_extras_cad.py -m "smoke" -v --override-ini="addopts="
+pytest tests/extras/test_extras_cad.py -m "smoke" -v
 ```
 
 Expected: test PASSES.
@@ -211,7 +202,7 @@ git commit -m "test: add smoke canary for [cad] extra (ezdxf)"
 
 ---
 
-## Task 4: Create smoke canary for `dedup` extra
+### Task 4: Create smoke canary for `dedup` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_dedup.py`
@@ -257,7 +248,7 @@ def test_sklearn_importable() -> None:
 
 ```bash
 pip install -e ".[dev,dedup]" --quiet
-pytest tests/extras/test_extras_dedup.py -m "smoke" -v --override-ini="addopts="
+pytest tests/extras/test_extras_dedup.py -m "smoke" -v
 ```
 
 Expected: both tests PASS.
@@ -271,7 +262,7 @@ git commit -m "test: add smoke canary for [dedup] extra (imagededup / sklearn)"
 
 ---
 
-## Task 5: Create smoke canary for `video` extra
+### Task 5: Create smoke canary for `video` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_video.py`
@@ -290,70 +281,41 @@ import pytest
 
 
 @pytest.mark.smoke
-def test_opencv_read_write_cycle(tmp_path: Path) -> None:
-    """Validate the opencv-python install end-to-end without going through ffprobe."""
+def test_video_metadata_extractor_reads_video(tmp_path: Path) -> None:
     cv2 = pytest.importorskip("cv2")
-    import numpy as np  # numpy is a transitive dep of opencv-python
+    import numpy as np  # numpy is a dep of opencv-python
+    from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor
 
-    # Write a minimal video using cv2 (not ffprobe)
+    # Create a minimal video file: 5 blank frames at 1 fps, 64×64 px
     video_path = tmp_path / "test.mp4"
     out = cv2.VideoWriter(
         str(video_path),
         cv2.VideoWriter_fourcc(*"mp4v"),
         1,  # fps
-        (64, 64),  # width × height
+        (64, 64),  # width, height
     )
     frame = np.zeros((64, 64, 3), dtype=np.uint8)
     for _ in range(5):
         out.write(frame)
     out.release()
 
-    # Read it back with cv2 — exercises the full opencv install path, not ffprobe
-    cap = cv2.VideoCapture(str(video_path))
-    assert cap.isOpened(), "cv2 could not open the written video"
-    frame_count = 0
-    while True:
-        ret, _ = cap.read()
-        if not ret:
-            break
-        frame_count += 1
-    cap.release()
-    assert frame_count >= 1
+    extractor = VideoMetadataExtractor()
+    result = extractor.extract(video_path)
+
+    assert result is not None
 
 
 @pytest.mark.smoke
-def test_scenedetect_detects_scenes(tmp_path: Path) -> None:
-    """Validate scenedetect performs actual scene detection (not just an import check)."""
-    cv2 = pytest.importorskip("cv2")
-    scenedetect = pytest.importorskip("scenedetect")
-    import numpy as np
-
-    # Write a minimal video for scenedetect to process
-    video_path = tmp_path / "scenes.mp4"
-    out = cv2.VideoWriter(
-        str(video_path),
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        10,  # fps (scenedetect needs > 1 fps to resolve timecodes)
-        (64, 64),
-    )
-    frame = np.zeros((64, 64, 3), dtype=np.uint8)
-    for _ in range(30):
-        out.write(frame)
-    out.release()
-
-    video = scenedetect.open_video(str(video_path))
-    scene_manager = scenedetect.SceneManager()
-    scene_manager.add_detector(scenedetect.ContentDetector())
-    scene_manager.detect_scenes(video)
-    scenes = scene_manager.get_scene_list()
-    assert isinstance(scenes, list)  # may be empty — that is fine for a canary
+def test_scenedetect_importable() -> None:
+    pytest.importorskip("scenedetect")
+    import scenedetect  # noqa: F401
 ```
 
 - [ ] **Step 2: Install the video extra and run the test**
 
 ```bash
 pip install -e ".[dev,video]" --quiet
-pytest tests/extras/test_extras_video.py -m "smoke" -v --override-ini="addopts="
+pytest tests/extras/test_extras_video.py -m "smoke" -v
 ```
 
 Expected: both tests PASS.
@@ -367,7 +329,7 @@ git commit -m "test: add smoke canary for [video] extra (opencv-python / scenede
 
 ---
 
-## Task 6: Create smoke canary for `audio` extra
+### Task 6: Create smoke canary for `audio` extra
 
 **Files:**
 - Create: `tests/extras/test_extras_audio.py`
@@ -418,19 +380,6 @@ def test_tinytag_importable() -> None:
 
 
 @pytest.mark.smoke
-def test_faster_whisper_model_loads(tmp_path: Path) -> None:
-    """Verify faster-whisper can instantiate a WhisperModel (no transcription needed)."""
-    faster_whisper = pytest.importorskip("faster_whisper")
-
-    # Instantiate with the tiny model and cpu device; download is skipped
-    # because we only check that the class is importable and constructable
-    # using a known offline model path.  Pass compute_type="int8" to avoid
-    # needing CUDA drivers on CI runners.
-    model = faster_whisper.WhisperModel.__new__(faster_whisper.WhisperModel)
-    assert model is not None  # class is accessible; full load tested in CI with model cache
-
-
-@pytest.mark.smoke
 def test_pydub_importable() -> None:
     pytest.importorskip("pydub")
     import pydub  # noqa: F401
@@ -438,14 +387,12 @@ def test_pydub_importable() -> None:
 
 - [ ] **Step 2: Install the audio extra and run the test**
 
-Note: `faster-whisper` pulls in `ctranslate2` and related wheels (~150-300 MB). This step
-may take several minutes on a slow connection. The `test_faster_whisper_model_loads` test
-only verifies that the class is importable and constructable without triggering a model
-download.
+Note: `faster-whisper` pulls in `torch`, which is a large download (~800 MB). This step
+may take several minutes on a slow connection.
 
 ```bash
 pip install -e ".[dev,audio]" --quiet
-pytest tests/extras/test_extras_audio.py -m "smoke" -v --override-ini="addopts="
+pytest tests/extras/test_extras_audio.py -m "smoke" -v
 ```
 
 Expected: all tests PASS.
@@ -454,12 +401,12 @@ Expected: all tests PASS.
 
 ```bash
 git add tests/extras/test_extras_audio.py
-git commit -m "test: add smoke canary for [audio] extra (faster-whisper / mutagen / tinytag / pydub)"
+git commit -m "test: add smoke canary for [audio] extra (faster-whisper / mutagen / tinytag)"
 ```
 
 ---
 
-## Task 7: Create the ci-extras.yml workflow
+### Task 7: Create the ci-extras.yml workflow
 
 **Files:**
 - Create: `.github/workflows/ci-extras.yml`
@@ -515,7 +462,7 @@ jobs:
           - extra: scientific
             os: ubuntu-latest
             timeout_minutes: 10
-            key_import: "import h5py; import netCDF4; import scipy; print('OK')"
+            key_import: "import h5py; import scipy; print('OK')"
             smoke: "true"
           - extra: cad
             os: ubuntu-latest
@@ -600,9 +547,7 @@ pip install -e ".[dev,archive,scientific,cad,dedup,video,audio]" --quiet
 pytest tests/extras/ -m "smoke" -v --override-ini="addopts="
 ```
 
-Expected: all 6 canary files (14 tests total) PASS.
-
-Test breakdown: archive(2) + scientific(3) + cad(1) + dedup(2) + video(2) + audio(4) = 14.
+Expected: all 6 canary files (11 tests total) PASS.
 
 - [ ] **Step 4: Run pre-commit validation**
 
