@@ -23,11 +23,10 @@ class TestOrganizeSmoke:
 
     # FileOrganizer is lazy-imported inside organize(); patching at definition
     # site because cli.organize holds no module-level reference to the class.
+    # _SETUP_PATCH uses new= so its mock is not injected as a parameter (PT019).
     @patch("file_organizer.core.organizer.FileOrganizer")
-    @patch(_SETUP_PATCH, return_value=True)
-    def test_organize_dry_run_exits_zero(
-        self, _setup: MagicMock, mock_cls: MagicMock, tmp_path: Path
-    ) -> None:
+    @patch(_SETUP_PATCH, new=MagicMock(return_value=True))
+    def test_organize_dry_run_exits_zero(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
         input_dir.mkdir()

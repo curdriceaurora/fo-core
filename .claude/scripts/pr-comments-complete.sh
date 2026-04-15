@@ -4,8 +4,11 @@
 # pr-comments-complete: Fetch all PR comments including review comments
 #
 # This script works around limitations in the built-in /pr-comments skill
-# by fetching PR-level comments, review comments, and reviews in a single
+# by fetching PR-level comments and reviews (with inline comments) in a single
 # GraphQL query for efficiency.
+#
+# Note: reviewComments is a REST-only concept. Inline review comments are
+# available under reviews.nodes[].comments.nodes[] in GraphQL.
 #
 # Usage:
 #   bash .claude/scripts/pr-comments-complete.sh [PR_NUMBER]
@@ -51,24 +54,16 @@ query($owner: String!, $repo: String!, $number: Int!) {
           body
         }
       }
-      reviewComments(first: 100) {
-        nodes {
-          author { login }
-          path
-          line
-          diffHunk
-          body
-          createdAt
-        }
-      }
       reviews(first: 100) {
         nodes {
+          id
           author { login }
           state
           submittedAt
           body
           comments(first: 100) {
             nodes {
+              id
               path
               line
               diffHunk
@@ -83,11 +78,22 @@ query($owner: String!, $repo: String!, $number: Int!) {
 QUERY
 
 # Execute GraphQL query (pass PR_NUMBER as integer, not string)
-RESPONSE=$(gh api graphql \
+RAW_RESPONSE=$(gh api graphql \
   --field owner="$OWNER" \
   --field repo="$REPO_NAME" \
   --field number="$PR_NUMBER" \
   --raw-field query="$GRAPHQL_QUERY" 2>/dev/null || echo '{"errors":[{"message":"GraphQL query failed"}]}')
+
+# Sanitize control characters that CodeRabbit injects in review bodies.
+# Python's json.loads(strict=False) accepts them; json.dumps() re-encodes safely.
+RESPONSE=$(echo "$RAW_RESPONSE" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin, strict=False)
+    print(json.dumps(data))
+except Exception as e:
+    print(json.dumps({'errors': [{'message': str(e)}]}))
+")
 
 ##############################################################################
 # Section 1: PR-Level Comments
@@ -106,31 +112,18 @@ fi
 echo ""
 
 ##############################################################################
-# Section 2: Review Comments (Inline Code Comments)
+# Section 2: Reviews (Summary + Inline Comments)
+#
+# Inline code comments are nested under reviews in GitHub's GraphQL schema.
+# They are presented here grouped by review so context is preserved.
 ##############################################################################
 
-echo "### Review Comments (Inline)"
-echo ""
-
-if echo "$RESPONSE" | jq -e '.data.repository.pullRequest.reviewComments.nodes | length > 0' >/dev/null 2>&1; then
-  echo "$RESPONSE" | jq -r '.data.repository.pullRequest.reviewComments.nodes[] |
-    "**@\(.author.login)** - \(.path)#L\(.line)\n\n```diff\n\(.diffHunk)\n```\n\n> \(.body)\n\n---\n"'
-else
-  echo "No inline review comments found."
-fi
-
-echo ""
-
-##############################################################################
-# Section 3: Review Summary (by reviewer and state)
-##############################################################################
-
-echo "### Review Summary"
+echo "### Reviews (with Inline Comments)"
 echo ""
 
 if echo "$RESPONSE" | jq -e '.data.repository.pullRequest.reviews.nodes | length > 0' >/dev/null 2>&1; then
   echo "$RESPONSE" | jq -r '.data.repository.pullRequest.reviews.nodes[] |
-    "**\(.state)** - @\(.author.login) (\(.submittedAt | sub("T.*"; "")))\n\n\(.body // "(no summary body)")\n\nReview comments:\n\(.comments.nodes | if length > 0 then (.[] | "  - \(.path)#L\(.line): \(.body)") | join("\n") else "(no inline comments in this review)" end)\n\n---\n"'
+    "**\(.state)** - @\(.author.login) (\(.submittedAt | sub("T.*"; "")))\n\nReview ID: \(.id)\n\n\(.body // "(no summary body)")\n\nInline comments:\n\(.comments.nodes | if length > 0 then [.[] | "  [\(.id)] \(.path)#L\(.line)\n  Diff:\n\(.diffHunk | split("\n") | .[:4] | map("    " + .) | join("\n"))\n  Comment: \(.body)"] | join("\n\n") else "  (no inline comments in this review)" end)\n\n---\n"'
 else
   echo "No reviews found."
 fi
