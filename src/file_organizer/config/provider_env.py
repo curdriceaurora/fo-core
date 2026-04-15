@@ -33,7 +33,7 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 from loguru import logger
 
 from file_organizer.models.base import ModelConfig, ModelType
