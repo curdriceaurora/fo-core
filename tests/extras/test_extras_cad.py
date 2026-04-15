@@ -1,4 +1,5 @@
 """Smoke canary for the [cad] optional extra (ezdxf)."""
+
 from __future__ import annotations
 
 from pathlib import Path

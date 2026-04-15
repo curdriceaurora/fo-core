@@ -1,4 +1,5 @@
 """Smoke canary for the [audio] optional extra (faster-whisper, mutagen, tinytag, pydub)."""
+
 from __future__ import annotations
 
 import struct
@@ -34,28 +35,22 @@ def test_audio_metadata_extractor_reads_wav(tmp_path: Path) -> None:
 
     assert result is not None
     assert isinstance(result, AudioMetadata)
+    assert result.sample_rate == 44100
+    assert result.duration == pytest.approx(0.1, abs=0.05)
 
 
 @pytest.mark.smoke
 def test_tinytag_importable() -> None:
     pytest.importorskip("tinytag")
-    import tinytag  # noqa: F401
 
 
 @pytest.mark.smoke
-def test_faster_whisper_model_loads(tmp_path: Path) -> None:
-    """Verify faster-whisper can instantiate a WhisperModel (no transcription needed)."""
+def test_faster_whisper_importable() -> None:
+    """Verify faster-whisper is installed and the WhisperModel class is accessible."""
     faster_whisper = pytest.importorskip("faster_whisper")
-
-    # Instantiate with the tiny model and cpu device; download is skipped
-    # because we only check that the class is importable and constructable
-    # using a known offline model path.  Pass compute_type="int8" to avoid
-    # needing CUDA drivers on CI runners.
-    model = faster_whisper.WhisperModel.__new__(faster_whisper.WhisperModel)
-    assert model is not None  # class is accessible; full load tested in CI with model cache
+    assert hasattr(faster_whisper, "WhisperModel")
 
 
 @pytest.mark.smoke
 def test_pydub_importable() -> None:
     pytest.importorskip("pydub")
-    import pydub  # noqa: F401

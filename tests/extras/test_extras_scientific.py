@@ -1,4 +1,5 @@
 """Smoke canary for the [scientific] optional extra (h5py, netCDF4, scipy)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,6 +11,7 @@ import pytest
 def test_scientific_reads_hdf5_file(tmp_path: Path) -> None:
     h5py = pytest.importorskip("h5py")
     import numpy as np  # numpy is a transitive dep of h5py
+
     from file_organizer.utils.readers.scientific import read_hdf5_file
 
     # Create a minimal HDF5 file with one dataset and one attribute
@@ -29,10 +31,8 @@ def test_scientific_reads_hdf5_file(tmp_path: Path) -> None:
 @pytest.mark.smoke
 def test_scipy_importable() -> None:
     pytest.importorskip("scipy")
-    import scipy  # noqa: F401
 
 
 @pytest.mark.smoke
 def test_netcdf4_importable() -> None:
     pytest.importorskip("netCDF4")
-    import netCDF4  # noqa: F401

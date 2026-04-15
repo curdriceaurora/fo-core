@@ -1,4 +1,5 @@
 """Smoke canary for the [video] optional extra (opencv-python, scenedetect)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -63,4 +64,5 @@ def test_scenedetect_detects_scenes(tmp_path: Path) -> None:
     scene_manager.add_detector(scenedetect.ContentDetector())
     scene_manager.detect_scenes(video)
     scenes = scene_manager.get_scene_list()
-    assert isinstance(scenes, list)  # may be empty — that is fine for a canary
+    assert isinstance(scenes, list)
+    assert len(scenes) == 0  # uniform black frames produce no scene cuts

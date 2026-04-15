@@ -78,7 +78,7 @@ case "$SHARD" in
     # Guardrail / unit tests plus the small-to-medium suites that were previously
     # spread across shards 4-6 and under-loaded them.
     # tests/test_*.py expands to the root-level integration / smoke tests.
-    6) PATHS="tests/ci tests/unit tests/utils tests/undo tests/history tests/daemon tests/watcher tests/updater tests/core tests/config tests/docs tests/integrations tests/interfaces tests/test_*.py" ;;
+    6) PATHS="tests/ci tests/unit tests/utils tests/undo tests/history tests/daemon tests/watcher tests/updater tests/core tests/config tests/docs tests/integrations tests/interfaces tests/extras tests/test_*.py" ;;
 
     *)
         echo "Unknown shard: $SHARD (valid: 1-6)" >&2

@@ -4,6 +4,7 @@ Uses a 7z archive — NOT zip, which is core and would not exercise py7zr.
 rarfile can read RAR files but cannot create them, so RAR validation is
 import-only; the 7z path exercises the full read pipeline.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -37,4 +38,3 @@ def test_rarfile_importable() -> None:
     """rarfile can only read RAR files, not create them.
     Validate it imports cleanly — creation requires external tooling."""
     pytest.importorskip("rarfile")
-    import rarfile  # noqa: F401 — import validation only
