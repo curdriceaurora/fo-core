@@ -387,6 +387,10 @@ For details, see `.claude/rules/code-quality-validation.md` and `.claude/rules/d
 
 ## Pull Requests
 
+> **Test cleanup issues**: before opening a PR for test-only cleanup work,
+> see [Triage Policy](docs/developer/triage-policy.md) for the decision
+> tree on bundling, standalone PRs, or closing.
+
 1. Create a feature branch from `main`: `git checkout -b feature/description`
 2. Make changes with tests
 3. Run quality gates (in order):
