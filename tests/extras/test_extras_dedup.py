@@ -9,7 +9,11 @@ import pytest
 
 @pytest.mark.smoke
 def test_image_deduplicator_finds_identical_images(tmp_path: Path) -> None:
-    pytest.importorskip("imagededup")
+    imagededup = pytest.importorskip("imagededup")
+    # Guard against sys.modules mock injection from test_image_dedup.py under
+    # xdist: if imagededup is a bare ModuleType mock it won't have __version__.
+    if not hasattr(imagededup, "__version__"):
+        pytest.skip("imagededup is mocked by unit tests — real package not installed")
     from PIL import Image  # Pillow is a dep of imagededup
 
     from file_organizer.services.deduplication.image_dedup import ImageDeduplicator
