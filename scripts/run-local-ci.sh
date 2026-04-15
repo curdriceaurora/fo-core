@@ -23,7 +23,7 @@ Tasks:
   quick         Install deps, run lint, type-check, docs link check, and PR CI tests
   lint          pre-commit run --all-files
   unused-deps   deptry src/
-  type-check    mypy src/file_organizer/models/
+  type-check    mypy (14 gated packages — models + Tier 1 + Tier 2)
   links         docs link-integrity check from ci.yml
   test          run non-benchmark CI tests on Python 3.11.15 and 3.12.13 in parallel
   test-full     run main-branch non-benchmark suite on Python 3.11.15 and 3.12.13 in parallel
@@ -209,7 +209,21 @@ run_unused_deps() {
 }
 
 run_type_check() {
-  run_step "Run mypy" mypy src/file_organizer/models/
+  run_step "Run mypy" mypy \
+    src/file_organizer/models/ \
+    src/file_organizer/optimization/ \
+    src/file_organizer/parallel/ \
+    src/file_organizer/events/ \
+    src/file_organizer/daemon/ \
+    src/file_organizer/undo/ \
+    src/file_organizer/history/ \
+    src/file_organizer/interfaces/ \
+    src/file_organizer/updater/ \
+    src/file_organizer/pipeline/ \
+    src/file_organizer/methodologies/ \
+    src/file_organizer/integrations/ \
+    src/file_organizer/utils/ \
+    src/file_organizer/config/
 }
 
 run_test_pr_version() {
