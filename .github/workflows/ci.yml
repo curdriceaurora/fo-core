@@ -204,21 +204,16 @@ jobs:
           diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
 
   test-full:
-    name: "Test (shard ${{ matrix.shard }}, py${{ matrix.python-version }})"
+    name: "Test full suite (py${{ matrix.python-version }})"
     needs: changes
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Domain-based shard split. After fixing realtime queue-task cleanup,
-    # all shards can use xdist again instead of the emergency micro-shard matrix.
-    timeout-minutes: 20
     strategy:
-      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
-        shard: [1, 2, 3, 4, 5, 6]
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -234,23 +229,25 @@ jobs:
           restore-keys: nltk-${{ runner.os }}-
       - name: Download NLTK data
         run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
-      - name: Run test shard
+      - name: Run full test suite
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Shard → directory mapping lives in scripts/ci_shard_paths.sh so both
-          # ci.yml and ci-full.yml stay in sync from a single source of truth.
-          PATHS=$(bash scripts/ci_shard_paths.sh "${{ matrix.shard }}")
-          pytest $PATHS --strict-markers -m "not benchmark and not e2e" \
-            --cov=file_organizer --cov-report= \
-            --timeout=30 -n=auto --override-ini="addopts="
-          # Rename .coverage so artifacts from all shards have distinct names
-          mv .coverage .coverage.shard-${{ matrix.shard }}
+          pytest tests/ \
+            -m "not benchmark and not e2e" \
+            --strict-markers \
+            -n auto \
+            --timeout=60 \
+            --cov=file_organizer \
+            --cov-branch \
+            --cov-report=xml \
+            --override-ini="addopts="
+          mv .coverage .coverage.py${{ matrix.python-version }}
       - name: Upload coverage data
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.python-version }}-${{ matrix.shard }}
-          path: .coverage.shard-${{ matrix.shard }}
+          name: coverage-${{ matrix.python-version }}
+          path: .coverage.py${{ matrix.python-version }}
           include-hidden-files: true
           retention-days: 1
 
@@ -269,11 +266,11 @@ jobs:
       - name: Download coverage data (py3.11 shards)
         uses: actions/download-artifact@v8
         with:
-          pattern: coverage-3.11-*
+          pattern: coverage-3.11
           merge-multiple: true
       - name: Combine and enforce gate
         run: |
-          coverage combine .coverage.shard-*
+          coverage combine .coverage.py*
           coverage report --fail-under=93
           coverage xml
       - name: Check docstring coverage

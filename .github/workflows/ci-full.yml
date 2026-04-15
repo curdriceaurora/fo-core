@@ -17,16 +17,13 @@ jobs:
   # macOS and Windows run the portable ci/smoke subset only.
 
   test-linux-full:
-    name: "Test Linux (shard ${{ matrix.shard }}, py${{ matrix.python-version }})"
+    name: "Test Linux (py${{ matrix.python-version }})"
     runs-on: ubuntu-latest
-    # Domain-based shard split. After fixing realtime queue-task cleanup,
-    # all shards can use xdist again instead of the emergency micro-shard matrix.
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
-        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -45,22 +42,24 @@ jobs:
           restore-keys: nltk-${{ runner.os }}-
       - name: Download NLTK data
         run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
-      - name: Run test shard
+      - name: Run full test suite
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Shard → directory mapping lives in scripts/ci_shard_paths.sh so both
-          # ci.yml and ci-full.yml stay in sync from a single source of truth.
-          PATHS=$(bash scripts/ci_shard_paths.sh "${{ matrix.shard }}")
-          pytest $PATHS --strict-markers -m "not benchmark and not e2e" \
-            --cov=file_organizer --cov-report= \
-            --timeout=30 -n=auto --override-ini="addopts="
-          mv .coverage .coverage.shard-${{ matrix.shard }}
+          pytest tests/ \
+            -m "not benchmark and not e2e" \
+            --strict-markers \
+            -n auto \
+            --timeout=60 \
+            --cov=file_organizer \
+            --cov-report= \
+            --override-ini="addopts="
+          mv .coverage .coverage.py${{ matrix.python-version }}
       - name: Upload coverage data
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: daily-coverage-${{ matrix.python-version }}-${{ matrix.shard }}
-          path: .coverage.shard-${{ matrix.shard }}
+          name: daily-coverage-${{ matrix.python-version }}
+          path: .coverage.py${{ matrix.python-version }}
           include-hidden-files: true
           retention-days: 1
 
@@ -78,13 +77,13 @@ jobs:
       - name: Download coverage data (py3.11 shards)
         uses: actions/download-artifact@v8
         with:
-          pattern: daily-coverage-3.11-*
+          pattern: daily-coverage-3.11
           merge-multiple: true
       - name: Combine and enforce gate
         # Intentionally no `coverage xml` / Codecov upload here — the daily run
         # enforces the gate only.  Codecov upload lives in ci.yml (push to main).
         run: |
-          coverage combine .coverage.shard-*
+          coverage combine .coverage.py*
           coverage report --fail-under=93
 
   test-macos:
