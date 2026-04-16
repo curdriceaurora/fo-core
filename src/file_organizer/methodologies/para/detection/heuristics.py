@@ -144,13 +144,10 @@ class TemporalHeuristic(Heuristic):
         days_since_accessed = (now - stat.st_atime) / 86400
         # Cross-platform file age: use birth time if available (macOS/Windows),
         # fall back to modification time on Linux (st_ctime is inode change time, not creation).
-        try:
-            ref_time = stat.st_birthtime  # macOS — true birth time
-        except AttributeError:
-            if os.name == "nt":  # Windows
-                ref_time = getattr(stat, "st_ctime", stat.st_mtime)
-            else:  # Linux — use mtime as best proxy for "last active"
-                ref_time = stat.st_mtime
+        # macOS: st_birthtime (true birth time); Linux: not present (use mtime); Windows: st_ctime
+        ref_time = getattr(stat, "st_birthtime", stat.st_mtime)
+        if os.name == "nt" and not hasattr(stat, "st_birthtime"):  # Windows fallback
+            ref_time = getattr(stat, "st_ctime", stat.st_mtime)
         days_since_created = (now - ref_time) / 86400
 
         # Check for old year patterns in path (e.g., "/Projects/2020/...")
