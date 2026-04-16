@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from file_organizer.services.intelligence.conflict_resolver import ConflictResolver
+from services.intelligence.conflict_resolver import ConflictResolver
 
 _TIMESTAMP_FMT = "%Y-%m-%dT%H:%M:%SZ"
 

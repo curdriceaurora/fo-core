@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.config.schema import AppConfig, ModelPreset, UpdateSettings
+from config.schema import AppConfig, ModelPreset, UpdateSettings
 
 pytestmark = [pytest.mark.unit, pytest.mark.smoke]
 
@@ -58,7 +58,7 @@ class TestUpdateSettings:
         assert settings.check_on_startup is True
         assert settings.interval_hours == 24
         assert settings.include_prereleases is False
-        assert settings.repo == "curdriceaurora/Local-File-Organizer"
+        assert settings.repo == "curdriceaurora/fo-core"
 
     def test_custom_values(self) -> None:
         """Custom update settings should override defaults."""

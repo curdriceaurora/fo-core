@@ -19,10 +19,10 @@ Choose the installation method that best fits your needs:
 **Install**:
 
 ```bash
-pip install local-file-organizer
+pip install fo-core
 
 # Verify installation
-file-organizer doctor .
+fo doctor .
 ```
 
 See the sections below for platform-specific options.
@@ -49,7 +49,7 @@ ollama pull qwen2.5:3b-instruct-q4_K_M      # Text model
 ollama pull qwen2.5vl:7b-q4_K_M             # Vision model
 
 # Verify installation
-file-organizer doctor .
+fo doctor .
 ```
 
 ## System Requirements
@@ -79,32 +79,32 @@ File Organizer supports modular installation through optional dependency groups.
 
 | Feature | Install Command | What It Enables | Platform Notes |
 |---------|----------------|-----------------|----------------|
-| **Core** | `pip install local-file-organizer` | Basic file organization, Ollama integration, YAML/JSON/TXT parsing | All platforms |
-| **cloud** | `pip install local-file-organizer[cloud]` | OpenAI-compatible API providers (OpenAI, Groq, LM Studio, vLLM) | Requires `OPENAI_API_KEY` |
-| **llama** | `pip install local-file-organizer[llama]` | Direct GGUF inference via llama.cpp (no Ollama server needed) | All platforms |
-| **mlx** | `pip install local-file-organizer[mlx]` | Apple Silicon MLX acceleration for faster local inference | **macOS only** |
-| **claude** | `pip install local-file-organizer[claude]` | Anthropic Claude API provider (text and vision) | Requires `ANTHROPIC_API_KEY` |
-| **audio** | `pip install local-file-organizer[audio]` | Audio transcription (Faster Whisper), metadata extraction | GPU recommended |
-| **video** | `pip install local-file-organizer[video]` | Video frame processing, scene detection | All platforms |
-| **dedup** | `pip install local-file-organizer[dedup]` | Image and text similarity-based duplicate detection | All platforms |
-| **archive** | `pip install local-file-organizer[archive]` | 7Z and RAR archive extraction | RAR requires `unrar` tool |
-| **scientific** | `pip install local-file-organizer[scientific]` | HDF5, NetCDF, MATLAB file format support | All platforms |
-| **cad** | `pip install local-file-organizer[cad]` | DXF/DWG CAD file parsing | All platforms |
-| **build** | `pip install local-file-organizer[build]` | PyInstaller-based executable packaging | All platforms |
-| **search** | `pip install local-file-organizer[search]` | BM25-based search ranking algorithms | All platforms |
-| **all** | `pip install local-file-organizer[all]` | All optional packs above, plus development tools (`pytest`, `mypy`, `ruff`, etc.) | Includes `dev` extras in addition to feature/build packs |
+| **Core** | `pip install fo-core` | Basic file organization, Ollama integration, YAML/JSON/TXT parsing | All platforms |
+| **cloud** | `pip install fo-core[cloud]` | OpenAI-compatible API providers (OpenAI, Groq, LM Studio, vLLM) | Requires `OPENAI_API_KEY` |
+| **llama** | `pip install fo-core[llama]` | Direct GGUF inference via llama.cpp (no Ollama server needed) | All platforms |
+| **mlx** | `pip install fo-core[mlx]` | Apple Silicon MLX acceleration for faster local inference | **macOS only** |
+| **claude** | `pip install fo-core[claude]` | Anthropic Claude API provider (text and vision) | Requires `ANTHROPIC_API_KEY` |
+| **audio** | `pip install fo-core[audio]` | Audio transcription (Faster Whisper), metadata extraction | GPU recommended |
+| **video** | `pip install fo-core[video]` | Video frame processing, scene detection | All platforms |
+| **dedup** | `pip install fo-core[dedup]` | Image and text similarity-based duplicate detection | All platforms |
+| **archive** | `pip install fo-core[archive]` | 7Z and RAR archive extraction | RAR requires `unrar` tool |
+| **scientific** | `pip install fo-core[scientific]` | HDF5, NetCDF, MATLAB file format support | All platforms |
+| **cad** | `pip install fo-core[cad]` | DXF/DWG CAD file parsing | All platforms |
+| **build** | `pip install fo-core[build]` | PyInstaller-based executable packaging | All platforms |
+| **search** | `pip install fo-core[search]` | BM25-based search ranking algorithms | All platforms |
+| **all** | `pip install fo-core[all]` | All optional packs above, plus development tools (`pytest`, `mypy`, `ruff`, etc.) | Includes `dev` extras in addition to feature/build packs |
 
 **Example usage:**
 
 ```bash
 # Install multiple features at once
-pip install local-file-organizer[cloud]
+pip install fo-core[cloud]
 
 # Install from source with features
 pip install -e .[audio]
 
 # Install everything
-pip install local-file-organizer[all]
+pip install fo-core[all]
 ```
 
 ## First Run Setup
@@ -134,7 +134,7 @@ ollama pull qwen2.5vl:7b-q4_K_M
 No Ollama required. Install the `[cloud]` extra and set environment variables:
 
 ```bash
-pip install "local-file-organizer[cloud]"   # from PyPI
+pip install "fo-core[cloud]"   # from PyPI
 # pip install -e ".[cloud]"           # from source checkout
 
 # Example: OpenAI
@@ -153,7 +153,7 @@ export FO_OPENAI_MODEL=your-loaded-model
 No Ollama required. Install the `[claude]` extra and set environment variables:
 
 ```bash
-pip install "local-file-organizer[claude]"  # from PyPI
+pip install "fo-core[claude]"  # from PyPI
 # pip install -e ".[claude]"          # from source checkout
 
 export FO_PROVIDER=claude
@@ -179,42 +179,42 @@ Set up your workspace:
 
 ```bash
 # Organize files
-file-organizer organize ./Downloads ./Organized
+fo organize ./Downloads ./Organized
 
 # Preview without moving (dry run)
-file-organizer organize ./Downloads ./Organized --dry-run
+fo organize ./Downloads ./Organized --dry-run
 
 # Preview organisation plan
-file-organizer preview ./Downloads
+fo preview ./Downloads
 
 # Search for files
-file-organizer search "*.pdf" ~/Documents
-file-organizer search "report" ~/Documents --type text
+fo search "*.pdf" ~/Documents
+fo search "report" ~/Documents --type text
 
 # Analyze a file with AI
-file-organizer analyze ./report.pdf
-file-organizer analyze ./report.pdf --verbose
+fo analyze ./report.pdf
+fo analyze ./report.pdf --verbose
 
 # Auto-tag files
-file-organizer autotag suggest ./Documents
-file-organizer autotag popular
+fo autotag suggest ./Documents
+fo autotag popular
 
 # Detect duplicates
-file-organizer dedupe scan ./Documents
+fo dedupe scan ./Documents
 
 # Analyse storage
-file-organizer analytics ./Documents
+fo analytics ./Documents
 
 # View operation history
-file-organizer history
+fo history
 
 # Interactive AI assistant
-file-organizer copilot chat
+fo copilot chat
 ```
 
 ### Short Alias
 
-Use `fo` instead of `file-organizer`:
+Use `fo` instead of `fo`:
 
 ```bash
 fo organize ./Downloads ./Organized
@@ -275,8 +275,8 @@ Create your own organization system using rules and templates.
 ### 1. Organize Files
 
 ```bash
-file-organizer organize ./Downloads ./Organized
-file-organizer organize ./Downloads ./Organized --dry-run  # Preview first
+fo organize ./Downloads ./Organized
+fo organize ./Downloads ./Organized --dry-run  # Preview first
 ```
 
 Supported formats: 43+ file types including documents, images, videos, and more.
@@ -284,20 +284,20 @@ Supported formats: 43+ file types including documents, images, videos, and more.
 ### 2. Find Duplicates
 
 ```bash
-file-organizer dedupe scan ./Documents
+fo dedupe scan ./Documents
 ```
 
 ### 3. Search Files
 
 ```bash
-file-organizer search "*.pdf" ~/Documents
-file-organizer search "report" ~/Documents --type text
+fo search "*.pdf" ~/Documents
+fo search "report" ~/Documents --type text
 ```
 
 ### 4. Configure Settings
 
 ```bash
-file-organizer config edit
+fo config edit
 ```
 
 ## Troubleshooting Installation
@@ -413,4 +413,4 @@ python3 -c "import torch; print('Device:', 'cuda' if torch.cuda.is_available() e
 
 ______________________________________________________________________
 
-**Ready to start?** Run `file-organizer --help` to see all available commands and begin organizing your files!
+**Ready to start?** Run `fo --help` to see all available commands and begin organizing your files!

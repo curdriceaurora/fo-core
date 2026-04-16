@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.services.analyzer import (
+from services.analyzer import (
     MAX_CONFIDENCE,
     MAX_CONTENT_LENGTH,
     MIN_CONFIDENCE,

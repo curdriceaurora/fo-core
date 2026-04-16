@@ -30,7 +30,7 @@ echo "🔍 Checking documentation references..."
 echo ""
 
 # --- Check 1: Source file references ---
-# Match patterns like src/file_organizer/foo/bar.py or interfaces/engine.py
+# Match patterns like src/foo/bar.py or interfaces/engine.py
 while IFS= read -r md_file; do
   [[ -z "$md_file" ]] && continue
   full_path="$REPO_ROOT/$md_file"
@@ -44,14 +44,14 @@ while IFS= read -r md_file; do
       continue
     fi
     # Pull out src/...py references
-    refs=$(echo "$line_content" | grep -oE 'src/file_organizer/[a-zA-Z0-9_/]+\.py' || true)
+    refs=$(echo "$line_content" | grep -oE 'src/[a-zA-Z0-9_/]+\.py' || true)
     for ref in $refs; do
       if [[ ! -f "$REPO_ROOT/$ref" ]]; then
         echo "  ❌ $md_file:$line_num → $ref (FILE MISSING)"
         ERRORS=$((ERRORS + 1))
       fi
     done
-  done < <(grep -n 'src/file_organizer/[a-zA-Z0-9_/]*\.py' "$full_path" 2>/dev/null || true)
+  done < <(grep -n 'src/[a-zA-Z0-9_/]*\.py' "$full_path" 2>/dev/null || true)
 done <<< "$MD_FILES"
 
 # --- Check 2: Class/Protocol references that were known-deleted ---

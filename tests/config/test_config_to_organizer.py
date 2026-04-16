@@ -10,12 +10,12 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.config.provider_env import (
+from config.provider_env import (
     _get_model_configs_from_profile,
     get_model_configs,
 )
-from file_organizer.config.schema import AppConfig, ModelPreset
-from file_organizer.models.base import ModelConfig, ModelType
+from config.schema import AppConfig, ModelPreset
+from models.base import ModelConfig, ModelType
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci, pytest.mark.smoke]
 
@@ -24,14 +24,14 @@ class TestGetModelConfigsFromProfile:
     """Verify _get_model_configs_from_profile reads saved profiles."""
 
     def test_returns_none_when_no_config_file(self) -> None:
-        with patch("file_organizer.config.manager.ConfigManager") as mock_cls:
+        with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
             mgr.load.return_value = AppConfig()  # all defaults
             result = _get_model_configs_from_profile("default")
         assert result is None
 
     def test_returns_none_when_models_are_defaults(self) -> None:
-        with patch("file_organizer.config.manager.ConfigManager") as mock_cls:
+        with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
             mgr.load.return_value = AppConfig(
                 models=ModelPreset()  # defaults
@@ -47,7 +47,7 @@ class TestGetModelConfigsFromProfile:
         text_cfg = ModelConfig(name="custom-text:latest", model_type=ModelType.TEXT)
         vision_cfg = ModelConfig(name="qwen2.5vl:7b-q4_K_M", model_type=ModelType.VISION)
 
-        with patch("file_organizer.config.manager.ConfigManager") as mock_cls:
+        with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
             mgr.load.return_value = app_cfg
             mgr.to_text_model_config.return_value = text_cfg
@@ -67,7 +67,7 @@ class TestGetModelConfigsFromProfile:
         text_cfg = ModelConfig(name="qwen2.5:3b-instruct-q4_K_M", model_type=ModelType.TEXT)
         vision_cfg = ModelConfig(name="custom-vision:latest", model_type=ModelType.VISION)
 
-        with patch("file_organizer.config.manager.ConfigManager") as mock_cls:
+        with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
             mgr.load.return_value = app_cfg
             mgr.to_text_model_config.return_value = text_cfg
@@ -81,7 +81,7 @@ class TestGetModelConfigsFromProfile:
 
     def test_returns_none_on_exception(self) -> None:
         with patch(
-            "file_organizer.config.manager.ConfigManager",
+            "config.manager.ConfigManager",
             side_effect=RuntimeError("broken"),
         ):
             result = _get_model_configs_from_profile("default")
@@ -127,7 +127,7 @@ class TestGetModelConfigs:
         with (
             patch.dict(os.environ, clean_env, clear=False),
             patch(
-                "file_organizer.config.provider_env._get_model_configs_from_profile",
+                "config.provider_env._get_model_configs_from_profile",
                 return_value=(profile_text, profile_vision),
             ),
         ):
@@ -148,7 +148,7 @@ class TestGetModelConfigs:
         with (
             patch.dict(os.environ, clean_env, clear=False),
             patch(
-                "file_organizer.config.provider_env._get_model_configs_from_profile",
+                "config.provider_env._get_model_configs_from_profile",
                 return_value=None,
             ),
         ):
@@ -173,7 +173,7 @@ class TestGetModelConfigs:
         with (
             patch.dict(os.environ, clean_env, clear=False),
             patch(
-                "file_organizer.config.provider_env._get_model_configs_from_profile",
+                "config.provider_env._get_model_configs_from_profile",
                 return_value=(profile_text, profile_vision),
             ) as mock_load,
         ):
@@ -192,10 +192,10 @@ class TestOrganizerUsesGetModelConfigs:
         profile_vision = ModelConfig(name="profile-vision:7b", model_type=ModelType.VISION)
 
         with patch(
-            "file_organizer.config.provider_env.get_model_configs",
+            "config.provider_env.get_model_configs",
             return_value=(profile_text, profile_vision),
         ):
-            from file_organizer.core.organizer import FileOrganizer
+            from core.organizer import FileOrganizer
 
             org = FileOrganizer(dry_run=True)
 
@@ -207,7 +207,7 @@ class TestOrganizerUsesGetModelConfigs:
         explicit_text = ModelConfig(name="explicit-text", model_type=ModelType.TEXT)
         explicit_vision = ModelConfig(name="explicit-vision", model_type=ModelType.VISION)
 
-        from file_organizer.core.organizer import FileOrganizer
+        from core.organizer import FileOrganizer
 
         org = FileOrganizer(
             text_model_config=explicit_text,

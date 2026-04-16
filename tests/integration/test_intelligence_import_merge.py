@@ -13,14 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.profile_exporter import ProfileExporter
-from file_organizer.services.intelligence.profile_importer import (
+from services.intelligence.profile_exporter import ProfileExporter
+from services.intelligence.profile_importer import (
     ProfileImporter,
     ValidationResult,
 )
-from file_organizer.services.intelligence.profile_manager import ProfileManager
-from file_organizer.services.intelligence.profile_merger import MergeStrategy, ProfileMerger
-from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+from services.intelligence.profile_manager import ProfileManager
+from services.intelligence.profile_merger import MergeStrategy, ProfileMerger
+from services.intelligence.profile_migrator import ProfileMigrator
 
 pytestmark = [pytest.mark.ci, pytest.mark.integration]
 

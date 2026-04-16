@@ -27,32 +27,32 @@ pytestmark = pytest.mark.integration
 
 class TestPipelineOrchestratorInit:
     def test_default_init(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         assert orch.config is not None
         assert orch.is_running is False
 
     def test_invalid_memory_pressure_threshold_raises(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         with pytest.raises(ValueError, match="memory_pressure_threshold_percent"):
             PipelineOrchestrator(memory_pressure_threshold_percent=101.0)
 
     def test_invalid_memory_pressure_below_zero_raises(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         with pytest.raises(ValueError, match="memory_pressure_threshold_percent"):
             PipelineOrchestrator(memory_pressure_threshold_percent=-1.0)
 
     def test_stages_empty_by_default(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         assert orch.stages == []
 
     def test_stages_from_constructor(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage = MagicMock()
         stage.name = "test_stage"
@@ -60,7 +60,7 @@ class TestPipelineOrchestratorInit:
         assert len(orch.stages) == 1
 
     def test_buffer_pool_lazy_init(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         pool = orch.buffer_pool
@@ -70,7 +70,7 @@ class TestPipelineOrchestratorInit:
 
 class TestPipelineOrchestratorLifecycle:
     def test_start_sets_running(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         orch.start()
@@ -78,7 +78,7 @@ class TestPipelineOrchestratorLifecycle:
         orch.stop()
 
     def test_stop_clears_running(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         orch.start()
@@ -86,7 +86,7 @@ class TestPipelineOrchestratorLifecycle:
         assert orch.is_running is False
 
     def test_double_start_raises(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         orch.start()
@@ -97,14 +97,14 @@ class TestPipelineOrchestratorLifecycle:
             orch.stop()
 
     def test_stop_when_not_running_is_safe(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         orch.stop()  # should not raise
         assert orch.is_running is False
 
     def test_set_stages_replaces_list(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         s1 = MagicMock()
@@ -119,7 +119,7 @@ class TestPipelineOrchestratorLifecycle:
 
 class TestPipelineOrchestratorLegacyProcessing:
     def test_process_nonexistent_file_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         result = orch.process_file(tmp_path / "ghost.pdf")
@@ -127,7 +127,7 @@ class TestPipelineOrchestratorLegacyProcessing:
         assert "not found" in result.error.lower()
 
     def test_process_directory_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         result = orch.process_file(tmp_path)
@@ -135,8 +135,8 @@ class TestPipelineOrchestratorLegacyProcessing:
         assert "not a file" in result.error.lower()
 
     def test_process_unsupported_extension_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.config import PipelineConfig
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.config import PipelineConfig
+        from pipeline.orchestrator import PipelineOrchestrator
 
         cfg = PipelineConfig(supported_extensions={".pdf"})
         orch = PipelineOrchestrator(config=cfg)
@@ -147,9 +147,9 @@ class TestPipelineOrchestratorLegacyProcessing:
         assert "unsupported" in result.error.lower()
 
     def test_process_unknown_processor_type_is_skipped(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.config import PipelineConfig
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
-        from file_organizer.pipeline.router import ProcessorType
+        from pipeline.config import PipelineConfig
+        from pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.router import ProcessorType
 
         cfg = PipelineConfig(supported_extensions={".xyz"})
         orch = PipelineOrchestrator(config=cfg)
@@ -163,9 +163,9 @@ class TestPipelineOrchestratorLegacyProcessing:
         assert "no processor" in result.error.lower()
 
     def test_process_processor_init_failure(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.config import PipelineConfig
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
-        from file_organizer.pipeline.router import ProcessorType
+        from pipeline.config import PipelineConfig
+        from pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.router import ProcessorType
 
         cfg = PipelineConfig(supported_extensions={".pdf"})
         orch = PipelineOrchestrator(config=cfg)
@@ -183,9 +183,9 @@ class TestPipelineOrchestratorLegacyProcessing:
         assert orch.stats.failed == 1
 
     def test_process_file_processor_exception_is_captured(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.config import PipelineConfig
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
-        from file_organizer.pipeline.router import ProcessorType
+        from pipeline.config import PipelineConfig
+        from pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.router import ProcessorType
 
         cfg = PipelineConfig(supported_extensions={".pdf"})
         orch = PipelineOrchestrator(config=cfg)
@@ -206,9 +206,9 @@ class TestPipelineOrchestratorLegacyProcessing:
         assert orch.stats.failed == 1
 
     def test_successful_legacy_processing_updates_stats(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.config import PipelineConfig
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
-        from file_organizer.pipeline.router import ProcessorType
+        from pipeline.config import PipelineConfig
+        from pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.router import ProcessorType
 
         cfg = PipelineConfig(
             supported_extensions={".pdf"},
@@ -238,9 +238,9 @@ class TestPipelineOrchestratorLegacyProcessing:
         assert orch.stats.total_processed == 1
 
     def test_notification_callback_called_on_success(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.config import PipelineConfig
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
-        from file_organizer.pipeline.router import ProcessorType
+        from pipeline.config import PipelineConfig
+        from pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.router import ProcessorType
 
         notified: list[tuple[Path, bool]] = []
 
@@ -282,7 +282,7 @@ class TestPipelineOrchestratorStagedProcessing:
         return stage
 
     def test_staged_process_calls_stage(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage = self._make_stage("test")
         orch = PipelineOrchestrator(stages=[stage])
@@ -293,7 +293,7 @@ class TestPipelineOrchestratorStagedProcessing:
         assert result.success is True
 
     def test_stage_returning_none_marks_failure(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage = self._make_stage("bad_stage")
         # side_effect takes precedence; clear it so return_value=None is used
@@ -307,7 +307,7 @@ class TestPipelineOrchestratorStagedProcessing:
         assert "returned None" in result.error
 
     def test_stage_exception_marks_failure(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage = self._make_stage("exploding_stage")
         stage.process.side_effect = ValueError("boom")
@@ -319,7 +319,7 @@ class TestPipelineOrchestratorStagedProcessing:
         assert "boom" in result.error
 
     def test_second_stage_skipped_after_failure(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage1 = self._make_stage("s1")
         stage1.process.side_effect = None  # clear so return_value=None takes effect
@@ -332,7 +332,7 @@ class TestPipelineOrchestratorStagedProcessing:
         stage2.process.assert_not_called()
 
     def test_stats_incremented_for_staged_success(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage = self._make_stage()
         orch = PipelineOrchestrator(stages=[stage])
@@ -343,7 +343,7 @@ class TestPipelineOrchestratorStagedProcessing:
         assert orch.stats.total_processed == 1
 
     def test_stats_incremented_for_staged_failure(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage = self._make_stage()
         stage.process.side_effect = None
@@ -355,13 +355,13 @@ class TestPipelineOrchestratorStagedProcessing:
         assert orch.stats.failed == 1
 
     def test_process_batch_empty_returns_empty(self) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         assert orch.process_batch([]) == []
 
     def test_process_batch_sequential(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage = self._make_stage()
         orch = PipelineOrchestrator(stages=[stage], prefetch_depth=0)
@@ -375,7 +375,7 @@ class TestPipelineOrchestratorStagedProcessing:
         assert all(r.success for r in results)
 
     def test_process_batch_prefetch(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         stage = self._make_stage()
         orch = PipelineOrchestrator(stages=[stage], prefetch_depth=2, prefetch_stages=1)
@@ -390,7 +390,7 @@ class TestPipelineOrchestratorStagedProcessing:
         assert all(r.success for r in results)
 
     def test_organize_file_copies_and_handles_duplicate(self, tmp_path: Path) -> None:
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.orchestrator import PipelineOrchestrator
 
         orch = PipelineOrchestrator()
         src = tmp_path / "src.txt"
@@ -410,7 +410,7 @@ class TestPipelineOrchestratorStagedProcessing:
 
 class TestPreferenceStoreLoad:
     def test_load_from_empty_dir_uses_defaults(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         result = store.load_preferences()
@@ -419,7 +419,7 @@ class TestPreferenceStoreLoad:
         assert isinstance(store._preferences["directory_preferences"], dict)
 
     def test_load_valid_file_returns_true(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         prefs_data: dict[str, Any] = {
@@ -437,7 +437,7 @@ class TestPreferenceStoreLoad:
         assert store._preferences["user_id"] == "tester"
 
     def test_load_invalid_schema_falls_back_to_backup(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         (tmp_path / "preferences.json").write_text('{"broken": true}', encoding="utf-8")
         store = PreferenceStore(storage_path=tmp_path)
@@ -446,7 +446,7 @@ class TestPreferenceStoreLoad:
         assert result is False
 
     def test_load_corrupted_json_falls_back_to_backup(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         (tmp_path / "preferences.json").write_text("NOT JSON {{{{", encoding="utf-8")
         store = PreferenceStore(storage_path=tmp_path)
@@ -454,7 +454,7 @@ class TestPreferenceStoreLoad:
         assert result is False  # No backup → defaults
 
     def test_load_backup_when_primary_invalid(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         valid: dict[str, Any] = {
             "version": "1.0",
@@ -476,7 +476,7 @@ class TestPreferenceStoreLoad:
 
 class TestPreferenceStoreSave:
     def test_save_creates_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         store.load_preferences()
@@ -484,7 +484,7 @@ class TestPreferenceStoreSave:
         assert (tmp_path / "preferences.json").exists()
 
     def test_save_creates_backup(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         store.load_preferences()
@@ -495,7 +495,7 @@ class TestPreferenceStoreSave:
 
 class TestPreferenceStoreAddGet:
     def test_add_and_get_preference(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         target_dir = tmp_path / "docs"
@@ -506,7 +506,7 @@ class TestPreferenceStoreAddGet:
         assert pref["folder_mappings"]["pdf"] == "documents"
 
     def test_get_preference_fallback_to_global(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         store.load_preferences()
@@ -517,7 +517,7 @@ class TestPreferenceStoreAddGet:
         assert "folder_mappings" in pref
 
     def test_add_preference_updates_existing(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         target_dir = tmp_path / "docs"
@@ -529,7 +529,7 @@ class TestPreferenceStoreAddGet:
         assert pref["folder_mappings"]["pdf"] == "updated_docs"
 
     def test_get_preference_parent_fallback(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         store.add_preference(tmp_path, {"folder_mappings": {"doc": "parent_folder"}})
@@ -542,7 +542,7 @@ class TestPreferenceStoreAddGet:
 
 class TestPreferenceStoreConfidence:
     def test_update_confidence_success_increases_score(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         target = tmp_path / "dir"
@@ -554,7 +554,7 @@ class TestPreferenceStoreConfidence:
         assert new_conf > 0.5
 
     def test_update_confidence_failure_decreases_score(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         target = tmp_path / "dir"
@@ -566,7 +566,7 @@ class TestPreferenceStoreConfidence:
         assert new_conf < 0.8
 
     def test_update_confidence_noop_for_unknown_path(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         store.load_preferences()
@@ -576,13 +576,13 @@ class TestPreferenceStoreConfidence:
 
 class TestPreferenceStoreResolveConflicts:
     def test_empty_list_returns_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         assert store.resolve_conflicts([]) == {}
 
     def test_single_item_returned_unchanged(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         pref = {"confidence": 0.9, "correction_count": 5}
@@ -590,7 +590,7 @@ class TestPreferenceStoreResolveConflicts:
         assert result["confidence"] == 0.9
 
     def test_highest_scored_preference_wins(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         from datetime import UTC, datetime
@@ -604,7 +604,7 @@ class TestPreferenceStoreResolveConflicts:
 
 class TestPreferenceStoreStats:
     def test_statistics_empty_store(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         store.load_preferences()
@@ -614,7 +614,7 @@ class TestPreferenceStoreStats:
         assert stats["schema_version"] == "1.0"
 
     def test_statistics_with_entries(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         d1 = tmp_path / "d1"
@@ -628,7 +628,7 @@ class TestPreferenceStoreStats:
         assert 0.0 < stats["average_confidence"] < 1.0
 
     def test_clear_preferences_resets(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         d = tmp_path / "d"
@@ -639,7 +639,7 @@ class TestPreferenceStoreStats:
         assert stats["total_directories"] == 0
 
     def test_list_directory_preferences(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         d = tmp_path / "d"
@@ -653,7 +653,7 @@ class TestPreferenceStoreStats:
 
 class TestPreferenceStoreExportImport:
     def test_export_creates_json_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         store.load_preferences()
@@ -664,7 +664,7 @@ class TestPreferenceStoreExportImport:
         assert "version" in data
 
     def test_import_from_valid_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         valid: dict[str, Any] = {
             "version": "1.0",
@@ -684,14 +684,14 @@ class TestPreferenceStoreExportImport:
         assert store._preferences["user_id"] == "imported_user"
 
     def test_import_missing_file_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path)
         result = store.import_json(tmp_path / "ghost.json")
         assert result is False
 
     def test_import_invalid_schema_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         bad_file = tmp_path / "bad.json"
         bad_file.write_text('{"bad": "schema"}', encoding="utf-8")
@@ -707,13 +707,13 @@ class TestPreferenceStoreExportImport:
 
 class TestCommandExecutorInit:
     def test_default_working_dir(self) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         exec_ = CommandExecutor()
         assert exec_._working_dir.exists()
 
     def test_custom_working_dir(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         assert exec_._working_dir == tmp_path
@@ -721,8 +721,8 @@ class TestCommandExecutorInit:
 
 class TestCommandExecutorUnknownIntent:
     def test_unknown_intent_type_returns_failure(self) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor()
         intent = Intent(intent_type=IntentType.STATUS)
@@ -733,14 +733,14 @@ class TestCommandExecutorUnknownIntent:
 
 class TestCommandExecutorHandlerExceptionCaught:
     def test_exception_in_handler_returns_failure(self) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor()
         intent = Intent(intent_type=IntentType.UNDO)
 
         with patch(
-            "file_organizer.services.copilot.executor.CommandExecutor._handle_undo",
+            "services.copilot.executor.CommandExecutor._handle_undo",
             side_effect=RuntimeError("handler crashed"),
         ):
             result = exec_.execute(intent)
@@ -751,8 +751,8 @@ class TestCommandExecutorHandlerExceptionCaught:
 
 class TestCommandExecutorMove:
     def test_move_missing_source_param_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(intent_type=IntentType.MOVE, parameters={"destination": "dst.txt"})
@@ -761,8 +761,8 @@ class TestCommandExecutorMove:
         assert "source" in result.message.lower() or "destination" in result.message.lower()
 
     def test_move_nonexistent_source_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(
@@ -774,8 +774,8 @@ class TestCommandExecutorMove:
         assert "not found" in result.message.lower()
 
     def test_move_file_success(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         src = tmp_path / "src.txt"
         src.write_text("content")
@@ -793,8 +793,8 @@ class TestCommandExecutorMove:
 
 class TestCommandExecutorRename:
     def test_rename_missing_params_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(intent_type=IntentType.RENAME, parameters={"target": "only.txt"})
@@ -802,8 +802,8 @@ class TestCommandExecutorRename:
         assert result.success is False
 
     def test_rename_nonexistent_file_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(
@@ -814,8 +814,8 @@ class TestCommandExecutorRename:
         assert result.success is False
 
     def test_rename_file_success(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         src = tmp_path / "old.txt"
         src.write_text("data")
@@ -832,8 +832,8 @@ class TestCommandExecutorRename:
 
 class TestCommandExecutorFind:
     def test_find_empty_query_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(intent_type=IntentType.FIND, parameters={"query": ""})
@@ -841,8 +841,8 @@ class TestCommandExecutorFind:
         assert result.success is False
 
     def test_find_by_filename_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         (tmp_path / "report_2024.pdf").write_text("data")
         (tmp_path / "notes.txt").write_text("notes")
@@ -857,8 +857,8 @@ class TestCommandExecutorFind:
         assert any("report" in f for f in result.affected_files)
 
     def test_find_no_match_returns_success_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(
@@ -872,8 +872,8 @@ class TestCommandExecutorFind:
 
 class TestCommandExecutorPreview:
     def test_preview_on_nonexistent_dir_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(
@@ -886,8 +886,8 @@ class TestCommandExecutorPreview:
 
 class TestCommandExecutorSuggest:
     def test_suggest_empty_paths_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(intent_type=IntentType.SUGGEST, parameters={"paths": []})
@@ -896,8 +896,8 @@ class TestCommandExecutorSuggest:
         assert "specify" in result.message.lower()
 
     def test_suggest_nonexistent_path_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(
@@ -908,8 +908,8 @@ class TestCommandExecutorSuggest:
         assert result.success is False
 
     def test_suggest_valid_path_returns_success(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.executor import CommandExecutor
+        from services.copilot.models import Intent, IntentType
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(
@@ -922,21 +922,21 @@ class TestCommandExecutorSuggest:
 
 class TestCommandExecutorResolvePathHelper:
     def test_resolve_none_returns_working_dir(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         resolved = exec_._resolve_path(None)
         assert resolved == tmp_path
 
     def test_resolve_absolute_path(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         resolved = exec_._resolve_path(str(tmp_path / "sub"))
         assert resolved == (tmp_path / "sub").resolve()
 
     def test_resolve_relative_joins_working_dir(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         exec_ = CommandExecutor(working_directory=str(tmp_path))
         resolved = exec_._resolve_path("relative/path")
@@ -950,7 +950,7 @@ class TestCommandExecutorResolvePathHelper:
 
 def _make_profile_manager(storage_path: Path) -> Any:
     """Helper: create a ProfileManager with a temp storage path."""
-    from file_organizer.services.intelligence.profile_manager import ProfileManager
+    from services.intelligence.profile_manager import ProfileManager
 
     return ProfileManager(storage_path=storage_path)
 
@@ -963,7 +963,7 @@ def _create_profile(manager: Any, name: str = "test_profile") -> Any:
 
 class TestProfileMigratorValidateMigration:
     def test_validate_valid_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         _create_profile(mgr, "ptest")
@@ -971,7 +971,7 @@ class TestProfileMigratorValidateMigration:
         assert migrator.validate_migration("ptest") is True
 
     def test_validate_nonexistent_profile_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         migrator = ProfileMigrator(profile_manager=mgr)
@@ -980,7 +980,7 @@ class TestProfileMigratorValidateMigration:
 
 class TestProfileMigratorMigrateVersion:
     def test_migrate_to_current_version_no_op(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         _create_profile(mgr, "mtest")
@@ -989,14 +989,14 @@ class TestProfileMigratorMigrateVersion:
         assert migrator.migrate_version("mtest", "1.0") is True
 
     def test_migrate_nonexistent_profile_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         migrator = ProfileMigrator(profile_manager=mgr)
         assert migrator.migrate_version("ghost", "1.0") is False
 
     def test_migrate_unsupported_version_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         _create_profile(mgr, "mtest2")
@@ -1005,7 +1005,7 @@ class TestProfileMigratorMigrateVersion:
 
     def test_migrate_no_path_available_returns_false(self, tmp_path: Path) -> None:
         """Simulate a profile at a different version with no migration path registered."""
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         _create_profile(mgr, "mtest3")
@@ -1023,7 +1023,7 @@ class TestProfileMigratorMigrateVersion:
 
 class TestProfileMigratorBackup:
     def test_backup_before_migration_creates_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         profile = _create_profile(mgr, "btest")
@@ -1035,7 +1035,7 @@ class TestProfileMigratorBackup:
         assert data["profile_name"] == "btest"
 
     def test_list_backups_empty_when_none_created(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         migrator = ProfileMigrator(profile_manager=mgr)
@@ -1043,7 +1043,7 @@ class TestProfileMigratorBackup:
         assert backups == []
 
     def test_list_backups_after_creation(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         profile = _create_profile(mgr, "ltest")
@@ -1055,7 +1055,7 @@ class TestProfileMigratorBackup:
 
 class TestProfileMigratorRollback:
     def test_rollback_restores_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         profile = _create_profile(mgr, "rtest")
@@ -1066,7 +1066,7 @@ class TestProfileMigratorRollback:
         assert result is True
 
     def test_rollback_missing_backup_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         _create_profile(mgr, "r2test")
@@ -1077,7 +1077,7 @@ class TestProfileMigratorRollback:
 
 class TestProfileMigratorHistory:
     def test_migration_history_empty_for_new_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         _create_profile(mgr, "htest")
@@ -1086,14 +1086,14 @@ class TestProfileMigratorHistory:
         assert history == []
 
     def test_migration_history_none_for_missing_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         migrator = ProfileMigrator(profile_manager=mgr)
         assert migrator.get_migration_history("ghost") is None
 
     def test_register_migration_stores_function(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         mgr = _make_profile_manager(tmp_path)
         migrator = ProfileMigrator(profile_manager=mgr)
@@ -1113,28 +1113,28 @@ class TestDocumentEmbedderInit:
         pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_init_defaults(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder()
         assert emb.max_features == 5000
         assert emb.is_fitted is False
 
     def test_init_custom_params(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=100, ngram_range=(1, 1))
         assert emb.max_features == 100
         assert emb.ngram_range == (1, 1)
 
     def test_not_fitted_raises_on_transform(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder()
         with pytest.raises(RuntimeError, match="not fitted"):
             emb.transform("hello world")
 
     def test_not_fitted_raises_on_transform_batch(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder()
         with pytest.raises(RuntimeError, match="not fitted"):
@@ -1149,7 +1149,7 @@ class TestDocumentEmbedderFitTransform:
     def test_fit_transform_returns_array(self) -> None:
         import numpy as np
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["hello world foo", "bar baz qux", "python testing code"]
@@ -1160,7 +1160,7 @@ class TestDocumentEmbedderFitTransform:
 
     def test_fit_transform_empty_returns_empty(self) -> None:
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder()
         result = emb.fit_transform([])
@@ -1170,7 +1170,7 @@ class TestDocumentEmbedderFitTransform:
     def test_fit_transform_small_corpus_max_df_adjusted(self) -> None:
         import numpy as np
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         # Single doc — max_df as fraction rounds to 0; embedder adjusts temporarily
         emb = DocumentEmbedder(max_features=10, max_df=0.5)
@@ -1182,7 +1182,7 @@ class TestDocumentEmbedderFitTransform:
     def test_transform_after_fit(self) -> None:
         import numpy as np
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["alpha beta gamma", "delta epsilon zeta", "theta iota kappa"]
@@ -1192,7 +1192,7 @@ class TestDocumentEmbedderFitTransform:
         assert embedding.shape[0] > 0
 
     def test_transform_uses_cache(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["cache test doc one", "cache test doc two", "cache test three"]
@@ -1205,7 +1205,7 @@ class TestDocumentEmbedderFitTransform:
     def test_transform_batch_returns_matrix(self) -> None:
         import numpy as np
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["first doc alpha", "second doc beta", "third doc gamma"]
@@ -1222,7 +1222,7 @@ class TestDocumentEmbedderVocabulary:
         pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_get_feature_names_after_fit(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["machine learning", "deep learning neural", "data science ml"]
@@ -1233,7 +1233,7 @@ class TestDocumentEmbedderVocabulary:
         assert all(isinstance(n, str) for n in names)
 
     def test_get_vocabulary_after_fit(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["vocabulary test one", "vocabulary test two", "vocabulary three"]
@@ -1243,7 +1243,7 @@ class TestDocumentEmbedderVocabulary:
         assert len(vocab) > 0
 
     def test_get_feature_names_before_fit_raises(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder()
         with pytest.raises(RuntimeError, match="not fitted"):
@@ -1251,7 +1251,7 @@ class TestDocumentEmbedderVocabulary:
 
     def test_get_top_terms(self) -> None:
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["python programming language", "java programming code", "python java scripts"]
@@ -1272,7 +1272,7 @@ class TestDocumentEmbedderPersistence:
     def test_save_and_load_model(self, tmp_path: Path) -> None:
         import numpy as np
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["save load test alpha", "save load test beta", "save load gamma"]
@@ -1289,7 +1289,7 @@ class TestDocumentEmbedderPersistence:
         assert isinstance(result, np.ndarray)
 
     def test_save_model_unfitted_is_noop(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder()
         model_path = tmp_path / "model.pkl"
@@ -1297,14 +1297,14 @@ class TestDocumentEmbedderPersistence:
         assert not model_path.exists()
 
     def test_load_model_missing_file_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder()
         with pytest.raises((OSError, Exception)):
             emb.load_model(tmp_path / "nonexistent.pkl")
 
     def test_clear_cache(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         emb = DocumentEmbedder(max_features=50)
         docs = ["clear cache test one", "clear cache test two", "clear cache three"]
@@ -1316,7 +1316,7 @@ class TestDocumentEmbedderPersistence:
 
     def test_cache_path_loaded_on_init(self, tmp_path: Path) -> None:
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         cache_path = tmp_path / "cache.pkl"
         emb = DocumentEmbedder(max_features=50, cache_path=cache_path)

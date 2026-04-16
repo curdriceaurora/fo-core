@@ -117,7 +117,7 @@ def test_something(tmp_path: Path) -> None:
 
 ## Pattern 5: Config Directory Isolation
 
-The `DEFAULT_CONFIG_DIR` module-level constant evaluates to `~/.config/file-organizer`
+The `DEFAULT_CONFIG_DIR` module-level constant evaluates to `~/.config/fo`
 at import time. Tests that invoke CLI commands without overriding it read and write the
 real user config — a cross-test race under xdist.
 
@@ -125,7 +125,7 @@ real user config — a cross-test race under xdist.
 
 ```python
 def test_config_edit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("file_organizer.config.manager.DEFAULT_CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("config.manager.DEFAULT_CONFIG_DIR", tmp_path)
     runner.invoke(app, ["config", "edit", "--text-model", "llama3.2:3b"])
     result = runner.invoke(app, ["config", "show"])
     assert "llama3.2:3b" in result.output

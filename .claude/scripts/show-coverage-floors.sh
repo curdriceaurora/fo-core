@@ -27,7 +27,7 @@ mods = data.get("modules", {})
 items = sorted(mods.items(), key=lambda x: x[1])
 
 for path, floor in items:
-    short = path.replace("src/file_organizer/", "")
+    short = path.replace("src/", "")
     if pattern and not __import__("re").search(pattern, path):
         continue
     if not pattern and floor >= 80:

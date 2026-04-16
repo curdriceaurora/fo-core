@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.auto_tagging.content_analyzer import ContentTagAnalyzer
+from services.auto_tagging.content_analyzer import ContentTagAnalyzer
 
 pytestmark = pytest.mark.unit
 

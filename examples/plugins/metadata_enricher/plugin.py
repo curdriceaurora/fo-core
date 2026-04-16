@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from file_organizer.plugins import Plugin, PluginMetadata
-from file_organizer.plugins.sdk import hook
+from plugins import Plugin, PluginMetadata
+from plugins.sdk import hook
 
 
 class MetadataEnricherPlugin(Plugin):

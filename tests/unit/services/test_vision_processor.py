@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType
-from file_organizer.services.vision_processor import ProcessedImage, VisionProcessor
+from models.base import ModelConfig, ModelType
+from services.vision_processor import ProcessedImage, VisionProcessor
 
 
 @pytest.fixture
@@ -28,8 +28,8 @@ class TestVisionProcessor:
         assert processor.vision_model is mock_vision_model
         assert processor._owns_model is False
 
-    @patch("file_organizer.services.vision_processor.get_vision_model")
-    @patch("file_organizer.services.vision_processor.VisionModel")
+    @patch("services.vision_processor.get_vision_model")
+    @patch("services.vision_processor.VisionModel")
     def test_init_without_model(self, mock_model_class, mock_get_vision_model):
         mock_config = MagicMock(spec=ModelConfig)
         mock_model_class.get_default_config.return_value = mock_config
@@ -149,7 +149,7 @@ class TestVisionProcessor:
         )
 
     def test_context_manager(self, mock_vision_model):
-        with patch("file_organizer.services.vision_processor.VisionModel") as mock_model_class:
+        with patch("services.vision_processor.VisionModel") as mock_model_class:
             mock_model_class.get_default_config.return_value = MagicMock()
             mock_model_class.return_value = mock_vision_model
 

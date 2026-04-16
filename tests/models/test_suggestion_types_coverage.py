@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.models.suggestion_types — uncovered branches."""
+"""Coverage tests for models.suggestion_types — uncovered branches."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.models.suggestion_types import (
+from models.suggestion_types import (
     ConfidenceFactors,
     ConfidenceLevel,
     Suggestion,

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.deduplication.hasher import FileHasher
+from services.deduplication.hasher import FileHasher
 
 
 @pytest.mark.unit

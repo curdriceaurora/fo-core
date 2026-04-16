@@ -99,38 +99,38 @@ def tiny_png(tmp_path: Path) -> Path:
 
 class TestClaudeResponseHelpers:
     def test_extract_claude_text_returns_stripped_text(self) -> None:
-        from file_organizer.models._claude_response import extract_claude_text
+        from models._claude_response import extract_claude_text
 
         resp = _claude_ok_response("  hello world  ")
         assert extract_claude_text(resp) == "hello world"
 
     def test_extract_claude_text_empty_content_returns_empty_string(self) -> None:
-        from file_organizer.models._claude_response import extract_claude_text
+        from models._claude_response import extract_claude_text
 
         resp = MagicMock()
         resp.content = []
         assert extract_claude_text(resp) == ""
 
     def test_extract_claude_text_no_content_attr_returns_empty_string(self) -> None:
-        from file_organizer.models._claude_response import extract_claude_text
+        from models._claude_response import extract_claude_text
 
         resp = MagicMock(spec=[])  # no attributes
         assert extract_claude_text(resp) == ""
 
     def test_is_claude_token_exhausted_false_on_end_turn(self) -> None:
-        from file_organizer.models._claude_response import is_claude_token_exhausted
+        from models._claude_response import is_claude_token_exhausted
 
         resp = _claude_ok_response("A sufficiently long response here.")
         assert is_claude_token_exhausted(resp) is False
 
     def test_is_claude_token_exhausted_true_on_max_tokens_short_content(self) -> None:
-        from file_organizer.models._claude_response import is_claude_token_exhausted
+        from models._claude_response import is_claude_token_exhausted
 
         resp = _claude_exhausted_response("")
         assert is_claude_token_exhausted(resp) is True
 
     def test_is_claude_token_exhausted_false_when_max_tokens_but_long_content(self) -> None:
-        from file_organizer.models._claude_response import is_claude_token_exhausted
+        from models._claude_response import is_claude_token_exhausted
 
         resp = _claude_exhausted_response("This is a long enough response for the check.")
         assert is_claude_token_exhausted(resp) is False
@@ -143,13 +143,13 @@ class TestClaudeResponseHelpers:
 
 class TestVisionHelpers:
     def test_image_to_data_url_returns_data_url(self, tiny_png: Path) -> None:
-        from file_organizer.models._vision_helpers import image_to_data_url
+        from models._vision_helpers import image_to_data_url
 
         url = image_to_data_url(tiny_png)
         assert url.startswith("data:image/png;base64,")
 
     def test_image_to_data_url_unknown_ext_uses_jpeg_mime(self, tmp_path: Path) -> None:
-        from file_organizer.models._vision_helpers import image_to_data_url
+        from models._vision_helpers import image_to_data_url
 
         path = tmp_path / "img.unknownext"
         path.write_bytes(b"\x00\x01\x02")
@@ -157,25 +157,25 @@ class TestVisionHelpers:
         assert url.startswith("data:image/jpeg;base64,")
 
     def test_image_to_data_url_missing_file_raises_file_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.models._vision_helpers import image_to_data_url
+        from models._vision_helpers import image_to_data_url
 
         with pytest.raises(FileNotFoundError):
             image_to_data_url(tmp_path / "nonexistent.png")
 
     def test_bytes_to_data_url_default_mime(self) -> None:
-        from file_organizer.models._vision_helpers import bytes_to_data_url
+        from models._vision_helpers import bytes_to_data_url
 
         url = bytes_to_data_url(b"\x01\x02\x03")
         assert url.startswith("data:image/jpeg;base64,")
 
     def test_bytes_to_data_url_custom_mime(self) -> None:
-        from file_organizer.models._vision_helpers import bytes_to_data_url
+        from models._vision_helpers import bytes_to_data_url
 
         url = bytes_to_data_url(b"\x01", mime_type="image/webp")
         assert url.startswith("data:image/webp;base64,")
 
     def test_split_data_url_round_trips(self) -> None:
-        from file_organizer.models._vision_helpers import bytes_to_data_url, split_data_url
+        from models._vision_helpers import bytes_to_data_url, split_data_url
 
         data = b"test image bytes"
         url = bytes_to_data_url(data, mime_type="image/png")
@@ -186,19 +186,19 @@ class TestVisionHelpers:
         assert base64.b64decode(b64) == data
 
     def test_split_data_url_invalid_raises_value_error(self) -> None:
-        from file_organizer.models._vision_helpers import split_data_url
+        from models._vision_helpers import split_data_url
 
         with pytest.raises(ValueError):
             split_data_url("not-a-data-url")
 
     def test_split_data_url_no_base64_marker_raises_value_error(self) -> None:
-        from file_organizer.models._vision_helpers import split_data_url
+        from models._vision_helpers import split_data_url
 
         with pytest.raises(ValueError):
             split_data_url("data:image/png,notbase64")
 
     def test_split_data_url_empty_mime_falls_back_to_jpeg(self) -> None:
-        from file_organizer.models._vision_helpers import split_data_url
+        from models._vision_helpers import split_data_url
 
         # Construct a data URL with an empty MIME type: "data:;base64,abc"
         mime, b64 = split_data_url("data:;base64,abc")
@@ -217,18 +217,18 @@ class TestClaudeClientFactory:
         pytest.importorskip("anthropic")
 
     def test_create_claude_client_returns_client(self) -> None:
-        from file_organizer.models._claude_client import create_claude_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._claude_client import create_claude_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="claude-3-5-sonnet", model_type=ModelType.TEXT, provider="claude")
         mock_client = MagicMock()
-        with patch("file_organizer.models._claude_client.Anthropic", return_value=mock_client):
+        with patch("models._claude_client.Anthropic", return_value=mock_client):
             client = create_claude_client(config, "text")
         assert client is mock_client
 
     def test_create_claude_client_passes_api_key(self) -> None:
-        from file_organizer.models._claude_client import create_claude_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._claude_client import create_claude_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(
             name="claude-3-5-sonnet",
@@ -237,23 +237,23 @@ class TestClaudeClientFactory:
             api_key="sk-test-key",
         )
         mock_cls = MagicMock(return_value=MagicMock())
-        with patch("file_organizer.models._claude_client.Anthropic", mock_cls):
+        with patch("models._claude_client.Anthropic", mock_cls):
             create_claude_client(config, "text")
         mock_cls.assert_called_once_with(api_key="sk-test-key")
 
     def test_create_claude_client_no_api_key_calls_without_key(self) -> None:
-        from file_organizer.models._claude_client import create_claude_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._claude_client import create_claude_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="claude-3-5-sonnet", model_type=ModelType.TEXT, provider="claude")
         mock_cls = MagicMock(return_value=MagicMock())
-        with patch("file_organizer.models._claude_client.Anthropic", mock_cls):
+        with patch("models._claude_client.Anthropic", mock_cls):
             create_claude_client(config, "text")
         mock_cls.assert_called_once_with()
 
     def test_create_claude_client_logs_warning_for_base_url(self) -> None:
-        from file_organizer.models._claude_client import create_claude_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._claude_client import create_claude_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(
             name="claude-3-5-sonnet",
@@ -261,18 +261,18 @@ class TestClaudeClientFactory:
             provider="claude",
             api_base_url="http://custom.endpoint",
         )
-        with patch("file_organizer.models._claude_client.Anthropic", return_value=MagicMock()):
+        with patch("models._claude_client.Anthropic", return_value=MagicMock()):
             # Should NOT raise; api_base_url is silently ignored with a warning
             create_claude_client(config, "text")
 
     def test_create_claude_client_reraises_init_error(self) -> None:
-        from file_organizer.models._claude_client import create_claude_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._claude_client import create_claude_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="claude-3-5-sonnet", model_type=ModelType.TEXT, provider="claude")
         with (
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 side_effect=ValueError("bad init"),
             ),
             pytest.raises(ValueError, match="bad init"),
@@ -280,12 +280,12 @@ class TestClaudeClientFactory:
             create_claude_client(config, "text")
 
     def test_create_claude_client_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models._claude_client import create_claude_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._claude_client import create_claude_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="claude-3-5-sonnet", model_type=ModelType.TEXT, provider="claude")
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", False),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", False),
             pytest.raises(ImportError, match="anthropic"),
         ):
             create_claude_client(config, "text")
@@ -302,18 +302,18 @@ class TestOpenAIClientFactory:
         pytest.importorskip("openai")
 
     def test_create_openai_client_returns_client(self) -> None:
-        from file_organizer.models._openai_client import create_openai_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._openai_client import create_openai_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="gpt-4o-mini", model_type=ModelType.TEXT, provider="openai")
         mock_client = MagicMock()
-        with patch("file_organizer.models._openai_client.OpenAI", return_value=mock_client):
+        with patch("models._openai_client.OpenAI", return_value=mock_client):
             client = create_openai_client(config, "text")
         assert client is mock_client
 
     def test_create_openai_client_passes_api_key_and_base_url(self) -> None:
-        from file_organizer.models._openai_client import create_openai_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._openai_client import create_openai_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(
             name="gpt-4o-mini",
@@ -323,28 +323,28 @@ class TestOpenAIClientFactory:
             api_base_url="http://localhost:1234/v1",
         )
         mock_cls = MagicMock(return_value=MagicMock())
-        with patch("file_organizer.models._openai_client.OpenAI", mock_cls):
+        with patch("models._openai_client.OpenAI", mock_cls):
             create_openai_client(config, "text")
         mock_cls.assert_called_once_with(api_key="sk-test", base_url="http://localhost:1234/v1")
 
     def test_create_openai_client_no_key_or_base(self) -> None:
-        from file_organizer.models._openai_client import create_openai_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._openai_client import create_openai_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="gpt-4o-mini", model_type=ModelType.TEXT, provider="openai")
         mock_cls = MagicMock(return_value=MagicMock())
-        with patch("file_organizer.models._openai_client.OpenAI", mock_cls):
+        with patch("models._openai_client.OpenAI", mock_cls):
             create_openai_client(config, "text")
         mock_cls.assert_called_once_with()
 
     def test_create_openai_client_reraises_init_error(self) -> None:
-        from file_organizer.models._openai_client import create_openai_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._openai_client import create_openai_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="gpt-4o-mini", model_type=ModelType.TEXT, provider="openai")
         with (
             patch(
-                "file_organizer.models._openai_client.OpenAI",
+                "models._openai_client.OpenAI",
                 side_effect=ValueError("bad"),
             ),
             pytest.raises(ValueError, match="bad"),
@@ -352,18 +352,18 @@ class TestOpenAIClientFactory:
             create_openai_client(config, "text")
 
     def test_create_openai_client_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models._openai_client import create_openai_client
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models._openai_client import create_openai_client
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="gpt-4o-mini", model_type=ModelType.TEXT, provider="openai")
         with (
-            patch("file_organizer.models._openai_client.OPENAI_AVAILABLE", False),
+            patch("models._openai_client.OPENAI_AVAILABLE", False),
             pytest.raises(ImportError, match="openai"),
         ):
             create_openai_client(config, "text")
 
     def test_get_openai_api_error_returns_exception_type(self) -> None:
-        from file_organizer.models._openai_client import get_openai_api_error
+        from models._openai_client import get_openai_api_error
 
         err_type = get_openai_api_error()
         assert issubclass(err_type, BaseException)
@@ -377,10 +377,10 @@ class TestOpenAIClientFactory:
 def _make_claude_text_model() -> Any:
     """Return an initialised ClaudeTextModel with a mock client."""
     pytest.importorskip("anthropic")
-    from file_organizer.models.claude_text_model import ClaudeTextModel
+    from models.claude_text_model import ClaudeTextModel
 
     config = ClaudeTextModel.get_default_config("claude-3-5-haiku-20241022")
-    with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+    with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
         model = ClaudeTextModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -393,36 +393,36 @@ class TestClaudeTextModel:
         pytest.importorskip("anthropic")
 
     def test_init_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.claude_text_model import ClaudeTextModel
+        from models.base import ModelConfig, ModelType
+        from models.claude_text_model import ClaudeTextModel
 
         config = ModelConfig(name="x", model_type=ModelType.TEXT, provider="claude")
         with (
-            patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", False),
+            patch("models.claude_text_model.ANTHROPIC_AVAILABLE", False),
             pytest.raises(ImportError, match="anthropic"),
         ):
             ClaudeTextModel(config)
 
     def test_init_raises_value_error_for_wrong_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.claude_text_model import ClaudeTextModel
+        from models.base import ModelConfig, ModelType
+        from models.claude_text_model import ClaudeTextModel
 
         config = ModelConfig(name="x", model_type=ModelType.VISION, provider="claude")
         with (
-            patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True),
+            patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True),
             pytest.raises(ValueError, match="TEXT"),
         ):
             ClaudeTextModel(config)
 
     def test_initialize_creates_client(self) -> None:
-        from file_organizer.models.claude_text_model import ClaudeTextModel
+        from models.claude_text_model import ClaudeTextModel
 
         config = ClaudeTextModel.get_default_config()
         mock_client = MagicMock()
         with (
-            patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True),
+            patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True),
             patch(
-                "file_organizer.models.claude_text_model.create_claude_client",
+                "models.claude_text_model.create_claude_client",
                 return_value=mock_client,
             ),
         ):
@@ -463,7 +463,7 @@ class TestClaudeTextModel:
         assert model.client.messages.create.call_count == 2
 
     def test_generate_raises_token_exhaustion_on_double_failure(self) -> None:
-        from file_organizer.models.base import TokenExhaustionError
+        from models.base import TokenExhaustionError
 
         model = _make_claude_text_model()
         model.client.messages.create.return_value = _claude_exhausted_response()
@@ -497,15 +497,15 @@ class TestClaudeTextModel:
         assert model.client is None
 
     def test_get_default_config_returns_text_type(self) -> None:
-        from file_organizer.models.base import ModelType
-        from file_organizer.models.claude_text_model import ClaudeTextModel
+        from models.base import ModelType
+        from models.claude_text_model import ClaudeTextModel
 
         config = ClaudeTextModel.get_default_config()
         assert config.model_type == ModelType.TEXT
         assert config.provider == "claude"
 
     def test_get_default_config_custom_model_name(self) -> None:
-        from file_organizer.models.claude_text_model import ClaudeTextModel
+        from models.claude_text_model import ClaudeTextModel
 
         config = ClaudeTextModel.get_default_config("claude-3-opus-20240229")
         assert config.name == "claude-3-opus-20240229"
@@ -519,10 +519,10 @@ class TestClaudeTextModel:
 def _make_claude_vision_model() -> Any:
     """Return an initialised ClaudeVisionModel with a mock client."""
     pytest.importorskip("anthropic")
-    from file_organizer.models.claude_vision_model import ClaudeVisionModel
+    from models.claude_vision_model import ClaudeVisionModel
 
     config = ClaudeVisionModel.get_default_config("claude-3-5-sonnet-20241022")
-    with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+    with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
         model = ClaudeVisionModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -535,36 +535,36 @@ class TestClaudeVisionModel:
         pytest.importorskip("anthropic")
 
     def test_init_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.claude_vision_model import ClaudeVisionModel
+        from models.base import ModelConfig, ModelType
+        from models.claude_vision_model import ClaudeVisionModel
 
         config = ModelConfig(name="x", model_type=ModelType.VISION, provider="claude")
         with (
-            patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", False),
+            patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", False),
             pytest.raises(ImportError, match="anthropic"),
         ):
             ClaudeVisionModel(config)
 
     def test_init_raises_value_error_for_wrong_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.claude_vision_model import ClaudeVisionModel
+        from models.base import ModelConfig, ModelType
+        from models.claude_vision_model import ClaudeVisionModel
 
         config = ModelConfig(name="x", model_type=ModelType.TEXT, provider="claude")
         with (
-            patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True),
+            patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True),
             pytest.raises(ValueError, match="VISION or VIDEO"),
         ):
             ClaudeVisionModel(config)
 
     def test_initialize_creates_client(self) -> None:
-        from file_organizer.models.claude_vision_model import ClaudeVisionModel
+        from models.claude_vision_model import ClaudeVisionModel
 
         config = ClaudeVisionModel.get_default_config()
         mock_client = MagicMock()
         with (
-            patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True),
+            patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True),
             patch(
-                "file_organizer.models.claude_vision_model.create_claude_client",
+                "models.claude_vision_model.create_claude_client",
                 return_value=mock_client,
             ),
         ):
@@ -611,7 +611,7 @@ class TestClaudeVisionModel:
         assert model.client.messages.create.call_count == 2
 
     def test_generate_raises_token_exhaustion_on_double_failure(self, tiny_png: Path) -> None:
-        from file_organizer.models.base import TokenExhaustionError
+        from models.base import TokenExhaustionError
 
         model = _make_claude_vision_model()
         model.client.messages.create.return_value = _claude_exhausted_response()
@@ -639,16 +639,16 @@ class TestClaudeVisionModel:
         assert model._initialized is False
 
     def test_get_default_config_returns_vision_type(self) -> None:
-        from file_organizer.models.base import ModelType
-        from file_organizer.models.claude_vision_model import ClaudeVisionModel
+        from models.base import ModelType
+        from models.claude_vision_model import ClaudeVisionModel
 
         config = ClaudeVisionModel.get_default_config()
         assert config.model_type == ModelType.VISION
         assert config.provider == "claude"
 
     def test_build_image_block_returns_correct_structure(self) -> None:
-        from file_organizer.models._vision_helpers import bytes_to_data_url
-        from file_organizer.models.claude_vision_model import _build_image_block
+        from models._vision_helpers import bytes_to_data_url
+        from models.claude_vision_model import _build_image_block
 
         url = bytes_to_data_url(b"\x00\x01\x02", mime_type="image/png")
         block = _build_image_block(url)
@@ -665,10 +665,10 @@ class TestClaudeVisionModel:
 def _make_openai_text_model() -> Any:
     """Return an initialised OpenAITextModel with a mock client."""
     pytest.importorskip("openai")
-    from file_organizer.models.openai_text_model import OpenAITextModel
+    from models.openai_text_model import OpenAITextModel
 
     config = OpenAITextModel.get_default_config("gpt-4o-mini")
-    with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+    with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
         model = OpenAITextModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -681,36 +681,36 @@ class TestOpenAITextModel:
         pytest.importorskip("openai")
 
     def test_init_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.openai_text_model import OpenAITextModel
+        from models.base import ModelConfig, ModelType
+        from models.openai_text_model import OpenAITextModel
 
         config = ModelConfig(name="gpt-4o-mini", model_type=ModelType.TEXT, provider="openai")
         with (
-            patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", False),
+            patch("models.openai_text_model.OPENAI_AVAILABLE", False),
             pytest.raises(ImportError, match="openai"),
         ):
             OpenAITextModel(config)
 
     def test_init_raises_value_error_for_wrong_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.openai_text_model import OpenAITextModel
+        from models.base import ModelConfig, ModelType
+        from models.openai_text_model import OpenAITextModel
 
         config = ModelConfig(name="gpt-4o-mini", model_type=ModelType.VISION, provider="openai")
         with (
-            patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True),
+            patch("models.openai_text_model.OPENAI_AVAILABLE", True),
             pytest.raises(ValueError, match="TEXT"),
         ):
             OpenAITextModel(config)
 
     def test_initialize_creates_client(self) -> None:
-        from file_organizer.models.openai_text_model import OpenAITextModel
+        from models.openai_text_model import OpenAITextModel
 
         config = OpenAITextModel.get_default_config()
         mock_client = MagicMock()
         with (
-            patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True),
+            patch("models.openai_text_model.OPENAI_AVAILABLE", True),
             patch(
-                "file_organizer.models.openai_text_model.create_openai_client",
+                "models.openai_text_model.create_openai_client",
                 return_value=mock_client,
             ),
         ):
@@ -750,7 +750,7 @@ class TestOpenAITextModel:
         assert model.client.chat.completions.create.call_count == 2
 
     def test_generate_raises_token_exhaustion_on_double_failure(self) -> None:
-        from file_organizer.models.base import TokenExhaustionError
+        from models.base import TokenExhaustionError
 
         model = _make_openai_text_model()
         model.client.chat.completions.create.return_value = _openai_exhausted_response()
@@ -785,15 +785,15 @@ class TestOpenAITextModel:
         assert model.client is None
 
     def test_get_default_config_returns_text_type(self) -> None:
-        from file_organizer.models.base import ModelType
-        from file_organizer.models.openai_text_model import OpenAITextModel
+        from models.base import ModelType
+        from models.openai_text_model import OpenAITextModel
 
         config = OpenAITextModel.get_default_config()
         assert config.model_type == ModelType.TEXT
         assert config.provider == "openai"
 
     def test_get_default_config_custom_model_name(self) -> None:
-        from file_organizer.models.openai_text_model import OpenAITextModel
+        from models.openai_text_model import OpenAITextModel
 
         config = OpenAITextModel.get_default_config("gpt-4o")
         assert config.name == "gpt-4o"
@@ -807,10 +807,10 @@ class TestOpenAITextModel:
 def _make_openai_vision_model() -> Any:
     """Return an initialised OpenAIVisionModel with a mock client."""
     pytest.importorskip("openai")
-    from file_organizer.models.openai_vision_model import OpenAIVisionModel
+    from models.openai_vision_model import OpenAIVisionModel
 
     config = OpenAIVisionModel.get_default_config("gpt-4o-mini")
-    with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+    with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
         model = OpenAIVisionModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -823,23 +823,23 @@ class TestOpenAIVisionModel:
         pytest.importorskip("openai")
 
     def test_init_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.openai_vision_model import OpenAIVisionModel
+        from models.base import ModelConfig, ModelType
+        from models.openai_vision_model import OpenAIVisionModel
 
         config = ModelConfig(name="gpt-4o-mini", model_type=ModelType.VISION, provider="openai")
         with (
-            patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", False),
+            patch("models.openai_vision_model.OPENAI_AVAILABLE", False),
             pytest.raises(ImportError, match="openai"),
         ):
             OpenAIVisionModel(config)
 
     def test_init_raises_value_error_for_wrong_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.openai_vision_model import OpenAIVisionModel
+        from models.base import ModelConfig, ModelType
+        from models.openai_vision_model import OpenAIVisionModel
 
         config = ModelConfig(name="gpt-4o-mini", model_type=ModelType.TEXT, provider="openai")
         with (
-            patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True),
+            patch("models.openai_vision_model.OPENAI_AVAILABLE", True),
             pytest.raises(ValueError, match="VISION or VIDEO"),
         ):
             OpenAIVisionModel(config)
@@ -882,7 +882,7 @@ class TestOpenAIVisionModel:
         assert model.client.chat.completions.create.call_count == 2
 
     def test_generate_raises_token_exhaustion_on_double_failure(self, tiny_png: Path) -> None:
-        from file_organizer.models.base import TokenExhaustionError
+        from models.base import TokenExhaustionError
 
         model = _make_openai_vision_model()
         model.client.chat.completions.create.return_value = _openai_exhausted_response()
@@ -917,8 +917,8 @@ class TestOpenAIVisionModel:
         assert model._initialized is False
 
     def test_get_default_config_returns_vision_type(self) -> None:
-        from file_organizer.models.base import ModelType
-        from file_organizer.models.openai_vision_model import OpenAIVisionModel
+        from models.base import ModelType
+        from models.openai_vision_model import OpenAIVisionModel
 
         config = OpenAIVisionModel.get_default_config()
         assert config.model_type == ModelType.VISION
@@ -932,23 +932,23 @@ class TestOpenAIVisionModel:
 
 class TestAudioModel:
     def test_init_raises_value_error_for_wrong_type(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models.audio_model import AudioModel
+        from models.base import ModelConfig, ModelType
 
         config = ModelConfig(name="whisper", model_type=ModelType.TEXT)
         with pytest.raises(ValueError, match="AUDIO"):
             AudioModel(config)
 
     def test_init_succeeds_for_audio_type(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
-        from file_organizer.models.base import ModelType
+        from models.audio_model import AudioModel
+        from models.base import ModelType
 
         config = AudioModel.get_default_config()
         model = AudioModel(config)
         assert model.config.model_type == ModelType.AUDIO
 
     def test_initialize_sets_initialized_flag(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
+        from models.audio_model import AudioModel
 
         config = AudioModel.get_default_config()
         model = AudioModel(config)
@@ -956,7 +956,7 @@ class TestAudioModel:
         assert model._initialized is True
 
     def test_generate_raises_not_implemented(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
+        from models.audio_model import AudioModel
 
         config = AudioModel.get_default_config()
         model = AudioModel(config)
@@ -965,7 +965,7 @@ class TestAudioModel:
             model.generate("audio.wav")
 
     def test_cleanup_clears_initialized(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
+        from models.audio_model import AudioModel
 
         config = AudioModel.get_default_config()
         model = AudioModel(config)
@@ -974,20 +974,20 @@ class TestAudioModel:
         assert model._initialized is False
 
     def test_get_default_config_returns_audio_type(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
-        from file_organizer.models.base import ModelType
+        from models.audio_model import AudioModel
+        from models.base import ModelType
 
         config = AudioModel.get_default_config()
         assert config.model_type == ModelType.AUDIO
 
     def test_get_default_config_custom_model_name(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
+        from models.audio_model import AudioModel
 
         config = AudioModel.get_default_config("tiny-whisper")
         assert config.name == "tiny-whisper"
 
     def test_repr_includes_model_name(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
+        from models.audio_model import AudioModel
 
         config = AudioModel.get_default_config("test-model")
         model = AudioModel(config)
@@ -1005,42 +1005,42 @@ class TestAudioTranscriber:
         pytest.importorskip("faster_whisper")
 
     def test_init_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber
+        from models.audio_transcriber import AudioTranscriber
 
         with (
-            patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", False),
+            patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", False),
             pytest.raises(ImportError, match="faster-whisper"),
         ):
             AudioTranscriber()
 
     def test_init_succeeds_with_valid_params(self) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber, ModelSize
+        from models.audio_transcriber import AudioTranscriber, ModelSize
 
-        with patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
+        with patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
             t = AudioTranscriber(model_size=ModelSize.TINY, device="cpu")
         assert t.model_size == "tiny"
         assert t.device == "cpu"
 
     def test_init_raises_value_error_for_invalid_model_size(self) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber
+        from models.audio_transcriber import AudioTranscriber
 
         with (
-            patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True),
+            patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True),
             pytest.raises(ValueError, match="Invalid model size"),
         ):
             AudioTranscriber(model_size="invalid_size", device="cpu")
 
     def test_init_raises_value_error_for_invalid_compute_type(self) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber, ModelSize
+        from models.audio_transcriber import AudioTranscriber, ModelSize
 
         with (
-            patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True),
+            patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True),
             pytest.raises(ValueError, match="Invalid compute type"),
         ):
             AudioTranscriber(model_size=ModelSize.TINY, device="cpu", compute_type="invalid")
 
     def test_get_supported_formats(self) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber
+        from models.audio_transcriber import AudioTranscriber
 
         formats = AudioTranscriber.get_supported_formats()
         assert "wav" in formats
@@ -1048,25 +1048,25 @@ class TestAudioTranscriber:
         assert len(formats) >= 4
 
     def test_transcribe_raises_file_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber, ModelSize
+        from models.audio_transcriber import AudioTranscriber, ModelSize
 
-        with patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
+        with patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
             t = AudioTranscriber(model_size=ModelSize.TINY, device="cpu")
 
         with pytest.raises(FileNotFoundError):
             t.transcribe(tmp_path / "missing.wav")
 
     def test_detect_language_raises_file_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber, ModelSize
+        from models.audio_transcriber import AudioTranscriber, ModelSize
 
-        with patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
+        with patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
             t = AudioTranscriber(model_size=ModelSize.TINY, device="cpu")
 
         with pytest.raises(FileNotFoundError):
             t.detect_language(tmp_path / "missing.wav")
 
     def test_transcribe_returns_transcription_result(self, tmp_path: Path) -> None:
-        from file_organizer.models.audio_transcriber import (
+        from models.audio_transcriber import (
             AudioTranscriber,
             ModelSize,
             TranscriptionOptions,
@@ -1092,7 +1092,7 @@ class TestAudioTranscriber:
         mock_whisper_model = MagicMock()
         mock_whisper_model.transcribe.return_value = (iter([mock_seg]), mock_info)
 
-        with patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
+        with patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
             t = AudioTranscriber(model_size=ModelSize.TINY, device="cpu")
 
         t.model = mock_whisper_model
@@ -1107,7 +1107,7 @@ class TestAudioTranscriber:
         assert result.language_confidence == pytest.approx(0.99)
 
     def test_detect_language_returns_language_detection(self, tmp_path: Path) -> None:
-        from file_organizer.models.audio_transcriber import (
+        from models.audio_transcriber import (
             AudioTranscriber,
             LanguageDetection,
             ModelSize,
@@ -1123,7 +1123,7 @@ class TestAudioTranscriber:
         mock_whisper_model = MagicMock()
         mock_whisper_model.transcribe.return_value = (iter([]), mock_info)
 
-        with patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
+        with patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
             t = AudioTranscriber(model_size=ModelSize.TINY, device="cpu")
 
         t.model = mock_whisper_model
@@ -1136,9 +1136,9 @@ class TestAudioTranscriber:
         assert result.confidence == pytest.approx(0.95)
 
     def test_clear_cache_resets_state(self, tmp_path: Path) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber, ModelSize
+        from models.audio_transcriber import AudioTranscriber, ModelSize
 
-        with patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
+        with patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
             t = AudioTranscriber(model_size=ModelSize.TINY, device="cpu")
 
         t.model = MagicMock()
@@ -1149,21 +1149,21 @@ class TestAudioTranscriber:
         assert t._model_loaded is False
 
     def test_clear_all_caches_empties_class_cache(self) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber
+        from models.audio_transcriber import AudioTranscriber
 
         AudioTranscriber._model_cache["fake_key"] = MagicMock()
         AudioTranscriber.clear_all_caches()
         assert len(AudioTranscriber._model_cache) == 0
 
     def test_load_model_raises_runtime_error_on_failure(self) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber, ModelSize
+        from models.audio_transcriber import AudioTranscriber, ModelSize
 
-        with patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
+        with patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
             t = AudioTranscriber(model_size=ModelSize.TINY, device="cpu")
 
         with (
             patch(
-                "file_organizer.models.audio_transcriber.WhisperModel",
+                "models.audio_transcriber.WhisperModel",
                 side_effect=RuntimeError("load failed"),
             ),
             pytest.raises(RuntimeError, match="Model loading failed"),
@@ -1171,23 +1171,23 @@ class TestAudioTranscriber:
             t._load_model()
 
     def test_detect_device_returns_cpu_when_no_gpu(self) -> None:
-        from file_organizer.models.audio_transcriber import AudioTranscriber, ModelSize
+        from models.audio_transcriber import AudioTranscriber, ModelSize
 
-        with patch("file_organizer.models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
+        with patch("models.audio_transcriber._FASTER_WHISPER_AVAILABLE", True):
             t = AudioTranscriber(model_size=ModelSize.TINY, device="cpu")
 
         # _detect_device with explicit "cpu" returns "cpu"
         assert t._detect_device("cpu") == "cpu"
 
     def test_model_size_enum_values(self) -> None:
-        from file_organizer.models.audio_transcriber import ModelSize
+        from models.audio_transcriber import ModelSize
 
         assert ModelSize.TINY.value == "tiny"
         assert ModelSize.BASE.value == "base"
         assert ModelSize.LARGE_V3.value == "large-v3"
 
     def test_compute_type_enum_values(self) -> None:
-        from file_organizer.models.audio_transcriber import ComputeType
+        from models.audio_transcriber import ComputeType
 
         assert ComputeType.FLOAT16.value == "float16"
         assert ComputeType.INT8.value == "int8"

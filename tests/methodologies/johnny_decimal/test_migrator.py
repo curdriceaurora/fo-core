@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     FolderScanner,
     FolderTransformer,
     JohnnyDecimalGenerator,

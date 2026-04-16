@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.database import DatabaseManager
+from history.database import DatabaseManager
 
 
 @pytest.mark.unit

@@ -51,7 +51,7 @@ jobs:
             --strict-markers \
             -n auto \
             --timeout=60 \
-            --cov=file_organizer \
+            --cov=src \
             --cov-report= \
             --override-ini="addopts="
           mv .coverage .coverage.py${{ matrix.python-version }}

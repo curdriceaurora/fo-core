@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.daemon.pid import PidFileManager
+from daemon.pid import PidFileManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.smoke]
 

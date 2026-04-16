@@ -24,7 +24,7 @@ def temp_audio_file(tmp_path):
 Audio transcription and metadata extraction are mocked to avoid dependencies on actual audio processing libraries:
 
 ```python
-@patch('file_organizer.models.audio_transcriber.WhisperModel')
+@patch('models.audio_transcriber.WhisperModel')
 def test_transcribe(mock_whisper):
     """Test with mocked Whisper model."""
     mock_whisper.return_value.transcribe.return_value = (

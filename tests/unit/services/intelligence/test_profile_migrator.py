@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
-from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+from services.intelligence.profile_manager import Profile, ProfileManager
+from services.intelligence.profile_migrator import ProfileMigrator
 
 pytestmark = [pytest.mark.ci, pytest.mark.unit]
 
@@ -69,9 +69,7 @@ class TestProfileMigrator:
 
         assert migrator.migrate_version("test_profile", "invalid.version") is False
 
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration"
-    )
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration")
     def test_migrate_version_backup_fails(self, mock_backup, mock_profile_manager, sample_profile):
         mock_profile_manager.get_profile.return_value = sample_profile
         mock_backup.return_value = None
@@ -82,9 +80,7 @@ class TestProfileMigrator:
 
         assert migrator.migrate_version("test_profile", "2.0") is False
 
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration"
-    )
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration")
     def test_migrate_version_no_path(self, mock_backup, mock_profile_manager, sample_profile):
         mock_profile_manager.get_profile.return_value = sample_profile
         mock_backup.return_value = Path("/mock/backup.json")
@@ -94,10 +90,8 @@ class TestProfileMigrator:
 
         assert migrator.migrate_version("test_profile", "2.0") is False
 
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration"
-    )
-    @patch("file_organizer.services.intelligence.profile_migrator.Profile")
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration")
+    @patch("services.intelligence.profile_migrator.Profile")
     def test_migrate_version_success(
         self, mock_profile_class, mock_backup, mock_profile_manager, sample_profile
     ):
@@ -130,12 +124,8 @@ class TestProfileMigrator:
         assert migrator.migrate_version("test_profile", "2.0") is True
         mock_profile_manager.update_profile.assert_called_once()
 
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration"
-    )
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.rollback_migration"
-    )
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration")
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.rollback_migration")
     def test_migrate_version_step_fails(
         self, mock_rollback, mock_backup, mock_profile_manager, sample_profile
     ):
@@ -172,7 +162,7 @@ class TestProfileMigrator:
 
         assert migrator.backup_before_migration(sample_profile) is None
 
-    @patch("file_organizer.services.intelligence.profile_migrator.Profile")
+    @patch("services.intelligence.profile_migrator.Profile")
     def test_rollback_migration(self, mock_profile_class, mock_profile_manager, tmp_path):
         migrator = ProfileMigrator(mock_profile_manager)
 
@@ -237,13 +227,9 @@ class TestProfileMigrator:
         assert len(filtered) == 1
         assert "test1" in filtered[0].name
 
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration"
-    )
-    @patch("file_organizer.services.intelligence.profile_migrator.Profile")
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.rollback_migration"
-    )
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration")
+    @patch("services.intelligence.profile_migrator.Profile")
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.rollback_migration")
     def test_migrate_version_invalid_migrated_profile(
         self, mock_rollback, mock_profile_class, mock_backup, mock_profile_manager, sample_profile
     ):
@@ -266,13 +252,9 @@ class TestProfileMigrator:
         assert migrator.migrate_version("test_profile", "2.0") is False
         mock_rollback.assert_called_once()
 
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration"
-    )
-    @patch("file_organizer.services.intelligence.profile_migrator.Profile")
-    @patch(
-        "file_organizer.services.intelligence.profile_migrator.ProfileMigrator.rollback_migration"
-    )
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.backup_before_migration")
+    @patch("services.intelligence.profile_migrator.Profile")
+    @patch("services.intelligence.profile_migrator.ProfileMigrator.rollback_migration")
     def test_migrate_version_update_fails(
         self, mock_rollback, mock_profile_class, mock_backup, mock_profile_manager, sample_profile
     ):
@@ -297,7 +279,7 @@ class TestProfileMigrator:
         migrator = ProfileMigrator(mock_profile_manager)
         assert migrator.migrate_version("test", "2.0") is False
 
-    @patch("file_organizer.services.intelligence.profile_migrator.Profile")
+    @patch("services.intelligence.profile_migrator.Profile")
     def test_rollback_migration_invalid_backup(
         self, mock_profile_class, mock_profile_manager, tmp_path
     ):

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.analytics import (
+from models.analytics import (
     AnalyticsDashboard,
     DuplicateStats,
     FileDistribution,
@@ -18,9 +18,9 @@ from file_organizer.models.analytics import (
     StorageStats,
     TimeSavings,
 )
-from file_organizer.services.analytics import AnalyticsService
-from file_organizer.services.analytics.metrics_calculator import MetricsCalculator
-from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+from services.analytics import AnalyticsService
+from services.analytics.metrics_calculator import MetricsCalculator
+from services.analytics.storage_analyzer import StorageAnalyzer
 
 
 @pytest.fixture

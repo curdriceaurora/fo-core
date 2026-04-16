@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.interfaces import (
+from interfaces import (
     MISSING,
     AudioModelProtocol,
     BatchProcessorProtocol,
@@ -39,7 +39,7 @@ def _make_model_config(
     provider: str = "ollama",
 ) -> MagicMock:
     """Create a minimal ModelConfig mock for model instantiation."""
-    from file_organizer.models.base import DeviceType, ModelType
+    from models.base import DeviceType, ModelType
 
     type_map = {
         "text": ModelType.TEXT,
@@ -78,21 +78,21 @@ class TestModelProtocolConformance:
     """Verify that all model implementations satisfy their Protocol."""
 
     def test_text_model_satisfies_text_protocol(self) -> None:
-        from file_organizer.models.text_model import TextModel
+        from models.text_model import TextModel
 
         cfg = _make_model_config(model_type="text")
         model = TextModel(cfg)
         assert isinstance(model, TextModelProtocol)
 
     def test_vision_model_satisfies_vision_protocol(self) -> None:
-        from file_organizer.models.vision_model import VisionModel
+        from models.vision_model import VisionModel
 
         cfg = _make_model_config(model_type="vision")
         model = VisionModel(cfg)
         assert isinstance(model, VisionModelProtocol)
 
     def test_audio_model_satisfies_audio_protocol(self) -> None:
-        from file_organizer.models.audio_model import AudioModel
+        from models.audio_model import AudioModel
 
         cfg = _make_model_config(model_type="audio")
         model = AudioModel(cfg)
@@ -100,26 +100,26 @@ class TestModelProtocolConformance:
 
     def test_text_model_also_satisfies_audio_protocol(self) -> None:
         """TextModel and AudioModel share the same generate signature."""
-        from file_organizer.models.text_model import TextModel
+        from models.text_model import TextModel
 
         cfg = _make_model_config(model_type="text")
         model = TextModel(cfg)
         assert isinstance(model, AudioModelProtocol)
 
-    @patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True)
-    @patch("file_organizer.models.openai_text_model.create_openai_client")
+    @patch("models.openai_text_model.OPENAI_AVAILABLE", True)
+    @patch("models.openai_text_model.create_openai_client")
     def test_openai_text_model_satisfies_text_protocol(self, _mock_create: MagicMock) -> None:
-        from file_organizer.models.openai_text_model import OpenAITextModel
+        from models.openai_text_model import OpenAITextModel
 
         cfg = _make_model_config(model_type="text", provider="openai")
         cfg.api_key = "test-key"
         model = OpenAITextModel(cfg)
         assert isinstance(model, TextModelProtocol)
 
-    @patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True)
-    @patch("file_organizer.models.openai_vision_model.create_openai_client")
+    @patch("models.openai_vision_model.OPENAI_AVAILABLE", True)
+    @patch("models.openai_vision_model.create_openai_client")
     def test_openai_vision_model_satisfies_vision_protocol(self, _mock_create: MagicMock) -> None:
-        from file_organizer.models.openai_vision_model import OpenAIVisionModel
+        from models.openai_vision_model import OpenAIVisionModel
 
         cfg = _make_model_config(model_type="vision", provider="openai")
         cfg.api_key = "test-key"
@@ -138,7 +138,7 @@ class TestProcessorProtocolConformance:
     """Verify that processor classes satisfy FileProcessorProtocol."""
 
     def test_text_processor_satisfies_protocol(self) -> None:
-        from file_organizer.services.text_processor import TextProcessor
+        from services.text_processor import TextProcessor
 
         # Provide a mock model to avoid network calls during init
         mock_model = MagicMock()
@@ -147,7 +147,7 @@ class TestProcessorProtocolConformance:
         assert isinstance(processor, FileProcessorProtocol)
 
     def test_vision_processor_satisfies_protocol(self) -> None:
-        from file_organizer.services.vision_processor import VisionProcessor
+        from services.vision_processor import VisionProcessor
 
         mock_model = MagicMock()
         mock_model.config.model_type = _make_model_config(model_type="vision").model_type
@@ -166,7 +166,7 @@ class TestBatchProcessorProtocolConformance:
     """Verify that ParallelProcessor satisfies BatchProcessorProtocol."""
 
     def test_parallel_processor_satisfies_protocol(self) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         processor = ParallelProcessor()
         assert isinstance(processor, BatchProcessorProtocol)
@@ -183,7 +183,7 @@ class TestCacheProtocolConformance:
     """Verify that ModelCache satisfies CacheProtocol."""
 
     def test_model_cache_satisfies_protocol(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         cache = ModelCache(max_models=2)
         assert isinstance(cache, CacheProtocol)
@@ -200,7 +200,7 @@ class TestIntelligenceProtocolConformance:
     """Verify that intelligence services satisfy their protocols."""
 
     def test_folder_learner_satisfies_learner_protocol(self) -> None:
-        from file_organizer.services.intelligence.folder_learner import (
+        from services.intelligence.folder_learner import (
             FolderPreferenceLearner,
         )
 
@@ -208,7 +208,7 @@ class TestIntelligenceProtocolConformance:
         assert isinstance(learner, LearnerProtocol)
 
     def test_pattern_scorer_satisfies_scorer_protocol(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         scorer = PatternScorer()
         assert isinstance(scorer, ScorerProtocol)
@@ -280,10 +280,10 @@ class TestPipelineStageProtocolConformance:
         """All four extracted pipeline stages satisfy PipelineStage."""
         from pathlib import Path
 
-        from file_organizer.pipeline.stages.analyzer import AnalyzerStage
-        from file_organizer.pipeline.stages.postprocessor import PostprocessorStage
-        from file_organizer.pipeline.stages.preprocessor import PreprocessorStage
-        from file_organizer.pipeline.stages.writer import WriterStage
+        from pipeline.stages.analyzer import AnalyzerStage
+        from pipeline.stages.postprocessor import PostprocessorStage
+        from pipeline.stages.preprocessor import PreprocessorStage
+        from pipeline.stages.writer import WriterStage
 
         preprocessor = PreprocessorStage()
         assert isinstance(preprocessor, PipelineStage)

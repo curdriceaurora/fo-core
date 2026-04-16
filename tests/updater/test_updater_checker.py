@@ -1,4 +1,4 @@
-"""Tests for file_organizer.updater.checker module.
+"""Tests for updater.checker module.
 
 Covers _parse_version, AssetInfo, ReleaseInfo, UpdateChecker.check,
 get_latest_release, _fetch_latest_release, _parse_release, _detect_version.
@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.updater.checker import (
+from updater.checker import (
     AssetInfo,
     ReleaseInfo,
     UpdateChecker,
@@ -83,7 +83,7 @@ class TestDataclasses:
 class TestUpdateCheckerCheck:
     """Test UpdateChecker.check method."""
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_no_update(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -105,7 +105,7 @@ class TestUpdateCheckerCheck:
         result = checker.check()
         assert result is None
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_update_available(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -136,7 +136,7 @@ class TestUpdateCheckerCheck:
         assert result.version == "3.0.0"
         assert len(result.assets) == 1
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_check_exception(self, mock_httpx):
         mock_client = MagicMock()
         mock_client.get.side_effect = Exception("network error")
@@ -158,7 +158,7 @@ class TestUpdateCheckerCheck:
 class TestGetLatestRelease:
     """Test get_latest_release method."""
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_success(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -181,7 +181,7 @@ class TestGetLatestRelease:
         assert result is not None
         assert result.version == "2.0.0"
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_failure(self, mock_httpx):
         mock_client = MagicMock()
         mock_client.get.side_effect = Exception("fail")
@@ -203,7 +203,7 @@ class TestGetLatestRelease:
 class TestFetchLatestReleasePrerelease:
     """Test _fetch_latest_release with include_prereleases."""
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_prerelease_returns_first_nondraft(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -229,7 +229,7 @@ class TestFetchLatestReleasePrerelease:
         assert result is not None
         assert result.version == "2.0.0-rc1"
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_prerelease_skips_drafts(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -254,7 +254,7 @@ class TestFetchLatestReleasePrerelease:
         result = checker._fetch_latest_release()
         assert result is None
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_prerelease_404(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -268,7 +268,7 @@ class TestFetchLatestReleasePrerelease:
         result = checker._fetch_latest_release()
         assert result is None
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_prerelease_not_list(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -283,7 +283,7 @@ class TestFetchLatestReleasePrerelease:
         result = checker._fetch_latest_release()
         assert result is None
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_latest_404(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -297,7 +297,7 @@ class TestFetchLatestReleasePrerelease:
         result = checker._fetch_latest_release()
         assert result is None
 
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.httpx")
     def test_latest_not_dict(self, mock_httpx):
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -361,19 +361,19 @@ class TestParseRelease:
 class TestDetectVersion:
     """Test _detect_version static method."""
 
-    @patch("file_organizer.updater.checker.UpdateChecker._detect_version", return_value="0.0.0")
+    @patch("updater.checker.UpdateChecker._detect_version", return_value="0.0.0")
     def test_fallback(self, mock_detect):
         checker = UpdateChecker()
         assert checker.current_version == "0.0.0"
 
     def test_detect_import_error(self):
-        with patch.dict("sys.modules", {"file_organizer.version": None}):
+        with patch.dict("sys.modules", {"version": None}):
             result = UpdateChecker._detect_version()
             assert result == "0.0.0"
 
     def test_detect_version_success(self):
         """_detect_version returns the real __version__ string when import succeeds."""
-        from file_organizer.version import __version__
+        from version import __version__
 
         result = UpdateChecker._detect_version()
         assert result == __version__
@@ -389,8 +389,8 @@ class TestDetectVersion:
 class TestUpdateCheckerCheckFetchReturnsNone:
     """Test check() when _fetch_latest_release returns None (not via exception)."""
 
-    @patch("file_organizer.updater.checker.logger")
-    @patch("file_organizer.updater.checker.httpx")
+    @patch("updater.checker.logger")
+    @patch("updater.checker.httpx")
     def test_check_returns_none_when_fetch_returns_none(self, mock_httpx, mock_logger):
         """check() returns None when _fetch_latest_release returns None (e.g., 404)."""
         mock_client = MagicMock()

@@ -1,6 +1,6 @@
 # File Organizer CLI Reference
 
-All commands are available via `file-organizer` or the short alias `fo`.
+All commands are available via `fo` or the short alias `fo`.
 
 ## Global Options
 
@@ -24,7 +24,7 @@ These options apply to every command and may be passed before or after the comma
 Show the application version.
 
 ```bash
-file-organizer version
+fo version
 ```
 
 ---
@@ -36,7 +36,7 @@ Organize files in a directory using AI models.
 **Usage:**
 
 ```bash
-file-organizer organize INPUT_DIR OUTPUT_DIR [OPTIONS]
+fo organize INPUT_DIR OUTPUT_DIR [OPTIONS]
 ```
 
 **Arguments:**
@@ -58,28 +58,28 @@ file-organizer organize INPUT_DIR OUTPUT_DIR [OPTIONS]
 
 ```bash
 # Organize ~/Downloads into ~/Organized
-file-organizer organize ~/Downloads ~/Organized
+fo organize ~/Downloads ~/Organized
 
 # Preview what would happen (no files moved)
-file-organizer organize ~/Downloads ~/Organized --dry-run
+fo organize ~/Downloads ~/Organized --dry-run
 
 # Verbose output
-file-organizer organize ~/Downloads ~/Organized --verbose
+fo organize ~/Downloads ~/Organized --verbose
 
 # Limit CPU/IO pressure on constrained machines
-file-organizer organize ~/Downloads ~/Organized --max-workers 2 --prefetch-depth 1
+fo organize ~/Downloads ~/Organized --max-workers 2 --prefetch-depth 1
 
 # Strict sequential mode for deterministic debugging
-file-organizer organize ~/Downloads ~/Organized --sequential
+fo organize ~/Downloads ~/Organized --sequential
 
 # Disable AI vision processing and use extension-based image fallback
-file-organizer organize ~/Downloads ~/Organized --no-vision
+fo organize ~/Downloads ~/Organized --no-vision
 
 # Backward-compatible alias
-file-organizer organize ~/Downloads ~/Organized --no-prefetch
+fo organize ~/Downloads ~/Organized --no-prefetch
 ```
 
-> **Note:** To set a default methodology (PARA, Johnny Decimal, etc.) or override AI models, use `file-organizer config edit` before running organize.
+> **Note:** To set a default methodology (PARA, Johnny Decimal, etc.) or override AI models, use `fo config edit` before running organize.
 
 ---
 
@@ -90,13 +90,13 @@ Preview how files would be organized without moving them (dry-run shortcut).
 **Usage:**
 
 ```bash
-file-organizer preview INPUT_DIR
+fo preview INPUT_DIR
 ```
 
 **Examples:**
 
 ```bash
-file-organizer preview ~/Downloads
+fo preview ~/Downloads
 fo preview ~/Downloads
 ```
 
@@ -110,7 +110,7 @@ BM25+vector semantic search to find files by content relevance.
 **Usage:**
 
 ```bash
-file-organizer search QUERY [DIRECTORY] [OPTIONS]
+fo search QUERY [DIRECTORY] [OPTIONS]
 ```
 
 **Arguments:**
@@ -130,25 +130,25 @@ file-organizer search QUERY [DIRECTORY] [OPTIONS]
 
 ```bash
 # Search by glob pattern
-file-organizer search "*.pdf" ~/Documents
+fo search "*.pdf" ~/Documents
 
 # Keyword search (case-insensitive)
-file-organizer search "report" ~/Documents
+fo search "report" ~/Documents
 
 # Filter by type
-file-organizer search "*" ~/Pictures --type image
+fo search "*" ~/Pictures --type image
 
 # Non-recursive, limited results
-file-organizer search "*.log" /var/log --no-recursive --limit 10
+fo search "*.log" /var/log --no-recursive --limit 10
 
 # JSON output for scripting
-file-organizer search "*.py" ./src --json
+fo search "*.py" ./src --json
 
 # Semantic search — finds files by content relevance, not just filename
-file-organizer search "quarterly budget forecast" ~/Documents --semantic
+fo search "quarterly budget forecast" ~/Documents --semantic
 
 # Semantic search with type filter and JSON output
-file-organizer search "meeting notes" ~/work --semantic --type text --json
+fo search "meeting notes" ~/work --semantic --type text --json
 ```
 
 ---
@@ -160,7 +160,7 @@ Analyze a file using AI and show its description, category, and confidence score
 **Usage:**
 
 ```bash
-file-organizer analyze FILE [OPTIONS]
+fo analyze FILE [OPTIONS]
 ```
 
 **Arguments:**
@@ -174,13 +174,13 @@ file-organizer analyze FILE [OPTIONS]
 
 ```bash
 # Basic analysis
-file-organizer analyze ~/Documents/report.pdf
+fo analyze ~/Documents/report.pdf
 
 # Verbose output
-file-organizer analyze ~/Documents/report.pdf --verbose
+fo analyze ~/Documents/report.pdf --verbose
 
 # JSON output for scripting
-file-organizer analyze ~/Documents/report.pdf --json
+fo analyze ~/Documents/report.pdf --json
 ```
 
 > **Note:** Requires Ollama to be installed and running with a text model available.
@@ -194,7 +194,7 @@ Scan a directory for file types and recommend optional dependencies.
 **Usage:**
 
 ```bash
-file-organizer doctor PATH [OPTIONS]
+fo doctor PATH [OPTIONS]
 ```
 
 **Arguments:**
@@ -215,7 +215,7 @@ Interactive setup wizard for first-run configuration.
 **Usage:**
 
 ```bash
-file-organizer setup [COMMAND]
+fo setup [COMMAND]
 ```
 
 Running `setup` without a subcommand launches the wizard with default settings.
@@ -225,7 +225,7 @@ Running `setup` without a subcommand launches the wizard with default settings.
 Run the setup wizard to configure File Organizer.
 
 ```bash
-file-organizer setup run [OPTIONS]
+fo setup run [OPTIONS]
 ```
 
 **Options:**
@@ -243,7 +243,7 @@ Detect hardware capabilities and print model-sizing recommendations.
 **Usage:**
 
 ```bash
-file-organizer hardware-info [OPTIONS]
+fo hardware-info [OPTIONS]
 ```
 
 **Options:**
@@ -253,10 +253,10 @@ file-organizer hardware-info [OPTIONS]
 
 ```bash
 # Human-readable hardware summary
-file-organizer hardware-info
+fo hardware-info
 
 # JSON output for automation or debugging
-file-organizer hardware-info --json
+fo hardware-info --json
 ```
 
 > **Why it exists:** This command exposes the same hardware profile the app uses to choose sane defaults for model size and worker count, which helps explain performance differences across machines.
@@ -270,7 +270,7 @@ Undo file operations.
 **Usage:**
 
 ```bash
-file-organizer undo [OPTIONS]
+fo undo [OPTIONS]
 ```
 
 **Options:**
@@ -283,13 +283,13 @@ file-organizer undo [OPTIONS]
 
 ```bash
 # Undo the last operation
-file-organizer undo
+fo undo
 
 # Undo a specific operation
-file-organizer undo --operation-id 42
+fo undo --operation-id 42
 
 # Undo all operations in a transaction
-file-organizer undo --transaction-id abc123
+fo undo --transaction-id abc123
 ```
 
 **Behavior notes:**
@@ -307,7 +307,7 @@ Redo previously undone file operations.
 **Usage:**
 
 ```bash
-file-organizer redo [OPTIONS]
+fo redo [OPTIONS]
 ```
 
 **Options:**
@@ -329,7 +329,7 @@ View operation history.
 **Usage:**
 
 ```bash
-file-organizer history [OPTIONS]
+fo history [OPTIONS]
 ```
 
 **Options:**
@@ -342,9 +342,9 @@ file-organizer history [OPTIONS]
 **Examples:**
 
 ```bash
-file-organizer history
-file-organizer history --limit 50
-file-organizer history --stats
+fo history
+fo history --limit 50
+fo history --stats
 ```
 
 ---
@@ -356,7 +356,7 @@ Display storage analytics dashboard.
 **Usage:**
 
 ```bash
-file-organizer analytics [DIRECTORY] [OPTIONS]
+fo analytics [DIRECTORY] [OPTIONS]
 ```
 
 **Arguments:**
@@ -368,8 +368,8 @@ file-organizer analytics [DIRECTORY] [OPTIONS]
 **Examples:**
 
 ```bash
-file-organizer analytics
-file-organizer analytics ~/Documents
+fo analytics
+fo analytics ~/Documents
 ```
 
 ---
@@ -388,7 +388,7 @@ Run a performance benchmark on a directory of files.
 **Usage:**
 
 ```bash
-file-organizer benchmark run [INPUT_PATH] [OPTIONS]
+fo benchmark run [INPUT_PATH] [OPTIONS]
 ```
 
 **Arguments:**
@@ -441,16 +441,16 @@ file. Flags a regression if p95 exceeds 120% of the baseline p95.
 
 ```bash
 # Benchmark files in Downloads with default settings
-file-organizer benchmark run ~/Downloads
+fo benchmark run ~/Downloads
 
 # Run with 5 iterations, no warmup, JSON output
-file-organizer benchmark run ~/Documents --iterations 5 --warmup 0 --json
+fo benchmark run ~/Documents --iterations 5 --warmup 0 --json
 
 # Run text suite and compare against baseline
-file-organizer benchmark run tests/fixtures/ --suite text --json --compare baseline.json
+fo benchmark run tests/fixtures/ --suite text --json --compare baseline.json
 
 # Save baseline for future comparison
-file-organizer benchmark run tests/fixtures/ --json > baseline.json
+fo benchmark run tests/fixtures/ --json > baseline.json
 ```
 
 Audio suite behavior note:
@@ -467,7 +467,7 @@ Manage configuration profiles.
 Display the current configuration profile.
 
 ```bash
-file-organizer config show [--profile PROFILE]
+fo config show [--profile PROFILE]
 ```
 
 Options:
@@ -478,7 +478,7 @@ Options:
 List all available configuration profiles.
 
 ```bash
-file-organizer config list
+fo config list
 ```
 
 #### `config edit`
@@ -486,7 +486,7 @@ file-organizer config list
 Edit a configuration profile.
 
 ```bash
-file-organizer config edit [OPTIONS]
+fo config edit [OPTIONS]
 ```
 
 Options:
@@ -500,11 +500,11 @@ Options:
 **Examples:**
 
 ```bash
-file-organizer config show
-file-organizer config show --profile work
-file-organizer config edit --text-model qwen2.5:3b-instruct-q4_K_M
-file-organizer config edit --device cuda --methodology para
-file-organizer config edit --profile work --temperature 0.7
+fo config show
+fo config show --profile work
+fo config edit --text-model qwen2.5:3b-instruct-q4_K_M
+fo config edit --device cuda --methodology para
+fo config edit --profile work --temperature 0.7
 ```
 
 ---
@@ -518,7 +518,7 @@ Manage AI models via Ollama.
 List available models with their install status.
 
 ```bash
-file-organizer model list [--type TYPE]
+fo model list [--type TYPE]
 ```
 
 Options:
@@ -529,7 +529,7 @@ Options:
 Download a model via Ollama.
 
 ```bash
-file-organizer model pull MODEL_NAME
+fo model pull MODEL_NAME
 ```
 
 **Arguments:**
@@ -540,16 +540,16 @@ file-organizer model pull MODEL_NAME
 Show model cache statistics.
 
 ```bash
-file-organizer model cache
+fo model cache
 ```
 
 **Examples:**
 
 ```bash
-file-organizer model list
-file-organizer model list --type vision
-file-organizer model pull qwen2.5:3b-instruct-q4_K_M
-file-organizer model cache
+fo model list
+fo model list --type vision
+fo model pull qwen2.5:3b-instruct-q4_K_M
+fo model cache
 ```
 
 ---
@@ -563,7 +563,7 @@ Interactive AI copilot for file organisation.
 Chat with the file-organisation copilot.
 
 ```bash
-file-organizer copilot chat [MESSAGE] [--dir DIRECTORY]
+fo copilot chat [MESSAGE] [--dir DIRECTORY]
 ```
 
 Arguments:
@@ -576,13 +576,13 @@ Options:
 
 ```bash
 # Interactive REPL
-file-organizer copilot chat
+fo copilot chat
 
 # Single question
-file-organizer copilot chat "Help me organize my photos"
+fo copilot chat "Help me organize my photos"
 
 # Scoped to a specific directory
-file-organizer copilot chat --dir ~/Documents "What duplicates do I have?"
+fo copilot chat --dir ~/Documents "What duplicates do I have?"
 ```
 
 #### `copilot status`
@@ -590,7 +590,7 @@ file-organizer copilot chat --dir ~/Documents "What duplicates do I have?"
 Show the status of the AI copilot engine and available models.
 
 ```bash
-file-organizer copilot status
+fo copilot status
 ```
 
 Displays:
@@ -601,7 +601,7 @@ Displays:
 **Examples:**
 
 ```bash
-file-organizer copilot status
+fo copilot status
 fo copilot status
 ```
 
@@ -614,7 +614,7 @@ Run the file watcher as a background daemon.
 #### `daemon start`
 
 ```bash
-file-organizer daemon start [OPTIONS]
+fo daemon start [OPTIONS]
 ```
 
 Common options: `--watch-dir PATH`, `--output-dir PATH`
@@ -622,20 +622,20 @@ Common options: `--watch-dir PATH`, `--output-dir PATH`
 #### `daemon stop`
 
 ```bash
-file-organizer daemon stop
+fo daemon stop
 ```
 
 #### `daemon status`
 
 ```bash
-file-organizer daemon status
+fo daemon status
 ```
 
 #### `daemon watch`
 
 Watch a directory for file events and stream them in real-time.
 
-**Usage:** file-organizer daemon watch WATCH_DIR [OPTIONS]
+**Usage:** fo daemon watch WATCH_DIR [OPTIONS]
 
 Arguments:
 - `WATCH_DIR` — Directory to watch for file events
@@ -646,8 +646,8 @@ Options:
 **Examples:**
 
 ```bash
-file-organizer daemon watch ~/Inbox
-file-organizer daemon watch ~/Documents --poll-interval 2.0
+fo daemon watch ~/Inbox
+fo daemon watch ~/Documents --poll-interval 2.0
 ```
 
 #### `daemon process`
@@ -655,7 +655,7 @@ file-organizer daemon watch ~/Documents --poll-interval 2.0
 One-shot: organize files in a directory and display a summary.
 
 ```bash
-file-organizer daemon process INPUT_DIR OUTPUT_DIR [OPTIONS]
+fo daemon process INPUT_DIR OUTPUT_DIR [OPTIONS]
 ```
 
 Arguments:
@@ -668,10 +668,10 @@ Options:
 **Examples:**
 
 ```bash
-file-organizer daemon process ~/Inbox ~/Organized
+fo daemon process ~/Inbox ~/Organized
 
 # Preview without moving
-file-organizer daemon process ~/Downloads ~/Organized --dry-run
+fo daemon process ~/Downloads ~/Organized --dry-run
 ```
 
 Displays a summary table with:
@@ -683,9 +683,9 @@ Displays a summary table with:
 **Examples:**
 
 ```bash
-file-organizer daemon start --watch-dir ~/Inbox --output-dir ~/Organized
-file-organizer daemon status
-file-organizer daemon stop
+fo daemon start --watch-dir ~/Inbox --output-dir ~/Organized
+fo daemon status
+fo daemon stop
 ```
 
 ---
@@ -699,7 +699,7 @@ Find and manage duplicate files.
 Scan a directory for duplicate files.
 
 ```bash
-file-organizer dedupe scan DIRECTORY [OPTIONS]
+fo dedupe scan DIRECTORY [OPTIONS]
 ```
 
 #### `dedupe report`
@@ -707,7 +707,7 @@ file-organizer dedupe scan DIRECTORY [OPTIONS]
 Generate a duplication report.
 
 ```bash
-file-organizer dedupe report DIRECTORY [OPTIONS]
+fo dedupe report DIRECTORY [OPTIONS]
 ```
 
 **Arguments:**
@@ -718,7 +718,7 @@ file-organizer dedupe report DIRECTORY [OPTIONS]
 Interactively or automatically resolve duplicates.
 
 ```bash
-file-organizer dedupe resolve DIRECTORY [OPTIONS]
+fo dedupe resolve DIRECTORY [OPTIONS]
 ```
 
 **Arguments:**
@@ -734,9 +734,9 @@ file-organizer dedupe resolve DIRECTORY [OPTIONS]
 **Examples:**
 
 ```bash
-file-organizer dedupe scan ~/Images
-file-organizer dedupe report
-file-organizer dedupe resolve
+fo dedupe scan ~/Images
+fo dedupe report
+fo dedupe resolve
 ```
 
 ---
@@ -750,7 +750,7 @@ Manage copilot organisation rules and rule sets.
 List all rules in a rule set.
 
 ```bash
-file-organizer rules list [--set RULE_SET]
+fo rules list [--set RULE_SET]
 ```
 
 #### `rules sets`
@@ -758,7 +758,7 @@ file-organizer rules list [--set RULE_SET]
 List available rule sets.
 
 ```bash
-file-organizer rules sets
+fo rules sets
 ```
 
 #### `rules add`
@@ -766,7 +766,7 @@ file-organizer rules sets
 Add a new rule to a rule set.
 
 ```bash
-file-organizer rules add RULE_NAME [OPTIONS]
+fo rules add RULE_NAME [OPTIONS]
 ```
 
 **Arguments:**
@@ -785,7 +785,7 @@ file-organizer rules add RULE_NAME [OPTIONS]
 Remove a rule from a rule set.
 
 ```bash
-file-organizer rules remove RULE_NAME [--set RULE_SET]
+fo rules remove RULE_NAME [--set RULE_SET]
 ```
 
 **Arguments:**
@@ -796,7 +796,7 @@ file-organizer rules remove RULE_NAME [--set RULE_SET]
 Enable or disable a rule.
 
 ```bash
-file-organizer rules toggle RULE_NAME [--set RULE_SET]
+fo rules toggle RULE_NAME [--set RULE_SET]
 ```
 
 **Arguments:**
@@ -807,7 +807,7 @@ file-organizer rules toggle RULE_NAME [--set RULE_SET]
 Preview what rules would do against a directory (dry-run).
 
 ```bash
-file-organizer rules preview DIRECTORY [OPTIONS]
+fo rules preview DIRECTORY [OPTIONS]
 ```
 
 Options:
@@ -820,7 +820,7 @@ Options:
 Export a rule set to YAML.
 
 ```bash
-file-organizer rules export [--set RULE_SET] [--output FILE]
+fo rules export [--set RULE_SET] [--output FILE]
 ```
 
 #### `rules import`
@@ -828,7 +828,7 @@ file-organizer rules export [--set RULE_SET] [--output FILE]
 Import a rule set from a YAML file.
 
 ```bash
-file-organizer rules import FILE [--set RULE_SET]
+fo rules import FILE [--set RULE_SET]
 ```
 
 **Arguments:**
@@ -838,20 +838,20 @@ file-organizer rules import FILE [--set RULE_SET]
 
 ```bash
 # List rules in the default rule set
-file-organizer rules list
+fo rules list
 
 # Add a rule to move PDFs to a Docs folder
-file-organizer rules add move-pdfs --ext .pdf --action move --dest Docs
+fo rules add move-pdfs --ext .pdf --action move --dest Docs
 
 # Add a rule with glob pattern, high priority
-file-organizer rules add archive-old --pattern "*.2022*" --action archive --priority 10
+fo rules add archive-old --pattern "*.2022*" --action archive --priority 10
 
 # Preview rules against a directory
-file-organizer rules preview ~/Downloads
+fo rules preview ~/Downloads
 
 # Export/import rule sets
-file-organizer rules export --set work --output work-rules.yaml
-file-organizer rules import work-rules.yaml
+fo rules export --set work --output work-rules.yaml
+fo rules import work-rules.yaml
 ```
 
 ---
@@ -865,7 +865,7 @@ Generate AI-powered file organisation suggestions using pattern analysis.
 Generate organisation suggestions for files in a directory.
 
 ```bash
-file-organizer suggest files DIRECTORY [OPTIONS]
+fo suggest files DIRECTORY [OPTIONS]
 ```
 
 Options:
@@ -879,7 +879,7 @@ Options:
 Apply accepted suggestions.
 
 ```bash
-file-organizer suggest apply DIRECTORY [OPTIONS]
+fo suggest apply DIRECTORY [OPTIONS]
 ```
 
 **Arguments:**
@@ -890,15 +890,15 @@ file-organizer suggest apply DIRECTORY [OPTIONS]
 Analyze naming patterns in a directory.
 
 ```bash
-file-organizer suggest patterns DIRECTORY [OPTIONS]
+fo suggest patterns DIRECTORY [OPTIONS]
 ```
 
 **Examples:**
 
 ```bash
-file-organizer suggest files ~/Downloads
-file-organizer suggest files ~/Documents --min-confidence 60
-file-organizer suggest patterns ~/Projects
+fo suggest files ~/Downloads
+fo suggest files ~/Documents --min-confidence 60
+fo suggest patterns ~/Projects
 ```
 
 ---
@@ -912,7 +912,7 @@ Browse and manage plugins from the marketplace.
 List available plugins.
 
 ```bash
-file-organizer marketplace list [OPTIONS]
+fo marketplace list [OPTIONS]
 ```
 
 Options:
@@ -926,7 +926,7 @@ Options:
 Search the marketplace.
 
 ```bash
-file-organizer marketplace search QUERY [OPTIONS]
+fo marketplace search QUERY [OPTIONS]
 ```
 
 #### `marketplace info`
@@ -934,7 +934,7 @@ file-organizer marketplace search QUERY [OPTIONS]
 Show details for a specific plugin.
 
 ```bash
-file-organizer marketplace info PLUGIN_NAME
+fo marketplace info PLUGIN_NAME
 ```
 
 **Arguments:**
@@ -945,7 +945,7 @@ file-organizer marketplace info PLUGIN_NAME
 Install a plugin.
 
 ```bash
-file-organizer marketplace install PLUGIN_NAME [--version VERSION]
+fo marketplace install PLUGIN_NAME [--version VERSION]
 ```
 
 **Arguments:**
@@ -956,7 +956,7 @@ file-organizer marketplace install PLUGIN_NAME [--version VERSION]
 Remove an installed plugin.
 
 ```bash
-file-organizer marketplace uninstall PLUGIN_NAME
+fo marketplace uninstall PLUGIN_NAME
 ```
 
 **Arguments:**
@@ -967,7 +967,7 @@ file-organizer marketplace uninstall PLUGIN_NAME
 Add or update a review for a plugin.
 
 ```bash
-file-organizer marketplace review PLUGIN_NAME [OPTIONS]
+fo marketplace review PLUGIN_NAME [OPTIONS]
 ```
 
 Arguments:
@@ -982,7 +982,7 @@ Options:
 **Examples:**
 
 ```bash
-file-organizer marketplace review awesome-plugin \
+fo marketplace review awesome-plugin \
   --user john_doe \
   --rating 5 \
   --title "Great plugin!" \
@@ -994,7 +994,7 @@ file-organizer marketplace review awesome-plugin \
 List installed plugins.
 
 ```bash
-file-organizer marketplace installed
+fo marketplace installed
 ```
 
 #### `marketplace updates`
@@ -1002,7 +1002,7 @@ file-organizer marketplace installed
 Check for plugin updates.
 
 ```bash
-file-organizer marketplace updates
+fo marketplace updates
 ```
 
 #### `marketplace update`
@@ -1010,7 +1010,7 @@ file-organizer marketplace updates
 Update a specific plugin.
 
 ```bash
-file-organizer marketplace update PLUGIN_NAME
+fo marketplace update PLUGIN_NAME
 ```
 
 **Arguments:**
@@ -1027,7 +1027,7 @@ Manage application updates.
 Check for new versions.
 
 ```bash
-file-organizer update check
+fo update check
 ```
 
 #### `update install`
@@ -1035,7 +1035,7 @@ file-organizer update check
 Install the latest version.
 
 ```bash
-file-organizer update install
+fo update install
 ```
 
 #### `update rollback`
@@ -1043,7 +1043,7 @@ file-organizer update install
 Revert to the previous version.
 
 ```bash
-file-organizer update rollback
+fo update rollback
 ```
 
 ---
@@ -1057,7 +1057,7 @@ Manage user preference profiles (powered by the intelligence/learning system).
 List all available profiles.
 
 ```bash
-file-organizer profile list
+fo profile list
 ```
 
 #### `profile create`
@@ -1065,7 +1065,7 @@ file-organizer profile list
 Create a new profile.
 
 ```bash
-file-organizer profile create PROFILE_NAME [OPTIONS]
+fo profile create PROFILE_NAME [OPTIONS]
 ```
 
 #### `profile activate`
@@ -1073,7 +1073,7 @@ file-organizer profile create PROFILE_NAME [OPTIONS]
 Load and activate a profile.
 
 ```bash
-file-organizer profile activate PROFILE_NAME
+fo profile activate PROFILE_NAME
 ```
 
 #### `profile delete`
@@ -1081,7 +1081,7 @@ file-organizer profile activate PROFILE_NAME
 Delete a profile.
 
 ```bash
-file-organizer profile delete PROFILE_NAME
+fo profile delete PROFILE_NAME
 ```
 
 #### `profile export`
@@ -1089,7 +1089,7 @@ file-organizer profile delete PROFILE_NAME
 Export a profile to a file.
 
 ```bash
-file-organizer profile export PROFILE_NAME [--output FILE]
+fo profile export PROFILE_NAME [--output FILE]
 ```
 
 #### `profile import`
@@ -1097,7 +1097,7 @@ file-organizer profile export PROFILE_NAME [--output FILE]
 Import a profile from a file.
 
 ```bash
-file-organizer profile import FILE [OPTIONS]
+fo profile import FILE [OPTIONS]
 ```
 
 **Arguments:**
@@ -1108,7 +1108,7 @@ file-organizer profile import FILE [OPTIONS]
 Show the currently active profile and its statistics.
 
 ```bash
-file-organizer profile current
+fo profile current
 ```
 
 Displays:
@@ -1122,7 +1122,7 @@ Displays:
 Merge multiple profiles into one.
 
 ```bash
-file-organizer profile merge PROFILES... [OPTIONS]
+fo profile merge PROFILES... [OPTIONS]
 ```
 
 Arguments:
@@ -1136,10 +1136,10 @@ Options:
 **Examples:**
 
 ```bash
-file-organizer profile merge work personal --output merged --strategy confident
+fo profile merge work personal --output merged --strategy confident
 
 # Show conflicts before merging
-file-organizer profile merge work personal --output merged --show-conflicts
+fo profile merge work personal --output merged --show-conflicts
 ```
 
 #### `profile migrate`
@@ -1147,7 +1147,7 @@ file-organizer profile merge work personal --output merged --show-conflicts
 Migrate a profile to a different version.
 
 ```bash
-file-organizer profile migrate PROFILE_NAME [OPTIONS]
+fo profile migrate PROFILE_NAME [OPTIONS]
 ```
 
 Arguments:
@@ -1160,10 +1160,10 @@ Options:
 **Examples:**
 
 ```bash
-file-organizer profile migrate work --to-version 2.0
+fo profile migrate work --to-version 2.0
 
 # Migrate without creating backup
-file-organizer profile migrate work --to-version 2.0 --no-backup
+fo profile migrate work --to-version 2.0 --no-backup
 ```
 
 #### `profile validate`
@@ -1171,7 +1171,7 @@ file-organizer profile migrate work --to-version 2.0 --no-backup
 Validate a profile for integrity and compatibility.
 
 ```bash
-file-organizer profile validate PROFILE_NAME
+fo profile validate PROFILE_NAME
 ```
 
 Arguments:
@@ -1180,7 +1180,7 @@ Arguments:
 **Examples:**
 
 ```bash
-file-organizer profile validate work
+fo profile validate work
 ```
 
 ---
@@ -1194,7 +1194,7 @@ Manage profile templates for common configurations.
 List all available templates.
 
 ```bash
-file-organizer profile template list
+fo profile template list
 ```
 
 Displays all available templates with their descriptions.
@@ -1204,7 +1204,7 @@ Displays all available templates with their descriptions.
 Preview a template before applying it.
 
 ```bash
-file-organizer profile template preview TEMPLATE_NAME
+fo profile template preview TEMPLATE_NAME
 ```
 
 Arguments:
@@ -1218,8 +1218,8 @@ Displays:
 **Examples:**
 
 ```bash
-file-organizer profile template preview default
-file-organizer profile template preview minimal
+fo profile template preview default
+fo profile template preview minimal
 ```
 
 #### `profile template apply`
@@ -1227,7 +1227,7 @@ file-organizer profile template preview minimal
 Create a profile from a template.
 
 ```bash
-file-organizer profile template apply TEMPLATE_NAME PROFILE_NAME [OPTIONS]
+fo profile template apply TEMPLATE_NAME PROFILE_NAME [OPTIONS]
 ```
 
 Arguments:
@@ -1240,10 +1240,10 @@ Options:
 **Examples:**
 
 ```bash
-file-organizer profile template apply default myprofile
+fo profile template apply default myprofile
 
 # Apply template and activate it
-file-organizer profile template apply minimal myprofile --activate
+fo profile template apply minimal myprofile --activate
 ```
 
 ---
@@ -1251,9 +1251,9 @@ file-organizer profile template apply minimal myprofile --activate
 **General Profile Examples:**
 
 ```bash
-file-organizer profile list
-file-organizer profile create work --description "Work files config"
-file-organizer profile activate work
+fo profile list
+fo profile create work --description "Work files config"
+fo profile activate work
 ```
 
 > **Note:** The `profile` command requires the intelligence/learning optional dependencies (`pip install -e ".[all]"`). It degrades gracefully if not installed.
@@ -1269,7 +1269,7 @@ AI-powered tag suggestions and management.
 Suggest tags for files in a directory.
 
 ```bash
-file-organizer autotag suggest DIRECTORY [OPTIONS]
+fo autotag suggest DIRECTORY [OPTIONS]
 ```
 
 Options:
@@ -1282,7 +1282,7 @@ Options:
 Apply tags to a file and record for learning.
 
 ```bash
-file-organizer autotag apply FILE_PATH TAG...
+fo autotag apply FILE_PATH TAG...
 ```
 
 **Arguments:**
@@ -1294,7 +1294,7 @@ file-organizer autotag apply FILE_PATH TAG...
 Show the most popular tags.
 
 ```bash
-file-organizer autotag popular [--limit N]
+fo autotag popular [--limit N]
 ```
 
 Options:
@@ -1305,7 +1305,7 @@ Options:
 Show recently used tags.
 
 ```bash
-file-organizer autotag recent [OPTIONS]
+fo autotag recent [OPTIONS]
 ```
 
 Options:
@@ -1317,7 +1317,7 @@ Options:
 Batch tag suggestion for a directory.
 
 ```bash
-file-organizer autotag batch DIRECTORY [OPTIONS]
+fo autotag batch DIRECTORY [OPTIONS]
 ```
 
 Options:
@@ -1328,18 +1328,18 @@ Options:
 **Examples:**
 
 ```bash
-file-organizer autotag suggest ~/Documents
-file-organizer autotag apply ~/Documents/report.pdf finance quarterly
-file-organizer autotag popular --limit 10
-file-organizer autotag recent --days 7
-file-organizer autotag batch ~/Documents --pattern "*.pdf" --json
+fo autotag suggest ~/Documents
+fo autotag apply ~/Documents/report.pdf finance quarterly
+fo autotag popular --limit 10
+fo autotag recent --days 7
+fo autotag batch ~/Documents --pattern "*.pdf" --json
 ```
 
 ---
 
 ## Short Alias
 
-Use `fo` as a short alias for `file-organizer`:
+Use `fo` as a short alias for `fo`:
 
 ```bash
 fo organize ~/Downloads ~/Organized
@@ -1355,15 +1355,15 @@ fo autotag suggest ~/Documents
 ## Getting Help
 
 ```bash
-file-organizer --help
-file-organizer COMMAND --help
-file-organizer COMMAND SUBCOMMAND --help
+fo --help
+fo COMMAND --help
+fo COMMAND SUBCOMMAND --help
 ```
 
 For example:
 
 ```bash
-file-organizer rules --help
-file-organizer rules add --help
-file-organizer suggest --help
+fo rules --help
+fo rules add --help
+fo suggest --help
 ```

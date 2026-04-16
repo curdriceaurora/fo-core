@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from file_organizer.cli.doctor import (
+from cli.doctor import (
     DEPENDENCY_CHECK_PACKAGES,
     EXTENSION_REGISTRY,
     SYSTEM_PREREQUISITES,
@@ -126,7 +126,7 @@ def test_system_prerequisites_optional():
 # -----------------------------------------------------------------------
 
 
-@patch("file_organizer.cli.doctor.importlib.util.find_spec")
+@patch("cli.doctor.importlib.util.find_spec")
 def test_is_group_installed_when_present(mock_find_spec):
     """is_group_installed returns True when package is found."""
     mock_find_spec.return_value = MagicMock()  # Non-None spec = installed
@@ -135,7 +135,7 @@ def test_is_group_installed_when_present(mock_find_spec):
     mock_find_spec.assert_called_once_with("faster_whisper")
 
 
-@patch("file_organizer.cli.doctor.importlib.util.find_spec")
+@patch("cli.doctor.importlib.util.find_spec")
 def test_is_group_installed_when_missing(mock_find_spec):
     """is_group_installed returns False when package is not found."""
     mock_find_spec.return_value = None  # None spec = not installed
@@ -144,14 +144,14 @@ def test_is_group_installed_when_missing(mock_find_spec):
     mock_find_spec.assert_called_once_with("cv2")
 
 
-@patch("file_organizer.cli.doctor.importlib.util.find_spec")
+@patch("cli.doctor.importlib.util.find_spec")
 def test_is_group_installed_unknown_group(mock_find_spec):
     """is_group_installed returns False for unknown groups."""
     assert is_group_installed("nonexistent") is False
     mock_find_spec.assert_not_called()
 
 
-@patch("file_organizer.cli.doctor.importlib.util.find_spec")
+@patch("cli.doctor.importlib.util.find_spec")
 def test_is_group_installed_all_groups(mock_find_spec):
     """is_group_installed checks correct package for each group."""
     mock_find_spec.return_value = MagicMock()
@@ -230,7 +230,7 @@ def test_get_groups_for_extensions_all_groups():
 # -----------------------------------------------------------------------
 
 
-@patch("file_organizer.cli.doctor.is_group_installed")
+@patch("cli.doctor.is_group_installed")
 def test_get_missing_groups_all_missing(mock_is_installed):
     """get_missing_groups returns all groups when none are installed."""
     mock_is_installed.return_value = False
@@ -240,7 +240,7 @@ def test_get_missing_groups_all_missing(mock_is_installed):
     assert missing == {"audio", "video", "parsers"}
 
 
-@patch("file_organizer.cli.doctor.is_group_installed")
+@patch("cli.doctor.is_group_installed")
 def test_get_missing_groups_all_installed(mock_is_installed):
     """get_missing_groups returns empty set when all are installed."""
     mock_is_installed.return_value = True
@@ -250,7 +250,7 @@ def test_get_missing_groups_all_installed(mock_is_installed):
     assert missing == set()
 
 
-@patch("file_organizer.cli.doctor.is_group_installed")
+@patch("cli.doctor.is_group_installed")
 def test_get_missing_groups_partial_installation(mock_is_installed):
     """get_missing_groups returns only non-installed groups."""
 
@@ -264,7 +264,7 @@ def test_get_missing_groups_partial_installation(mock_is_installed):
     assert missing == {"video", "archive"}
 
 
-@patch("file_organizer.cli.doctor.is_group_installed")
+@patch("cli.doctor.is_group_installed")
 def test_get_missing_groups_empty_input(mock_is_installed):
     """get_missing_groups returns empty set for empty input and short-circuits."""
     detected = set()
@@ -555,7 +555,7 @@ def test_scan_directory_permission_denied(tmp_path):
 # -----------------------------------------------------------------------
 
 
-@patch("file_organizer.cli.doctor.is_group_installed")
+@patch("cli.doctor.is_group_installed")
 def test_full_workflow_detection_and_filtering(mock_is_installed, tmp_path):
     """Test complete workflow from scan to missing group detection."""
     # Setup: Create test files
@@ -599,7 +599,7 @@ def test_edge_case_no_supported_files(tmp_path):
     assert detected_groups == set()
 
 
-@patch("file_organizer.cli.doctor.is_group_installed")
+@patch("cli.doctor.is_group_installed")
 def test_edge_case_all_groups_installed(mock_is_installed, tmp_path):
     """Test workflow when all needed groups are already installed."""
     mock_is_installed.return_value = True

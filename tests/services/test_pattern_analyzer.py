@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from file_organizer.services.pattern_analyzer import (
+from services.pattern_analyzer import (
     ContentCluster,
     LocationPattern,
     NamingPattern,

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.audio.transcriber import (
+from services.audio.transcriber import (
     AudioTranscriber,
     ComputeType,
     ModelSize,
@@ -285,8 +285,8 @@ class TestLoadModel:
         mock_whisper_cls = MagicMock(return_value=mock_whisper_model)
 
         with (
-            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
-            patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
+            patch("services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
+            patch("services.audio.transcriber.WhisperModel", mock_whisper_cls),
         ):
             model = transcriber._load_model()
 
@@ -302,7 +302,7 @@ class TestLoadModel:
 
     def test_import_error(self, transcriber):
         with (
-            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=False),
+            patch("services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=False),
             pytest.raises(ImportError, match="faster-whisper is required"),
         ):
             transcriber._load_model()
@@ -311,8 +311,8 @@ class TestLoadModel:
         mock_whisper_cls = MagicMock(side_effect=RuntimeError("model load error"))
 
         with (
-            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
-            patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
+            patch("services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
+            patch("services.audio.transcriber.WhisperModel", mock_whisper_cls),
         ):
             with pytest.raises(RuntimeError, match="model load error"):
                 transcriber._load_model()
@@ -328,8 +328,8 @@ class TestLoadModel:
 
         mock_whisper_cls = MagicMock()
         with (
-            patch("file_organizer.services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
-            patch("file_organizer.services.audio.transcriber.WhisperModel", mock_whisper_cls),
+            patch("services.audio.transcriber._FASTER_WHISPER_AVAILABLE", new=True),
+            patch("services.audio.transcriber.WhisperModel", mock_whisper_cls),
         ):
             t._load_model()
 

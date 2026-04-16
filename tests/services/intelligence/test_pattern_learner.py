@@ -20,9 +20,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.intelligence.confidence import ConfidenceEngine
-from file_organizer.services.intelligence.pattern_learner import PatternLearner
-from file_organizer.services.intelligence.preference_tracker import CorrectionType
+from services.intelligence.confidence import ConfidenceEngine
+from services.intelligence.pattern_learner import PatternLearner
+from services.intelligence.preference_tracker import CorrectionType
 
 pytestmark = [pytest.mark.unit]
 
@@ -45,8 +45,8 @@ def _patch_learner_deps():
     """
     from contextlib import ExitStack
 
-    from file_organizer.services.intelligence.confidence import ConfidenceEngine
-    from file_organizer.services.intelligence.preference_tracker import (
+    from services.intelligence.confidence import ConfidenceEngine
+    from services.intelligence.preference_tracker import (
         PreferenceTracker,
     )
 

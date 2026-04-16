@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.services.deduplication.extractor import DocumentExtractor
+from services.deduplication.extractor import DocumentExtractor
 
 pytestmark = pytest.mark.unit
 

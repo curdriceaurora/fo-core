@@ -8,9 +8,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.models.base import BaseModel, ModelConfig, ModelType
-from file_organizer.optimization.model_cache import ModelCache
-from file_organizer.optimization.warmup import ModelWarmup, WarmupResult
+from models.base import BaseModel, ModelConfig, ModelType
+from optimization.model_cache import ModelCache
+from optimization.warmup import ModelWarmup, WarmupResult
 
 
 def _make_mock_model(name: str = "test-model") -> MagicMock:

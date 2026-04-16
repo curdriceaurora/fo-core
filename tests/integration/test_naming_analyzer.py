@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.services.intelligence.naming_analyzer import NamingAnalyzer
+from services.intelligence.naming_analyzer import NamingAnalyzer
 
 pytestmark = pytest.mark.integration
 

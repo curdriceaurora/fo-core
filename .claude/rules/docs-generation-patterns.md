@@ -43,7 +43,7 @@ Call `TextProcessor.extract_text(file_path)` to extract content.
 
 ```bash
 # BEFORE writing: verify the method exists
-grep "def " src/file_organizer/services/text_processor.py
+grep "def " src/services/text_processor.py
 # → def process_file(self, file_path: Path) -> str:
 ```
 
@@ -83,7 +83,7 @@ grep -r "old/path/to/module" docs/
 ```bash
 # Test every code example before committing
 python3 -c "
-from file_organizer.services.text_processor import TextProcessor
+from services.text_processor import TextProcessor
 processor = TextProcessor()
 # ... example code here
 "
@@ -105,7 +105,7 @@ processor = TextProcessor()
 
 ```bash
 # Find public methods not mentioned in docs
-grep "def " src/file_organizer/services/my_service.py | grep -v "^#" | grep -v "__"
+grep "def " src/services/my_service.py | grep -v "^#" | grep -v "__"
 # Compare with docs mentions
 grep "def_name\|method_name" docs/
 ```

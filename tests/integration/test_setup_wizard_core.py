@@ -20,10 +20,10 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 # Patch targets
 # ---------------------------------------------------------------------------
 
-_HW_TARGET = "file_organizer.core.setup_wizard.detect_hardware"
-_OLLAMA_TARGET = "file_organizer.core.setup_wizard.detect_ollama"
-_MODELS_TARGET = "file_organizer.core.setup_wizard.list_installed_models"
-_CFG_MGR_TARGET = "file_organizer.core.setup_wizard.ConfigManager"
+_HW_TARGET = "core.setup_wizard.detect_hardware"
+_OLLAMA_TARGET = "core.setup_wizard.detect_ollama"
+_MODELS_TARGET = "core.setup_wizard.list_installed_models"
+_CFG_MGR_TARGET = "core.setup_wizard.ConfigManager"
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +33,7 @@ _CFG_MGR_TARGET = "file_organizer.core.setup_wizard.ConfigManager"
 
 def _make_hardware(ram_gb: float = 16.0, cpu_cores: int = 8) -> MagicMock:
     """Return a MagicMock HardwareProfile with realistic defaults."""
-    from file_organizer.core.hardware_profile import GpuType
+    from core.hardware_profile import GpuType
 
     hw = MagicMock()
     hw.gpu_type = GpuType.NONE
@@ -83,17 +83,17 @@ class TestWizardMode:
     """Tests for the WizardMode enum."""
 
     def test_quick_start_value(self) -> None:
-        from file_organizer.core.setup_wizard import WizardMode
+        from core.setup_wizard import WizardMode
 
         assert WizardMode.QUICK_START.value == "quick_start"
 
     def test_power_user_value(self) -> None:
-        from file_organizer.core.setup_wizard import WizardMode
+        from core.setup_wizard import WizardMode
 
         assert WizardMode.POWER_USER.value == "power_user"
 
     def test_two_modes_total(self) -> None:
-        from file_organizer.core.setup_wizard import WizardMode
+        from core.setup_wizard import WizardMode
 
         assert len(WizardMode) == 2
 
@@ -107,7 +107,7 @@ class TestSetupStatus:
     """Tests for the SetupStatus enum."""
 
     def test_all_statuses_exist(self) -> None:
-        from file_organizer.core.setup_wizard import SetupStatus
+        from core.setup_wizard import SetupStatus
 
         expected = {
             "NOT_STARTED",
@@ -122,12 +122,12 @@ class TestSetupStatus:
         assert actual == expected
 
     def test_not_started_value(self) -> None:
-        from file_organizer.core.setup_wizard import SetupStatus
+        from core.setup_wizard import SetupStatus
 
         assert SetupStatus.NOT_STARTED.value == "not_started"
 
     def test_completed_value(self) -> None:
-        from file_organizer.core.setup_wizard import SetupStatus
+        from core.setup_wizard import SetupStatus
 
         assert SetupStatus.COMPLETED.value == "completed"
 
@@ -141,7 +141,7 @@ class TestWizardResult:
     """Tests for the WizardResult dataclass."""
 
     def test_default_fields(self) -> None:
-        from file_organizer.core.setup_wizard import WizardResult
+        from core.setup_wizard import WizardResult
 
         result = WizardResult(success=True)
         assert result.success is True
@@ -152,7 +152,7 @@ class TestWizardResult:
         assert result.errors == []
 
     def test_failure_result(self) -> None:
-        from file_organizer.core.setup_wizard import WizardResult
+        from core.setup_wizard import WizardResult
 
         result = WizardResult(success=False, errors=["something went wrong"])
         assert result.success is False
@@ -160,7 +160,7 @@ class TestWizardResult:
         assert result.errors[0] == "something went wrong"
 
     def test_lists_are_independent_across_instances(self) -> None:
-        from file_organizer.core.setup_wizard import WizardResult
+        from core.setup_wizard import WizardResult
 
         r1 = WizardResult(success=True)
         r2 = WizardResult(success=True)
@@ -177,7 +177,7 @@ class TestSystemCapabilitiesToDict:
     """Tests for SystemCapabilities.to_dict() serialization."""
 
     def test_keys_present(self) -> None:
-        from file_organizer.core.setup_wizard import SystemCapabilities
+        from core.setup_wizard import SystemCapabilities
 
         hw = _make_hardware()
         ollama = _make_ollama_status()
@@ -195,7 +195,7 @@ class TestSystemCapabilitiesToDict:
         assert "models" in result
 
     def test_ollama_subkeys(self) -> None:
-        from file_organizer.core.setup_wizard import SystemCapabilities
+        from core.setup_wizard import SystemCapabilities
 
         hw = _make_hardware()
         ollama = _make_ollama_status(installed=True, running=True, version="0.5.1", models_count=1)
@@ -209,7 +209,7 @@ class TestSystemCapabilitiesToDict:
         assert ollama_dict["models_count"] == 1
 
     def test_models_list_serialized(self) -> None:
-        from file_organizer.core.setup_wizard import SystemCapabilities
+        from core.setup_wizard import SystemCapabilities
 
         hw = _make_hardware()
         ollama = _make_ollama_status()
@@ -225,7 +225,7 @@ class TestSystemCapabilitiesToDict:
         assert models_list[1]["name"] == "modelB"
 
     def test_empty_models_list(self) -> None:
-        from file_organizer.core.setup_wizard import SystemCapabilities
+        from core.setup_wizard import SystemCapabilities
 
         hw = _make_hardware()
         ollama = _make_ollama_status(running=False, models_count=0)
@@ -243,7 +243,7 @@ class TestDetectCapabilities:
     """Tests for SetupWizard.detect_capabilities()."""
 
     def test_returns_system_capabilities(self) -> None:
-        from file_organizer.core.setup_wizard import (
+        from core.setup_wizard import (
             SetupWizard,
             SystemCapabilities,
             WizardMode,
@@ -270,7 +270,7 @@ class TestDetectCapabilities:
 
     def test_status_set_to_detecting_backend(self) -> None:
         """Status after detect_capabilities() should be DETECTING_BACKEND."""
-        from file_organizer.core.setup_wizard import SetupStatus, SetupWizard, WizardMode
+        from core.setup_wizard import SetupStatus, SetupWizard, WizardMode
 
         hw = _make_hardware()
         ollama = _make_ollama_status(running=True)
@@ -288,7 +288,7 @@ class TestDetectCapabilities:
 
     def test_models_not_listed_when_ollama_not_running(self) -> None:
         """list_installed_models() must NOT be called when Ollama is not running."""
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw = _make_hardware()
         ollama = _make_ollama_status(running=False)
@@ -307,7 +307,7 @@ class TestDetectCapabilities:
         assert caps.installed_models == []
 
     def test_capabilities_stored_on_wizard(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw = _make_hardware()
         ollama = _make_ollama_status(running=False)
@@ -338,7 +338,7 @@ class TestGenerateConfig:
         running: bool = True,
         model_names: list[str] | None = None,
     ):
-        from file_organizer.core.setup_wizard import SystemCapabilities
+        from core.setup_wizard import SystemCapabilities
 
         hw = _make_hardware()
         ollama = _make_ollama_status(running=running)
@@ -346,8 +346,8 @@ class TestGenerateConfig:
         return SystemCapabilities(hardware=hw, ollama_status=ollama, installed_models=models)
 
     def test_returns_app_config(self) -> None:
-        from file_organizer.config.schema import AppConfig
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from config.schema import AppConfig
+        from core.setup_wizard import SetupWizard, WizardMode
 
         with patch(_CFG_MGR_TARGET):
             wizard = SetupWizard(mode=WizardMode.QUICK_START)
@@ -357,7 +357,7 @@ class TestGenerateConfig:
         assert isinstance(config, AppConfig)
 
     def test_prefers_recommended_large_model(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(
             running=True,
@@ -370,7 +370,7 @@ class TestGenerateConfig:
         assert config.models.text_model == "qwen2.5:7b-instruct-q4_K_M"
 
     def test_falls_back_to_recommended_small(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(
             running=True,
@@ -383,7 +383,7 @@ class TestGenerateConfig:
         assert config.models.text_model == "qwen2.5:3b-instruct-q4_K_M"
 
     def test_falls_back_to_first_available_model(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(running=True, model_names=["custom-model:latest"])
         with patch(_CFG_MGR_TARGET):
@@ -393,7 +393,7 @@ class TestGenerateConfig:
         assert config.models.text_model == "custom-model:latest"
 
     def test_power_user_custom_text_model_override(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(running=True, model_names=["qwen2.5:3b-instruct-q4_K_M"])
         with patch(_CFG_MGR_TARGET):
@@ -403,7 +403,7 @@ class TestGenerateConfig:
         assert config.models.text_model == "llama3:8b"
 
     def test_power_user_temperature_override(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(running=False)
         with patch(_CFG_MGR_TARGET):
@@ -413,7 +413,7 @@ class TestGenerateConfig:
         assert config.models.temperature == pytest.approx(0.9)
 
     def test_power_user_max_tokens_override(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(running=False)
         with patch(_CFG_MGR_TARGET):
@@ -423,7 +423,7 @@ class TestGenerateConfig:
         assert config.models.max_tokens == 8000
 
     def test_quick_start_ignores_custom_model_override(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(running=True, model_names=["qwen2.5:7b-instruct-q4_K_M"])
         with patch(_CFG_MGR_TARGET):
@@ -437,7 +437,7 @@ class TestGenerateConfig:
 
     def test_no_capabilities_triggers_detect(self) -> None:
         """When capabilities=None and self.capabilities is None, detect_capabilities is called."""
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw = _make_hardware()
         ollama = _make_ollama_status(running=False)
@@ -460,7 +460,7 @@ class TestGenerateConfig:
         ollama_mock.assert_called()
 
     def test_uses_stored_capabilities_if_present(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(running=False)
         hw_mock = MagicMock()  # will raise if called
@@ -475,7 +475,7 @@ class TestGenerateConfig:
         assert config is not None
 
     def test_profile_name_from_custom_settings(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(running=False)
         with patch(_CFG_MGR_TARGET):
@@ -485,7 +485,7 @@ class TestGenerateConfig:
         assert config.profile_name == "my-profile"
 
     def test_default_profile_name(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(running=False)
         with patch(_CFG_MGR_TARGET):
@@ -504,7 +504,7 @@ class TestValidateConfig:
     """Tests for SetupWizard.validate_config()."""
 
     def _make_wizard_with_caps(self, *, running: bool, model_names: list[str] | None = None):
-        from file_organizer.core.setup_wizard import SetupWizard, SystemCapabilities, WizardMode
+        from core.setup_wizard import SetupWizard, SystemCapabilities, WizardMode
 
         hw = _make_hardware()
         ollama = _make_ollama_status(running=running)
@@ -517,7 +517,7 @@ class TestValidateConfig:
         return wizard
 
     def test_passes_with_valid_config(self) -> None:
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(
             running=True, model_names=["qwen2.5:3b-instruct-q4_K_M"]
@@ -536,7 +536,7 @@ class TestValidateConfig:
         assert errors == []
 
     def test_ollama_not_running_returns_error(self) -> None:
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(running=False)
         config = AppConfig(
@@ -553,7 +553,7 @@ class TestValidateConfig:
         assert any("not running" in e for e in errors)
 
     def test_model_not_installed_returns_error(self) -> None:
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(running=True, model_names=["some-other-model:latest"])
         config = AppConfig(
@@ -570,7 +570,7 @@ class TestValidateConfig:
         assert any("missing-model:7b" in e for e in errors)
 
     def test_temperature_out_of_range_high(self) -> None:
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(running=False)
         config = AppConfig(
@@ -587,7 +587,7 @@ class TestValidateConfig:
         assert any("Temperature" in e for e in errors)
 
     def test_temperature_out_of_range_low(self) -> None:
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(running=False)
         config = AppConfig(
@@ -604,7 +604,7 @@ class TestValidateConfig:
         assert any("Temperature" in e for e in errors)
 
     def test_max_tokens_zero_returns_error(self) -> None:
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(running=False)
         config = AppConfig(
@@ -621,7 +621,7 @@ class TestValidateConfig:
         assert any("max_tokens" in e for e in errors)
 
     def test_max_tokens_negative_returns_error(self) -> None:
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(running=False)
         config = AppConfig(
@@ -639,7 +639,7 @@ class TestValidateConfig:
 
     def test_multiple_errors_accumulated(self) -> None:
         """Both temperature and max_tokens errors should be reported together."""
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(running=False)
         config = AppConfig(
@@ -661,7 +661,7 @@ class TestValidateConfig:
 
     def test_non_ollama_framework_skips_ollama_check(self) -> None:
         """If framework != 'ollama', Ollama-running check should be skipped."""
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         wizard = self._make_wizard_with_caps(running=False)
         config = AppConfig(
@@ -679,8 +679,8 @@ class TestValidateConfig:
         assert errors == []
 
     def test_status_set_to_validating(self) -> None:
-        from file_organizer.config.schema import AppConfig
-        from file_organizer.core.setup_wizard import SetupStatus
+        from config.schema import AppConfig
+        from core.setup_wizard import SetupStatus
 
         wizard = self._make_wizard_with_caps(running=False)
         config = AppConfig()
@@ -698,8 +698,8 @@ class TestSaveConfig:
     """Tests for SetupWizard.save_config()."""
 
     def test_calls_config_manager_save(self) -> None:
-        from file_organizer.config.schema import AppConfig
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from config.schema import AppConfig
+        from core.setup_wizard import SetupWizard, WizardMode
 
         mock_mgr = MagicMock()
         with patch(_CFG_MGR_TARGET, return_value=mock_mgr):
@@ -711,8 +711,8 @@ class TestSaveConfig:
         mock_mgr.save.assert_called_once_with(config, "default")
 
     def test_sets_setup_completed_true(self) -> None:
-        from file_organizer.config.schema import AppConfig
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from config.schema import AppConfig
+        from core.setup_wizard import SetupWizard, WizardMode
 
         mock_mgr = MagicMock()
         with patch(_CFG_MGR_TARGET, return_value=mock_mgr):
@@ -729,8 +729,8 @@ class TestSaveConfig:
         assert state_at_save == [True], "setup_completed must be True before save() is called"
 
     def test_profile_name_override(self) -> None:
-        from file_organizer.config.schema import AppConfig
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from config.schema import AppConfig
+        from core.setup_wizard import SetupWizard, WizardMode
 
         mock_mgr = MagicMock()
         with patch(_CFG_MGR_TARGET, return_value=mock_mgr):
@@ -774,7 +774,7 @@ class TestWizardRun:
         )
 
     def test_happy_path_returns_success(self) -> None:
-        from file_organizer.core.setup_wizard import SetupStatus, SetupWizard, WizardMode
+        from core.setup_wizard import SetupStatus, SetupWizard, WizardMode
 
         hw_p, ollama_p, models_p = self._patch_for_run(
             running=True, model_names=["qwen2.5:3b-instruct-q4_K_M"]
@@ -791,7 +791,7 @@ class TestWizardRun:
         assert wizard.status == SetupStatus.COMPLETED
 
     def test_happy_path_config_saved(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw_p, ollama_p, models_p = self._patch_for_run(
             running=True, model_names=["qwen2.5:3b-instruct-q4_K_M"]
@@ -805,7 +805,7 @@ class TestWizardRun:
         mock_mgr.save.assert_called_once()
 
     def test_auto_save_false_skips_save(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw_p, ollama_p, models_p = self._patch_for_run(
             running=True, model_names=["qwen2.5:3b-instruct-q4_K_M"]
@@ -820,7 +820,7 @@ class TestWizardRun:
         mock_mgr.save.assert_not_called()
 
     def test_validation_failure_returns_failure_result(self) -> None:
-        from file_organizer.core.setup_wizard import SetupStatus, SetupWizard, WizardMode
+        from core.setup_wizard import SetupStatus, SetupWizard, WizardMode
 
         hw_p, ollama_p, models_p = self._patch_for_run(
             running=False,  # Ollama not running → validation fails for ollama framework
@@ -838,7 +838,7 @@ class TestWizardRun:
         assert wizard.status == SetupStatus.FAILED
 
     def test_exception_in_detect_returns_failure(self) -> None:
-        from file_organizer.core.setup_wizard import SetupStatus, SetupWizard, WizardMode
+        from core.setup_wizard import SetupStatus, SetupWizard, WizardMode
 
         mock_mgr = MagicMock()
 
@@ -857,7 +857,7 @@ class TestWizardRun:
 
     def test_ollama_installed_not_running_adds_warning(self) -> None:
         """Ollama installed but not running should produce a warning in result."""
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw_p, ollama_p, models_p = self._patch_for_run(
             installed=True,
@@ -873,7 +873,7 @@ class TestWizardRun:
 
     def test_ollama_not_installed_adds_warning(self) -> None:
         """Ollama not installed at all should produce a different warning."""
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw_p, ollama_p, models_p = self._patch_for_run(
             installed=False,
@@ -889,7 +889,7 @@ class TestWizardRun:
         assert any("Ollama not detected" in w for w in result.warnings)
 
     def test_messages_populated_on_success(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw_p, ollama_p, models_p = self._patch_for_run(
             running=True, model_names=["qwen2.5:3b-instruct-q4_K_M"]
@@ -903,7 +903,7 @@ class TestWizardRun:
         assert len(result.messages) >= 2
 
     def test_power_user_custom_settings_applied(self) -> None:
-        from file_organizer.core.setup_wizard import SetupWizard, WizardMode
+        from core.setup_wizard import SetupWizard, WizardMode
 
         hw_p, ollama_p, models_p = self._patch_for_run(
             running=True,

@@ -13,7 +13,7 @@ import unittest
 
 import pytest
 
-from file_organizer.parallel.throttle import RateThrottler, ThrottleStats
+from parallel.throttle import RateThrottler, ThrottleStats
 
 
 @pytest.mark.unit

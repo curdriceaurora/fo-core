@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.pipeline.config import (
+from pipeline.config import (
     DEFAULT_SUPPORTED_EXTENSIONS,
     PipelineConfig,
 )
@@ -198,7 +198,7 @@ class TestPipelineConfigEdgeCases:
 
     def test_default_supported_extensions_constant(self) -> None:
         """DEFAULT_SUPPORTED_EXTENSIONS contains expected categories."""
-        from file_organizer.pipeline.config import DEFAULT_SUPPORTED_EXTENSIONS
+        from pipeline.config import DEFAULT_SUPPORTED_EXTENSIONS
 
         # Text
         assert ".txt" in DEFAULT_SUPPORTED_EXTENSIONS

@@ -16,11 +16,11 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.config.provider_env import get_model_configs
-from file_organizer.config.schema import AppConfig, ModelPreset
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.models.base import ModelConfig, ModelType
-from file_organizer.services.text_processor import TextProcessor
+from config.provider_env import get_model_configs
+from config.schema import AppConfig, ModelPreset
+from core.organizer import FileOrganizer
+from models.base import ModelConfig, ModelType
+from services.text_processor import TextProcessor
 
 from .conftest import make_text_config, make_vision_config
 
@@ -80,7 +80,7 @@ class TestConfigModelSelection:
         }
         with (
             patch.dict(os.environ, clean_env, clear=False),
-            patch("file_organizer.config.manager.ConfigManager") as mock_cls,
+            patch("config.manager.ConfigManager") as mock_cls,
         ):
             mgr = mock_cls.return_value
             mgr.load.return_value = app_cfg

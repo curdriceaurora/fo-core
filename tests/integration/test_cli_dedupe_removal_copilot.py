@@ -50,7 +50,7 @@ class TestRemoveFiles:
     def test_dry_run_does_not_delete(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.cli.dedupe_removal import remove_files
+        from cli.dedupe_removal import remove_files
 
         f = tmp_path / "duplicate.txt"
         f.write_text("data")
@@ -66,7 +66,7 @@ class TestRemoveFiles:
     def test_actual_removal(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.cli.dedupe_removal import remove_files
+        from cli.dedupe_removal import remove_files
 
         f = tmp_path / "dup.txt"
         f.write_text("content")
@@ -82,7 +82,7 @@ class TestRemoveFiles:
     def test_multiple_indices(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.cli.dedupe_removal import remove_files
+        from cli.dedupe_removal import remove_files
 
         f1 = tmp_path / "dup1.txt"
         f2 = tmp_path / "dup2.txt"
@@ -101,7 +101,7 @@ class TestRemoveFiles:
     def test_empty_indices(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.cli.dedupe_removal import remove_files
+        from cli.dedupe_removal import remove_files
 
         f = tmp_path / "keep.txt"
         f.write_text("keep me")
@@ -118,7 +118,7 @@ class TestRemoveFiles:
         """OSError on unlink should not propagate; counter stays at 0."""
         from rich.console import Console
 
-        from file_organizer.cli.dedupe_removal import remove_files
+        from cli.dedupe_removal import remove_files
 
         missing = tmp_path / "gone_already.txt"
         # File doesn't exist — unlink() will raise FileNotFoundError (an OSError)
@@ -133,7 +133,7 @@ class TestRemoveFiles:
     def test_backup_is_created_when_backup_manager_provided(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.cli.dedupe_removal import remove_files
+        from cli.dedupe_removal import remove_files
 
         f = tmp_path / "tobackup.txt"
         f.write_text("important")
@@ -151,7 +151,7 @@ class TestRemoveFiles:
     def test_backup_skipped_in_dry_run(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.cli.dedupe_removal import remove_files
+        from cli.dedupe_removal import remove_files
 
         f = tmp_path / "nodrybackup.txt"
         f.write_text("x")
@@ -179,7 +179,7 @@ class TestProcessDuplicateGroup:
 
     def test_skip_returns_zero(self, tmp_path: Path) -> None:
         """When get_user_selection returns [] the group is skipped."""
-        from file_organizer.cli.dedupe_removal import process_duplicate_group
+        from cli.dedupe_removal import process_duplicate_group
 
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
@@ -190,13 +190,13 @@ class TestProcessDuplicateGroup:
         console = self._make_console()
 
         with (
-            patch("file_organizer.cli.dedupe_display.display_duplicate_group"),
+            patch("cli.dedupe_display.display_duplicate_group"),
             patch(
-                "file_organizer.cli.dedupe_strategy.select_files_to_keep",
+                "cli.dedupe_strategy.select_files_to_keep",
                 side_effect=lambda files, strategy: files,
             ),
             patch(
-                "file_organizer.cli.dedupe_strategy.get_user_selection",
+                "cli.dedupe_strategy.get_user_selection",
                 return_value=[],
             ),
         ):
@@ -217,7 +217,7 @@ class TestProcessDuplicateGroup:
 
     def test_remove_files_called_when_indices_present(self, tmp_path: Path) -> None:
         """When get_user_selection returns indices, remove_files is called."""
-        from file_organizer.cli.dedupe_removal import process_duplicate_group
+        from cli.dedupe_removal import process_duplicate_group
 
         f1 = tmp_path / "dup1.txt"
         f2 = tmp_path / "dup2.txt"
@@ -228,13 +228,13 @@ class TestProcessDuplicateGroup:
         console = self._make_console()
 
         with (
-            patch("file_organizer.cli.dedupe_display.display_duplicate_group"),
+            patch("cli.dedupe_display.display_duplicate_group"),
             patch(
-                "file_organizer.cli.dedupe_strategy.select_files_to_keep",
+                "cli.dedupe_strategy.select_files_to_keep",
                 side_effect=lambda files, strategy: files,
             ),
             patch(
-                "file_organizer.cli.dedupe_strategy.get_user_selection",
+                "cli.dedupe_strategy.get_user_selection",
                 return_value=[1],
             ),
         ):
@@ -261,10 +261,10 @@ class TestProcessDuplicateGroup:
 
 
 class TestCopilotStatusCommand:
-    """Tests for `file-organizer copilot status`."""
+    """Tests for `fo copilot status`."""
 
     def test_status_with_ollama_available(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         fake_ollama = MagicMock()
         fake_client = MagicMock()
@@ -279,7 +279,7 @@ class TestCopilotStatusCommand:
         assert "ready" in result.output.lower()
 
     def test_status_with_ollama_unavailable(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         fake_ollama = MagicMock()
         fake_client = MagicMock()
@@ -295,7 +295,7 @@ class TestCopilotStatusCommand:
 
     def test_status_ollama_import_error(self, cli_runner: object) -> None:
         """When ollama module cannot be imported, status still shows ready."""
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         with patch.dict("sys.modules", {"ollama": None}):
             result = cli_runner.invoke(app, ["copilot", "status"])
@@ -305,12 +305,12 @@ class TestCopilotStatusCommand:
 
 
 class TestCopilotChatCommand:
-    """Tests for `file-organizer copilot chat`."""
+    """Tests for `fo copilot chat`."""
 
     def test_single_shot_message(self, cli_runner: object, tmp_path: Path) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.services.copilot.engine.CopilotEngine") as MockEngine:
+        with patch("services.copilot.engine.CopilotEngine") as MockEngine:
             MockEngine.return_value.chat.return_value = "Organising your files now."
             result = cli_runner.invoke(
                 app,
@@ -326,10 +326,10 @@ class TestCopilotChatCommand:
         self, cli_runner: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         monkeypatch.chdir(tmp_path)
-        with patch("file_organizer.services.copilot.engine.CopilotEngine") as MockEngine:
+        with patch("services.copilot.engine.CopilotEngine") as MockEngine:
             MockEngine.return_value.chat.return_value = "Done."
             result = cli_runner.invoke(app, ["copilot", "chat", "hello"])
 
@@ -340,27 +340,27 @@ class TestCopilotChatCommand:
 
     def test_interactive_repl_quit(self, cli_runner: object) -> None:
         """Sending 'quit' to the REPL should exit cleanly."""
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.services.copilot.engine.CopilotEngine"):
+        with patch("services.copilot.engine.CopilotEngine"):
             result = cli_runner.invoke(app, ["copilot", "chat"], input="quit\n")
 
         assert result.exit_code == 0
         assert "Goodbye" in result.output
 
     def test_interactive_repl_exit_command(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.services.copilot.engine.CopilotEngine"):
+        with patch("services.copilot.engine.CopilotEngine"):
             result = cli_runner.invoke(app, ["copilot", "chat"], input="exit\n")
 
         assert result.exit_code == 0
         assert "Goodbye" in result.output
 
     def test_interactive_repl_q_command(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.services.copilot.engine.CopilotEngine"):
+        with patch("services.copilot.engine.CopilotEngine"):
             result = cli_runner.invoke(app, ["copilot", "chat"], input="q\n")
 
         assert result.exit_code == 0
@@ -368,18 +368,18 @@ class TestCopilotChatCommand:
 
     def test_interactive_repl_eof_exits(self, cli_runner: object) -> None:
         """EOF (empty input stream) should exit without error."""
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.services.copilot.engine.CopilotEngine"):
+        with patch("services.copilot.engine.CopilotEngine"):
             result = cli_runner.invoke(app, ["copilot", "chat"], input="")
 
         assert result.exit_code == 0
 
     def test_interactive_repl_message_and_quit(self, cli_runner: object) -> None:
         """Chat with one message then quit."""
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.services.copilot.engine.CopilotEngine") as MockEngine:
+        with patch("services.copilot.engine.CopilotEngine") as MockEngine:
             MockEngine.return_value.chat.return_value = "Files organised."
             result = cli_runner.invoke(
                 app,
@@ -393,9 +393,9 @@ class TestCopilotChatCommand:
 
     def test_interactive_repl_skips_blank_lines(self, cli_runner: object) -> None:
         """Blank lines should not trigger a chat call."""
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.services.copilot.engine.CopilotEngine") as MockEngine:
+        with patch("services.copilot.engine.CopilotEngine") as MockEngine:
             result = cli_runner.invoke(
                 app,
                 ["copilot", "chat"],

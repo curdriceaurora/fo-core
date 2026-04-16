@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from file_organizer.integrations import (
+from integrations import (
     IntegrationConfig,
     IntegrationType,
     ObsidianIntegration,
@@ -130,7 +130,7 @@ def test_workflow_integration_reuses_single_timestamp(
                 return value
             return value.astimezone(tz)
 
-    monkeypatch.setattr("file_organizer.integrations.workflow.datetime", _TickingDateTime)
+    monkeypatch.setattr("integrations.workflow.datetime", _TickingDateTime)
 
     integration = WorkflowIntegration(
         IntegrationConfig(

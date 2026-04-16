@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.deduplication.backup import BackupManager
+from services.deduplication.backup import BackupManager
 
 pytestmark = pytest.mark.unit
 

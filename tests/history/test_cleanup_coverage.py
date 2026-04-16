@@ -6,8 +6,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
-from file_organizer.history.database import DatabaseManager
+from history.cleanup import HistoryCleanup, HistoryCleanupConfig
+from history.database import DatabaseManager
 
 pytestmark = pytest.mark.unit
 

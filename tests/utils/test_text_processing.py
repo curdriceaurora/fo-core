@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from file_organizer.utils.text_processing import (
+from utils.text_processing import (
     clean_text,
     ensure_nltk_data,
     extract_keywords,
@@ -24,14 +24,14 @@ class TestTextProcessing:
     @pytest.fixture(autouse=True)
     def reset_nltk_ready(self) -> None:
         """Reset _nltk_ready flag before each test (ensures idempotency flag doesn't affect tests)."""
-        import file_organizer.utils.text_processing as text_processing_module
+        import utils.text_processing as text_processing_module
 
         text_processing_module._nltk_ready = False
         yield
         text_processing_module._nltk_ready = False
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.logger")
     def test_ensure_nltk_data_unavailable(self, mock_logger: MagicMock) -> None:
         """Test ensure_nltk_data when NLTK is not available."""
         ensure_nltk_data()
@@ -39,10 +39,10 @@ class TestTextProcessing:
             "NLTK not available, text processing will be limited"
         )
 
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.logger")
     def test_ensure_nltk_data_returns_when_already_ready(self, mock_logger: MagicMock) -> None:
         """Test ensure_nltk_data short-circuits after initialization."""
-        import file_organizer.utils.text_processing as text_processing_module
+        import utils.text_processing as text_processing_module
 
         text_processing_module._nltk_ready = True
 
@@ -52,10 +52,10 @@ class TestTextProcessing:
         mock_logger.info.assert_not_called()
         mock_logger.debug.assert_not_called()
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.nltk.download")
-    @patch("file_organizer.utils.text_processing.stopwords")
-    @patch("file_organizer.utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.nltk.download")
+    @patch("utils.text_processing.stopwords")
+    @patch("utils.text_processing.word_tokenize")
     def test_ensure_nltk_data_available(
         self, mock_tokenize: MagicMock, mock_stopwords: MagicMock, mock_download: MagicMock
     ) -> None:
@@ -90,9 +90,9 @@ class TestTextProcessing:
                 any_order=False,
             )
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.stopwords")
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.stopwords")
+    @patch("utils.text_processing.logger")
     def test_ensure_nltk_data_dataset_check_failure_logs_debug(
         self,
         mock_logger: MagicMock,
@@ -111,11 +111,11 @@ class TestTextProcessing:
             for call in mock_logger.debug.call_args_list
         )
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.nltk.download")
-    @patch("file_organizer.utils.text_processing.word_tokenize")
-    @patch("file_organizer.utils.text_processing.stopwords")
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.nltk.download")
+    @patch("utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.stopwords")
+    @patch("utils.text_processing.logger")
     def test_ensure_nltk_data_downloaded_wordnet_is_verified(
         self,
         mock_logger: MagicMock,
@@ -140,11 +140,11 @@ class TestTextProcessing:
             for call in mock_logger.debug.call_args_list
         )
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.nltk.download")
-    @patch("file_organizer.utils.text_processing.word_tokenize")
-    @patch("file_organizer.utils.text_processing.stopwords")
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.nltk.download")
+    @patch("utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.stopwords")
+    @patch("utils.text_processing.logger")
     def test_ensure_nltk_data_punkt_fallback_path(
         self,
         mock_logger: MagicMock,
@@ -178,10 +178,10 @@ class TestTextProcessing:
         assert any("punkt_tab failed" in str(call) for call in debug_calls)
         assert any("Failed to load punkt" in str(call) for call in debug_calls)
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.nltk.download")
-    @patch("file_organizer.utils.text_processing.stopwords")
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.nltk.download")
+    @patch("utils.text_processing.stopwords")
+    @patch("utils.text_processing.logger")
     def test_ensure_nltk_data_download_fails(
         self, mock_logger: MagicMock, mock_stopwords: MagicMock, mock_download: MagicMock
     ) -> None:
@@ -194,11 +194,11 @@ class TestTextProcessing:
 
         mock_logger.warning.assert_called()
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.nltk.download")
-    @patch("file_organizer.utils.text_processing.word_tokenize")
-    @patch("file_organizer.utils.text_processing.stopwords")
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.nltk.download")
+    @patch("utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.stopwords")
+    @patch("utils.text_processing.logger")
     def test_ensure_nltk_data_punkt_exception_handling(
         self,
         mock_logger: MagicMock,
@@ -236,8 +236,8 @@ class TestTextProcessing:
         # Line 52 exception handler
         assert any("Failed to load punkt" in str(call) for call in mock_logger.debug.call_args_list)
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.stopwords")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.stopwords")
     def test_get_unwanted_words_with_nltk(self, mock_stopwords: MagicMock) -> None:
         """Test getting unwanted words including NLTK stopwords."""
         mock_stopwords.words.return_value = ["nltkword1", "nltkword2"]
@@ -251,9 +251,9 @@ class TestTextProcessing:
         assert "nltkword1" in unwanted
         assert "nltkword2" in unwanted
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.stopwords")
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.stopwords")
+    @patch("utils.text_processing.logger")
     def test_get_unwanted_words_nltk_fails(
         self, mock_logger: MagicMock, mock_stopwords: MagicMock
     ) -> None:
@@ -266,7 +266,7 @@ class TestTextProcessing:
         assert "the" in unwanted
         mock_logger.warning.assert_called()
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_get_unwanted_words_without_nltk(self) -> None:
         """Test getting unwanted words without NLTK stopwords."""
         unwanted = get_unwanted_words()
@@ -278,7 +278,7 @@ class TestTextProcessing:
         assert clean_text("") == ""
         assert clean_text(None) == ""
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_basic_without_nltk(self) -> None:
         """Test clean_text fallback without NLTK."""
         text = "Hello World! This is a test 123."
@@ -287,7 +287,7 @@ class TestTextProcessing:
         result = clean_text(text)
         assert result == "hello_world_test"
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_max_words(self) -> None:
         """Test clean_text respects max_words."""
         text = "apple banana orange grape pear kiwi"
@@ -296,12 +296,12 @@ class TestTextProcessing:
 
     def test_clean_text_camel_case(self) -> None:
         """Test clean_text splits camelCase correctly."""
-        with patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False):
+        with patch("utils.text_processing.NLTK_AVAILABLE", False):
             result = clean_text("camelCaseFileName", remove_unwanted=False)
             assert result == "camel_case_file_name"
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.word_tokenize")
     def test_clean_text_nltk_tokenize_fails(self, mock_tokenize: MagicMock) -> None:
         """Test clean_text fallback when word_tokenize fails."""
         mock_tokenize.side_effect = LookupError()
@@ -310,10 +310,10 @@ class TestTextProcessing:
         # Should fall back to simple split
         assert result == "hello_world_test"
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.word_tokenize")
-    @patch("file_organizer.utils.text_processing.WordNetLemmatizer")
-    @patch("file_organizer.utils.text_processing.logger")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.WordNetLemmatizer")
+    @patch("utils.text_processing.logger")
     def test_clean_text_lemmatization_fails(
         self, mock_logger: MagicMock, mock_lemmatizer_cls: MagicMock, mock_tokenize: MagicMock
     ) -> None:
@@ -330,20 +330,20 @@ class TestTextProcessing:
 
     def test_sanitize_filename_basic(self) -> None:
         """Test simple filename sanitization."""
-        with patch("file_organizer.utils.text_processing.clean_text") as mock_clean:
+        with patch("utils.text_processing.clean_text") as mock_clean:
             mock_clean.return_value = "clean_file_name"
             result = sanitize_filename("Some Name")
             assert result == "clean_file_name"
 
     def test_sanitize_filename_empty_cleanup(self) -> None:
         """Test sanitize_filename falls back to untitled."""
-        with patch("file_organizer.utils.text_processing.clean_text") as mock_clean:
+        with patch("utils.text_processing.clean_text") as mock_clean:
             mock_clean.return_value = ""
             assert sanitize_filename("") == "untitled"
 
     def test_sanitize_filename_max_length(self) -> None:
         """Test sanitize_filename truncates to max_length."""
-        with patch("file_organizer.utils.text_processing.clean_text") as mock_clean:
+        with patch("utils.text_processing.clean_text") as mock_clean:
             mock_clean.return_value = "a" * 100
             result = sanitize_filename("long string", max_length=10)
             assert len(result) == 10
@@ -351,12 +351,12 @@ class TestTextProcessing:
 
     def test_sanitize_filename_special_chars(self) -> None:
         """Test sanitize_filename replaces unhandled special characters."""
-        with patch("file_organizer.utils.text_processing.clean_text") as mock_clean:
+        with patch("utils.text_processing.clean_text") as mock_clean:
             mock_clean.return_value = "file@name#with$chars"
             result = sanitize_filename("raw name")
             assert result == "file_name_with_chars"
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_extract_keywords_fallback(self) -> None:
         """Test keyword extraction fallback block when missing NLTK."""
         text = "apple banana apple orange apple banana pear"
@@ -365,9 +365,9 @@ class TestTextProcessing:
         assert "apple" in keywords
         assert "banana" in keywords
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.word_tokenize")
-    @patch("file_organizer.utils.text_processing.nltk.probability.FreqDist", create=True)
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.nltk.probability.FreqDist", create=True)
     def test_extract_keywords_nltk(
         self, mock_freqdist_cls: MagicMock, mock_tokenize: MagicMock
     ) -> None:
@@ -380,8 +380,8 @@ class TestTextProcessing:
         keywords = extract_keywords("test text")
         assert keywords == ["keyword", "extraction"]
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.word_tokenize")
     def test_extract_keywords_error(self, mock_tokenize: MagicMock) -> None:
         """Test keyword extraction handles errors gracefully."""
         mock_tokenize.side_effect = RuntimeError("error")
@@ -412,7 +412,7 @@ class TestTextProcessingExpanded:
 
     # ── clean_text full-pipeline tests ──────────────────────────────────
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_removes_numbers(self):
         """Verify numbers are stripped from text."""
         result = clean_text("report 2024 analysis 42", remove_unwanted=False)
@@ -420,7 +420,7 @@ class TestTextProcessingExpanded:
         assert "42" not in result
         assert "report" in result
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_removes_special_chars(self):
         """Verify special characters become spaces (then words are joined)."""
         result = clean_text("hello@world#foo$bar", remove_unwanted=False)
@@ -431,7 +431,7 @@ class TestTextProcessingExpanded:
         assert "hello" in result
         assert "world" in result
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_removes_duplicates(self):
         """Verify duplicate words are removed when remove_unwanted=True."""
         result = clean_text("apple apple banana apple banana", max_words=10)
@@ -441,7 +441,7 @@ class TestTextProcessingExpanded:
         assert "apple" in words
         assert "banana" in words
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_no_removal(self):
         """Test with remove_unwanted=False preserves common words."""
         result = clean_text("the quick fox", remove_unwanted=False, max_words=10)
@@ -450,14 +450,14 @@ class TestTextProcessingExpanded:
         assert "quick" in words
         assert "fox" in words
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_no_lemmatize(self):
         """Test with lemmatize=False (fallback path has no effect but should not error)."""
         result = clean_text("running dogs", lemmatize=False, remove_unwanted=False)
         assert "running" in result
         assert "dogs" in result
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_code_style(self):
         """Test with code-like text 'getUserData()' splits camelCase."""
         result = clean_text("getUserData", remove_unwanted=False)
@@ -466,7 +466,7 @@ class TestTextProcessingExpanded:
         assert "user" in result
         assert "data" in result
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_clean_text_unicode(self):
         """Test with unicode text."""
         result = clean_text("café résumé naïve", remove_unwanted=False)
@@ -478,7 +478,7 @@ class TestTextProcessingExpanded:
 
     # ── sanitize_filename direct tests (no mocking clean_text) ──────────
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_sanitize_filename_direct_basic(self):
         """Call without mocking clean_text, verify end-to-end."""
         result = sanitize_filename("My Report 2024")
@@ -488,7 +488,7 @@ class TestTextProcessingExpanded:
         assert result == result.lower()
         assert " " not in result
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_sanitize_filename_direct_special_chars(self):
         """Special chars get cleaned end-to-end."""
         result = sanitize_filename("file@name#with$chars!")
@@ -497,14 +497,14 @@ class TestTextProcessingExpanded:
         assert "$" not in result
         assert "!" not in result
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_sanitize_filename_direct_long_input(self):
         """Very long input gets truncated to max_length."""
         long_name = " ".join(["word"] * 50)
         result = sanitize_filename(long_name, max_length=20)
         assert 1 <= len(result) <= 20  # at most 20 (max_length cap); rstrip may reduce below 20
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_sanitize_filename_leading_trailing_underscores(self):
         """Leading/trailing underscores are stripped."""
         result = sanitize_filename("  hello world  ")
@@ -513,13 +513,13 @@ class TestTextProcessingExpanded:
 
     # ── extract_keywords tests ──────────────────────────────────────────
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_extract_keywords_empty(self):
         """Empty string returns empty list."""
         keywords = extract_keywords("")
         assert keywords == []
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    @patch("utils.text_processing.NLTK_AVAILABLE", False)
     def test_extract_keywords_fallback_top_n(self):
         """Verify top_n parameter in fallback mode."""
         text = "alpha beta gamma alpha beta alpha"
@@ -527,8 +527,8 @@ class TestTextProcessingExpanded:
         assert len(keywords) == 1
         assert keywords[0] == "alpha"
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.word_tokenize")
     @patch("nltk.probability.FreqDist")
     def test_extract_keywords_short_words_filtered(self, mock_freqdist_cls, mock_tokenize):
         """Words <= 3 chars are filtered in NLTK mode."""

@@ -2,13 +2,13 @@
 provider_registry, suggestion_types, path_manager, and analytics.
 
 Targets ≥80% line coverage on:
-  - src/file_organizer/models/vision_model.py      (was 68%)
-  - src/file_organizer/config/manager.py           (was 69%)
-  - src/file_organizer/models/provider_registry.py (was 71%)
-  - src/file_organizer/models/suggestion_types.py  (was 71%)
-  - src/file_organizer/models/text_model.py        (was 74%)
-  - src/file_organizer/config/path_manager.py      (was 77%)
-  - src/file_organizer/models/analytics.py         (was 79%)
+  - src/models/vision_model.py      (was 68%)
+  - src/config/manager.py           (was 69%)
+  - src/models/provider_registry.py (was 71%)
+  - src/models/suggestion_types.py  (was 71%)
+  - src/models/text_model.py        (was 74%)
+  - src/config/path_manager.py      (was 77%)
+  - src/models/analytics.py         (was 79%)
 """
 
 from __future__ import annotations
@@ -21,10 +21,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 if TYPE_CHECKING:
-    from file_organizer.models.analytics import AnalyticsDashboard, StorageStats
-    from file_organizer.models.provider_registry import ProviderRegistry
-    from file_organizer.models.text_model import TextModel
-    from file_organizer.models.vision_model import VisionModel
+    from models.analytics import AnalyticsDashboard, StorageStats
+    from models.provider_registry import ProviderRegistry
+    from models.text_model import TextModel
+    from models.vision_model import VisionModel
 
 pytestmark = pytest.mark.integration
 
@@ -43,10 +43,10 @@ def _exhausted_response(text: str = "") -> dict:
 
 
 def _make_text_model() -> TextModel:
-    from file_organizer.models.text_model import TextModel
+    from models.text_model import TextModel
 
     config = TextModel.get_default_config("test-text-model")
-    with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
+    with patch("models.text_model.OLLAMA_AVAILABLE", True):
         model = TextModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -54,10 +54,10 @@ def _make_text_model() -> TextModel:
 
 
 def _make_vision_model() -> VisionModel:
-    from file_organizer.models.vision_model import VisionModel
+    from models.vision_model import VisionModel
 
     config = VisionModel.get_default_config("test-vision-model")
-    with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+    with patch("models.vision_model.OLLAMA_AVAILABLE", True):
         model = VisionModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -71,26 +71,26 @@ def _make_vision_model() -> VisionModel:
 
 class TestTextModelInit:
     def test_requires_ollama_available(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.text_model import TextModel
+        from models.base import ModelConfig, ModelType
+        from models.text_model import TextModel
 
         config = ModelConfig(name="m", model_type=ModelType.TEXT)
-        with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", False):
+        with patch("models.text_model.OLLAMA_AVAILABLE", False):
             with pytest.raises(ImportError, match="Ollama is not installed"):
                 TextModel(config)
 
     def test_rejects_wrong_model_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.text_model import TextModel
+        from models.base import ModelConfig, ModelType
+        from models.text_model import TextModel
 
         config = ModelConfig(name="m", model_type=ModelType.VISION)
-        with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
+        with patch("models.text_model.OLLAMA_AVAILABLE", True):
             with pytest.raises(ValueError, match="Expected TEXT"):
                 TextModel(config)
 
     def test_get_default_config_returns_text_type(self) -> None:
-        from file_organizer.models.base import ModelType
-        from file_organizer.models.text_model import TextModel
+        from models.base import ModelType
+        from models.text_model import TextModel
 
         cfg = TextModel.get_default_config()
         assert cfg.model_type == ModelType.TEXT
@@ -98,7 +98,7 @@ class TestTextModelInit:
         assert cfg.max_tokens == 3000
 
     def test_get_default_config_custom_name(self) -> None:
-        from file_organizer.models.text_model import TextModel
+        from models.text_model import TextModel
 
         cfg = TextModel.get_default_config("my-custom-model")
         assert cfg.name == "my-custom-model"
@@ -109,10 +109,10 @@ class TestTextModelInit:
         model.client.show.assert_not_called()
 
     def test_initialize_pulls_when_show_raises_response_error(self) -> None:
-        from file_organizer.models.text_model import TextModel
+        from models.text_model import TextModel
 
         config = TextModel.get_default_config("pull-me")
-        with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
+        with patch("models.text_model.OLLAMA_AVAILABLE", True):
             model = TextModel(config)
         mock_client = MagicMock()
 
@@ -121,8 +121,8 @@ class TestTextModelInit:
 
         mock_client.show.side_effect = FakeResponseError("not found")
         with (
-            patch("file_organizer.models.text_model.ollama.Client", return_value=mock_client),
-            patch("file_organizer.models.text_model.ollama.ResponseError", FakeResponseError),
+            patch("models.text_model.ollama.Client", return_value=mock_client),
+            patch("models.text_model.ollama.ResponseError", FakeResponseError),
         ):
             model.initialize()
 
@@ -131,15 +131,15 @@ class TestTextModelInit:
         assert model._initialized is True
 
     def test_initialize_raises_on_connection_error(self) -> None:
-        from file_organizer.models.text_model import TextModel
+        from models.text_model import TextModel
 
         config = TextModel.get_default_config("fail-model")
-        with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
+        with patch("models.text_model.OLLAMA_AVAILABLE", True):
             model = TextModel(config)
 
         with (
             patch(
-                "file_organizer.models.text_model.ollama.Client",
+                "models.text_model.ollama.Client",
                 side_effect=ConnectionError("refused"),
             ),
             pytest.raises(ConnectionError),
@@ -172,7 +172,7 @@ class TestTextModelGenerate:
         assert model.client.generate.call_count == 2
 
     def test_generate_raises_token_exhaustion_on_double_fail(self) -> None:
-        from file_organizer.models.base import TokenExhaustionError
+        from models.base import TokenExhaustionError
 
         model = _make_text_model()
         model.client.generate.side_effect = [
@@ -231,7 +231,7 @@ class TestTextModelStreaming:
 
     def test_streaming_guard_iterator_close(self) -> None:
         """_GuardedIterator.close() must fire the on_close callback."""
-        from file_organizer.models.text_model import _GuardedIterator
+        from models.text_model import _GuardedIterator
 
         fired: list[bool] = []
 
@@ -245,7 +245,7 @@ class TestTextModelStreaming:
         assert fired == [True]
 
     def test_streaming_guard_iterator_fires_on_exhaustion(self) -> None:
-        from file_organizer.models.text_model import _GuardedIterator
+        from models.text_model import _GuardedIterator
 
         fired: list[bool] = []
 
@@ -266,42 +266,42 @@ class TestTextModelStreaming:
 
 class TestVisionModelInit:
     def test_requires_ollama_available(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.vision_model import VisionModel
+        from models.base import ModelConfig, ModelType
+        from models.vision_model import VisionModel
 
         config = ModelConfig(name="v", model_type=ModelType.VISION)
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", False):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", False):
             with pytest.raises(ImportError, match="Ollama is not installed"):
                 VisionModel(config)
 
     def test_rejects_wrong_model_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.vision_model import VisionModel
+        from models.base import ModelConfig, ModelType
+        from models.vision_model import VisionModel
 
         config = ModelConfig(name="v", model_type=ModelType.TEXT)
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             with pytest.raises(ValueError, match="Expected VISION or VIDEO"):
                 VisionModel(config)
 
     def test_accepts_video_model_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.vision_model import VisionModel
+        from models.base import ModelConfig, ModelType
+        from models.vision_model import VisionModel
 
         config = ModelConfig(name="v", model_type=ModelType.VIDEO)
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(config)
         assert model.config.model_type == ModelType.VIDEO
 
     def test_get_default_config_returns_vision_type(self) -> None:
-        from file_organizer.models.base import ModelType
-        from file_organizer.models.vision_model import VisionModel
+        from models.base import ModelType
+        from models.vision_model import VisionModel
 
         cfg = VisionModel.get_default_config()
         assert cfg.model_type == ModelType.VISION
         assert cfg.temperature == 0.3
 
     def test_get_default_config_custom_name(self) -> None:
-        from file_organizer.models.vision_model import VisionModel
+        from models.vision_model import VisionModel
 
         cfg = VisionModel.get_default_config("my-vision-model")
         assert cfg.name == "my-vision-model"
@@ -312,10 +312,10 @@ class TestVisionModelInit:
         model.client.show.assert_not_called()
 
     def test_initialize_pulls_when_show_raises_response_error(self) -> None:
-        from file_organizer.models.vision_model import VisionModel
+        from models.vision_model import VisionModel
 
         config = VisionModel.get_default_config("pull-vision")
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(config)
         mock_client = MagicMock()
 
@@ -324,8 +324,8 @@ class TestVisionModelInit:
 
         mock_client.show.side_effect = FakeResponseError("not found")
         with (
-            patch("file_organizer.models.vision_model.ollama.Client", return_value=mock_client),
-            patch("file_organizer.models.vision_model.ollama.ResponseError", FakeResponseError),
+            patch("models.vision_model.ollama.Client", return_value=mock_client),
+            patch("models.vision_model.ollama.ResponseError", FakeResponseError),
         ):
             model.initialize()
 
@@ -389,7 +389,7 @@ class TestVisionModelGenerate:
         assert model.client.generate.call_count == 2
 
     def test_generate_raises_token_exhaustion_on_double_fail(self, tmp_path: Path) -> None:
-        from file_organizer.models.base import TokenExhaustionError
+        from models.base import TokenExhaustionError
 
         model = _make_vision_model()
         img = tmp_path / "img.png"
@@ -483,7 +483,7 @@ class TestVisionModelGenerate:
 
 class TestProviderRegistry:
     def _fresh_registry(self) -> ProviderRegistry:
-        from file_organizer.models.provider_registry import ProviderRegistry
+        from models.provider_registry import ProviderRegistry
 
         r = ProviderRegistry()
         return r
@@ -513,7 +513,7 @@ class TestProviderRegistry:
             r.register("empty")
 
     def test_get_text_model_returns_factory_result(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models.base import ModelConfig, ModelType
 
         r = self._fresh_registry()
         mock_model = MagicMock()
@@ -523,7 +523,7 @@ class TestProviderRegistry:
         assert result is mock_model
 
     def test_get_text_model_raises_unknown_provider(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models.base import ModelConfig, ModelType
 
         r = self._fresh_registry()
         cfg = ModelConfig(name="m", model_type=ModelType.TEXT, provider="ghost")
@@ -531,7 +531,7 @@ class TestProviderRegistry:
             r.get_text_model(cfg)
 
     def test_get_vision_model_returns_factory_result(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models.base import ModelConfig, ModelType
 
         r = self._fresh_registry()
         mock_model = MagicMock()
@@ -541,7 +541,7 @@ class TestProviderRegistry:
         assert result is mock_model
 
     def test_get_vision_model_raises_unknown_provider(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models.base import ModelConfig, ModelType
 
         r = self._fresh_registry()
         cfg = ModelConfig(name="m", model_type=ModelType.VISION, provider="ghost")
@@ -549,7 +549,7 @@ class TestProviderRegistry:
             r.get_vision_model(cfg)
 
     def test_get_vision_model_raises_when_only_text_registered(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models.base import ModelConfig, ModelType
 
         r = self._fresh_registry()
         r.register("text_only", text_factory=MagicMock(return_value=MagicMock()))
@@ -571,14 +571,14 @@ class TestProviderRegistry:
         assert r.registered_providers == []
 
     def test_module_singleton_has_builtin_providers(self) -> None:
-        from file_organizer.models.provider_registry import _registry
+        from models.provider_registry import _registry
 
         providers = _registry.registered_providers
         for expected in ("ollama", "openai", "claude"):
             assert expected in providers
 
     def test_register_provider_module_function(self) -> None:
-        from file_organizer.models.provider_registry import _registry, register_provider
+        from models.provider_registry import _registry, register_provider
 
         set(_registry.registered_providers)
         register_provider("test_custom_xyz", text_factory=MagicMock(return_value=MagicMock()))
@@ -586,7 +586,7 @@ class TestProviderRegistry:
         # Cleanup: remove so we don't pollute other tests
         _registry._reset_for_testing()
         # Re-register builtins (they were cleared by _reset_for_testing)
-        from file_organizer.models.provider_registry import _register_builtins
+        from models.provider_registry import _register_builtins
 
         _register_builtins()
 
@@ -598,7 +598,7 @@ class TestProviderRegistry:
 
 class TestSuggestionTypes:
     def test_suggestion_type_enum_values(self) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
+        from models.suggestion_types import SuggestionType
 
         assert SuggestionType.MOVE.value == "move"
         assert SuggestionType.RENAME.value == "rename"
@@ -608,7 +608,7 @@ class TestSuggestionTypes:
         assert SuggestionType.MERGE.value == "merge"
 
     def test_confidence_level_enum_values(self) -> None:
-        from file_organizer.models.suggestion_types import ConfidenceLevel
+        from models.suggestion_types import ConfidenceLevel
 
         assert ConfidenceLevel.VERY_HIGH.value == "very_high"
         assert ConfidenceLevel.HIGH.value == "high"
@@ -617,7 +617,7 @@ class TestSuggestionTypes:
         assert ConfidenceLevel.VERY_LOW.value == "very_low"
 
     def test_suggestion_confidence_level_very_high(self) -> None:
-        from file_organizer.models.suggestion_types import (
+        from models.suggestion_types import (
             ConfidenceLevel,
             Suggestion,
             SuggestionType,
@@ -632,7 +632,7 @@ class TestSuggestionTypes:
         assert s.confidence_level == ConfidenceLevel.VERY_HIGH
 
     def test_suggestion_confidence_level_high(self) -> None:
-        from file_organizer.models.suggestion_types import (
+        from models.suggestion_types import (
             ConfidenceLevel,
             Suggestion,
             SuggestionType,
@@ -647,7 +647,7 @@ class TestSuggestionTypes:
         assert s.confidence_level == ConfidenceLevel.HIGH
 
     def test_suggestion_confidence_level_medium(self) -> None:
-        from file_organizer.models.suggestion_types import (
+        from models.suggestion_types import (
             ConfidenceLevel,
             Suggestion,
             SuggestionType,
@@ -662,7 +662,7 @@ class TestSuggestionTypes:
         assert s.confidence_level == ConfidenceLevel.MEDIUM
 
     def test_suggestion_confidence_level_low(self) -> None:
-        from file_organizer.models.suggestion_types import (
+        from models.suggestion_types import (
             ConfidenceLevel,
             Suggestion,
             SuggestionType,
@@ -677,7 +677,7 @@ class TestSuggestionTypes:
         assert s.confidence_level == ConfidenceLevel.LOW
 
     def test_suggestion_confidence_level_very_low(self) -> None:
-        from file_organizer.models.suggestion_types import (
+        from models.suggestion_types import (
             ConfidenceLevel,
             Suggestion,
             SuggestionType,
@@ -692,7 +692,7 @@ class TestSuggestionTypes:
         assert s.confidence_level == ConfidenceLevel.VERY_LOW
 
     def test_suggestion_to_dict_all_fields(self) -> None:
-        from file_organizer.models.suggestion_types import Suggestion, SuggestionType
+        from models.suggestion_types import Suggestion, SuggestionType
 
         s = Suggestion(
             suggestion_id="s-123",
@@ -719,7 +719,7 @@ class TestSuggestionTypes:
         assert "created_at" in d
 
     def test_suggestion_to_dict_no_target_path(self) -> None:
-        from file_organizer.models.suggestion_types import Suggestion, SuggestionType
+        from models.suggestion_types import Suggestion, SuggestionType
 
         s = Suggestion(
             suggestion_id="s-no-target",
@@ -730,7 +730,7 @@ class TestSuggestionTypes:
         assert d["target_path"] is None
 
     def test_suggestion_batch_avg_confidence(self) -> None:
-        from file_organizer.models.suggestion_types import (
+        from models.suggestion_types import (
             Suggestion,
             SuggestionBatch,
             SuggestionType,
@@ -749,7 +749,7 @@ class TestSuggestionTypes:
         assert batch.avg_confidence == pytest.approx(70.0)
 
     def test_suggestion_batch_avg_confidence_empty(self) -> None:
-        from file_organizer.models.suggestion_types import SuggestionBatch
+        from models.suggestion_types import SuggestionBatch
 
         batch = SuggestionBatch(
             batch_id="b2",
@@ -760,7 +760,7 @@ class TestSuggestionTypes:
         assert batch.avg_confidence == 0.0
 
     def test_suggestion_batch_total_suggestions(self) -> None:
-        from file_organizer.models.suggestion_types import (
+        from models.suggestion_types import (
             Suggestion,
             SuggestionBatch,
             SuggestionType,
@@ -780,7 +780,7 @@ class TestSuggestionTypes:
         assert batch.total_suggestions == 3
 
     def test_suggestion_batch_to_dict(self) -> None:
-        from file_organizer.models.suggestion_types import (
+        from models.suggestion_types import (
             Suggestion,
             SuggestionBatch,
             SuggestionType,
@@ -803,7 +803,7 @@ class TestSuggestionTypes:
         assert len(d["suggestions"]) == 1
 
     def test_confidence_factors_weighted_score_defaults(self) -> None:
-        from file_organizer.models.suggestion_types import ConfidenceFactors
+        from models.suggestion_types import ConfidenceFactors
 
         cf = ConfidenceFactors(
             pattern_strength=80.0,
@@ -818,7 +818,7 @@ class TestSuggestionTypes:
         assert 0.0 <= score <= 100.0
 
     def test_confidence_factors_clamps_to_100(self) -> None:
-        from file_organizer.models.suggestion_types import ConfidenceFactors
+        from models.suggestion_types import ConfidenceFactors
 
         cf = ConfidenceFactors(
             pattern_strength=200.0,
@@ -832,7 +832,7 @@ class TestSuggestionTypes:
         assert cf.calculate_weighted_score() == 100.0
 
     def test_confidence_factors_clamps_to_zero(self) -> None:
-        from file_organizer.models.suggestion_types import ConfidenceFactors
+        from models.suggestion_types import ConfidenceFactors
 
         cf = ConfidenceFactors(
             pattern_strength=-100.0,
@@ -846,7 +846,7 @@ class TestSuggestionTypes:
         assert cf.calculate_weighted_score() == 0.0
 
     def test_confidence_factors_to_dict(self) -> None:
-        from file_organizer.models.suggestion_types import ConfidenceFactors
+        from models.suggestion_types import ConfidenceFactors
 
         cf = ConfidenceFactors(pattern_strength=50.0)
         d = cf.to_dict()
@@ -862,22 +862,22 @@ class TestSuggestionTypes:
 
 class TestConfigManager:
     def test_load_returns_defaults_when_no_file(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)
         config = mgr.load()
         assert config.profile_name == "default"
 
     def test_load_custom_profile_returns_default_when_file_missing(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)
         config = mgr.load(profile="production")
         assert config.profile_name == "production"
 
     def test_save_creates_config_file(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="test"))
@@ -885,8 +885,8 @@ class TestConfigManager:
         assert config_file.exists()
 
     def test_save_and_load_roundtrip(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         original = AppConfig(
@@ -901,8 +901,8 @@ class TestConfigManager:
         assert loaded.setup_completed is True
 
     def test_save_and_load_multiple_profiles(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="alpha", default_methodology="jd"), profile="alpha")
@@ -914,14 +914,14 @@ class TestConfigManager:
         assert beta.default_methodology == "para"
 
     def test_list_profiles_empty_when_no_file(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)
         assert mgr.list_profiles() == []
 
     def test_list_profiles_after_save(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="p1"), profile="p1")
@@ -931,8 +931,8 @@ class TestConfigManager:
         assert "p2" in profiles
 
     def test_delete_profile_removes_it(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="to_delete"), profile="to_delete")
@@ -942,8 +942,8 @@ class TestConfigManager:
         assert "to_delete" not in mgr.list_profiles()
 
     def test_delete_profile_returns_false_when_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="other"), profile="other")
@@ -951,14 +951,14 @@ class TestConfigManager:
         assert result is False
 
     def test_delete_profile_returns_false_when_no_file(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)
         result = mgr.delete_profile("ghost")
         assert result is False
 
     def test_load_returns_defaults_on_corrupt_yaml(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text(": invalid: yaml: {{{{", encoding="utf-8")
@@ -967,8 +967,8 @@ class TestConfigManager:
         assert config.profile_name == "default"
 
     def test_load_returns_defaults_when_profile_missing(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="exists"), profile="exists")
@@ -976,15 +976,15 @@ class TestConfigManager:
         assert config.profile_name == "does_not_exist"
 
     def test_config_dir_property(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)
         assert mgr.config_dir == tmp_path
 
     def test_to_text_model_config(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
-        from file_organizer.models.base import ModelType
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
+        from models.base import ModelType
 
         mgr = ConfigManager(config_dir=tmp_path)
         app_config = AppConfig()
@@ -993,9 +993,9 @@ class TestConfigManager:
         assert mc.name == app_config.models.text_model
 
     def test_to_vision_model_config(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
-        from file_organizer.models.base import ModelType
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
+        from models.base import ModelType
 
         mgr = ConfigManager(config_dir=tmp_path)
         app_config = AppConfig()
@@ -1004,8 +1004,8 @@ class TestConfigManager:
         assert mc.name == app_config.models.vision_model
 
     def test_config_to_dict_includes_expected_keys(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         d = mgr.config_to_dict(AppConfig())
@@ -1015,8 +1015,8 @@ class TestConfigManager:
         assert "updates" in d
 
     def test_save_preserves_existing_profiles(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="first"), profile="first")
@@ -1029,7 +1029,7 @@ class TestConfigManager:
     def test_load_with_models_data(self, tmp_path: Path) -> None:
         import yaml
 
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         config_file = tmp_path / "config.yaml"
         data = {
@@ -1053,8 +1053,8 @@ class TestConfigManager:
         assert cfg.models.temperature == pytest.approx(0.7)
 
     def test_to_watcher_config(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         config = mgr.to_watcher_config(AppConfig())
@@ -1062,8 +1062,8 @@ class TestConfigManager:
         assert config is not None
 
     def test_to_watcher_config_with_overrides(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         app = AppConfig(watcher={"debounce_seconds": 2.5})
@@ -1072,50 +1072,50 @@ class TestConfigManager:
         assert config.debounce_seconds == pytest.approx(2.5)
 
     def test_to_daemon_config(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         config = mgr.to_daemon_config(AppConfig())
         assert config is not None
 
     def test_to_parallel_config(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         config = mgr.to_parallel_config(AppConfig())
         assert config is not None
 
     def test_to_event_config(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         config = mgr.to_event_config(AppConfig())
         assert config is not None
 
     def test_to_para_config(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         config = mgr.to_para_config(AppConfig())
         assert config is not None
 
     def test_to_johnny_decimal_config_no_overrides(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
-        from file_organizer.methodologies.johnny_decimal.config import JohnnyDecimalConfig
+        from methodologies.johnny_decimal.config import JohnnyDecimalConfig
 
         config = mgr.to_johnny_decimal_config(AppConfig())
         assert isinstance(config, JohnnyDecimalConfig)
         assert config.scheme is not None
 
     def test_list_profiles_returns_empty_when_yaml_not_dict(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("- just\n- a\n- list\n", encoding="utf-8")
@@ -1123,7 +1123,7 @@ class TestConfigManager:
         assert mgr.list_profiles() == []
 
     def test_delete_profile_when_yaml_not_dict(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("- just\n- a\n- list\n", encoding="utf-8")
@@ -1132,7 +1132,7 @@ class TestConfigManager:
         assert result is False
 
     def test_load_when_yaml_not_dict(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("just a string\n", encoding="utf-8")
@@ -1148,56 +1148,56 @@ class TestConfigManager:
 
 class TestPathManagerFunctions:
     def test_get_config_dir_uses_xdg_config_home(self, tmp_path: Path, monkeypatch) -> None:
-        from file_organizer.config.path_manager import get_config_dir
+        from config.path_manager import get_config_dir
 
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
         result = get_config_dir()
-        assert result == tmp_path / "file-organizer"
+        assert result == tmp_path / "fo"
 
     def test_get_config_dir_default(self, monkeypatch) -> None:
-        from file_organizer.config.path_manager import get_config_dir
+        from config.path_manager import get_config_dir
 
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         result = get_config_dir()
-        assert result.name == "file-organizer"
+        assert result.name == "fo"
 
     def test_get_data_dir_uses_xdg_data_home(self, tmp_path: Path, monkeypatch) -> None:
-        from file_organizer.config.path_manager import get_data_dir
+        from config.path_manager import get_data_dir
 
         monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
         result = get_data_dir()
-        assert result == tmp_path / "file-organizer"
+        assert result == tmp_path / "fo"
 
     def test_get_data_dir_default(self, monkeypatch) -> None:
-        from file_organizer.config.path_manager import get_data_dir
+        from config.path_manager import get_data_dir
 
         monkeypatch.delenv("XDG_DATA_HOME", raising=False)
         result = get_data_dir()
-        assert "file-organizer" in str(result)
+        assert "fo" in str(result)
 
     def test_get_state_dir_uses_xdg_state_home(self, tmp_path: Path, monkeypatch) -> None:
-        from file_organizer.config.path_manager import get_state_dir
+        from config.path_manager import get_state_dir
 
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
         result = get_state_dir()
-        assert result == tmp_path / "file-organizer"
+        assert result == tmp_path / "fo"
 
     def test_get_state_dir_default(self, monkeypatch) -> None:
-        from file_organizer.config.path_manager import get_state_dir
+        from config.path_manager import get_state_dir
 
         monkeypatch.delenv("XDG_STATE_HOME", raising=False)
         result = get_state_dir()
-        assert "file-organizer" in str(result)
+        assert "fo" in str(result)
 
     def test_get_cache_dir_returns_path(self) -> None:
-        from file_organizer.config.path_manager import get_cache_dir
+        from config.path_manager import get_cache_dir
 
         result = get_cache_dir()
         assert isinstance(result, Path)
-        assert "file-organizer" in str(result)
+        assert "fo" in str(result)
 
     def test_get_canonical_paths_returns_expected_keys(self) -> None:
-        from file_organizer.config.path_manager import get_canonical_paths
+        from config.path_manager import get_canonical_paths
 
         paths = get_canonical_paths()
         for key in ("config", "data", "state", "cache", "history", "metadata", "logs"):
@@ -1205,13 +1205,13 @@ class TestPathManagerFunctions:
             assert isinstance(paths[key], Path)
 
     def test_get_canonical_paths_history_under_data(self) -> None:
-        from file_organizer.config.path_manager import get_canonical_paths
+        from config.path_manager import get_canonical_paths
 
         paths = get_canonical_paths()
         assert paths["history"].parent == paths["data"]
 
     def test_get_canonical_paths_logs_under_state(self) -> None:
-        from file_organizer.config.path_manager import get_canonical_paths
+        from config.path_manager import get_canonical_paths
 
         paths = get_canonical_paths()
         assert paths["logs"].parent == paths["state"]
@@ -1219,7 +1219,7 @@ class TestPathManagerFunctions:
 
 class TestPathManagerClass:
     def test_path_manager_init_has_all_paths(self) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         pm = PathManager()
         assert pm.config_dir is not None
@@ -1229,32 +1229,32 @@ class TestPathManagerClass:
         assert pm.metadata_dir is not None
 
     def test_config_file_is_json(self) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         pm = PathManager()
         assert pm.config_file.name == "config.json"
         assert pm.config_file.parent == pm.config_dir
 
     def test_preferences_file_is_json(self) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         pm = PathManager()
         assert pm.preferences_file.name == "preferences.json"
 
     def test_history_db_under_history_dir(self) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         pm = PathManager()
         assert pm.history_db.name == "operations.db"
 
     def test_undo_redo_db_under_state_dir(self) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         pm = PathManager()
         assert pm.undo_redo_db.parent == pm.state_dir
 
     def test_ensure_directories_creates_dirs(self, tmp_path: Path, monkeypatch) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
         monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
@@ -1268,21 +1268,21 @@ class TestPathManagerClass:
         assert pm.state_dir.exists()
 
     def test_get_path_returns_correct_path(self) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         pm = PathManager()
         config_path = pm.get_path("config")
         assert config_path == pm.config_dir
 
     def test_get_path_raises_on_unknown_category(self) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         pm = PathManager()
         with pytest.raises(ValueError, match="Unknown path category"):
             pm.get_path("nonexistent_category_xyz")
 
     def test_get_path_all_valid_categories(self) -> None:
-        from file_organizer.config.path_manager import PathManager
+        from config.path_manager import PathManager
 
         pm = PathManager()
         for category in ("config", "data", "state", "cache", "history", "metadata", "logs"):
@@ -1297,7 +1297,7 @@ class TestPathManagerClass:
 
 class TestStorageStats:
     def _make_stats(self, **kwargs) -> StorageStats:
-        from file_organizer.models.analytics import StorageStats
+        from models.analytics import StorageStats
 
         defaults = {
             "total_size": 1024 * 1024 * 100,
@@ -1340,19 +1340,19 @@ class TestStorageStats:
 
 class TestFileDistribution:
     def test_get_type_percentage_zero_total(self) -> None:
-        from file_organizer.models.analytics import FileDistribution
+        from models.analytics import FileDistribution
 
         fd = FileDistribution()
         assert fd.get_type_percentage("pdf") == 0.0
 
     def test_get_type_percentage_nonzero(self) -> None:
-        from file_organizer.models.analytics import FileDistribution
+        from models.analytics import FileDistribution
 
         fd = FileDistribution(by_type={"pdf": 10, "jpg": 10}, total_files=20)
         assert fd.get_type_percentage("pdf") == pytest.approx(50.0)
 
     def test_get_type_percentage_missing_type(self) -> None:
-        from file_organizer.models.analytics import FileDistribution
+        from models.analytics import FileDistribution
 
         fd = FileDistribution(by_type={"pdf": 5}, total_files=10)
         assert fd.get_type_percentage("docx") == 0.0
@@ -1360,7 +1360,7 @@ class TestFileDistribution:
 
 class TestDuplicateStats:
     def test_formatted_space_wasted(self) -> None:
-        from file_organizer.models.analytics import DuplicateStats
+        from models.analytics import DuplicateStats
 
         ds = DuplicateStats(
             total_duplicates=5,
@@ -1371,7 +1371,7 @@ class TestDuplicateStats:
         assert "MB" in ds.formatted_space_wasted
 
     def test_formatted_recoverable(self) -> None:
-        from file_organizer.models.analytics import DuplicateStats
+        from models.analytics import DuplicateStats
 
         ds = DuplicateStats(
             total_duplicates=3,
@@ -1384,7 +1384,7 @@ class TestDuplicateStats:
 
 class TestQualityMetrics:
     def test_grade_a(self) -> None:
-        from file_organizer.models.analytics import QualityMetrics
+        from models.analytics import QualityMetrics
 
         qm = QualityMetrics(
             quality_score=95.0,
@@ -1396,7 +1396,7 @@ class TestQualityMetrics:
         assert qm.grade == "A"
 
     def test_grade_b(self) -> None:
-        from file_organizer.models.analytics import QualityMetrics
+        from models.analytics import QualityMetrics
 
         qm = QualityMetrics(
             quality_score=85.0,
@@ -1408,7 +1408,7 @@ class TestQualityMetrics:
         assert qm.grade == "B"
 
     def test_grade_c(self) -> None:
-        from file_organizer.models.analytics import QualityMetrics
+        from models.analytics import QualityMetrics
 
         qm = QualityMetrics(
             quality_score=75.0,
@@ -1420,7 +1420,7 @@ class TestQualityMetrics:
         assert qm.grade == "C"
 
     def test_grade_d(self) -> None:
-        from file_organizer.models.analytics import QualityMetrics
+        from models.analytics import QualityMetrics
 
         qm = QualityMetrics(
             quality_score=65.0,
@@ -1432,7 +1432,7 @@ class TestQualityMetrics:
         assert qm.grade == "D"
 
     def test_grade_f(self) -> None:
-        from file_organizer.models.analytics import QualityMetrics
+        from models.analytics import QualityMetrics
 
         qm = QualityMetrics(
             quality_score=55.0,
@@ -1444,7 +1444,7 @@ class TestQualityMetrics:
         assert qm.grade == "F"
 
     def test_formatted_score(self) -> None:
-        from file_organizer.models.analytics import QualityMetrics
+        from models.analytics import QualityMetrics
 
         qm = QualityMetrics(
             quality_score=92.5,
@@ -1458,7 +1458,7 @@ class TestQualityMetrics:
 
 class TestTimeSavings:
     def test_automation_percentage_nonzero(self) -> None:
-        from file_organizer.models.analytics import TimeSavings
+        from models.analytics import TimeSavings
 
         ts = TimeSavings(
             total_operations=100,
@@ -1470,7 +1470,7 @@ class TestTimeSavings:
         assert ts.automation_percentage == pytest.approx(75.0)
 
     def test_automation_percentage_zero_total(self) -> None:
-        from file_organizer.models.analytics import TimeSavings
+        from models.analytics import TimeSavings
 
         ts = TimeSavings(
             total_operations=0,
@@ -1482,7 +1482,7 @@ class TestTimeSavings:
         assert ts.automation_percentage == 0.0
 
     def test_formatted_time_saved_seconds(self) -> None:
-        from file_organizer.models.analytics import TimeSavings
+        from models.analytics import TimeSavings
 
         ts = TimeSavings(
             total_operations=10,
@@ -1494,7 +1494,7 @@ class TestTimeSavings:
         assert ts.formatted_time_saved == "45s"
 
     def test_formatted_time_saved_minutes(self) -> None:
-        from file_organizer.models.analytics import TimeSavings
+        from models.analytics import TimeSavings
 
         ts = TimeSavings(
             total_operations=10,
@@ -1506,7 +1506,7 @@ class TestTimeSavings:
         assert ts.formatted_time_saved.endswith("m")
 
     def test_formatted_time_saved_hours(self) -> None:
-        from file_organizer.models.analytics import TimeSavings
+        from models.analytics import TimeSavings
 
         ts = TimeSavings(
             total_operations=10,
@@ -1518,7 +1518,7 @@ class TestTimeSavings:
         assert ts.formatted_time_saved.endswith("h")
 
     def test_formatted_time_saved_days(self) -> None:
-        from file_organizer.models.analytics import TimeSavings
+        from models.analytics import TimeSavings
 
         ts = TimeSavings(
             total_operations=10,
@@ -1532,7 +1532,7 @@ class TestTimeSavings:
 
 class TestTrendData:
     def test_add_data_point(self) -> None:
-        from file_organizer.models.analytics import TrendData
+        from models.analytics import TrendData
 
         td = TrendData(metric_name="quality_score")
         now = datetime.now(tz=UTC)
@@ -1541,20 +1541,20 @@ class TestTrendData:
         assert td.values[0] == 85.0
 
     def test_trend_direction_stable_with_one_point(self) -> None:
-        from file_organizer.models.analytics import TrendData
+        from models.analytics import TrendData
 
         td = TrendData(metric_name="score")
         td.add_data_point(50.0, datetime.now(tz=UTC))
         assert td.trend_direction == "stable"
 
     def test_trend_direction_stable_empty(self) -> None:
-        from file_organizer.models.analytics import TrendData
+        from models.analytics import TrendData
 
         td = TrendData(metric_name="score")
         assert td.trend_direction == "stable"
 
     def test_trend_direction_up(self) -> None:
-        from file_organizer.models.analytics import TrendData
+        from models.analytics import TrendData
 
         td = TrendData(metric_name="score")
         now = datetime.now(tz=UTC)
@@ -1563,7 +1563,7 @@ class TestTrendData:
         assert td.trend_direction == "up"
 
     def test_trend_direction_down(self) -> None:
-        from file_organizer.models.analytics import TrendData
+        from models.analytics import TrendData
 
         td = TrendData(metric_name="score")
         now = datetime.now(tz=UTC)
@@ -1574,7 +1574,7 @@ class TestTrendData:
 
 class TestAnalyticsDashboard:
     def _make_dashboard(self) -> AnalyticsDashboard:
-        from file_organizer.models.analytics import (
+        from models.analytics import (
             AnalyticsDashboard,
             DuplicateStats,
             FileDistribution,
@@ -1647,7 +1647,7 @@ class TestAnalyticsDashboard:
 
 class TestFileInfo:
     def test_file_info_fields(self) -> None:
-        from file_organizer.models.analytics import FileInfo
+        from models.analytics import FileInfo
 
         now = datetime.now(tz=UTC)
         fi = FileInfo(path=Path("/docs/report.pdf"), size=1024, type="pdf", modified=now)
@@ -1658,7 +1658,7 @@ class TestFileInfo:
         assert fi.category is None
 
     def test_file_info_with_category(self) -> None:
-        from file_organizer.models.analytics import FileInfo
+        from models.analytics import FileInfo
 
         now = datetime.now(tz=UTC)
         fi = FileInfo(
@@ -1673,7 +1673,7 @@ class TestFileInfo:
 
 class TestMetricsSnapshot:
     def test_metrics_snapshot_fields(self) -> None:
-        from file_organizer.models.analytics import (
+        from models.analytics import (
             MetricsSnapshot,
             QualityMetrics,
             StorageStats,

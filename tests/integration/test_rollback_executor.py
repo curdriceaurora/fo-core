@@ -23,8 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.models import Operation, OperationStatus, OperationType
-from file_organizer.undo.rollback import RollbackExecutor
+from history.models import Operation, OperationStatus, OperationType
+from undo.rollback import RollbackExecutor
 
 pytestmark = pytest.mark.integration
 
@@ -196,7 +196,7 @@ class TestRollbackDelete:
     def test_file_not_in_trash_returns_false(self, tmp_path: Path) -> None:
         trash = tmp_path / "trash"
         trash.mkdir()
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         v = OperationValidator(trash_dir=trash)
         executor = RollbackExecutor(validator=v)
@@ -206,7 +206,7 @@ class TestRollbackDelete:
     def test_successful_restore_from_trash(self, tmp_path: Path) -> None:
         trash = tmp_path / "trash"
         trash.mkdir()
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         v = OperationValidator(trash_dir=trash)
         executor = RollbackExecutor(validator=v)

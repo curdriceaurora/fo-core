@@ -28,7 +28,7 @@ pytestmark = pytest.mark.integration
 
 
 def _make_event(event_id: str = "1-0", stream: str = "files", data: dict | None = None):
-    from file_organizer.events.stream import Event
+    from events.stream import Event
 
     return Event(id=event_id, stream=stream, data=data or {"type": "created"})
 
@@ -40,7 +40,7 @@ def _make_event(event_id: str = "1-0", stream: str = "files", data: dict | None 
 
 class TestAuditEntry:
     def test_to_dict_contains_all_fields(self) -> None:
-        from file_organizer.events.audit import AuditEntry
+        from events.audit import AuditEntry
 
         ts = datetime(2026, 1, 15, 10, 30, tzinfo=UTC)
         entry = AuditEntry(
@@ -58,7 +58,7 @@ class TestAuditEntry:
         assert d["metadata"] == {"worker": "w1"}
 
     def test_from_dict_roundtrip(self) -> None:
-        from file_organizer.events.audit import AuditEntry
+        from events.audit import AuditEntry
 
         ts = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
         entry = AuditEntry(
@@ -72,7 +72,7 @@ class TestAuditEntry:
         assert restored.timestamp == ts
 
     def test_from_dict_missing_metadata_defaults_to_empty(self) -> None:
-        from file_organizer.events.audit import AuditEntry
+        from events.audit import AuditEntry
 
         data = {
             "timestamp": datetime(2026, 1, 1, tzinfo=UTC).isoformat(),
@@ -84,7 +84,7 @@ class TestAuditEntry:
         assert entry.metadata == {}
 
     def test_to_dict_timestamp_is_string(self) -> None:
-        from file_organizer.events.audit import AuditEntry
+        from events.audit import AuditEntry
 
         entry = AuditEntry(timestamp=datetime.now(UTC), event_id="x", stream="s", action="a")
         d = entry.to_dict()
@@ -99,7 +99,7 @@ class TestAuditEntry:
 
 class TestAuditLogger:
     def test_log_event_returns_audit_entry(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditEntry, AuditLogger
+        from events.audit import AuditEntry, AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         event = _make_event()
@@ -110,7 +110,7 @@ class TestAuditLogger:
         assert entry.action == "published"
 
     def test_log_event_persists_to_file(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         log.log_event(_make_event(), "consumed")
@@ -119,7 +119,7 @@ class TestAuditLogger:
         assert "consumed" in content
 
     def test_log_event_creates_parent_dirs(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         nested = tmp_path / "a" / "b" / "c" / "audit.jsonl"
         log = AuditLogger(nested)
@@ -127,20 +127,20 @@ class TestAuditLogger:
         assert nested.exists()
 
     def test_log_path_property(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         path = tmp_path / "audit.jsonl"
         log = AuditLogger(path)
         assert log.log_path == path
 
     def test_query_returns_empty_when_no_file(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log = AuditLogger(tmp_path / "missing.jsonl")
         assert log.query_audit_log() == []
 
     def test_query_returns_all_entries_without_filter(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         log.log_event(_make_event("1-0", "stream.a"), "published")
@@ -149,7 +149,7 @@ class TestAuditLogger:
         assert len(entries) == 2
 
     def test_query_filter_by_stream(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditFilter, AuditLogger
+        from events.audit import AuditFilter, AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         log.log_event(_make_event("1-0", "stream.a"), "published")
@@ -159,7 +159,7 @@ class TestAuditLogger:
         assert results[0].stream == "stream.a"
 
     def test_query_filter_by_action(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditFilter, AuditLogger
+        from events.audit import AuditFilter, AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         log.log_event(_make_event("1-0"), "published")
@@ -170,7 +170,7 @@ class TestAuditLogger:
         assert all(e.action == "consumed" for e in results)
 
     def test_query_filter_by_event_id(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditFilter, AuditLogger
+        from events.audit import AuditFilter, AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         log.log_event(_make_event("abc-0"), "published")
@@ -182,7 +182,7 @@ class TestAuditLogger:
     def test_query_filter_by_time_range(self, tmp_path: Path) -> None:
         import json
 
-        from file_organizer.events.audit import AuditEntry, AuditFilter, AuditLogger
+        from events.audit import AuditEntry, AuditFilter, AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         t_old = datetime(2025, 1, 1, tzinfo=UTC)
@@ -201,7 +201,7 @@ class TestAuditLogger:
     def test_query_filter_by_end_time(self, tmp_path: Path) -> None:
         import json
 
-        from file_organizer.events.audit import AuditEntry, AuditFilter, AuditLogger
+        from events.audit import AuditEntry, AuditFilter, AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         t_old = datetime(2025, 1, 1, tzinfo=UTC)
@@ -218,7 +218,7 @@ class TestAuditLogger:
         assert results[0].event_id == "old"
 
     def test_query_combined_filters(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditFilter, AuditLogger
+        from events.audit import AuditFilter, AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         log.log_event(_make_event("1-0", "stream.a"), "published")
@@ -231,7 +231,7 @@ class TestAuditLogger:
     def test_query_skips_malformed_lines(self, tmp_path: Path) -> None:
         import json
 
-        from file_organizer.events.audit import AuditEntry, AuditLogger
+        from events.audit import AuditEntry, AuditLogger
 
         log_path = tmp_path / "audit.jsonl"
         ts = datetime(2026, 1, 1, tzinfo=UTC)
@@ -248,7 +248,7 @@ class TestAuditLogger:
     def test_query_skips_blank_lines(self, tmp_path: Path) -> None:
         import json
 
-        from file_organizer.events.audit import AuditEntry, AuditLogger
+        from events.audit import AuditEntry, AuditLogger
 
         log_path = tmp_path / "audit.jsonl"
         ts = datetime(2026, 1, 1, tzinfo=UTC)
@@ -263,13 +263,13 @@ class TestAuditLogger:
         assert len(results) == 1
 
     def test_get_entry_count_zero_when_no_file(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log = AuditLogger(tmp_path / "missing.jsonl")
         assert log.get_entry_count() == 0
 
     def test_get_entry_count_matches_logged_events(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         for i in range(5):
@@ -277,7 +277,7 @@ class TestAuditLogger:
         assert log.get_entry_count() == 5
 
     def test_clear_removes_log_file(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         log.log_event(_make_event(), "published")
@@ -287,13 +287,13 @@ class TestAuditLogger:
         assert log.get_entry_count() == 0
 
     def test_clear_on_missing_file_is_noop(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log = AuditLogger(tmp_path / "nonexistent.jsonl")
         log.clear()  # Should not raise
 
     def test_log_event_includes_event_data_in_metadata(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log = AuditLogger(tmp_path / "audit.jsonl")
         event = _make_event(data={"type": "moved", "dest": "/new/path"})
@@ -301,7 +301,7 @@ class TestAuditLogger:
         assert entry.metadata == {"type": "moved", "dest": "/new/path"}
 
     def test_repr_contains_path(self, tmp_path: Path) -> None:
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         path = tmp_path / "audit.jsonl"
         log = AuditLogger(path)
@@ -315,19 +315,19 @@ class TestAuditLogger:
 
 class TestAuditFilter:
     def test_none_filter_matches_all(self) -> None:
-        from file_organizer.events.audit import AuditEntry, AuditLogger
+        from events.audit import AuditEntry, AuditLogger
 
         entry = AuditEntry(timestamp=datetime.now(UTC), event_id="x", stream="s", action="a")
         assert AuditLogger._matches_filter(entry, None) is True
 
     def test_stream_filter_no_match(self) -> None:
-        from file_organizer.events.audit import AuditEntry, AuditFilter, AuditLogger
+        from events.audit import AuditEntry, AuditFilter, AuditLogger
 
         entry = AuditEntry(timestamp=datetime.now(UTC), event_id="x", stream="s1", action="a")
         assert AuditLogger._matches_filter(entry, AuditFilter(stream="s2")) is False
 
     def test_action_filter_match(self) -> None:
-        from file_organizer.events.audit import AuditEntry, AuditFilter, AuditLogger
+        from events.audit import AuditEntry, AuditFilter, AuditLogger
 
         entry = AuditEntry(
             timestamp=datetime.now(UTC), event_id="x", stream="s", action="published"
@@ -335,7 +335,7 @@ class TestAuditFilter:
         assert AuditLogger._matches_filter(entry, AuditFilter(action="published")) is True
 
     def test_event_id_filter_no_match(self) -> None:
-        from file_organizer.events.audit import AuditEntry, AuditFilter, AuditLogger
+        from events.audit import AuditEntry, AuditFilter, AuditLogger
 
         entry = AuditEntry(timestamp=datetime.now(UTC), event_id="abc", stream="s", action="a")
         assert AuditLogger._matches_filter(entry, AuditFilter(event_id="xyz")) is False
@@ -348,20 +348,20 @@ class TestAuditFilter:
 
 class TestServiceInfo:
     def test_registered_at_auto_set(self) -> None:
-        from file_organizer.events.discovery import ServiceInfo
+        from events.discovery import ServiceInfo
 
         info = ServiceInfo(name="svc", endpoint="http://localhost:8080")
         assert info.registered_at != ""
         assert "T" in info.registered_at  # ISO format has T separator
 
     def test_last_heartbeat_auto_set(self) -> None:
-        from file_organizer.events.discovery import ServiceInfo
+        from events.discovery import ServiceInfo
 
         info = ServiceInfo(name="svc", endpoint="http://localhost:8080")
         assert info.last_heartbeat != ""
 
     def test_explicit_timestamps_preserved(self) -> None:
-        from file_organizer.events.discovery import ServiceInfo
+        from events.discovery import ServiceInfo
 
         ts = "2025-01-01T00:00:00+00:00"
         info = ServiceInfo(name="svc", endpoint="e", registered_at=ts, last_heartbeat=ts)
@@ -369,7 +369,7 @@ class TestServiceInfo:
         assert info.last_heartbeat == ts
 
     def test_to_dict_contains_all_fields(self) -> None:
-        from file_organizer.events.discovery import ServiceInfo
+        from events.discovery import ServiceInfo
 
         info = ServiceInfo(name="svc", endpoint="e", metadata={"k": "v"})
         d = info.to_dict()
@@ -378,7 +378,7 @@ class TestServiceInfo:
         assert d["metadata"] == {"k": "v"}
 
     def test_from_dict_roundtrip(self) -> None:
-        from file_organizer.events.discovery import ServiceInfo
+        from events.discovery import ServiceInfo
 
         info = ServiceInfo(name="svc", endpoint="e", metadata={"x": 1})
         restored = ServiceInfo.from_dict(info.to_dict())
@@ -387,7 +387,7 @@ class TestServiceInfo:
         assert restored.metadata == {"x": 1}
 
     def test_from_dict_missing_metadata_defaults_empty(self) -> None:
-        from file_organizer.events.discovery import ServiceInfo
+        from events.discovery import ServiceInfo
 
         info = ServiceInfo.from_dict({"name": "s", "endpoint": "e"})
         assert info.metadata == {}
@@ -400,7 +400,7 @@ class TestServiceInfo:
 
 class TestServiceDiscovery:
     def test_register_returns_service_info(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery, ServiceInfo
+        from events.discovery import ServiceDiscovery, ServiceInfo
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         info = disc.register("classifier", "local://classifier:8001")
@@ -409,14 +409,14 @@ class TestServiceDiscovery:
         assert info.endpoint == "local://classifier:8001"
 
     def test_register_with_metadata(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         info = disc.register("svc", "e", metadata={"version": "2.0"})
         assert info.metadata == {"version": "2.0"}
 
     def test_register_overwrites_existing(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         disc.register("svc", "endpoint-v1")
@@ -425,7 +425,7 @@ class TestServiceDiscovery:
         assert disc.count == 1
 
     def test_discover_returns_service_info(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery, ServiceInfo
+        from events.discovery import ServiceDiscovery, ServiceInfo
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         disc.register("svc", "e")
@@ -434,13 +434,13 @@ class TestServiceDiscovery:
         assert result.name == "svc"
 
     def test_discover_returns_none_for_missing(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         assert disc.discover("ghost") is None
 
     def test_deregister_returns_true_when_found(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         disc.register("svc", "e")
@@ -448,13 +448,13 @@ class TestServiceDiscovery:
         assert disc.discover("svc") is None
 
     def test_deregister_returns_false_when_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         assert disc.deregister("ghost") is False
 
     def test_list_services_returns_sorted_by_name(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         disc.register("z_svc", "e1")
@@ -464,13 +464,13 @@ class TestServiceDiscovery:
         assert [s.name for s in services] == ["a_svc", "m_svc", "z_svc"]
 
     def test_list_services_empty_when_no_services(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         assert disc.list_services() == []
 
     def test_heartbeat_updates_timestamp(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         disc.register("svc", "e")
@@ -480,20 +480,20 @@ class TestServiceDiscovery:
         assert new_hb > old_hb
 
     def test_heartbeat_returns_true_when_found(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         disc.register("svc", "e")
         assert disc.heartbeat("svc") is True
 
     def test_heartbeat_returns_false_when_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         assert disc.heartbeat("ghost") is False
 
     def test_count_reflects_registrations(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         assert disc.count == 0
@@ -504,7 +504,7 @@ class TestServiceDiscovery:
         assert disc.count == 1
 
     def test_clear_removes_all_services(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "registry.json")
         disc.register("a", "e1")
@@ -514,14 +514,14 @@ class TestServiceDiscovery:
         assert disc.count == 0
 
     def test_registry_path_property(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         path = tmp_path / "registry.json"
         disc = ServiceDiscovery(registry_path=path)
         assert disc.registry_path == path
 
     def test_persist_and_reload(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         registry = tmp_path / "registry.json"
         disc = ServiceDiscovery(registry_path=registry)
@@ -534,7 +534,7 @@ class TestServiceDiscovery:
         assert info.metadata == {"env": "prod"}
 
     def test_corrupt_file_starts_fresh(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         registry = tmp_path / "registry.json"
         registry.write_text("{ invalid json }", encoding="utf-8")
@@ -542,14 +542,14 @@ class TestServiceDiscovery:
         assert disc.count == 0
 
     def test_repr_contains_service_count(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         disc = ServiceDiscovery(registry_path=tmp_path / "r.json")
         disc.register("svc", "e")
         assert "1" in repr(disc)
 
     def test_register_persists_to_disk(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         registry = tmp_path / "registry.json"
         disc = ServiceDiscovery(registry_path=registry)
@@ -559,7 +559,7 @@ class TestServiceDiscovery:
         assert "svc" in content
 
     def test_deregister_persists_to_disk(self, tmp_path: Path) -> None:
-        from file_organizer.events.discovery import ServiceDiscovery
+        from events.discovery import ServiceDiscovery
 
         registry = tmp_path / "registry.json"
         disc = ServiceDiscovery(registry_path=registry)

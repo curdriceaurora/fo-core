@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.misplacement_detector import (
+from services.misplacement_detector import (
     ContextAnalysis,
     MisplacedFile,
     MisplacementDetector,
 )
-from file_organizer.services.pattern_analyzer import (
+from services.pattern_analyzer import (
     LocationPattern,
     PatternAnalysis,
 )

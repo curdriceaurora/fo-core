@@ -14,7 +14,7 @@ class TestVideoProcessingPlaceholder:
     def test_vision_processor_exists(self):
         """Test that VisionProcessor exists."""
         try:
-            from file_organizer.services.vision_processor import VisionProcessor
+            from services.vision_processor import VisionProcessor
 
             assert VisionProcessor is not None
         except ImportError:
@@ -23,7 +23,7 @@ class TestVideoProcessingPlaceholder:
     def test_vision_processor_initialization(self):
         """Test VisionProcessor initialization."""
         try:
-            from file_organizer.services.vision_processor import VisionProcessor
+            from services.vision_processor import VisionProcessor
 
             processor = VisionProcessor()
             assert processor is not None
@@ -33,7 +33,7 @@ class TestVideoProcessingPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Advanced video processing not yet implemented")
     def test_process_mp4_video(self, tmp_path):
         """Test processing MP4 video file."""
-        from file_organizer.services.vision_processor import VisionProcessor
+        from services.vision_processor import VisionProcessor
 
         video_file = tmp_path / "test.mp4"
         video_file.write_bytes(b"fake mp4 data")
@@ -46,7 +46,7 @@ class TestVideoProcessingPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Scene detection not yet implemented")
     def test_scene_detection(self, tmp_path):
         """Test scene detection in video."""
-        from file_organizer.services.video.scene_detector import SceneDetector
+        from services.video.scene_detector import SceneDetector
 
         video_file = tmp_path / "test.mp4"
         video_file.write_bytes(b"fake video")
@@ -59,7 +59,7 @@ class TestVideoProcessingPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Frame extraction not yet implemented")
     def test_frame_extraction(self, tmp_path):
         """Test extracting frames from video."""
-        from file_organizer.services.vision_processor import VisionProcessor
+        from services.vision_processor import VisionProcessor
 
         video_file = tmp_path / "test.avi"
         video_file.write_bytes(b"fake avi")

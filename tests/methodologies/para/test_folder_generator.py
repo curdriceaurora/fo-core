@@ -13,9 +13,9 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
-from file_organizer.methodologies.para.folder_generator import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
+from methodologies.para.folder_generator import (
     FolderCreationResult,
     PARAFolderGenerator,
 )
@@ -243,7 +243,7 @@ class TestPARAFolderGenerator:
     def test_error_handling_invalid_permissions(self, generator, temp_dir):
         """Test error handling when folder creation fails due to permissions."""
         with patch(
-            "file_organizer.methodologies.para.folder_generator.Path.mkdir",
+            "methodologies.para.folder_generator.Path.mkdir",
             side_effect=PermissionError("Permission denied"),
         ):
             result = generator.generate_structure(temp_dir, create_subdirs=False)
@@ -327,7 +327,7 @@ class TestPARAFolderGenerator:
         # Use an invalid category enum value
         # We need to mock the category mapping to return None
         with patch.dict(
-            "file_organizer.methodologies.para.folder_generator.PARAFolderGenerator.create_category_folder.__globals__",
+            "methodologies.para.folder_generator.PARAFolderGenerator.create_category_folder.__globals__",
             {},
             clear=False,
         ):

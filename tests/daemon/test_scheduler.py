@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.daemon.scheduler import DaemonScheduler, _ScheduledTask
+from daemon.scheduler import DaemonScheduler, _ScheduledTask
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -121,7 +121,7 @@ class TestScheduleTask:
 
     def test_schedule_task_logs_debug(self, scheduler: DaemonScheduler) -> None:
         """schedule_task emits a debug log message."""
-        with patch("file_organizer.daemon.scheduler.logger") as mock_logger:
+        with patch("daemon.scheduler.logger") as mock_logger:
             scheduler.schedule_task("test_task", 5.0, lambda: None)
             mock_logger.debug.assert_called_once()
             args = mock_logger.debug.call_args
@@ -164,7 +164,7 @@ class TestCancelTask:
     def test_cancel_task_logs_debug(self, scheduler: DaemonScheduler) -> None:
         """cancel_task emits a debug log when successful."""
         scheduler.schedule_task("x", 1.0, lambda: None)
-        with patch("file_organizer.daemon.scheduler.logger") as mock_logger:
+        with patch("daemon.scheduler.logger") as mock_logger:
             scheduler.cancel_task("x")
             mock_logger.debug.assert_called_once()
             assert "x" in str(mock_logger.debug.call_args)
@@ -216,7 +216,7 @@ class TestTick:
         scheduler.schedule_task("t", 1.0, cb)
 
         # last_run defaults to 0.0; monotonic returns large enough value
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=100.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=100.0):
             scheduler._tick()
 
         cb.assert_called_once()
@@ -228,7 +228,7 @@ class TestTick:
         # Set last_run to recent
         scheduler._tasks["t"].last_run = 99.0
 
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=100.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=100.0):
             scheduler._tick()
 
         cb.assert_not_called()
@@ -239,7 +239,7 @@ class TestTick:
         scheduler.schedule_task("t", 5.0, cb)
         scheduler._tasks["t"].last_run = 95.0
 
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=100.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=100.0):
             scheduler._tick()
 
         cb.assert_called_once()
@@ -249,7 +249,7 @@ class TestTick:
         cb = MagicMock()
         scheduler.schedule_task("t", 1.0, cb)
 
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=42.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=42.0):
             scheduler._tick()
 
         assert scheduler._tasks["t"].last_run == 42.0
@@ -259,7 +259,7 @@ class TestTick:
         cb = MagicMock(side_effect=RuntimeError("boom"))
         scheduler.schedule_task("failing", 1.0, cb)
 
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=100.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=100.0):
             # Should not raise
             scheduler._tick()
 
@@ -270,7 +270,7 @@ class TestTick:
         cb = MagicMock(side_effect=ValueError("oops"))
         scheduler.schedule_task("failing", 1.0, cb)
 
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=77.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=77.0):
             scheduler._tick()
 
         assert scheduler._tasks["failing"].last_run == 77.0
@@ -281,8 +281,8 @@ class TestTick:
         scheduler.schedule_task("failing", 1.0, cb)
 
         with (
-            patch("file_organizer.daemon.scheduler.time.monotonic", return_value=100.0),
-            patch("file_organizer.daemon.scheduler.logger") as mock_logger,
+            patch("daemon.scheduler.time.monotonic", return_value=100.0),
+            patch("daemon.scheduler.logger") as mock_logger,
         ):
             scheduler._tick()
 
@@ -301,7 +301,7 @@ class TestTick:
         # not_ready: last_run=5.0, interval=100.0, now=10.0 -> skips
         scheduler._tasks["not_ready"].last_run = 5.0
 
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=10.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=10.0):
             scheduler._tick()
 
         ready_cb.assert_called_once()
@@ -309,7 +309,7 @@ class TestTick:
 
     def test_tick_no_tasks(self, scheduler: DaemonScheduler) -> None:
         """_tick does nothing when no tasks are registered."""
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=100.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=100.0):
             scheduler._tick()  # Should not raise
 
 
@@ -383,7 +383,7 @@ class TestRun:
 
         with (
             patch.object(scheduler, "_tick"),
-            patch("file_organizer.daemon.scheduler.logger") as mock_logger,
+            patch("daemon.scheduler.logger") as mock_logger,
         ):
             scheduler.run()
 
@@ -428,7 +428,7 @@ class TestRunInBackground:
 
     def test_starts_daemon_thread(self, scheduler: DaemonScheduler) -> None:
         """run_in_background creates and starts a daemon thread."""
-        with patch("file_organizer.daemon.scheduler.threading.Thread") as mock_thread_cls:
+        with patch("daemon.scheduler.threading.Thread") as mock_thread_cls:
             mock_thread = MagicMock()
             mock_thread_cls.return_value = mock_thread
 
@@ -451,7 +451,7 @@ class TestRunInBackground:
 
     def test_double_run_raises(self, scheduler: DaemonScheduler) -> None:
         """run_in_background raises when called twice if first is still running."""
-        with patch("file_organizer.daemon.scheduler.threading.Thread") as mock_thread_cls:
+        with patch("daemon.scheduler.threading.Thread") as mock_thread_cls:
             mock_thread = MagicMock()
             mock_thread_cls.return_value = mock_thread
 
@@ -510,7 +510,7 @@ class TestStop:
 
     def test_stop_logs_debug(self, scheduler: DaemonScheduler) -> None:
         """stop() emits a debug log message."""
-        with patch("file_organizer.daemon.scheduler.logger") as mock_logger:
+        with patch("daemon.scheduler.logger") as mock_logger:
             scheduler.stop()
             mock_logger.debug.assert_called()
 
@@ -532,7 +532,7 @@ class TestIntegration:
         _make_run_terminate_after(scheduler, 2)
 
         # Use real _tick but mock time.monotonic to always trigger
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=1000.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=1000.0):
             scheduler.run()
 
         cb.assert_called()
@@ -559,7 +559,7 @@ class TestIntegration:
 
         with (
             patch.object(scheduler, "_tick", side_effect=tick_then_cancel),
-            patch("file_organizer.daemon.scheduler.time.monotonic", return_value=1000.0),
+            patch("daemon.scheduler.time.monotonic", return_value=1000.0),
         ):
             scheduler.run()
 
@@ -573,7 +573,7 @@ class TestIntegration:
         scheduler.schedule_task("failing", 1.0, failing_cb)
         scheduler.schedule_task("good", 1.0, good_cb)
 
-        with patch("file_organizer.daemon.scheduler.time.monotonic", return_value=1000.0):
+        with patch("daemon.scheduler.time.monotonic", return_value=1000.0):
             scheduler._tick()
 
         failing_cb.assert_called_once()

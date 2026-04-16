@@ -65,7 +65,7 @@ class TestCompleteDirectory:
     """Tests for complete_directory()."""
 
     def test_yields_directories_matching_prefix(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_directory
+        from cli.completion import complete_directory
 
         (tmp_path / "alpha").mkdir()
         (tmp_path / "beta").mkdir()
@@ -80,7 +80,7 @@ class TestCompleteDirectory:
         assert kind == "directory"
 
     def test_yields_all_children_when_prefix_is_directory(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_directory
+        from cli.completion import complete_directory
 
         (tmp_path / "sub1").mkdir()
         (tmp_path / "sub2").mkdir()
@@ -92,14 +92,14 @@ class TestCompleteDirectory:
         assert all(k == "directory" for _, k in results)
 
     def test_returns_empty_when_oserror(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_directory
+        from cli.completion import complete_directory
 
         # Path that doesn't exist triggers OSError on iterdir
         results = list(complete_directory(str(tmp_path / "nonexistent" / "prefix")))
         assert results == []
 
     def test_empty_string_uses_cwd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        from file_organizer.cli.completion import complete_directory
+        from cli.completion import complete_directory
 
         monkeypatch.chdir(tmp_path)
         (tmp_path / "mydir").mkdir()
@@ -108,7 +108,7 @@ class TestCompleteDirectory:
         assert any("mydir" in n for n in names)
 
     def test_skips_files(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_directory
+        from cli.completion import complete_directory
 
         # Use a dedicated subdirectory that only has files (no subdirs)
         files_only = tmp_path / "files_only"
@@ -122,7 +122,7 @@ class TestCompleteFile:
     """Tests for complete_file()."""
 
     def test_yields_files_and_dirs_matching_prefix(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_file
+        from cli.completion import complete_file
 
         (tmp_path / "report.txt").write_text("data")
         (tmp_path / "readme.md").write_text("doc")
@@ -135,7 +135,7 @@ class TestCompleteFile:
         assert any("readme.md" in n for n in names)
 
     def test_kind_for_directory_is_directory(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_file
+        from cli.completion import complete_file
 
         (tmp_path / "subdir").mkdir()
         results = list(complete_file(str(tmp_path)))
@@ -145,7 +145,7 @@ class TestCompleteFile:
         assert kinds[dir_entry] == "directory"
 
     def test_kind_for_file_is_extension(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_file
+        from cli.completion import complete_file
 
         (tmp_path / "data.csv").write_text("a,b")
         results = list(complete_file(str(tmp_path)))
@@ -154,7 +154,7 @@ class TestCompleteFile:
         assert kinds[csv_entry] == ".csv"
 
     def test_kind_for_extensionless_file_is_file(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_file
+        from cli.completion import complete_file
 
         (tmp_path / "Makefile").write_text("all:")
         results = list(complete_file(str(tmp_path)))
@@ -163,13 +163,13 @@ class TestCompleteFile:
         assert kinds[makefile_entry] == "file"
 
     def test_returns_empty_on_oserror(self, tmp_path: Path) -> None:
-        from file_organizer.cli.completion import complete_file
+        from cli.completion import complete_file
 
         results = list(complete_file(str(tmp_path / "no_such_dir" / "prefix")))
         assert results == []
 
     def test_empty_string_lists_cwd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        from file_organizer.cli.completion import complete_file
+        from cli.completion import complete_file
 
         monkeypatch.chdir(tmp_path)
         (tmp_path / "notes.txt").write_text("x")
@@ -184,13 +184,13 @@ class TestCompleteFile:
 
 
 class TestUpdateCheckCommand:
-    """Tests for `file-organizer update check`."""
+    """Tests for `fo update check`."""
 
     def test_up_to_date(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         status = _make_update_status(available=False, current_version="1.5.0")
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.check.return_value = status
             result = cli_runner.invoke(app, ["update", "check"])
 
@@ -199,7 +199,7 @@ class TestUpdateCheckCommand:
         assert "up to date" in result.output.lower()
 
     def test_update_available_with_body(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         release = _make_release(version="2.0.0", body="New features added.")
         status = _make_update_status(
@@ -208,7 +208,7 @@ class TestUpdateCheckCommand:
             latest_version="2.0.0",
             release=release,
         )
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.check.return_value = status
             result = cli_runner.invoke(app, ["update", "check"])
 
@@ -217,7 +217,7 @@ class TestUpdateCheckCommand:
         assert "New features" in result.output
 
     def test_update_available_no_body(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         release = _make_release(version="2.0.0", body="")
         status = _make_update_status(
@@ -226,7 +226,7 @@ class TestUpdateCheckCommand:
             latest_version="2.0.0",
             release=release,
         )
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.check.return_value = status
             result = cli_runner.invoke(app, ["update", "check"])
 
@@ -236,10 +236,10 @@ class TestUpdateCheckCommand:
         assert "update" in result.output.lower()
 
     def test_custom_repo_option(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         status = _make_update_status(available=False, current_version="1.0.0")
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.check.return_value = status
             result = cli_runner.invoke(app, ["update", "check", "--repo", "myorg/myrepo"])
 
@@ -248,27 +248,25 @@ class TestUpdateCheckCommand:
         MockMgr.assert_called_once_with(repo="myorg/myrepo", include_prereleases=False)
 
     def test_pre_flag(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         status = _make_update_status(available=False, current_version="1.0.0")
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.check.return_value = status
             result = cli_runner.invoke(app, ["update", "check", "--pre"])
 
         assert result.exit_code == 0
-        MockMgr.assert_called_once_with(
-            repo="curdriceaurora/Local-File-Organizer", include_prereleases=True
-        )
+        MockMgr.assert_called_once_with(repo="curdriceaurora/fo-core", include_prereleases=True)
 
 
 class TestUpdateInstallCommand:
-    """Tests for `file-organizer update install`."""
+    """Tests for `fo update install`."""
 
     def test_already_up_to_date(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         status = _make_update_status(available=False, current_version="2.0.0")
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.update.return_value = status
             result = cli_runner.invoke(app, ["update", "install"])
 
@@ -276,17 +274,17 @@ class TestUpdateInstallCommand:
         assert "up to date" in result.output.lower()
 
     def test_update_check_failed(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         status = _make_update_status(available=True, install_result=None)
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.update.return_value = status
             result = cli_runner.invoke(app, ["update", "install"])
 
         assert result.exit_code == 1
 
     def test_install_success_with_sha256(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         install_result = _make_install_result(
             success=True,
@@ -298,7 +296,7 @@ class TestUpdateInstallCommand:
             current_version="1.0.0",
             install_result=install_result,
         )
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.update.return_value = status
             result = cli_runner.invoke(app, ["update", "install"])
 
@@ -307,11 +305,11 @@ class TestUpdateInstallCommand:
         assert "SHA256" in result.output
 
     def test_install_success_without_sha256(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         install_result = _make_install_result(success=True, message="Installed.", sha256="")
         status = _make_update_status(available=True, install_result=install_result)
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.update.return_value = status
             result = cli_runner.invoke(app, ["update", "install"])
 
@@ -319,11 +317,11 @@ class TestUpdateInstallCommand:
         assert "Installed." in result.output
 
     def test_install_failure(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         install_result = _make_install_result(success=False, message="Checksum mismatch.")
         status = _make_update_status(available=True, install_result=install_result)
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.update.return_value = status
             result = cli_runner.invoke(app, ["update", "install"])
 
@@ -331,11 +329,11 @@ class TestUpdateInstallCommand:
         assert "Checksum mismatch" in result.output
 
     def test_dry_run_flag(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         install_result = _make_install_result(success=True, message="Dry run complete.")
         status = _make_update_status(available=True, install_result=install_result)
-        with patch("file_organizer.updater.UpdateManager") as MockMgr:
+        with patch("updater.UpdateManager") as MockMgr:
             MockMgr.return_value.update.return_value = status
             result = cli_runner.invoke(app, ["update", "install", "--dry-run"])
 
@@ -344,12 +342,12 @@ class TestUpdateInstallCommand:
 
 
 class TestUpdateRollbackCommand:
-    """Tests for `file-organizer update rollback`."""
+    """Tests for `fo update rollback`."""
 
     def test_rollback_success(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.updater.UpdateInstaller") as MockInstaller:
+        with patch("updater.UpdateInstaller") as MockInstaller:
             MockInstaller.return_value.rollback.return_value = True
             result = cli_runner.invoke(app, ["update", "rollback"])
 
@@ -357,9 +355,9 @@ class TestUpdateRollbackCommand:
         assert "Rolled back" in result.output
 
     def test_rollback_no_backup(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.updater.UpdateInstaller") as MockInstaller:
+        with patch("updater.UpdateInstaller") as MockInstaller:
             MockInstaller.return_value.rollback.return_value = False
             result = cli_runner.invoke(app, ["update", "rollback"])
 
@@ -373,12 +371,12 @@ class TestUpdateRollbackCommand:
 
 
 class TestModelListCommand:
-    """Tests for `file-organizer model list`."""
+    """Tests for `fo model list`."""
 
     def test_list_no_filter(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.models.model_manager.ModelManager") as MockMgr:
+        with patch("models.model_manager.ModelManager") as MockMgr:
             MockMgr.return_value.display_models.return_value = None
             result = cli_runner.invoke(app, ["model", "list"])
 
@@ -386,9 +384,9 @@ class TestModelListCommand:
         MockMgr.return_value.display_models.assert_called_once_with(type_filter=None)
 
     def test_list_with_type_filter(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.models.model_manager.ModelManager") as MockMgr:
+        with patch("models.model_manager.ModelManager") as MockMgr:
             MockMgr.return_value.display_models.return_value = None
             result = cli_runner.invoke(app, ["model", "list", "--type", "text"])
 
@@ -397,12 +395,12 @@ class TestModelListCommand:
 
 
 class TestModelPullCommand:
-    """Tests for `file-organizer model pull`."""
+    """Tests for `fo model pull`."""
 
     def test_pull_success(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.models.model_manager.ModelManager") as MockMgr:
+        with patch("models.model_manager.ModelManager") as MockMgr:
             MockMgr.return_value.pull_model.return_value = True
             result = cli_runner.invoke(app, ["model", "pull", "llama3:8b"])
 
@@ -410,9 +408,9 @@ class TestModelPullCommand:
         MockMgr.return_value.pull_model.assert_called_once_with(name="llama3:8b")
 
     def test_pull_failure_exits_1(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.models.model_manager.ModelManager") as MockMgr:
+        with patch("models.model_manager.ModelManager") as MockMgr:
             MockMgr.return_value.pull_model.return_value = False
             result = cli_runner.invoke(app, ["model", "pull", "bad-model"])
 
@@ -420,12 +418,12 @@ class TestModelPullCommand:
 
 
 class TestModelCacheCommand:
-    """Tests for `file-organizer model cache`."""
+    """Tests for `fo model cache`."""
 
     def test_cache_with_data(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.models.model_manager.ModelManager") as MockMgr:
+        with patch("models.model_manager.ModelManager") as MockMgr:
             MockMgr.return_value.cache_info.return_value = {
                 "models_cached": 3,
                 "cache_dir": "/tmp/models",
@@ -437,9 +435,9 @@ class TestModelCacheCommand:
         assert "3" in result.output
 
     def test_cache_no_data(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.models.model_manager.ModelManager") as MockMgr:
+        with patch("models.model_manager.ModelManager") as MockMgr:
             MockMgr.return_value.cache_info.return_value = {}
             result = cli_runner.invoke(app, ["model", "cache"])
 
@@ -447,9 +445,9 @@ class TestModelCacheCommand:
         assert "No cache data" in result.output
 
     def test_cache_none_response(self, cli_runner: object) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
-        with patch("file_organizer.models.model_manager.ModelManager") as MockMgr:
+        with patch("models.model_manager.ModelManager") as MockMgr:
             MockMgr.return_value.cache_info.return_value = None
             result = cli_runner.invoke(app, ["model", "cache"])
 
@@ -466,42 +464,42 @@ class TestCliInitLazyImports:
     """Tests for the __getattr__ lazy-import mechanism in cli/__init__.py."""
 
     def test_app_attribute_resolves(self) -> None:
-        import file_organizer.cli as cli_pkg
-        from file_organizer.cli.main import app as real_app
+        import cli as cli_pkg
+        from cli.main import app as real_app
 
         app = cli_pkg.app
         assert app is real_app
 
     def test_complete_directory_resolves(self) -> None:
-        import file_organizer.cli as cli_pkg
-        from file_organizer.cli.completion import complete_directory as real_fn
+        import cli as cli_pkg
+        from cli.completion import complete_directory as real_fn
 
         fn = cli_pkg.complete_directory
         assert fn is real_fn
 
     def test_complete_file_resolves(self) -> None:
-        import file_organizer.cli as cli_pkg
-        from file_organizer.cli.completion import complete_file as real_fn
+        import cli as cli_pkg
+        from cli.completion import complete_file as real_fn
 
         fn = cli_pkg.complete_file
         assert fn is real_fn
 
     def test_update_app_resolves(self) -> None:
-        import file_organizer.cli as cli_pkg
-        from file_organizer.cli.update import update_app as real_app
+        import cli as cli_pkg
+        from cli.update import update_app as real_app
 
         app = cli_pkg.update_app
         assert app is real_app
 
     def test_copilot_app_resolves(self) -> None:
-        import file_organizer.cli as cli_pkg
-        from file_organizer.cli.copilot import copilot_app as real_app
+        import cli as cli_pkg
+        from cli.copilot import copilot_app as real_app
 
         app = cli_pkg.copilot_app
         assert app is real_app
 
     def test_unknown_attribute_raises_attribute_error(self) -> None:
-        import file_organizer.cli as cli_pkg
+        import cli as cli_pkg
 
         with pytest.raises(AttributeError, match="has no attribute"):
             _ = cli_pkg.this_does_not_exist_at_all  # type: ignore[attr-defined]
@@ -509,7 +507,7 @@ class TestCliInitLazyImports:
     def test_cached_after_first_access(self) -> None:
         """Accessing the same attribute twice returns the same object, and the
         name is stored in the module's __dict__ after first access."""
-        import file_organizer.cli as cli_pkg
+        import cli as cli_pkg
 
         # Ensure it's not already cached (may have been loaded by other tests)
         cli_pkg.__dict__.pop("complete_directory", None)
@@ -521,7 +519,7 @@ class TestCliInitLazyImports:
         assert first is second
 
     def test_all_exports_listed_in_all(self) -> None:
-        import file_organizer.cli as cli_pkg
+        import cli as cli_pkg
 
         assert "app" in cli_pkg.__all__
         assert "update_app" in cli_pkg.__all__

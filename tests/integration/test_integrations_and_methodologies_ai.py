@@ -1,14 +1,14 @@
 """Integration tests for integrations and PARA/JD methodology AI modules.
 
 Covers:
-- src/file_organizer/integrations/manager.py        (IntegrationManager)
-- src/file_organizer/integrations/obsidian.py        (ObsidianIntegration)
-- src/file_organizer/integrations/workflow.py        (WorkflowIntegration)
-- src/file_organizer/integrations/vscode.py          (VSCodeIntegration)
-- src/file_organizer/integrations/browser.py         (BrowserExtensionManager)
-- src/file_organizer/methodologies/para/ai/suggestion_engine.py  (PARASuggestionEngine)
-- src/file_organizer/methodologies/para/ai/feature_extractor.py  (FeatureExtractor)
-- src/file_organizer/methodologies/johnny_decimal/migrator.py     (JohnnyDecimalMigrator)
+- src/integrations/manager.py        (IntegrationManager)
+- src/integrations/obsidian.py        (ObsidianIntegration)
+- src/integrations/workflow.py        (WorkflowIntegration)
+- src/integrations/vscode.py          (VSCodeIntegration)
+- src/integrations/browser.py         (BrowserExtensionManager)
+- src/methodologies/para/ai/suggestion_engine.py  (PARASuggestionEngine)
+- src/methodologies/para/ai/feature_extractor.py  (FeatureExtractor)
+- src/methodologies/johnny_decimal/migrator.py     (JohnnyDecimalMigrator)
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ def _make_file(tmp_path: Path, name: str, content: str = "hello") -> Path:
 
 
 def _make_integration_config(name: str, integration_type_str: str, **settings):
-    from file_organizer.integrations.base import IntegrationConfig, IntegrationType
+    from integrations.base import IntegrationConfig, IntegrationType
 
     itype = IntegrationType(integration_type_str)
     return IntegrationConfig(name=name, integration_type=itype, settings=settings)
@@ -55,8 +55,8 @@ class TestIntegrationManagerRegister:
     """Tests for register/unregister/get/names."""
 
     def test_register_and_get_by_name(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mock_integration = MagicMock()
@@ -69,15 +69,15 @@ class TestIntegrationManagerRegister:
         assert result is mock_integration
 
     def test_get_missing_returns_none(self) -> None:
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         result = manager.get("nonexistent")
         assert result is None
 
     def test_unregister_removes_integration(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mock_integration = MagicMock()
@@ -89,8 +89,8 @@ class TestIntegrationManagerRegister:
         assert manager.get("vscode") is None
 
     def test_names_returns_sorted_list(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         for name in ("zebra", "alpha", "mango"):
@@ -102,8 +102,8 @@ class TestIntegrationManagerRegister:
         assert names == ["alpha", "mango", "zebra"]
 
     def test_list_configs_returns_all(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         for name in ("b_int", "a_int"):
@@ -121,15 +121,15 @@ class TestIntegrationManagerConnect:
     """Tests for connect/disconnect lifecycle."""
 
     def test_connect_unknown_integration_returns_false(self) -> None:
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         result = _run(manager.connect("nonexistent"))
         assert result is False
 
     def test_connect_delegates_to_integration(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mock_integration = MagicMock()
@@ -144,15 +144,15 @@ class TestIntegrationManagerConnect:
         mock_integration.connect.assert_called_once()
 
     def test_disconnect_unknown_returns_false(self) -> None:
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         result = _run(manager.disconnect("ghost"))
         assert result is False
 
     def test_disconnect_returns_true(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mock_integration = MagicMock()
@@ -166,8 +166,8 @@ class TestIntegrationManagerConnect:
         assert result is True
 
     def test_connect_all_skips_disabled(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mi = MagicMock()
@@ -182,8 +182,8 @@ class TestIntegrationManagerConnect:
         mi.connect.assert_not_called()
 
     def test_connect_all_connects_enabled(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mi = MagicMock()
@@ -198,8 +198,8 @@ class TestIntegrationManagerConnect:
         mi.connect.assert_called_once()
 
     def test_disconnect_all_calls_all(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         disconnects = []
@@ -219,15 +219,15 @@ class TestIntegrationManagerSendFile:
     """Tests for send_file delegation."""
 
     def test_send_file_unknown_integration_returns_false(self) -> None:
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         result = _run(manager.send_file("ghost", "/path/to/file.txt"))
         assert result is False
 
     def test_send_file_auto_connects_and_delegates(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mi = MagicMock()
@@ -243,8 +243,8 @@ class TestIntegrationManagerSendFile:
         mi.send_file.assert_called_once_with("/some/file.txt", metadata={"key": "val"})
 
     def test_send_file_skips_connect_if_already_connected(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mi = MagicMock()
@@ -258,8 +258,8 @@ class TestIntegrationManagerSendFile:
         mi.connect.assert_not_called()
 
     def test_send_file_returns_false_if_connect_fails(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         mi = MagicMock()
@@ -278,15 +278,15 @@ class TestIntegrationManagerUpdateSettings:
     """Tests for update_settings."""
 
     def test_update_settings_missing_integration_returns_false(self) -> None:
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         result = manager.update_settings("ghost", {"key": "val"})
         assert result is False
 
     def test_update_settings_merges_and_resets_connected(self) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.manager import IntegrationManager
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.manager import IntegrationManager
 
         manager = IntegrationManager()
         config = IntegrationConfig(
@@ -313,8 +313,8 @@ class TestObsidianIntegration:
     """Tests for ObsidianIntegration lifecycle and send_file."""
 
     def test_connect_fails_when_vault_missing(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         config = IntegrationConfig(
             name="obsidian",
@@ -327,8 +327,8 @@ class TestObsidianIntegration:
         assert integration.connected is False
 
     def test_connect_succeeds_when_vault_exists(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         vault = tmp_path / "my_vault"
         vault.mkdir()
@@ -343,8 +343,8 @@ class TestObsidianIntegration:
         assert integration.connected is True
 
     def test_disconnect_sets_connected_false(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         vault = tmp_path / "vault"
         vault.mkdir()
@@ -360,8 +360,8 @@ class TestObsidianIntegration:
         assert integration.connected is False
 
     def test_validate_auth_none_method_returns_true(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         config = IntegrationConfig(
             name="obsidian",
@@ -374,8 +374,8 @@ class TestObsidianIntegration:
         assert result is True
 
     def test_validate_auth_api_key_missing_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         config = IntegrationConfig(
             name="obsidian",
@@ -388,8 +388,8 @@ class TestObsidianIntegration:
         assert result is False
 
     def test_validate_auth_api_key_present_returns_true(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         config = IntegrationConfig(
             name="obsidian",
@@ -402,8 +402,8 @@ class TestObsidianIntegration:
         assert result is True
 
     def test_send_file_copies_to_attachments_and_creates_note(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         vault = tmp_path / "vault"
         vault.mkdir()
@@ -434,8 +434,8 @@ class TestObsidianIntegration:
         assert "tag: important" in note_content
 
     def test_send_file_returns_false_for_nonexistent_source(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         vault = tmp_path / "vault"
         vault.mkdir()
@@ -452,8 +452,8 @@ class TestObsidianIntegration:
         assert result is False
 
     def test_get_status_reflects_vault_state(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         vault = tmp_path / "vault"
         vault.mkdir()
@@ -472,8 +472,8 @@ class TestObsidianIntegration:
         assert status.details["auth_method"] == "none"
 
     def test_type_forced_to_desktop_app(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         config = IntegrationConfig(
             name="obsidian",
@@ -484,8 +484,8 @@ class TestObsidianIntegration:
         assert config.integration_type is IntegrationType.DESKTOP_APP
 
     def test_send_file_with_no_metadata_note_has_no_metadata_key(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.obsidian import ObsidianIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
 
         vault = tmp_path / "vault"
         vault.mkdir()
@@ -515,8 +515,8 @@ class TestWorkflowIntegration:
     """Tests for WorkflowIntegration (Alfred/Raycast payloads)."""
 
     def test_connect_creates_output_dir(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         out_dir = tmp_path / "workflow_out"
         config = IntegrationConfig(
@@ -530,8 +530,8 @@ class TestWorkflowIntegration:
         assert out_dir.is_dir()
 
     def test_disconnect_sets_connected_false(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         out_dir = tmp_path / "wf_out"
         config = IntegrationConfig(
@@ -545,8 +545,8 @@ class TestWorkflowIntegration:
         assert integration.connected is False
 
     def test_validate_auth_always_true(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         config = IntegrationConfig(
             name="workflow",
@@ -557,8 +557,8 @@ class TestWorkflowIntegration:
         assert _run(integration.validate_auth()) is True
 
     def test_send_file_creates_alfred_and_raycast_json(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         out_dir = tmp_path / "wf_out"
         source = tmp_path / "notes.md"
@@ -592,8 +592,8 @@ class TestWorkflowIntegration:
         assert "generated_at" in raycast_payload
 
     def test_send_file_returns_false_for_missing_source(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         out_dir = tmp_path / "wf_out"
         config = IntegrationConfig(
@@ -608,8 +608,8 @@ class TestWorkflowIntegration:
         assert result is False
 
     def test_alfred_payload_uid_contains_stem(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         out_dir = tmp_path / "wf_out"
         source = tmp_path / "myfile.txt"
@@ -629,8 +629,8 @@ class TestWorkflowIntegration:
         assert uid.startswith("myfile-")
 
     def test_get_status_reports_output_dir(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         out_dir = tmp_path / "wf_out"
         config = IntegrationConfig(
@@ -647,8 +647,8 @@ class TestWorkflowIntegration:
         assert status.details["output_exists"] is True
 
     def test_type_forced_to_workflow(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         config = IntegrationConfig(
             name="workflow",
@@ -659,8 +659,8 @@ class TestWorkflowIntegration:
         assert config.integration_type is IntegrationType.WORKFLOW
 
     def test_send_file_default_subtitle_when_no_summary(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.workflow import WorkflowIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.workflow import WorkflowIntegration
 
         out_dir = tmp_path / "wf_out"
         source = tmp_path / "doc.txt"
@@ -688,8 +688,8 @@ class TestVSCodeIntegration:
     """Tests for VSCodeIntegration."""
 
     def test_connect_no_workspace_always_succeeds(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         config = IntegrationConfig(
             name="vscode",
@@ -702,8 +702,8 @@ class TestVSCodeIntegration:
         assert integration.connected is True
 
     def test_connect_fails_when_workspace_missing(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         config = IntegrationConfig(
             name="vscode",
@@ -715,8 +715,8 @@ class TestVSCodeIntegration:
         assert result is False
 
     def test_connect_succeeds_when_workspace_exists(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         ws = tmp_path / "workspace"
         ws.mkdir()
@@ -730,8 +730,8 @@ class TestVSCodeIntegration:
         assert result is True
 
     def test_disconnect_sets_connected_false(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         config = IntegrationConfig(
             name="vscode",
@@ -744,8 +744,8 @@ class TestVSCodeIntegration:
         assert integration.connected is False
 
     def test_validate_auth_always_true(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         config = IntegrationConfig(
             name="vscode",
@@ -756,8 +756,8 @@ class TestVSCodeIntegration:
         assert _run(integration.validate_auth()) is True
 
     def test_send_file_appends_jsonl_entry(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         cmd_output = tmp_path / "commands.jsonl"
         source = tmp_path / "main.py"
@@ -782,8 +782,8 @@ class TestVSCodeIntegration:
         assert "created_at" in entry
 
     def test_send_file_appends_multiple_entries(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         cmd_output = tmp_path / "commands.jsonl"
         config = IntegrationConfig(
@@ -803,8 +803,8 @@ class TestVSCodeIntegration:
         assert len(lines) == 3
 
     def test_send_file_returns_false_for_directory(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         cmd_output = tmp_path / "commands.jsonl"
         a_dir = tmp_path / "a_dir"
@@ -820,8 +820,8 @@ class TestVSCodeIntegration:
         assert result is False
 
     def test_get_status_workspace_none_sets_exists_true(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         config = IntegrationConfig(
             name="vscode",
@@ -835,8 +835,8 @@ class TestVSCodeIntegration:
         assert status.details["workspace_exists"] is True
 
     def test_type_forced_to_editor(self, tmp_path: Path) -> None:
-        from file_organizer.integrations.base import IntegrationConfig, IntegrationType
-        from file_organizer.integrations.vscode import VSCodeIntegration
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.vscode import VSCodeIntegration
 
         config = IntegrationConfig(
             name="vscode",
@@ -856,7 +856,7 @@ class TestBrowserExtensionManager:
     """Tests for BrowserExtensionManager token lifecycle."""
 
     def test_get_config_returns_origins_and_ttl(self) -> None:
-        from file_organizer.integrations.browser import BrowserExtensionManager
+        from integrations.browser import BrowserExtensionManager
 
         mgr = BrowserExtensionManager(
             allowed_origins=["https://app.example.com"], token_ttl_seconds=1800
@@ -866,7 +866,7 @@ class TestBrowserExtensionManager:
         assert cfg["token_ttl_seconds"] == 1800
 
     def test_issue_token_returns_record_with_extension_id(self) -> None:
-        from file_organizer.integrations.browser import BrowserExtensionManager
+        from integrations.browser import BrowserExtensionManager
 
         mgr = BrowserExtensionManager(allowed_origins=["https://example.com"])
         record = mgr.issue_token("ext-001")
@@ -875,20 +875,20 @@ class TestBrowserExtensionManager:
         assert record.expires_at > record.created_at
 
     def test_verify_token_valid(self) -> None:
-        from file_organizer.integrations.browser import BrowserExtensionManager
+        from integrations.browser import BrowserExtensionManager
 
         mgr = BrowserExtensionManager(allowed_origins=["https://example.com"])
         record = mgr.issue_token("ext-002")
         assert mgr.verify_token(record.token) is True
 
     def test_verify_token_unknown_returns_false(self) -> None:
-        from file_organizer.integrations.browser import BrowserExtensionManager
+        from integrations.browser import BrowserExtensionManager
 
         mgr = BrowserExtensionManager(allowed_origins=["https://example.com"])
         assert mgr.verify_token("totally-fake-token") is False
 
     def test_duplicate_origins_are_deduplicated(self) -> None:
-        from file_organizer.integrations.browser import BrowserExtensionManager
+        from integrations.browser import BrowserExtensionManager
 
         mgr = BrowserExtensionManager(
             allowed_origins=["https://a.com", "https://a.com", "https://b.com"]
@@ -899,7 +899,7 @@ class TestBrowserExtensionManager:
     def test_expired_tokens_are_pruned_on_verify(self) -> None:
         from datetime import UTC, timedelta
 
-        from file_organizer.integrations.browser import BrowserExtensionManager, BrowserTokenRecord
+        from integrations.browser import BrowserExtensionManager, BrowserTokenRecord
 
         mgr = BrowserExtensionManager(allowed_origins=["https://example.com"], token_ttl_seconds=1)
         record = mgr.issue_token("ext-003")
@@ -920,14 +920,14 @@ class TestBrowserExtensionManager:
         assert mgr.verify_token(record.token) is False
 
     def test_default_ttl_is_3600(self) -> None:
-        from file_organizer.integrations.browser import BrowserExtensionManager
+        from integrations.browser import BrowserExtensionManager
 
         mgr = BrowserExtensionManager(allowed_origins=[])
         cfg = mgr.get_config()
         assert cfg["token_ttl_seconds"] == 3600
 
     def test_multiple_tokens_issued_for_same_extension(self) -> None:
-        from file_organizer.integrations.browser import BrowserExtensionManager
+        from integrations.browser import BrowserExtensionManager
 
         mgr = BrowserExtensionManager(allowed_origins=["https://example.com"])
         r1 = mgr.issue_token("ext-multi")
@@ -937,7 +937,7 @@ class TestBrowserExtensionManager:
         assert mgr.verify_token(r2.token) is True
 
     def test_token_record_has_correct_ttl_window(self) -> None:
-        from file_organizer.integrations.browser import BrowserExtensionManager
+        from integrations.browser import BrowserExtensionManager
 
         mgr = BrowserExtensionManager(allowed_origins=[], token_ttl_seconds=300)
         record = mgr.issue_token("ext-ttl")
@@ -954,7 +954,7 @@ class TestFeatureExtractorAdditional:
     """Additional coverage for FeatureExtractor paths not covered by existing tests."""
 
     def test_extract_text_features_temporal_indicators(self) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         content = "Project due date: 2024-03-15. Q1 2024 sprint milestone."
@@ -962,7 +962,7 @@ class TestFeatureExtractorAdditional:
         assert len(result.temporal_indicators) >= 1
 
     def test_extract_text_features_action_items_found(self) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         content = "- [ ] TODO: finish report\n- [x] Review PR\nACTION ITEM: deploy"
@@ -970,7 +970,7 @@ class TestFeatureExtractorAdditional:
         assert len(result.action_items) >= 1
 
     def test_detect_document_type_plan(self) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         content = "This roadmap outlines the project plan and timeline strategy."
@@ -978,7 +978,7 @@ class TestFeatureExtractorAdditional:
         assert result.document_type == "plan"
 
     def test_detect_document_type_reference(self) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         content = "This is a reference guide and documentation manual handbook."
@@ -986,7 +986,7 @@ class TestFeatureExtractorAdditional:
         assert result.document_type == "reference"
 
     def test_extract_metadata_features_nonexistent_file(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         missing = tmp_path / "ghost.pdf"
@@ -995,7 +995,7 @@ class TestFeatureExtractorAdditional:
         assert result.file_size == 0
 
     def test_extract_metadata_features_real_file(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         f = _make_file(tmp_path, "sample.txt", content="hello world " * 100)
@@ -1006,7 +1006,7 @@ class TestFeatureExtractorAdditional:
         assert result.days_since_modified >= 0.0
 
     def test_extract_structural_features_depth(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         nested = tmp_path / "a" / "b" / "c"
@@ -1017,7 +1017,7 @@ class TestFeatureExtractorAdditional:
         assert result.directory_depth >= 3
 
     def test_extract_structural_features_parent_hint_project(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         project_dir = tmp_path / "projects"
@@ -1028,7 +1028,7 @@ class TestFeatureExtractorAdditional:
         assert result.parent_category_hint == "project"
 
     def test_extract_structural_features_has_date_in_path(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         dated_dir = tmp_path / "2024-01-15"
@@ -1039,7 +1039,7 @@ class TestFeatureExtractorAdditional:
         assert result.has_date_in_path is True
 
     def test_extract_structural_features_project_structure_detected(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor()
         project_dir = tmp_path / "myproject"
@@ -1051,7 +1051,7 @@ class TestFeatureExtractorAdditional:
         assert result.has_project_structure is True
 
     def test_content_truncation_respected(self) -> None:
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
 
         fe = FeatureExtractor(max_content_length=50)
         long_content = "deadline milestone " * 1000
@@ -1070,8 +1070,8 @@ class TestPARASuggestionEngineAdditional:
 
     def _make_mock_engine(self):
         """Build a mocked PARASuggestionEngine with controllable heuristics."""
-        from file_organizer.methodologies.para.ai.feature_extractor import FeatureExtractor
-        from file_organizer.methodologies.para.ai.suggestion_engine import PARASuggestionEngine
+        from methodologies.para.ai.feature_extractor import FeatureExtractor
+        from methodologies.para.ai.suggestion_engine import PARASuggestionEngine
 
         mock_heuristic_engine = MagicMock()
         return PARASuggestionEngine(
@@ -1081,8 +1081,8 @@ class TestPARASuggestionEngineAdditional:
 
     def _make_heuristic_result(self, scores_map):
         """Helper to build a HeuristicResult from a scores dict."""
-        from file_organizer.methodologies.para.ai.suggestion_engine import PARACategory
-        from file_organizer.methodologies.para.detection.heuristics import (
+        from methodologies.para.ai.suggestion_engine import PARACategory
+        from methodologies.para.detection.heuristics import (
             CategoryScore,
             HeuristicResult,
         )
@@ -1096,11 +1096,11 @@ class TestPARASuggestionEngineAdditional:
         )
 
     def test_suggest_returns_paracategory(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestionEngine,
         )
-        from file_organizer.methodologies.para.detection.heuristics import (
+        from methodologies.para.detection.heuristics import (
             CategoryScore,
             HeuristicResult,
         )
@@ -1122,11 +1122,11 @@ class TestPARASuggestionEngineAdditional:
         assert 0.0 <= suggestion.confidence <= 1.0
 
     def test_suggest_with_content_uses_text_features(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestionEngine,
         )
-        from file_organizer.methodologies.para.detection.heuristics import (
+        from methodologies.para.detection.heuristics import (
             CategoryScore,
             HeuristicResult,
         )
@@ -1145,7 +1145,7 @@ class TestPARASuggestionEngineAdditional:
         assert len(suggestion.reasoning) >= 1
 
     def test_confidence_label_high(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestion,
         )
@@ -1154,7 +1154,7 @@ class TestPARASuggestionEngineAdditional:
         assert s.confidence_label == "High"
 
     def test_confidence_label_medium(self) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestion,
         )
@@ -1163,7 +1163,7 @@ class TestPARASuggestionEngineAdditional:
         assert s.confidence_label == "Medium"
 
     def test_confidence_label_low(self) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestion,
         )
@@ -1172,7 +1172,7 @@ class TestPARASuggestionEngineAdditional:
         assert s.confidence_label == "Low"
 
     def test_confidence_label_very_low(self) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestion,
         )
@@ -1181,7 +1181,7 @@ class TestPARASuggestionEngineAdditional:
         assert s.confidence_label == "Very Low"
 
     def test_requires_review_true_for_low_confidence(self) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestion,
         )
@@ -1190,7 +1190,7 @@ class TestPARASuggestionEngineAdditional:
         assert s.requires_review is True
 
     def test_requires_review_false_for_high_confidence(self) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestion,
         )
@@ -1199,7 +1199,7 @@ class TestPARASuggestionEngineAdditional:
         assert s.requires_review is False
 
     def test_invalid_confidence_raises_value_error(self) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestion,
         )
@@ -1208,11 +1208,11 @@ class TestPARASuggestionEngineAdditional:
             PARASuggestion(category=PARACategory.PROJECT, confidence=1.5)
 
     def test_explain_outputs_category_and_confidence(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestionEngine,
         )
-        from file_organizer.methodologies.para.detection.heuristics import (
+        from methodologies.para.detection.heuristics import (
             CategoryScore,
             HeuristicResult,
         )
@@ -1236,7 +1236,7 @@ class TestPARASuggestionEngineAdditional:
         assert "Reasoning:" in explanation
 
     def test_explain_includes_alternatives_when_present(self) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestion,
             PARASuggestionEngine,
@@ -1257,11 +1257,11 @@ class TestPARASuggestionEngineAdditional:
         assert "Tags:" in explanation
 
     def test_suggest_batch_returns_one_per_file(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestionEngine,
         )
-        from file_organizer.methodologies.para.detection.heuristics import (
+        from methodologies.para.detection.heuristics import (
             CategoryScore,
             HeuristicResult,
         )
@@ -1281,7 +1281,7 @@ class TestPARASuggestionEngineAdditional:
             assert r.category in list(PARACategory)
 
     def test_suggest_batch_fallback_on_error(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestionEngine,
         )
@@ -1299,7 +1299,7 @@ class TestPARASuggestionEngineAdditional:
         assert "Error during analysis" in results[0].reasoning[0]
 
     def test_combine_scores_uses_60_40_weighting(self) -> None:
-        from file_organizer.methodologies.para.ai.suggestion_engine import (
+        from methodologies.para.ai.suggestion_engine import (
             PARACategory,
             PARASuggestionEngine,
         )
@@ -1331,15 +1331,15 @@ class TestJohnnyDecimalMigratorDryRun:
     """Tests for JohnnyDecimalMigrator dry-run and plan generation."""
 
     def _make_migrator(self):
-        from file_organizer.methodologies.johnny_decimal.categories import get_default_scheme
-        from file_organizer.methodologies.johnny_decimal.migrator import JohnnyDecimalMigrator
+        from methodologies.johnny_decimal.categories import get_default_scheme
+        from methodologies.johnny_decimal.migrator import JohnnyDecimalMigrator
 
         return JohnnyDecimalMigrator(scheme=get_default_scheme())
 
     def _make_simple_plan(self, tmp_path: Path):
         """Build a TransformationPlan with a single rename rule."""
-        from file_organizer.methodologies.johnny_decimal.categories import JohnnyDecimalNumber
-        from file_organizer.methodologies.johnny_decimal.transformer import (
+        from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
+        from methodologies.johnny_decimal.transformer import (
             TransformationPlan,
             TransformationRule,
         )
@@ -1379,7 +1379,7 @@ class TestJohnnyDecimalMigratorDryRun:
         assert not (tmp_path / "11 Documents").exists()
 
     def test_generate_report_success(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.johnny_decimal.migrator import MigrationResult
+        from methodologies.johnny_decimal.migrator import MigrationResult
 
         migrator = self._make_migrator()
         result = MigrationResult(
@@ -1395,7 +1395,7 @@ class TestJohnnyDecimalMigratorDryRun:
         assert "0.42" in report
 
     def test_generate_report_failure_lists_failures(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.johnny_decimal.migrator import MigrationResult
+        from methodologies.johnny_decimal.migrator import MigrationResult
 
         migrator = self._make_migrator()
         result = MigrationResult(
@@ -1411,7 +1411,7 @@ class TestJohnnyDecimalMigratorDryRun:
         assert "permission denied" in report
 
     def test_generate_preview_includes_scan_info(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.johnny_decimal.scanner import ScanResult
+        from methodologies.johnny_decimal.scanner import ScanResult
 
         migrator = self._make_migrator()
         plan = self._make_simple_plan(tmp_path)
@@ -1429,8 +1429,8 @@ class TestJohnnyDecimalMigratorDryRun:
         assert "10" in preview  # total_files
 
     def test_generate_preview_with_validation(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.johnny_decimal.scanner import ScanResult
-        from file_organizer.methodologies.johnny_decimal.validator import ValidationResult
+        from methodologies.johnny_decimal.scanner import ScanResult
+        from methodologies.johnny_decimal.validator import ValidationResult
 
         migrator = self._make_migrator()
         plan = self._make_simple_plan(tmp_path)
@@ -1448,7 +1448,7 @@ class TestJohnnyDecimalMigratorDryRun:
         assert "VALID" in preview
 
     def test_validate_plan_returns_valid_result(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.johnny_decimal.transformer import TransformationPlan
+        from methodologies.johnny_decimal.transformer import TransformationPlan
 
         migrator = self._make_migrator()
         plan = TransformationPlan(root_path=tmp_path, rules=[], estimated_changes=0)
@@ -1464,7 +1464,7 @@ class TestJohnnyDecimalMigratorDryRun:
     def test_rollback_unknown_id_raises_value_error(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.methodologies.johnny_decimal.migrator import RollbackInfo
+        from methodologies.johnny_decimal.migrator import RollbackInfo
 
         migrator = self._make_migrator()
         # Inject a fake rollback entry
@@ -1481,7 +1481,7 @@ class TestJohnnyDecimalMigratorDryRun:
     def test_rollback_latest_restores_renames(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.methodologies.johnny_decimal.migrator import RollbackInfo
+        from methodologies.johnny_decimal.migrator import RollbackInfo
 
         migrator = self._make_migrator()
 
@@ -1508,8 +1508,8 @@ class TestJohnnyDecimalMigratorDryRun:
         assert not renamed.exists()
 
     def test_execute_migration_skips_when_target_exists(self, tmp_path: Path) -> None:
-        from file_organizer.methodologies.johnny_decimal.categories import JohnnyDecimalNumber
-        from file_organizer.methodologies.johnny_decimal.transformer import (
+        from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
+        from methodologies.johnny_decimal.transformer import (
             TransformationPlan,
             TransformationRule,
         )

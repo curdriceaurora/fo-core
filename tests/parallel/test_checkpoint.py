@@ -15,11 +15,11 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.parallel.checkpoint import (
+from parallel.checkpoint import (
     CheckpointManager,
     compute_file_hash,
 )
-from file_organizer.parallel.models import Checkpoint
+from parallel.models import Checkpoint
 
 
 @pytest.mark.unit
@@ -74,7 +74,7 @@ class TestCheckpointManagerInit(unittest.TestCase):
 
     def test_default_dir(self) -> None:
         """Test that default directory is under home."""
-        from file_organizer.config.path_manager import get_data_dir
+        from config.path_manager import get_data_dir
 
         mgr = CheckpointManager()
         self.assertEqual(

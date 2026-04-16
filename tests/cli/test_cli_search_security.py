@@ -52,7 +52,7 @@ class TestCorpusSymlinkFiltering:
             pytest.skip("Symlinks not supported on this filesystem")
 
         # The filter logic: entry.is_symlink() or not entry.is_file() or is_hidden(entry)
-        from file_organizer.utils import is_hidden
+        from utils import is_hidden
 
         entries = list(tmp_path.iterdir())
         filtered = [
@@ -72,7 +72,7 @@ class TestCorpusSymlinkFiltering:
 class TestCorpusHiddenFileFiltering:
     def test_dot_prefixed_files_excluded(self, tmp_path: Path) -> None:
         """Files starting with '.' must be excluded from the corpus."""
-        from file_organizer.utils import is_hidden
+        from utils import is_hidden
 
         normal = tmp_path / "report.txt"
         normal.write_text("normal content")
@@ -84,7 +84,7 @@ class TestCorpusHiddenFileFiltering:
 
     def test_files_in_hidden_directory_excluded(self, tmp_path: Path) -> None:
         """Files nested inside a hidden directory must be excluded."""
-        from file_organizer.utils import is_hidden
+        from utils import is_hidden
 
         hidden_dir = tmp_path / ".config"
         hidden_dir.mkdir()
@@ -95,7 +95,7 @@ class TestCorpusHiddenFileFiltering:
 
     def test_normal_files_not_excluded(self, tmp_path: Path) -> None:
         """Normal files with no hidden path components pass the filter."""
-        from file_organizer.utils import is_hidden
+        from utils import is_hidden
 
         normal = tmp_path / "documents" / "report.txt"
         normal.parent.mkdir(parents=True, exist_ok=True)
@@ -120,7 +120,7 @@ class TestCorpusExceptionNarrowing:
         import ast
         import inspect
 
-        from file_organizer.cli import utilities
+        from cli import utilities
 
         source = inspect.getsource(utilities)
         tree = ast.parse(source)

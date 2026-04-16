@@ -7,7 +7,7 @@ This script demonstrates the terminal-based UI for reviewing duplicate images.
 # Add src to path
 from rich.console import Console
 
-from file_organizer.services.deduplication.viewer import ComparisonViewer
+from services.deduplication.viewer import ComparisonViewer
 
 
 def demo_single_comparison():

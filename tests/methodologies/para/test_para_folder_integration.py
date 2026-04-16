@@ -12,14 +12,14 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
-from file_organizer.methodologies.para.folder_generator import PARAFolderGenerator
-from file_organizer.methodologies.para.folder_mapper import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
+from methodologies.para.folder_generator import PARAFolderGenerator
+from methodologies.para.folder_mapper import (
     CategoryFolderMapper,
     MappingStrategy,
 )
-from file_organizer.methodologies.para.migration_manager import PARAMigrationManager
+from methodologies.para.migration_manager import PARAMigrationManager
 
 
 @pytest.mark.unit

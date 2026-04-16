@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.utils.chart_generator import ChartGenerator
+from utils.chart_generator import ChartGenerator
 
 
 @pytest.mark.unit

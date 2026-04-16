@@ -1,4 +1,4 @@
-"""Tests for file_organizer.updater.installer module.
+"""Tests for updater.installer module.
 
 Covers InstallResult, UpdateInstaller.download_asset, install, rollback,
 select_asset, find_checksum, and internal helpers.
@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.updater.checker import AssetInfo, ReleaseInfo
-from file_organizer.updater.installer import InstallResult, UpdateInstaller
+from updater.checker import AssetInfo, ReleaseInfo
+from updater.installer import InstallResult, UpdateInstaller
 
 pytestmark = [pytest.mark.ci, pytest.mark.unit]
 
@@ -81,7 +81,7 @@ class TestInstallerInit:
 class TestDownloadAsset:
     """Test download_asset method."""
 
-    @patch("file_organizer.updater.installer.httpx")
+    @patch("updater.installer.httpx")
     def test_download_success(self, mock_httpx, tmp_path):
         asset = AssetInfo(name="app.bin", url="https://example.com/app.bin", size=100)
         inst = UpdateInstaller(install_dir=tmp_path)
@@ -100,7 +100,7 @@ class TestDownloadAsset:
         assert result.exists()
         result.unlink()
 
-    @patch("file_organizer.updater.installer.httpx")
+    @patch("updater.installer.httpx")
     def test_download_sha_mismatch(self, mock_httpx, tmp_path):
         asset = AssetInfo(name="app.bin", url="https://example.com/app.bin", size=100)
         inst = UpdateInstaller(install_dir=tmp_path)
@@ -116,7 +116,7 @@ class TestDownloadAsset:
         result = inst.download_asset(asset, expected_sha256="wrong_sha")
         assert result is None
 
-    @patch("file_organizer.updater.installer.httpx")
+    @patch("updater.installer.httpx")
     def test_download_with_callback(self, mock_httpx, tmp_path):
         asset = AssetInfo(name="app.bin", url="https://example.com/app.bin", size=100)
         inst = UpdateInstaller(install_dir=tmp_path)
@@ -135,7 +135,7 @@ class TestDownloadAsset:
         callback.assert_called_once()
         result.unlink()
 
-    @patch("file_organizer.updater.installer.httpx")
+    @patch("updater.installer.httpx")
     def test_download_network_error(self, mock_httpx, tmp_path):
         asset = AssetInfo(name="app.bin", url="https://example.com/app.bin", size=100)
         inst = UpdateInstaller(install_dir=tmp_path)
@@ -412,7 +412,7 @@ class TestFileSha256:
 class TestDownloadText:
     """Test _download_text static method."""
 
-    @patch("file_organizer.updater.installer.httpx")
+    @patch("updater.installer.httpx")
     def test_success(self, mock_httpx):
         mock_resp = MagicMock()
         mock_resp.text = "file content"
@@ -420,7 +420,7 @@ class TestDownloadText:
         result = UpdateInstaller._download_text("https://example.com/file.txt")
         assert result == "file content"
 
-    @patch("file_organizer.updater.installer.httpx")
+    @patch("updater.installer.httpx")
     def test_failure(self, mock_httpx):
         mock_httpx.get.side_effect = Exception("error")
         result = UpdateInstaller._download_text("https://example.com/file.txt")
@@ -438,7 +438,7 @@ class TestPlatformHints:
 
     @patch("platform.system", return_value="Windows")
     def test_windows_platform_hints(self, _s):
-        from file_organizer.updater.installer import _get_platform_hints
+        from updater.installer import _get_platform_hints
 
         hints = _get_platform_hints()
         assert "windows" in hints
@@ -446,7 +446,7 @@ class TestPlatformHints:
 
     @patch("platform.system", return_value="Linux")
     def test_linux_platform_hints(self, _s):
-        from file_organizer.updater.installer import _get_platform_hints
+        from updater.installer import _get_platform_hints
 
         hints = _get_platform_hints()
         assert "linux" in hints
@@ -454,7 +454,7 @@ class TestPlatformHints:
     @patch("platform.machine", return_value="x86_64")
     @patch("platform.system", return_value="Linux")
     def test_x86_64_arch_hints(self, _s, _m):
-        from file_organizer.updater.installer import _get_arch_hints
+        from updater.installer import _get_arch_hints
 
         hints = _get_arch_hints()
         assert "x86_64" in hints
@@ -464,7 +464,7 @@ class TestPlatformHints:
     @patch("platform.machine", return_value="arm64")
     @patch("platform.system", return_value="Darwin")
     def test_arm64_darwin_arch_hints(self, _s, _m):
-        from file_organizer.updater.installer import _get_arch_hints
+        from updater.installer import _get_arch_hints
 
         hints = _get_arch_hints()
         assert "arm64" in hints
@@ -474,7 +474,7 @@ class TestPlatformHints:
     @patch("platform.machine", return_value="riscv64")
     @patch("platform.system", return_value="Linux")
     def test_unknown_arch_hints(self, _s, _m):
-        from file_organizer.updater.installer import _get_arch_hints
+        from updater.installer import _get_arch_hints
 
         hints = _get_arch_hints()
         # No recognized arch, but no universal either (Linux)
@@ -492,49 +492,49 @@ class TestScoreAsset:
 
     @patch("platform.system", return_value="Darwin")
     def test_darwin_dmg_penalty(self, _s):
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         score = _score_asset("app-macos-arm64.dmg")
         assert score == -5  # dmg penalty
 
     @patch("platform.system", return_value="Darwin")
     def test_darwin_zip_penalty(self, _s):
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         score = _score_asset("app-macos-arm64.tar.gz")
         assert score == -3  # .tar.gz penalty
 
     @patch("platform.system", return_value="Darwin")
     def test_darwin_universal_bonus(self, _s):
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         score = _score_asset("app-macos-universal")
         assert score == 3  # universal bonus
 
     @patch("platform.system", return_value="Windows")
     def test_windows_exe_bonus(self, _s):
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         score = _score_asset("app-windows-amd64.exe")
         assert score == 3
 
     @patch("platform.system", return_value="Windows")
     def test_windows_installer_penalty(self, _s):
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         score = _score_asset("app-windows-setup.exe")
         assert score == 3 - 4  # exe bonus + setup penalty
 
     @patch("platform.system", return_value="Linux")
     def test_linux_appimage_bonus(self, _s):
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         score = _score_asset("app-linux-x86_64.appimage")
         assert score == 5
 
     @patch("platform.system", return_value="Linux")
     def test_linux_tarball_bonus(self, _s):
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         score = _score_asset("app-linux-x86_64.tar.gz")
         assert score == 2

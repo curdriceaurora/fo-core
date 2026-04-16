@@ -25,7 +25,7 @@ class TestNumberLevel:
 
     def test_all_levels_exist(self) -> None:
         """Verify all three NumberLevel values (area, category, id) are present."""
-        from file_organizer.methodologies.johnny_decimal.categories import NumberLevel
+        from methodologies.johnny_decimal.categories import NumberLevel
 
         assert NumberLevel.AREA.value == "area"
         assert NumberLevel.CATEGORY.value == "category"
@@ -33,7 +33,7 @@ class TestNumberLevel:
 
     def test_three_levels_total(self) -> None:
         """Verify exactly three NumberLevel members are defined."""
-        from file_organizer.methodologies.johnny_decimal.categories import NumberLevel
+        from methodologies.johnny_decimal.categories import NumberLevel
 
         assert len(NumberLevel) == 3
 
@@ -48,7 +48,7 @@ class TestJohnnyDecimalNumber:
 
     def test_area_level(self) -> None:
         """Verify a number with only area is classified as AREA level."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberLevel,
         )
@@ -59,7 +59,7 @@ class TestJohnnyDecimalNumber:
 
     def test_category_level(self) -> None:
         """Verify a number with area + category is classified as CATEGORY level."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberLevel,
         )
@@ -70,7 +70,7 @@ class TestJohnnyDecimalNumber:
 
     def test_id_level(self) -> None:
         """Verify a number with area, category, and item_id is classified as ID level."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberLevel,
         )
@@ -81,7 +81,7 @@ class TestJohnnyDecimalNumber:
 
     def test_from_string_area(self) -> None:
         """Verify from_string parses a bare area number correctly."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberLevel,
         )
@@ -92,7 +92,7 @@ class TestJohnnyDecimalNumber:
 
     def test_from_string_category(self) -> None:
         """Verify from_string parses an area.category string correctly."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberLevel,
         )
@@ -104,7 +104,7 @@ class TestJohnnyDecimalNumber:
 
     def test_from_string_id(self) -> None:
         """Verify from_string parses a full area.category.id string correctly."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberLevel,
         )
@@ -117,7 +117,7 @@ class TestJohnnyDecimalNumber:
 
     def test_invalid_area_raises(self) -> None:
         """Verify an out-of-range area value raises ValueError."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
 
@@ -126,7 +126,7 @@ class TestJohnnyDecimalNumber:
 
     def test_item_id_without_category_raises(self) -> None:
         """Verify specifying item_id without category raises ValueError."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
 
@@ -135,7 +135,7 @@ class TestJohnnyDecimalNumber:
 
     def test_equality(self) -> None:
         """Verify two numbers with same area and category are equal regardless of name."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
 
@@ -145,7 +145,7 @@ class TestJohnnyDecimalNumber:
 
     def test_ordering(self) -> None:
         """Verify numbers with smaller area values compare as less than larger ones."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
 
@@ -155,7 +155,7 @@ class TestJohnnyDecimalNumber:
 
     def test_hashable(self) -> None:
         """Verify JohnnyDecimalNumber instances can be stored in a set."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
 
@@ -165,7 +165,7 @@ class TestJohnnyDecimalNumber:
 
     def test_parent_number(self) -> None:
         """Verify parent_number returns the area.category string for an ID-level number."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
 
@@ -174,7 +174,7 @@ class TestJohnnyDecimalNumber:
 
     def test_area_has_no_parent(self) -> None:
         """Verify parent_number is None for an area-level number."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
 
@@ -192,7 +192,7 @@ class TestAreaDefinition:
 
     def test_contains_in_range(self) -> None:
         """Verify contains returns True for numbers inside the range and False outside."""
-        from file_organizer.methodologies.johnny_decimal.categories import AreaDefinition
+        from methodologies.johnny_decimal.categories import AreaDefinition
 
         area = AreaDefinition(
             area_range_start=10,
@@ -207,7 +207,7 @@ class TestAreaDefinition:
 
     def test_matches_keyword_case_insensitive(self) -> None:
         """Verify keyword matching against area name is case-insensitive."""
-        from file_organizer.methodologies.johnny_decimal.categories import AreaDefinition
+        from methodologies.johnny_decimal.categories import AreaDefinition
 
         area = AreaDefinition(
             area_range_start=10,
@@ -222,14 +222,14 @@ class TestAreaDefinition:
 
     def test_empty_name_raises(self) -> None:
         """Verify an empty name raises ValueError."""
-        from file_organizer.methodologies.johnny_decimal.categories import AreaDefinition
+        from methodologies.johnny_decimal.categories import AreaDefinition
 
         with pytest.raises(ValueError):
             AreaDefinition(area_range_start=10, area_range_end=19, name="", description="d")
 
     def test_start_gt_end_raises(self) -> None:
         """Verify start > end raises ValueError."""
-        from file_organizer.methodologies.johnny_decimal.categories import AreaDefinition
+        from methodologies.johnny_decimal.categories import AreaDefinition
 
         with pytest.raises(ValueError):
             AreaDefinition(area_range_start=19, area_range_end=10, name="X", description="d")
@@ -245,14 +245,14 @@ class TestJDCategoryDefinition:
 
     def test_formatted_number(self) -> None:
         """Verify formatted_number returns the area.category string."""
-        from file_organizer.methodologies.johnny_decimal.categories import CategoryDefinition
+        from methodologies.johnny_decimal.categories import CategoryDefinition
 
         cat = CategoryDefinition(area=11, category=1, name="Invoices", description="d")
         assert cat.formatted_number == "11.01"
 
     def test_matches_keyword(self) -> None:
         """Verify keyword matching returns True for matching text and False otherwise."""
-        from file_organizer.methodologies.johnny_decimal.categories import CategoryDefinition
+        from methodologies.johnny_decimal.categories import CategoryDefinition
 
         cat = CategoryDefinition(
             area=11,
@@ -266,7 +266,7 @@ class TestJDCategoryDefinition:
 
     def test_matches_pattern(self) -> None:
         """Verify glob pattern matching returns True for matching filenames."""
-        from file_organizer.methodologies.johnny_decimal.categories import CategoryDefinition
+        from methodologies.johnny_decimal.categories import CategoryDefinition
 
         cat = CategoryDefinition(
             area=11,
@@ -281,7 +281,7 @@ class TestJDCategoryDefinition:
 
     def test_empty_name_raises(self) -> None:
         """Verify an empty name raises ValueError."""
-        from file_organizer.methodologies.johnny_decimal.categories import CategoryDefinition
+        from methodologies.johnny_decimal.categories import CategoryDefinition
 
         with pytest.raises(ValueError):
             CategoryDefinition(area=11, category=1, name="", description="d")
@@ -297,7 +297,7 @@ class TestNumberingResult:
 
     def test_basic_result(self, tmp_path: Path) -> None:
         """Verify NumberingResult stores confidence and reasons correctly."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberingResult,
         )
@@ -314,7 +314,7 @@ class TestNumberingResult:
 
     def test_is_confident(self, tmp_path: Path) -> None:
         """Verify is_confident is True above threshold and False below it."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberingResult,
         )
@@ -337,7 +337,7 @@ class TestNumberingResult:
 
     def test_requires_review(self, tmp_path: Path) -> None:
         """Verify requires_review is True for low-confidence results."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberingResult,
         )
@@ -353,7 +353,7 @@ class TestNumberingResult:
 
     def test_to_dict(self, tmp_path: Path) -> None:
         """Verify to_dict returns a dict containing confidence."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberingResult,
         )
@@ -372,7 +372,7 @@ class TestNumberingResult:
 
     def test_invalid_confidence_raises(self, tmp_path: Path) -> None:
         """Verify confidence > 1.0 raises ValueError."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberingResult,
         )
@@ -397,7 +397,7 @@ class TestNumberingScheme:
 
     def test_add_and_get_area(self) -> None:
         """Verify adding an area allows retrieval by area number."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             AreaDefinition,
             NumberingScheme,
         )
@@ -413,7 +413,7 @@ class TestNumberingScheme:
 
     def test_add_and_get_category(self) -> None:
         """Verify adding a category allows retrieval by area and category number."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             CategoryDefinition,
             NumberingScheme,
         )
@@ -427,7 +427,7 @@ class TestNumberingScheme:
 
     def test_reserve_number(self) -> None:
         """Verify a reserved number is reported as reserved by is_number_reserved."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
             NumberingScheme,
         )
@@ -439,7 +439,7 @@ class TestNumberingScheme:
 
     def test_get_available_areas(self) -> None:
         """Verify get_available_areas returns all added areas in sorted order."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             AreaDefinition,
             NumberingScheme,
         )
@@ -460,7 +460,7 @@ class TestNumberingScheme:
 
     def test_get_default_scheme(self) -> None:
         """Verify get_default_scheme returns a non-empty scheme with at least one area."""
-        from file_organizer.methodologies.johnny_decimal.categories import get_default_scheme
+        from methodologies.johnny_decimal.categories import get_default_scheme
 
         scheme = get_default_scheme()
         assert scheme.name != ""
@@ -477,7 +477,7 @@ class TestJohnnyDecimalGenerator:
     """Tests for JohnnyDecimalGenerator."""
 
     def _make_scheme(self) -> object:
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             AreaDefinition,
             NumberingScheme,
         )
@@ -496,7 +496,7 @@ class TestJohnnyDecimalGenerator:
 
     def test_generate_area_number(self) -> None:
         """Verify generate_area_number returns an AREA-level number."""
-        from file_organizer.methodologies.johnny_decimal.numbering import (
+        from methodologies.johnny_decimal.numbering import (
             JohnnyDecimalGenerator,
         )
 
@@ -507,10 +507,10 @@ class TestJohnnyDecimalGenerator:
 
     def test_is_number_available(self) -> None:
         """Verify an unregistered number is available."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
-        from file_organizer.methodologies.johnny_decimal.numbering import (
+        from methodologies.johnny_decimal.numbering import (
             JohnnyDecimalGenerator,
         )
 
@@ -521,10 +521,10 @@ class TestJohnnyDecimalGenerator:
 
     def test_register_existing_number(self, tmp_path: Path) -> None:
         """Verify registering a number makes it unavailable and raises on duplicate."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
-        from file_organizer.methodologies.johnny_decimal.numbering import (
+        from methodologies.johnny_decimal.numbering import (
             JohnnyDecimalGenerator,
             NumberConflictError,
         )
@@ -539,10 +539,10 @@ class TestJohnnyDecimalGenerator:
 
     def test_validate_number_valid(self) -> None:
         """Verify validate_number returns (True, []) for a valid area number in scheme."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
-        from file_organizer.methodologies.johnny_decimal.numbering import (
+        from methodologies.johnny_decimal.numbering import (
             JohnnyDecimalGenerator,
         )
 
@@ -555,10 +555,10 @@ class TestJohnnyDecimalGenerator:
 
     def test_clear_registrations(self, tmp_path: Path) -> None:
         """Verify clear_registrations makes previously registered numbers available again."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
-        from file_organizer.methodologies.johnny_decimal.numbering import (
+        from methodologies.johnny_decimal.numbering import (
             JohnnyDecimalGenerator,
         )
 
@@ -571,10 +571,10 @@ class TestJohnnyDecimalGenerator:
 
     def test_get_usage_statistics(self, tmp_path: Path) -> None:
         """Verify get_usage_statistics reports total_numbers after registration."""
-        from file_organizer.methodologies.johnny_decimal.categories import (
+        from methodologies.johnny_decimal.categories import (
             JohnnyDecimalNumber,
         )
-        from file_organizer.methodologies.johnny_decimal.numbering import (
+        from methodologies.johnny_decimal.numbering import (
             JohnnyDecimalGenerator,
         )
 
@@ -588,7 +588,7 @@ class TestJohnnyDecimalGenerator:
 
     def test_suggest_number_for_content(self) -> None:
         """Verify suggest_number_for_content returns a confidence in [0,1] and a list."""
-        from file_organizer.methodologies.johnny_decimal.numbering import (
+        from methodologies.johnny_decimal.numbering import (
             JohnnyDecimalGenerator,
         )
 
@@ -611,7 +611,7 @@ class TestJohnnyDecimalConfig:
 
     def test_config_builder_basic(self) -> None:
         """Verify ConfigBuilder sets the scheme name correctly."""
-        from file_organizer.methodologies.johnny_decimal.config import ConfigBuilder
+        from methodologies.johnny_decimal.config import ConfigBuilder
 
         cfg = (
             ConfigBuilder("my-scheme")
@@ -623,7 +623,7 @@ class TestJohnnyDecimalConfig:
 
     def test_config_builder_with_category(self) -> None:
         """Verify add_category stores and retrieves the category by area and number."""
-        from file_organizer.methodologies.johnny_decimal.config import ConfigBuilder
+        from methodologies.johnny_decimal.config import ConfigBuilder
 
         cfg = (
             ConfigBuilder("scheme")
@@ -637,7 +637,7 @@ class TestJohnnyDecimalConfig:
 
     def test_config_builder_migration_config(self) -> None:
         """Verify with_migration_config stores preserve_names and max_depth."""
-        from file_organizer.methodologies.johnny_decimal.config import ConfigBuilder
+        from methodologies.johnny_decimal.config import ConfigBuilder
 
         cfg = (
             ConfigBuilder("scheme")
@@ -649,7 +649,7 @@ class TestJohnnyDecimalConfig:
 
     def test_config_builder_para_integration(self) -> None:
         """Verify with_para_integration enables PARA and sets projects_area."""
-        from file_organizer.methodologies.johnny_decimal.config import ConfigBuilder
+        from methodologies.johnny_decimal.config import ConfigBuilder
 
         cfg = ConfigBuilder("scheme").with_para_integration(enabled=True, projects_area=10).build()
         assert cfg.compatibility.para_integration.enabled is True
@@ -657,7 +657,7 @@ class TestJohnnyDecimalConfig:
 
     def test_create_default_config(self) -> None:
         """Verify create_default_config returns a JohnnyDecimalConfig instance."""
-        from file_organizer.methodologies.johnny_decimal.config import (
+        from methodologies.johnny_decimal.config import (
             JohnnyDecimalConfig,
             create_default_config,
         )
@@ -667,7 +667,7 @@ class TestJohnnyDecimalConfig:
 
     def test_create_para_compatible_config(self) -> None:
         """Verify create_para_compatible_config enables PARA integration."""
-        from file_organizer.methodologies.johnny_decimal.config import (
+        from methodologies.johnny_decimal.config import (
             create_para_compatible_config,
         )
 
@@ -676,7 +676,7 @@ class TestJohnnyDecimalConfig:
 
     def test_config_to_dict_roundtrip(self) -> None:
         """Verify to_dict/from_dict round-trips to an equivalent config."""
-        from file_organizer.methodologies.johnny_decimal.config import (
+        from methodologies.johnny_decimal.config import (
             JohnnyDecimalConfig,
             create_default_config,
         )
@@ -689,7 +689,7 @@ class TestJohnnyDecimalConfig:
 
     def test_config_save_and_load(self, tmp_path: Path) -> None:
         """Verify save_to_file writes a file and load_from_file restores a config."""
-        from file_organizer.methodologies.johnny_decimal.config import (
+        from methodologies.johnny_decimal.config import (
             JohnnyDecimalConfig,
             create_default_config,
         )
@@ -703,7 +703,7 @@ class TestJohnnyDecimalConfig:
 
     def test_migration_config_defaults(self) -> None:
         """Verify MigrationConfig defaults enable backups and skip hidden files."""
-        from file_organizer.methodologies.johnny_decimal.config import MigrationConfig
+        from methodologies.johnny_decimal.config import MigrationConfig
 
         mc = MigrationConfig()
         assert mc.preserve_original_names is True
@@ -712,7 +712,7 @@ class TestJohnnyDecimalConfig:
 
     def test_para_integration_config_defaults(self) -> None:
         """Verify PARAIntegrationConfig defaults to disabled with projects_area=10."""
-        from file_organizer.methodologies.johnny_decimal.config import PARAIntegrationConfig
+        from methodologies.johnny_decimal.config import PARAIntegrationConfig
 
         pic = PARAIntegrationConfig()
         assert pic.enabled is False
@@ -720,7 +720,7 @@ class TestJohnnyDecimalConfig:
 
     def test_compatibility_config_defaults(self) -> None:
         """Verify CompatibilityConfig defaults allow mixed structures and pre-migration validation."""
-        from file_organizer.methodologies.johnny_decimal.config import CompatibilityConfig
+        from methodologies.johnny_decimal.config import CompatibilityConfig
 
         cc = CompatibilityConfig()
         assert cc.allow_mixed_structure is True
@@ -736,10 +736,10 @@ class TestPARAJohnnyDecimalBridge:
     """Tests for PARAJohnnyDecimalBridge."""
 
     def _make_bridge(self) -> object:
-        from file_organizer.methodologies.johnny_decimal.compatibility import (
+        from methodologies.johnny_decimal.compatibility import (
             PARAJohnnyDecimalBridge,
         )
-        from file_organizer.methodologies.johnny_decimal.config import PARAIntegrationConfig
+        from methodologies.johnny_decimal.config import PARAIntegrationConfig
 
         config = PARAIntegrationConfig(
             enabled=True, projects_area=10, areas_area=20, resources_area=30, archive_area=40
@@ -748,7 +748,7 @@ class TestPARAJohnnyDecimalBridge:
 
     def test_para_to_jd_area(self) -> None:
         """Verify PROJECTS category maps to area 10 as configured."""
-        from file_organizer.methodologies.johnny_decimal.compatibility import PARACategory
+        from methodologies.johnny_decimal.compatibility import PARACategory
 
         bridge = self._make_bridge()
         area = bridge.para_to_jd_area(PARACategory.PROJECTS)
@@ -757,7 +757,7 @@ class TestPARAJohnnyDecimalBridge:
 
     def test_jd_area_to_para(self) -> None:
         """Verify area 10 maps back to PROJECTS category."""
-        from file_organizer.methodologies.johnny_decimal.compatibility import PARACategory
+        from methodologies.johnny_decimal.compatibility import PARACategory
 
         bridge = self._make_bridge()
         category = bridge.jd_area_to_para(10)
@@ -771,7 +771,7 @@ class TestPARAJohnnyDecimalBridge:
 
     def test_get_para_path_suggestion(self) -> None:
         """Verify get_para_path_suggestion returns a non-empty string."""
-        from file_organizer.methodologies.johnny_decimal.compatibility import PARACategory
+        from methodologies.johnny_decimal.compatibility import PARACategory
 
         bridge = self._make_bridge()
         suggestion = bridge.get_para_path_suggestion(PARACategory.PROJECTS, "my-project")
@@ -780,11 +780,11 @@ class TestPARAJohnnyDecimalBridge:
 
     def test_create_para_structure(self, tmp_path: Path) -> None:
         """Verify create_para_structure creates dirs with JD-prefixed PARA names."""
-        from file_organizer.methodologies.johnny_decimal.compatibility import (
+        from methodologies.johnny_decimal.compatibility import (
             PARACategory,
             PARAJohnnyDecimalBridge,
         )
-        from file_organizer.methodologies.johnny_decimal.config import PARAIntegrationConfig
+        from methodologies.johnny_decimal.config import PARAIntegrationConfig
 
         config = PARAIntegrationConfig(enabled=True)
         bridge = PARAJohnnyDecimalBridge(config)
@@ -810,11 +810,11 @@ class TestCompatibilityAnalyzer:
 
     def test_detect_para_structure_empty_dir(self, tmp_path: Path) -> None:
         """Verify detect_para_structure returns a dict keyed by PARACategory."""
-        from file_organizer.methodologies.johnny_decimal.compatibility import (
+        from methodologies.johnny_decimal.compatibility import (
             CompatibilityAnalyzer,
             PARACategory,
         )
-        from file_organizer.methodologies.johnny_decimal.config import create_para_compatible_config
+        from methodologies.johnny_decimal.config import create_para_compatible_config
 
         cfg = create_para_compatible_config()
         analyzer = CompatibilityAnalyzer(cfg)
@@ -823,10 +823,10 @@ class TestCompatibilityAnalyzer:
 
     def test_is_mixed_structure_empty(self, tmp_path: Path) -> None:
         """Verify is_mixed_structure returns False for an empty directory."""
-        from file_organizer.methodologies.johnny_decimal.compatibility import (
+        from methodologies.johnny_decimal.compatibility import (
             CompatibilityAnalyzer,
         )
-        from file_organizer.methodologies.johnny_decimal.config import create_default_config
+        from methodologies.johnny_decimal.config import create_default_config
 
         cfg = create_default_config()
         analyzer = CompatibilityAnalyzer(cfg)
@@ -835,10 +835,10 @@ class TestCompatibilityAnalyzer:
 
     def test_suggest_migration_strategy(self, tmp_path: Path) -> None:
         """Verify suggest_migration_strategy returns a dict with recommendations list."""
-        from file_organizer.methodologies.johnny_decimal.compatibility import (
+        from methodologies.johnny_decimal.compatibility import (
             CompatibilityAnalyzer,
         )
-        from file_organizer.methodologies.johnny_decimal.config import create_default_config
+        from methodologies.johnny_decimal.config import create_default_config
 
         cfg = create_default_config()
         analyzer = CompatibilityAnalyzer(cfg)
@@ -858,11 +858,11 @@ class TestAdapters:
 
     def test_para_adapter_can_adapt(self) -> None:
         """Verify PARAAdapter.can_adapt returns True for an item with category 'projects'."""
-        from file_organizer.methodologies.johnny_decimal.adapters import (
+        from methodologies.johnny_decimal.adapters import (
             OrganizationItem,
             PARAAdapter,
         )
-        from file_organizer.methodologies.johnny_decimal.config import create_para_compatible_config
+        from methodologies.johnny_decimal.config import create_para_compatible_config
 
         cfg = create_para_compatible_config()
         adapter = PARAAdapter(cfg)
@@ -876,12 +876,12 @@ class TestAdapters:
 
     def test_para_adapter_adapt_to_jd(self) -> None:
         """Verify PARAAdapter.adapt_to_jd returns a JohnnyDecimalNumber."""
-        from file_organizer.methodologies.johnny_decimal.adapters import (
+        from methodologies.johnny_decimal.adapters import (
             OrganizationItem,
             PARAAdapter,
         )
-        from file_organizer.methodologies.johnny_decimal.categories import JohnnyDecimalNumber
-        from file_organizer.methodologies.johnny_decimal.config import create_para_compatible_config
+        from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
+        from methodologies.johnny_decimal.config import create_para_compatible_config
 
         cfg = create_para_compatible_config()
         adapter = PARAAdapter(cfg)
@@ -896,11 +896,11 @@ class TestAdapters:
 
     def test_filesystem_adapter_can_adapt_always(self) -> None:
         """Verify FileSystemAdapter.can_adapt returns True for any item."""
-        from file_organizer.methodologies.johnny_decimal.adapters import (
+        from methodologies.johnny_decimal.adapters import (
             FileSystemAdapter,
             OrganizationItem,
         )
-        from file_organizer.methodologies.johnny_decimal.config import create_default_config
+        from methodologies.johnny_decimal.config import create_default_config
 
         cfg = create_default_config()
         adapter = FileSystemAdapter(cfg)
@@ -914,12 +914,12 @@ class TestAdapters:
 
     def test_filesystem_adapter_adapt_to_jd(self) -> None:
         """Verify FileSystemAdapter.adapt_to_jd returns a JohnnyDecimalNumber."""
-        from file_organizer.methodologies.johnny_decimal.adapters import (
+        from methodologies.johnny_decimal.adapters import (
             FileSystemAdapter,
             OrganizationItem,
         )
-        from file_organizer.methodologies.johnny_decimal.categories import JohnnyDecimalNumber
-        from file_organizer.methodologies.johnny_decimal.config import create_default_config
+        from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
+        from methodologies.johnny_decimal.config import create_default_config
 
         cfg = create_default_config()
         adapter = FileSystemAdapter(cfg)
@@ -934,11 +934,11 @@ class TestAdapters:
 
     def test_create_default_registry(self) -> None:
         """Verify create_default_registry returns an AdapterRegistry instance."""
-        from file_organizer.methodologies.johnny_decimal.adapters import (
+        from methodologies.johnny_decimal.adapters import (
             AdapterRegistry,
             create_default_registry,
         )
-        from file_organizer.methodologies.johnny_decimal.config import create_default_config
+        from methodologies.johnny_decimal.config import create_default_config
 
         cfg = create_default_config()
         registry = create_default_registry(cfg)
@@ -946,12 +946,12 @@ class TestAdapters:
 
     def test_registry_adapt_to_jd(self) -> None:
         """Verify registry.adapt_to_jd returns None or a JohnnyDecimalNumber."""
-        from file_organizer.methodologies.johnny_decimal.adapters import (
+        from methodologies.johnny_decimal.adapters import (
             OrganizationItem,
             create_default_registry,
         )
-        from file_organizer.methodologies.johnny_decimal.categories import JohnnyDecimalNumber
-        from file_organizer.methodologies.johnny_decimal.config import create_default_config
+        from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
+        from methodologies.johnny_decimal.config import create_default_config
 
         cfg = create_default_config()
         registry = create_default_registry(cfg)
@@ -975,7 +975,7 @@ class TestValidationDataClasses:
 
     def test_validation_issue(self) -> None:
         """Verify ValidationIssue stores severity, rule_index, and message."""
-        from file_organizer.methodologies.johnny_decimal.validator import ValidationIssue
+        from methodologies.johnny_decimal.validator import ValidationIssue
 
         issue = ValidationIssue(
             severity="error",
@@ -989,7 +989,7 @@ class TestValidationDataClasses:
 
     def test_validation_result_add_issue(self) -> None:
         """Verify add_issue separates errors and warnings into respective lists."""
-        from file_organizer.methodologies.johnny_decimal.validator import (
+        from methodologies.johnny_decimal.validator import (
             ValidationIssue,
             ValidationResult,
         )
@@ -1005,7 +1005,7 @@ class TestValidationDataClasses:
 
     def test_validation_result_empty(self) -> None:
         """Verify a freshly constructed ValidationResult has no issues."""
-        from file_organizer.methodologies.johnny_decimal.validator import ValidationResult
+        from methodologies.johnny_decimal.validator import ValidationResult
 
         result = ValidationResult(is_valid=True)
         assert result.is_valid is True

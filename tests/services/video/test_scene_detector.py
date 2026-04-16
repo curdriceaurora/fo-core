@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.video.scene_detector import (
+from services.video.scene_detector import (
     DetectionMethod,
     Scene,
     SceneDetectionResult,
@@ -154,7 +154,7 @@ class TestSceneDetectionResult:
 class TestSceneDetectorInit:
     """Tests for SceneDetector initialization."""
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_defaults(self, mock_deps: MagicMock) -> None:
         detector = SceneDetector()
         assert detector.method == DetectionMethod.CONTENT
@@ -162,7 +162,7 @@ class TestSceneDetectorInit:
         assert detector.min_scene_length == 1.0
         mock_deps.assert_called_once()
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_custom_params(self, mock_deps: MagicMock) -> None:
         detector = SceneDetector(
             method=DetectionMethod.THRESHOLD,
@@ -207,13 +207,13 @@ class TestSceneDetectorInit:
 class TestDetectScenes:
     """Tests for SceneDetector.detect_scenes."""
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_file_not_found(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         detector = SceneDetector()
         with pytest.raises(FileNotFoundError, match="Video file not found"):
             detector.detect_scenes(tmp_path / "no_such_video.mp4")
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_uses_default_method_and_threshold(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00")
@@ -229,7 +229,7 @@ class TestDetectScenes:
                 # When scenedetect raises ImportError, it falls back to opencv with the threshold
                 mock_cv.assert_called_once_with(video, 42.0)
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_override_method_and_threshold(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00")
@@ -240,7 +240,7 @@ class TestDetectScenes:
             detector.detect_scenes(video, method=DetectionMethod.THRESHOLD, threshold=10.0)
             mock_sd.assert_called_once_with(video, DetectionMethod.THRESHOLD, 10.0)
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_falls_back_to_opencv_on_import_error(
         self, mock_deps: MagicMock, tmp_path: Path
     ) -> None:
@@ -256,7 +256,7 @@ class TestDetectScenes:
                 detector.detect_scenes(video)
                 mock_cv.assert_called_once()
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_accepts_string_path(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00")
@@ -278,7 +278,7 @@ class TestDetectScenes:
 class TestDetectWithScenedetect:
     """Tests for the scenedetect backend."""
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_content_detector(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "video.mp4"
         video.write_bytes(b"\x00")
@@ -288,7 +288,7 @@ class TestDetectWithScenedetect:
         assert result.method == DetectionMethod.CONTENT
         assert len(result.scenes) == 1
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_threshold_detector(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "v.mp4"
         video.write_bytes(b"\x00")
@@ -296,7 +296,7 @@ class TestDetectWithScenedetect:
         result = _run_scenedetect_mock(detector, video, DetectionMethod.THRESHOLD, 20.0)
         assert result.method == DetectionMethod.THRESHOLD
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_adaptive_detector(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "v.mp4"
         video.write_bytes(b"\x00")
@@ -304,7 +304,7 @@ class TestDetectWithScenedetect:
         result = _run_scenedetect_mock(detector, video, DetectionMethod.ADAPTIVE, 27.0)
         assert result.method == DetectionMethod.ADAPTIVE
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_histogram_defaults_to_content(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "v.mp4"
         video.write_bytes(b"\x00")
@@ -323,7 +323,7 @@ class TestDetectWithScenedetect:
 class TestDetectWithOpencv:
     """Tests for the OpenCV fallback backend."""
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_basic_detection(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "v.mp4"
         video.write_bytes(b"\x00")
@@ -333,7 +333,7 @@ class TestDetectWithOpencv:
         assert result.method == DetectionMethod.THRESHOLD
         assert len(result.scenes) >= 1
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_no_scene_changes(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "v.mp4"
         video.write_bytes(b"\x00")
@@ -343,7 +343,7 @@ class TestDetectWithOpencv:
         # Should still have the single initial scene
         assert len(result.scenes) == 1
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_opencv_video_open_failure(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         video = tmp_path / "v.mp4"
         video.write_bytes(b"\x00")
@@ -368,7 +368,7 @@ class TestDetectWithOpencv:
 class TestDetectScenesBatch:
     """Tests for batch scene detection."""
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_batch_success(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         v1 = tmp_path / "v1.mp4"
         v2 = tmp_path / "v2.mp4"
@@ -384,7 +384,7 @@ class TestDetectScenesBatch:
             results = detector.detect_scenes_batch([v1, v2])
             assert len(results) == 2
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_batch_partial_failure(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         v1 = tmp_path / "v1.mp4"
         v2 = tmp_path / "v2.mp4"
@@ -400,13 +400,13 @@ class TestDetectScenesBatch:
             results = detector.detect_scenes_batch([v1, v2])
             assert len(results) == 1
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_batch_empty(self, mock_deps: MagicMock) -> None:
         detector = SceneDetector()
         results = detector.detect_scenes_batch([])
         assert results == []
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._check_dependencies")
+    @patch("services.video.scene_detector.SceneDetector._check_dependencies")
     def test_batch_with_method_override(self, mock_deps: MagicMock, tmp_path: Path) -> None:
         v1 = tmp_path / "v1.mp4"
         v1.write_bytes(b"\x00")

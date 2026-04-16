@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.core.hardware_profile import (
+from core.hardware_profile import (
     GpuType,
     HardwareProfile,
     detect_hardware,
@@ -110,18 +110,18 @@ class TestHardwareProfile:
 class TestDetectHardware:
     """Test detect_hardware() under mocked subprocess and psutil."""
 
-    @patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=10)
+    @patch("core.hardware_profile._get_cpu_cores", return_value=10)
     @patch(
-        "file_organizer.core.hardware_profile._get_system_ram",
+        "core.hardware_profile._get_system_ram",
         return_value=32 * 1024**3,
     )
-    @patch("file_organizer.core.hardware_profile._detect_amd", return_value=(None, 0))
+    @patch("core.hardware_profile._detect_amd", return_value=(None, 0))
     @patch(
-        "file_organizer.core.hardware_profile._detect_apple_mps",
+        "core.hardware_profile._detect_apple_mps",
         return_value=(None, 0),
     )
     @patch(
-        "file_organizer.core.hardware_profile._detect_nvidia",
+        "core.hardware_profile._detect_nvidia",
         return_value=("RTX 4090", 24 * 1024**3),
     )
     def test_nvidia_detection(
@@ -139,18 +139,18 @@ class TestDetectHardware:
         assert profile.ram_gb == 32.0
         assert profile.cpu_cores == 10
 
-    @patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=8)
+    @patch("core.hardware_profile._get_cpu_cores", return_value=8)
     @patch(
-        "file_organizer.core.hardware_profile._get_system_ram",
+        "core.hardware_profile._get_system_ram",
         return_value=16 * 1024**3,
     )
-    @patch("file_organizer.core.hardware_profile._detect_amd", return_value=(None, 0))
+    @patch("core.hardware_profile._detect_amd", return_value=(None, 0))
     @patch(
-        "file_organizer.core.hardware_profile._detect_apple_mps",
+        "core.hardware_profile._detect_apple_mps",
         return_value=("Apple M2 Pro", 16 * 1024**3),
     )
     @patch(
-        "file_organizer.core.hardware_profile._detect_nvidia",
+        "core.hardware_profile._detect_nvidia",
         return_value=(None, 0),
     )
     def test_apple_mps_detection(
@@ -165,18 +165,18 @@ class TestDetectHardware:
         assert profile.gpu_type == GpuType.APPLE_MPS
         assert profile.gpu_name == "Apple M2 Pro"
 
-    @patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=4)
+    @patch("core.hardware_profile._get_cpu_cores", return_value=4)
     @patch(
-        "file_organizer.core.hardware_profile._get_system_ram",
+        "core.hardware_profile._get_system_ram",
         return_value=8 * 1024**3,
     )
-    @patch("file_organizer.core.hardware_profile._detect_amd", return_value=(None, 0))
+    @patch("core.hardware_profile._detect_amd", return_value=(None, 0))
     @patch(
-        "file_organizer.core.hardware_profile._detect_apple_mps",
+        "core.hardware_profile._detect_apple_mps",
         return_value=(None, 0),
     )
     @patch(
-        "file_organizer.core.hardware_profile._detect_nvidia",
+        "core.hardware_profile._detect_nvidia",
         return_value=(None, 0),
     )
     def test_no_gpu_detection(
@@ -192,21 +192,21 @@ class TestDetectHardware:
         assert profile.gpu_name is None
         assert profile.vram_bytes == 0
 
-    @patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=16)
+    @patch("core.hardware_profile._get_cpu_cores", return_value=16)
     @patch(
-        "file_organizer.core.hardware_profile._get_system_ram",
+        "core.hardware_profile._get_system_ram",
         return_value=64 * 1024**3,
     )
     @patch(
-        "file_organizer.core.hardware_profile._detect_amd",
+        "core.hardware_profile._detect_amd",
         return_value=("Radeon RX 7900 XTX", 24 * 1024**3),
     )
     @patch(
-        "file_organizer.core.hardware_profile._detect_apple_mps",
+        "core.hardware_profile._detect_apple_mps",
         return_value=(None, 0),
     )
     @patch(
-        "file_organizer.core.hardware_profile._detect_nvidia",
+        "core.hardware_profile._detect_nvidia",
         return_value=(None, 0),
     )
     def test_amd_detection(
@@ -234,7 +234,7 @@ class TestDetectionHelpers:
 
     @patch("subprocess.run")
     def test_nvidia_detect_success(self, mock_run: MagicMock) -> None:
-        from file_organizer.core.hardware_profile import _detect_nvidia
+        from core.hardware_profile import _detect_nvidia
 
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -246,7 +246,7 @@ class TestDetectionHelpers:
 
     @patch("subprocess.run", side_effect=FileNotFoundError)
     def test_nvidia_detect_no_nvidia_smi(self, _: MagicMock) -> None:
-        from file_organizer.core.hardware_profile import _detect_nvidia
+        from core.hardware_profile import _detect_nvidia
 
         name, vram = _detect_nvidia()
         assert name is None
@@ -254,14 +254,14 @@ class TestDetectionHelpers:
 
     @patch("platform.system", return_value="Linux")
     def test_apple_mps_not_on_linux(self, _: MagicMock) -> None:
-        from file_organizer.core.hardware_profile import _detect_apple_mps
+        from core.hardware_profile import _detect_apple_mps
 
         name, vram = _detect_apple_mps()
         assert name is None
 
     @patch("subprocess.run", side_effect=FileNotFoundError)
     def test_amd_detect_no_rocm_smi(self, _: MagicMock) -> None:
-        from file_organizer.core.hardware_profile import _detect_amd
+        from core.hardware_profile import _detect_amd
 
         name, vram = _detect_amd()
         assert name is None

@@ -13,8 +13,8 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.services.text_processor import ProcessedFile
+from core.organizer import FileOrganizer
+from services.text_processor import ProcessedFile
 
 pytestmark = [pytest.mark.no_ollama, pytest.mark.ci]
 
@@ -74,11 +74,11 @@ class TestFallbackDoesNotCrash:
         expected = len(list(source_dir.iterdir()))
         with (
             patch(
-                "file_organizer.services.text_processor.TextProcessor.initialize",
+                "services.text_processor.TextProcessor.initialize",
                 side_effect=ValueError("unsupported model type"),
             ),
             patch(
-                "file_organizer.services.vision_processor.VisionProcessor.initialize",
+                "services.vision_processor.VisionProcessor.initialize",
                 side_effect=ImportError("ollama package missing"),
             ),
         ):
@@ -97,11 +97,11 @@ class TestFallbackDoesNotCrash:
         expected = len(list(source_dir.iterdir()))
         with (
             patch(
-                "file_organizer.services.text_processor.TextProcessor.initialize",
+                "services.text_processor.TextProcessor.initialize",
                 side_effect=ConnectionRefusedError("down"),
             ),
             patch(
-                "file_organizer.services.vision_processor.VisionProcessor.initialize",
+                "services.vision_processor.VisionProcessor.initialize",
                 side_effect=ConnectionRefusedError("down"),
             ),
             patch.object(
@@ -134,11 +134,11 @@ class TestFallbackDoesNotCrash:
         # First call: Ollama is down — processors fail to initialize
         with (
             patch(
-                "file_organizer.services.text_processor.TextProcessor.initialize",
+                "services.text_processor.TextProcessor.initialize",
                 side_effect=ConnectionRefusedError("down"),
             ),
             patch(
-                "file_organizer.services.vision_processor.VisionProcessor.initialize",
+                "services.vision_processor.VisionProcessor.initialize",
                 side_effect=ConnectionRefusedError("down"),
             ),
         ):
@@ -153,19 +153,19 @@ class TestFallbackDoesNotCrash:
 
         with (
             patch(
-                "file_organizer.models.text_model.TextModel.initialize",
+                "models.text_model.TextModel.initialize",
                 _fake_model_init,
             ),
             patch(
-                "file_organizer.models.vision_model.VisionModel.initialize",
+                "models.vision_model.VisionModel.initialize",
                 _fake_model_init,
             ),
             patch(
-                "file_organizer.core.organizer.FileOrganizer._process_text_files",
+                "core.organizer.FileOrganizer._process_text_files",
                 return_value=[],
             ) as mock_text,
             patch(
-                "file_organizer.core.organizer.FileOrganizer._process_image_files",
+                "core.organizer.FileOrganizer._process_image_files",
                 return_value=[],
             ) as mock_image,
             patch.object(

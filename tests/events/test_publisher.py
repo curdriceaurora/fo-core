@@ -11,10 +11,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.events.config import EventConfig
-from file_organizer.events.publisher import EventPublisher
-from file_organizer.events.stream import RedisStreamManager
-from file_organizer.events.types import EventType
+from events.config import EventConfig
+from events.publisher import EventPublisher
+from events.stream import RedisStreamManager
+from events.types import EventType
 
 
 @pytest.fixture

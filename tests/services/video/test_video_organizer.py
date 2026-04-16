@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.video.metadata_extractor import VideoMetadata
-from file_organizer.services.video.organizer import (
+from services.video.metadata_extractor import VideoMetadata
+from services.video.organizer import (
     SHORT_CLIP_THRESHOLD,
     VideoOrganizer,
     is_screen_recording,

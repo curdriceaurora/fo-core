@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
+from services.intelligence.profile_manager import Profile, ProfileManager
 
 
 @pytest.fixture

@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.suggest import suggest_app
+from cli.suggest import suggest_app
 
 pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
@@ -108,8 +108,8 @@ class TestFilesCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(src)])
 
@@ -140,8 +140,8 @@ class TestFilesCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(src), "--json"])
 
@@ -165,8 +165,8 @@ class TestFilesCommand:
         mock_analyzer = MagicMock()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(empty)])
 
@@ -187,8 +187,8 @@ class TestFilesCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(src), "--min-confidence", "50"])
 
@@ -214,8 +214,8 @@ class TestFilesCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(src)])
 
@@ -236,8 +236,8 @@ class TestFilesCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(src), "--dry-run"])
 
@@ -266,8 +266,8 @@ class TestFilesCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(src), "--json"])
 
@@ -306,8 +306,8 @@ class TestApplyCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["apply", str(src), "--dry-run"])
 
@@ -325,8 +325,8 @@ class TestApplyCommand:
         mock_analyzer = MagicMock()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["apply", str(empty)])
 
@@ -347,8 +347,8 @@ class TestApplyCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["apply", str(src)])
 
@@ -373,8 +373,8 @@ class TestApplyCommand:
         mock_analyzer.analyze_directory.return_value = analysis
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["apply", str(src), "--dry-run"])
 
@@ -402,7 +402,7 @@ class TestPatternsCommand:
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = analysis
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(src)])
 
         assert result.exit_code == 0
@@ -433,7 +433,7 @@ class TestPatternsCommand:
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = analysis
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(src), "--json"])
 
         assert result.exit_code == 0
@@ -456,7 +456,7 @@ class TestPatternsCommand:
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = analysis
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(src)])
 
         assert result.exit_code == 0
@@ -476,7 +476,7 @@ class TestPatternsCommand:
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = analysis
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(src)])
 
         assert result.exit_code == 0
@@ -498,7 +498,7 @@ class TestPatternsCommand:
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = analysis
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(src), "--json"])
 
         assert result.exit_code == 0

@@ -11,7 +11,7 @@ This script demonstrates:
 from pathlib import Path
 
 # Add src to path for development
-from file_organizer.services.deduplication import (
+from services.deduplication import (
     ImageDeduplicator,
     get_best_quality_image,
     get_image_info_string,

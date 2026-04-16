@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.interfaces.pipeline import StageContext
-from file_organizer.optimization.memory_limiter import MemoryLimiter
-from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+from interfaces.pipeline import StageContext
+from optimization.memory_limiter import MemoryLimiter
+from pipeline.orchestrator import PipelineOrchestrator
 
 
 class _MemoryExhausted(MemoryLimiter):
@@ -317,7 +317,7 @@ class TestPrefetchErrorHandling:
 
     def test_missing_file_in_prefetch_produces_failed_result(self, tmp_path: Path) -> None:
         """A file that doesn't exist produces a failed result via PreprocessorStage."""
-        from file_organizer.pipeline.stages import PreprocessorStage
+        from pipeline.stages import PreprocessorStage
 
         real_files = _make_files(tmp_path, count=3, size_bytes=256, seed=6)
         ghost = tmp_path / "ghost.bin"  # never created

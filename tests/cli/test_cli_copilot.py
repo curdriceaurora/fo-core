@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.unit]
 
@@ -25,7 +25,7 @@ runner = CliRunner()
 class TestCopilotChat:
     """Tests for ``copilot chat`` in single-shot mode."""
 
-    @patch("file_organizer.services.copilot.engine.CopilotEngine")
+    @patch("services.copilot.engine.CopilotEngine")
     def test_single_shot_message(self, mock_cls: MagicMock) -> None:
         mock_engine = MagicMock()
         mock_cls.return_value = mock_engine
@@ -36,7 +36,7 @@ class TestCopilotChat:
         assert "I organized 5 files." in result.output
         mock_engine.chat.assert_called_once_with("organize my downloads")
 
-    @patch("file_organizer.services.copilot.engine.CopilotEngine")
+    @patch("services.copilot.engine.CopilotEngine")
     def test_single_shot_with_dir(self, mock_cls: MagicMock, tmp_path) -> None:
         mock_engine = MagicMock()
         mock_cls.return_value = mock_engine
@@ -49,7 +49,7 @@ class TestCopilotChat:
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(working_directory=str(tmp_path))
 
-    @patch("file_organizer.services.copilot.engine.CopilotEngine")
+    @patch("services.copilot.engine.CopilotEngine")
     def test_chat_help(self, mock_cls: MagicMock) -> None:
         result = runner.invoke(app, ["copilot", "chat", "--help"])
         assert result.exit_code == 0
@@ -78,7 +78,7 @@ class TestCopilotStatus:
 
         with (
             patch.dict("sys.modules", {"ollama": mock_ollama}),
-            patch("file_organizer.cli.copilot.console"),
+            patch("cli.copilot.console"),
         ):
             result = runner.invoke(app, ["copilot", "status"])
         assert result.exit_code == 0

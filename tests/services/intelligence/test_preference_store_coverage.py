@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.services.intelligence.preference_store import (
+from services.intelligence.preference_store import (
     DirectoryPreference,
     PreferenceStore,
 )

@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from file_organizer.services.intelligence.confidence import (
+from services.intelligence.confidence import (
     ConfidenceEngine,
     PatternUsageData,
     UsageRecord,

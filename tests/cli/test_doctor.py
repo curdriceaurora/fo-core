@@ -1,4 +1,4 @@
-"""Tests for file_organizer.cli.doctor module.
+"""Tests for cli.doctor module.
 
 Tests the doctor CLI command including:
 - doctor command function
@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import typer
 
-from file_organizer.cli.doctor import (
+from cli.doctor import (
     DEPENDENCY_CHECK_PACKAGES,
     EXTENSION_REGISTRY,
     SYSTEM_PREREQUISITES,
@@ -174,13 +174,13 @@ class TestGetMissingGroups:
 
     def test_all_installed(self):
         detected = {"audio", "video"}
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=True):
+        with patch("cli.doctor.is_group_installed", return_value=True):
             result = get_missing_groups(detected)
             assert result == set()
 
     def test_none_installed(self):
         detected = {"audio", "video"}
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = get_missing_groups(detected)
             assert result == {"audio", "video"}
 
@@ -190,13 +190,13 @@ class TestGetMissingGroups:
         def mock_is_installed(group):
             return group == "audio"  # Only audio is installed
 
-        with patch("file_organizer.cli.doctor.is_group_installed", side_effect=mock_is_installed):
+        with patch("cli.doctor.is_group_installed", side_effect=mock_is_installed):
             result = get_missing_groups(detected)
             assert result == {"video", "parsers"}
 
     def test_empty_detected(self):
         detected = set()
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = get_missing_groups(detected)
             assert result == set()
 
@@ -314,8 +314,8 @@ class TestDisplayRecommendations:
         extension_counts = {".mp3": 5, ".wav": 3}
         detected_groups = {"audio"}
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=True):
-            with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.is_group_installed", return_value=True):
+            with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
                 # Should print a table
                 assert mock_console.print.called
@@ -324,8 +324,8 @@ class TestDisplayRecommendations:
         extension_counts = {".mp3": 5}
         detected_groups = {"audio"}
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
                 assert mock_console.print.called
 
@@ -333,8 +333,8 @@ class TestDisplayRecommendations:
         extension_counts = {".mp3": 5, ".mp4": 3, ".pdf": 2}
         detected_groups = {"audio", "video", "parsers"}
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
                 assert mock_console.print.called
 
@@ -343,8 +343,8 @@ class TestDisplayRecommendations:
         detected_groups = {"audio"}
 
         # Audio has prerequisites in SYSTEM_PREREQUISITES
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
                 assert mock_console.print.called
 
@@ -359,7 +359,7 @@ class TestInstallGroups:
     """Tests for install_groups function with mocked subprocess."""
 
     def test_no_groups_to_install(self):
-        with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.console") as mock_console:
             install_groups(set())
             # Should display "No groups to install" message
             mock_console.print.assert_called_once()
@@ -369,8 +369,8 @@ class TestInstallGroups:
     def test_user_cancels_installation(self):
         groups = {"audio", "video"}
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=False):
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=False):
                 install_groups(groups)
                 # Should display cancellation message
                 calls = [str(call) for call in mock_console.print.call_args_list]
@@ -379,9 +379,9 @@ class TestInstallGroups:
     def test_dry_run_mode(self):
         groups = {"audio", "video"}
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = True
                     install_groups(groups)
                     # Should not run subprocess
@@ -398,13 +398,11 @@ class TestInstallGroups:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch(
-                        "file_organizer.cli.doctor.subprocess.run", return_value=mock_result
-                    ) as mock_run:
+                    with patch("cli.doctor.subprocess.run", return_value=mock_result) as mock_run:
                         install_groups(groups)
 
                         # Verify subprocess was called with correct command
@@ -415,7 +413,7 @@ class TestInstallGroups:
                             "-m",
                             "pip",
                             "install",
-                            "file-organizer[audio]",
+                            "fo-core[audio]",
                         ]
                         assert call_args[1]["check"] is False
 
@@ -429,13 +427,11 @@ class TestInstallGroups:
         mock_result = MagicMock()
         mock_result.returncode = 1  # Non-zero means failure
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch(
-                        "file_organizer.cli.doctor.subprocess.run", return_value=mock_result
-                    ):
+                    with patch("cli.doctor.subprocess.run", return_value=mock_result):
                         install_groups(groups)
 
                         # Should display failure message
@@ -445,12 +441,12 @@ class TestInstallGroups:
     def test_installation_subprocess_error(self):
         groups = {"audio"}
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
                     with patch(
-                        "file_organizer.cli.doctor.subprocess.run",
+                        "cli.doctor.subprocess.run",
                         side_effect=subprocess.SubprocessError("Test error"),
                     ):
                         install_groups(groups)
@@ -461,12 +457,12 @@ class TestInstallGroups:
     def test_installation_file_not_found(self):
         groups = {"audio"}
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
                     with patch(
-                        "file_organizer.cli.doctor.subprocess.run",
+                        "cli.doctor.subprocess.run",
                         side_effect=FileNotFoundError("pip not found"),
                     ):
                         install_groups(groups)
@@ -477,12 +473,12 @@ class TestInstallGroups:
     def test_installation_timeout(self):
         groups = {"audio"}
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
                     with patch(
-                        "file_organizer.cli.doctor.subprocess.run",
+                        "cli.doctor.subprocess.run",
                         side_effect=subprocess.TimeoutExpired("pip", 300),
                     ):
                         install_groups(groups)
@@ -496,13 +492,11 @@ class TestInstallGroups:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        with patch("file_organizer.cli.doctor.console"):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console"):
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch(
-                        "file_organizer.cli.doctor.subprocess.run", return_value=mock_result
-                    ) as mock_run:
+                    with patch("cli.doctor.subprocess.run", return_value=mock_result) as mock_run:
                         install_groups(groups)
 
                         # Should call subprocess twice (once for each group)
@@ -520,13 +514,11 @@ class TestInstallGroups:
                 result.returncode = 0
             return result
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch(
-                        "file_organizer.cli.doctor.subprocess.run", side_effect=mock_run_side_effect
-                    ):
+                    with patch("cli.doctor.subprocess.run", side_effect=mock_run_side_effect):
                         install_groups(groups)
 
                         # Should display mixed success/failure messages
@@ -536,8 +528,8 @@ class TestInstallGroups:
     def test_display_system_prerequisites(self):
         groups = {"audio"}  # Audio has prerequisites
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=False):
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=False):
                 install_groups(groups)
 
                 # Should display prerequisites
@@ -589,8 +581,8 @@ class TestDoctorCommand:
         for i in range(3):
             (tmp_path / f"song{i}.mp3").write_text("audio")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.console"):
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.console"):
                 # Doctor function doesn't raise Exit when there are missing groups
                 # It only raises Exit when: no files, no groups detected, or all installed
                 doctor(path=tmp_path, install=False, json_output=False)
@@ -600,7 +592,7 @@ class TestDoctorCommand:
         (tmp_path / "song.mp3").write_text("audio")
         (tmp_path / "video.mp4").write_text("video")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit) as exc_info:
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -617,8 +609,8 @@ class TestDoctorCommand:
         # All needed dependencies are already installed
         (tmp_path / "song.mp3").write_text("audio")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=True):
-            with patch("file_organizer.cli.doctor.console"):
+        with patch("cli.doctor.is_group_installed", return_value=True):
+            with patch("cli.doctor.console"):
                 with pytest.raises(typer.Exit) as exc_info:
                     doctor(path=tmp_path, install=False, json_output=False)
                 assert exc_info.value.exit_code == 0
@@ -630,14 +622,14 @@ class TestDoctorCommand:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.console"):
-                with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                    with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.console"):
+                with patch("cli.doctor.confirm_action", return_value=True):
+                    with patch("cli.doctor._g") as mock_globals:
                         mock_globals.dry_run = False
                         mock_globals.json_output = False
                         with patch(
-                            "file_organizer.cli.doctor.subprocess.run", return_value=mock_result
+                            "cli.doctor.subprocess.run", return_value=mock_result
                         ) as mock_run:
                             # Doctor function completes normally after installation
                             doctor(path=tmp_path, install=True, json_output=False)
@@ -650,8 +642,8 @@ class TestDoctorCommand:
         (tmp_path / "archive.tar.gz").write_text("archive")
 
         # .tar.gz maps to archive group; mock as installed so doctor exits cleanly
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=True):
-            with patch("file_organizer.cli.doctor.console"):
+        with patch("cli.doctor.is_group_installed", return_value=True):
+            with patch("cli.doctor.console"):
                 with pytest.raises(typer.Exit) as exc_info:
                     doctor(path=tmp_path, install=False, json_output=False)
                 assert exc_info.value.exit_code == 0
@@ -663,7 +655,7 @@ class TestDoctorCommand:
         (tmp_path / "doc.pdf").write_text("pdf")
         (tmp_path / "archive.7z").write_text("archive")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit) as exc_info:
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -688,7 +680,7 @@ class TestDoctorCommand:
         (subdir1 / "song.mp3").write_text("audio")
         (subdir2 / "movie.mp4").write_text("video")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit) as exc_info:
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -797,8 +789,8 @@ class TestEdgeCases:
         (tmp_path / "song.mp3").write_text("audio")
         (tmp_path / "video.mp4").write_text("video")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=True):
-            with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.is_group_installed", return_value=True):
+            with patch("cli.doctor.console") as mock_console:
                 with pytest.raises(typer.Exit) as exc_info:
                     doctor(path=tmp_path, install=False, json_output=False)
 
@@ -844,13 +836,11 @@ class TestEdgeCases:
                 result.returncode = 0
             return result
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch(
-                        "file_organizer.cli.doctor.subprocess.run", side_effect=mock_run_side_effect
-                    ):
+                    with patch("cli.doctor.subprocess.run", side_effect=mock_run_side_effect):
                         install_groups(groups)
 
                         # Should display failure message but continue
@@ -861,12 +851,12 @@ class TestEdgeCases:
         """Edge Case 4 (variant): pip subprocess exception is handled gracefully."""
         groups = {"audio"}
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
                     with patch(
-                        "file_organizer.cli.doctor.subprocess.run",
+                        "cli.doctor.subprocess.run",
                         side_effect=OSError("Network error"),
                     ):
                         install_groups(groups)
@@ -903,7 +893,7 @@ class TestEdgeCases:
             # Only audio and parsers are installed, video is missing
             return group in {"audio", "parsers"}
 
-        with patch("file_organizer.cli.doctor.is_group_installed", side_effect=mock_is_installed):
+        with patch("cli.doctor.is_group_installed", side_effect=mock_is_installed):
             result = get_missing_groups(detected)
             assert result == {"video"}
             assert "audio" not in result
@@ -920,7 +910,7 @@ class TestEdgeCases:
             # Audio is installed, video and parsers are not
             return group == "audio"
 
-        with patch("file_organizer.cli.doctor.is_group_installed", side_effect=mock_is_installed):
+        with patch("cli.doctor.is_group_installed", side_effect=mock_is_installed):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit) as exc_info:
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -953,8 +943,8 @@ class TestEdgeCases:
         """Edge Case 7: System prerequisites are displayed but don't block installation."""
         groups = {"audio", "archive"}  # Both have prerequisites
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=False):
+        with patch("cli.doctor.console") as mock_console:
+            with patch("cli.doctor.confirm_action", return_value=False):
                 install_groups(groups)
 
                 # Should display prerequisites
@@ -975,13 +965,11 @@ class TestEdgeCases:
         mock_result = MagicMock()
         mock_result.returncode = 0
 
-        with patch("file_organizer.cli.doctor.console"):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console"):
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch(
-                        "file_organizer.cli.doctor.subprocess.run", return_value=mock_result
-                    ) as mock_run:
+                    with patch("cli.doctor.subprocess.run", return_value=mock_result) as mock_run:
                         install_groups(groups)
 
                         # pip install should still be called
@@ -995,7 +983,7 @@ class TestEdgeCases:
         (tmp_path / "document.txt").write_text("text")
         (tmp_path / "notes.doc").write_text("old doc")
 
-        with patch("file_organizer.cli.doctor.console"):
+        with patch("cli.doctor.console"):
             with pytest.raises(typer.Exit) as exc_info:
                 doctor(path=tmp_path, install=False, json_output=False)
             assert exc_info.value.exit_code == 0
@@ -1150,7 +1138,7 @@ class TestSubprocessSecurity:
         """Regression: subprocess.run must NOT use shell=True (prevents shell injection)."""
         import inspect
 
-        import file_organizer.cli.doctor as doctor_module
+        import cli.doctor as doctor_module
 
         source = inspect.getsource(doctor_module)
         # shell=True with subprocess is a security vulnerability
@@ -1170,11 +1158,11 @@ class TestSubprocessSecurity:
             captured_calls.append((cmd, kwargs))
             return mock_result
 
-        with patch("file_organizer.cli.doctor.console"):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console"):
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch("file_organizer.cli.doctor.subprocess.run", side_effect=capture_run):
+                    with patch("cli.doctor.subprocess.run", side_effect=capture_run):
                         install_groups(groups)
 
         assert len(captured_calls) == 1
@@ -1185,7 +1173,7 @@ class TestSubprocessSecurity:
         assert kwargs.get("shell", False) is False, "shell=True must not be passed"
 
     def test_subprocess_exact_command_format(self):
-        """Subprocess command uses exact format: ['pip', 'install', 'file-organizer[group]']."""
+        """Subprocess command uses exact format: ['pip', 'install', 'fo-core[group]']."""
         groups = {"audio"}
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -1195,18 +1183,18 @@ class TestSubprocessSecurity:
             captured_calls.append(cmd)
             return mock_result
 
-        with patch("file_organizer.cli.doctor.console"):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console"):
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch("file_organizer.cli.doctor.subprocess.run", side_effect=capture_run):
+                    with patch("cli.doctor.subprocess.run", side_effect=capture_run):
                         install_groups(groups)
 
         assert len(captured_calls) == 1
         cmd = captured_calls[0]
         assert cmd[0] == sys.executable
         assert cmd[1:4] == ["-m", "pip", "install"]
-        assert cmd[4] == "file-organizer[audio]"
+        assert cmd[4] == "fo-core[audio]"
 
     def test_group_name_is_hardcoded_not_user_input(self):
         """Install commands use only registry group names (not arbitrary user input)."""
@@ -1232,15 +1220,15 @@ class TestInstallGroupsOrdering:
 
         def capture_run(cmd, **kwargs):
             # Extract group name from install command (cmd is [sys.executable, -m, pip, install, pkg])
-            group_name = cmd[4].replace("file-organizer[", "").rstrip("]")
+            group_name = cmd[4].replace("fo-core[", "").rstrip("]")
             install_order.append(group_name)
             return mock_result
 
-        with patch("file_organizer.cli.doctor.console"):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console"):
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch("file_organizer.cli.doctor.subprocess.run", side_effect=capture_run):
+                    with patch("cli.doctor.subprocess.run", side_effect=capture_run):
                         install_groups(groups)
 
         # Should be installed in sorted (alphabetical) order
@@ -1253,8 +1241,8 @@ class TestInstallGroupsOrdering:
         extension_counts = {".mp3": 5, ".mp4": 3, ".pdf": 2, ".7z": 1}
         detected_groups = {"video", "audio", "parsers", "archive"}
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
                 # Just verify it was called without error (sorting happens internally)
                 assert mock_console.print.called
@@ -1322,7 +1310,7 @@ class TestJSONOutputFormat:
         """JSON output install_command uses correct pip install format."""
         (tmp_path / "song.mp3").write_text("audio")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit):
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -1335,13 +1323,13 @@ class TestJSONOutputFormat:
 
         # Install command must contain the group name in square brackets
         assert "pip install" in audio_info["install_command"]
-        assert "file-organizer[audio]" in audio_info["install_command"]
+        assert "fo-core[audio]" in audio_info["install_command"]
 
     def test_json_directory_is_absolute_path(self, tmp_path):
         """JSON output directory field contains absolute path."""
         (tmp_path / "song.mp3").write_text("audio")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit):
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -1362,7 +1350,7 @@ class TestJSONOutputFormat:
         (tmp_path / "draw.dxf").write_text("cad")
         (tmp_path / "backup.7z").write_text("archive")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit):
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -1377,7 +1365,7 @@ class TestJSONOutputFormat:
         """JSON output prerequisites field is always a list of strings."""
         (tmp_path / "song.mp3").write_text("audio")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit):
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -1402,7 +1390,7 @@ class TestJSONOutputFormat:
         (tmp_path / "video.mp4").write_text("video")
         (tmp_path / "README").write_text("readme")  # No extension
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("typer.echo") as mock_echo:
                 with pytest.raises(typer.Exit):
                     doctor(path=tmp_path, install=False, json_output=True)
@@ -1422,7 +1410,7 @@ class TestDoctorCommandRegistration:
         """Doctor command is registered in the main Typer app."""
         import typer.main
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         # Get the underlying Click group
         click_group = typer.main.get_group(app)
@@ -1431,8 +1419,8 @@ class TestDoctorCommandRegistration:
     def test_doctor_importable_from_main(self):
         """Doctor function is importable from main.py."""
         # This verifies the import line in main.py works
-        from file_organizer.cli.doctor import doctor
-        from file_organizer.cli.main import app  # noqa: F401
+        from cli.doctor import doctor
+        from cli.main import app  # noqa: F401
 
         assert callable(doctor)
 
@@ -1440,7 +1428,7 @@ class TestDoctorCommandRegistration:
         """Doctor command has the required PATH argument."""
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["doctor", "--help"])
@@ -1454,7 +1442,7 @@ class TestDoctorCommandRegistration:
 
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["doctor", "--help"])
@@ -1469,7 +1457,7 @@ class TestDoctorCommandRegistration:
 
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["doctor", "--help"])
@@ -1528,11 +1516,11 @@ class TestInstallGroupsEdgeCases:
             captured_kwargs.update(kwargs)
             return mock_result
 
-        with patch("file_organizer.cli.doctor.console"):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+        with patch("cli.doctor.console"):
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch("file_organizer.cli.doctor.subprocess.run", side_effect=capture_run):
+                    with patch("cli.doctor.subprocess.run", side_effect=capture_run):
                         install_groups(groups)
 
         # check=False means subprocess won't raise CalledProcessError on failure
@@ -1546,16 +1534,14 @@ class TestInstallGroupsEdgeCases:
 
         printed_lines = []
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.console") as mock_console:
             mock_console.print.side_effect = lambda *args, **kwargs: printed_lines.append(
                 str(args[0]) if args else ""
             )
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch(
-                        "file_organizer.cli.doctor.subprocess.run", return_value=mock_result_fail
-                    ):
+                    with patch("cli.doctor.subprocess.run", return_value=mock_result_fail):
                         install_groups(groups)
 
         # Check that the summary mentions failed groups
@@ -1569,16 +1555,14 @@ class TestInstallGroupsEdgeCases:
         mock_result.returncode = 0
         printed_lines = []
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.console") as mock_console:
             mock_console.print.side_effect = lambda *args, **kwargs: printed_lines.append(
                 str(args[0]) if args else ""
             )
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = False
-                    with patch(
-                        "file_organizer.cli.doctor.subprocess.run", return_value=mock_result
-                    ):
+                    with patch("cli.doctor.subprocess.run", return_value=mock_result):
                         install_groups(groups)
 
         # Check that success message is shown
@@ -1590,14 +1574,14 @@ class TestInstallGroupsEdgeCases:
         groups = {"audio", "video"}
         printed_lines = []
 
-        with patch("file_organizer.cli.doctor.console") as mock_console:
+        with patch("cli.doctor.console") as mock_console:
             mock_console.print.side_effect = lambda *args, **kwargs: printed_lines.append(
                 str(args[0]) if args else ""
             )
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
-                with patch("file_organizer.cli.doctor._g") as mock_globals:
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._g") as mock_globals:
                     mock_globals.dry_run = True
-                    with patch("file_organizer.cli.doctor.subprocess.run") as mock_run:
+                    with patch("cli.doctor.subprocess.run") as mock_run:
                         install_groups(groups)
                         # subprocess must NOT be called in dry-run mode
                         mock_run.assert_not_called()

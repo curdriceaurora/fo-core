@@ -1,4 +1,4 @@
-"""Docker helper utilities for File Organizer v2.
+"""Docker helper utilities for fo-core.
 
 Provides functions for validating Dockerfiles, parsing docker-compose
 configuration, and estimating Docker image sizes.

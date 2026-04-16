@@ -99,7 +99,7 @@ def _patched_optional_dependency(
 
 class TestReadHdf5File:
     def test_valid_hdf5_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_hdf5_file
+        from utils.readers.scientific import read_hdf5_file
 
         path = _make_hdf5(tmp_path)
         result = read_hdf5_file(path)
@@ -107,14 +107,14 @@ class TestReadHdf5File:
         assert len(result) > 0
 
     def test_hdf5_contains_filename(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_hdf5_file
+        from utils.readers.scientific import read_hdf5_file
 
         path = _make_hdf5(tmp_path, "mydata.h5")
         result = read_hdf5_file(path)
         assert "mydata.h5" in result
 
     def test_hdf5_dataset_names_listed(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_hdf5_file
+        from utils.readers.scientific import read_hdf5_file
 
         path = _make_hdf5(tmp_path)
         result = read_hdf5_file(path)
@@ -122,28 +122,28 @@ class TestReadHdf5File:
         assert "pressure" in result
 
     def test_hdf5_group_listed(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_hdf5_file
+        from utils.readers.scientific import read_hdf5_file
 
         path = _make_hdf5(tmp_path)
         result = read_hdf5_file(path)
         assert "measurements" in result
 
     def test_hdf5_dataset_attributes_listed(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_hdf5_file
+        from utils.readers.scientific import read_hdf5_file
 
         path = _make_hdf5(tmp_path)
         result = read_hdf5_file(path)
         assert "units" in result
 
     def test_hdf5_structure_header_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_hdf5_file
+        from utils.readers.scientific import read_hdf5_file
 
         path = _make_hdf5(tmp_path)
         result = read_hdf5_file(path)
         assert "Structure" in result
 
     def test_hdf5_total_groups_count(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_hdf5_file
+        from utils.readers.scientific import read_hdf5_file
 
         path = _make_hdf5(tmp_path)
         result = read_hdf5_file(path)
@@ -154,7 +154,7 @@ class TestReadHdf5File:
         h5py = pytest.importorskip("h5py")
         import numpy as np
 
-        from file_organizer.utils.readers.scientific import read_hdf5_file
+        from utils.readers.scientific import read_hdf5_file
 
         path = tmp_path / "many.h5"
         with h5py.File(path, "w") as f:
@@ -165,7 +165,7 @@ class TestReadHdf5File:
         assert "showing first 1" in result
 
     def test_hdf5_mocked_success_without_h5py_dependency(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
+        from utils.readers import scientific as sci_module
 
         path = tmp_path / "mocked.h5"
         path.write_text("placeholder", encoding="utf-8")
@@ -226,8 +226,8 @@ class TestReadHdf5File:
         assert "showing first 1 datasets" in result
 
     def test_hdf5_file_read_error_on_corrupt_file(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
-        from file_organizer.utils.readers._base import FileReadError
+        from utils.readers import scientific as sci_module
+        from utils.readers._base import FileReadError
 
         path = tmp_path / "corrupt.h5"
         path.write_bytes(b"\x00\x01NOT AN HDF5 FILE\xff\xfe")
@@ -246,7 +246,7 @@ class TestReadHdf5File:
                 sci_module.read_hdf5_file(path)
 
     def test_hdf5_raises_import_error_when_h5py_unavailable(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
+        from utils.readers import scientific as sci_module
 
         path = tmp_path / "dummy.h5"
         path.write_bytes(b"placeholder")
@@ -266,7 +266,7 @@ class TestReadHdf5File:
 
 class TestReadNetcdfFile:
     def test_valid_netcdf_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_netcdf_file
+        from utils.readers.scientific import read_netcdf_file
 
         path = _make_netcdf(tmp_path)
         result = read_netcdf_file(path)
@@ -274,21 +274,21 @@ class TestReadNetcdfFile:
         assert len(result) > 0
 
     def test_netcdf_contains_filename(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_netcdf_file
+        from utils.readers.scientific import read_netcdf_file
 
         path = _make_netcdf(tmp_path, "climate.nc")
         result = read_netcdf_file(path)
         assert "climate.nc" in result
 
     def test_netcdf_format_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_netcdf_file
+        from utils.readers.scientific import read_netcdf_file
 
         path = _make_netcdf(tmp_path)
         result = read_netcdf_file(path)
         assert "Format" in result
 
     def test_netcdf_dimensions_listed(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_netcdf_file
+        from utils.readers.scientific import read_netcdf_file
 
         path = _make_netcdf(tmp_path)
         result = read_netcdf_file(path)
@@ -296,28 +296,28 @@ class TestReadNetcdfFile:
         assert "lat" in result
 
     def test_netcdf_variables_listed(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_netcdf_file
+        from utils.readers.scientific import read_netcdf_file
 
         path = _make_netcdf(tmp_path)
         result = read_netcdf_file(path)
         assert "temperature" in result
 
     def test_netcdf_units_attribute_shown(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_netcdf_file
+        from utils.readers.scientific import read_netcdf_file
 
         path = _make_netcdf(tmp_path)
         result = read_netcdf_file(path)
         assert "units" in result
 
     def test_netcdf_long_name_attribute_shown(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_netcdf_file
+        from utils.readers.scientific import read_netcdf_file
 
         path = _make_netcdf(tmp_path)
         result = read_netcdf_file(path)
         assert "long_name" in result
 
     def test_netcdf_global_attributes_listed(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_netcdf_file
+        from utils.readers.scientific import read_netcdf_file
 
         path = _make_netcdf(tmp_path)
         result = read_netcdf_file(path)
@@ -325,7 +325,7 @@ class TestReadNetcdfFile:
         assert "title" in result
 
     def test_netcdf_mocked_success_without_netcdf_dependency(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
+        from utils.readers import scientific as sci_module
 
         path = tmp_path / "mocked.nc"
         path.write_text("placeholder", encoding="utf-8")
@@ -410,8 +410,8 @@ class TestReadNetcdfFile:
         assert "Global Attributes" in result
 
     def test_netcdf_file_read_error_on_corrupt_file(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
-        from file_organizer.utils.readers._base import FileReadError
+        from utils.readers import scientific as sci_module
+        from utils.readers._base import FileReadError
 
         path = tmp_path / "corrupt.nc"
         path.write_bytes(b"\x89NOT A NETCDF FILE\x00\x01")
@@ -426,7 +426,7 @@ class TestReadNetcdfFile:
                 sci_module.read_netcdf_file(path)
 
     def test_netcdf_raises_import_error_when_unavailable(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
+        from utils.readers import scientific as sci_module
 
         path = tmp_path / "dummy.nc"
         path.write_bytes(b"placeholder")
@@ -446,7 +446,7 @@ class TestReadNetcdfFile:
 
 class TestReadMatFile:
     def test_valid_mat_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_mat_file
+        from utils.readers.scientific import read_mat_file
 
         path = _make_mat(tmp_path)
         result = read_mat_file(path)
@@ -454,21 +454,21 @@ class TestReadMatFile:
         assert len(result) > 0
 
     def test_mat_contains_filename(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_mat_file
+        from utils.readers.scientific import read_mat_file
 
         path = _make_mat(tmp_path, "experiment.mat")
         result = read_mat_file(path)
         assert "experiment.mat" in result
 
     def test_mat_variables_header_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_mat_file
+        from utils.readers.scientific import read_mat_file
 
         path = _make_mat(tmp_path)
         result = read_mat_file(path)
         assert "Variables" in result
 
     def test_mat_variable_names_listed(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_mat_file
+        from utils.readers.scientific import read_mat_file
 
         path = _make_mat(tmp_path)
         result = read_mat_file(path)
@@ -476,7 +476,7 @@ class TestReadMatFile:
         assert "y" in result
 
     def test_mat_shape_info_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.scientific import read_mat_file
+        from utils.readers.scientific import read_mat_file
 
         path = _make_mat(tmp_path)
         result = read_mat_file(path)
@@ -484,7 +484,7 @@ class TestReadMatFile:
         assert "2x2" in result
 
     def test_mat_mocked_success_without_scipy_dependency(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
+        from utils.readers import scientific as sci_module
 
         path = tmp_path / "mocked.mat"
         path.write_text("placeholder", encoding="utf-8")
@@ -515,8 +515,8 @@ class TestReadMatFile:
         assert "more variables" in result
 
     def test_mat_file_read_error_on_corrupt_file(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
-        from file_organizer.utils.readers._base import FileReadError
+        from utils.readers import scientific as sci_module
+        from utils.readers._base import FileReadError
 
         path = tmp_path / "corrupt.mat"
         path.write_bytes(b"\x00\x01NOT A MAT FILE\xff\xfe")
@@ -531,7 +531,7 @@ class TestReadMatFile:
                 sci_module.read_mat_file(path)
 
     def test_mat_raises_import_error_when_scipy_unavailable(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import scientific as sci_module
+        from utils.readers import scientific as sci_module
 
         path = tmp_path / "dummy.mat"
         path.write_bytes(b"placeholder")
@@ -549,7 +549,7 @@ class TestReadMatFile:
         import numpy as np
         from scipy.io import savemat
 
-        from file_organizer.utils.readers.scientific import read_mat_file
+        from utils.readers.scientific import read_mat_file
 
         path = tmp_path / "big.mat"
         data = {f"var_{i}": np.array([float(i)]) for i in range(35)}

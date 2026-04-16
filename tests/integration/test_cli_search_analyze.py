@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.integration]
 
@@ -166,22 +166,22 @@ class TestAnalyzeCommand:
 
         with (
             patch(
-                "file_organizer.models.text_model.TextModel.initialize",
+                "models.text_model.TextModel.initialize",
             ),
             patch(
-                "file_organizer.models.text_model.TextModel.generate",
+                "models.text_model.TextModel.generate",
                 return_value="Software Documentation",
             ),
             patch(
-                "file_organizer.services.analyzer.generate_category",
+                "services.analyzer.generate_category",
                 return_value="Finance",
             ),
             patch(
-                "file_organizer.services.analyzer.generate_description",
+                "services.analyzer.generate_description",
                 return_value="A financial report document.",
             ),
             patch(
-                "file_organizer.services.analyzer.calculate_confidence",
+                "services.analyzer.calculate_confidence",
                 return_value=0.85,
             ),
         ):
@@ -194,17 +194,17 @@ class TestAnalyzeCommand:
         text_file.write_text("This is a quarterly financial report.")
 
         with (
-            patch("file_organizer.models.text_model.TextModel.initialize"),
+            patch("models.text_model.TextModel.initialize"),
             patch(
-                "file_organizer.services.analyzer.generate_category",
+                "services.analyzer.generate_category",
                 return_value="Finance",
             ),
             patch(
-                "file_organizer.services.analyzer.generate_description",
+                "services.analyzer.generate_description",
                 return_value="A financial report document.",
             ),
             patch(
-                "file_organizer.services.analyzer.calculate_confidence",
+                "services.analyzer.calculate_confidence",
                 return_value=0.85,
             ),
         ):
@@ -222,9 +222,9 @@ class TestAnalyzeCommand:
         text_file.write_text("Some content.")
 
         with (
-            patch("file_organizer.models.text_model.TextModel.initialize"),
+            patch("models.text_model.TextModel.initialize"),
             patch(
-                "file_organizer.services.analyzer.generate_category",
+                "services.analyzer.generate_category",
                 side_effect=RuntimeError("AI failed"),
             ),
         ):

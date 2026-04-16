@@ -11,8 +11,8 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from file_organizer.services.intelligence.profile_manager import ProfileManager
-from file_organizer.services.intelligence.template_manager import TemplateManager
+from services.intelligence.profile_manager import ProfileManager
+from services.intelligence.template_manager import TemplateManager
 
 
 @pytest.mark.unit

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.audio.preprocessor import (
+from services.audio.preprocessor import (
     AudioConfig,
     AudioFormat,
     AudioPreprocessor,

@@ -34,7 +34,7 @@ def _require_sklearn() -> None:
 
 class TestFileHasher:
     def test_compute_hash_sha256(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         f = tmp_path / "a.txt"
         f.write_text("hello world")
@@ -44,7 +44,7 @@ class TestFileHasher:
         assert h == hasher.compute_hash(f, "sha256")  # deterministic
 
     def test_compute_hash_md5(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         f = tmp_path / "b.txt"
         f.write_text("hello world")
@@ -53,7 +53,7 @@ class TestFileHasher:
         assert len(h) == 32
 
     def test_different_content_different_hash(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         f1 = tmp_path / "c1.txt"
         f2 = tmp_path / "c2.txt"
@@ -63,21 +63,21 @@ class TestFileHasher:
         assert hasher.compute_hash(f1) != hasher.compute_hash(f2)
 
     def test_file_not_found_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         hasher = FileHasher()
         with pytest.raises(FileNotFoundError):
             hasher.compute_hash(tmp_path / "missing.txt")
 
     def test_path_is_directory_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         hasher = FileHasher()
         with pytest.raises(ValueError, match="not a file"):
             hasher.compute_hash(tmp_path)
 
     def test_unsupported_algorithm_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         f = tmp_path / "d.txt"
         f.write_text("data")
@@ -86,25 +86,25 @@ class TestFileHasher:
             hasher.compute_hash(f, "sha512")  # type: ignore[arg-type]
 
     def test_invalid_chunk_size_too_small(self) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         with pytest.raises(ValueError, match="chunk_size must be at least"):
             FileHasher(chunk_size=512)
 
     def test_invalid_chunk_size_too_large(self) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         with pytest.raises(ValueError, match="chunk_size must not exceed"):
             FileHasher(chunk_size=100 * 1024 * 1024)
 
     def test_invalid_chunk_size_non_int(self) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         with pytest.raises(ValueError, match="must be an integer"):
             FileHasher(chunk_size="big")  # type: ignore[arg-type]
 
     def test_compute_batch(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         f1 = tmp_path / "e1.txt"
         f2 = tmp_path / "e2.txt"
@@ -117,7 +117,7 @@ class TestFileHasher:
         assert results[f1] != results[f2]
 
     def test_compute_batch_skips_missing(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         real = tmp_path / "real.txt"
         real.write_text("exists")
@@ -127,7 +127,7 @@ class TestFileHasher:
         assert (tmp_path / "ghost.txt") not in results
 
     def test_get_file_size(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         f = tmp_path / "sized.txt"
         f.write_bytes(b"x" * 100)
@@ -135,20 +135,20 @@ class TestFileHasher:
         assert hasher.get_file_size(f) == 100
 
     def test_get_file_size_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         hasher = FileHasher()
         with pytest.raises(FileNotFoundError):
             hasher.get_file_size(tmp_path / "nope.txt")
 
     def test_validate_algorithm_valid(self) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         assert FileHasher.validate_algorithm("MD5") == "md5"
         assert FileHasher.validate_algorithm("SHA256") == "sha256"
 
     def test_validate_algorithm_invalid(self) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         with pytest.raises(ValueError, match="Unsupported algorithm"):
             FileHasher.validate_algorithm("sha512")
@@ -161,7 +161,7 @@ class TestFileHasher:
 
 class TestDocumentExtractor:
     def test_extract_text_txt(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         f = tmp_path / "hello.txt"
         f.write_text("integration test content", encoding="utf-8")
@@ -170,7 +170,7 @@ class TestDocumentExtractor:
         assert "integration test content" in text
 
     def test_extract_text_md(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         f = tmp_path / "readme.md"
         f.write_text("# Heading\nsome text", encoding="utf-8")
@@ -179,7 +179,7 @@ class TestDocumentExtractor:
         assert "Heading" in text
 
     def test_unsupported_format_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         f = tmp_path / "image.png"
         f.write_bytes(b"\x89PNG")
@@ -188,14 +188,14 @@ class TestDocumentExtractor:
             extractor.extract_text(f)
 
     def test_file_not_found_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         extractor = DocumentExtractor()
         with pytest.raises(OSError):
             extractor.extract_text(tmp_path / "missing.txt")
 
     def test_supports_format_true(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         f = tmp_path / "doc.txt"
         f.touch()
@@ -203,7 +203,7 @@ class TestDocumentExtractor:
         assert extractor.supports_format(f) is True
 
     def test_supports_format_false(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         f = tmp_path / "photo.jpg"
         f.touch()
@@ -211,7 +211,7 @@ class TestDocumentExtractor:
         assert extractor.supports_format(f) is False
 
     def test_get_supported_formats(self) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         extractor = DocumentExtractor()
         fmts = extractor.get_supported_formats()
@@ -220,7 +220,7 @@ class TestDocumentExtractor:
         assert len(fmts) >= 4
 
     def test_extract_batch(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
@@ -234,7 +234,7 @@ class TestDocumentExtractor:
         assert "file two" in results[f2]
 
     def test_extract_batch_handles_unsupported_format(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         txt = tmp_path / "ok.txt"
         txt.write_text("good")
@@ -246,7 +246,7 @@ class TestDocumentExtractor:
         assert results[bad] == ""
 
     def test_extract_rtf_basic(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         f = tmp_path / "test.rtf"
         f.write_text(r"{\rtf1\ansi Hello World}", encoding="utf-8")
@@ -260,7 +260,7 @@ class TestDocumentExtractor:
         import io
         import zipfile
 
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         content_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content
@@ -284,7 +284,7 @@ class TestDocumentExtractor:
         assert "ODT paragraph text" in text
 
     def test_extract_text_latin1_encoding(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
         f = tmp_path / "latin.txt"
         f.write_bytes("caf\xe9".encode("latin-1"))
@@ -305,7 +305,7 @@ class TestDocumentEmbedder:
         _require_sklearn()
 
     def test_fit_transform_basic(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=100)
         docs = ["the quick brown fox", "jumped over the lazy dog", "hello world"]
@@ -314,14 +314,14 @@ class TestDocumentEmbedder:
         assert embedder.is_fitted is True
 
     def test_fit_transform_empty_returns_empty(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder()
         result = embedder.fit_transform([])
         assert result.size == 0
 
     def test_transform_single_document(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=100)
         docs = ["the quick brown fox", "jumped over the lazy dog"]
@@ -330,14 +330,14 @@ class TestDocumentEmbedder:
         assert vec.shape[0] > 0
 
     def test_transform_not_fitted_raises(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder()
         with pytest.raises(RuntimeError, match="not fitted"):
             embedder.transform("some text")
 
     def test_transform_batch(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=50)
         docs = ["alpha beta gamma", "delta epsilon zeta", "eta theta iota"]
@@ -347,14 +347,14 @@ class TestDocumentEmbedder:
         assert batch.shape[1] > 0
 
     def test_transform_batch_not_fitted_raises(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder()
         with pytest.raises(RuntimeError):
             embedder.transform_batch(["text"])
 
     def test_get_feature_names(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=50)
         embedder.fit_transform(["hello world", "foo bar baz"])
@@ -363,14 +363,14 @@ class TestDocumentEmbedder:
         assert len(names) >= 1
 
     def test_get_feature_names_not_fitted(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder()
         with pytest.raises(RuntimeError):
             embedder.get_feature_names()
 
     def test_get_vocabulary(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=50)
         embedder.fit_transform(["hello world", "world peace"])
@@ -380,7 +380,7 @@ class TestDocumentEmbedder:
         assert all(isinstance(k, str) and isinstance(v, int) for k, v in vocab.items())
 
     def test_get_vocabulary_not_fitted(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder()
         with pytest.raises(RuntimeError):
@@ -388,7 +388,7 @@ class TestDocumentEmbedder:
 
     def test_get_top_terms(self) -> None:
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=50)
         docs = ["machine learning model training", "deep neural network layers"]
@@ -401,14 +401,14 @@ class TestDocumentEmbedder:
     def test_get_top_terms_not_fitted(self) -> None:
         import numpy as np
 
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder()
         with pytest.raises(RuntimeError):
             embedder.get_top_terms(np.array([0.1, 0.2]))
 
     def test_transform_uses_cache(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=50)
         docs = ["unique cached document for test"]
@@ -420,7 +420,7 @@ class TestDocumentEmbedder:
         assert vec2 is not None
 
     def test_clear_cache(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=50)
         embedder.fit_transform(["hello world peace"])
@@ -430,7 +430,7 @@ class TestDocumentEmbedder:
         assert len(embedder.embedding_cache) == 0
 
     def test_save_and_load_model(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=50)
         embedder.fit_transform(["save me to disk", "second document here"])
@@ -443,7 +443,7 @@ class TestDocumentEmbedder:
         assert embedder2.is_fitted is True
 
     def test_save_model_not_fitted_skips(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder()
         model_path = tmp_path / "unfitted.pkl"
@@ -451,14 +451,14 @@ class TestDocumentEmbedder:
         assert not model_path.exists()
 
     def test_load_model_missing_file_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder()
         with pytest.raises((OSError, pickle.UnpicklingError, ValueError)):
             embedder.load_model(tmp_path / "ghost.pkl")
 
     def test_cache_persistence(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         cache_path = tmp_path / "cache.pkl"
         embedder = DocumentEmbedder(max_features=50, cache_path=cache_path)
@@ -471,7 +471,7 @@ class TestDocumentEmbedder:
         assert len(embedder2.embedding_cache) >= 1
 
     def test_fit_transform_small_corpus_max_df_adjustment(self) -> None:
-        from file_organizer.services.deduplication.embedder import DocumentEmbedder
+        from services.deduplication.embedder import DocumentEmbedder
 
         embedder = DocumentEmbedder(max_features=100, min_df=1, max_df=0.95)
         result = embedder.fit_transform(["only one doc"])
@@ -493,7 +493,7 @@ class TestDocumentEmbedder:
         ):
             import importlib
 
-            import file_organizer.services.deduplication.embedder as emb_mod
+            import services.deduplication.embedder as emb_mod
 
             importlib.reload(emb_mod)
             # Module loads fine, but instantiation should raise ImportError
@@ -509,7 +509,7 @@ class TestDocumentEmbedder:
 
 class TestDuplicateDetector:
     def test_scan_directory_no_duplicates(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         (tmp_path / "unique1.txt").write_text("unique content one")
         (tmp_path / "unique2.txt").write_text("unique content two")
@@ -520,7 +520,7 @@ class TestDuplicateDetector:
         assert len(groups) == 0  # no duplicates in unique content
 
     def test_scan_directory_finds_duplicates(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         content = "exact same content"
         (tmp_path / "dup1.txt").write_text(content)
@@ -532,14 +532,14 @@ class TestDuplicateDetector:
         assert len(groups) >= 1
 
     def test_scan_directory_not_found_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         detector = DuplicateDetector()
         with pytest.raises(ValueError, match="not found"):
             detector.scan_directory(tmp_path / "missing_dir")
 
     def test_scan_directory_not_a_directory_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         f = tmp_path / "file.txt"
         f.write_text("data")
@@ -548,14 +548,14 @@ class TestDuplicateDetector:
             detector.scan_directory(f)
 
     def test_scan_directory_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         detector = DuplicateDetector()
         index = detector.scan_directory(tmp_path)
         assert index is not None
 
     def test_scan_with_min_file_size_filter(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import (
+        from services.deduplication.detector import (
             DuplicateDetector,
             ScanOptions,
         )
@@ -574,7 +574,7 @@ class TestDuplicateDetector:
         assert len(groups) >= 1
 
     def test_scan_with_max_file_size_filter(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import (
+        from services.deduplication.detector import (
             DuplicateDetector,
             ScanOptions,
         )
@@ -591,7 +591,7 @@ class TestDuplicateDetector:
         detector.scan_directory(tmp_path, options)
 
     def test_scan_non_recursive(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import (
+        from services.deduplication.detector import (
             DuplicateDetector,
             ScanOptions,
         )
@@ -605,7 +605,7 @@ class TestDuplicateDetector:
         detector.scan_directory(tmp_path, options)
 
     def test_find_duplicates_of_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         content = "duplicate content for search"
         target = tmp_path / "target.txt"
@@ -621,14 +621,14 @@ class TestDuplicateDetector:
         assert match in dup_paths
 
     def test_find_duplicates_of_file_not_found_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         detector = DuplicateDetector()
         with pytest.raises(FileNotFoundError):
             detector.find_duplicates_of_file(tmp_path / "ghost.txt", tmp_path)
 
     def test_get_statistics(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         (tmp_path / "s1.txt").write_text("dup")
         (tmp_path / "s2.txt").write_text("dup")
@@ -640,7 +640,7 @@ class TestDuplicateDetector:
         assert stats["duplicate_groups"] >= 1
 
     def test_clear_resets_index(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import DuplicateDetector
+        from services.deduplication.detector import DuplicateDetector
 
         (tmp_path / "c1.txt").write_text("same")
         (tmp_path / "c2.txt").write_text("same")
@@ -651,7 +651,7 @@ class TestDuplicateDetector:
         assert len(groups) == 0
 
     def test_progress_callback_called(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import (
+        from services.deduplication.detector import (
             DuplicateDetector,
             ScanOptions,
         )
@@ -671,7 +671,7 @@ class TestDuplicateDetector:
         assert len(calls) >= 1
 
     def test_progress_callback_exception_does_not_abort(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import (
+        from services.deduplication.detector import (
             DuplicateDetector,
             ScanOptions,
         )
@@ -689,7 +689,7 @@ class TestDuplicateDetector:
         assert index is not None
 
     def test_scan_with_file_patterns(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import (
+        from services.deduplication.detector import (
             DuplicateDetector,
             ScanOptions,
         )
@@ -706,7 +706,7 @@ class TestDuplicateDetector:
         assert len(groups) >= 1
 
     def test_scan_with_exclude_patterns(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import (
+        from services.deduplication.detector import (
             DuplicateDetector,
             ScanOptions,
         )
@@ -721,7 +721,7 @@ class TestDuplicateDetector:
         detector.scan_directory(tmp_path, options)
 
     def test_symlinks_skipped_by_default(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.detector import (
+        from services.deduplication.detector import (
             DuplicateDetector,
             ScanOptions,
         )

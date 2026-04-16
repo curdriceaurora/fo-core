@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.optimization.memory_profiler module.
+"""Coverage tests for optimization.memory_profiler module.
 
 Targets uncovered branches: _get_rss Linux/macOS paths, _get_rss_vms
 fallback paths, profile decorator exception handling, and
@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from file_organizer.optimization.memory_profiler import (
+from optimization.memory_profiler import (
     MemoryProfiler,
     MemorySnapshot,
 )

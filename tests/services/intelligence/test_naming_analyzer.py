@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.services.intelligence.naming_analyzer import (
+from services.intelligence.naming_analyzer import (
     NameStructure,
     NamingAnalyzer,
 )

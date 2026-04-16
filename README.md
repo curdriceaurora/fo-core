@@ -88,7 +88,7 @@ fo-core keeps the full engine from [Local-File-Organizer](https://github.com/cur
 
 ## Configuration
 
-Config lives in `~/.config/file-organizer/config.yaml`. Override with `FILE_ORGANIZER_CONFIG` env var.
+Config lives in `~/.config/fo/config.yaml`. Override with `FO_CONFIG` env var.
 
 ```bash
 fo config show          # view current config

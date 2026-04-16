@@ -13,8 +13,8 @@ from unittest.mock import patch
 
 import pytest
 
-import file_organizer.optimization.query_cache as _qcache_mod
-from file_organizer.optimization.query_cache import CachedResult, QueryCache
+import optimization.query_cache as _qcache_mod
+from optimization.query_cache import CachedResult, QueryCache
 
 # ---------------------------------------------------------------------------
 # Fixtures

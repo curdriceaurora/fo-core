@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.copilot.rules.models import (
+from services.copilot.rules.models import (
     ActionType,
     ConditionType,
     Rule,
@@ -22,14 +22,14 @@ from file_organizer.services.copilot.rules.models import (
     RuleCondition,
     RuleSet,
 )
-from file_organizer.services.copilot.rules.preview import (
+from services.copilot.rules.preview import (
     FileMatch,
     PreviewEngine,
     PreviewResult,
 )
-from file_organizer.services.copilot.rules.rule_manager import RuleManager
-from file_organizer.services.deduplication.hasher import FileHasher
-from file_organizer.services.intelligence.confidence import ConfidenceEngine
+from services.copilot.rules.rule_manager import RuleManager
+from services.deduplication.hasher import FileHasher
+from services.intelligence.confidence import ConfidenceEngine
 
 pytestmark = pytest.mark.integration
 

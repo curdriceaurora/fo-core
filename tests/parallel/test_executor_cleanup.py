@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.parallel.executor import create_executor
+from parallel.executor import create_executor
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -18,7 +18,7 @@ class TestExecutorFactoryCleanup:
     def test_process_executor_fallback_to_thread(self):
         """When ProcessPoolExecutor raises, a ThreadPoolExecutor is returned."""
         with patch(
-            "file_organizer.parallel.executor.ProcessPoolExecutor",
+            "parallel.executor.ProcessPoolExecutor",
             side_effect=RuntimeError("spawn failed"),
         ):
             executor, etype = create_executor("process", max_workers=2)
@@ -36,7 +36,7 @@ class TestExecutorFactoryCleanup:
         # only on the first call (the ProcessPoolExecutor creation log),
         # so we trigger the except block with process_executor already assigned.
         with patch(
-            "file_organizer.parallel.executor.ProcessPoolExecutor",
+            "parallel.executor.ProcessPoolExecutor",
             return_value=partial_executor,
         ):
             call_count = 0
@@ -48,7 +48,7 @@ class TestExecutorFactoryCleanup:
                 if call_count == 1:
                     raise RuntimeError("simulated post-init failure")
 
-            with patch("file_organizer.parallel.executor.logger") as mock_logger:
+            with patch("parallel.executor.logger") as mock_logger:
                 mock_logger.info.side_effect = info_side_effect
                 executor, etype = create_executor("process", max_workers=2)
                 try:

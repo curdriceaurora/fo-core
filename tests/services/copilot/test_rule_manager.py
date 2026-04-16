@@ -1,4 +1,4 @@
-"""Tests for file_organizer.services.copilot.rules.rule_manager.
+"""Tests for services.copilot.rules.rule_manager.
 
 Covers RuleManager CRUD operations for rule sets and individual rules,
 including file I/O, error handling, and edge cases.
@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from file_organizer.services.copilot.rules.models import (
+from services.copilot.rules.models import (
     ActionType,
     ConditionType,
     Rule,
@@ -19,7 +19,7 @@ from file_organizer.services.copilot.rules.models import (
     RuleCondition,
     RuleSet,
 )
-from file_organizer.services.copilot.rules.rule_manager import RuleManager
+from services.copilot.rules.rule_manager import RuleManager
 
 
 @pytest.fixture()

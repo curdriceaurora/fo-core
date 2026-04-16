@@ -36,43 +36,43 @@ def _make_file(path: str, size: int = 1024, mtime: float | None = None) -> dict:
 
 class TestFormatSize:
     def test_bytes_range(self) -> None:
-        from file_organizer.cli.dedupe import format_size
+        from cli.dedupe import format_size
 
         assert "B" in format_size(0)
         assert "B" in format_size(500)
 
     def test_kb_range(self) -> None:
-        from file_organizer.cli.dedupe import format_size
+        from cli.dedupe import format_size
 
         result = format_size(2048)
         assert "KB" in result
 
     def test_mb_range(self) -> None:
-        from file_organizer.cli.dedupe import format_size
+        from cli.dedupe import format_size
 
         result = format_size(2 * 1024 * 1024)
         assert "MB" in result
 
     def test_gb_range(self) -> None:
-        from file_organizer.cli.dedupe import format_size
+        from cli.dedupe import format_size
 
         result = format_size(3 * 1024 * 1024 * 1024)
         assert "GB" in result
 
     def test_tb_range(self) -> None:
-        from file_organizer.cli.dedupe import format_size
+        from cli.dedupe import format_size
 
         result = format_size(2 * 1024**4)
         assert "TB" in result
 
     def test_pb_fallback(self) -> None:
-        from file_organizer.cli.dedupe import format_size
+        from cli.dedupe import format_size
 
         result = format_size(2 * 1024**5)
         assert "PB" in result
 
     def test_exact_kb(self) -> None:
-        from file_organizer.cli.dedupe import format_size
+        from cli.dedupe import format_size
 
         result = format_size(1024)
         assert "1.0 KB" in result
@@ -85,14 +85,14 @@ class TestFormatSize:
 
 class TestFormatDatetime:
     def test_returns_string(self) -> None:
-        from file_organizer.cli.dedupe import format_datetime
+        from cli.dedupe import format_datetime
 
         result = format_datetime(0.0)
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_format_shape(self) -> None:
-        from file_organizer.cli.dedupe import format_datetime
+        from cli.dedupe import format_datetime
 
         result = format_datetime(1_700_000_000.0)
         parts = result.split(" ")
@@ -101,7 +101,7 @@ class TestFormatDatetime:
         assert ":" in parts[1]
 
     def test_epoch_zero(self) -> None:
-        from file_organizer.cli.dedupe import format_datetime
+        from cli.dedupe import format_datetime
 
         result = format_datetime(0.0)
         assert "1970-01-01" in result
@@ -114,7 +114,7 @@ class TestFormatDatetime:
 
 class TestDedupeConfig:
     def test_defaults(self, tmp_path) -> None:
-        from file_organizer.cli.dedupe import DedupeConfig
+        from cli.dedupe import DedupeConfig
 
         cfg = DedupeConfig(directory=tmp_path)
         assert cfg.directory == tmp_path
@@ -130,7 +130,7 @@ class TestDedupeConfig:
         assert cfg.exclude_patterns == []
 
     def test_custom_values(self, tmp_path) -> None:
-        from file_organizer.cli.dedupe import DedupeConfig
+        from cli.dedupe import DedupeConfig
 
         cfg = DedupeConfig(
             directory=tmp_path,
@@ -171,7 +171,7 @@ class TestSelectFilesToKeep:
         ]
 
     def test_strategy_oldest_marks_oldest(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = self._files()
         result = select_files_to_keep(files, "oldest")
@@ -180,7 +180,7 @@ class TestSelectFilesToKeep:
         assert result[2]["keep"] is False
 
     def test_strategy_newest_marks_newest(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = self._files()
         result = select_files_to_keep(files, "newest")
@@ -188,35 +188,35 @@ class TestSelectFilesToKeep:
         assert result[0]["keep"] is False
 
     def test_strategy_largest_marks_largest(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = self._files()
         result = select_files_to_keep(files, "largest")
         assert result[1]["keep"] is True
 
     def test_strategy_smallest_marks_smallest(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = self._files()
         result = select_files_to_keep(files, "smallest")
         assert result[0]["keep"] is True
 
     def test_strategy_manual_marks_nothing(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = self._files()
         result = select_files_to_keep(files, "manual")
         assert all(not f["keep"] for f in result)
 
     def test_unknown_strategy_marks_nothing(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = self._files()
         result = select_files_to_keep(files, "unknown_strategy")
         assert all(not f["keep"] for f in result)
 
     def test_returns_list_with_keep_flags(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = self._files()
         result = select_files_to_keep(files, "oldest")
@@ -224,7 +224,7 @@ class TestSelectFilesToKeep:
         assert result[0]["keep"] is True
 
     def test_two_file_oldest(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = [_make_file("/a.txt", mtime=100.0), _make_file("/b.txt", mtime=200.0)]
         result = select_files_to_keep(files, "oldest")
@@ -232,7 +232,7 @@ class TestSelectFilesToKeep:
         assert result[1]["keep"] is False
 
     def test_two_file_newest(self) -> None:
-        from file_organizer.cli.dedupe import select_files_to_keep
+        from cli.dedupe import select_files_to_keep
 
         files = [_make_file("/a.txt", mtime=100.0), _make_file("/b.txt", mtime=200.0)]
         result = select_files_to_keep(files, "newest")
@@ -247,7 +247,7 @@ class TestSelectFilesToKeep:
 
 class TestGetUserSelectionBatch:
     def test_batch_mode_returns_indices_to_remove(self) -> None:
-        from file_organizer.cli.dedupe import get_user_selection
+        from cli.dedupe import get_user_selection
 
         files = [_make_file("/a.txt"), _make_file("/b.txt"), _make_file("/c.txt")]
         files[0]["keep"] = True
@@ -257,7 +257,7 @@ class TestGetUserSelectionBatch:
         assert set(result) == {1, 2}
 
     def test_batch_mode_all_kept_returns_empty(self) -> None:
-        from file_organizer.cli.dedupe import get_user_selection
+        from cli.dedupe import get_user_selection
 
         files = [_make_file("/a.txt"), _make_file("/b.txt")]
         files[0]["keep"] = True
@@ -288,7 +288,7 @@ class TestDisplaySummary:
         space_saved: int,
         dry_run: bool,
     ) -> None:
-        from file_organizer.cli.dedupe import display_summary
+        from cli.dedupe import display_summary
 
         mock_console = MagicMock()
         display_summary(
@@ -316,7 +316,7 @@ class TestDisplaySummary:
 
 class TestDisplayDuplicateGroup:
     def test_does_not_raise(self) -> None:
-        from file_organizer.cli.dedupe import display_duplicate_group
+        from cli.dedupe import display_duplicate_group
 
         files = [
             _make_file("/a/file1.txt", size=1024),
@@ -327,7 +327,7 @@ class TestDisplayDuplicateGroup:
         assert mock_console.print.call_count == 4
 
     def test_single_file_group(self) -> None:
-        from file_organizer.cli.dedupe import display_duplicate_group
+        from cli.dedupe import display_duplicate_group
 
         files = [_make_file("/a/only.txt", size=2048)]
         mock_console = MagicMock()

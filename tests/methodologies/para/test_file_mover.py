@@ -12,17 +12,17 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.methodologies.para.ai.file_mover import (
+from methodologies.para.ai.file_mover import (
     MoveSuggestion,
     OrganizationReport,
     PARAFileMover,
 )
-from file_organizer.methodologies.para.ai.suggestion_engine import (
+from methodologies.para.ai.suggestion_engine import (
     PARASuggestion,
     PARASuggestionEngine,
 )
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
 
 
 def _make_para_suggestion(
@@ -639,7 +639,7 @@ class TestBulkOrganizeAdvanced:
         (src / "file.txt").write_text("content")
 
         # Mock move_file to return a failed result
-        from file_organizer.methodologies.para.ai.file_mover import MoveResult
+        from methodologies.para.ai.file_mover import MoveResult
 
         def mock_move_file(suggestion: MoveSuggestion, dry_run: bool = True) -> MoveResult:
             return MoveResult(

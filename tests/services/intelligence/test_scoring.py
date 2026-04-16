@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.services.intelligence.scoring import (
+from services.intelligence.scoring import (
     PatternScorer,
     ScoreAnalyzer,
     ScoredPattern,

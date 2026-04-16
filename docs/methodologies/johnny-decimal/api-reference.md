@@ -2,18 +2,18 @@
 
 ## Overview
 
-This document provides comprehensive API documentation for the Johnny Decimal methodology implementation in File Organizer v2.0.
+This document provides comprehensive API documentation for the Johnny Decimal methodology implementation in fo-core.
 
 ## Installation
 
 ```bash
-pip install local-file-organizer
+pip install fo-core
 ```
 
 ## Quick Start
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     JohnnyDecimalSystem,
     JohnnyDecimalMigrator,
     create_para_compatible_config,
@@ -33,7 +33,7 @@ migrator = JohnnyDecimalMigrator()
 Represents a Johnny Decimal number.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalNumber, NumberLevel
+from methodologies.johnny_decimal import JohnnyDecimalNumber, NumberLevel
 
 # Create a category number (10.01)
 number = JohnnyDecimalNumber(
@@ -66,7 +66,7 @@ print(number.level)             # NumberLevel.CATEGORY
 Enum defining hierarchy levels.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import NumberLevel
+from methodologies.johnny_decimal import NumberLevel
 
 NumberLevel.AREA       # Area level (10)
 NumberLevel.CATEGORY   # Category level (10.01)
@@ -78,7 +78,7 @@ NumberLevel.ID         # ID level (10.01.001)
 Main system class for creating and managing JD structure.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalSystem
+from methodologies.johnny_decimal import JohnnyDecimalSystem
 
 system = JohnnyDecimalSystem()
 
@@ -138,7 +138,7 @@ Create an ID-level number.
 Manages number generation and allocation.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     JohnnyDecimalGenerator,
     get_default_scheme,
 )
@@ -192,7 +192,7 @@ Scans existing folder structures.
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import FolderScanner
+from methodologies.johnny_decimal import FolderScanner
 
 scanner = FolderScanner(
     scheme=None,        # Optional numbering scheme
@@ -226,7 +226,7 @@ print(f"Patterns: {result.detected_patterns}")
 Creates transformation plans for migration.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     FolderTransformer,
     JohnnyDecimalGenerator,
     get_default_scheme,
@@ -264,7 +264,7 @@ print(preview)
 Validates transformation plans.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     MigrationValidator,
     JohnnyDecimalGenerator,
 )
@@ -301,7 +301,7 @@ Orchestrates complete migration workflow.
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalMigrator
+from methodologies.johnny_decimal import JohnnyDecimalMigrator
 
 migrator = JohnnyDecimalMigrator(
     scheme=None,                      # Optional scheme (default if None)
@@ -367,7 +367,7 @@ Generate migration report.
 Complete configuration for JD system.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     JohnnyDecimalConfig,
     create_default_config,
     create_para_compatible_config,
@@ -402,7 +402,7 @@ config = JohnnyDecimalConfig.from_dict(config_dict)
 Fluent API for building configurations.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import ConfigBuilder
+from methodologies.johnny_decimal import ConfigBuilder
 
 config = (
     ConfigBuilder("my-scheme")
@@ -460,7 +460,7 @@ Build configuration.
 Enum for PARA methodology categories.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import PARACategory
+from methodologies.johnny_decimal import PARACategory
 
 PARACategory.PROJECTS    # Active projects
 PARACategory.AREAS       # Ongoing responsibilities
@@ -473,7 +473,7 @@ PARACategory.ARCHIVE     # Completed items
 Bridge between PARA and JD systems.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     PARAJohnnyDecimalBridge,
     PARAIntegrationConfig,
     PARACategory,
@@ -518,7 +518,7 @@ paths = bridge.create_para_structure(Path("/root"))
 Analyzes structures for PARA patterns.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import CompatibilityAnalyzer
+from methodologies.johnny_decimal import CompatibilityAnalyzer
 
 analyzer = CompatibilityAnalyzer(config)
 
@@ -540,7 +540,7 @@ strategy = analyzer.suggest_migration_strategy(Path("/path"))
 Manages hybrid PARA + JD structures.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import HybridOrganizer
+from methodologies.johnny_decimal import HybridOrganizer
 
 organizer = HybridOrganizer(config)
 
@@ -570,7 +570,7 @@ Generic item in any organizational system.
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import OrganizationItem
+from methodologies.johnny_decimal import OrganizationItem
 
 item = OrganizationItem(
     name="Budget 2024",
@@ -585,7 +585,7 @@ item = OrganizationItem(
 Adapter for PARA methodology.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     PARAAdapter,
     OrganizationItem,
 )
@@ -614,7 +614,7 @@ can_adapt = adapter.can_adapt(para_item)
 Adapter for generic filesystem organization.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import FileSystemAdapter
+from methodologies.johnny_decimal import FileSystemAdapter
 
 adapter = FileSystemAdapter(config)
 
@@ -635,7 +635,7 @@ para_item = adapter.adapt_from_jd(jd_number, "Documents")
 Registry for managing multiple adapters.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     AdapterRegistry,
     create_default_registry,
 )
@@ -660,7 +660,7 @@ item = registry.adapt_from_jd(jd_number, "Item Name", "para")
 Raised when JD number is already in use.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import NumberConflictError
+from methodologies.johnny_decimal import NumberConflictError
 
 try:
     generator.register_number(number)
@@ -673,7 +673,7 @@ except NumberConflictError as e:
 Raised when JD number is invalid.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import InvalidNumberError
+from methodologies.johnny_decimal import InvalidNumberError
 
 try:
     number = JohnnyDecimalNumber(area=5)  # Invalid: must be 10-99
@@ -688,7 +688,7 @@ except InvalidNumberError as e:
 Defines a JD area.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import AreaDefinition
+from methodologies.johnny_decimal import AreaDefinition
 
 area = AreaDefinition(
     area_number=10,
@@ -702,7 +702,7 @@ area = AreaDefinition(
 Defines a JD category.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import CategoryDefinition
+from methodologies.johnny_decimal import CategoryDefinition
 
 category = CategoryDefinition(
     area_number=10,
@@ -717,7 +717,7 @@ category = CategoryDefinition(
 Complete numbering scheme definition.
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     NumberingScheme,
     get_default_scheme,
 )
@@ -757,7 +757,7 @@ Create adapter registry with default adapters.
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalSystem
+from methodologies.johnny_decimal import JohnnyDecimalSystem
 
 system = JohnnyDecimalSystem()
 
@@ -773,7 +773,7 @@ print(f"Created: {id_num.formatted_number}")
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalMigrator
+from methodologies.johnny_decimal import JohnnyDecimalMigrator
 
 migrator = JohnnyDecimalMigrator()
 root = Path("~/Documents").expanduser()
@@ -791,7 +791,7 @@ if validation.is_valid:
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     create_para_compatible_config,
     HybridOrganizer,
     PARACategory,

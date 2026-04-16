@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.model_manager import ModelManager
+from models.model_manager import ModelManager
 
 pytestmark = [pytest.mark.integration]
 
@@ -144,7 +144,7 @@ class TestListModels:
         assert len(models) == 0
 
     def test_installed_flag_set_for_known_model(self) -> None:
-        from file_organizer.models.registry import get_text_models
+        from models.registry import get_text_models
 
         all_text = get_text_models()
         if not all_text:
@@ -323,7 +323,7 @@ class TestCacheInfo:
         assert all(isinstance(k, str) for k in result.keys())
 
     def test_cache_info_returns_empty_dict_on_import_failure(self) -> None:
-        with patch.dict("sys.modules", {"file_organizer.optimization.model_cache": None}):
+        with patch.dict("sys.modules", {"optimization.model_cache": None}):
             mgr = ModelManager()
             result = mgr.cache_info()
         assert isinstance(result, dict)
@@ -343,7 +343,7 @@ class TestCacheInfo:
         mock_module = MagicMock()
         mock_module.ModelCache.return_value = mock_cache
 
-        with patch.dict("sys.modules", {"file_organizer.optimization.model_cache": mock_module}):
+        with patch.dict("sys.modules", {"optimization.model_cache": mock_module}):
             mgr = ModelManager()
             result = mgr.cache_info()
 

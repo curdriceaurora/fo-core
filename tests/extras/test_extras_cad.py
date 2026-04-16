@@ -10,7 +10,7 @@ import pytest
 @pytest.mark.smoke
 def test_cad_reads_dxf_file(tmp_path: Path) -> None:
     ezdxf = pytest.importorskip("ezdxf")
-    from file_organizer.utils.readers.cad import read_dxf_file
+    from utils.readers.cad import read_dxf_file
 
     # Create a minimal DXF file with a single line entity
     dxf_path = tmp_path / "test.dxf"

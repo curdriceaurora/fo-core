@@ -7,7 +7,7 @@ from textwrap import dedent
 
 import pytest
 
-from file_organizer.utils.file_readers import (
+from utils.file_readers import (
     FileReadError,
     read_cad_file,
     read_dwg_file,
@@ -399,7 +399,7 @@ def test_read_file_igs_extension(tmp_path: Path) -> None:
 def test_read_dxf_without_ezdxf(tmp_path: Path, monkeypatch) -> None:
     """Test DXF reading when ezdxf is not available."""
     # Temporarily make ezdxf unavailable in the module that checks the flag
-    import file_organizer.utils.readers.cad as cad_module
+    import utils.readers.cad as cad_module
 
     monkeypatch.setattr(cad_module, "EZDXF_AVAILABLE", False)
 

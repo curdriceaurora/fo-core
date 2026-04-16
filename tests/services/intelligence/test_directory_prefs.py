@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.directory_prefs import DirectoryPrefs
+from services.intelligence.directory_prefs import DirectoryPrefs
 
 
 @pytest.mark.unit

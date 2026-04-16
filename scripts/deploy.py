@@ -1,4 +1,4 @@
-"""Deployment automation for File Organizer v2 Docker images.
+"""Deployment automation for fo-core Docker images.
 
 Provides functions for building, pushing, validating, and rolling back
 Docker image deployments.
@@ -208,7 +208,7 @@ def rollback(previous_tag: str) -> bool:
         return False
 
     # Start with the previous tag
-    env = {"FILE_ORGANIZER_TAG": previous_tag}
+    env = {"FO_TAG": previous_tag}
     up_cmd = ["docker-compose", "up", "-d"]
     try:
         merged_env = {**os.environ, **env}

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Configuration is managed via a YAML file located at `config/file-organizer/config.yaml` (relative to your system's config directory). You can also manage configuration via the CLI.
+Configuration is managed via a YAML file located at `config/fo/config.yaml` (relative to your system's config directory). You can also manage configuration via the CLI.
 
 ## CLI Configuration
 
@@ -10,11 +10,11 @@ You can view and edit configuration using the `config` command:
 
 ```bash
 # View current config
-file-organizer config show
+fo config show
 
 # Edit specific settings
-file-organizer config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
-file-organizer config edit --temperature 0.7
+fo config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
+fo config edit --temperature 0.7
 ```
 
 ## Configuration File Structure
@@ -52,7 +52,7 @@ Install the optional dependency first:
 
 ```bash
 # From PyPI (installed package)
-pip install "local-file-organizer[cloud]"
+pip install "fo-core[cloud]"
 
 # From source checkout
 pip install -e ".[cloud]"
@@ -97,7 +97,7 @@ Install the optional dependency first:
 
 ```bash
 # From PyPI (installed package)
-pip install "local-file-organizer[claude]"
+pip install "fo-core[claude]"
 
 # From source checkout
 pip install -e ".[claude]"
@@ -146,14 +146,14 @@ watcher:
 You can define multiple profiles (e.g., `work`, `personal`) and switch between them.
 
 ```bash
-file-organizer config edit --profile work --methodology para
+fo config edit --profile work --methodology para
 ```
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `FILE_ORGANIZER_CONFIG` | Custom path to config file |
+| `FO_CONFIG` | Custom path to config file |
 | `OLLAMA_HOST` | Ollama server URL (default: `http://localhost:11434`) |
 | `FO_DISABLE_UPDATE_CHECK` | Set to `1` to disable update checks |
 | `FO_PROVIDER` | AI provider: `ollama` (default), `openai`, or `claude` |

@@ -13,14 +13,14 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.unit]
 
 runner = CliRunner()
 
 # Auto-mock the setup gate so tests don't require a completed setup wizard.
-_SETUP_PATCH = "file_organizer.cli.organize._check_setup_completed"
+_SETUP_PATCH = "cli.organize._check_setup_completed"
 
 
 def _fake_check_setup() -> None:
@@ -35,7 +35,7 @@ def _fake_check_setup() -> None:
             "[bold yellow]First-time setup required[/bold yellow]\n\n"
             "File Organizer needs to be configured before use.\n"
             "Run the setup wizard to get started:\n\n"
-            "  [bold cyan]file-organizer setup[/bold cyan]\n\n"
+            "  [bold cyan]fo setup[/bold cyan]\n\n"
             "This will detect your system capabilities and configure\n"
             "the optimal AI models for your hardware.",
             border_style="yellow",
@@ -87,9 +87,9 @@ class TestOrganize:
 
         assert result.exit_code == 1
         assert "First-time setup required" in result.output
-        assert "file-organizer setup" in result.output
+        assert "fo setup" in result.output
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_basic(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
@@ -112,7 +112,7 @@ class TestOrganize:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_dry_run(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
@@ -134,7 +134,7 @@ class TestOrganize:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_parallel_controls(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         """CLI parallel controls should be wired into runtime config."""
         input_dir = tmp_path / "input"
@@ -168,7 +168,7 @@ class TestOrganize:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_sequential_forces_single_worker(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -195,7 +195,7 @@ class TestOrganize:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_rejects_incompatible_worker_flags(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -220,7 +220,7 @@ class TestOrganize:
         assert "--sequential cannot be combined with --max-workers > 1" in result.output
         mock_cls.assert_not_called()
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_text_only_alias_for_no_vision(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -247,7 +247,7 @@ class TestOrganize:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_no_prefetch_flag_passes_through(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -274,7 +274,7 @@ class TestOrganize:
             no_prefetch=True,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_sequential_with_max_workers_one_is_valid(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -308,7 +308,7 @@ class TestOrganize:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_organize_prefetch_depth_zero_explicit(
         self, mock_cls: MagicMock, tmp_path: Path
     ) -> None:
@@ -336,7 +336,7 @@ class TestOrganize:
         )
 
     @patch(
-        "file_organizer.core.organizer.FileOrganizer",
+        "core.organizer.FileOrganizer",
         side_effect=RuntimeError("Ollama not running"),
     )
     def test_organize_error(self, mock_cls: MagicMock, tmp_path: Path) -> None:
@@ -368,9 +368,9 @@ class TestPreview:
 
         assert result.exit_code == 1
         assert "First-time setup required" in result.output
-        assert "file-organizer setup" in result.output
+        assert "fo setup" in result.output
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_preview_basic(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         mock_org = MagicMock()
         mock_cls.return_value = mock_org
@@ -387,7 +387,7 @@ class TestPreview:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_preview_max_workers(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         mock_org = MagicMock()
         mock_cls.return_value = mock_org
@@ -403,7 +403,7 @@ class TestPreview:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_preview_sequential(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         mock_org = MagicMock()
         mock_cls.return_value = mock_org
@@ -419,7 +419,7 @@ class TestPreview:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_preview_no_vision(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         mock_org = MagicMock()
         mock_cls.return_value = mock_org
@@ -435,7 +435,7 @@ class TestPreview:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_preview_text_only_alias(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         mock_org = MagicMock()
         mock_cls.return_value = mock_org
@@ -451,7 +451,7 @@ class TestPreview:
             no_prefetch=False,
         )
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_preview_no_prefetch(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         mock_org = MagicMock()
         mock_cls.return_value = mock_org
@@ -475,7 +475,7 @@ class TestPreview:
         assert "--sequential" in result.output
 
     @patch(
-        "file_organizer.core.organizer.FileOrganizer",
+        "core.organizer.FileOrganizer",
         side_effect=ValueError("Invalid directory"),
     )
     def test_preview_error(self, mock_cls: MagicMock, tmp_path: Path) -> None:

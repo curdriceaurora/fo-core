@@ -1,4 +1,4 @@
-"""Tests for file_organizer.cli.analytics module.
+"""Tests for cli.analytics module.
 
 Tests the argparse-based analytics CLI including:
 - analytics_command main function
@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.cli.analytics import (
+from cli.analytics import (
     _format_bytes,
     _format_duration,
     analytics_command,
@@ -338,13 +338,13 @@ class TestAnalyticsCommand:
         mock_service.generate_dashboard.return_value = mock_dashboard
 
         with (
-            patch("file_organizer.cli.analytics.AnalyticsService", return_value=mock_service),
-            patch("file_organizer.cli.analytics.ChartGenerator", return_value=MagicMock()),
-            patch("file_organizer.cli.analytics.display_storage_stats"),
-            patch("file_organizer.cli.analytics.display_quality_metrics"),
-            patch("file_organizer.cli.analytics.display_duplicate_stats"),
-            patch("file_organizer.cli.analytics.display_time_savings"),
-            patch("file_organizer.cli.analytics.display_file_distribution"),
+            patch("cli.analytics.AnalyticsService", return_value=mock_service),
+            patch("cli.analytics.ChartGenerator", return_value=MagicMock()),
+            patch("cli.analytics.display_storage_stats"),
+            patch("cli.analytics.display_quality_metrics"),
+            patch("cli.analytics.display_duplicate_stats"),
+            patch("cli.analytics.display_time_savings"),
+            patch("cli.analytics.display_file_distribution"),
         ):
             result = analytics_command([str(tmp_path)])
         assert result == 0
@@ -360,13 +360,13 @@ class TestAnalyticsCommand:
         mock_service.generate_dashboard.return_value = mock_dashboard
 
         with (
-            patch("file_organizer.cli.analytics.AnalyticsService", return_value=mock_service),
-            patch("file_organizer.cli.analytics.ChartGenerator", return_value=MagicMock()),
-            patch("file_organizer.cli.analytics.display_storage_stats"),
-            patch("file_organizer.cli.analytics.display_quality_metrics"),
-            patch("file_organizer.cli.analytics.display_duplicate_stats"),
-            patch("file_organizer.cli.analytics.display_time_savings"),
-            patch("file_organizer.cli.analytics.display_file_distribution"),
+            patch("cli.analytics.AnalyticsService", return_value=mock_service),
+            patch("cli.analytics.ChartGenerator", return_value=MagicMock()),
+            patch("cli.analytics.display_storage_stats"),
+            patch("cli.analytics.display_quality_metrics"),
+            patch("cli.analytics.display_duplicate_stats"),
+            patch("cli.analytics.display_time_savings"),
+            patch("cli.analytics.display_file_distribution"),
         ):
             result = analytics_command([str(tmp_path), "--max-depth", "3"])
         assert result == 0
@@ -384,13 +384,13 @@ class TestAnalyticsCommand:
         mock_service.generate_dashboard.return_value = mock_dashboard
 
         with (
-            patch("file_organizer.cli.analytics.AnalyticsService", return_value=mock_service),
-            patch("file_organizer.cli.analytics.ChartGenerator") as mock_chart_cls,
-            patch("file_organizer.cli.analytics.display_storage_stats") as mock_display,
-            patch("file_organizer.cli.analytics.display_quality_metrics"),
-            patch("file_organizer.cli.analytics.display_duplicate_stats"),
-            patch("file_organizer.cli.analytics.display_time_savings"),
-            patch("file_organizer.cli.analytics.display_file_distribution"),
+            patch("cli.analytics.AnalyticsService", return_value=mock_service),
+            patch("cli.analytics.ChartGenerator") as mock_chart_cls,
+            patch("cli.analytics.display_storage_stats") as mock_display,
+            patch("cli.analytics.display_quality_metrics"),
+            patch("cli.analytics.display_duplicate_stats"),
+            patch("cli.analytics.display_time_savings"),
+            patch("cli.analytics.display_file_distribution"),
         ):
             result = analytics_command([str(tmp_path), "--no-charts"])
         assert result == 0
@@ -411,13 +411,13 @@ class TestAnalyticsCommand:
         mock_service.generate_dashboard.return_value = mock_dashboard
 
         with (
-            patch("file_organizer.cli.analytics.AnalyticsService", return_value=mock_service),
-            patch("file_organizer.cli.analytics.ChartGenerator", return_value=MagicMock()),
-            patch("file_organizer.cli.analytics.display_storage_stats"),
-            patch("file_organizer.cli.analytics.display_quality_metrics"),
-            patch("file_organizer.cli.analytics.display_duplicate_stats"),
-            patch("file_organizer.cli.analytics.display_time_savings"),
-            patch("file_organizer.cli.analytics.display_file_distribution"),
+            patch("cli.analytics.AnalyticsService", return_value=mock_service),
+            patch("cli.analytics.ChartGenerator", return_value=MagicMock()),
+            patch("cli.analytics.display_storage_stats"),
+            patch("cli.analytics.display_quality_metrics"),
+            patch("cli.analytics.display_duplicate_stats"),
+            patch("cli.analytics.display_time_savings"),
+            patch("cli.analytics.display_file_distribution"),
         ):
             result = analytics_command([str(tmp_path), "--export", str(export_file)])
         assert result == 0
@@ -435,13 +435,13 @@ class TestAnalyticsCommand:
         mock_service.generate_dashboard.return_value = mock_dashboard
 
         with (
-            patch("file_organizer.cli.analytics.AnalyticsService", return_value=mock_service),
-            patch("file_organizer.cli.analytics.ChartGenerator", return_value=MagicMock()),
-            patch("file_organizer.cli.analytics.display_storage_stats"),
-            patch("file_organizer.cli.analytics.display_quality_metrics"),
-            patch("file_organizer.cli.analytics.display_duplicate_stats"),
-            patch("file_organizer.cli.analytics.display_time_savings"),
-            patch("file_organizer.cli.analytics.display_file_distribution"),
+            patch("cli.analytics.AnalyticsService", return_value=mock_service),
+            patch("cli.analytics.ChartGenerator", return_value=MagicMock()),
+            patch("cli.analytics.display_storage_stats"),
+            patch("cli.analytics.display_quality_metrics"),
+            patch("cli.analytics.display_duplicate_stats"),
+            patch("cli.analytics.display_time_savings"),
+            patch("cli.analytics.display_file_distribution"),
         ):
             result = analytics_command(
                 [str(tmp_path), "--export", str(export_file), "--format", "text"]
@@ -461,13 +461,13 @@ class TestAnalyticsCommand:
         mock_service.generate_dashboard.return_value = mock_dashboard
 
         with (
-            patch("file_organizer.cli.analytics.AnalyticsService", return_value=mock_service),
-            patch("file_organizer.cli.analytics.ChartGenerator", return_value=MagicMock()),
-            patch("file_organizer.cli.analytics.display_storage_stats"),
-            patch("file_organizer.cli.analytics.display_quality_metrics"),
-            patch("file_organizer.cli.analytics.display_duplicate_stats"),
-            patch("file_organizer.cli.analytics.display_time_savings"),
-            patch("file_organizer.cli.analytics.display_file_distribution"),
+            patch("cli.analytics.AnalyticsService", return_value=mock_service),
+            patch("cli.analytics.ChartGenerator", return_value=MagicMock()),
+            patch("cli.analytics.display_storage_stats"),
+            patch("cli.analytics.display_quality_metrics"),
+            patch("cli.analytics.display_duplicate_stats"),
+            patch("cli.analytics.display_time_savings"),
+            patch("cli.analytics.display_file_distribution"),
         ):
             result = analytics_command([str(tmp_path), "--verbose"])
         assert result == 0
@@ -476,7 +476,7 @@ class TestAnalyticsCommand:
         (tmp_path / "file.txt").write_text("data")
 
         with patch(
-            "file_organizer.cli.analytics.AnalyticsService",
+            "cli.analytics.AnalyticsService",
             side_effect=RuntimeError("service error"),
         ):
             result = analytics_command([str(tmp_path)])
@@ -486,7 +486,7 @@ class TestAnalyticsCommand:
         (tmp_path / "file.txt").write_text("data")
 
         with patch(
-            "file_organizer.cli.analytics.AnalyticsService",
+            "cli.analytics.AnalyticsService",
             side_effect=KeyboardInterrupt,
         ):
             result = analytics_command([str(tmp_path)])

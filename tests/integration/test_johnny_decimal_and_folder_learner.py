@@ -12,15 +12,15 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     JohnnyDecimalNumber,
     NumberingScheme,
     get_default_scheme,
 )
-from file_organizer.methodologies.johnny_decimal.numbering import (
+from methodologies.johnny_decimal.numbering import (
     JohnnyDecimalGenerator,
 )
-from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+from services.intelligence.folder_learner import FolderPreferenceLearner
 
 pytestmark = pytest.mark.integration
 
@@ -140,7 +140,7 @@ class TestNumberingScheme:
             NumberingScheme(name="", description="desc")
 
     def test_add_and_get_area(self) -> None:
-        from file_organizer.methodologies.johnny_decimal.categories import AreaDefinition
+        from methodologies.johnny_decimal.categories import AreaDefinition
 
         scheme = NumberingScheme(name="Test", description="test")
         area_def = AreaDefinition(

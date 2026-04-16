@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.deduplication.reporter import StorageReporter
+from services.deduplication.reporter import StorageReporter
 
 
 @pytest.mark.unit

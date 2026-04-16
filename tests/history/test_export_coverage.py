@@ -7,9 +7,9 @@ from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
-from file_organizer.history.database import DatabaseManager
-from file_organizer.history.export import HistoryExporter
-from file_organizer.history.models import OperationType
+from history.database import DatabaseManager
+from history.export import HistoryExporter
+from history.models import OperationType
 
 pytestmark = pytest.mark.unit
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     CompatibilityAnalyzer,
     ConfigBuilder,
     HybridOrganizer,
@@ -241,7 +241,7 @@ class TestCrossComponentIntegration:
 
     def test_scanner_transformer_integration(self, complex_structure):
         """Test scanner output works with transformer."""
-        from file_organizer.methodologies.johnny_decimal import (
+        from methodologies.johnny_decimal import (
             FolderScanner,
             FolderTransformer,
             JohnnyDecimalGenerator,
@@ -265,7 +265,7 @@ class TestCrossComponentIntegration:
 
     def test_transformer_validator_integration(self, complex_structure):
         """Test transformer output works with validator."""
-        from file_organizer.methodologies.johnny_decimal import (
+        from methodologies.johnny_decimal import (
             FolderScanner,
             FolderTransformer,
             JohnnyDecimalGenerator,

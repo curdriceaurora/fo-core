@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
-from file_organizer.config.schema import AppConfig
-from file_organizer.core.backend_detector import InstalledModel, OllamaStatus
-from file_organizer.core.hardware_profile import GpuType, HardwareProfile
-from file_organizer.core.setup_wizard import (
+from config.schema import AppConfig
+from core.backend_detector import InstalledModel, OllamaStatus
+from core.hardware_profile import GpuType, HardwareProfile
+from core.setup_wizard import (
     SetupStatus,
     SetupWizard,
     SystemCapabilities,
@@ -40,9 +40,9 @@ class TestSetupWizardInitialization:
 class TestDetectCapabilities:
     """Tests for detect_capabilities() method."""
 
-    @patch("file_organizer.core.setup_wizard.list_installed_models")
-    @patch("file_organizer.core.setup_wizard.detect_ollama")
-    @patch("file_organizer.core.setup_wizard.detect_hardware")
+    @patch("core.setup_wizard.list_installed_models")
+    @patch("core.setup_wizard.detect_ollama")
+    @patch("core.setup_wizard.detect_hardware")
     def test_detect_capabilities_ollama_running(
         self, mock_detect_hw, mock_detect_ollama, mock_list_models
     ):
@@ -76,9 +76,9 @@ class TestDetectCapabilities:
         mock_detect_ollama.assert_called_once()
         mock_list_models.assert_called_once()
 
-    @patch("file_organizer.core.setup_wizard.list_installed_models")
-    @patch("file_organizer.core.setup_wizard.detect_ollama")
-    @patch("file_organizer.core.setup_wizard.detect_hardware")
+    @patch("core.setup_wizard.list_installed_models")
+    @patch("core.setup_wizard.detect_ollama")
+    @patch("core.setup_wizard.detect_hardware")
     def test_detect_capabilities_ollama_not_running(
         self, mock_detect_hw, mock_detect_ollama, mock_list_models
     ):
@@ -92,9 +92,9 @@ class TestDetectCapabilities:
         assert len(capabilities.installed_models) == 0
         mock_list_models.assert_not_called()  # Should not list models if not running
 
-    @patch("file_organizer.core.setup_wizard.list_installed_models")
-    @patch("file_organizer.core.setup_wizard.detect_ollama")
-    @patch("file_organizer.core.setup_wizard.detect_hardware")
+    @patch("core.setup_wizard.list_installed_models")
+    @patch("core.setup_wizard.detect_ollama")
+    @patch("core.setup_wizard.detect_hardware")
     def test_detect_capabilities_ollama_not_installed(
         self, mock_detect_hw, mock_detect_ollama, mock_list_models
     ):
@@ -175,9 +175,9 @@ class TestGenerateConfig:
         # Should use first available model since recommended not found
         assert config.models.text_model == "custom-model:latest"
 
-    @patch("file_organizer.core.setup_wizard.detect_hardware")
-    @patch("file_organizer.core.setup_wizard.detect_ollama")
-    @patch("file_organizer.core.setup_wizard.list_installed_models")
+    @patch("core.setup_wizard.detect_hardware")
+    @patch("core.setup_wizard.detect_ollama")
+    @patch("core.setup_wizard.list_installed_models")
     def test_generate_config_auto_detect_if_no_capabilities(
         self, mock_list_models, mock_detect_ollama, mock_detect_hw
     ):
@@ -326,9 +326,9 @@ class TestValidateConfig:
         assert is_valid is False
         assert any("max_tokens" in err for err in errors)
 
-    @patch("file_organizer.core.setup_wizard.detect_hardware")
-    @patch("file_organizer.core.setup_wizard.detect_ollama")
-    @patch("file_organizer.core.setup_wizard.list_installed_models")
+    @patch("core.setup_wizard.detect_hardware")
+    @patch("core.setup_wizard.detect_ollama")
+    @patch("core.setup_wizard.list_installed_models")
     def test_validate_config_auto_detects_if_no_capabilities(
         self, mock_list_models, mock_detect_ollama, mock_detect_hw
     ):

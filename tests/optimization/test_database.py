@@ -10,7 +10,7 @@ import sqlite3
 
 import pytest
 
-from file_organizer.optimization.database import (
+from optimization.database import (
     DatabaseOptimizer,
     QueryPlan,
     QueryPlanStep,
@@ -23,7 +23,7 @@ from file_organizer.optimization.database import (
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:
-    """Create the standard file-organizer schema in *conn*."""
+    """Create the standard fo schema in *conn*."""
     conn.executescript(
         """
         CREATE TABLE operations (

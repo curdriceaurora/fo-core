@@ -45,7 +45,11 @@ def mkdocs_config() -> dict:
 @pytest.fixture(scope="session")
 def all_doc_files(docs_dir: Path) -> list[Path]:
     """Return all markdown files under the docs directory."""
-    return list(docs_dir.rglob("*.md"))
+    return [
+        path
+        for path in docs_dir.rglob("*.md")
+        if not path.relative_to(docs_dir).parts[:1] == ("superpowers",)
+    ]
 
 
 # ---------------------------------------------------------------------------

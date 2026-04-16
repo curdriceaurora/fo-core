@@ -27,13 +27,13 @@ pytestmark = pytest.mark.integration
 
 
 def _extractor():
-    from file_organizer.services.intelligence.pattern_extractor import NamingPatternExtractor
+    from services.intelligence.pattern_extractor import NamingPatternExtractor
 
     return NamingPatternExtractor()
 
 
 def _pattern(pattern_id: str = "test"):
-    from file_organizer.services.intelligence.pattern_extractor import NamingPattern
+    from services.intelligence.pattern_extractor import NamingPattern
 
     return NamingPattern(pattern_id=pattern_id)
 
@@ -45,7 +45,7 @@ def _element(
     is_variable: bool = False,
     pattern: str | None = None,
 ):
-    from file_organizer.services.intelligence.pattern_extractor import PatternElement
+    from services.intelligence.pattern_extractor import PatternElement
 
     return PatternElement(
         element_type=element_type,
@@ -451,7 +451,7 @@ class TestGenerateRegexPattern:
 
 class TestDetectCaseConvention:
     def _detect(self, text: str) -> str:
-        from file_organizer.services.intelligence.pattern_extractor import NamingPatternExtractor
+        from services.intelligence.pattern_extractor import NamingPatternExtractor
 
         return NamingPatternExtractor()._detect_case_convention(text)
 
@@ -489,7 +489,7 @@ class TestDetectCaseConvention:
 
 class TestApplyCaseConvention:
     def _apply(self, text: str, convention: str) -> str:
-        from file_organizer.services.intelligence.pattern_extractor import NamingPatternExtractor
+        from services.intelligence.pattern_extractor import NamingPatternExtractor
 
         return NamingPatternExtractor()._apply_case_convention(text, convention)
 
@@ -527,7 +527,7 @@ class TestApplyCaseConvention:
 
 class TestSplitByDelimiters:
     def _split(self, text: str, delimiters: list[str]) -> list[str]:
-        from file_organizer.services.intelligence.pattern_extractor import NamingPatternExtractor
+        from services.intelligence.pattern_extractor import NamingPatternExtractor
 
         return NamingPatternExtractor()._split_by_delimiters(text, delimiters)
 

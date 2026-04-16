@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.audio.metadata_extractor import (
+from services.audio.metadata_extractor import (
     AudioMetadata,
     AudioMetadataExtractor,
 )
@@ -197,7 +197,7 @@ class TestExtract:
     def test_mutagen_success(self, extractor, audio_file):
 
         with patch(
-            "file_organizer.services.audio.metadata_extractor.AudioMetadataExtractor._extract_with_mutagen"
+            "services.audio.metadata_extractor.AudioMetadataExtractor._extract_with_mutagen"
         ) as mock_extract:
             mock_extract.return_value = AudioMetadata(
                 file_path=audio_file,
@@ -265,7 +265,7 @@ class TestExtractWithMutagen:
 
         with patch.dict("sys.modules", {"mutagen": MagicMock()}):
             with patch(
-                "file_organizer.services.audio.metadata_extractor.AudioMetadataExtractor._extract_with_mutagen"
+                "services.audio.metadata_extractor.AudioMetadataExtractor._extract_with_mutagen"
             ) as mock_method:
                 mock_method.side_effect = ValueError("Unsupported audio format")
                 with pytest.raises(ValueError, match="Unsupported"):

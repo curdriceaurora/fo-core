@@ -28,7 +28,7 @@ pytestmark = pytest.mark.integration
 
 class TestTagLearningEngine:
     def test_record_tag_application_basic(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "doc.pdf"
@@ -38,7 +38,7 @@ class TestTagLearningEngine:
         assert engine.tag_usage["work"].count == 1
 
     def test_record_tag_application_empty_tags_skipped(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "doc.pdf"
@@ -47,7 +47,7 @@ class TestTagLearningEngine:
         assert len(engine.tag_usage) == 0
 
     def test_record_cooccurrence(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "doc.pdf"
@@ -58,7 +58,7 @@ class TestTagLearningEngine:
         assert engine.tag_cooccurrence["a"]["c"] == 1
 
     def test_predict_tags_from_file_type(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         pdf1 = tmp_path / "r1.pdf"
@@ -71,7 +71,7 @@ class TestTagLearningEngine:
         assert any(tag == "report" for tag, _ in predictions)
 
     def test_predict_tags_from_directory(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         subdir = tmp_path / "projects"
@@ -87,7 +87,7 @@ class TestTagLearningEngine:
         assert "project" in tags
 
     def test_get_related_tags(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "f.txt"
@@ -99,13 +99,13 @@ class TestTagLearningEngine:
         assert "gamma" in related
 
     def test_get_related_tags_unknown_returns_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         assert engine.get_related_tags("unknown") == []
 
     def test_update_model_accepted_tags(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "model.txt"
@@ -121,7 +121,7 @@ class TestTagLearningEngine:
         assert "accepted_tag" in engine.tag_usage
 
     def test_update_model_rejected_tags_decrease_count(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "model2.txt"
@@ -142,7 +142,7 @@ class TestTagLearningEngine:
         assert engine.tag_usage["rej_tag"].count < initial_count
 
     def test_get_popular_tags(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "popular.txt"
@@ -157,7 +157,7 @@ class TestTagLearningEngine:
         assert popular[0][1] == 10
 
     def test_get_recent_tags(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "recent.txt"
@@ -167,7 +167,7 @@ class TestTagLearningEngine:
         assert "new_tag" in recent
 
     def test_get_recent_tags_excludes_old(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine, TagUsage
+        from services.auto_tagging.tag_learning import TagLearningEngine, TagUsage
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         old_usage = TagUsage(
@@ -180,7 +180,7 @@ class TestTagLearningEngine:
         assert "old_tag" not in recent
 
     def test_get_tag_suggestions_for_context_by_type(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "ctx.py"
@@ -193,7 +193,7 @@ class TestTagLearningEngine:
         assert "python" in tags or "code" in tags
 
     def test_get_tag_suggestions_excludes_existing(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "excl.py"
@@ -208,7 +208,7 @@ class TestTagLearningEngine:
         assert "already_there" not in tags
 
     def test_tag_patterns_frequency(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         f = tmp_path / "patt.txt"
@@ -221,7 +221,7 @@ class TestTagLearningEngine:
         assert any(p.tags == ["patt_tag"] for p in freq_patterns)
 
     def test_tag_patterns_filtered_by_file_type(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         engine = TagLearningEngine(storage_path=tmp_path / "tags.json")
         pdf = tmp_path / "filtered.pdf"
@@ -237,7 +237,7 @@ class TestTagLearningEngine:
         assert "txt_only" not in tags_seen
 
     def test_persistence_across_instances(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_learning import TagLearningEngine
 
         storage = tmp_path / "persist_tags.json"
         engine = TagLearningEngine(storage_path=storage)
@@ -249,7 +249,7 @@ class TestTagLearningEngine:
         assert "persist_tag" in engine2.tag_usage
 
     def test_tag_usage_serialization(self) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagUsage
+        from services.auto_tagging.tag_learning import TagUsage
 
         now = datetime.now(UTC)
         usage = TagUsage(tag="ser", count=5, first_used=now, last_used=now, file_types={".txt"})
@@ -260,7 +260,7 @@ class TestTagLearningEngine:
         assert ".txt" in restored.file_types
 
     def test_tag_pattern_serialization(self) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagPattern
+        from services.auto_tagging.tag_learning import TagPattern
 
         now = datetime.now(UTC)
         pattern = TagPattern(
@@ -283,7 +283,7 @@ class TestTagLearningEngine:
 
 class TestTagRecommender:
     def test_recommend_tags_for_nonexistent_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_recommender import TagRecommender
+        from services.auto_tagging.tag_recommender import TagRecommender
 
         recommender = TagRecommender(
             learning_engine=MagicMock(
@@ -300,8 +300,8 @@ class TestTagRecommender:
         assert result.suggestions == []
 
     def test_recommend_tags_basic(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
-        from file_organizer.services.auto_tagging.tag_recommender import TagRecommender
+        from services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_recommender import TagRecommender
 
         storage = tmp_path / "rec_tags.json"
         learning = TagLearningEngine(storage_path=storage)
@@ -321,8 +321,8 @@ class TestTagRecommender:
         assert "text" in suggested_tags
 
     def test_recommend_tags_filters_existing(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
-        from file_organizer.services.auto_tagging.tag_recommender import TagRecommender
+        from services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_recommender import TagRecommender
 
         storage = tmp_path / "filter_tags.json"
         learning = TagLearningEngine(storage_path=storage)
@@ -337,7 +337,7 @@ class TestTagRecommender:
         assert "existing" not in suggested_tags
 
     def test_batch_recommend(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_recommender import TagRecommender
+        from services.auto_tagging.tag_recommender import TagRecommender
 
         f1 = tmp_path / "b1.txt"
         f2 = tmp_path / "b2.txt"
@@ -350,7 +350,7 @@ class TestTagRecommender:
         assert f2 in results
 
     def test_calculate_confidence_no_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_recommender import TagRecommender
+        from services.auto_tagging.tag_recommender import TagRecommender
 
         f = tmp_path / "conf.txt"
         f.write_text("nothing")
@@ -359,8 +359,8 @@ class TestTagRecommender:
         assert score == 0.0
 
     def test_explain_tag(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
-        from file_organizer.services.auto_tagging.tag_recommender import TagRecommender
+        from services.auto_tagging.tag_learning import TagLearningEngine
+        from services.auto_tagging.tag_recommender import TagRecommender
 
         storage = tmp_path / "explain_tags.json"
         learning = TagLearningEngine(storage_path=storage)
@@ -375,7 +375,7 @@ class TestTagRecommender:
         assert len(explanation) > 0
 
     def test_tag_recommendation_high_confidence(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_recommender import (
+        from services.auto_tagging.tag_recommender import (
             TagRecommendation,
             TagSuggestion,
         )
@@ -391,7 +391,7 @@ class TestTagRecommender:
         assert "lo" not in rec.get_high_confidence_tags()
 
     def test_tag_recommendation_medium_confidence(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging.tag_recommender import (
+        from services.auto_tagging.tag_recommender import (
             TagRecommendation,
             TagSuggestion,
         )
@@ -407,7 +407,7 @@ class TestTagRecommender:
         assert "hi" not in rec.get_medium_confidence_tags()
 
     def test_tag_suggestion_serialization(self) -> None:
-        from file_organizer.services.auto_tagging.tag_recommender import TagSuggestion
+        from services.auto_tagging.tag_recommender import TagSuggestion
 
         s = TagSuggestion(
             tag="test",
@@ -431,14 +431,14 @@ class TestTagRecommender:
 
 class TestAutoTaggingService:
     def test_suggest_tags_for_missing_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging import AutoTaggingService
+        from services.auto_tagging import AutoTaggingService
 
         svc = AutoTaggingService(storage_path=tmp_path / "auto_tags.json")
         rec = svc.suggest_tags(tmp_path / "ghost.txt")
         assert rec.suggestions == []
 
     def test_record_tag_usage(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging import AutoTaggingService
+        from services.auto_tagging import AutoTaggingService
 
         svc = AutoTaggingService(storage_path=tmp_path / "auto_tags.json")
         f = tmp_path / "tagged.txt"
@@ -450,7 +450,7 @@ class TestAutoTaggingService:
         assert "tag2" in tags
 
     def test_provide_feedback(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging import AutoTaggingService
+        from services.auto_tagging import AutoTaggingService
 
         svc = AutoTaggingService(storage_path=tmp_path / "auto_tags.json")
         f = tmp_path / "fb.txt"
@@ -469,13 +469,13 @@ class TestAutoTaggingService:
         assert "fb_tag" in popular_tags
 
     def test_get_popular_tags_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging import AutoTaggingService
+        from services.auto_tagging import AutoTaggingService
 
         svc = AutoTaggingService(storage_path=tmp_path / "empty_tags.json")
         assert svc.get_popular_tags() == []
 
     def test_get_recent_tags(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging import AutoTaggingService
+        from services.auto_tagging import AutoTaggingService
 
         svc = AutoTaggingService(storage_path=tmp_path / "recent_tags.json")
         f = tmp_path / "recent.txt"
@@ -485,7 +485,7 @@ class TestAutoTaggingService:
         assert "recent_tag" in recent
 
     def test_suggest_tags_with_existing_tags(self, tmp_path: Path) -> None:
-        from file_organizer.services.auto_tagging import AutoTaggingService
+        from services.auto_tagging import AutoTaggingService
 
         svc = AutoTaggingService(storage_path=tmp_path / "exist_tags.json")
         f = tmp_path / "exist.txt"
@@ -502,14 +502,14 @@ class TestAutoTaggingService:
 
 class TestPreviewEngine:
     def _make_rule_set(self, rules=None):
-        from file_organizer.services.copilot.rules.models import RuleSet
+        from services.copilot.rules.models import RuleSet
 
         return RuleSet(name="test_set", rules=rules or [])
 
     def _make_rule(
         self, name, conditions=None, action_type="move", destination="", enabled=True, priority=0
     ):
-        from file_organizer.services.copilot.rules.models import (
+        from services.copilot.rules.models import (
             ActionType,
             Rule,
             RuleAction,
@@ -525,12 +525,12 @@ class TestPreviewEngine:
         )
 
     def _make_condition(self, ctype, value, negate=False):
-        from file_organizer.services.copilot.rules.models import ConditionType, RuleCondition
+        from services.copilot.rules.models import ConditionType, RuleCondition
 
         return RuleCondition(condition_type=ConditionType(ctype), value=value, negate=negate)
 
     def test_preview_empty_directory(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         rule_set = self._make_rule_set()
         engine = PreviewEngine()
@@ -538,7 +538,7 @@ class TestPreviewEngine:
         assert result.total_files == 0
 
     def test_preview_no_enabled_rules(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         (tmp_path / "file.txt").write_text("hello")
         rule = self._make_rule("disabled", enabled=False)
@@ -548,7 +548,7 @@ class TestPreviewEngine:
         assert result.match_count == 0
 
     def test_preview_extension_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         (tmp_path / "doc.pdf").write_bytes(b"pdf")
         (tmp_path / "image.png").write_bytes(b"png")
@@ -562,7 +562,7 @@ class TestPreviewEngine:
         assert len(result.unmatched) == 1
 
     def test_preview_name_pattern_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         (tmp_path / "report_2024.txt").write_text("report")
         (tmp_path / "notes.txt").write_text("notes")
@@ -575,7 +575,7 @@ class TestPreviewEngine:
         assert "report_2024.txt" in result.matches[0].file_path
 
     def test_preview_size_greater_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         big = tmp_path / "big.bin"
         big.write_bytes(b"x" * 1000)
@@ -590,7 +590,7 @@ class TestPreviewEngine:
         assert "big.bin" in result.matches[0].file_path
 
     def test_preview_size_less_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         small = tmp_path / "tiny.txt"
         small.write_bytes(b"x" * 5)
@@ -604,7 +604,7 @@ class TestPreviewEngine:
         assert result.match_count == 1
 
     def test_preview_content_contains_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         (tmp_path / "invoice.txt").write_text("INVOICE amount due")
         (tmp_path / "notes.txt").write_text("random notes here")
@@ -616,7 +616,7 @@ class TestPreviewEngine:
         assert result.match_count == 1
 
     def test_preview_modified_before_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         f = tmp_path / "old.txt"
         f.write_text("old file")
@@ -629,7 +629,7 @@ class TestPreviewEngine:
         assert result.match_count == 1
 
     def test_preview_modified_after_match(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         f = tmp_path / "new.txt"
         f.write_text("new file")
@@ -642,7 +642,7 @@ class TestPreviewEngine:
         assert result.match_count == 1
 
     def test_preview_path_matches_regex(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         (tmp_path / "project_alpha.txt").write_text("alpha")
         (tmp_path / "readme.md").write_text("readme")
@@ -654,7 +654,7 @@ class TestPreviewEngine:
         assert result.match_count == 1
 
     def test_preview_negated_condition(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         (tmp_path / "doc.pdf").write_bytes(b"pdf")
         (tmp_path / "doc.txt").write_text("text")
@@ -667,7 +667,7 @@ class TestPreviewEngine:
         assert "doc.txt" in result.matches[0].file_path
 
     def test_preview_first_rule_wins(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         (tmp_path / "file.txt").write_text("content")
         cond1 = self._make_condition("extension", ".txt")
@@ -681,7 +681,7 @@ class TestPreviewEngine:
         assert result.matches[0].rule_name == "first_rule"
 
     def test_preview_target_not_directory(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         f = tmp_path / "not_a_dir.txt"
         f.write_text("file")
@@ -691,7 +691,7 @@ class TestPreviewEngine:
         assert len(result.errors) == 1
 
     def test_preview_summary_string(self) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewResult
+        from services.copilot.rules.preview import PreviewResult
 
         result = PreviewResult(total_files=5)
         result.matches = []
@@ -701,7 +701,7 @@ class TestPreviewEngine:
         assert "5 total" in result.summary
 
     def test_preview_destination_template(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         f = tmp_path / "report.pdf"
         f.write_bytes(b"data")
@@ -716,7 +716,7 @@ class TestPreviewEngine:
         assert "report_archived" in result.matches[0].destination
 
     def test_preview_multiple_conditions_and_logic(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         big_pdf = tmp_path / "big.pdf"
         big_pdf.write_bytes(b"x" * 2000)
@@ -732,7 +732,7 @@ class TestPreviewEngine:
         assert "big.pdf" in result.matches[0].file_path
 
     def test_preview_non_recursive(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         (tmp_path / "top.txt").write_text("top")
         sub = tmp_path / "sub"
@@ -748,7 +748,7 @@ class TestPreviewEngine:
         assert result_recursive.match_count > result_flat.match_count
 
     def test_preview_max_files_limit(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.preview import PreviewEngine
+        from services.copilot.rules.preview import PreviewEngine
 
         for i in range(20):
             (tmp_path / f"file_{i}.txt").write_text(f"content {i}")
@@ -767,12 +767,12 @@ class TestPreviewEngine:
 
 class TestCommandExecutorAdditional:
     def _make_intent(self, intent_type, params=None):
-        from file_organizer.services.copilot.executor import Intent, IntentType
+        from services.copilot.executor import Intent, IntentType
 
         return Intent(intent_type=IntentType(intent_type), parameters=params or {})
 
     def test_execute_find_empty_query(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("find", {"query": ""})
@@ -781,7 +781,7 @@ class TestCommandExecutorAdditional:
         assert "search for" in result.message.lower()
 
     def test_execute_find_with_matches(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         (tmp_path / "report.txt").write_text("content")
         executor = CommandExecutor(working_directory=str(tmp_path))
@@ -791,7 +791,7 @@ class TestCommandExecutorAdditional:
         assert len(result.affected_files) >= 1
 
     def test_execute_find_no_matches(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent(
@@ -802,7 +802,7 @@ class TestCommandExecutorAdditional:
         assert "No files" in result.message
 
     def test_execute_move_missing_params(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("move", {"source": "a.txt"})
@@ -811,7 +811,7 @@ class TestCommandExecutorAdditional:
         assert "destination" in result.message.lower() or "specify" in result.message.lower()
 
     def test_execute_move_source_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent(
@@ -823,7 +823,7 @@ class TestCommandExecutorAdditional:
         assert "not found" in result.message.lower()
 
     def test_execute_move_success(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         src = tmp_path / "move_me.txt"
         src.write_text("moving")
@@ -835,7 +835,7 @@ class TestCommandExecutorAdditional:
         assert dst.exists()
 
     def test_execute_rename_missing_params(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("rename", {"target": "file.txt"})
@@ -843,7 +843,7 @@ class TestCommandExecutorAdditional:
         assert result.success is False
 
     def test_execute_rename_file_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent(
@@ -854,7 +854,7 @@ class TestCommandExecutorAdditional:
         assert result.success is False
 
     def test_execute_rename_success(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         f = tmp_path / "original.txt"
         f.write_text("data")
@@ -865,7 +865,7 @@ class TestCommandExecutorAdditional:
         assert (tmp_path / "renamed.txt").exists()
 
     def test_execute_suggest_missing_paths(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("suggest", {"paths": []})
@@ -873,7 +873,7 @@ class TestCommandExecutorAdditional:
         assert result.success is False
 
     def test_execute_suggest_with_existing_path(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         f = tmp_path / "target.txt"
         f.write_text("data")
@@ -883,7 +883,7 @@ class TestCommandExecutorAdditional:
         assert result.success is True
 
     def test_execute_suggest_path_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("suggest", {"paths": [str(tmp_path / "ghost.txt")]})
@@ -891,7 +891,7 @@ class TestCommandExecutorAdditional:
         assert result.success is False
 
     def test_execute_undo_no_history(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("undo")
@@ -899,7 +899,7 @@ class TestCommandExecutorAdditional:
         assert result.success is False
 
     def test_execute_redo_no_history(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("redo")
@@ -907,7 +907,7 @@ class TestCommandExecutorAdditional:
         assert result.success is False
 
     def test_execute_preview_non_directory(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         f = tmp_path / "not_dir.txt"
         f.write_text("data")
@@ -917,7 +917,7 @@ class TestCommandExecutorAdditional:
         assert result.success is False
 
     def test_execute_handler_exception_returns_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor, Intent, IntentType
+        from services.copilot.executor import CommandExecutor, Intent, IntentType
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = Intent(intent_type=IntentType.MOVE, parameters={})
@@ -927,7 +927,7 @@ class TestCommandExecutorAdditional:
         assert "boom" in result.message
 
     def test_execute_find_with_retriever_semantic(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         mock_retriever = MagicMock()
         mock_retriever.is_initialized = True
@@ -943,7 +943,7 @@ class TestCommandExecutorAdditional:
         assert mock_retriever.retrieve.call_args.args[0] == "content"
 
     def test_execute_organize_directory_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         executor = CommandExecutor(working_directory=str(tmp_path))
         intent = self._make_intent("organize", {"source": str(tmp_path / "missing_dir")})
@@ -958,7 +958,7 @@ class TestCommandExecutorAdditional:
 
 class TestSuggestionFeedback:
     def _make_suggestion(self, suggestion_id="s1", stype="move", confidence=75.0):
-        from file_organizer.models.suggestion_types import Suggestion, SuggestionType
+        from models.suggestion_types import Suggestion, SuggestionType
 
         return Suggestion(
             suggestion_id=suggestion_id,
@@ -969,7 +969,7 @@ class TestSuggestionFeedback:
         )
 
     def test_record_action_accepted(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         suggestion = self._make_suggestion()
@@ -978,7 +978,7 @@ class TestSuggestionFeedback:
         assert fb.feedback_entries[0].action == "accepted"
 
     def test_record_action_rejected(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         suggestion = self._make_suggestion()
@@ -986,7 +986,7 @@ class TestSuggestionFeedback:
         assert fb.feedback_entries[0].action == "rejected"
 
     def test_record_action_with_metadata(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         suggestion = self._make_suggestion()
@@ -994,7 +994,7 @@ class TestSuggestionFeedback:
         assert fb.feedback_entries[0].metadata["reason"] == "test"
 
     def test_persistence_across_instances(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         feedback_file = tmp_path / "persist_feedback.json"
         fb = SuggestionFeedback(feedback_file=feedback_file)
@@ -1005,7 +1005,7 @@ class TestSuggestionFeedback:
         assert len(fb2.feedback_entries) == 1
 
     def test_get_acceptance_rate_all_accepted(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         for i in range(4):
@@ -1014,7 +1014,7 @@ class TestSuggestionFeedback:
         assert rate == 100.0
 
     def test_get_acceptance_rate_mixed(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         fb.record_action(self._make_suggestion("s1"), "accepted")
@@ -1023,13 +1023,13 @@ class TestSuggestionFeedback:
         assert rate == 50.0
 
     def test_get_acceptance_rate_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         assert fb.get_acceptance_rate() == 0.0
 
     def test_get_rejection_rate(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         fb.record_action(self._make_suggestion("s1"), "rejected")
@@ -1039,7 +1039,7 @@ class TestSuggestionFeedback:
         assert rate == pytest.approx(66.67, rel=0.01)
 
     def test_get_acceptance_rate_by_type(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         fb.record_action(self._make_suggestion("s1", stype="move"), "accepted")
@@ -1050,7 +1050,7 @@ class TestSuggestionFeedback:
         assert rename_rate == 0.0
 
     def test_get_learning_stats_full(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         fb.record_action(self._make_suggestion("s1", confidence=80.0), "accepted")
@@ -1069,7 +1069,7 @@ class TestSuggestionFeedback:
         assert stats.avg_rejected_confidence == 40.0
 
     def test_get_learning_stats_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         stats = fb.get_learning_stats()
@@ -1077,7 +1077,7 @@ class TestSuggestionFeedback:
         assert stats.acceptance_rate == 0.0
 
     def test_learning_stats_by_type(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         fb.record_action(self._make_suggestion("s1", stype="move"), "accepted")
@@ -1090,16 +1090,16 @@ class TestSuggestionFeedback:
         assert stats.by_type["move"]["accepted"] == 1
 
     def test_get_confidence_adjustment_no_data(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from models.suggestion_types import SuggestionType
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         adj = fb.get_confidence_adjustment(SuggestionType.MOVE, ".pdf")
         assert adj == 0.0
 
     def test_get_confidence_adjustment_after_accepted(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from models.suggestion_types import SuggestionType
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         for _ in range(5):
@@ -1108,8 +1108,8 @@ class TestSuggestionFeedback:
         assert adj > 0.0
 
     def test_get_confidence_adjustment_after_rejected(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from models.suggestion_types import SuggestionType
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         for _ in range(5):
@@ -1118,8 +1118,8 @@ class TestSuggestionFeedback:
         assert adj < 0.0
 
     def test_update_patterns(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
-        from file_organizer.services.suggestion_feedback import FeedbackEntry, SuggestionFeedback
+        from models.suggestion_types import SuggestionType
+        from services.suggestion_feedback import FeedbackEntry, SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         entries = [
@@ -1137,8 +1137,8 @@ class TestSuggestionFeedback:
         assert key in fb.pattern_adjustments
 
     def test_get_user_history(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import Suggestion, SuggestionType
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from models.suggestion_types import Suggestion, SuggestionType
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         s = Suggestion(
@@ -1154,8 +1154,8 @@ class TestSuggestionFeedback:
         assert "preferred_locations" in history
 
     def test_clear_old_feedback(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
-        from file_organizer.services.suggestion_feedback import FeedbackEntry, SuggestionFeedback
+        from models.suggestion_types import SuggestionType
+        from services.suggestion_feedback import FeedbackEntry, SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         old_entry = FeedbackEntry(
@@ -1179,7 +1179,7 @@ class TestSuggestionFeedback:
         )
 
     def test_export_feedback(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
         fb.record_action(self._make_suggestion(), "accepted")
@@ -1192,8 +1192,8 @@ class TestSuggestionFeedback:
         assert "exported_at" in data
 
     def test_feedback_entry_serialization(self) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
-        from file_organizer.services.suggestion_feedback import FeedbackEntry
+        from models.suggestion_types import SuggestionType
+        from services.suggestion_feedback import FeedbackEntry
 
         now = datetime.now(UTC)
         entry = FeedbackEntry(
@@ -1215,7 +1215,7 @@ class TestSuggestionFeedback:
         assert restored.suggestion_type == SuggestionType.TAG
 
     def test_load_corrupted_feedback_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.suggestion_feedback import SuggestionFeedback
+        from services.suggestion_feedback import SuggestionFeedback
 
         feedback_file = tmp_path / "corrupt.json"
         feedback_file.write_text("{invalid json}")

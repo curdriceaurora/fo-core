@@ -137,7 +137,7 @@ A pre-commit configuration is defined in `.pre-commit-config.yaml`. After runnin
 3. **Non-existent imports** → verify module exists
    ```bash
    # Check import works
-   python3 -c "from file_organizer.module import Class; print('OK')"
+   python3 -c "from module import Class; print('OK')"
    ```
 
 4. **Wrong constructor params** → check class definition

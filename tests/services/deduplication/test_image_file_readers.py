@@ -5,7 +5,7 @@ Complements tests/services/deduplication/test_dedup_image_utils.py by:
 - Covering edge cases missing from the comprehensive deduplication test suite
 - Providing @pytest.mark.smoke and @pytest.mark.ci coverage for the image reading pipeline
 
-Tests target file_organizer.services.deduplication.image_utils and live here
+Tests target services.deduplication.image_utils and live here
 to mirror the source module's location (services/deduplication/).
 
 All tests mock PIL at the module level so they run without Pillow installed.
@@ -33,7 +33,7 @@ _pil_image_mod.open = _mock_image_cls.open  # type: ignore[attr-defined]
 sys.modules.setdefault("PIL", _pil_mod)
 sys.modules.setdefault("PIL.Image", _pil_image_mod)
 
-from file_organizer.services.deduplication.image_utils import (  # noqa: E402
+from services.deduplication.image_utils import (  # noqa: E402
     FORMAT_QUALITY_RANK,
     SUPPORTED_FORMATS,
     ImageMetadata,
@@ -55,7 +55,7 @@ _JPEG_STUB = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\
 _GIF_STUB = b"GIF89a" + b"\x00" * 10
 _WEBP_STUB = b"RIFF" + b"\x00" * 4 + b"WEBP"
 
-_IMAGE_OPEN_PATCH = "file_organizer.services.deduplication.image_utils.Image.open"
+_IMAGE_OPEN_PATCH = "services.deduplication.image_utils.Image.open"
 
 
 def _make_mock_img() -> MagicMock:
@@ -154,7 +154,7 @@ class TestMagicByteStubFiles:
         p = tmp_path / "document.pdf"
         p.write_bytes(_PNG_STUB)  # correct image bytes but wrong extension
 
-        with patch("file_organizer.services.deduplication.image_utils.Image.open") as mock_open:
+        with patch("services.deduplication.image_utils.Image.open") as mock_open:
             is_valid, msg = validate_image_file(p)
 
         assert not is_valid
@@ -219,11 +219,11 @@ class TestGetBestQualityImageEdgeCases:
 
         with (
             patch(
-                "file_organizer.services.deduplication.image_utils.filter_valid_images",
+                "services.deduplication.image_utils.filter_valid_images",
                 return_value=[p],
             ),
             patch(
-                "file_organizer.services.deduplication.image_utils.get_image_metadata",
+                "services.deduplication.image_utils.get_image_metadata",
                 return_value=meta,
             ),
         ):
@@ -257,11 +257,11 @@ class TestGetBestQualityImageEdgeCases:
 
         with (
             patch(
-                "file_organizer.services.deduplication.image_utils.filter_valid_images",
+                "services.deduplication.image_utils.filter_valid_images",
                 return_value=[png, jpg],
             ),
             patch(
-                "file_organizer.services.deduplication.image_utils.get_image_metadata",
+                "services.deduplication.image_utils.get_image_metadata",
                 side_effect=[meta_png, meta_jpg],
             ),
         ):
@@ -297,7 +297,7 @@ class TestCompareImageQualityAdditional:
             size_bytes=500,
         )
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             side_effect=[meta_png, meta_jpg],
         ):
             result = compare_image_quality(Path("a.png"), Path("b.jpg"))

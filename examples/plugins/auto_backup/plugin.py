@@ -5,8 +5,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from file_organizer.plugins import Plugin, PluginMetadata
-from file_organizer.plugins.sdk import hook
+from plugins import Plugin, PluginMetadata
+from plugins.sdk import hook
 
 
 class AutoBackupPlugin(Plugin):

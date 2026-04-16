@@ -56,8 +56,8 @@ def _cleanup_imagededup_sys_modules() -> None:
 
 # Now import the module under test – the mocked modules will satisfy the
 # ``from imagededup.methods import …`` statement.
-import file_organizer.services.deduplication.image_dedup as _image_dedup_module  # noqa: E402
-from file_organizer.services.deduplication.image_dedup import ImageDeduplicator  # noqa: E402
+import services.deduplication.image_dedup as _image_dedup_module  # noqa: E402
+from services.deduplication.image_dedup import ImageDeduplicator  # noqa: E402
 
 # If the module was already cached in sys.modules (imported by another test module
 # or by ``deduplication/__init__`` before our sys.modules mock was in place),
@@ -722,7 +722,7 @@ class TestValidateImage:
         img.write_bytes(b"\xff\xd8\xff\xe0data")
 
         dedup = _make_dedup()
-        with patch("file_organizer.services.deduplication.image_dedup.Image") as mock_image:
+        with patch("services.deduplication.image_dedup.Image") as mock_image:
             mock_ctx = MagicMock()
             mock_image.open.return_value.__enter__ = MagicMock(return_value=mock_ctx)
             mock_image.open.return_value.__exit__ = MagicMock(return_value=False)
@@ -761,7 +761,7 @@ class TestValidateImage:
         img.write_bytes(b"\xff\xd8\xff\xe0corrupt")
 
         dedup = _make_dedup()
-        with patch("file_organizer.services.deduplication.image_dedup.Image") as mock_image:
+        with patch("services.deduplication.image_dedup.Image") as mock_image:
             mock_image.open.return_value.__enter__ = MagicMock(side_effect=OSError("truncated"))
             mock_image.open.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -775,7 +775,7 @@ class TestValidateImage:
         img.write_bytes(b"\x89PNGbaddata")
 
         dedup = _make_dedup()
-        with patch("file_organizer.services.deduplication.image_dedup.Image") as mock_image:
+        with patch("services.deduplication.image_dedup.Image") as mock_image:
             mock_image.open.return_value.__enter__ = MagicMock(
                 side_effect=RuntimeError("weird error")
             )
@@ -798,12 +798,12 @@ class TestMissingImagededupDep:
 
     def test_init_raises_import_error_when_dep_missing(self) -> None:
         """ImportError is raised with install hint when imagededup is absent."""
-        import file_organizer.services.deduplication.image_dedup as _mod
+        import services.deduplication.image_dedup as _mod
 
         original = _mod._IMAGEDEDUP_AVAILABLE
         try:
             _mod._IMAGEDEDUP_AVAILABLE = False
-            with pytest.raises(ImportError, match="pip install 'local-file-organizer\\[dedup\\]'"):
+            with pytest.raises(ImportError, match="pip install 'fo-core\\[dedup\\]'"):
                 ImageDeduplicator()
         finally:
             _mod._IMAGEDEDUP_AVAILABLE = original

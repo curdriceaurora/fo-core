@@ -15,7 +15,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 export PROJECT_ROOT
 DIST_DIR="${PROJECT_ROOT}/dist"
 BUILD_DIR="${PROJECT_ROOT}/build"
-APP_NAME="file-organizer"
+APP_NAME="fo"
 VERSION="$(python3 - <<'PY'
 import os
 import re
@@ -52,7 +52,7 @@ mkdir -p "${BUILD_DIR}"
 # Ensure PyInstaller output exists
 # ---------------------------------------------------------------------------
 echo "==> Checking for PyInstaller output..."
-EXECUTABLE=$(find "${DIST_DIR}" -maxdepth 1 -name "file-organizer-*" -not -name "*.dmg" -not -name "*.exe" -not -name "*.AppImage" -not -name "*.sha256" -type f 2>/dev/null | head -1)
+EXECUTABLE=$(find "${DIST_DIR}" -maxdepth 1 -name "fo-*" -not -name "*.dmg" -not -name "*.exe" -not -name "*.AppImage" -not -name "*.sha256" -type f 2>/dev/null | head -1)
 
 if [[ -z "$EXECUTABLE" ]]; then
     echo "ERROR: No executable found in ${DIST_DIR}/"
@@ -104,8 +104,8 @@ mkdir -p "${APPDIR}/usr/share/applications"
 mkdir -p "${APPDIR}/usr/share/icons/hicolor/256x256/apps"
 
 # Copy executable
-cp "${EXECUTABLE}" "${APPDIR}/usr/bin/file-organizer"
-chmod +x "${APPDIR}/usr/bin/file-organizer"
+cp "${EXECUTABLE}" "${APPDIR}/usr/bin/fo"
+chmod +x "${APPDIR}/usr/bin/fo"
 
 # Create .desktop file
 cat > "${APPDIR}/usr/share/applications/${APP_NAME}.desktop" << DESKTOP
@@ -113,8 +113,8 @@ cat > "${APPDIR}/usr/share/applications/${APP_NAME}.desktop" << DESKTOP
 Type=Application
 Name=File Organizer
 Comment=AI-powered local file management
-Exec=file-organizer
-Icon=file-organizer
+Exec=fo
+Icon=fo
 Categories=Utility;FileManager;
 Terminal=true
 DESKTOP
@@ -123,15 +123,15 @@ DESKTOP
 cp "${APPDIR}/usr/share/applications/${APP_NAME}.desktop" "${APPDIR}/"
 
 # Create a simple icon (SVG placeholder)
-cat > "${APPDIR}/usr/share/icons/hicolor/256x256/apps/file-organizer.svg" << 'SVG'
+cat > "${APPDIR}/usr/share/icons/hicolor/256x256/apps/fo.svg" << 'SVG'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
   <rect width="256" height="256" rx="32" fill="#4A90D9"/>
   <text x="128" y="160" text-anchor="middle" fill="white"
         font-family="sans-serif" font-size="120" font-weight="bold">FO</text>
 </svg>
 SVG
-cp "${APPDIR}/usr/share/icons/hicolor/256x256/apps/file-organizer.svg" "${APPDIR}/file-organizer.svg"
-cp "${APPDIR}/usr/share/icons/hicolor/256x256/apps/file-organizer.svg" "${APPDIR}/.DirIcon"
+cp "${APPDIR}/usr/share/icons/hicolor/256x256/apps/fo.svg" "${APPDIR}/fo.svg"
+cp "${APPDIR}/usr/share/icons/hicolor/256x256/apps/fo.svg" "${APPDIR}/.DirIcon"
 
 # Create AppRun
 cat > "${APPDIR}/AppRun" << 'APPRUN'
@@ -139,7 +139,7 @@ cat > "${APPDIR}/AppRun" << 'APPRUN'
 SELF=$(readlink -f "$0")
 HERE="${SELF%/*}"
 export PATH="${HERE}/usr/bin:${PATH}"
-exec "${HERE}/usr/bin/file-organizer" "$@"
+exec "${HERE}/usr/bin/fo" "$@"
 APPRUN
 chmod +x "${APPDIR}/AppRun"
 

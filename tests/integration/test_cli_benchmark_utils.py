@@ -55,38 +55,38 @@ def _valid_payload(**overrides: object) -> dict:
 
 class TestPercentile:
     def test_empty_list_returns_zero(self) -> None:
-        from file_organizer.cli.benchmark import _percentile
+        from cli.benchmark import _percentile
 
         assert _percentile([], 50) == 0.0
 
     def test_single_element_returns_it(self) -> None:
-        from file_organizer.cli.benchmark import _percentile
+        from cli.benchmark import _percentile
 
         assert _percentile([42.0], 50) == 42.0
 
     def test_p50_on_sorted_list(self) -> None:
-        from file_organizer.cli.benchmark import _percentile
+        from cli.benchmark import _percentile
 
         data = [1.0, 2.0, 3.0, 4.0, 5.0]
         result = _percentile(data, 50)
         assert result == pytest.approx(3.0)
 
     def test_p95_on_ten_elements(self) -> None:
-        from file_organizer.cli.benchmark import _percentile
+        from cli.benchmark import _percentile
 
         data = [float(i) for i in range(1, 11)]
         result = _percentile(data, 95)
         assert result == 10.0
 
     def test_p99_on_ten_elements(self) -> None:
-        from file_organizer.cli.benchmark import _percentile
+        from cli.benchmark import _percentile
 
         data = [float(i) for i in range(1, 11)]
         result = _percentile(data, 99)
         assert result == 10.0
 
     def test_p0_returns_first_element(self) -> None:
-        from file_organizer.cli.benchmark import _percentile
+        from cli.benchmark import _percentile
 
         data = [1.0, 2.0, 3.0]
         # ceil(0) = 0, max(0, -1) = 0 → data[0]
@@ -101,7 +101,7 @@ class TestPercentile:
 
 class TestComputeStats:
     def test_empty_times_returns_zeros(self) -> None:
-        from file_organizer.cli.benchmark import compute_stats
+        from cli.benchmark import compute_stats
 
         stats = compute_stats([], 0)
         assert stats["median_ms"] == 0.0
@@ -109,7 +109,7 @@ class TestComputeStats:
         assert stats["iterations"] == 0
 
     def test_single_element(self) -> None:
-        from file_organizer.cli.benchmark import compute_stats
+        from cli.benchmark import compute_stats
 
         stats = compute_stats([100.0], 1)
         assert stats["median_ms"] == 100.0
@@ -117,19 +117,19 @@ class TestComputeStats:
         assert stats["iterations"] == 1
 
     def test_throughput_calculated(self) -> None:
-        from file_organizer.cli.benchmark import compute_stats
+        from cli.benchmark import compute_stats
 
         stats = compute_stats([1000.0], 5)
         assert stats["throughput_fps"] == pytest.approx(5.0)
 
     def test_stddev_multiple_elements(self) -> None:
-        from file_organizer.cli.benchmark import compute_stats
+        from cli.benchmark import compute_stats
 
         stats = compute_stats([10.0, 20.0, 30.0], 1)
         assert stats["stddev_ms"] > 0
 
     def test_p95_p99_on_large_list(self) -> None:
-        from file_organizer.cli.benchmark import compute_stats
+        from cli.benchmark import compute_stats
 
         times = [float(i) for i in range(1, 101)]
         stats = compute_stats(times, 1)
@@ -138,7 +138,7 @@ class TestComputeStats:
         assert stats["iterations"] == 100
 
     def test_zero_median_throughput_zero(self) -> None:
-        from file_organizer.cli.benchmark import compute_stats
+        from cli.benchmark import compute_stats
 
         stats = compute_stats([0.0, 0.0], 5)
         assert stats["throughput_fps"] == 0.0
@@ -151,35 +151,35 @@ class TestComputeStats:
 
 class TestRequireNonNegativeNumericField:
     def test_valid_int(self) -> None:
-        from file_organizer.cli.benchmark import _require_non_negative_numeric_field
+        from cli.benchmark import _require_non_negative_numeric_field
 
         _require_non_negative_numeric_field(5, field="count")
 
     def test_valid_float(self) -> None:
-        from file_organizer.cli.benchmark import _require_non_negative_numeric_field
+        from cli.benchmark import _require_non_negative_numeric_field
 
         _require_non_negative_numeric_field(3.14, field="ms")
 
     def test_bool_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import _require_non_negative_numeric_field
+        from cli.benchmark import _require_non_negative_numeric_field
 
         with pytest.raises(TypeError):
             _require_non_negative_numeric_field(True, field="count")
 
     def test_string_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import _require_non_negative_numeric_field
+        from cli.benchmark import _require_non_negative_numeric_field
 
         with pytest.raises(TypeError):
             _require_non_negative_numeric_field("5", field="count")
 
     def test_negative_raises_value_error(self) -> None:
-        from file_organizer.cli.benchmark import _require_non_negative_numeric_field
+        from cli.benchmark import _require_non_negative_numeric_field
 
         with pytest.raises(ValueError):
             _require_non_negative_numeric_field(-1.0, field="ms")
 
     def test_zero_is_valid(self) -> None:
-        from file_organizer.cli.benchmark import _require_non_negative_numeric_field
+        from cli.benchmark import _require_non_negative_numeric_field
 
         _require_non_negative_numeric_field(0, field="ms")
 
@@ -191,12 +191,12 @@ class TestRequireNonNegativeNumericField:
 
 class TestValidateBenchmarkPayload:
     def test_valid_payload_passes(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         validate_benchmark_payload(_valid_payload())
 
     def test_missing_suite_raises_key_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         payload = _valid_payload()
         del payload["suite"]
@@ -204,31 +204,31 @@ class TestValidateBenchmarkPayload:
             validate_benchmark_payload(payload)
 
     def test_missing_multiple_fields_raises_key_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(KeyError):
             validate_benchmark_payload({})
 
     def test_suite_not_string_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(TypeError):
             validate_benchmark_payload(_valid_payload(suite=123))
 
     def test_empty_suite_raises_value_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(ValueError):
             validate_benchmark_payload(_valid_payload(suite=""))
 
     def test_degraded_true_empty_reasons_raises(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(ValueError):
             validate_benchmark_payload(_valid_payload(degraded=True, degradation_reasons=[]))
 
     def test_degraded_false_nonempty_reasons_raises(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(ValueError):
             validate_benchmark_payload(
@@ -236,48 +236,48 @@ class TestValidateBenchmarkPayload:
             )
 
     def test_degraded_true_with_reasons_passes(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         validate_benchmark_payload(_valid_payload(degraded=True, degradation_reasons=["slow-disk"]))
 
     def test_files_count_bool_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(TypeError):
             validate_benchmark_payload(_valid_payload(files_count=True))
 
     def test_files_count_negative_raises_value_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(ValueError):
             validate_benchmark_payload(_valid_payload(files_count=-1))
 
     def test_hardware_profile_not_dict_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(TypeError):
             validate_benchmark_payload(_valid_payload(hardware_profile="not-dict"))
 
     def test_results_not_dict_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(TypeError):
             validate_benchmark_payload(_valid_payload(results="not-dict"))
 
     def test_degraded_not_bool_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(TypeError):
             validate_benchmark_payload(_valid_payload(degraded="yes"))
 
     def test_degradation_reasons_not_list_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(TypeError):
             validate_benchmark_payload(_valid_payload(degradation_reasons="reason"))
 
     def test_degradation_reason_empty_string_raises_value_error(self) -> None:
-        from file_organizer.cli.benchmark import validate_benchmark_payload
+        from cli.benchmark import validate_benchmark_payload
 
         with pytest.raises(ValueError):
             validate_benchmark_payload(_valid_payload(degraded=True, degradation_reasons=[""]))
@@ -290,7 +290,7 @@ class TestValidateBenchmarkPayload:
 
 class TestValidatePayloadResults:
     def test_missing_result_field_raises_key_error(self) -> None:
-        from file_organizer.cli.benchmark import _validate_payload_results
+        from cli.benchmark import _validate_payload_results
 
         results = {
             "median_ms": 10.0,
@@ -304,7 +304,7 @@ class TestValidatePayloadResults:
             _validate_payload_results(results)
 
     def test_iterations_bool_raises_type_error(self) -> None:
-        from file_organizer.cli.benchmark import _validate_payload_results
+        from cli.benchmark import _validate_payload_results
 
         results = {
             "median_ms": 10.0,
@@ -318,7 +318,7 @@ class TestValidatePayloadResults:
             _validate_payload_results(results)
 
     def test_valid_results_passes(self) -> None:
-        from file_organizer.cli.benchmark import _validate_payload_results
+        from cli.benchmark import _validate_payload_results
 
         _validate_payload_results(_valid_payload()["results"])
 
@@ -341,13 +341,13 @@ class TestCompareResults:
         }
 
     def test_no_regression_when_same(self) -> None:
-        from file_organizer.cli.benchmark import compare_results
+        from cli.benchmark import compare_results
 
         result = compare_results(self._baseline(), self._baseline())
         assert result["regression"] is False
 
     def test_regression_when_p95_exceeds_threshold(self) -> None:
-        from file_organizer.cli.benchmark import compare_results
+        from cli.benchmark import compare_results
 
         current = {
             "results": {
@@ -362,7 +362,7 @@ class TestCompareResults:
         assert result["regression"] is True
 
     def test_deltas_computed(self) -> None:
-        from file_organizer.cli.benchmark import compare_results
+        from cli.benchmark import compare_results
 
         current = {
             "results": {
@@ -377,7 +377,7 @@ class TestCompareResults:
         assert result["deltas_pct"]["median_ms"] == pytest.approx(100.0)
 
     def test_zero_baseline_produces_zero_delta(self) -> None:
-        from file_organizer.cli.benchmark import compare_results
+        from cli.benchmark import compare_results
 
         baseline = {
             "results": {
@@ -401,7 +401,7 @@ class TestCompareResults:
         assert result["deltas_pct"]["median_ms"] == 0.0
 
     def test_accepts_flat_dict_without_results_key(self) -> None:
-        from file_organizer.cli.benchmark import compare_results
+        from cli.benchmark import compare_results
 
         flat = {
             "median_ms": 10.0,
@@ -421,7 +421,7 @@ class TestCompareResults:
 
 class TestSuiteCandidates:
     def test_returns_matching_extensions(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _suite_candidates
+        from cli.benchmark import _suite_candidates
 
         (tmp_path / "a.txt").write_text("x")
         (tmp_path / "b.jpg").write_bytes(b"x")
@@ -434,7 +434,7 @@ class TestSuiteCandidates:
         assert "b.jpg" not in names
 
     def test_fallback_to_all_when_no_match(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _suite_candidates
+        from cli.benchmark import _suite_candidates
 
         d = tmp_path / "files"
         d.mkdir()
@@ -445,7 +445,7 @@ class TestSuiteCandidates:
         assert len(result) == 2
 
     def test_no_fallback_returns_empty_when_no_match(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _suite_candidates
+        from cli.benchmark import _suite_candidates
 
         (tmp_path / "a.jpg").write_bytes(b"x")
         files = list(tmp_path.iterdir())
@@ -453,7 +453,7 @@ class TestSuiteCandidates:
         assert result == []
 
     def test_empty_file_list_returns_empty(self) -> None:
-        from file_organizer.cli.benchmark import _suite_candidates
+        from cli.benchmark import _suite_candidates
 
         result = _suite_candidates([], {".txt"})
         assert result == []
@@ -466,28 +466,28 @@ class TestSuiteCandidates:
 
 class TestClassifySuites:
     def _outcome(self, processed: int = 1, synth: bool = False) -> object:
-        from file_organizer.cli.benchmark import _SuiteIterationOutcome
+        from cli.benchmark import _SuiteIterationOutcome
 
         return _SuiteIterationOutcome(
             processed_count=processed, used_synthetic_audio_metadata=synth
         )
 
     def test_classify_io_suite_never_degraded(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _classify_io_suite
+        from cli.benchmark import _classify_io_suite
 
         result = _classify_io_suite([], self._outcome())
         assert result.degraded is False
         assert result.effective_suite == "io"
 
     def test_classify_text_suite_no_candidates_degraded(self) -> None:
-        from file_organizer.cli.benchmark import _classify_text_suite
+        from cli.benchmark import _classify_text_suite
 
         result = _classify_text_suite([], self._outcome())
         assert result.degraded is True
         assert "text-no-candidates-skip" in result.degradation_reasons
 
     def test_classify_text_suite_with_text_files_not_degraded(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _classify_text_suite
+        from cli.benchmark import _classify_text_suite
 
         f = tmp_path / "doc.txt"
         f.write_text("x")
@@ -495,13 +495,13 @@ class TestClassifySuites:
         assert result.degraded is False
 
     def test_classify_vision_suite_no_candidates_degraded(self) -> None:
-        from file_organizer.cli.benchmark import _classify_vision_suite
+        from cli.benchmark import _classify_vision_suite
 
         result = _classify_vision_suite([], self._outcome())
         assert result.degraded is True
 
     def test_classify_vision_suite_with_image_not_degraded(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _classify_vision_suite
+        from cli.benchmark import _classify_vision_suite
 
         f = tmp_path / "img.jpg"
         f.write_bytes(b"x")
@@ -509,14 +509,14 @@ class TestClassifySuites:
         assert result.degraded is False
 
     def test_classify_audio_suite_no_candidates_falls_back_to_io(self) -> None:
-        from file_organizer.cli.benchmark import _classify_audio_suite
+        from cli.benchmark import _classify_audio_suite
 
         result = _classify_audio_suite([], self._outcome())
         assert result.degraded is True
         assert result.effective_suite == "io"
 
     def test_classify_audio_suite_synthetic_metadata_degraded(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _classify_audio_suite
+        from cli.benchmark import _classify_audio_suite
 
         f = tmp_path / "song.mp3"
         f.write_bytes(b"x")
@@ -525,7 +525,7 @@ class TestClassifySuites:
         assert "audio-synthesized-metadata-fallback" in result.degradation_reasons
 
     def test_classify_audio_suite_real_audio_not_degraded(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _classify_audio_suite
+        from cli.benchmark import _classify_audio_suite
 
         f = tmp_path / "song.mp3"
         f.write_bytes(b"x")
@@ -533,13 +533,13 @@ class TestClassifySuites:
         assert result.degraded is False
 
     def test_classify_pipeline_suite_never_degraded(self) -> None:
-        from file_organizer.cli.benchmark import _classify_pipeline_suite
+        from cli.benchmark import _classify_pipeline_suite
 
         result = _classify_pipeline_suite([], self._outcome())
         assert result.degraded is False
 
     def test_classify_e2e_suite_no_processed_degraded(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _classify_e2e_suite
+        from cli.benchmark import _classify_e2e_suite
 
         f = tmp_path / "f.txt"
         f.write_text("x")
@@ -547,7 +547,7 @@ class TestClassifySuites:
         assert result.degraded is True
 
     def test_classify_e2e_suite_processed_not_degraded(self, tmp_path: Path) -> None:
-        from file_organizer.cli.benchmark import _classify_e2e_suite
+        from cli.benchmark import _classify_e2e_suite
 
         f = tmp_path / "f.txt"
         f.write_text("x")
@@ -555,7 +555,7 @@ class TestClassifySuites:
         assert result.degraded is False
 
     def test_classify_e2e_suite_empty_files_not_degraded(self) -> None:
-        from file_organizer.cli.benchmark import _classify_e2e_suite
+        from cli.benchmark import _classify_e2e_suite
 
         result = _classify_e2e_suite([], self._outcome(processed=0))
         assert result.degraded is False
@@ -568,28 +568,28 @@ class TestClassifySuites:
 
 class TestResolveProcessedCount:
     def test_consistent_counts_returns_last(self) -> None:
-        from file_organizer.cli.benchmark import _resolve_processed_count
+        from cli.benchmark import _resolve_processed_count
 
         console = MagicMock()
         result = _resolve_processed_count([3, 3, 3], warmup=0, suite="io", console=console)
         assert result == 3
 
     def test_warmup_excluded(self) -> None:
-        from file_organizer.cli.benchmark import _resolve_processed_count
+        from cli.benchmark import _resolve_processed_count
 
         console = MagicMock()
         result = _resolve_processed_count([1, 3, 3, 3], warmup=1, suite="io", console=console)
         assert result == 3
 
     def test_empty_list_returns_zero(self) -> None:
-        from file_organizer.cli.benchmark import _resolve_processed_count
+        from cli.benchmark import _resolve_processed_count
 
         console = MagicMock()
         result = _resolve_processed_count([], warmup=0, suite="io", console=console)
         assert result == 0
 
     def test_only_warmup_returns_last_warmup(self) -> None:
-        from file_organizer.cli.benchmark import _resolve_processed_count
+        from cli.benchmark import _resolve_processed_count
 
         console = MagicMock()
         result = _resolve_processed_count([5], warmup=1, suite="io", console=console)
@@ -603,7 +603,7 @@ class TestResolveProcessedCount:
 
 class TestCheckBaselineProfileCompatibility:
     def test_same_version_returns_none(self) -> None:
-        from file_organizer.cli.benchmark import (
+        from cli.benchmark import (
             _RUNNER_PROFILE_VERSION,
             _check_baseline_profile_compatibility,
         )
@@ -617,7 +617,7 @@ class TestCheckBaselineProfileCompatibility:
         console.print.assert_not_called()
 
     def test_different_version_prints_warning(self) -> None:
-        from file_organizer.cli.benchmark import _check_baseline_profile_compatibility
+        from cli.benchmark import _check_baseline_profile_compatibility
 
         console = MagicMock()
         baseline = {"runner_profile_version": "old-version-1"}
@@ -628,7 +628,7 @@ class TestCheckBaselineProfileCompatibility:
         console.print.assert_called_once()
 
     def test_different_version_json_output_no_print(self) -> None:
-        from file_organizer.cli.benchmark import _check_baseline_profile_compatibility
+        from cli.benchmark import _check_baseline_profile_compatibility
 
         console = MagicMock()
         baseline = {"runner_profile_version": "old-version-1"}
@@ -639,7 +639,7 @@ class TestCheckBaselineProfileCompatibility:
         console.print.assert_not_called()
 
     def test_missing_version_key_returns_none(self) -> None:
-        from file_organizer.cli.benchmark import _check_baseline_profile_compatibility
+        from cli.benchmark import _check_baseline_profile_compatibility
 
         console = MagicMock()
         result = _check_baseline_profile_compatibility(
@@ -655,7 +655,7 @@ class TestCheckBaselineProfileCompatibility:
 
 class TestSummarizeSuiteClassifications:
     def test_all_non_degraded_returns_false(self) -> None:
-        from file_organizer.cli.benchmark import (
+        from cli.benchmark import (
             _SuiteExecutionClassification,
             _summarize_suite_classifications,
         )
@@ -671,7 +671,7 @@ class TestSummarizeSuiteClassifications:
         assert reasons == []
 
     def test_any_degraded_returns_true(self) -> None:
-        from file_organizer.cli.benchmark import (
+        from cli.benchmark import (
             _SuiteExecutionClassification,
             _summarize_suite_classifications,
         )
@@ -691,7 +691,7 @@ class TestSummarizeSuiteClassifications:
         assert "text-no-candidates-skip" in reasons
 
     def test_empty_classifications_returns_requested_suite(self) -> None:
-        from file_organizer.cli.benchmark import _summarize_suite_classifications
+        from cli.benchmark import _summarize_suite_classifications
 
         effective, degraded, reasons = _summarize_suite_classifications(
             [], warmup=0, requested_suite="io"
@@ -701,7 +701,7 @@ class TestSummarizeSuiteClassifications:
         assert reasons == []
 
     def test_warmup_excluded_from_summary(self) -> None:
-        from file_organizer.cli.benchmark import (
+        from cli.benchmark import (
             _SuiteExecutionClassification,
             _summarize_suite_classifications,
         )
@@ -722,7 +722,7 @@ class TestSummarizeSuiteClassifications:
         assert "warmup-issue" not in reasons
 
     def test_mixed_effective_suites_returns_mixed(self) -> None:
-        from file_organizer.cli.benchmark import (
+        from cli.benchmark import (
             _SuiteExecutionClassification,
             _summarize_suite_classifications,
         )

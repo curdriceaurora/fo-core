@@ -26,7 +26,7 @@ source venv/bin/activate
 pip install -e .
 
 # 5. Verify
-file-organizer --version
+fo --version
 fo --version
 ```
 
@@ -55,8 +55,8 @@ pip install -e ".[all]"         # Everything
 ```toml
 # pyproject.toml
 [project.scripts]
-file-organizer = "file_organizer.cli:main"
-fo = "file_organizer.cli:main"
+fo = "cli:main"
+fo = "cli:main"
 ```
 
 ---

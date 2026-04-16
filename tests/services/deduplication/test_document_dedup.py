@@ -21,12 +21,12 @@ class TestDocumentDeduplicator(unittest.TestCase):
         """Ensure sklearn is available before running tests."""
         pytest.importorskip("sklearn")
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_init_default(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test default initialization."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -38,12 +38,12 @@ class TestDocumentDeduplicator(unittest.TestCase):
         self.assertIsNotNone(dedup.embedder)
         self.assertIsNotNone(dedup.analyzer)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_init_custom_params(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test initialization with custom parameters."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -51,12 +51,12 @@ class TestDocumentDeduplicator(unittest.TestCase):
         mock_emb_cls.assert_called_once_with(max_features=3000)
         mock_sem_cls.assert_called_once_with(threshold=0.9)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_find_duplicates_not_enough_docs(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test find_duplicates returns empty when < 2 valid docs."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -72,12 +72,12 @@ class TestDocumentDeduplicator(unittest.TestCase):
         self.assertEqual(result["analyzed_documents"], 0)
         self.assertEqual(result["space_wasted"], 0)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_find_duplicates_success(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test find_duplicates with enough valid docs."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -121,12 +121,12 @@ class TestDocumentDeduplicator(unittest.TestCase):
         self.assertEqual(result["space_wasted"], 200)
         self.assertEqual(len(result["duplicate_groups"]), 1)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_find_duplicates_filters_unsupported(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test that unsupported formats are filtered out."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -140,12 +140,12 @@ class TestDocumentDeduplicator(unittest.TestCase):
         self.assertEqual(len(args), 1)
         self.assertEqual(args[0].suffix, ".txt")
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_compare_documents_success(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test comparing two documents returns similarity score."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -162,12 +162,12 @@ class TestDocumentDeduplicator(unittest.TestCase):
         result = dedup.compare_documents(Path("/a.txt"), Path("/b.txt"))
         self.assertAlmostEqual(result, 0.87)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_compare_documents_empty_text(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test compare returns None when text is empty."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -177,12 +177,12 @@ class TestDocumentDeduplicator(unittest.TestCase):
         result = dedup.compare_documents(Path("/a.txt"), Path("/b.txt"))
         self.assertIsNone(result)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_compare_documents_exception(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test compare returns None on exception."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -192,14 +192,14 @@ class TestDocumentDeduplicator(unittest.TestCase):
         result = dedup.compare_documents(Path("/a.txt"), Path("/b.txt"))
         self.assertIsNone(result)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_calculate_space_wasted(self, mock_ext_cls, mock_emb_cls, mock_sem_cls):
         """Test _calculate_space_wasted with mock file sizes."""
         import tempfile
 
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -225,14 +225,14 @@ class TestDocumentDeduplicator(unittest.TestCase):
         Path(f1_path).unlink(missing_ok=True)
         Path(f2_path).unlink(missing_ok=True)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_calculate_space_wasted_nonexistent_files(
         self, mock_ext_cls, mock_emb_cls, mock_sem_cls
     ):
         """Test _calculate_space_wasted with nonexistent files."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 
@@ -243,14 +243,14 @@ class TestDocumentDeduplicator(unittest.TestCase):
         wasted = dedup._calculate_space_wasted(groups)
         self.assertEqual(wasted, 0)
 
-    @patch("file_organizer.services.deduplication.document_dedup.SemanticAnalyzer")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentEmbedder")
-    @patch("file_organizer.services.deduplication.document_dedup.DocumentExtractor")
+    @patch("services.deduplication.document_dedup.SemanticAnalyzer")
+    @patch("services.deduplication.document_dedup.DocumentEmbedder")
+    @patch("services.deduplication.document_dedup.DocumentExtractor")
     def test_calculate_space_wasted_single_file_group(
         self, mock_ext_cls, mock_emb_cls, mock_sem_cls
     ):
         """Test space calculation with single-file groups."""
-        from file_organizer.services.deduplication.document_dedup import (
+        from services.deduplication.document_dedup import (
             DocumentDeduplicator,
         )
 

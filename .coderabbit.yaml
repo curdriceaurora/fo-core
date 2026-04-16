@@ -42,5 +42,5 @@ knowledge_base:
   pull_requests:
     scope: "global"
   linked_repositories:
-    - repository: "curdriceaurora/local-file-organizer"
+    - repository: "curdriceaurora/fo-core"
       instructions: "Shared architecture and CLI behavior references for fo-core."

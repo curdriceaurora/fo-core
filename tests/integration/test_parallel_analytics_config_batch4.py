@@ -18,14 +18,14 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 def _make_file_result(path: Path, success: bool = True, error: str | None = None) -> Any:
     """Build a FileResult for use in mock returns."""
-    from file_organizer.parallel.result import FileResult
+    from parallel.result import FileResult
 
     return FileResult(path=path, success=success, error=error, duration_ms=1.0)
 
 
 def _make_batch_result(total: int = 1, succeeded: int = 1, failed: int = 0) -> Any:
     """Build a minimal BatchResult."""
-    from file_organizer.parallel.result import BatchResult
+    from parallel.result import BatchResult
 
     return BatchResult(total=total, succeeded=succeeded, failed=failed, results=[])
 
@@ -36,10 +36,10 @@ def _make_batch_result(total: int = 1, succeeded: int = 1, failed: int = 0) -> A
 
 
 class TestResumableProcessor:
-    """Tests for file_organizer.parallel.resume.ResumableProcessor."""
+    """Tests for parallel.resume.ResumableProcessor."""
 
     def test_process_with_resume_creates_job_state(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -71,7 +71,7 @@ class TestResumableProcessor:
         assert saved_jobs[0].total_files == 1
 
     def test_process_with_resume_autogenerates_job_id(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -96,8 +96,8 @@ class TestResumableProcessor:
         assert len(saved_ids[0]) > 0
 
     def test_process_with_resume_returns_batch_result(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.result import BatchResult
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.result import BatchResult
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -126,7 +126,7 @@ class TestResumableProcessor:
         assert result.succeeded == 1
 
     def test_process_with_resume_counts_failures(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -154,7 +154,7 @@ class TestResumableProcessor:
         assert result.succeeded == 0
 
     def test_resume_job_raises_when_job_missing(self) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_persistence.load_job.return_value = None
@@ -171,8 +171,8 @@ class TestResumableProcessor:
     def test_resume_job_raises_when_checkpoint_missing(self) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.parallel.models import JobState, JobStatus
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import JobState, JobStatus
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         now = datetime.now(UTC)
@@ -196,9 +196,9 @@ class TestResumableProcessor:
     def test_resume_job_skips_completed_files(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.parallel.models import Checkpoint, JobState, JobStatus
-        from file_organizer.parallel.result import BatchResult
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import Checkpoint, JobState, JobStatus
+        from parallel.result import BatchResult
+        from parallel.resume import ResumableProcessor
 
         now = datetime.now(UTC)
         file_done = tmp_path / "done.txt"
@@ -239,8 +239,8 @@ class TestResumableProcessor:
     def test_resume_job_reprocesses_modified_files(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.parallel.models import Checkpoint, JobState, JobStatus
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import Checkpoint, JobState, JobStatus
+        from parallel.resume import ResumableProcessor
 
         now = datetime.now(UTC)
         file_mod = tmp_path / "modified.txt"
@@ -297,8 +297,8 @@ class TestResumableProcessor:
     def test_process_and_checkpoint_marks_job_completed(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.parallel.models import JobState, JobStatus
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import JobState, JobStatus
+        from parallel.resume import ResumableProcessor
 
         now = datetime.now(UTC)
         f = tmp_path / "f.txt"
@@ -328,8 +328,8 @@ class TestResumableProcessor:
     def test_process_and_checkpoint_marks_job_failed_on_exception(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.parallel.models import JobState, JobStatus
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import JobState, JobStatus
+        from parallel.resume import ResumableProcessor
 
         now = datetime.now(UTC)
         f = tmp_path / "f.txt"
@@ -358,8 +358,8 @@ class TestResumableProcessor:
         assert failed_job.error == "crash"
 
     def test_process_with_resume_empty_file_list(self) -> None:
-        from file_organizer.parallel.result import BatchResult
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.result import BatchResult
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -383,7 +383,7 @@ class TestResumableProcessor:
         assert result.succeeded == 0
 
     def test_process_with_resume_updates_checkpoint_per_file(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -414,10 +414,10 @@ class TestResumableProcessor:
         assert mock_checkpoint_mgr.update_checkpoint_state.call_count == 3
 
     def test_default_constructor_creates_internal_components(self) -> None:
-        from file_organizer.parallel.checkpoint import CheckpointManager
-        from file_organizer.parallel.persistence import JobPersistence
-        from file_organizer.parallel.processor import ParallelProcessor
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.checkpoint import CheckpointManager
+        from parallel.persistence import JobPersistence
+        from parallel.processor import ParallelProcessor
+        from parallel.resume import ResumableProcessor
 
         rp = ResumableProcessor()
 
@@ -426,8 +426,8 @@ class TestResumableProcessor:
         assert isinstance(rp._checkpoint_mgr, CheckpointManager)
 
     def test_process_with_resume_saves_job_at_end(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.models import JobStatus
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import JobStatus
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -454,8 +454,8 @@ class TestResumableProcessor:
     def test_resume_job_pending_files_reprocessed(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.parallel.models import Checkpoint, JobState, JobStatus
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import Checkpoint, JobState, JobStatus
+        from parallel.resume import ResumableProcessor
 
         now = datetime.now(UTC)
         pending_file = tmp_path / "pending.txt"
@@ -505,8 +505,8 @@ class TestResumableProcessor:
     def test_process_and_checkpoint_failed_all_marks_failed(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.parallel.models import JobState, JobStatus
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import JobState, JobStatus
+        from parallel.resume import ResumableProcessor
 
         now = datetime.now(UTC)
         f = tmp_path / "fail.txt"
@@ -536,7 +536,7 @@ class TestResumableProcessor:
         assert final_job.status == JobStatus.FAILED
 
     def test_process_with_resume_mixed_results(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -573,8 +573,8 @@ class TestResumableProcessor:
     def test_resume_job_adjusts_total_to_full_job(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.parallel.models import Checkpoint, JobState, JobStatus
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.models import Checkpoint, JobState, JobStatus
+        from parallel.resume import ResumableProcessor
 
         now = datetime.now(UTC)
         done_file = tmp_path / "done2.txt"
@@ -616,7 +616,7 @@ class TestResumableProcessor:
         assert result.succeeded == 2
 
     def test_process_with_resume_saves_checkpoint_at_end(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -637,7 +637,7 @@ class TestResumableProcessor:
         mock_checkpoint_mgr.save_checkpoint.assert_called_once_with(checkpoint_mock)
 
     def test_process_with_resume_sets_total_files_in_job(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -666,7 +666,7 @@ class TestResumableProcessor:
         assert first_saved.total_files == 5
 
     def test_process_with_resume_job_id_passed_to_checkpoint_mgr(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -690,7 +690,7 @@ class TestResumableProcessor:
         )
 
     def test_process_with_resume_error_propagates(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.resume import ResumableProcessor
+        from parallel.resume import ResumableProcessor
 
         mock_persistence = MagicMock()
         mock_checkpoint_mgr = MagicMock()
@@ -708,7 +708,7 @@ class TestResumableProcessor:
             rp.process_with_resume([], lambda p: None, job_id="err-test")
 
     def test_batch_result_summary_includes_counts(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.result import BatchResult, FileResult
+        from parallel.result import BatchResult, FileResult
 
         r = FileResult(path=tmp_path / "a.txt", success=False, error="oops", duration_ms=5.0)
         br = BatchResult(total=2, succeeded=1, failed=1, results=[r])
@@ -719,7 +719,7 @@ class TestResumableProcessor:
         assert "oops" in summary
 
     def test_file_result_str_success(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.result import FileResult
+        from parallel.result import FileResult
 
         f = FileResult(path=tmp_path / "ok.txt", success=True, duration_ms=10.0)
         s = str(f)
@@ -728,7 +728,7 @@ class TestResumableProcessor:
         assert "ok.txt" in s
 
     def test_file_result_str_failure(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.result import FileResult
+        from parallel.result import FileResult
 
         f = FileResult(path=tmp_path / "bad.txt", success=False, error="no perm", duration_ms=2.0)
         s = str(f)
@@ -737,7 +737,7 @@ class TestResumableProcessor:
         assert "no perm" in s
 
     def test_batch_result_summary_with_many_failures(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.result import BatchResult, FileResult
+        from parallel.result import BatchResult, FileResult
 
         results = [
             FileResult(path=tmp_path / f"f{i}.txt", success=False, error=f"err{i}")
@@ -755,11 +755,11 @@ class TestResumableProcessor:
 
 
 class TestAnalyticsService:
-    """Tests for file_organizer.services.analytics.analytics_service.AnalyticsService."""
+    """Tests for services.analytics.analytics_service.AnalyticsService."""
 
     def test_calculate_time_saved_returns_time_savings(self) -> None:
-        from file_organizer.models.analytics import TimeSavings
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from models.analytics import TimeSavings
+        from services.analytics.analytics_service import AnalyticsService
 
         svc = AnalyticsService(
             storage_analyzer=MagicMock(),
@@ -771,7 +771,7 @@ class TestAnalyticsService:
         assert result.total_operations == 10
 
     def test_calculate_time_saved_zero_duplicates(self) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         svc = AnalyticsService(
             storage_analyzer=MagicMock(),
@@ -783,7 +783,7 @@ class TestAnalyticsService:
         assert result.automated_operations == 5
 
     def test_calculate_time_saved_time_values_positive(self) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         svc = AnalyticsService(
             storage_analyzer=MagicMock(),
@@ -796,7 +796,7 @@ class TestAnalyticsService:
         assert result.estimated_time_saved_seconds >= 0
 
     def test_calculate_time_saved_manual_time_greater_than_automated(self) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         svc = AnalyticsService(
             storage_analyzer=MagicMock(),
@@ -808,8 +808,8 @@ class TestAnalyticsService:
         assert result.manual_time_seconds > result.automated_time_seconds
 
     def test_get_duplicate_stats_empty_groups(self) -> None:
-        from file_organizer.models.analytics import DuplicateStats
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from models.analytics import DuplicateStats
+        from services.analytics.analytics_service import AnalyticsService
 
         svc = AnalyticsService(
             storage_analyzer=MagicMock(),
@@ -823,7 +823,7 @@ class TestAnalyticsService:
         assert result.space_wasted == 0
 
     def test_get_duplicate_stats_counts_extra_copies(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         f1 = tmp_path / "dup1.txt"
         f2 = tmp_path / "dup2.txt"
@@ -843,7 +843,7 @@ class TestAnalyticsService:
         assert result.duplicate_groups == 1
 
     def test_get_duplicate_stats_ignores_singleton_groups(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         f1 = tmp_path / "single.txt"
         f1.write_text("unique")
@@ -862,7 +862,7 @@ class TestAnalyticsService:
     def test_get_duplicate_stats_space_wasted_nonzero_for_existing_files(
         self, tmp_path: Path
     ) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         f1 = tmp_path / "big1.bin"
         f2 = tmp_path / "big2.bin"
@@ -882,8 +882,8 @@ class TestAnalyticsService:
         assert result.space_recoverable == 1024
 
     def test_get_storage_stats_delegates_to_analyzer(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import StorageStats
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from models.analytics import StorageStats
+        from services.analytics.analytics_service import AnalyticsService
 
         mock_analyzer = MagicMock()
         expected = StorageStats(
@@ -902,8 +902,8 @@ class TestAnalyticsService:
         mock_analyzer.analyze_directory.assert_called_once_with(tmp_path, None)
 
     def test_get_storage_stats_passes_max_depth(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import StorageStats
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from models.analytics import StorageStats
+        from services.analytics.analytics_service import AnalyticsService
 
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = StorageStats(
@@ -916,8 +916,8 @@ class TestAnalyticsService:
         mock_analyzer.analyze_directory.assert_called_once_with(tmp_path, 3)
 
     def test_get_quality_metrics_returns_quality_metrics(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import QualityMetrics
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from models.analytics import QualityMetrics
+        from services.analytics.analytics_service import AnalyticsService
 
         f = tmp_path / "doc.txt"
         f.write_text("hello world")
@@ -935,7 +935,7 @@ class TestAnalyticsService:
         assert result.naming_compliance == 0.9
 
     def test_get_quality_metrics_structure_consistency_in_range(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         # file in subdirectory → organized
         subdir = tmp_path / "subdir"
@@ -957,7 +957,7 @@ class TestAnalyticsService:
     def test_get_quality_metrics_metadata_completeness_known_extensions(
         self, tmp_path: Path
     ) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         # .txt is a known extension
         f = tmp_path / "readme.txt"
@@ -976,7 +976,7 @@ class TestAnalyticsService:
         assert result.metadata_completeness == 1.0
 
     def test_get_quality_metrics_empty_directory(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         mock_analyzer = MagicMock()
         mock_analyzer.walk_directory.return_value = []
@@ -994,7 +994,7 @@ class TestAnalyticsService:
         import json
         from datetime import UTC, datetime
 
-        from file_organizer.models.analytics import (
+        from models.analytics import (
             AnalyticsDashboard,
             DuplicateStats,
             FileDistribution,
@@ -1002,7 +1002,7 @@ class TestAnalyticsService:
             StorageStats,
             TimeSavings,
         )
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         dashboard = AnalyticsDashboard(
             storage_stats=StorageStats(
@@ -1040,7 +1040,7 @@ class TestAnalyticsService:
     def test_export_dashboard_text(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.models.analytics import (
+        from models.analytics import (
             AnalyticsDashboard,
             DuplicateStats,
             FileDistribution,
@@ -1048,7 +1048,7 @@ class TestAnalyticsService:
             StorageStats,
             TimeSavings,
         )
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         dashboard = AnalyticsDashboard(
             storage_stats=StorageStats(
@@ -1086,7 +1086,7 @@ class TestAnalyticsService:
     def test_export_dashboard_unsupported_format_raises(self, tmp_path: Path) -> None:
         from datetime import UTC, datetime
 
-        from file_organizer.models.analytics import (
+        from models.analytics import (
             AnalyticsDashboard,
             DuplicateStats,
             FileDistribution,
@@ -1094,7 +1094,7 @@ class TestAnalyticsService:
             StorageStats,
             TimeSavings,
         )
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         dashboard = AnalyticsDashboard(
             storage_stats=StorageStats(
@@ -1126,12 +1126,12 @@ class TestAnalyticsService:
             svc.export_dashboard(dashboard, tmp_path / "out.xyz", format="csv")
 
     def test_generate_dashboard_calls_all_sub_methods(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import (
+        from models.analytics import (
             AnalyticsDashboard,
             FileDistribution,
             StorageStats,
         )
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = StorageStats(
@@ -1152,8 +1152,8 @@ class TestAnalyticsService:
         mock_analyzer.calculate_size_distribution.assert_called_once()
 
     def test_generate_dashboard_with_duplicate_groups(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import FileDistribution, StorageStats
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from models.analytics import FileDistribution, StorageStats
+        from services.analytics.analytics_service import AnalyticsService
 
         f1 = tmp_path / "d1.txt"
         f2 = tmp_path / "d2.txt"
@@ -1178,7 +1178,7 @@ class TestAnalyticsService:
         assert result.duplicate_stats.total_duplicates == 1
 
     def test_get_duplicate_stats_tracks_by_type(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         f1 = tmp_path / "img1.jpg"
         f2 = tmp_path / "img2.jpg"
@@ -1194,7 +1194,7 @@ class TestAnalyticsService:
         assert result.by_type[".jpg"] == 1
 
     def test_get_duplicate_stats_largest_group_populated(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         files = []
         for i in range(3):
@@ -1211,9 +1211,9 @@ class TestAnalyticsService:
         assert result.largest_duplicate_group["count"] == 3
 
     def test_default_constructor_creates_components(self) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
-        from file_organizer.services.analytics.metrics_calculator import MetricsCalculator
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.analytics_service import AnalyticsService
+        from services.analytics.metrics_calculator import MetricsCalculator
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         svc = AnalyticsService()
 
@@ -1221,7 +1221,7 @@ class TestAnalyticsService:
         assert isinstance(svc.metrics_calculator, MetricsCalculator)
 
     def test_time_saved_exact_formula(self) -> None:
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         svc = AnalyticsService(storage_analyzer=MagicMock(), metrics_calculator=MagicMock())
         result = svc.calculate_time_saved(total_files=10, duplicates_removed=2)
@@ -1239,11 +1239,11 @@ class TestAnalyticsService:
 
 
 class TestIntentParser:
-    """Tests for file_organizer.services.copilot.intent_parser.IntentParser."""
+    """Tests for services.copilot.intent_parser.IntentParser."""
 
     def test_parse_empty_string_returns_unknown(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("")
@@ -1252,8 +1252,8 @@ class TestIntentParser:
         assert intent.confidence == 0.0
 
     def test_parse_organize_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("Please organize my files")
@@ -1262,8 +1262,8 @@ class TestIntentParser:
         assert intent.confidence > 0.0
 
     def test_parse_find_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("find my documents")
@@ -1271,8 +1271,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.FIND
 
     def test_parse_undo_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("undo that action")
@@ -1281,8 +1281,8 @@ class TestIntentParser:
         assert intent.confidence == 0.95
 
     def test_parse_redo_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("redo")
@@ -1290,8 +1290,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.REDO
 
     def test_parse_move_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("move files to /tmp/dest")
@@ -1299,8 +1299,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.MOVE
 
     def test_parse_rename_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse('rename this file to "new_name.txt"')
@@ -1308,8 +1308,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.RENAME
 
     def test_parse_preview_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("preview what will happen")
@@ -1317,8 +1317,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.PREVIEW
 
     def test_parse_help_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("help me please")
@@ -1326,8 +1326,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.HELP
 
     def test_parse_status_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("show me the status")
@@ -1335,8 +1335,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.STATUS
 
     def test_parse_suggest_keyword(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("suggest a better location")
@@ -1344,8 +1344,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.SUGGEST
 
     def test_parse_unknown_text_returns_chat(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("the weather is nice today")
@@ -1354,7 +1354,7 @@ class TestIntentParser:
         assert intent.confidence == 0.3
 
     def test_parse_raw_text_preserved(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         text = "Organize my Downloads folder"
@@ -1363,7 +1363,7 @@ class TestIntentParser:
         assert intent.raw_text == text
 
     def test_parse_extracts_path_for_organize(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse("organize /home/user/Downloads")
@@ -1371,7 +1371,7 @@ class TestIntentParser:
         assert "paths" in intent.parameters or "source" in intent.parameters
 
     def test_parse_extracts_quoted_strings(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse('rename to "my new name"')
@@ -1380,7 +1380,7 @@ class TestIntentParser:
         assert "my new name" in intent.parameters["quoted_args"]
 
     def test_parse_extracts_new_name_for_rename(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse('rename this to "report_final.pdf"')
@@ -1388,7 +1388,7 @@ class TestIntentParser:
         assert intent.parameters.get("new_name") == "report_final.pdf"
 
     def test_parse_find_extracts_query(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse("find tax returns")
@@ -1397,7 +1397,7 @@ class TestIntentParser:
         assert "tax" in intent.parameters["query"]
 
     def test_parse_organize_dry_run_detected(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse("organize with dry-run")
@@ -1405,7 +1405,7 @@ class TestIntentParser:
         assert intent.parameters.get("dry_run") is True
 
     def test_parse_move_extracts_source_and_destination(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse("move /source/dir /destination/dir")
@@ -1414,7 +1414,7 @@ class TestIntentParser:
         assert "destination" in intent.parameters
 
     def test_intent_is_actionable_for_organize(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse("organize my files")
@@ -1422,7 +1422,7 @@ class TestIntentParser:
         assert intent.is_actionable is True
 
     def test_intent_not_actionable_for_chat(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse("hello there how are you doing")
@@ -1430,7 +1430,7 @@ class TestIntentParser:
         assert intent.is_actionable is False
 
     def test_intent_not_actionable_for_help(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
         intent = parser.parse("help please")
@@ -1438,8 +1438,8 @@ class TestIntentParser:
         assert intent.is_actionable is False
 
     def test_parse_is_case_insensitive(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("ORGANIZE MY FILES PLEASE")
@@ -1447,8 +1447,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.ORGANIZE
 
     def test_parse_relocate_maps_to_move(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("relocate these files")
@@ -1456,8 +1456,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.MOVE
 
     def test_parse_clean_up_maps_to_organize(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("clean up my folder")
@@ -1465,8 +1465,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.ORGANIZE
 
     def test_parse_dry_run_maps_to_preview(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("do a dry run first")
@@ -1474,8 +1474,8 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.PREVIEW
 
     def test_parse_statistics_maps_to_status(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.intent_parser import IntentParser
+        from services.copilot.models import IntentType
 
         parser = IntentParser()
         intent = parser.parse("show statistics")
@@ -1483,7 +1483,7 @@ class TestIntentParser:
         assert intent.intent_type == IntentType.STATUS
 
     def test_extract_quoted_strings_static_method(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         result = IntentParser._extract_quoted_strings("say \"hello\" and 'world'")
 
@@ -1492,7 +1492,7 @@ class TestIntentParser:
         assert len(result) == 2
 
     def test_extract_paths_detects_unix_paths(self) -> None:
-        from file_organizer.services.copilot.intent_parser import IntentParser
+        from services.copilot.intent_parser import IntentParser
 
         result = IntentParser._extract_paths("move /home/user/docs")
 
@@ -1506,11 +1506,11 @@ class TestIntentParser:
 
 
 class TestConfigManager:
-    """Tests for file_organizer.config.manager.ConfigManager."""
+    """Tests for config.manager.ConfigManager."""
 
     def test_load_returns_default_when_no_file(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = mgr.load()
@@ -1522,8 +1522,8 @@ class TestConfigManager:
         # Create file with different profile
         import yaml
 
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         config_path = tmp_path / "config.yaml"
         config_path.write_text(
@@ -1538,8 +1538,8 @@ class TestConfigManager:
         assert cfg.profile_name == "development"
 
     def test_save_creates_config_file(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig(profile_name="default", version="1.0")
@@ -1549,8 +1549,8 @@ class TestConfigManager:
         assert config_path.exists()
 
     def test_save_and_load_roundtrip(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig(
@@ -1568,8 +1568,8 @@ class TestConfigManager:
         assert loaded.setup_completed is True
 
     def test_save_preserves_other_profiles(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg_a = AppConfig(profile_name="alpha")
@@ -1583,7 +1583,7 @@ class TestConfigManager:
         assert "beta" in profiles
 
     def test_list_profiles_empty_when_no_file(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)
         profiles = mgr.list_profiles()
@@ -1591,8 +1591,8 @@ class TestConfigManager:
         assert profiles == []
 
     def test_list_profiles_sorted(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         for name in ["zebra", "alpha", "middle"]:
@@ -1602,8 +1602,8 @@ class TestConfigManager:
         assert profiles == sorted(profiles)
 
     def test_delete_profile_returns_true_when_found(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="removeme"))
@@ -1613,8 +1613,8 @@ class TestConfigManager:
         assert result is True
 
     def test_delete_profile_removes_it_from_list(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="gone"))
@@ -1624,7 +1624,7 @@ class TestConfigManager:
         assert "gone" not in profiles
 
     def test_delete_profile_returns_false_when_missing(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)
         result = mgr.delete_profile("nonexistent")
@@ -1632,16 +1632,16 @@ class TestConfigManager:
         assert result is False
 
     def test_config_dir_property(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         mgr = ConfigManager(config_dir=tmp_path)
 
         assert mgr.config_dir == tmp_path
 
     def test_to_text_model_config_uses_text_model(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig, ModelPreset
-        from file_organizer.models.base import ModelType
+        from config.manager import ConfigManager
+        from config.schema import AppConfig, ModelPreset
+        from models.base import ModelType
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig(models=ModelPreset(text_model="llama3:latest"))
@@ -1652,9 +1652,9 @@ class TestConfigManager:
         assert model_cfg.model_type == ModelType.TEXT
 
     def test_to_vision_model_config_uses_vision_model(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig, ModelPreset
-        from file_organizer.models.base import ModelType
+        from config.manager import ConfigManager
+        from config.schema import AppConfig, ModelPreset
+        from models.base import ModelType
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig(models=ModelPreset(vision_model="llava:7b"))
@@ -1665,8 +1665,8 @@ class TestConfigManager:
         assert model_cfg.model_type == ModelType.VISION
 
     def test_config_to_dict_contains_required_keys(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig()
@@ -1678,8 +1678,8 @@ class TestConfigManager:
         assert "updates" in d
 
     def test_config_to_dict_excludes_none_module_overrides(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig(watcher=None, daemon=None)
@@ -1690,8 +1690,8 @@ class TestConfigManager:
         assert "daemon" not in d
 
     def test_config_to_dict_includes_set_module_overrides(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig(watcher={"interval": 5})
@@ -1702,7 +1702,7 @@ class TestConfigManager:
         assert d["watcher"]["interval"] == 5
 
     def test_load_invalid_yaml_returns_default(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         config_path = tmp_path / "config.yaml"
         config_path.write_text(":::invalid yaml:::", encoding="utf-8")
@@ -1713,7 +1713,7 @@ class TestConfigManager:
         assert cfg.profile_name == "default"
 
     def test_load_non_dict_yaml_returns_default(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
+        from config.manager import ConfigManager
 
         config_path = tmp_path / "config.yaml"
         config_path.write_text("- item1\n- item2\n", encoding="utf-8")
@@ -1724,9 +1724,9 @@ class TestConfigManager:
         assert cfg.profile_name == "default"
 
     def test_to_parallel_config(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
-        from file_organizer.parallel.config import ParallelConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
+        from parallel.config import ParallelConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig(parallel={})
@@ -1737,8 +1737,8 @@ class TestConfigManager:
         assert result.executor_type is not None  # has a default executor type
 
     def test_save_creates_parent_directories(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         deep = tmp_path / "a" / "b" / "c"
         mgr = ConfigManager(config_dir=deep)
@@ -1747,8 +1747,8 @@ class TestConfigManager:
         assert (deep / "config.yaml").exists()
 
     def test_list_profiles_returns_list_of_strings(self, tmp_path: Path) -> None:
-        from file_organizer.config.manager import ConfigManager
-        from file_organizer.config.schema import AppConfig
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         mgr.save(AppConfig(profile_name="p1"))
@@ -1765,11 +1765,11 @@ class TestConfigManager:
 
 
 class TestInitializer:
-    """Tests for file_organizer.core.initializer module."""
+    """Tests for core.initializer module."""
 
     def test_init_text_processor_success(self) -> None:
-        from file_organizer.core.initializer import init_text_processor
-        from file_organizer.models.base import ModelConfig, ModelType
+        from core.initializer import init_text_processor
+        from models.base import ModelConfig, ModelType
 
         mock_processor_instance = MagicMock()
         mock_processor_cls = MagicMock(return_value=mock_processor_instance)
@@ -1784,8 +1784,8 @@ class TestInitializer:
         mock_processor_instance.initialize.assert_called_once()
 
     def test_init_text_processor_returns_none_on_failure(self) -> None:
-        from file_organizer.core.initializer import init_text_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_text_processor
+        from models.base import ModelConfig
 
         def failing_cls(**kwargs: Any) -> Any:
             raise ConnectionError("Ollama unreachable")
@@ -1798,8 +1798,8 @@ class TestInitializer:
         assert result is None
 
     def test_init_text_processor_prints_on_success(self) -> None:
-        from file_organizer.core.initializer import init_text_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_text_processor
+        from models.base import ModelConfig
 
         mock_processor_instance = MagicMock()
         mock_processor_cls = MagicMock(return_value=mock_processor_instance)
@@ -1813,8 +1813,8 @@ class TestInitializer:
         assert "Text model ready" in call_arg
 
     def test_init_text_processor_prints_warning_on_failure(self) -> None:
-        from file_organizer.core.initializer import init_text_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_text_processor
+        from models.base import ModelConfig
 
         mock_processor_cls = MagicMock(side_effect=RuntimeError("model missing"))
         mock_console = MagicMock()
@@ -1827,8 +1827,8 @@ class TestInitializer:
         assert "unavailable" in call_arg
 
     def test_init_text_processor_cleans_up_on_init_failure(self) -> None:
-        from file_organizer.core.initializer import init_text_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_text_processor
+        from models.base import ModelConfig
 
         mock_processor_instance = MagicMock()
         mock_processor_instance.initialize.side_effect = RuntimeError("init fail")
@@ -1842,8 +1842,8 @@ class TestInitializer:
         mock_processor_instance.cleanup.assert_called_once()
 
     def test_init_vision_processor_success(self) -> None:
-        from file_organizer.core.initializer import init_vision_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_vision_processor
+        from models.base import ModelConfig
 
         mock_processor_instance = MagicMock()
         mock_processor_cls = MagicMock(return_value=mock_processor_instance)
@@ -1856,8 +1856,8 @@ class TestInitializer:
         mock_processor_instance.initialize.assert_called_once()
 
     def test_init_vision_processor_returns_none_on_failure(self) -> None:
-        from file_organizer.core.initializer import init_vision_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_vision_processor
+        from models.base import ModelConfig
 
         mock_processor_cls = MagicMock(side_effect=OSError("no gpu"))
         mock_console = MagicMock()
@@ -1868,8 +1868,8 @@ class TestInitializer:
         assert result is None
 
     def test_init_vision_processor_prints_on_success(self) -> None:
-        from file_organizer.core.initializer import init_vision_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_vision_processor
+        from models.base import ModelConfig
 
         mock_processor_instance = MagicMock()
         mock_processor_cls = MagicMock(return_value=mock_processor_instance)
@@ -1883,8 +1883,8 @@ class TestInitializer:
         assert "Vision model ready" in call_arg
 
     def test_init_vision_processor_prints_warning_on_failure(self) -> None:
-        from file_organizer.core.initializer import init_vision_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_vision_processor
+        from models.base import ModelConfig
 
         mock_processor_cls = MagicMock(side_effect=ImportError("no llava"))
         mock_console = MagicMock()
@@ -1896,8 +1896,8 @@ class TestInitializer:
         assert "unavailable" in call_arg
 
     def test_init_vision_processor_cleans_up_on_init_failure(self) -> None:
-        from file_organizer.core.initializer import init_vision_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_vision_processor
+        from models.base import ModelConfig
 
         mock_processor_instance = MagicMock()
         mock_processor_instance.initialize.side_effect = RuntimeError("vision fail")
@@ -1911,8 +1911,8 @@ class TestInitializer:
         mock_processor_instance.cleanup.assert_called_once()
 
     def test_init_text_processor_cleanup_error_does_not_propagate(self) -> None:
-        from file_organizer.core.initializer import init_text_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_text_processor
+        from models.base import ModelConfig
 
         mock_processor_instance = MagicMock()
         mock_processor_instance.initialize.side_effect = RuntimeError("init fail")
@@ -1927,8 +1927,8 @@ class TestInitializer:
         assert result is None
 
     def test_init_vision_processor_cleanup_error_does_not_propagate(self) -> None:
-        from file_organizer.core.initializer import init_vision_processor
-        from file_organizer.models.base import ModelConfig
+        from core.initializer import init_vision_processor
+        from models.base import ModelConfig
 
         mock_processor_instance = MagicMock()
         mock_processor_instance.initialize.side_effect = RuntimeError("init fail")
@@ -1942,9 +1942,9 @@ class TestInitializer:
         assert result is None
 
     def test_init_text_processor_uses_default_class_when_none(self) -> None:
-        from file_organizer.core.initializer import init_text_processor
-        from file_organizer.models.base import ModelConfig
-        from file_organizer.services import TextProcessor
+        from core.initializer import init_text_processor
+        from models.base import ModelConfig
+        from services import TextProcessor
 
         mock_console = MagicMock()
         config = MagicMock(spec=ModelConfig)
@@ -1955,9 +1955,9 @@ class TestInitializer:
         assert result is None
 
     def test_init_vision_processor_uses_default_class_when_none(self) -> None:
-        from file_organizer.core.initializer import init_vision_processor
-        from file_organizer.models.base import ModelConfig
-        from file_organizer.services import VisionProcessor
+        from core.initializer import init_vision_processor
+        from models.base import ModelConfig
+        from services import VisionProcessor
 
         mock_console = MagicMock()
         config = MagicMock(spec=ModelConfig)

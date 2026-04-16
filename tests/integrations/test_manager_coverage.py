@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from file_organizer.integrations.base import (
+from integrations.base import (
     Integration,
     IntegrationConfig,
     IntegrationStatus,
     IntegrationType,
 )
-from file_organizer.integrations.manager import IntegrationManager
+from integrations.manager import IntegrationManager
 
 pytestmark = pytest.mark.unit
 

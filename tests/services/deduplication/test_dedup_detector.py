@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.services.deduplication.detector import (
+from services.deduplication.detector import (
     DuplicateDetector,
     ScanOptions,
 )

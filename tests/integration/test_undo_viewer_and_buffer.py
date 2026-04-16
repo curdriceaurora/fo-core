@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.models import OperationStatus, OperationType
-from file_organizer.history.tracker import OperationHistory
-from file_organizer.optimization.buffer_pool import BufferPool
-from file_organizer.undo.viewer import HistoryViewer
+from history.models import OperationStatus, OperationType
+from history.tracker import OperationHistory
+from optimization.buffer_pool import BufferPool
+from undo.viewer import HistoryViewer
 
 pytestmark = pytest.mark.integration
 

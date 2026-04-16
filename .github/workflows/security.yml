@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: "0 6 * * 1"  # Weekly on Monday at 06:00 UTC
   pull_request:
-    branches: [main]
+    branches: [main, epic/flatten-src-fo]
     paths-ignore:
       - ".claude/agents/**"
       - ".claude/commands/**"

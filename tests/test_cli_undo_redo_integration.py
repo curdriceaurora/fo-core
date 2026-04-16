@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 runner = CliRunner()
 
@@ -21,7 +21,7 @@ runner = CliRunner()
 
 @pytest.mark.unit
 class TestUndoCommand:
-    """Tests for ``file-organizer undo``."""
+    """Tests for ``fo undo``."""
 
     def test_undo_help(self) -> None:
         result = runner.invoke(app, ["undo", "--help"])
@@ -57,7 +57,7 @@ class TestUndoCommand:
 
 @pytest.mark.unit
 class TestRedoCommand:
-    """Tests for ``file-organizer redo``."""
+    """Tests for ``fo redo``."""
 
     def test_redo_help(self) -> None:
         result = runner.invoke(app, ["redo", "--help"])
@@ -81,7 +81,7 @@ class TestRedoCommand:
 
 @pytest.mark.unit
 class TestHistoryCommand:
-    """Tests for ``file-organizer history``."""
+    """Tests for ``fo history``."""
 
     def test_history_help(self) -> None:
         result = runner.invoke(app, ["history", "--help"])

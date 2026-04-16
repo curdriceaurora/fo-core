@@ -21,7 +21,7 @@ import pytest
 from PIL import Image as PILImage
 from rich.console import Console
 
-from file_organizer.services.deduplication.viewer import (
+from services.deduplication.viewer import (
     ComparisonViewer,
     ImageMetadata,
     UserAction,
@@ -79,7 +79,7 @@ class TestShowComparisonIntegration:
         small = _make_png(tmp_path, "small.png", (200, 150))
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="a"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="a"):
             result = viewer.show_comparison([large, small])
 
         assert large in result.files_to_keep
@@ -91,7 +91,7 @@ class TestShowComparisonIntegration:
         img = _make_png(tmp_path, "img.png")
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="s"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="s"):
             result = viewer.show_comparison([img])
 
         assert result.skipped is True
@@ -103,7 +103,7 @@ class TestShowComparisonIntegration:
         imgs = [_make_png(tmp_path, f"img{i}.png", (50 * (i + 1), 50)) for i in range(3)]
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="k"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="k"):
             result = viewer.show_comparison(imgs)
 
         assert len(result.files_to_keep) == 3
@@ -115,7 +115,7 @@ class TestShowComparisonIntegration:
         img = _make_png(tmp_path, "img.png")
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="q"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="q"):
             result = viewer.show_comparison([img])
 
         assert result.skipped is True
@@ -129,7 +129,7 @@ class TestShowComparisonIntegration:
         # Choose "1" from _prompt_user_action (digit → UserAction.KEEP),
         # then choose "2" from the follow-up prompt inside _process_user_action
         with patch(
-            "file_organizer.services.deduplication.viewer.Prompt.ask",
+            "services.deduplication.viewer.Prompt.ask",
             side_effect=["1", "2"],
         ):
             result = viewer.show_comparison([img1, img2])
@@ -149,7 +149,7 @@ class TestShowComparisonIntegration:
         img = _make_png(tmp_path, "sim.png")
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="s"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="s"):
             result = viewer.show_comparison([img], similarity_score=87.5)
 
         assert result.skipped is True
@@ -161,8 +161,8 @@ class TestShowComparisonIntegration:
         viewer = ComparisonViewer(console=_silent_console())
 
         with (
-            patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="d"),
-            patch("file_organizer.services.deduplication.viewer.Confirm.ask", return_value=True),
+            patch("services.deduplication.viewer.Prompt.ask", return_value="d"),
+            patch("services.deduplication.viewer.Confirm.ask", return_value=True),
         ):
             result = viewer.show_comparison([img1, img2])
 
@@ -178,8 +178,8 @@ class TestShowComparisonIntegration:
         viewer = ComparisonViewer(console=_silent_console())
 
         with (
-            patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="d"),
-            patch("file_organizer.services.deduplication.viewer.Confirm.ask", return_value=False),
+            patch("services.deduplication.viewer.Prompt.ask", return_value="d"),
+            patch("services.deduplication.viewer.Confirm.ask", return_value=False),
         ):
             result = viewer.show_comparison([img1, img2])
 
@@ -230,11 +230,11 @@ class TestBatchReviewIntegration:
         # Second group: user presses "k" (keep all)
         with (
             patch(
-                "file_organizer.services.deduplication.viewer.Prompt.ask",
+                "services.deduplication.viewer.Prompt.ask",
                 side_effect=["s", "k"],
             ),
             patch(
-                "file_organizer.services.deduplication.viewer.Confirm.ask",
+                "services.deduplication.viewer.Confirm.ask",
                 return_value=True,
             ),
         ):
@@ -254,8 +254,8 @@ class TestBatchReviewIntegration:
 
         # Skip both groups, decline continue after first skip
         with (
-            patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="s"),
-            patch("file_organizer.services.deduplication.viewer.Confirm.ask", return_value=False),
+            patch("services.deduplication.viewer.Prompt.ask", return_value="s"),
+            patch("services.deduplication.viewer.Confirm.ask", return_value=False),
         ):
             decisions = viewer.batch_review(groups, auto_select_best=False)
 
@@ -273,8 +273,8 @@ class TestBatchReviewIntegration:
         viewer = ComparisonViewer(console=_silent_console())
 
         with (
-            patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="k"),
-            patch("file_organizer.services.deduplication.viewer.Confirm.ask") as mock_confirm,
+            patch("services.deduplication.viewer.Prompt.ask", return_value="k"),
+            patch("services.deduplication.viewer.Confirm.ask") as mock_confirm,
         ):
             decisions = viewer.batch_review({"single": [img]}, auto_select_best=False)
 
@@ -457,7 +457,7 @@ class TestGenerateAsciiPreviewIntegration:
         mock_cm.__exit__ = MagicMock(return_value=False)
 
         with patch(
-            "file_organizer.services.deduplication.viewer.Image.open",
+            "services.deduplication.viewer.Image.open",
             return_value=mock_cm,
         ):
             result = viewer._generate_ascii_preview(img_path, max_width=10, max_height=5)
@@ -489,7 +489,7 @@ class TestGenerateAsciiPreviewIntegration:
         mock_cm.__exit__ = MagicMock(return_value=False)
 
         with patch(
-            "file_organizer.services.deduplication.viewer.Image.open",
+            "services.deduplication.viewer.Image.open",
             return_value=mock_cm,
         ):
             result = viewer._generate_ascii_preview(img_path, max_width=10, max_height=5)
@@ -639,7 +639,7 @@ class TestInteractiveSelectIntegration:
         imgs = [_make_png(tmp_path, f"img{i}.png") for i in range(4)]
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="all"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="all"):
             result = viewer.interactive_select(imgs)
 
         assert result == imgs
@@ -649,7 +649,7 @@ class TestInteractiveSelectIntegration:
         imgs = [_make_png(tmp_path, f"n{i}.png") for i in range(2)]
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="none"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="none"):
             result = viewer.interactive_select(imgs)
 
         assert result == []
@@ -659,7 +659,7 @@ class TestInteractiveSelectIntegration:
         imgs = [_make_png(tmp_path, f"s{i}.png") for i in range(5)]
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="2,4"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="2,4"):
             result = viewer.interactive_select(imgs)
 
         assert result == [imgs[1], imgs[3]]
@@ -670,7 +670,7 @@ class TestInteractiveSelectIntegration:
         viewer = ComparisonViewer(console=_silent_console())
 
         with patch(
-            "file_organizer.services.deduplication.viewer.Prompt.ask",
+            "services.deduplication.viewer.Prompt.ask",
             return_value="1,99,0",
         ):
             result = viewer.interactive_select(imgs)
@@ -683,7 +683,7 @@ class TestInteractiveSelectIntegration:
         viewer = ComparisonViewer(console=_silent_console())
 
         with patch(
-            "file_organizer.services.deduplication.viewer.Prompt.ask",
+            "services.deduplication.viewer.Prompt.ask",
             return_value="abc,1,xyz",
         ):
             result = viewer.interactive_select(imgs)
@@ -695,7 +695,7 @@ class TestInteractiveSelectIntegration:
         viewer = ComparisonViewer(console=_silent_console())
         bad_path = tmp_path / "missing.png"
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="all"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="all"):
             result = viewer.interactive_select([bad_path])
 
         assert result == [bad_path]
@@ -705,7 +705,7 @@ class TestInteractiveSelectIntegration:
         imgs = [_make_png(tmp_path, "custom.png")]
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="1"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="1"):
             result = viewer.interactive_select(imgs, prompt="Pick the best photo")
 
         assert result == [imgs[0]]
@@ -768,42 +768,42 @@ class TestPromptUserActionIntegration:
     def test_auto_select_letter(self) -> None:
         """Entering 'a' in _prompt_user_action returns UserAction.AUTO_SELECT."""
         viewer = ComparisonViewer(console=_silent_console())
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="a"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="a"):
             action = viewer._prompt_user_action(image_count=2)
         assert action == UserAction.AUTO_SELECT
 
     def test_skip_letter(self) -> None:
         """Entering 's' in _prompt_user_action returns UserAction.SKIP."""
         viewer = ComparisonViewer(console=_silent_console())
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="s"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="s"):
             action = viewer._prompt_user_action(image_count=2)
         assert action == UserAction.SKIP
 
     def test_keep_all_letter(self) -> None:
         """Entering 'k' in _prompt_user_action returns UserAction.KEEP_ALL."""
         viewer = ComparisonViewer(console=_silent_console())
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="k"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="k"):
             action = viewer._prompt_user_action(image_count=2)
         assert action == UserAction.KEEP_ALL
 
     def test_delete_all_letter(self) -> None:
         """Entering 'd' in _prompt_user_action returns UserAction.DELETE_ALL."""
         viewer = ComparisonViewer(console=_silent_console())
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="d"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="d"):
             action = viewer._prompt_user_action(image_count=2)
         assert action == UserAction.DELETE_ALL
 
     def test_quit_letter(self) -> None:
         """Entering 'q' in _prompt_user_action returns UserAction.QUIT."""
         viewer = ComparisonViewer(console=_silent_console())
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="q"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="q"):
             action = viewer._prompt_user_action(image_count=2)
         assert action == UserAction.QUIT
 
     def test_valid_digit_in_range_returns_keep(self) -> None:
         """A valid in-range digit in _prompt_user_action returns UserAction.KEEP."""
         viewer = ComparisonViewer(console=_silent_console())
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="1"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="1"):
             action = viewer._prompt_user_action(image_count=3)
         assert action == UserAction.KEEP
 
@@ -811,7 +811,7 @@ class TestPromptUserActionIntegration:
         """An out-of-range digit causes _prompt_user_action to retry until a valid input is given."""
         viewer = ComparisonViewer(console=_silent_console())
         with patch(
-            "file_organizer.services.deduplication.viewer.Prompt.ask",
+            "services.deduplication.viewer.Prompt.ask",
             side_effect=["5", "a"],
         ):
             action = viewer._prompt_user_action(image_count=3)
@@ -821,7 +821,7 @@ class TestPromptUserActionIntegration:
         """Unrecognized input in _prompt_user_action causes repeated retries until a valid key is entered."""
         viewer = ComparisonViewer(console=_silent_console())
         with patch(
-            "file_organizer.services.deduplication.viewer.Prompt.ask",
+            "services.deduplication.viewer.Prompt.ask",
             side_effect=["!!!", "???", "q"],
         ):
             action = viewer._prompt_user_action(image_count=2)
@@ -851,7 +851,7 @@ class TestProcessUserActionMissingBranchesIntegration:
         )
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="abc"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="abc"):
             result = viewer._process_user_action(UserAction.KEEP, [meta])
 
         assert result.skipped is True
@@ -872,7 +872,7 @@ class TestProcessUserActionMissingBranchesIntegration:
         )
         viewer = ComparisonViewer(console=_silent_console())
 
-        with patch("file_organizer.services.deduplication.viewer.Prompt.ask", return_value="99"):
+        with patch("services.deduplication.viewer.Prompt.ask", return_value="99"):
             result = viewer._process_user_action(UserAction.KEEP, [meta])
 
         assert result.skipped is True
@@ -924,7 +924,7 @@ class TestDisplayImagesSideBySideIntegration:
             for i in range(2)
         ]
 
-        with patch("file_organizer.services.deduplication.viewer.Columns") as mock_columns:
+        with patch("services.deduplication.viewer.Columns") as mock_columns:
             with patch.object(viewer, "_generate_ascii_preview", return_value=None):
                 viewer._display_images_side_by_side(metas)
 
@@ -949,7 +949,7 @@ class TestDisplayImagesSideBySideIntegration:
             for i in range(2)
         ]
 
-        with patch("file_organizer.services.deduplication.viewer.Columns") as mock_columns:
+        with patch("services.deduplication.viewer.Columns") as mock_columns:
             with patch.object(viewer, "_generate_ascii_preview", return_value=None):
                 viewer._display_images_side_by_side(metas)
 

@@ -16,8 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType, TokenExhaustionError
-from file_organizer.models.openai_text_model import OpenAITextModel
+from models.base import ModelConfig, ModelType, TokenExhaustionError
+from models.openai_text_model import OpenAITextModel
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -58,15 +58,15 @@ class TestOpenAITextModelInit:
     """Constructor validation."""
 
     def test_init_sets_config(self, openai_config: ModelConfig) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(openai_config)
         assert model.config is openai_config
         assert model.client is None
         assert not model.is_initialized
 
     def test_init_raises_import_error_when_openai_missing(self, openai_config: ModelConfig) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", False):
-            with pytest.raises(ImportError, match="file-organizer\\[cloud\\]"):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", False):
+            with pytest.raises(ImportError, match="fo-core\\[cloud\\]"):
                 OpenAITextModel(openai_config)
 
     def test_init_raises_value_error_for_wrong_model_type(self) -> None:
@@ -75,7 +75,7 @@ class TestOpenAITextModelInit:
             model_type=ModelType.VISION,  # wrong
             provider="openai",
         )
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             with pytest.raises(ValueError, match="Expected TEXT"):
                 OpenAITextModel(bad_config)
 
@@ -93,13 +93,13 @@ class TestOpenAITextModelInitialize:
         openai_config: ModelConfig,
         mock_openai_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(openai_config)
 
         with (
-            patch("file_organizer.models._openai_client.OPENAI_AVAILABLE", True, create=True),
+            patch("models._openai_client.OPENAI_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._openai_client.OpenAI",
+                "models._openai_client.OpenAI",
                 create=True,
                 return_value=mock_openai_client,
             ) as mock_cls,
@@ -118,13 +118,13 @@ class TestOpenAITextModelInitialize:
         openai_config: ModelConfig,
         mock_openai_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(openai_config)
 
         with (
-            patch("file_organizer.models._openai_client.OPENAI_AVAILABLE", True, create=True),
+            patch("models._openai_client.OPENAI_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._openai_client.OpenAI",
+                "models._openai_client.OpenAI",
                 create=True,
                 return_value=mock_openai_client,
             ) as mock_cls,
@@ -146,13 +146,13 @@ class TestOpenAITextModelInitialize:
             api_key=None,
             api_base_url="http://localhost:1234/v1",
         )
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(local_config)
 
         with (
-            patch("file_organizer.models._openai_client.OPENAI_AVAILABLE", True, create=True),
+            patch("models._openai_client.OPENAI_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._openai_client.OpenAI",
+                "models._openai_client.OpenAI",
                 create=True,
                 return_value=mock_openai_client,
             ) as mock_cls,
@@ -165,13 +165,13 @@ class TestOpenAITextModelInitialize:
         assert model.is_initialized
 
     def test_initialize_propagates_exception(self, openai_config: ModelConfig) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(openai_config)
 
         with (
-            patch("file_organizer.models._openai_client.OPENAI_AVAILABLE", True, create=True),
+            patch("models._openai_client.OPENAI_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._openai_client.OpenAI",
+                "models._openai_client.OpenAI",
                 create=True,
                 side_effect=RuntimeError("connection refused"),
             ),
@@ -197,7 +197,7 @@ class TestOpenAITextModelGenerate:
         config: ModelConfig,
         client: MagicMock,
     ) -> OpenAITextModel:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(config)
         model.client = client
         model._initialized = True
@@ -257,7 +257,7 @@ class TestOpenAITextModelGenerate:
     def test_generate_raises_runtime_error_when_not_initialized(
         self, openai_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(openai_config)
 
         with pytest.raises(RuntimeError, match="not initialized"):
@@ -303,7 +303,7 @@ class TestOpenAITextModelCleanup:
         openai_config: ModelConfig,
         mock_openai_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(openai_config)
         model.client = mock_openai_client
         model._initialized = True
@@ -349,13 +349,13 @@ class TestOpenAITextModelContextManager:
         openai_config: ModelConfig,
         mock_openai_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(openai_config)
 
         with (
-            patch("file_organizer.models._openai_client.OPENAI_AVAILABLE", True, create=True),
+            patch("models._openai_client.OPENAI_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._openai_client.OpenAI",
+                "models._openai_client.OpenAI",
                 create=True,
                 return_value=mock_openai_client,
             ),
@@ -376,7 +376,7 @@ class TestOpenAITextModelTokenExhaustion:
     """Token-exhaustion detection and retry in OpenAITextModel.generate()."""
 
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> OpenAITextModel:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = OpenAITextModel(config)
         model.client = client
         model._initialized = True

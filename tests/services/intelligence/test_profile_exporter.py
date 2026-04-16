@@ -58,7 +58,7 @@ class TestProfileExporter(unittest.TestCase):
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def _make_exporter(self):
-        from file_organizer.services.intelligence.profile_exporter import (
+        from services.intelligence.profile_exporter import (
             ProfileExporter,
         )
 

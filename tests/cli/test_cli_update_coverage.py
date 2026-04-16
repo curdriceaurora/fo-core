@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.cli.update — uncovered lines 30-44, 62-83, 89-96."""
+"""Coverage tests for cli.update — uncovered lines 30-44, 62-83, 89-96."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ class TestUpdateCheck:
 
     def test_update_available(self) -> None:
         """When update is available with release info."""
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         fake_status = _FakeUpdateStatus(
             available=True,
@@ -55,7 +55,7 @@ class TestUpdateCheck:
         mock_mgr = MagicMock()
         mock_mgr.check.return_value = fake_status
 
-        with patch("file_organizer.updater.UpdateManager", return_value=mock_mgr):
+        with patch("updater.UpdateManager", return_value=mock_mgr):
             result = runner.invoke(update_app, ["check"])
 
         assert result.exit_code == 0
@@ -64,13 +64,13 @@ class TestUpdateCheck:
 
     def test_already_up_to_date(self) -> None:
         """When already at latest version."""
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         fake_status = _FakeUpdateStatus(available=False, release=None)
         mock_mgr = MagicMock()
         mock_mgr.check.return_value = fake_status
 
-        with patch("file_organizer.updater.UpdateManager", return_value=mock_mgr):
+        with patch("updater.UpdateManager", return_value=mock_mgr):
             result = runner.invoke(update_app, ["check"])
 
         assert result.exit_code == 0
@@ -78,14 +78,14 @@ class TestUpdateCheck:
 
     def test_update_available_no_body(self) -> None:
         """Release exists but body is empty."""
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         release = _FakeRelease(body="")
         fake_status = _FakeUpdateStatus(available=True, release=release)
         mock_mgr = MagicMock()
         mock_mgr.check.return_value = fake_status
 
-        with patch("file_organizer.updater.UpdateManager", return_value=mock_mgr):
+        with patch("updater.UpdateManager", return_value=mock_mgr):
             result = runner.invoke(update_app, ["check"])
 
         assert result.exit_code == 0
@@ -98,32 +98,32 @@ class TestUpdateInstall:
     """Covers lines 62-83."""
 
     def test_install_already_up_to_date(self) -> None:
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         fake_status = _FakeUpdateStatus(available=False, install_result=None)
         mock_mgr = MagicMock()
         mock_mgr.update.return_value = fake_status
 
-        with patch("file_organizer.updater.UpdateManager", return_value=mock_mgr):
+        with patch("updater.UpdateManager", return_value=mock_mgr):
             result = runner.invoke(update_app, ["install"])
 
         assert result.exit_code == 0
         assert "up to date" in result.output
 
     def test_install_result_none(self) -> None:
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         fake_status = _FakeUpdateStatus(available=True, install_result=None)
         mock_mgr = MagicMock()
         mock_mgr.update.return_value = fake_status
 
-        with patch("file_organizer.updater.UpdateManager", return_value=mock_mgr):
+        with patch("updater.UpdateManager", return_value=mock_mgr):
             result = runner.invoke(update_app, ["install"])
 
         assert result.exit_code == 1
 
     def test_install_success_with_sha(self) -> None:
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         fake_status = _FakeUpdateStatus(
             available=True,
@@ -132,14 +132,14 @@ class TestUpdateInstall:
         mock_mgr = MagicMock()
         mock_mgr.update.return_value = fake_status
 
-        with patch("file_organizer.updater.UpdateManager", return_value=mock_mgr):
+        with patch("updater.UpdateManager", return_value=mock_mgr):
             result = runner.invoke(update_app, ["install"])
 
         assert result.exit_code == 0
         assert "SHA256" in result.output
 
     def test_install_success_no_sha(self) -> None:
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         fake_status = _FakeUpdateStatus(
             available=True,
@@ -148,13 +148,13 @@ class TestUpdateInstall:
         mock_mgr = MagicMock()
         mock_mgr.update.return_value = fake_status
 
-        with patch("file_organizer.updater.UpdateManager", return_value=mock_mgr):
+        with patch("updater.UpdateManager", return_value=mock_mgr):
             result = runner.invoke(update_app, ["install"])
 
         assert result.exit_code == 0
 
     def test_install_failure(self) -> None:
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         fake_status = _FakeUpdateStatus(
             available=True,
@@ -163,7 +163,7 @@ class TestUpdateInstall:
         mock_mgr = MagicMock()
         mock_mgr.update.return_value = fake_status
 
-        with patch("file_organizer.updater.UpdateManager", return_value=mock_mgr):
+        with patch("updater.UpdateManager", return_value=mock_mgr):
             result = runner.invoke(update_app, ["install"])
 
         assert result.exit_code == 1
@@ -177,24 +177,24 @@ class TestUpdateRollback:
     """Covers lines 89-96."""
 
     def test_rollback_success(self) -> None:
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         mock_installer = MagicMock()
         mock_installer.rollback.return_value = True
 
-        with patch("file_organizer.updater.UpdateInstaller", return_value=mock_installer):
+        with patch("updater.UpdateInstaller", return_value=mock_installer):
             result = runner.invoke(update_app, ["rollback"])
 
         assert result.exit_code == 0
         assert "Rolled back" in result.output
 
     def test_rollback_no_backup(self) -> None:
-        from file_organizer.cli.update import update_app
+        from cli.update import update_app
 
         mock_installer = MagicMock()
         mock_installer.rollback.return_value = False
 
-        with patch("file_organizer.updater.UpdateInstaller", return_value=mock_installer):
+        with patch("updater.UpdateInstaller", return_value=mock_installer):
             result = runner.invoke(update_app, ["rollback"])
 
         assert result.exit_code == 1

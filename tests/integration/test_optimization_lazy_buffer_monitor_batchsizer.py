@@ -1,10 +1,10 @@
 """Integration tests targeting uncovered branches in optimization modules.
 
 Modules under test:
-  - file_organizer.optimization.lazy_loader      (target: ≥80%)
-  - file_organizer.optimization.buffer_pool      (target: ≥80%)
-  - file_organizer.optimization.resource_monitor (target: ≥80%)
-  - file_organizer.optimization.batch_sizer      (target: ≥80%)
+  - optimization.lazy_loader      (target: ≥80%)
+  - optimization.buffer_pool      (target: ≥80%)
+  - optimization.resource_monitor (target: ≥80%)
+  - optimization.batch_sizer      (target: ≥80%)
 
 All external I/O (psutil, subprocess, /proc files) is mocked so the tests
 are hermetic and pass in any environment.
@@ -27,7 +27,7 @@ pytestmark = pytest.mark.integration
 
 
 def _make_base_model(name: str = "test-model") -> MagicMock:
-    from file_organizer.models.base import BaseModel
+    from models.base import BaseModel
 
     mock = MagicMock(spec=BaseModel)
     mock.config = MagicMock()
@@ -40,7 +40,7 @@ def _make_model_config(
     framework: str = "ollama",
     model_type: Any = None,
 ) -> Any:
-    from file_organizer.models.base import ModelConfig, ModelType
+    from models.base import ModelConfig, ModelType
 
     mt = model_type if model_type is not None else ModelType.TEXT
     return ModelConfig(name=name, model_type=mt, framework=framework)
@@ -56,13 +56,13 @@ class TestLazyModelLoaderDefaultLoader:
 
     def test_default_loader_ollama_branch(self) -> None:
         """When framework='ollama' and no custom loader, TextModel path is taken."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(framework="ollama")
         fake_model = _make_base_model("ollama-model")
 
         with patch(
-            "file_organizer.optimization.lazy_loader.LazyModelLoader._default_loader",
+            "optimization.lazy_loader.LazyModelLoader._default_loader",
             return_value=fake_model,
         ) as mock_dl:
             lazy = LazyModelLoader(config)  # no custom loader
@@ -74,13 +74,13 @@ class TestLazyModelLoaderDefaultLoader:
 
     def test_default_loader_openai_branch(self) -> None:
         """framework='openai' routes through get_text_model + initialize."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(framework="openai")
         fake_model = _make_base_model("openai-model")
 
         with patch(
-            "file_organizer.models.provider_factory.get_text_model",
+            "models.provider_factory.get_text_model",
             return_value=fake_model,
         ) as mock_gtm:
             result = LazyModelLoader._default_loader(config)
@@ -91,7 +91,7 @@ class TestLazyModelLoaderDefaultLoader:
 
     def test_default_loader_unsupported_framework_raises(self) -> None:
         """An unknown framework raises ValueError from _default_loader."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(framework="unknown_framework_xyz")
         lazy = LazyModelLoader(config)  # no custom loader provided
@@ -101,7 +101,7 @@ class TestLazyModelLoaderDefaultLoader:
 
     def test_default_loader_unsupported_framework_inner_value_error(self) -> None:
         """_default_loader raises ValueError directly for unknown framework."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(framework="bogus")
         with pytest.raises(ValueError, match="Unsupported framework"):
@@ -109,14 +109,14 @@ class TestLazyModelLoaderDefaultLoader:
 
     def test_default_loader_ollama_uses_text_model(self) -> None:
         """_default_loader 'ollama' branch instantiates TextModel and calls initialize."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(framework="ollama")
         fake_model = _make_base_model()
 
         # TextModel is imported inside the function body; patch at its source module.
         with patch(
-            "file_organizer.models.text_model.TextModel",
+            "models.text_model.TextModel",
             return_value=fake_model,
         ) as MockTextModel:
             result = LazyModelLoader._default_loader(config)
@@ -127,13 +127,13 @@ class TestLazyModelLoaderDefaultLoader:
 
     def test_default_loader_llama_cpp_branch(self) -> None:
         """framework='llama_cpp' routes through get_text_model."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(framework="llama_cpp")
         fake_model = _make_base_model()
 
         with patch(
-            "file_organizer.models.provider_factory.get_text_model",
+            "models.provider_factory.get_text_model",
             return_value=fake_model,
         ) as mock_gtm:
             result = LazyModelLoader._default_loader(config)
@@ -144,14 +144,14 @@ class TestLazyModelLoaderDefaultLoader:
 
     def test_default_loader_claude_text_branch(self) -> None:
         """framework='claude' with TEXT model_type routes through get_text_model."""
-        from file_organizer.models.base import ModelType
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from models.base import ModelType
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(framework="claude", model_type=ModelType.TEXT)
         fake_model = _make_base_model()
 
         with patch(
-            "file_organizer.models.provider_factory.get_text_model",
+            "models.provider_factory.get_text_model",
             return_value=fake_model,
         ) as mock_gtm:
             result = LazyModelLoader._default_loader(config)
@@ -162,14 +162,14 @@ class TestLazyModelLoaderDefaultLoader:
 
     def test_default_loader_claude_vision_branch(self) -> None:
         """framework='claude' with VISION model_type routes through get_vision_model."""
-        from file_organizer.models.base import ModelType
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from models.base import ModelType
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(framework="claude", model_type=ModelType.VISION)
         fake_model = _make_base_model()
 
         with patch(
-            "file_organizer.models.provider_factory.get_vision_model",
+            "models.provider_factory.get_vision_model",
             return_value=fake_model,
         ) as mock_gvm:
             result = LazyModelLoader._default_loader(config)
@@ -184,7 +184,7 @@ class TestLazyModelLoaderEdgeCases:
 
     def test_unload_when_cleanup_raises_does_not_propagate(self) -> None:
         """cleanup() raising should be swallowed and model should still be cleared."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         model = _make_base_model()
         model.cleanup.side_effect = RuntimeError("cleanup boom")
@@ -200,7 +200,7 @@ class TestLazyModelLoaderEdgeCases:
 
     def test_model_loaded_flag_stays_true_on_second_access(self) -> None:
         """Accessing .model a second time returns the cached instance (not reload)."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         model = _make_base_model()
         call_count = [0]
@@ -220,7 +220,7 @@ class TestLazyModelLoaderEdgeCases:
 
     def test_reload_after_unload_calls_loader_again(self) -> None:
         """After unload(), accessing .model triggers a fresh load."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         call_count = [0]
         model = _make_base_model()
@@ -241,7 +241,7 @@ class TestLazyModelLoaderEdgeCases:
 
     def test_loader_failure_leaves_model_unloaded(self) -> None:
         """After a failed load, is_loaded must still be False."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config()
         lazy = LazyModelLoader(
@@ -255,7 +255,7 @@ class TestLazyModelLoaderEdgeCases:
 
     def test_concurrent_load_uses_double_checked_locking(self) -> None:
         """With the lock held the double-checked path returns already-loaded model."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         model = _make_base_model()
         calls = [0]
@@ -295,14 +295,14 @@ class TestBufferPoolAcquireEdgeCases:
     """Cover branches in BufferPool.acquire() not reached by existing tests."""
 
     def test_acquire_size_zero_raises(self) -> None:
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=1)
         with pytest.raises(ValueError, match="size must be > 0"):
             pool.acquire(size=0)
 
     def test_acquire_negative_size_raises(self) -> None:
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=1)
         with pytest.raises(ValueError, match="size must be > 0"):
@@ -310,7 +310,7 @@ class TestBufferPoolAcquireEdgeCases:
 
     def test_acquire_oversize_not_pooled_not_returned_to_pool(self) -> None:
         """Oversize buffer increments in_use but not total_buffers."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=2, max_buffers=4)
         initial_total = pool.total_buffers
@@ -324,7 +324,7 @@ class TestBufferPoolAcquireEdgeCases:
 
     def test_acquire_negative_timeout_raises(self) -> None:
         """timeout < 0 on a fully-saturated pool raises ValueError."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=1, max_buffers=1)
         # Exhaust all capacity
@@ -337,7 +337,7 @@ class TestBufferPoolAcquireEdgeCases:
 
     def test_acquire_timeout_zero_raises_timeout_error(self) -> None:
         """timeout=0 on exhausted pool (at max) raises TimeoutError immediately."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=1, max_buffers=1)
         held = pool.acquire()
@@ -349,7 +349,7 @@ class TestBufferPoolAcquireEdgeCases:
 
     def test_acquire_waits_and_succeeds_after_release(self) -> None:
         """Thread blocked on acquire() gets the buffer once another thread releases."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=1, max_buffers=1)
         held = pool.acquire()
@@ -380,7 +380,7 @@ class TestBufferPoolAcquireEdgeCases:
     def test_acquire_at_max_grows_after_waiting(self) -> None:
         """When pool is at max and a buffer is released, the waiting acquire
         returns a newly-available (or grown) buffer via the condition path."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=32, initial_buffers=2, max_buffers=2)
         buf_a = pool.acquire()
@@ -408,7 +408,7 @@ class TestBufferPoolReleaseEdgeCases:
     """Cover branches in BufferPool.release()."""
 
     def test_release_unknown_buffer_raises(self) -> None:
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=2)
         with pytest.raises(ValueError, match="not owned by this pool"):
@@ -416,7 +416,7 @@ class TestBufferPoolReleaseEdgeCases:
 
     def test_release_resized_pooled_buffer_drops_count(self) -> None:
         """Returning a pooled buffer whose length was changed drops it from pool."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=2, max_buffers=4)
         initial_total = pool.total_buffers
@@ -434,7 +434,7 @@ class TestBufferPoolUtilization:
     """Cover utilization edge cases."""
 
     def test_utilization_range_with_buffers_in_use(self) -> None:
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=4, max_buffers=8)
         b1 = pool.acquire()
@@ -446,7 +446,7 @@ class TestBufferPoolUtilization:
 
     def test_utilization_with_only_oversize_in_use(self) -> None:
         """Oversize buffers count as in_use_ids but not pooled_ids → utilization stays 0."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=2, max_buffers=4)
         buf = pool.acquire(size=512)  # oversized — not in _pooled_ids
@@ -461,7 +461,7 @@ class TestBufferPoolResizeEdgeCases:
 
     def test_resize_target_below_initial_clamped(self) -> None:
         """resize(target < initial_buffers) clamps to initial_buffers."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=4, max_buffers=8)
         result = pool.resize(1)  # below initial_buffers=4 → clamped to 4
@@ -469,14 +469,14 @@ class TestBufferPoolResizeEdgeCases:
 
     def test_resize_target_above_max_clamped(self) -> None:
         """resize(target > max_buffers) clamps to max_buffers."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=2, max_buffers=5)
         result = pool.resize(100)  # above max=5 → clamped to 5
         assert result == 5
 
     def test_resize_invalid_target_raises(self) -> None:
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=2, max_buffers=5)
         with pytest.raises(ValueError, match="target_total_buffers must be > 0"):
@@ -484,7 +484,7 @@ class TestBufferPoolResizeEdgeCases:
 
     def test_resize_shrink_with_in_use_stops_at_in_use_count(self) -> None:
         """Shrink never evicts in-use buffers; only removes available ones."""
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=4, max_buffers=8)
         held = [pool.acquire() for _ in range(3)]
@@ -495,7 +495,7 @@ class TestBufferPoolResizeEdgeCases:
             pool.release(b)
 
     def test_shrink_to_baseline_returns_initial_size(self) -> None:
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=3, max_buffers=8)
         pool.resize(7)
@@ -503,7 +503,7 @@ class TestBufferPoolResizeEdgeCases:
         assert result == 3
 
     def test_peak_in_use_grows_monotonically(self) -> None:
-        from file_organizer.optimization.buffer_pool import BufferPool
+        from optimization.buffer_pool import BufferPool
 
         pool = BufferPool(buffer_size=64, initial_buffers=5)
         bufs = [pool.acquire() for _ in range(4)]
@@ -525,7 +525,7 @@ class TestResourceMonitorGetSystemMemoryTotal:
     """Cover get_system_memory_total() psutil and fallback paths."""
 
     def test_get_system_memory_total_via_psutil(self) -> None:
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         mock_vm = MagicMock()
         mock_vm.total = 32 * 1024 * 1024 * 1024  # 32 GB
@@ -537,7 +537,7 @@ class TestResourceMonitorGetSystemMemoryTotal:
         assert total == 32 * 1024 * 1024 * 1024
 
     def test_get_system_memory_total_fallback_when_no_psutil(self) -> None:
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         monitor = ResourceMonitor()
         _8gb = 8 * 1024 * 1024 * 1024
@@ -556,7 +556,7 @@ class TestResourceMonitorGetSystemMemoryTotal:
 
     def test_get_total_memory_fallback_proc_meminfo(self) -> None:
         """_get_total_memory_fallback reads MemTotal from /proc/meminfo on Linux."""
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         fake_proc = "MemTotal:       16000000 kB\nOtherLine: 0 kB\n"
         with patch("builtins.open", mock_open(read_data=fake_proc)):
@@ -566,7 +566,7 @@ class TestResourceMonitorGetSystemMemoryTotal:
 
     def test_get_total_memory_fallback_sysctl_path(self) -> None:
         """_get_total_memory_fallback falls back to sysctl on macOS."""
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -581,7 +581,7 @@ class TestResourceMonitorGetSystemMemoryTotal:
         assert total == 17_179_869_184
 
     def test_get_total_memory_fallback_sysctl_failure_returns_zero(self) -> None:
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -600,7 +600,7 @@ class TestResourceMonitorFallbackMemory:
 
     def test_get_memory_fallback_proc_path(self) -> None:
         """_get_memory_fallback reads VmRSS and VmSize from /proc/self/status."""
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         fake_status = "Name:  test\nVmRSS:    51200 kB\nVmSize:  204800 kB\n"
         fake_meminfo = "MemTotal: 16000000 kB\n"
@@ -624,7 +624,7 @@ class TestResourceMonitorFallbackMemory:
         """On macOS, _get_memory_fallback falls back to resource.getrusage."""
         import sys
 
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         mock_usage = MagicMock()
         mock_usage.ru_maxrss = 104857600  # 100 MB in bytes (macOS reports bytes)
@@ -643,7 +643,7 @@ class TestResourceMonitorFallbackMemory:
         """On Linux, _get_memory_fallback falls back to resource.getrusage (kB)."""
         import sys
 
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         mock_usage = MagicMock()
         mock_usage.ru_maxrss = 102400  # 100 MB in kB (Linux reports kB)
@@ -660,7 +660,7 @@ class TestResourceMonitorFallbackMemory:
 
     def test_get_memory_fallback_all_paths_unavailable_returns_zeros(self) -> None:
         """When both /proc and resource module fail, returns MemoryInfo with zeros."""
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         with (
             patch("builtins.open", side_effect=FileNotFoundError),
@@ -676,7 +676,7 @@ class TestResourceMonitorGpuEdgeCases:
     """Cover _get_nvidia_gpu_memory edge-case branches."""
 
     def test_get_gpu_memory_nonzero_returncode_returns_none(self) -> None:
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -684,7 +684,7 @@ class TestResourceMonitorGpuEdgeCases:
 
         monitor = ResourceMonitor()
         with patch(
-            "file_organizer.optimization.resource_monitor.subprocess.run",
+            "optimization.resource_monitor.subprocess.run",
             return_value=mock_result,
         ):
             result = monitor.get_gpu_memory()
@@ -692,7 +692,7 @@ class TestResourceMonitorGpuEdgeCases:
         assert result is None
 
     def test_get_gpu_memory_empty_output_returns_none(self) -> None:
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -700,7 +700,7 @@ class TestResourceMonitorGpuEdgeCases:
 
         monitor = ResourceMonitor()
         with patch(
-            "file_organizer.optimization.resource_monitor.subprocess.run",
+            "optimization.resource_monitor.subprocess.run",
             return_value=mock_result,
         ):
             result = monitor.get_gpu_memory()
@@ -709,7 +709,7 @@ class TestResourceMonitorGpuEdgeCases:
 
     def test_get_gpu_memory_too_few_csv_columns_returns_none(self) -> None:
         """A CSV line with fewer than 4 columns is treated as invalid."""
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -717,7 +717,7 @@ class TestResourceMonitorGpuEdgeCases:
 
         monitor = ResourceMonitor()
         with patch(
-            "file_organizer.optimization.resource_monitor.subprocess.run",
+            "optimization.resource_monitor.subprocess.run",
             return_value=mock_result,
         ):
             result = monitor.get_gpu_memory()
@@ -727,11 +727,11 @@ class TestResourceMonitorGpuEdgeCases:
     def test_get_gpu_memory_subprocess_error_returns_none(self) -> None:
         import subprocess
 
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         monitor = ResourceMonitor()
         with patch(
-            "file_organizer.optimization.resource_monitor.subprocess.run",
+            "optimization.resource_monitor.subprocess.run",
             side_effect=subprocess.SubprocessError("failed"),
         ):
             result = monitor.get_gpu_memory()
@@ -740,7 +740,7 @@ class TestResourceMonitorGpuEdgeCases:
 
     def test_get_gpu_memory_value_error_returns_none(self) -> None:
         """ValueError during parsing is caught and None is returned."""
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -748,7 +748,7 @@ class TestResourceMonitorGpuEdgeCases:
 
         monitor = ResourceMonitor()
         with patch(
-            "file_organizer.optimization.resource_monitor.subprocess.run",
+            "optimization.resource_monitor.subprocess.run",
             return_value=mock_result,
         ):
             result = monitor.get_gpu_memory()
@@ -757,7 +757,7 @@ class TestResourceMonitorGpuEdgeCases:
 
     def test_should_evict_zero_threshold_always_evicts(self) -> None:
         """threshold_percent=0 means any memory usage triggers eviction."""
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         monitor = ResourceMonitor()
         mem = MemoryInfo(rss=1, vms=1, percent=0.01)
@@ -766,7 +766,7 @@ class TestResourceMonitorGpuEdgeCases:
 
     def test_should_evict_threshold_100_never_evicts(self) -> None:
         """threshold_percent=100 means memory is never considered too high."""
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         monitor = ResourceMonitor()
         mem = MemoryInfo(rss=1, vms=1, percent=99.9)
@@ -775,7 +775,7 @@ class TestResourceMonitorGpuEdgeCases:
 
     def test_get_gpu_memory_whitespace_only_output_returns_none(self) -> None:
         """stdout with only whitespace should return None."""
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -783,7 +783,7 @@ class TestResourceMonitorGpuEdgeCases:
 
         monitor = ResourceMonitor()
         with patch(
-            "file_organizer.optimization.resource_monitor.subprocess.run",
+            "optimization.resource_monitor.subprocess.run",
             return_value=mock_result,
         ):
             result = monitor.get_gpu_memory()
@@ -801,7 +801,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
 
     def test_get_available_memory_proc_path(self) -> None:
         """_get_available_memory reads MemAvailable from /proc/meminfo."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         fake_meminfo = "MemTotal: 16000000 kB\nMemAvailable:  8000000 kB\n"
         with patch("builtins.open", mock_open(read_data=fake_meminfo)):
@@ -811,7 +811,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
 
     def test_get_available_memory_uses_total_minus_rss_fallback(self) -> None:
         """Without /proc/meminfo, falls back to total - rss."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         with (
             patch("builtins.open", side_effect=FileNotFoundError),
@@ -831,7 +831,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
         assert available == 7 * 1024 * 1024 * 1024
 
     def test_get_available_memory_returns_zero_when_no_total(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         with (
             patch("builtins.open", side_effect=FileNotFoundError),
@@ -847,7 +847,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
 
     def test_get_total_memory_proc_path(self) -> None:
         """_get_total_memory reads MemTotal from /proc/meminfo on Linux."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         fake = "MemTotal: 32000000 kB\n"
         with patch("builtins.open", mock_open(read_data=fake)):
@@ -857,7 +857,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
 
     def test_get_total_memory_sysctl_path(self) -> None:
         """_get_total_memory falls back to sysctl hw.memsize on macOS."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -872,7 +872,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
         assert total == 34_359_738_368
 
     def test_get_total_memory_returns_zero_when_all_paths_fail(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -887,7 +887,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
 
     def test_get_rss_proc_path(self) -> None:
         """_get_rss reads VmRSS from /proc/self/status on Linux."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         fake_status = "Name: test\nVmRSS:    20480 kB\nOther: 0\n"
         with patch("builtins.open", mock_open(read_data=fake_status)):
@@ -899,7 +899,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
         """_get_rss uses resource.getrusage on macOS (bytes)."""
         import sys
 
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         mock_usage = MagicMock()
         mock_usage.ru_maxrss = 52428800  # 50 MB in bytes
@@ -917,7 +917,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
         """_get_rss uses resource.getrusage on Linux (kB → bytes)."""
         import sys
 
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         mock_usage = MagicMock()
         mock_usage.ru_maxrss = 51200  # 50 MB in kB
@@ -932,7 +932,7 @@ class TestAdaptiveBatchSizerMemoryPaths:
         assert rss == 51200 * 1024
 
     def test_get_rss_returns_zero_when_all_fail(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         with (
             patch("builtins.open", side_effect=FileNotFoundError),
@@ -948,7 +948,7 @@ class TestAdaptiveBatchSizerEdgeCases:
 
     def test_adjust_from_feedback_actual_per_file_zero_returns_same_size(self) -> None:
         """When actual_memory=0 (per_file_cost=0), return the input batch_size unchanged."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer()
         available = 100 * 1024 * 1024
@@ -963,7 +963,7 @@ class TestAdaptiveBatchSizerEdgeCases:
 
     def test_calculate_batch_size_per_file_cost_zero_capped_at_file_count(self) -> None:
         """When all file sizes are 0 and overhead=0, batch_size = min(file_count, max)."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=70.0)
         sizer.set_bounds(min_size=1, max_size=100)
@@ -980,7 +980,7 @@ class TestAdaptiveBatchSizerEdgeCases:
 
     def test_calculate_batch_size_fewer_files_than_formula(self) -> None:
         """batch_size is capped at len(file_sizes) when formula gives more."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=70.0)
         available = 10 * 1024 * 1024 * 1024  # 10 GB — formula yields large number
@@ -995,7 +995,7 @@ class TestAdaptiveBatchSizerEdgeCases:
         assert batch == 3
 
     def test_adjust_from_feedback_available_zero_returns_min(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer()
         with patch.object(
@@ -1009,7 +1009,7 @@ class TestAdaptiveBatchSizerEdgeCases:
 
     def test_calculate_batch_size_with_overhead(self) -> None:
         """overhead_per_file is added to avg_file_size in the cost formula."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=50.0)
         available = 100 * 1024 * 1024  # 100 MB
@@ -1027,14 +1027,14 @@ class TestAdaptiveBatchSizerEdgeCases:
 
     def test_target_memory_percent_100_is_valid(self) -> None:
         """target_memory_percent=100.0 is the upper valid boundary."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=100.0)
         assert sizer.target_memory_percent == 100.0
 
     def test_get_available_memory_returns_nonnegative_when_rss_exceeds_total(self) -> None:
         """If rss > total (edge case), available is clamped to 0."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         with (
             patch("builtins.open", side_effect=FileNotFoundError),

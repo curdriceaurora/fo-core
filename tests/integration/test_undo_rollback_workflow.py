@@ -16,12 +16,12 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.models import Operation, OperationStatus, OperationType
-from file_organizer.history.tracker import OperationHistory
-from file_organizer.undo.models import ConflictType
-from file_organizer.undo.rollback import RollbackExecutor
-from file_organizer.undo.undo_manager import UndoManager
-from file_organizer.undo.validator import OperationValidator
+from history.models import Operation, OperationStatus, OperationType
+from history.tracker import OperationHistory
+from undo.models import ConflictType
+from undo.rollback import RollbackExecutor
+from undo.undo_manager import UndoManager
+from undo.validator import OperationValidator
 
 pytestmark = pytest.mark.integration
 

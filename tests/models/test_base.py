@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from file_organizer.models.base import BaseModel, DeviceType, ModelConfig, ModelType
+from models.base import BaseModel, DeviceType, ModelConfig, ModelType
 
 
 # --- Concrete stub for testing the ABC ---

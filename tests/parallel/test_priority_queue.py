@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.parallel.priority_queue import PriorityQueue, QueueItem
+from parallel.priority_queue import PriorityQueue, QueueItem
 
 
 @pytest.mark.unit

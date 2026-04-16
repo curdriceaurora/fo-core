@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.models.analytics — uncovered branches."""
+"""Coverage tests for models.analytics — uncovered branches."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from file_organizer.models.analytics import (
+from models.analytics import (
     DuplicateStats,
     FileDistribution,
     QualityMetrics,

@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.audio.classifier import (
+from services.audio.classifier import (
     PODCAST_KEYWORDS,
     AudioClassifier,
     AudioType,
@@ -30,8 +30,8 @@ from file_organizer.services.audio.classifier import (
     _has_music_metadata,
     _has_podcast_metadata,
 )
-from file_organizer.services.audio.metadata_extractor import AudioMetadata
-from file_organizer.services.audio.transcriber import (
+from services.audio.metadata_extractor import AudioMetadata
+from services.audio.transcriber import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,

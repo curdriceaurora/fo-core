@@ -10,11 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Desktop app consolidated on pywebview** — removed the Tauri v2 / Rust / sidecar architecture
-  in favour of a pure-Python approach: a single `file-organizer-desktop` process starts uvicorn in
+  in favour of a pure-Python approach: a single `fo-desktop` process starts uvicorn in
   a daemon thread and displays the web UI in a native OS window via pywebview. No Rust toolchain,
   no npm, no sidecar renaming steps required.
 - **Build pipeline** — `python scripts/build.py --desktop` now produces a standalone pywebview
-  desktop binary (`file-organizer-desktop-{version}-{platform}-{arch}`) via PyInstaller, in
+  desktop binary (`fo-desktop-{version}-{platform}-{arch}`) via PyInstaller, in
   addition to the existing CLI binary.
 - **CI** — `build.yml` no longer requires the Rust toolchain or `cargo test`; the `test-rust`
   job has been removed and `release` now depends only on `build`.

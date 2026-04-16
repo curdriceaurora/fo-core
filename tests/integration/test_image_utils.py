@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.deduplication.image_utils import (
+from services.deduplication.image_utils import (
     SUPPORTED_FORMATS,
     compare_image_quality,
     filter_valid_images,

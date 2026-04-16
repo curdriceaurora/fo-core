@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.config.provider_env import (
+from config.provider_env import (
     _get_claude_configs,
     _get_llama_cpp_configs,
     _get_mlx_configs,
@@ -21,7 +21,7 @@ from file_organizer.config.provider_env import (
     get_model_configs,
     get_model_configs_from_env,
 )
-from file_organizer.models.base import ModelType
+from models.base import ModelType
 
 pytestmark = [pytest.mark.integration]
 
@@ -42,7 +42,7 @@ class TestGetCurrentProviderUnknownValue:
     def test_unknown_provider_emits_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("FO_PROVIDER", "bogus")
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
+        with patch("config.provider_env.logger.warning") as mock_warn:
             get_current_provider()
 
         assert mock_warn.called
@@ -97,7 +97,7 @@ class TestGetLlamaCppConfigs:
         monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/llama3.gguf")
         monkeypatch.setenv("FO_LLAMA_CPP_N_GPU_LAYERS", "not_a_number")
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
+        with patch("config.provider_env.logger.warning") as mock_warn:
             text_cfg, _vision_cfg = _get_llama_cpp_configs()
 
         # Should not crash; n_gpu_layers absent from extra_params
@@ -110,7 +110,7 @@ class TestGetLlamaCppConfigs:
         monkeypatch.delenv("FO_LLAMA_CPP_MODEL_PATH", raising=False)
         monkeypatch.delenv("FO_LLAMA_CPP_N_GPU_LAYERS", raising=False)
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
+        with patch("config.provider_env.logger.warning") as mock_warn:
             text_cfg, vision_cfg = _get_llama_cpp_configs()
 
         assert text_cfg.model_path == ""
@@ -152,7 +152,7 @@ class TestGetMlxConfigs:
     def test_missing_model_path_emits_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("FO_MLX_MODEL_PATH", raising=False)
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
+        with patch("config.provider_env.logger.warning") as mock_warn:
             text_cfg, vision_cfg = _get_mlx_configs()
 
         assert text_cfg.model_path == ""
@@ -239,7 +239,7 @@ class TestGetClaudeConfigs:
         monkeypatch.delenv("FO_CLAUDE_MODEL", raising=False)
         monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
+        with patch("config.provider_env.logger.warning") as mock_warn:
             text_cfg, vision_cfg = _get_claude_configs()
 
         # Should not crash; api_key is None
@@ -256,7 +256,7 @@ class TestGetClaudeConfigs:
         monkeypatch.delenv("FO_CLAUDE_MODEL", raising=False)
         monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
+        with patch("config.provider_env.logger.warning") as mock_warn:
             _get_claude_configs()
 
         # No warning — SDK key is present
@@ -328,7 +328,7 @@ class TestGetModelConfigsFromEnvOpenAIWarningBranch:
         monkeypatch.delenv("FO_OPENAI_BASE_URL", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
+        with patch("config.provider_env.logger.warning") as mock_warn:
             text_cfg, vision_cfg = get_model_configs_from_env()
 
         assert text_cfg.provider == "openai"
@@ -342,7 +342,7 @@ class TestGetModelConfigsFromEnvOpenAIWarningBranch:
         monkeypatch.delenv("FO_OPENAI_BASE_URL", raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "sk-sdk-key")
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warn:
+        with patch("config.provider_env.logger.warning") as mock_warn:
             text_cfg, vision_cfg = get_model_configs_from_env()
 
         assert text_cfg.provider == "openai"
@@ -377,9 +377,7 @@ class TestGetModelConfigsPriorityCascade:
         monkeypatch.delenv("FO_PROVIDER", raising=False)
         monkeypatch.delenv("FO_PROFILE", raising=False)
 
-        with patch(
-            "file_organizer.config.provider_env._get_model_configs_from_profile"
-        ) as mock_profile:
+        with patch("config.provider_env._get_model_configs_from_profile") as mock_profile:
             # Default profile returns None → fall through to Ollama defaults
             mock_profile.return_value = None
             text_cfg, vision_cfg = get_model_configs()
@@ -391,7 +389,7 @@ class TestGetModelConfigsPriorityCascade:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """When profile returns configs, those are used."""
-        from file_organizer.models.base import ModelConfig, ModelType
+        from models.base import ModelConfig, ModelType
 
         monkeypatch.delenv("FO_PROVIDER", raising=False)
         monkeypatch.setenv("FO_PROFILE", "work")
@@ -399,9 +397,7 @@ class TestGetModelConfigsPriorityCascade:
         profile_text = ModelConfig(name="llama3:8b", model_type=ModelType.TEXT)
         profile_vision = ModelConfig(name="llava:13b", model_type=ModelType.VISION)
 
-        with patch(
-            "file_organizer.config.provider_env._get_model_configs_from_profile"
-        ) as mock_profile:
+        with patch("config.provider_env._get_model_configs_from_profile") as mock_profile:
             mock_profile.return_value = (profile_text, profile_vision)
             text_cfg, vision_cfg = get_model_configs(profile="work")
 
@@ -417,12 +413,12 @@ class TestGetModelConfigsPriorityCascade:
 class TestGetModelConfigsFromProfile:
     def test_returns_none_when_profile_uses_default_preset(self) -> None:
         """Profile with default ModelPreset → None (fall through)."""
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         app_cfg = AppConfig(models=ModelPreset())  # all defaults
 
         with (
-            patch("file_organizer.config.manager.ConfigManager") as mock_cls,
+            patch("config.manager.ConfigManager") as mock_cls,
         ):
             mgr = mock_cls.return_value
             mgr.load.return_value = app_cfg
@@ -432,8 +428,8 @@ class TestGetModelConfigsFromProfile:
 
     def test_returns_configs_when_profile_has_custom_models(self) -> None:
         """Profile with non-default models → (text_cfg, vision_cfg)."""
-        from file_organizer.config.schema import AppConfig, ModelPreset
-        from file_organizer.models.base import ModelConfig, ModelType
+        from config.schema import AppConfig, ModelPreset
+        from models.base import ModelConfig, ModelType
 
         custom_preset = ModelPreset(text_model="llama3:8b", vision_model="llava:13b")
         app_cfg = AppConfig(models=custom_preset)
@@ -442,7 +438,7 @@ class TestGetModelConfigsFromProfile:
         profile_vision = ModelConfig(name="llava:13b", model_type=ModelType.VISION)
 
         with (
-            patch("file_organizer.config.manager.ConfigManager") as mock_cls,
+            patch("config.manager.ConfigManager") as mock_cls,
         ):
             mgr = mock_cls.return_value
             mgr.load.return_value = app_cfg
@@ -458,7 +454,7 @@ class TestGetModelConfigsFromProfile:
     def test_returns_none_on_os_error(self) -> None:
         """OSError during profile load → None (silent fallback)."""
         with (
-            patch("file_organizer.config.manager.ConfigManager") as mock_cls,
+            patch("config.manager.ConfigManager") as mock_cls,
         ):
             mgr = mock_cls.return_value
             mgr.load.side_effect = OSError("profile dir not found")
@@ -469,7 +465,7 @@ class TestGetModelConfigsFromProfile:
     def test_returns_none_on_value_error(self) -> None:
         """ValueError during profile load → None (silent fallback)."""
         with (
-            patch("file_organizer.config.manager.ConfigManager") as mock_cls,
+            patch("config.manager.ConfigManager") as mock_cls,
         ):
             mgr = mock_cls.return_value
             mgr.load.side_effect = ValueError("bad config value")
@@ -480,7 +476,7 @@ class TestGetModelConfigsFromProfile:
     def test_returns_none_on_runtime_error(self) -> None:
         """RuntimeError during profile load → None (silent fallback)."""
         with (
-            patch("file_organizer.config.manager.ConfigManager") as mock_cls,
+            patch("config.manager.ConfigManager") as mock_cls,
         ):
             mgr = mock_cls.return_value
             mgr.load.side_effect = RuntimeError("unexpected")

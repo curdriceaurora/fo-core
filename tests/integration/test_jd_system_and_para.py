@@ -11,16 +11,16 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     AreaDefinition,
     JohnnyDecimalNumber,
     get_default_scheme,
 )
-from file_organizer.methodologies.johnny_decimal.numbering import (
+from methodologies.johnny_decimal.numbering import (
     InvalidNumberError,
 )
-from file_organizer.methodologies.johnny_decimal.system import JohnnyDecimalSystem
-from file_organizer.methodologies.para.folder_generator import (
+from methodologies.johnny_decimal.system import JohnnyDecimalSystem
+from methodologies.para.folder_generator import (
     PARACategory,
     PARAConfig,
     PARAFolderGenerator,

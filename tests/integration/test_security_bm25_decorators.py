@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.search.bm25_index import BM25Index, _tokenise
+from services.search.bm25_index import BM25Index, _tokenise
 
 pytestmark = pytest.mark.integration
 

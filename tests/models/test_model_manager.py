@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelType
-from file_organizer.models.model_manager import ModelManager
-from file_organizer.models.registry import AVAILABLE_MODELS, ModelInfo
+from models.base import ModelType
+from models.model_manager import ModelManager
+from models.registry import AVAILABLE_MODELS, ModelInfo
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def model_manager():
 class TestModelManager:
     """Tests for ModelManager class."""
 
-    @patch("file_organizer.models.model_manager.subprocess.run")
+    @patch("models.model_manager.subprocess.run")
     def test_check_installed_success(self, mock_run, model_manager):
         """Test check_installed parses JSON output correctly."""
         mock_result = MagicMock()
@@ -39,7 +39,7 @@ class TestModelManager:
             ["ollama", "list", "--json"], capture_output=True, text=True, timeout=15
         )
 
-    @patch("file_organizer.models.model_manager.subprocess.run")
+    @patch("models.model_manager.subprocess.run")
     def test_check_installed_fallback_on_error_code(self, mock_run, model_manager):
         """Test check_installed falls back to text parsing if JSON fails."""
         # First call fails (JSON), second call succeeds (text)
@@ -58,14 +58,14 @@ class TestModelManager:
             assert installed == {"phi3:mini"}
             mock_fallback.assert_called_once()
 
-    @patch("file_organizer.models.model_manager.subprocess.run")
+    @patch("models.model_manager.subprocess.run")
     def test_check_installed_file_not_found(self, mock_run, model_manager):
         """Test check_installed handles missing ollama CLI."""
         mock_run.side_effect = FileNotFoundError()
         installed = model_manager.check_installed()
         assert installed == set()
 
-    @patch("file_organizer.models.model_manager.subprocess.run")
+    @patch("models.model_manager.subprocess.run")
     def test_parse_ollama_list_text(self, mock_run, model_manager):
         """Test fallback parsing of plain text ollama list."""
         mock_result = MagicMock()
@@ -75,7 +75,7 @@ class TestModelManager:
         names = model_manager._parse_ollama_list_text()
         assert names == {"lol:latest", "test:tag"}
 
-    @patch("file_organizer.models.model_manager.ModelManager.check_installed")
+    @patch("models.model_manager.ModelManager.check_installed")
     def test_list_models(self, mock_check, model_manager):
         """Test list_models populates installed status."""
         # Using built-in AVAILABLE_MODELS registry
@@ -90,7 +90,7 @@ class TestModelManager:
             elif m.name == "llava:7b-v1.6-q4_K_M":
                 assert m.installed is False
 
-    @patch("file_organizer.models.model_manager.ModelManager.check_installed")
+    @patch("models.model_manager.ModelManager.check_installed")
     def test_list_models_with_filter(self, mock_check, model_manager):
         """Test list_models with type filter."""
         mock_check.return_value = set()
@@ -100,7 +100,7 @@ class TestModelManager:
         for m in text_models:
             assert m.model_type == ModelType.TEXT.value
 
-    @patch("file_organizer.models.model_manager.subprocess.run")
+    @patch("models.model_manager.subprocess.run")
     def test_pull_model_success(self, mock_run, model_manager):
         """Test pull_model success path."""
         mock_result = MagicMock()
@@ -114,7 +114,7 @@ class TestModelManager:
             "[green]Model 'test-model' pulled successfully.[/green]"
         )
 
-    @patch("file_organizer.models.model_manager.subprocess.run")
+    @patch("models.model_manager.subprocess.run")
     def test_pull_model_failure(self, mock_run, model_manager):
         """Test pull_model failure path."""
         mock_result = MagicMock()
@@ -125,7 +125,7 @@ class TestModelManager:
         assert result is False
         model_manager._console.print.assert_any_call("[red]Pull failed (exit code 1).[/red]")
 
-    @patch("file_organizer.models.model_manager.subprocess.run")
+    @patch("models.model_manager.subprocess.run")
     def test_pull_model_not_found(self, mock_run, model_manager):
         """Test pull_model when ollama is not installed."""
         mock_run.side_effect = FileNotFoundError()
@@ -135,7 +135,7 @@ class TestModelManager:
             "[red]Ollama CLI not found. Install from https://ollama.ai[/red]"
         )
 
-    @patch("file_organizer.models.model_manager.subprocess.run")
+    @patch("models.model_manager.subprocess.run")
     def test_pull_model_timeout(self, mock_run, model_manager):
         """Test pull_model timeout."""
         mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ollama"], timeout=600)

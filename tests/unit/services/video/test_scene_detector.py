@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.video.scene_detector import (
+from services.video.scene_detector import (
     DetectionMethod,
     Scene,
     SceneDetectionResult,
@@ -29,7 +29,7 @@ class TestSceneDetector:
         with pytest.raises(FileNotFoundError):
             detector.detect_scenes("non_existent_file.mp4")
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._detect_with_scenedetect")
+    @patch("services.video.scene_detector.SceneDetector._detect_with_scenedetect")
     def test_detect_scenes_uses_scenedetect(self, mock_scenedetect, mock_video_path):
         detector = SceneDetector()
         mock_result = MagicMock(spec=SceneDetectionResult)
@@ -39,7 +39,7 @@ class TestSceneDetector:
         assert result is mock_result
         mock_scenedetect.assert_called_once_with(mock_video_path, DetectionMethod.CONTENT, 27.0)
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector._detect_with_opencv")
+    @patch("services.video.scene_detector.SceneDetector._detect_with_opencv")
     def test_detect_scenes_fallback_to_opencv(self, mock_opencv, mock_video_path):
         detector = SceneDetector()
         mock_result = MagicMock(spec=SceneDetectionResult)
@@ -52,7 +52,7 @@ class TestSceneDetector:
         assert result is mock_result
         mock_opencv.assert_called_once_with(mock_video_path, 27.0)
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector.detect_scenes")
+    @patch("services.video.scene_detector.SceneDetector.detect_scenes")
     def test_detect_scenes_batch(self, mock_detect, mock_video_path):
         detector = SceneDetector()
         mock_result = MagicMock(spec=SceneDetectionResult)
@@ -62,7 +62,7 @@ class TestSceneDetector:
         # If second file raises exception, it should still return the first result
         assert len(results) == 2
 
-    @patch("file_organizer.services.video.scene_detector.SceneDetector.detect_scenes")
+    @patch("services.video.scene_detector.SceneDetector.detect_scenes")
     def test_detect_scenes_batch_skip_errors(self, mock_detect, mock_video_path):
         detector = SceneDetector()
         mock_result = MagicMock(spec=SceneDetectionResult)

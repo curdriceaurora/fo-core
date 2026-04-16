@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.history.tracker import OperationHistory
+from core.organizer import FileOrganizer
+from history.tracker import OperationHistory
 
 from .conftest import make_text_config, make_vision_config
 

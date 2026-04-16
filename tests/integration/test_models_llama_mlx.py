@@ -23,29 +23,29 @@ pytestmark = [pytest.mark.integration]
 
 class TestLlamaCppHelpers:
     def test_extract_llama_cpp_text_returns_stripped_text(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import extract_llama_cpp_text
+        from models._llama_cpp_helpers import extract_llama_cpp_text
 
         response = {"choices": [{"text": "  hello llama  ", "finish_reason": "stop"}]}
         assert extract_llama_cpp_text(response) == "hello llama"
 
     def test_extract_llama_cpp_text_empty_choices_returns_empty(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import extract_llama_cpp_text
+        from models._llama_cpp_helpers import extract_llama_cpp_text
 
         assert extract_llama_cpp_text({"choices": []}) == ""
 
     def test_extract_llama_cpp_text_no_choices_key_returns_empty(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import extract_llama_cpp_text
+        from models._llama_cpp_helpers import extract_llama_cpp_text
 
         assert extract_llama_cpp_text({}) == ""
 
     def test_extract_llama_cpp_text_none_text_returns_empty(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import extract_llama_cpp_text
+        from models._llama_cpp_helpers import extract_llama_cpp_text
 
         response = {"choices": [{"text": None, "finish_reason": "stop"}]}
         assert extract_llama_cpp_text(response) == ""
 
     def test_is_llama_cpp_token_exhausted_false_on_stop(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import is_llama_cpp_token_exhausted
+        from models._llama_cpp_helpers import is_llama_cpp_token_exhausted
 
         response = {
             "choices": [
@@ -55,13 +55,13 @@ class TestLlamaCppHelpers:
         assert is_llama_cpp_token_exhausted(response) is False
 
     def test_is_llama_cpp_token_exhausted_true_when_length_and_short(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import is_llama_cpp_token_exhausted
+        from models._llama_cpp_helpers import is_llama_cpp_token_exhausted
 
         response = {"choices": [{"text": "", "finish_reason": "length"}]}
         assert is_llama_cpp_token_exhausted(response) is True
 
     def test_is_llama_cpp_token_exhausted_false_when_length_but_long_text(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import is_llama_cpp_token_exhausted
+        from models._llama_cpp_helpers import is_llama_cpp_token_exhausted
 
         response = {
             "choices": [
@@ -74,12 +74,12 @@ class TestLlamaCppHelpers:
         assert is_llama_cpp_token_exhausted(response) is False
 
     def test_is_llama_cpp_token_exhausted_false_on_empty_choices(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import is_llama_cpp_token_exhausted
+        from models._llama_cpp_helpers import is_llama_cpp_token_exhausted
 
         assert is_llama_cpp_token_exhausted({"choices": []}) is False
 
     def test_is_llama_cpp_token_exhausted_false_when_no_choices_key(self) -> None:
-        from file_organizer.models._llama_cpp_helpers import is_llama_cpp_token_exhausted
+        from models._llama_cpp_helpers import is_llama_cpp_token_exhausted
 
         assert is_llama_cpp_token_exhausted({}) is False
 
@@ -92,10 +92,10 @@ class TestLlamaCppHelpers:
 def _make_llama_model(model_path: str = "/models/test.gguf") -> Any:
     """Return an initialised LlamaCppTextModel with a mock Llama client."""
     pytest.importorskip("llama_cpp")
-    from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+    from models.llama_cpp_text_model import LlamaCppTextModel
 
     config = LlamaCppTextModel.get_default_config(model_path=model_path)
-    with patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
+    with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
         model = LlamaCppTextModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -121,8 +121,8 @@ class TestLlamaCppTextModel:
         pytest.importorskip("llama_cpp")
 
     def test_init_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.base import ModelConfig, ModelType
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = ModelConfig(
             name="llama-cpp",
@@ -131,14 +131,14 @@ class TestLlamaCppTextModel:
             model_path="/tmp/test.gguf",
         )
         with (
-            patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", False),
+            patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", False),
             pytest.raises(ImportError, match="llama-cpp-python"),
         ):
             LlamaCppTextModel(config)
 
     def test_init_raises_value_error_for_wrong_model_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.base import ModelConfig, ModelType
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = ModelConfig(
             name="llama-cpp",
@@ -147,29 +147,29 @@ class TestLlamaCppTextModel:
             model_path="/tmp/test.gguf",
         )
         with (
-            patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
+            patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
             pytest.raises(ValueError, match="TEXT"),
         ):
             LlamaCppTextModel(config)
 
     def test_init_raises_value_error_for_empty_model_path(self) -> None:
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config(model_path="")
         with (
-            patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
+            patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
             pytest.raises(ValueError, match="model_path"),
         ):
             LlamaCppTextModel(config)
 
     def test_initialize_creates_llama_client(self) -> None:
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/models/mymodel.gguf")
         mock_llama = MagicMock()
         with (
-            patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
-            patch("file_organizer.models.llama_cpp_text_model.Llama", return_value=mock_llama),
+            patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
+            patch("models.llama_cpp_text_model.Llama", return_value=mock_llama),
         ):
             model = LlamaCppTextModel(config)
             model.initialize()
@@ -184,13 +184,13 @@ class TestLlamaCppTextModel:
         assert model.client is original_client
 
     def test_initialize_wraps_os_error_in_runtime_error(self) -> None:
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/models/bad.gguf")
         with (
-            patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
+            patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
             patch(
-                "file_organizer.models.llama_cpp_text_model.Llama",
+                "models.llama_cpp_text_model.Llama",
                 side_effect=OSError("file not found"),
             ),
         ):
@@ -231,7 +231,7 @@ class TestLlamaCppTextModel:
         assert model.client.call_count == 2
 
     def test_generate_raises_token_exhaustion_on_double_failure(self) -> None:
-        from file_organizer.models.base import TokenExhaustionError
+        from models.base import TokenExhaustionError
 
         model = _make_llama_model()
         model.client.return_value = _llama_exhausted_response()
@@ -265,47 +265,47 @@ class TestLlamaCppTextModel:
         assert model.client is None
 
     def test_device_to_gpu_layers_cpu_returns_zero(self) -> None:
-        from file_organizer.models.base import DeviceType
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.base import DeviceType
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/tmp/m.gguf")
         config.device = DeviceType.CPU
-        with patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
+        with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = LlamaCppTextModel(config)
         assert model._device_to_gpu_layers() == 0
 
     def test_device_to_gpu_layers_cuda_returns_minus_one(self) -> None:
-        from file_organizer.models.base import DeviceType
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.base import DeviceType
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/tmp/m.gguf")
         config.device = DeviceType.CUDA
-        with patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
+        with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = LlamaCppTextModel(config)
         assert model._device_to_gpu_layers() == -1
 
     def test_device_to_gpu_layers_mps_returns_minus_one(self) -> None:
-        from file_organizer.models.base import DeviceType
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.base import DeviceType
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/tmp/m.gguf")
         config.device = DeviceType.MPS
-        with patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
+        with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = LlamaCppTextModel(config)
         assert model._device_to_gpu_layers() == -1
 
     def test_device_to_gpu_layers_extra_params_override(self) -> None:
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/tmp/m.gguf")
         config.extra_params = {"n_gpu_layers": 32}
-        with patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
+        with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = LlamaCppTextModel(config)
         assert model._device_to_gpu_layers() == 32
 
     def test_get_default_config_returns_text_type(self) -> None:
-        from file_organizer.models.base import ModelType
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.base import ModelType
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/tmp/model.gguf")
         assert config.model_type == ModelType.TEXT
@@ -321,10 +321,10 @@ class TestLlamaCppTextModel:
 def _make_mlx_model(model_path: str = "mlx-community/Llama-3.2-1B-Instruct") -> Any:
     """Return an initialised MLXTextModel with mock model/tokenizer."""
     pytest.importorskip("mlx_lm")
-    from file_organizer.models.mlx_text_model import MLXTextModel
+    from models.mlx_text_model import MLXTextModel
 
     config = MLXTextModel.get_default_config(model_path=model_path)
-    with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
+    with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
         model = MLXTextModel(config)
     model._initialized = True
     model._model = MagicMock()
@@ -343,8 +343,8 @@ class TestMLXTextModel:
         pytest.importorskip("mlx_lm")
 
     def test_init_raises_import_error_when_unavailable(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.base import ModelConfig, ModelType
+        from models.mlx_text_model import MLXTextModel
 
         config = ModelConfig(
             name="mlx-lm",
@@ -353,14 +353,14 @@ class TestMLXTextModel:
             model_path="some/path",
         )
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", False),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", False),
             pytest.raises(ImportError, match="mlx-lm"),
         ):
             MLXTextModel(config)
 
     def test_init_raises_value_error_for_wrong_model_type(self) -> None:
-        from file_organizer.models.base import ModelConfig, ModelType
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.base import ModelConfig, ModelType
+        from models.mlx_text_model import MLXTextModel
 
         config = ModelConfig(
             name="mlx-lm",
@@ -369,31 +369,31 @@ class TestMLXTextModel:
             model_path="some/path",
         )
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             pytest.raises(ValueError, match="TEXT"),
         ):
             MLXTextModel(config)
 
     def test_init_raises_value_error_for_empty_model_path(self) -> None:
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config(model_path="")
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             pytest.raises(ValueError, match="model_path"),
         ):
             MLXTextModel(config)
 
     def test_initialize_loads_model_and_tokenizer(self) -> None:
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config("my/model")
         mock_model = MagicMock()
         mock_tokenizer = MagicMock()
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 return_value=(mock_model, mock_tokenizer),
             ),
         ):
@@ -411,13 +411,13 @@ class TestMLXTextModel:
         assert model._model is original_model_obj
 
     def test_initialize_wraps_runtime_error(self) -> None:
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config("bad/path")
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 side_effect=OSError("cannot load"),
             ),
         ):
@@ -426,13 +426,13 @@ class TestMLXTextModel:
                 model.initialize()
 
     def test_initialize_raises_if_load_returns_wrong_shape(self) -> None:
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config("some/model")
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 return_value="not_a_tuple",
             ),
         ):
@@ -443,7 +443,7 @@ class TestMLXTextModel:
     def test_generate_returns_stripped_text(self) -> None:
         model = _make_mlx_model()
         with patch(
-            "file_organizer.models.mlx_text_model.mlx_generate",
+            "models.mlx_text_model.mlx_generate",
             return_value="  mlx result  ",
         ):
             result = model.generate("Hello MLX")
@@ -457,7 +457,7 @@ class TestMLXTextModel:
             captured.append(kwargs)
             return "ok"
 
-        with patch("file_organizer.models.mlx_text_model.mlx_generate", _fake_generate):
+        with patch("models.mlx_text_model.mlx_generate", _fake_generate):
             model.generate("prompt", temperature=0.7, max_tokens=64)
 
         assert len(captured) == 1
@@ -473,7 +473,7 @@ class TestMLXTextModel:
         model = _make_mlx_model()
         with (
             patch(
-                "file_organizer.models.mlx_text_model.mlx_generate",
+                "models.mlx_text_model.mlx_generate",
                 side_effect=RuntimeError("MLX error"),
             ),
             pytest.raises(RuntimeError, match="MLX error"),
@@ -488,19 +488,19 @@ class TestMLXTextModel:
         assert model._initialized is False
 
     def test_is_signature_mismatch_type_error_detects_unexpected_keyword(self) -> None:
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         exc = TypeError("got an unexpected keyword argument 'temp'")
         assert MLXTextModel._is_signature_mismatch_type_error(exc) is True
 
     def test_is_signature_mismatch_type_error_false_for_other_errors(self) -> None:
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         exc = TypeError("'NoneType' object is not callable")
         assert MLXTextModel._is_signature_mismatch_type_error(exc) is False
 
     def test_is_signature_mismatch_type_error_detects_required_positional(self) -> None:
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         exc = TypeError("missing 1 required positional argument: 'x'")
         assert MLXTextModel._is_signature_mismatch_type_error(exc) is True
@@ -516,7 +516,7 @@ class TestMLXTextModel:
                 return "result"
             raise TypeError("unexpected keyword argument 'temp'")
 
-        with patch("file_organizer.models.mlx_text_model.mlx_generate", _fake_generate):
+        with patch("models.mlx_text_model.mlx_generate", _fake_generate):
             # First call probes variants
             result1 = model._call_generate(
                 prompt="test", max_tokens=100, temperature=0.5, top_p=0.9, top_k=5
@@ -531,15 +531,15 @@ class TestMLXTextModel:
         assert second_call_count == 1
 
     def test_get_default_config_returns_text_type(self) -> None:
-        from file_organizer.models.base import ModelType
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.base import ModelType
+        from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config("some/model")
         assert config.model_type == ModelType.TEXT
         assert config.provider == "mlx"
 
     def test_get_default_config_stores_model_path(self) -> None:
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config("mlx-community/Llama-3.2-3B-Instruct-4bit")
         assert config.model_path == "mlx-community/Llama-3.2-3B-Instruct-4bit"

@@ -15,7 +15,7 @@ from pathlib import Path
 # Version
 # ---------------------------------------------------------------------------
 
-APP_NAME = "file-organizer"
+APP_NAME = "fo"
 
 
 def _read_pyproject_version() -> str:
@@ -94,14 +94,14 @@ HIDDEN_IMPORTS: list[str] = [
     "pydantic",
     "pydantic_settings",
     "httpx",
-    "file_organizer",
-    "file_organizer.cli",
-    "file_organizer.cli.main",
-    "file_organizer.models",
-    "file_organizer.models.text_model",
-    "file_organizer.models.vision_model",
-    "file_organizer.services.copilot",
-    "file_organizer.services.copilot.engine",
+    "fo",
+    "cli",
+    "cli.main",
+    "models",
+    "models.text_model",
+    "models.vision_model",
+    "services.copilot",
+    "services.copilot.engine",
 ]
 
 # Modules to exclude from the bundle to reduce size.
@@ -121,7 +121,7 @@ EXCLUDES: list[str] = [
 
 # Data files to include: (source_glob, destination_directory)
 DATA_FILES: list[tuple[str, str]] = [
-    ("src/file_organizer/config/*.yaml", "file_organizer/config"),
+    ("src/config/*.yaml", "fo/config"),
 ]
 
 
@@ -144,7 +144,7 @@ class BuildConfig:
         """Filename for the built executable.
 
         Returns:
-            E.g. ``'file-organizer-2.0.0-macos-arm64'``.
+            E.g. ``'fo-2.0.0-macos-arm64'``.
         """
         suffix = ".exe" if self.platform == "windows" else ""
         return f"{self.app_name}-{self.version}-{self.platform}-{self.arch}{suffix}"

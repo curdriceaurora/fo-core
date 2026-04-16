@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
-from file_organizer.methodologies.para.migration_manager import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
+from methodologies.para.migration_manager import (
     MigrationFile,
     MigrationPlan,
     MigrationReport,

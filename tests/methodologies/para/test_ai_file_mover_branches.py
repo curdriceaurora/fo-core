@@ -13,17 +13,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.methodologies.para.ai.file_mover import (
+from methodologies.para.ai.file_mover import (
     MoveSuggestion,
     OrganizationReport,
     PARAFileMover,
 )
-from file_organizer.methodologies.para.ai.suggestion_engine import (
+from methodologies.para.ai.suggestion_engine import (
     PARASuggestion,
     PARASuggestionEngine,
 )
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
 
 pytestmark = pytest.mark.unit
 
@@ -318,7 +318,7 @@ class TestBulkOrganize:
 
         # Mock move_file to return failure
         def mock_move_file(suggestion, dry_run=True):
-            from file_organizer.methodologies.para.ai.file_mover import MoveResult
+            from methodologies.para.ai.file_mover import MoveResult
 
             return MoveResult(
                 success=False,
@@ -358,7 +358,7 @@ class TestSuggestArchive:
         mover = PARAFileMover(config, suggestion_engine=engine, root_dir=tmp_path)
 
         # Patch time.time to make file appear old
-        with patch("file_organizer.methodologies.para.ai.file_mover.time") as mock_time:
+        with patch("methodologies.para.ai.file_mover.time") as mock_time:
             mock_time.time.return_value = time.time() + 200 * 86400
             suggestions = mover.suggest_archive(src_dir, inactive_days=180)
 
@@ -402,7 +402,7 @@ class TestSuggestArchive:
 
         with patch.object(Path, "is_file", return_value=True):
             with patch.object(Path, "stat", mock_stat):
-                with patch("file_organizer.methodologies.para.ai.file_mover.time") as mock_time:
+                with patch("methodologies.para.ai.file_mover.time") as mock_time:
                     mock_time.time.return_value = time.time() + (200 * 86400)
                     suggestions = mover.suggest_archive(src_dir, inactive_days=180)
 

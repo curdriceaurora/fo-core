@@ -134,7 +134,7 @@ Create custom mappings that fit your specific needs:
 ### Setting Up PARA-Compatible JD
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     create_para_compatible_config,
     JohnnyDecimalMigrator,
     PARAJohnnyDecimalBridge,
@@ -169,7 +169,7 @@ para_cat = bridge.jd_area_to_para(25)
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import HybridOrganizer
+from methodologies.johnny_decimal import HybridOrganizer
 
 # Initialize hybrid organizer
 organizer = HybridOrganizer(config)
@@ -186,7 +186,7 @@ areas_path = created_paths['para_areas']
 ### Migrating PARA to Hybrid
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     CompatibilityAnalyzer,
     JohnnyDecimalMigrator,
 )
@@ -210,7 +210,7 @@ result = migrator.execute_migration(plan, dry_run=False)
 ### Example 1: Adding a New Project
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     HybridOrganizer,
     PARACategory,
     JohnnyDecimalNumber,
@@ -316,7 +316,7 @@ for resource_name, category_num in resources:
 ### Using PARA Adapter
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     PARAAdapter,
     OrganizationItem,
 )
@@ -345,7 +345,7 @@ print(para_item_back.category)  # Output: "projects"
 ### Using Adapter Registry
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     create_default_registry,
     OrganizationItem,
 )
@@ -442,7 +442,7 @@ When moving items between PARA categories:
 ### Automated PARA Assignment
 
 ```python
-from file_organizer.methodologies.johnny_decimal import PARAAdapter
+from methodologies.johnny_decimal import PARAAdapter
 
 def auto_categorize(item_name, keywords):
     """Automatically determine PARA category from keywords."""
@@ -490,7 +490,7 @@ if is_mixed:
 ### Custom PARA-JD Mappings
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     ConfigBuilder,
     PARAIntegrationConfig,
 )
@@ -554,7 +554,7 @@ config.compatibility.para_integration.areas_area = 20     # 20-39 (expanded)
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     create_para_compatible_config,
     HybridOrganizer,
     PARACategory,

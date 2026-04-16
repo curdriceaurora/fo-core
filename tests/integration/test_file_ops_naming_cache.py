@@ -14,16 +14,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.core.file_ops import (
+from core.file_ops import (
     cleanup_empty_dirs,
     collect_files,
     fallback_by_extension,
     organize_files,
     simulate_organization,
 )
-from file_organizer.services import ProcessedFile
-from file_organizer.services.intelligence.naming_analyzer import NamingAnalyzer
-from file_organizer.utils.text_processing import (
+from services import ProcessedFile
+from services.intelligence.naming_analyzer import NamingAnalyzer
+from utils.text_processing import (
     clean_text,
     ensure_nltk_data,
     extract_keywords,

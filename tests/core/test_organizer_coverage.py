@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
+from core.organizer import FileOrganizer
 
 pytestmark = pytest.mark.unit
 
@@ -17,7 +17,7 @@ def organizer():
     mock_text_cfg = MagicMock()
     mock_vision_cfg = MagicMock()
     with patch(
-        "file_organizer.config.provider_env.get_model_configs",
+        "config.provider_env.get_model_configs",
         return_value=(mock_text_cfg, mock_vision_cfg),
     ):
         org = FileOrganizer(dry_run=True)

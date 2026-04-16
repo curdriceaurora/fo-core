@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.optimization.resource_monitor module.
+"""Coverage tests for optimization.resource_monitor module.
 
 Targets uncovered branches: _get_memory_fallback Linux vs macOS paths,
 _get_total_memory_fallback paths, get_system_memory_total,
@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from file_organizer.optimization.resource_monitor import (
+from optimization.resource_monitor import (
     MemoryInfo,
     ResourceMonitor,
 )

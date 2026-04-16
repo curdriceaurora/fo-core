@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.models.registry import (
+from models.registry import (
     ModelInfo,
     get_all_models,
     get_audio_models,
@@ -32,21 +32,21 @@ class TestTextRegistry:
     """Verify TextModelInfo has required domain fields."""
 
     def test_text_models_have_context_window(self) -> None:
-        from file_organizer.models.text_registry import TEXT_MODELS
+        from models.text_registry import TEXT_MODELS
 
         for m in TEXT_MODELS:
             assert hasattr(m, "context_window"), f"{m.name} missing context_window"
             assert m.context_window > 0
 
     def test_text_models_have_max_tokens(self) -> None:
-        from file_organizer.models.text_registry import TEXT_MODELS
+        from models.text_registry import TEXT_MODELS
 
         for m in TEXT_MODELS:
             assert hasattr(m, "max_tokens"), f"{m.name} missing max_tokens"
             assert m.max_tokens > 0
 
     def test_text_models_are_model_info_subclass(self) -> None:
-        from file_organizer.models.text_registry import TEXT_MODELS, TextModelInfo
+        from models.text_registry import TEXT_MODELS, TextModelInfo
 
         for m in TEXT_MODELS:
             assert isinstance(m, ModelInfo)
@@ -60,14 +60,14 @@ class TestVisionRegistry:
     """Verify VisionModelInfo has required domain fields."""
 
     def test_vision_models_have_supported_formats(self) -> None:
-        from file_organizer.models.vision_registry import VISION_MODELS
+        from models.vision_registry import VISION_MODELS
 
         for m in VISION_MODELS:
             assert hasattr(m, "supported_formats"), f"{m.name} missing supported_formats"
             assert len(m.supported_formats) > 0
 
     def test_vision_models_have_max_resolution(self) -> None:
-        from file_organizer.models.vision_registry import VISION_MODELS
+        from models.vision_registry import VISION_MODELS
 
         for m in VISION_MODELS:
             assert hasattr(m, "max_resolution"), f"{m.name} missing max_resolution"
@@ -75,7 +75,7 @@ class TestVisionRegistry:
             assert m.max_resolution[1] > 0
 
     def test_vision_models_are_model_info_subclass(self) -> None:
-        from file_organizer.models.vision_registry import VISION_MODELS, VisionModelInfo
+        from models.vision_registry import VISION_MODELS, VisionModelInfo
 
         for m in VISION_MODELS:
             assert isinstance(m, ModelInfo)
@@ -89,21 +89,21 @@ class TestAudioRegistry:
     """Verify AudioModelInfo has required domain fields."""
 
     def test_audio_models_have_supported_formats(self) -> None:
-        from file_organizer.models.audio_registry import AUDIO_MODELS
+        from models.audio_registry import AUDIO_MODELS
 
         for m in AUDIO_MODELS:
             assert hasattr(m, "supported_formats"), f"{m.name} missing supported_formats"
             assert len(m.supported_formats) > 0
 
     def test_audio_models_have_max_duration(self) -> None:
-        from file_organizer.models.audio_registry import AUDIO_MODELS
+        from models.audio_registry import AUDIO_MODELS
 
         for m in AUDIO_MODELS:
             assert hasattr(m, "max_duration_seconds"), f"{m.name} missing max_duration_seconds"
             assert m.max_duration_seconds > 0
 
     def test_audio_models_are_model_info_subclass(self) -> None:
-        from file_organizer.models.audio_registry import AUDIO_MODELS, AudioModelInfo
+        from models.audio_registry import AUDIO_MODELS, AudioModelInfo
 
         for m in AUDIO_MODELS:
             assert isinstance(m, ModelInfo)
@@ -145,7 +145,7 @@ class TestRegistryFacade:
         assert len(models) >= 6
 
     def test_available_models_backward_compat(self) -> None:
-        from file_organizer.models.registry import AVAILABLE_MODELS
+        from models.registry import AVAILABLE_MODELS
 
         assert len(AVAILABLE_MODELS) >= 6
         names = {m.name for m in AVAILABLE_MODELS}
@@ -163,7 +163,7 @@ class TestModelHotSwap:
     """Verify ModelManager.swap_model with drain/rollback semantics."""
 
     def _make_manager(self) -> Any:
-        from file_organizer.models.model_manager import ModelManager
+        from models.model_manager import ModelManager
 
         return ModelManager(console=MagicMock())
 

@@ -82,21 +82,21 @@ fo-core v0.1
 
 **CLI**
 
-- `src/file_organizer/cli/main.py` - Typer CLI application
-- `src/file_organizer/cli/commands/` - CLI subcommands
+- `src/cli/main.py` - Typer CLI application
+- `src/cli/commands/` - CLI subcommands
 
 **Core Engine**
 
-- `src/file_organizer/core/` - Main orchestrator
-- `src/file_organizer/services/` - Business logic
-- `src/file_organizer/models/` - AI model interfaces
+- `src/core/` - Main orchestrator
+- `src/services/` - Business logic
+- `src/models/` - AI model interfaces
 
 ## Development Tasks
 
 ### Create Custom Methodology
 
 ```python
-from file_organizer.methodologies import BaseMethodology
+from methodologies import BaseMethodology
 
 class CustomMethod(BaseMethodology):
     name = "custom"

@@ -21,7 +21,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.utils.readers._base import FileReadError
+from utils.readers._base import FileReadError
 
 pytestmark = pytest.mark.integration
 
@@ -35,7 +35,7 @@ class TestReadTextFile:
     """Integration tests for read_text_file."""
 
     def test_basic_read(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_text_file
+        from utils.readers.documents import read_text_file
 
         f = tmp_path / "hello.txt"
         f.write_text("Hello, world!\nSecond line.", encoding="utf-8")
@@ -46,7 +46,7 @@ class TestReadTextFile:
         assert "Second line." in result
 
     def test_max_chars_truncation(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_text_file
+        from utils.readers.documents import read_text_file
 
         f = tmp_path / "long.txt"
         f.write_text("A" * 1000, encoding="utf-8")
@@ -57,7 +57,7 @@ class TestReadTextFile:
         assert result == "A" * 100
 
     def test_missing_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_text_file
+        from utils.readers.documents import read_text_file
 
         missing = tmp_path / "nonexistent.txt"
 
@@ -65,7 +65,7 @@ class TestReadTextFile:
             read_text_file(missing)
 
     def test_unicode_content(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_text_file
+        from utils.readers.documents import read_text_file
 
         f = tmp_path / "unicode.txt"
         f.write_text("こんにちは — Héllo Wörld", encoding="utf-8")
@@ -75,7 +75,7 @@ class TestReadTextFile:
         assert "Héllo" in result
 
     def test_empty_file(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_text_file
+        from utils.readers.documents import read_text_file
 
         f = tmp_path / "empty.txt"
         f.write_text("", encoding="utf-8")
@@ -85,7 +85,7 @@ class TestReadTextFile:
         assert result == ""
 
     def test_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_text_file
+        from utils.readers.documents import read_text_file
 
         f = tmp_path / "data.txt"
         f.write_text("content", encoding="utf-8")
@@ -111,7 +111,7 @@ class TestReadDocxFile:
     def test_real_docx_extraction(self, tmp_path: Path) -> None:
         import docx as python_docx
 
-        from file_organizer.utils.readers.documents import read_docx_file
+        from utils.readers.documents import read_docx_file
 
         doc_path = tmp_path / "test.docx"
         doc = python_docx.Document()
@@ -127,7 +127,7 @@ class TestReadDocxFile:
     def test_empty_paragraphs_skipped(self, tmp_path: Path) -> None:
         import docx as python_docx
 
-        from file_organizer.utils.readers.documents import read_docx_file
+        from utils.readers.documents import read_docx_file
 
         doc_path = tmp_path / "sparse.docx"
         doc = python_docx.Document()
@@ -142,14 +142,14 @@ class TestReadDocxFile:
         assert result.strip() == "Real content here."
 
     def test_import_error_when_docx_unavailable(self) -> None:
-        from file_organizer.utils.readers.documents import read_docx_file
+        from utils.readers.documents import read_docx_file
 
-        with patch("file_organizer.utils.readers.documents.DOCX_AVAILABLE", False):
+        with patch("utils.readers.documents.DOCX_AVAILABLE", False):
             with pytest.raises(ImportError, match="python-docx is not installed"):
                 read_docx_file("test.docx")
 
     def test_corrupt_docx_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_docx_file
+        from utils.readers.documents import read_docx_file
 
         bad_file = tmp_path / "corrupt.docx"
         bad_file.write_bytes(b"not a docx file at all")
@@ -160,7 +160,7 @@ class TestReadDocxFile:
     def test_returns_joined_paragraphs(self, tmp_path: Path) -> None:
         import docx as python_docx
 
-        from file_organizer.utils.readers.documents import read_docx_file
+        from utils.readers.documents import read_docx_file
 
         doc_path = tmp_path / "multi.docx"
         doc = python_docx.Document()
@@ -187,14 +187,14 @@ class TestReadPdfFile:
         pytest.importorskip("fitz")
 
     def test_import_error_when_pymupdf_unavailable(self) -> None:
-        from file_organizer.utils.readers.documents import read_pdf_file
+        from utils.readers.documents import read_pdf_file
 
-        with patch("file_organizer.utils.readers.documents.PYMUPDF_AVAILABLE", False):
+        with patch("utils.readers.documents.PYMUPDF_AVAILABLE", False):
             with pytest.raises(ImportError, match="PyMuPDF is not installed"):
                 read_pdf_file("test.pdf")
 
     def test_corrupt_pdf_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_pdf_file
+        from utils.readers.documents import read_pdf_file
 
         bad_pdf = tmp_path / "corrupt.pdf"
         bad_pdf.write_bytes(b"not a pdf at all")
@@ -205,7 +205,7 @@ class TestReadPdfFile:
     def test_max_pages_respected(self, tmp_path: Path) -> None:
         import fitz
 
-        from file_organizer.utils.readers.documents import read_pdf_file
+        from utils.readers.documents import read_pdf_file
 
         doc_path = tmp_path / "multi.pdf"
         doc = fitz.open()
@@ -224,7 +224,7 @@ class TestReadPdfFile:
     def test_single_page_pdf(self, tmp_path: Path) -> None:
         import fitz
 
-        from file_organizer.utils.readers.documents import read_pdf_file
+        from utils.readers.documents import read_pdf_file
 
         doc_path = tmp_path / "single.pdf"
         doc = fitz.open()
@@ -240,7 +240,7 @@ class TestReadPdfFile:
     def test_returns_string(self, tmp_path: Path) -> None:
         import fitz
 
-        from file_organizer.utils.readers.documents import read_pdf_file
+        from utils.readers.documents import read_pdf_file
 
         doc_path = tmp_path / "check.pdf"
         doc = fitz.open()
@@ -264,7 +264,7 @@ class TestReadSpreadsheetFile:
     """Integration tests for read_spreadsheet_file."""
 
     def test_csv_basic_read(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         csv_file = tmp_path / "data.csv"
         csv_file.write_text("Name,Age\nAlice,30\nBob,25", encoding="utf-8")
@@ -276,7 +276,7 @@ class TestReadSpreadsheetFile:
         assert "Bob,25" in result
 
     def test_csv_max_rows_truncation(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         csv_file = tmp_path / "big.csv"
         lines = ["col1,col2"] + [f"row{i},{i}" for i in range(200)]
@@ -289,7 +289,7 @@ class TestReadSpreadsheetFile:
         assert "col1,col2" in rows[0]
 
     def test_csv_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         csv_file = tmp_path / "simple.csv"
         csv_file.write_text("a,b,c\n1,2,3", encoding="utf-8")
@@ -300,7 +300,7 @@ class TestReadSpreadsheetFile:
         assert "a,b,c" in result
 
     def test_csv_single_column(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         csv_file = tmp_path / "single_col.csv"
         csv_file.write_text("value\nfoo\nbar\nbaz", encoding="utf-8")
@@ -311,7 +311,7 @@ class TestReadSpreadsheetFile:
         assert "foo" in result
 
     def test_unsupported_format_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         bad_file = tmp_path / "data.ods"
         bad_file.touch()
@@ -320,7 +320,7 @@ class TestReadSpreadsheetFile:
             read_spreadsheet_file(bad_file)
 
     def test_xlsx_basic_read(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         openpyxl = pytest.importorskip("openpyxl")
 
@@ -339,7 +339,7 @@ class TestReadSpreadsheetFile:
         assert "Widget" in result
 
     def test_xlsx_max_rows(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         openpyxl = pytest.importorskip("openpyxl")
 
@@ -358,7 +358,7 @@ class TestReadSpreadsheetFile:
         assert "row11" not in result
 
     def test_xlsx_empty_cells_handled(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         openpyxl = pytest.importorskip("openpyxl")
 
@@ -376,12 +376,12 @@ class TestReadSpreadsheetFile:
         assert "also filled" in result
 
     def test_openpyxl_unavailable_raises_import_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_spreadsheet_file
+        from utils.readers.documents import read_spreadsheet_file
 
         xlsx_path = tmp_path / "test.xlsx"
         xlsx_path.touch()
 
-        with patch("file_organizer.utils.readers.documents.OPENPYXL_AVAILABLE", False):
+        with patch("utils.readers.documents.OPENPYXL_AVAILABLE", False):
             with pytest.raises(ImportError, match="openpyxl is not installed"):
                 read_spreadsheet_file(xlsx_path)
 
@@ -399,9 +399,9 @@ class TestReadPresentationFile:
         pytest.importorskip("pptx")
 
     def test_import_error_when_pptx_unavailable(self) -> None:
-        from file_organizer.utils.readers.documents import read_presentation_file
+        from utils.readers.documents import read_presentation_file
 
-        with patch("file_organizer.utils.readers.documents.PPTX_AVAILABLE", False):
+        with patch("utils.readers.documents.PPTX_AVAILABLE", False):
             with pytest.raises(ImportError, match="python-pptx is not installed"):
                 read_presentation_file("test.pptx")
 
@@ -409,7 +409,7 @@ class TestReadPresentationFile:
         from pptx import Presentation
         from pptx.util import Pt
 
-        from file_organizer.utils.readers.documents import read_presentation_file
+        from utils.readers.documents import read_presentation_file
 
         pptx_path = tmp_path / "slides.pptx"
         prs = Presentation()
@@ -436,7 +436,7 @@ class TestReadPresentationFile:
         from pptx import Presentation
         from pptx.util import Pt
 
-        from file_organizer.utils.readers.documents import read_presentation_file
+        from utils.readers.documents import read_presentation_file
 
         pptx_path = tmp_path / "mixed.pptx"
         prs = Presentation()
@@ -457,7 +457,7 @@ class TestReadPresentationFile:
         assert "Slide 2" not in result
 
     def test_corrupt_pptx_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.documents import read_presentation_file
+        from utils.readers.documents import read_presentation_file
 
         bad_file = tmp_path / "corrupt.pptx"
         bad_file.write_bytes(b"not a pptx file")
@@ -469,7 +469,7 @@ class TestReadPresentationFile:
         from pptx import Presentation
         from pptx.util import Pt
 
-        from file_organizer.utils.readers.documents import read_presentation_file
+        from utils.readers.documents import read_presentation_file
 
         pptx_path = tmp_path / "multi_slide.pptx"
         prs = Presentation()

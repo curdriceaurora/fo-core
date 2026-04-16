@@ -32,7 +32,7 @@ fi
 # user can manually verify or we just commit the bumped version specs.
 
 # 4. Commit and tag
-git add pyproject.toml src/file_organizer/version.py src/file_organizer/__init__.py
+git add pyproject.toml src/version.py src/__init__.py
 git commit -m "chore(release): bump version to $NEW_VER"
 git tag -a "v$NEW_VER" -m "Release v$NEW_VER" -m "$CHANGELOG"
 

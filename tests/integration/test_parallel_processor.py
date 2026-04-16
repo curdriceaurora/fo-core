@@ -25,7 +25,7 @@ class TestParallelConfig:
 
     def test_default_config(self) -> None:
         """Verify ParallelConfig defaults match the documented baseline values."""
-        from file_organizer.parallel.config import ExecutorType, ParallelConfig
+        from parallel.config import ExecutorType, ParallelConfig
 
         cfg = ParallelConfig()
         assert cfg.max_workers is None
@@ -37,7 +37,7 @@ class TestParallelConfig:
 
     def test_custom_config(self) -> None:
         """Verify custom constructor arguments are stored correctly."""
-        from file_organizer.parallel.config import ExecutorType, ParallelConfig
+        from parallel.config import ExecutorType, ParallelConfig
 
         cfg = ParallelConfig(
             max_workers=4,
@@ -52,35 +52,35 @@ class TestParallelConfig:
 
     def test_invalid_max_workers_raises(self) -> None:
         """Verify max_workers=0 raises ValueError."""
-        from file_organizer.parallel.config import ParallelConfig
+        from parallel.config import ParallelConfig
 
         with pytest.raises(ValueError, match="max_workers must be >= 1"):
             ParallelConfig(max_workers=0)
 
     def test_invalid_chunk_size_raises(self) -> None:
         """Verify chunk_size=0 raises ValueError."""
-        from file_organizer.parallel.config import ParallelConfig
+        from parallel.config import ParallelConfig
 
         with pytest.raises(ValueError, match="chunk_size must be >= 1"):
             ParallelConfig(chunk_size=0)
 
     def test_invalid_timeout_raises(self) -> None:
         """Verify timeout_per_file=0.0 raises ValueError."""
-        from file_organizer.parallel.config import ParallelConfig
+        from parallel.config import ParallelConfig
 
         with pytest.raises(ValueError, match="timeout_per_file must be > 0"):
             ParallelConfig(timeout_per_file=0.0)
 
     def test_negative_retry_raises(self) -> None:
         """Verify a negative retry_count raises ValueError."""
-        from file_organizer.parallel.config import ParallelConfig
+        from parallel.config import ParallelConfig
 
         with pytest.raises(ValueError, match="retry_count must be >= 0"):
             ParallelConfig(retry_count=-1)
 
     def test_negative_prefetch_depth_raises(self) -> None:
         """Verify a negative prefetch_depth raises ValueError."""
-        from file_organizer.parallel.config import ParallelConfig
+        from parallel.config import ParallelConfig
 
         with pytest.raises(ValueError, match="prefetch_depth must be >= 0"):
             ParallelConfig(prefetch_depth=-1)
@@ -96,7 +96,7 @@ class TestJobState:
 
     def test_default_job_state(self) -> None:
         """Verify a new JobState starts with PENDING status and zero counters."""
-        from file_organizer.parallel.models import JobState, JobStatus
+        from parallel.models import JobState, JobStatus
 
         job = JobState(id="job-001")
         assert job.id == "job-001"
@@ -108,7 +108,7 @@ class TestJobState:
 
     def test_job_state_roundtrip(self) -> None:
         """Verify to_dict/from_dict preserves all JobState fields."""
-        from file_organizer.parallel.models import JobState, JobStatus
+        from parallel.models import JobState, JobStatus
 
         now = datetime.now(UTC)
         job = JobState(
@@ -136,7 +136,7 @@ class TestJobState:
 
     def test_job_state_with_error_roundtrip(self) -> None:
         """Verify error field is preserved through a to_dict/from_dict round-trip."""
-        from file_organizer.parallel.models import JobState, JobStatus
+        from parallel.models import JobState, JobStatus
 
         job = JobState(id="job-err", status=JobStatus.FAILED, error="disk full")
         data = job.to_dict()
@@ -146,7 +146,7 @@ class TestJobState:
 
     def test_all_job_statuses(self) -> None:
         """Verify the JobStatus enum contains exactly the five expected values."""
-        from file_organizer.parallel.models import JobStatus
+        from parallel.models import JobStatus
 
         expected = {"pending", "running", "paused", "completed", "failed"}
         actual = {s.value for s in JobStatus}
@@ -158,7 +158,7 @@ class TestJobSummary:
 
     def test_progress_calculation(self) -> None:
         """Verify progress_percent is calculated as completed/total * 100."""
-        from file_organizer.parallel.models import JobState, JobStatus, JobSummary
+        from parallel.models import JobState, JobStatus, JobSummary
 
         job = JobState(
             id="s1",
@@ -173,7 +173,7 @@ class TestJobSummary:
 
     def test_zero_total_files(self) -> None:
         """Verify progress_percent is 0.0 when total_files is zero."""
-        from file_organizer.parallel.models import JobState, JobSummary
+        from parallel.models import JobState, JobSummary
 
         job = JobState(id="s2", total_files=0)
         summary = JobSummary.from_job_state(job)
@@ -185,7 +185,7 @@ class TestCheckpointModel:
 
     def test_checkpoint_roundtrip(self) -> None:
         """Verify to_dict/from_dict preserves completed paths, pending paths, and hashes."""
-        from file_organizer.parallel.models import Checkpoint
+        from parallel.models import Checkpoint
 
         completed = [Path("/a/b.txt"), Path("/c/d.txt")]
         pending = [Path("/e/f.txt")]
@@ -204,7 +204,7 @@ class TestCheckpointModel:
 
     def test_empty_checkpoint(self) -> None:
         """Verify a Checkpoint with only a job_id has empty path lists and hashes."""
-        from file_organizer.parallel.models import Checkpoint
+        from parallel.models import Checkpoint
 
         cp = Checkpoint(job_id="empty")
         assert cp.completed_paths == []
@@ -217,7 +217,7 @@ class TestBatchResult:
 
     def test_empty_batch_result(self) -> None:
         """Verify an empty BatchResult has zero counters and mentions '0 files' in summary."""
-        from file_organizer.parallel.result import BatchResult
+        from parallel.result import BatchResult
 
         result = BatchResult()
         assert result.total == 0
@@ -228,7 +228,7 @@ class TestBatchResult:
 
     def test_batch_result_with_failures(self) -> None:
         """Verify summary includes failure details when failed files are present."""
-        from file_organizer.parallel.result import BatchResult, FileResult
+        from parallel.result import BatchResult, FileResult
 
         results = [
             FileResult(path=Path("a.txt"), success=True, duration_ms=5.0),
@@ -249,7 +249,7 @@ class TestBatchResult:
 
     def test_batch_result_many_failures_truncated(self) -> None:
         """Verify summary truncates the failure list after 5 entries."""
-        from file_organizer.parallel.result import BatchResult, FileResult
+        from parallel.result import BatchResult, FileResult
 
         results = [FileResult(path=Path(f"{i}.txt"), success=False, error="err") for i in range(10)]
         batch = BatchResult(total=10, succeeded=0, failed=10, results=results)
@@ -258,7 +258,7 @@ class TestBatchResult:
 
     def test_file_result_str_success(self) -> None:
         """Verify str(FileResult) starts with 'OK' for a successful result."""
-        from file_organizer.parallel.result import FileResult
+        from parallel.result import FileResult
 
         fr = FileResult(path=Path("x.txt"), success=True, duration_ms=3.0)
         text = str(fr)
@@ -267,7 +267,7 @@ class TestBatchResult:
 
     def test_file_result_str_failure(self) -> None:
         """Verify str(FileResult) starts with 'FAIL' and includes the error message."""
-        from file_organizer.parallel.result import FileResult
+        from parallel.result import FileResult
 
         fr = FileResult(path=Path("y.txt"), success=False, error="gone", duration_ms=1.0)
         text = str(fr)
@@ -285,7 +285,7 @@ class TestCheckpointManager:
 
     def test_create_and_load_checkpoint(self, tmp_path: Path) -> None:
         """Verify create_checkpoint persists data that load_checkpoint can retrieve."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
+        from parallel.checkpoint import CheckpointManager
 
         f1 = tmp_path / "f1.txt"
         f2 = tmp_path / "f2.txt"
@@ -309,7 +309,7 @@ class TestCheckpointManager:
 
     def test_load_nonexistent_returns_none(self, tmp_path: Path) -> None:
         """Verify load_checkpoint returns None for an unknown job ID."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
+        from parallel.checkpoint import CheckpointManager
 
         mgr = CheckpointManager(checkpoints_dir=tmp_path / "checkpoints")
         result = mgr.load_checkpoint("ghost-job")
@@ -317,7 +317,7 @@ class TestCheckpointManager:
 
     def test_delete_checkpoint(self, tmp_path: Path) -> None:
         """Verify delete_checkpoint removes the checkpoint and returns True."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
+        from parallel.checkpoint import CheckpointManager
 
         mgr = CheckpointManager(checkpoints_dir=tmp_path / "checkpoints")
         f = tmp_path / "f.txt"
@@ -331,7 +331,7 @@ class TestCheckpointManager:
 
     def test_delete_nonexistent_returns_false(self, tmp_path: Path) -> None:
         """Verify delete_checkpoint returns False for an unknown job ID."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
+        from parallel.checkpoint import CheckpointManager
 
         mgr = CheckpointManager(checkpoints_dir=tmp_path / "checkpoints")
         result = mgr.delete_checkpoint("no-such-job")
@@ -339,8 +339,8 @@ class TestCheckpointManager:
 
     def test_update_checkpoint_state(self, tmp_path: Path) -> None:
         """Verify update_checkpoint_state moves a file from pending to completed."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
-        from file_organizer.parallel.models import Checkpoint
+        from parallel.checkpoint import CheckpointManager
+        from parallel.models import Checkpoint
 
         f1 = tmp_path / "f1.txt"
         f2 = tmp_path / "f2.txt"
@@ -356,7 +356,7 @@ class TestCheckpointManager:
 
     def test_has_file_changed_after_modification(self, tmp_path: Path) -> None:
         """Verify has_file_changed returns False initially and True after content change."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
+        from parallel.checkpoint import CheckpointManager
 
         f = tmp_path / "change_me.txt"
         f.write_text("original", encoding="utf-8")
@@ -370,8 +370,8 @@ class TestCheckpointManager:
 
     def test_has_file_changed_unknown_path_returns_true(self, tmp_path: Path) -> None:
         """Verify has_file_changed returns True for a path not tracked in the checkpoint."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
-        from file_organizer.parallel.models import Checkpoint
+        from parallel.checkpoint import CheckpointManager
+        from parallel.models import Checkpoint
 
         cp = Checkpoint(job_id="unk", file_hashes={})
         mgr = CheckpointManager(checkpoints_dir=tmp_path / "checkpoints")
@@ -380,7 +380,7 @@ class TestCheckpointManager:
 
     def test_update_checkpoint_full_cycle(self, tmp_path: Path) -> None:
         """Verify update_checkpoint persists the state change and returns the updated checkpoint."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
+        from parallel.checkpoint import CheckpointManager
 
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
@@ -400,7 +400,7 @@ class TestCheckpointManager:
 
     def test_checkpoints_dir_property(self, tmp_path: Path) -> None:
         """Verify the checkpoints_dir property returns the directory passed to the constructor."""
-        from file_organizer.parallel.checkpoint import CheckpointManager
+        from parallel.checkpoint import CheckpointManager
 
         cdir = tmp_path / "my_checkpoints"
         mgr = CheckpointManager(checkpoints_dir=cdir)
@@ -412,7 +412,7 @@ class TestComputeFileHash:
 
     def test_hash_is_hex_string(self, tmp_path: Path) -> None:
         """Verify compute_file_hash returns a 64-character lowercase hex string."""
-        from file_organizer.parallel.checkpoint import compute_file_hash
+        from parallel.checkpoint import compute_file_hash
 
         f = tmp_path / "hash_me.txt"
         f.write_text("test content", encoding="utf-8")
@@ -422,7 +422,7 @@ class TestComputeFileHash:
 
     def test_same_content_same_hash(self, tmp_path: Path) -> None:
         """Verify two files with identical content produce the same hash."""
-        from file_organizer.parallel.checkpoint import compute_file_hash
+        from parallel.checkpoint import compute_file_hash
 
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
@@ -432,7 +432,7 @@ class TestComputeFileHash:
 
     def test_different_content_different_hash(self, tmp_path: Path) -> None:
         """Verify two files with different content produce different hashes."""
-        from file_organizer.parallel.checkpoint import compute_file_hash
+        from parallel.checkpoint import compute_file_hash
 
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
@@ -442,7 +442,7 @@ class TestComputeFileHash:
 
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         """Verify compute_file_hash raises OSError for a nonexistent file."""
-        from file_organizer.parallel.checkpoint import compute_file_hash
+        from parallel.checkpoint import compute_file_hash
 
         with pytest.raises(OSError):
             compute_file_hash(tmp_path / "does_not_exist.txt")
@@ -458,8 +458,8 @@ class TestParallelProcessor:
 
     def test_empty_batch_returns_empty_result(self) -> None:
         """Verify process_batch on an empty list returns a result with zero counts."""
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         cfg = ParallelConfig(max_workers=2, retry_count=0, timeout_per_file=30.0)
         proc = ParallelProcessor(cfg)
@@ -469,8 +469,8 @@ class TestParallelProcessor:
 
     def test_batch_processes_all_files(self, tmp_path: Path) -> None:
         """Verify process_batch reports all files as succeeded when handler never raises."""
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         files = []
         for i in range(5):
@@ -488,8 +488,8 @@ class TestParallelProcessor:
 
     def test_batch_reports_failures(self, tmp_path: Path) -> None:
         """Verify process_batch counts failures when the handler always raises."""
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         files = [tmp_path / "x.txt", tmp_path / "y.txt"]
         for f in files:
@@ -508,8 +508,8 @@ class TestParallelProcessor:
 
     def test_config_property(self) -> None:
         """Verify the config property returns the same object passed to the constructor."""
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         cfg = ParallelConfig(max_workers=4)
         proc = ParallelProcessor(cfg)
@@ -517,9 +517,9 @@ class TestParallelProcessor:
 
     def test_progress_callback_invoked(self, tmp_path: Path) -> None:
         """Verify the progress callback is invoked once per processed file."""
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
-        from file_organizer.parallel.result import FileResult
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
+        from parallel.result import FileResult
 
         calls: list[tuple[int, int, FileResult]] = []
 
@@ -556,7 +556,7 @@ class TestPriorityQueue:
 
     def test_enqueue_dequeue_basic(self, tmp_path: Path) -> None:
         """Verify a single item can be enqueued and dequeued correctly."""
-        from file_organizer.parallel.priority_queue import PriorityQueue, QueueItem
+        from parallel.priority_queue import PriorityQueue, QueueItem
 
         q = PriorityQueue()
         item = QueueItem(id="a", path=tmp_path / "a.txt", priority=5)
@@ -568,7 +568,7 @@ class TestPriorityQueue:
 
     def test_higher_priority_dequeued_first(self, tmp_path: Path) -> None:
         """Verify items are dequeued in descending priority order."""
-        from file_organizer.parallel.priority_queue import PriorityQueue, QueueItem
+        from parallel.priority_queue import PriorityQueue, QueueItem
 
         q = PriorityQueue()
         q.enqueue(QueueItem(id="low", path=tmp_path / "low.txt", priority=1))
@@ -585,14 +585,14 @@ class TestPriorityQueue:
 
     def test_empty_queue_dequeue_returns_none(self) -> None:
         """Verify dequeue returns None when the queue is empty."""
-        from file_organizer.parallel.priority_queue import PriorityQueue
+        from parallel.priority_queue import PriorityQueue
 
         q = PriorityQueue()
         assert q.dequeue() is None
 
     def test_peek_does_not_remove(self, tmp_path: Path) -> None:
         """Verify peek returns the highest-priority item without removing it."""
-        from file_organizer.parallel.priority_queue import PriorityQueue, QueueItem
+        from parallel.priority_queue import PriorityQueue, QueueItem
 
         q = PriorityQueue()
         item = QueueItem(id="p", path=tmp_path / "p.txt", priority=3)
@@ -604,7 +604,7 @@ class TestPriorityQueue:
 
     def test_remove_by_id(self, tmp_path: Path) -> None:
         """Verify remove returns True for an existing ID and False for a ghost ID."""
-        from file_organizer.parallel.priority_queue import PriorityQueue, QueueItem
+        from parallel.priority_queue import PriorityQueue, QueueItem
 
         q = PriorityQueue()
         q.enqueue(QueueItem(id="r1", path=tmp_path / "r1.txt", priority=1))
@@ -615,7 +615,7 @@ class TestPriorityQueue:
 
     def test_reorder_changes_priority(self, tmp_path: Path) -> None:
         """Verify reorder causes the bumped item to be dequeued first."""
-        from file_organizer.parallel.priority_queue import PriorityQueue, QueueItem
+        from parallel.priority_queue import PriorityQueue, QueueItem
 
         q = PriorityQueue()
         q.enqueue(QueueItem(id="x", path=tmp_path / "x.txt", priority=1))
@@ -627,7 +627,7 @@ class TestPriorityQueue:
 
     def test_clear_empties_queue(self, tmp_path: Path) -> None:
         """Verify clear removes all items and is_empty returns True."""
-        from file_organizer.parallel.priority_queue import PriorityQueue, QueueItem
+        from parallel.priority_queue import PriorityQueue, QueueItem
 
         q = PriorityQueue()
         q.enqueue(QueueItem(id="z", path=tmp_path / "z.txt"))
@@ -636,7 +636,7 @@ class TestPriorityQueue:
 
     def test_items_sorted_by_priority(self, tmp_path: Path) -> None:
         """Verify items() returns items in descending priority order."""
-        from file_organizer.parallel.priority_queue import PriorityQueue, QueueItem
+        from parallel.priority_queue import PriorityQueue, QueueItem
 
         q = PriorityQueue()
         for pri in [3, 1, 4, 1, 5]:
@@ -660,7 +660,7 @@ class TestTaskScheduler:
 
     def test_size_asc_sorts_smallest_first(self, tmp_path: Path) -> None:
         """Verify SIZE_ASC strategy orders files from smallest to largest."""
-        from file_organizer.parallel.scheduler import PriorityStrategy, TaskScheduler
+        from parallel.scheduler import PriorityStrategy, TaskScheduler
 
         small = tmp_path / "small.txt"
         large = tmp_path / "large.txt"
@@ -674,7 +674,7 @@ class TestTaskScheduler:
 
     def test_size_desc_sorts_largest_first(self, tmp_path: Path) -> None:
         """Verify SIZE_DESC strategy orders files from largest to smallest."""
-        from file_organizer.parallel.scheduler import PriorityStrategy, TaskScheduler
+        from parallel.scheduler import PriorityStrategy, TaskScheduler
 
         small = tmp_path / "small.txt"
         large = tmp_path / "large.txt"
@@ -687,7 +687,7 @@ class TestTaskScheduler:
 
     def test_type_grouped_groups_by_extension(self, tmp_path: Path) -> None:
         """Verify TYPE_GROUPED groups files by extension (alphabetical) then by name."""
-        from file_organizer.parallel.scheduler import PriorityStrategy, TaskScheduler
+        from parallel.scheduler import PriorityStrategy, TaskScheduler
 
         py1 = tmp_path / "b.py"
         py2 = tmp_path / "a.py"
@@ -704,7 +704,7 @@ class TestTaskScheduler:
 
     def test_custom_strategy(self, tmp_path: Path) -> None:
         """Verify CUSTOM strategy orders files by the provided priority_fn."""
-        from file_organizer.parallel.scheduler import PriorityStrategy, TaskScheduler
+        from parallel.scheduler import PriorityStrategy, TaskScheduler
 
         files = [tmp_path / "c.txt", tmp_path / "a.txt", tmp_path / "b.txt"]
         for f in files:
@@ -716,7 +716,7 @@ class TestTaskScheduler:
 
     def test_custom_without_fn_raises(self, tmp_path: Path) -> None:
         """Verify CUSTOM strategy raises ValueError when priority_fn is not provided."""
-        from file_organizer.parallel.scheduler import PriorityStrategy, TaskScheduler
+        from parallel.scheduler import PriorityStrategy, TaskScheduler
 
         scheduler = TaskScheduler()
         with pytest.raises(ValueError, match="priority_fn is required"):
@@ -724,7 +724,7 @@ class TestTaskScheduler:
 
     def test_empty_list_returns_empty(self) -> None:
         """Verify scheduling an empty file list returns an empty list."""
-        from file_organizer.parallel.scheduler import PriorityStrategy, TaskScheduler
+        from parallel.scheduler import PriorityStrategy, TaskScheduler
 
         scheduler = TaskScheduler()
         assert scheduler.schedule([], PriorityStrategy.SIZE_ASC) == []
@@ -740,7 +740,7 @@ class TestRateThrottler:
 
     def test_initial_acquire_succeeds(self) -> None:
         """Verify the first acquire call succeeds when the bucket is full."""
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=10.0)
         result = throttler.acquire()
@@ -748,7 +748,7 @@ class TestRateThrottler:
 
     def test_exceed_rate_returns_false(self) -> None:
         """Verify acquire eventually returns False when the rate limit is exhausted."""
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=2.0)
         results = [throttler.acquire() for _ in range(5)]
@@ -757,21 +757,21 @@ class TestRateThrottler:
 
     def test_invalid_max_rate_raises(self) -> None:
         """Verify max_rate=0 raises ValueError."""
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         with pytest.raises(ValueError, match="max_rate must be > 0"):
             RateThrottler(max_rate=0)
 
     def test_invalid_window_raises(self) -> None:
         """Verify window_seconds=0 raises ValueError."""
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         with pytest.raises(ValueError, match="window_seconds must be > 0"):
             RateThrottler(max_rate=1.0, window_seconds=0)
 
     def test_stats_returns_data(self) -> None:
         """Verify stats() returns a stats object reflecting the configured max_rate and allowed count."""
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=5.0)
         throttler.acquire()
@@ -790,8 +790,8 @@ class TestPersistence:
 
     def test_save_and_load_job_state(self, tmp_path: Path) -> None:
         """Verify save_job persists a JobState that load_job can retrieve."""
-        from file_organizer.parallel.models import JobState, JobStatus
-        from file_organizer.parallel.persistence import JobPersistence
+        from parallel.models import JobState, JobStatus
+        from parallel.persistence import JobPersistence
 
         mgr = JobPersistence(jobs_dir=tmp_path / "jobs")
         job = JobState(id="persist-1", status=JobStatus.RUNNING, total_files=10)
@@ -805,15 +805,15 @@ class TestPersistence:
 
     def test_load_missing_job_returns_none(self, tmp_path: Path) -> None:
         """Verify load_job returns None for an unknown job ID."""
-        from file_organizer.parallel.persistence import JobPersistence
+        from parallel.persistence import JobPersistence
 
         mgr = JobPersistence(jobs_dir=tmp_path / "jobs")
         assert mgr.load_job("ghost") is None
 
     def test_list_jobs(self, tmp_path: Path) -> None:
         """Verify list_jobs returns all saved jobs."""
-        from file_organizer.parallel.models import JobState
-        from file_organizer.parallel.persistence import JobPersistence
+        from parallel.models import JobState
+        from parallel.persistence import JobPersistence
 
         mgr = JobPersistence(jobs_dir=tmp_path / "jobs")
         for i in range(3):
@@ -824,8 +824,8 @@ class TestPersistence:
 
     def test_delete_job(self, tmp_path: Path) -> None:
         """Verify delete_job removes the job and returns False on a second attempt."""
-        from file_organizer.parallel.models import JobState
-        from file_organizer.parallel.persistence import JobPersistence
+        from parallel.models import JobState
+        from parallel.persistence import JobPersistence
 
         mgr = JobPersistence(jobs_dir=tmp_path / "jobs")
         mgr.save_job(JobState(id="to-del"))

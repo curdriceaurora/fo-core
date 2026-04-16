@@ -14,7 +14,7 @@ class TestVideoMetadataPlaceholder:
     def test_video_metadata_module_exists(self):
         """Test that video metadata module exists."""
         try:
-            from file_organizer.services.video import scene_detector
+            from services.video import scene_detector
 
             assert scene_detector is not None
         except ImportError:
@@ -23,7 +23,7 @@ class TestVideoMetadataPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Video metadata not yet implemented")
     def test_extract_mp4_metadata(self, tmp_path):
         """Test extracting metadata from MP4 file."""
-        from file_organizer.services.vision_processor import VisionProcessor
+        from services.vision_processor import VisionProcessor
 
         video_file = tmp_path / "test.mp4"
         video_file.write_bytes(b"fake mp4")
@@ -37,7 +37,7 @@ class TestVideoMetadataPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Video metadata not yet implemented")
     def test_extract_resolution(self, tmp_path):
         """Test extracting video resolution."""
-        from file_organizer.services.vision_processor import VisionProcessor
+        from services.vision_processor import VisionProcessor
 
         video_file = tmp_path / "test.avi"
         video_file.write_bytes(b"fake avi")
@@ -51,7 +51,7 @@ class TestVideoMetadataPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Video codec detection not yet implemented")
     def test_detect_codec(self, tmp_path):
         """Test detecting video codec."""
-        from file_organizer.services.vision_processor import VisionProcessor
+        from services.vision_processor import VisionProcessor
 
         video_file = tmp_path / "test.mkv"
         video_file.write_bytes(b"fake mkv")

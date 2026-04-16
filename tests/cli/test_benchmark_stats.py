@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.cli.benchmark import (
+from cli.benchmark import (
     _percentile,
     compare_results,
     compute_stats,
@@ -207,7 +207,7 @@ class TestBenchmarkCLI:
         """JSON output matches benchmark payload schema and metric contracts."""
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         # Create some test files
         for i in range(3):
@@ -237,7 +237,7 @@ class TestBenchmarkCLI:
         """Warmup iterations are excluded from results."""
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         (tmp_path / "file.txt").write_text("test")
 
@@ -255,7 +255,7 @@ class TestBenchmarkCLI:
         """Suite parameter is passed through to output."""
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         (tmp_path / "file.txt").write_text("test")
 
@@ -284,7 +284,7 @@ class TestBenchmarkCLI:
         """Comparison with baseline file works."""
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         (tmp_path / "file.txt").write_text("test")
 
@@ -325,7 +325,7 @@ class TestBenchmarkCLI:
         """Empty directory produces valid JSON output."""
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         empty = tmp_path / "empty"
         empty.mkdir()

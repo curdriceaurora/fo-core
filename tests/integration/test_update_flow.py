@@ -17,9 +17,9 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.updater.checker import AssetInfo, ReleaseInfo
-from file_organizer.updater.installer import InstallResult
-from file_organizer.updater.sidecar_updater import (
+from updater.checker import AssetInfo, ReleaseInfo
+from updater.installer import InstallResult
+from updater.sidecar_updater import (
     coordinated_update,
     verify_sha256,
 )
@@ -40,14 +40,14 @@ def _make_release(version: str = "2.1.0") -> ReleaseInfo:
         body="Integration test release.",
         assets=[
             AssetInfo(
-                name=f"file-organizer-linux-x86_64-{version}",
-                url=f"https://example.com/releases/{version}/file-organizer-linux-x86_64",
+                name=f"fo-linux-x86_64-{version}",
+                url=f"https://example.com/releases/{version}/fo-linux-x86_64",
                 size=2048,
                 content_type="application/octet-stream",
             )
         ],
         published_at="2026-03-01T12:00:00Z",
-        html_url=f"https://github.com/curdriceaurora/Local-File-Organizer/releases/tag/v{version}",
+        html_url=f"https://github.com/curdriceaurora/fo-core/releases/tag/v{version}",
     )
 
 
@@ -76,8 +76,8 @@ class TestFullUpdateFlow:
             events.append((event, payload))
 
         with (
-            patch("file_organizer.updater.sidecar_updater.UpdateChecker") as MockChecker,
-            patch("file_organizer.updater.sidecar_updater.UpdateInstaller") as MockInstaller,
+            patch("updater.sidecar_updater.UpdateChecker") as MockChecker,
+            patch("updater.sidecar_updater.UpdateInstaller") as MockInstaller,
         ):
             checker = MockChecker.return_value
             checker.current_version = "2.0.0"
@@ -111,8 +111,8 @@ class TestFullUpdateFlow:
         events: list[str] = []
 
         with (
-            patch("file_organizer.updater.sidecar_updater.UpdateChecker") as MC,
-            patch("file_organizer.updater.sidecar_updater.UpdateInstaller") as MI,
+            patch("updater.sidecar_updater.UpdateChecker") as MC,
+            patch("updater.sidecar_updater.UpdateInstaller") as MI,
         ):
             MC.return_value.current_version = "2.0.0"
             MC.return_value.check.return_value = release
@@ -162,8 +162,8 @@ class TestSha256VerificationIntegration:
         events: list[str] = []
 
         with (
-            patch("file_organizer.updater.sidecar_updater.UpdateChecker") as MC,
-            patch("file_organizer.updater.sidecar_updater.UpdateInstaller") as MI,
+            patch("updater.sidecar_updater.UpdateChecker") as MC,
+            patch("updater.sidecar_updater.UpdateInstaller") as MI,
         ):
             MC.return_value.current_version = "2.0.0"
             MC.return_value.check.return_value = release
@@ -195,9 +195,9 @@ class TestRollbackIntegration:
         downloaded.write_bytes(b"bad binary")
 
         with (
-            patch("file_organizer.updater.sidecar_updater.UpdateChecker") as MC,
-            patch("file_organizer.updater.sidecar_updater.UpdateInstaller") as MI,
-            patch("file_organizer.updater.sidecar_updater.UpdateManager") as MM,
+            patch("updater.sidecar_updater.UpdateChecker") as MC,
+            patch("updater.sidecar_updater.UpdateInstaller") as MI,
+            patch("updater.sidecar_updater.UpdateManager") as MM,
         ):
             MC.return_value.current_version = "2.0.0"
             MC.return_value.check.return_value = release
@@ -223,9 +223,9 @@ class TestRollbackIntegration:
         downloaded.write_bytes(b"binary")
 
         with (
-            patch("file_organizer.updater.sidecar_updater.UpdateChecker") as MC,
-            patch("file_organizer.updater.sidecar_updater.UpdateInstaller") as MI,
-            patch("file_organizer.updater.sidecar_updater.UpdateManager") as MM,
+            patch("updater.sidecar_updater.UpdateChecker") as MC,
+            patch("updater.sidecar_updater.UpdateInstaller") as MI,
+            patch("updater.sidecar_updater.UpdateManager") as MM,
         ):
             MC.return_value.current_version = "2.0.0"
             MC.return_value.check.return_value = release

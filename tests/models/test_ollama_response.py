@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.models._ollama_response import (
+from models._ollama_response import (
     compute_retry_num_predict,
     format_exhaustion_diagnostics,
     is_token_exhausted,
 )
-from file_organizer.models.base import (
+from models.base import (
     MAX_NUM_PREDICT,
     MIN_USEFUL_RESPONSE_LENGTH,
     TokenExhaustionError,

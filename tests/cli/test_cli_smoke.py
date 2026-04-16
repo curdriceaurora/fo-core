@@ -11,11 +11,11 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.smoke, pytest.mark.ci, pytest.mark.unit]
 runner = CliRunner()
-_SETUP_PATCH = "file_organizer.cli.organize._check_setup_completed"
+_SETUP_PATCH = "cli.organize._check_setup_completed"
 
 
 class TestOrganizeSmoke:
@@ -24,7 +24,7 @@ class TestOrganizeSmoke:
     # FileOrganizer is lazy-imported inside organize(); patching at definition
     # site because cli.organize holds no module-level reference to the class.
     # _SETUP_PATCH uses new= so its mock is not injected as a parameter (PT019).
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     @patch(_SETUP_PATCH, new=MagicMock(return_value=True))
     def test_organize_dry_run_exits_zero(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         input_dir = tmp_path / "input"
@@ -74,7 +74,7 @@ class TestSearchSmoke:
 class TestDedupeScanSmoke:
     """fo dedupe scan exits 0 and reports no duplicates."""
 
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("cli.dedupe_v2._get_detector")
     def test_dedupe_scan_no_duplicates(self, mock_get_detector: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_detector.return_value = mock_det

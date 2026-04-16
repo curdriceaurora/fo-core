@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.updater.state import UpdateState, UpdateStateStore
+from updater.state import UpdateState, UpdateStateStore
 
 pytestmark = pytest.mark.integration
 

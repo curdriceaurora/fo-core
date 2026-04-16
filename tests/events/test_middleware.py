@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from file_organizer.events.middleware import (
+from events.middleware import (
     LoggingMiddleware,
     MetricsMiddleware,
     MiddlewarePipeline,

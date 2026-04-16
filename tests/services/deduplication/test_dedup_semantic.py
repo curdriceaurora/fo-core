@@ -12,7 +12,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from file_organizer.services.deduplication.semantic import SemanticAnalyzer
+from services.deduplication.semantic import SemanticAnalyzer
 
 pytestmark = [pytest.mark.unit]
 

@@ -83,7 +83,7 @@ class TestRead7zFileHappyPath:
         pytest.importorskip("py7zr")
 
     def test_7z_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "test.7z", {"doc.txt": b"hello 7z"})
         result = read_7z_file(ap)
@@ -91,21 +91,21 @@ class TestRead7zFileHappyPath:
         assert len(result) > 0
 
     def test_7z_contains_archive_name_in_header(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "myarchive.7z", {"note.txt": b"content"})
         result = read_7z_file(ap)
         assert "myarchive.7z" in result
 
     def test_7z_header_line(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "archive.7z", {"f.txt": b"x"})
         result = read_7z_file(ap)
         assert "7Z Archive:" in result
 
     def test_7z_total_files_count(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(
             tmp_path,
@@ -116,14 +116,14 @@ class TestRead7zFileHappyPath:
         assert "Total files: 3" in result
 
     def test_7z_lists_file_names(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "list.7z", {"readme.md": b"# README"})
         result = read_7z_file(ap)
         assert "readme.md" in result
 
     def test_7z_max_files_truncates(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         files = {f"{i}.txt": f"file {i}".encode() for i in range(10)}
         ap = _make_7z(tmp_path, "many.7z", files)
@@ -131,28 +131,28 @@ class TestRead7zFileHappyPath:
         assert "and 7 more files" in result
 
     def test_7z_no_truncation_when_max_files_large(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "few.7z", {"x.txt": b"x", "y.txt": b"y"})
         result = read_7z_file(ap, max_files=100)
         assert "more files" not in result
 
     def test_7z_compression_ratio_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "comp.7z", {"big.txt": b"A" * 10000})
         result = read_7z_file(ap)
         assert "Compression ratio:" in result
 
     def test_7z_encrypted_field_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "enc.7z", {"data.bin": b"data"})
         result = read_7z_file(ap)
         assert "Encrypted:" in result
 
     def test_7z_accepts_string_path(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "str.7z", {"f.txt": b"hello"})
         result = read_7z_file(str(ap))
@@ -160,7 +160,7 @@ class TestRead7zFileHappyPath:
         assert "f.txt" in result
 
     def test_7z_max_files_zero(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers.archives import read_7z_file
 
         ap = _make_7z(tmp_path, "zero.7z", {"a.txt": b"a"})
         result = read_7z_file(ap, max_files=0)
@@ -169,8 +169,8 @@ class TestRead7zFileHappyPath:
         assert "and 1 more files" in result
 
     def test_7z_invalid_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_7z_file
 
         broken = tmp_path / "broken.7z"
         broken.write_bytes(b"this is not a 7z file")
@@ -178,8 +178,8 @@ class TestRead7zFileHappyPath:
             read_7z_file(broken)
 
     def test_7z_missing_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_7z_file
 
         with pytest.raises(FileReadError):
             read_7z_file(tmp_path / "nonexistent.7z")
@@ -189,8 +189,8 @@ class TestRead7zImportError:
     """Test the ImportError guard when py7zr is not available."""
 
     def test_raises_import_error_when_py7zr_unavailable(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers import archives
+        from utils.readers.archives import read_7z_file
 
         with patch.object(archives, "PY7ZR_AVAILABLE", False):
             with pytest.raises(ImportError, match="py7zr"):
@@ -199,8 +199,8 @@ class TestRead7zImportError:
 
 class TestRead7zMockedPaths:
     def test_mocked_success_without_py7zr_dependency(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers import archives
+        from utils.readers.archives import read_7z_file
 
         path = tmp_path / "mocked.7z"
         path.write_bytes(b"7z placeholder")
@@ -254,9 +254,9 @@ class TestRead7zMockedPaths:
     def test_mocked_error_without_py7zr_dependency_raises_file_read_error(
         self, tmp_path: Path
     ) -> None:
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers import archives
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_7z_file
 
         path = tmp_path / "broken.7z"
         path.write_bytes(b"7z placeholder")
@@ -289,16 +289,16 @@ class TestReadRarFileImportError:
     """Test the ImportError guard when rarfile is not available."""
 
     def test_raises_import_error_when_rarfile_unavailable(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_rar_file
+        from utils.readers import archives
+        from utils.readers.archives import read_rar_file
 
         with patch.object(archives, "RARFILE_AVAILABLE", False):
             with pytest.raises(ImportError, match="rarfile"):
                 read_rar_file(tmp_path / "dummy.rar")
 
     def test_import_error_message_mentions_unrar(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_rar_file
+        from utils.readers import archives
+        from utils.readers.archives import read_rar_file
 
         with patch.object(archives, "RARFILE_AVAILABLE", False):
             with pytest.raises(ImportError, match="unrar"):
@@ -312,14 +312,14 @@ class TestReadRarFileImportError:
 
 class TestReadTarFileXzCompression:
     def test_tar_xz_extension_detected(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "archive.tar.xz", {"f.txt": b"hello xz"}, mode="w:xz")
         result = read_tar_file(tp)
         assert "XZ" in result
 
     def test_txz_extension_detected(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         # .xz suffix without .tar prefix is also matched by the source code
         # (it checks _name.endswith(".tar.xz") or _name.endswith(".xz"))
@@ -328,7 +328,7 @@ class TestReadTarFileXzCompression:
         assert "XZ" in result
 
     def test_tbz2_extension_detected(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         # .tbz2 is also handled by the source (.tar.bz2 branch checks tbz2 too)
         tp = _make_tar(tmp_path, "archive.tbz2", {"f.txt": b"hello tbz2"}, mode="w:bz2")
@@ -336,21 +336,21 @@ class TestReadTarFileXzCompression:
         assert "BZ2" in result
 
     def test_tar_gz_extension_detected(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "archive.tar.gz", {"f.txt": b"hello gz"}, mode="w:gz")
         result = read_tar_file(tp)
         assert "GZ" in result
 
     def test_tgz_extension_detected(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "archive.tgz", {"f.txt": b"hello tgz"}, mode="w:gz")
         result = read_tar_file(tp)
         assert "GZ" in result
 
     def test_tar_max_files_truncation(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         files = {f"{i}.txt": f"file {i}".encode() for i in range(10)}
         tp = _make_tar(tmp_path, "many.tar", files)
@@ -358,8 +358,8 @@ class TestReadTarFileXzCompression:
         assert "and 7 more files" in result
 
     def test_tar_invalid_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_tar_file
 
         broken = tmp_path / "broken.tar"
         broken.write_bytes(b"this is not a tar file")
@@ -374,7 +374,7 @@ class TestReadTarFileXzCompression:
 
 class TestReadZipFile:
     def test_zip_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "test.zip", {"doc.txt": b"hello zip"})
         result = read_zip_file(zp)
@@ -382,7 +382,7 @@ class TestReadZipFile:
         assert len(result) > 0
 
     def test_zip_header_line(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "myarchive.zip", {"note.txt": b"content"})
         result = read_zip_file(zp)
@@ -390,7 +390,7 @@ class TestReadZipFile:
         assert "myarchive.zip" in result
 
     def test_zip_total_files_count(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(
             tmp_path,
@@ -401,14 +401,14 @@ class TestReadZipFile:
         assert "Total files: 3" in result
 
     def test_zip_lists_file_names(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "list.zip", {"readme.md": b"# README"})
         result = read_zip_file(zp)
         assert "readme.md" in result
 
     def test_zip_max_files_truncation(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         files = {f"{i}.txt": f"file {i}".encode() for i in range(10)}
         zp = _make_zip(tmp_path, "many.zip", files)
@@ -416,28 +416,28 @@ class TestReadZipFile:
         assert "and 7 more files" in result
 
     def test_zip_no_truncation_when_max_files_large(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "few.zip", {"x.txt": b"x", "y.txt": b"y"})
         result = read_zip_file(zp, max_files=100)
         assert "more files" not in result
 
     def test_zip_compression_ratio_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "comp.zip", {"big.txt": b"A" * 10000})
         result = read_zip_file(zp)
         assert "Compression ratio:" in result
 
     def test_zip_encrypted_field_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "enc.zip", {"data.bin": b"data"})
         result = read_zip_file(zp)
         assert "Encrypted:" in result
 
     def test_zip_accepts_string_path(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "str.zip", {"f.txt": b"hello"})
         result = read_zip_file(str(zp))
@@ -445,7 +445,7 @@ class TestReadZipFile:
         assert "f.txt" in result
 
     def test_zip_max_files_zero(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "zero.zip", {"a.txt": b"a"})
         result = read_zip_file(zp, max_files=0)
@@ -453,8 +453,8 @@ class TestReadZipFile:
         assert "and 1 more files" in result
 
     def test_zip_invalid_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_zip_file
 
         broken = tmp_path / "broken.zip"
         broken.write_bytes(b"this is not a zip file")
@@ -462,8 +462,8 @@ class TestReadZipFile:
             read_zip_file(broken)
 
     def test_zip_missing_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_zip_file
 
         with pytest.raises(FileReadError):
             read_zip_file(tmp_path / "nonexistent.zip")
@@ -480,8 +480,8 @@ class TestReadRarFileMocked:
     def test_rar_returns_string_via_mock(self, tmp_path: Path) -> None:
         from unittest.mock import MagicMock, patch
 
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_rar_file
+        from utils.readers import archives
+        from utils.readers.archives import read_rar_file
 
         mock_info = MagicMock()
         mock_info.filename = "doc.txt"
@@ -511,8 +511,8 @@ class TestReadRarFileMocked:
     def test_rar_truncation(self, tmp_path: Path) -> None:
         from unittest.mock import MagicMock, patch
 
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_rar_file
+        from utils.readers import archives
+        from utils.readers.archives import read_rar_file
 
         entries = [
             MagicMock(filename=f"{i}.txt", file_size=100, compress_size=50) for i in range(10)
@@ -539,9 +539,9 @@ class TestReadRarFileMocked:
     def test_rar_invalid_file_raises_file_read_error(self, tmp_path: Path) -> None:
         from unittest.mock import MagicMock, patch
 
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_rar_file
+        from utils.readers import archives
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_rar_file
 
         mock_rf = MagicMock()
         mock_rf.__enter__ = MagicMock(side_effect=Exception("bad rar"))

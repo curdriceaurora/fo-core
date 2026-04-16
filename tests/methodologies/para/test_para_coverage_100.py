@@ -20,19 +20,19 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.methodologies.para.ai.feedback import (
+from methodologies.para.ai.feedback import (
     FeedbackEvent,
     PatternLearner,
 )
-from file_organizer.methodologies.para.ai.suggestion_engine import (
+from methodologies.para.ai.suggestion_engine import (
     MetadataFeatures,
     _score_metadata_features,
 )
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import HeuristicWeights
-from file_organizer.methodologies.para.detection.heuristics import AIHeuristic
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import HeuristicWeights
+from methodologies.para.detection.heuristics import AIHeuristic
 
-_HEURISTICS_MODULE = "file_organizer.methodologies.para.detection.heuristics"
+_HEURISTICS_MODULE = "methodologies.para.detection.heuristics"
 
 
 # =========================================================================

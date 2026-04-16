@@ -19,7 +19,7 @@ import pytest
 
 FO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = FO_ROOT / "src"
-ORCHESTRATOR_PATH = SRC_ROOT / "file_organizer" / "pipeline" / "orchestrator.py"
+ORCHESTRATOR_PATH = SRC_ROOT / "pipeline" / "orchestrator.py"
 
 pytestmark = pytest.mark.ci
 

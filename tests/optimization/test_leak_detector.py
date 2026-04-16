@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.optimization.leak_detector import (
+from optimization.leak_detector import (
     LeakDetector,
     LeakSuspect,
 )

@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import typer
 
-from file_organizer.cli.organize import _resolve_parallel_settings
+from cli.organize import _resolve_parallel_settings
 
 pytestmark = [pytest.mark.integration]
 
@@ -86,7 +86,7 @@ class TestOrganizeCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -109,7 +109,7 @@ class TestOrganizeCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -133,7 +133,7 @@ class TestOrganizeCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -157,7 +157,7 @@ class TestOrganizeCLIOptions:
         """--text-only is an alias for --no-vision."""
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -180,7 +180,7 @@ class TestOrganizeCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -203,7 +203,7 @@ class TestOrganizeCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -228,7 +228,7 @@ class TestOrganizeCLIOptions:
         """--sequential combined with --max-workers > 1 must exit code 2."""
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -254,10 +254,10 @@ class TestOrganizeCLIOptions:
 
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         with patch(
-            "file_organizer.core.organizer.FileOrganizer.organize",
+            "core.organizer.FileOrganizer.organize",
             side_effect=RuntimeError("simulated organizer failure"),
         ):
             result = CliRunner().invoke(
@@ -281,7 +281,7 @@ class TestPreviewCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -301,7 +301,7 @@ class TestPreviewCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -322,7 +322,7 @@ class TestPreviewCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -342,7 +342,7 @@ class TestPreviewCLIOptions:
     ) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         result = CliRunner().invoke(
             app,
@@ -364,10 +364,10 @@ class TestPreviewCLIOptions:
 
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         with patch(
-            "file_organizer.core.organizer.FileOrganizer.organize",
+            "core.organizer.FileOrganizer.organize",
             side_effect=RuntimeError("simulated failure"),
         ):
             result = CliRunner().invoke(app, ["preview", str(integration_source_dir)])

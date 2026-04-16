@@ -12,7 +12,7 @@ on:
       - ".claude/rules/**"
       - ".claude/README.md"
   pull_request:
-    branches: [main]
+    branches: [main, epic/flatten-src-fo]
     paths-ignore:
       - ".claude/agents/**"
       - ".claude/commands/**"
@@ -42,7 +42,7 @@ jobs:
         with:
           filters: |
             benchmark:
-              - "src/file_organizer/cli/benchmark.py"
+              - "src/cli/benchmark.py"
               - "tests/ci/test_benchmark_contracts.py"
               - "tests/cli/test_benchmark*.py"
               - "tests/e2e/**"
@@ -191,7 +191,7 @@ jobs:
       - name: Run tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pytest tests/ --strict-markers -m "ci and not benchmark" --cov=file_organizer --cov-report=xml --timeout=30 -n=auto --override-ini="addopts="
+        run: pytest tests/ --strict-markers -m "ci and not benchmark" --cov=src --cov-report=xml --timeout=30 -n=auto --override-ini="addopts="
       - name: Diff coverage gate
         if: ${{ github.event.pull_request.changed_files <= 75 }}
         # Checks that lines added/changed in this PR are ≥80% covered.
@@ -239,7 +239,7 @@ jobs:
             --strict-markers \
             -n auto \
             --timeout=60 \
-            --cov=file_organizer \
+            --cov=src \
             --cov-branch \
             --cov-report=xml \
             --override-ini="addopts="
@@ -442,7 +442,7 @@ jobs:
         # 2026-04-05: 71.9% combined (ratchet after batch3/batch4 integration coverage expansion on main).
         run: |
           set -o pipefail
-          pytest tests/ -m "integration" --strict-markers --cov=file_organizer --cov-branch --cov-report=term-missing --cov-report=xml --timeout=60 --override-ini="addopts=" | tee "$RUNNER_TEMP/integration-coverage-report.txt"
+          pytest tests/ -m "integration" --strict-markers --cov=src --cov-branch --cov-report=term-missing --cov-report=xml --timeout=60 --override-ini="addopts=" | tee "$RUNNER_TEMP/integration-coverage-report.txt"
 
       - name: Check per-module integration coverage floors
         id: per_module_gate

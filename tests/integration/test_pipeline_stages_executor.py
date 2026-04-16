@@ -15,12 +15,12 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.interfaces.pipeline import StageContext
-from file_organizer.parallel.executor import create_executor
-from file_organizer.pipeline.stages.postprocessor import PostprocessorStage
-from file_organizer.pipeline.stages.preprocessor import PreprocessorStage
-from file_organizer.pipeline.stages.writer import WriterStage
-from file_organizer.utils.atomic_io import fsync_directory
+from interfaces.pipeline import StageContext
+from parallel.executor import create_executor
+from pipeline.stages.postprocessor import PostprocessorStage
+from pipeline.stages.preprocessor import PreprocessorStage
+from pipeline.stages.writer import WriterStage
+from utils.atomic_io import fsync_directory
 
 pytestmark = pytest.mark.integration
 

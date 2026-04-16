@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.utils.file_readers import (
+from utils.file_readers import (
     FileReadError,
     read_7z_file,
     read_file,
@@ -206,7 +206,7 @@ class TestArchiveReaders:
         file_path.write_bytes(b"dummy")
 
         # Mock py7zr as unavailable
-        import file_organizer.utils.readers.archives as _arc
+        import utils.readers.archives as _arc
 
         original = _arc.PY7ZR_AVAILABLE
         try:
@@ -222,7 +222,7 @@ class TestArchiveReaders:
         from types import SimpleNamespace
         from unittest.mock import MagicMock, patch
 
-        import file_organizer.utils.readers.archives as _arc
+        import utils.readers.archives as _arc
 
         fake_file = SimpleNamespace(filename="doc.txt", compressed=256, uncompressed=512)
         fake_archive = MagicMock()
@@ -252,7 +252,7 @@ class TestArchiveReaders:
         file_path = tmp_path / "test.rar"
         file_path.write_bytes(b"dummy")
 
-        import file_organizer.utils.readers.archives as _arc
+        import utils.readers.archives as _arc
 
         original = _arc.RARFILE_AVAILABLE
         try:
@@ -306,7 +306,7 @@ class TestScientificReaders:
         file_path = tmp_path / "test.h5"
         file_path.write_bytes(b"dummy")
 
-        import file_organizer.utils.readers.scientific as _sci
+        import utils.readers.scientific as _sci
 
         original = _sci.H5PY_AVAILABLE
         try:
@@ -340,7 +340,7 @@ class TestScientificReaders:
         file_path = tmp_path / "test.nc"
         file_path.write_bytes(b"dummy")
 
-        import file_organizer.utils.readers.scientific as _sci
+        import utils.readers.scientific as _sci
 
         original = _sci.NETCDF4_AVAILABLE
         try:
@@ -365,7 +365,7 @@ class TestScientificReaders:
         file_path = tmp_path / "test.mat"
         file_path.write_bytes(b"dummy")
 
-        import file_organizer.utils.readers.scientific as _sci
+        import utils.readers.scientific as _sci
 
         original = _sci.SCIPY_AVAILABLE
         try:

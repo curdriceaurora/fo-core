@@ -1,4 +1,4 @@
-"""Tests for file_organizer.services.copilot.rules.models.
+"""Tests for services.copilot.rules.models.
 
 Covers ConditionType, ActionType, RuleCondition, RuleAction, Rule, and
 RuleSet including serialization/deserialization round-trips and edge cases.
@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from file_organizer.services.copilot.rules.models import (
+from services.copilot.rules.models import (
     ActionType,
     ConditionType,
     Rule,

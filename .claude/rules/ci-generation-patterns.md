@@ -103,7 +103,7 @@ jobs:
 # BAD — cached function reads env var; cache never invalidated between tests
 @lru_cache(maxsize=None)
 def get_config_manager() -> ConfigManager:
-    config_dir = os.environ.get("FO_CONFIG_DIR", "~/.config/file-organizer")
+    config_dir = os.environ.get("FO_CONFIG_DIR", "~/.config/fo")
     return ConfigManager(config_dir)
 ```
 
@@ -111,7 +111,7 @@ def get_config_manager() -> ConfigManager:
 ```python
 # GOOD — no cache, fresh read each time (env may change in tests)
 def get_config_manager() -> ConfigManager:
-    config_dir = os.environ.get("FO_CONFIG_DIR", "~/.config/file-organizer")
+    config_dir = os.environ.get("FO_CONFIG_DIR", "~/.config/fo")
     return ConfigManager(config_dir)
 
 # GOOD — if caching needed, use explicit invalidation
@@ -120,7 +120,7 @@ _config_manager: Optional[ConfigManager] = None
 def get_config_manager() -> ConfigManager:
     global _config_manager
     if _config_manager is None:
-        _config_manager = ConfigManager(os.environ.get("FO_CONFIG_DIR", "~/.config/file-organizer"))
+        _config_manager = ConfigManager(os.environ.get("FO_CONFIG_DIR", "~/.config/fo"))
     return _config_manager
 
 def reset_config_manager() -> None:
@@ -263,7 +263,7 @@ strategy:
 **Bad**:
 ```bash
 # BAD — stale .coverage from unit runs pollutes the measurement
-pytest tests/ -m "integration" --cov=file_organizer --cov-report=term-missing
+pytest tests/ -m "integration" --cov=fo --cov-report=term-missing
 # Reports 51% — but unit test data is mixed in
 # → You set --cov-fail-under=51, CI fails with 35%
 ```
@@ -272,7 +272,7 @@ pytest tests/ -m "integration" --cov=file_organizer --cov-report=term-missing
 ```bash
 # GOOD — always erase first so the measurement is clean
 bash .claude/scripts/measure-integration-coverage.sh
-# Equivalent to: coverage erase && pytest tests/ -m "integration" --cov=file_organizer ...
+# Equivalent to: coverage erase && pytest tests/ -m "integration" --cov=fo ...
 ```
 
 **Pre-generation check**: Before setting or bumping any `--cov-fail-under` floor, run:

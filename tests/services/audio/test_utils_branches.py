@@ -1,7 +1,7 @@
 """Branch-coverage tests for audio utility functions.
 
 Targets the 134 lines missing from the 9% baseline in
-src/file_organizer/services/audio/utils.py.  Every test class carries
+src/services/audio/utils.py.  Every test class carries
 @pytest.mark.integration as requested.
 """
 
@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.audio.utils import (
+from services.audio.utils import (
     calculate_audio_checksum,
     convert_audio_format,
     detect_silence_segments,
@@ -245,7 +245,7 @@ class TestValidateAudioFileBranches:
         audio = tmp_path / "silent.mp3"
         audio.write_bytes(b"audio")
 
-        with patch("file_organizer.services.audio.utils.get_audio_duration", return_value=-1.0):
+        with patch("services.audio.utils.get_audio_duration", return_value=-1.0):
             valid, msg = validate_audio_file(audio)
 
         assert valid is False
@@ -258,7 +258,7 @@ class TestValidateAudioFileBranches:
         for ext in supported:
             audio = tmp_path / f"test{ext}"
             audio.write_bytes(b"x")
-            with patch("file_organizer.services.audio.utils.get_audio_duration", return_value=1.0):
+            with patch("services.audio.utils.get_audio_duration", return_value=1.0):
                 valid, msg = validate_audio_file(audio)
             assert valid is True, f"Extension {ext} should be valid"
             assert msg is None
@@ -267,7 +267,7 @@ class TestValidateAudioFileBranches:
         """Accepts a Path object directly."""
         audio = tmp_path / "song.flac"
         audio.write_bytes(b"flac data")
-        with patch("file_organizer.services.audio.utils.get_audio_duration", return_value=3.0):
+        with patch("services.audio.utils.get_audio_duration", return_value=3.0):
             valid, msg = validate_audio_file(audio)
         assert valid is True
         assert msg is None

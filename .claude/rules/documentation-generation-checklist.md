@@ -16,11 +16,11 @@ For any claim you plan to make, identify where it's verified in actual code:
 |---------------|-----------------|---------------|
 | Coverage gates | `pyproject.toml` + `ci.yml` | See ci-generation-patterns.md C4 table |
 | CI behavior | `.github/workflows/ci.yml` | Read actual workflow |
-| Method exists | `src/file_organizer/...` | `grep "def method_name"` or `ast-grep` |
+| Method exists | `src/...` | `grep "def method_name"` or `ast-grep` |
 | Feature exists | Actual codebase | `ls`, `grep`, or test imports |
 | Threshold/limit | Code config files | Check actual values |
 | Integration points | Integration tests | Read actual test setup |
-| Any method/feature claim | `src/file_organizer/` | `grep "def method_name"` or `rg "class ClassName"` |
+| Any method/feature claim | `src/` | `grep "def method_name"` or `rg "class ClassName"` |
 
 **Rule**: If you can't find it in source, don't claim it.
 
@@ -49,10 +49,10 @@ grep "cov-fail-under\|fail_under" .github/workflows/ci.yml
 
 ```bash
 # Search for actual method
-rg "def extract_text|def process_file" src/file_organizer/
+rg "def extract_text|def process_file" src/
 
 # Read the actual implementation
-cat src/file_organizer/services/text_processor.py | grep -A 5 "def process_file"
+cat src/services/text_processor.py | grep -A 5 "def process_file"
 
 # Check method signature
 ast-grep --pattern 'def process_file($$$)' --lang python src/
@@ -148,7 +148,7 @@ When documenting a method, include verification:
 ```markdown
 ## TextProcessor.process_file()
 
-[VERIFIED in: src/file_organizer/services/text_processor.py, lines XX-YY]
+[VERIFIED in: src/services/text_processor.py, lines XX-YY]
 [TESTED in: tests/services/test_text_processor.py]
 
 ### Example

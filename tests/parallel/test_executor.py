@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.parallel.executor import create_executor
+from parallel.executor import create_executor
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 # Note: Tests ProcessPoolExecutor spawning (real executor, platform-dependent).
@@ -42,7 +42,7 @@ class TestCreateExecutor(unittest.TestCase):
     def test_process_executor_fallback_on_error(self) -> None:
         """Test that ProcessPoolExecutor falls back to ThreadPoolExecutor on error."""
         with patch(
-            "file_organizer.parallel.executor.ProcessPoolExecutor",
+            "parallel.executor.ProcessPoolExecutor",
             side_effect=RuntimeError("ProcessPoolExecutor not available"),
         ):
             executor, executor_type = create_executor("process", max_workers=4)
@@ -77,10 +77,10 @@ class TestCreateExecutor(unittest.TestCase):
     def test_process_executor_fallback_logs_warning(self) -> None:
         """Test that fallback logs a warning."""
         with patch(
-            "file_organizer.parallel.executor.ProcessPoolExecutor",
+            "parallel.executor.ProcessPoolExecutor",
             side_effect=OSError("Multiprocessing not supported"),
         ):
-            with patch("file_organizer.parallel.executor.logger") as mock_logger:
+            with patch("parallel.executor.logger") as mock_logger:
                 executor, executor_type = create_executor("process", max_workers=2)
                 try:
                     # Verify warning was logged
@@ -93,7 +93,7 @@ class TestCreateExecutor(unittest.TestCase):
 
     def test_process_executor_fallback_logs_info(self) -> None:
         """Test that successful creation logs info."""
-        with patch("file_organizer.parallel.executor.logger") as mock_logger:
+        with patch("parallel.executor.logger") as mock_logger:
             executor, executor_type = create_executor("process", max_workers=2)
             try:
                 # Verify info was logged for ProcessPoolExecutor creation
@@ -129,7 +129,7 @@ class TestExecutorTypeReporting(unittest.TestCase):
     def test_returns_correct_type_on_fallback(self) -> None:
         """Test that correct type is returned when fallback occurs."""
         with patch(
-            "file_organizer.parallel.executor.ProcessPoolExecutor",
+            "parallel.executor.ProcessPoolExecutor",
             side_effect=RuntimeError("Cannot create process executor"),
         ):
             executor, executor_type = create_executor("process", max_workers=2)

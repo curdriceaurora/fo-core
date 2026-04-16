@@ -1,4 +1,4 @@
-"""CI guardrails for src/file_organizer/services/search/.
+"""CI guardrails for src/services/search/.
 
 BLE001 equivalent: any broad except Exception/BaseException handler inside the
 search service is flagged, not just silent ones.  This is stricter than the
@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 FO_ROOT = Path(__file__).resolve().parents[2]
-SEARCH_SRC = FO_ROOT / "src" / "file_organizer" / "services" / "search"
+SEARCH_SRC = FO_ROOT / "src" / "services" / "search"
 
 pytestmark = pytest.mark.ci
 

@@ -12,8 +12,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.history.models import Operation, OperationStatus, OperationType
-from file_organizer.undo.models import RollbackResult, ValidationResult
+from history.models import Operation, OperationStatus, OperationType
+from undo.models import RollbackResult, ValidationResult
 
 
 @pytest.mark.unit
@@ -22,7 +22,7 @@ class TestUndoManager(unittest.TestCase):
 
     def _make_manager(self):
         """Create UndoManager with mocked deps."""
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = MagicMock()
         validator = MagicMock()
@@ -341,7 +341,7 @@ class TestUndoManager(unittest.TestCase):
         history.close.assert_called_once()
 
     def test_context_manager(self):
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = MagicMock()
         validator = MagicMock()

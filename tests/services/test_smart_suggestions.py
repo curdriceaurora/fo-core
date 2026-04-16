@@ -1,4 +1,4 @@
-"""Tests for file_organizer.services.smart_suggestions module.
+"""Tests for services.smart_suggestions module.
 
 Covers ConfidenceScorer and SuggestionEngine classes, hitting the
 missed lines including user history, naming convention, file type match,
@@ -14,18 +14,18 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.models.suggestion_types import (
+from models.suggestion_types import (
     ConfidenceFactors,
     Suggestion,
     SuggestionType,
 )
-from file_organizer.services.misplacement_detector import MisplacementDetector
-from file_organizer.services.pattern_analyzer import PatternAnalyzer
-from file_organizer.services.smart_suggestions import (
+from services.misplacement_detector import MisplacementDetector
+from services.pattern_analyzer import PatternAnalyzer
+from services.smart_suggestions import (
     ConfidenceScorer,
     SuggestionEngine,
 )
-from file_organizer.services.suggestion_feedback import SuggestionFeedback
+from services.suggestion_feedback import SuggestionFeedback
 
 # ---------------------------------------------------------------------------
 # Fake PatternAnalysis helpers

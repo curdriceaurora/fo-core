@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.misplacement_detector import MisplacementDetector
+from services.misplacement_detector import MisplacementDetector
 
 
 @pytest.fixture

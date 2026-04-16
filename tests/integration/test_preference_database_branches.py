@@ -33,7 +33,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 
 def _make_db(tmp_path: Path):
-    from file_organizer.services.intelligence.preference_database import (
+    from services.intelligence.preference_database import (
         PreferenceDatabaseManager,
     )
 
@@ -51,10 +51,10 @@ class TestPreferenceDatabaseInit:
     def test_default_db_path_uses_data_dir(self, tmp_path: Path) -> None:
         """db_path=None triggers get_data_dir() import + path construction (lines 129-132).
 
-        The import inside __init__ is lazy (`from file_organizer.config.path_manager
+        The import inside __init__ is lazy (`from config.path_manager
         import get_data_dir`), so we patch the source at the path_manager level.
         """
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 
@@ -62,7 +62,7 @@ class TestPreferenceDatabaseInit:
         fake_dir.mkdir(parents=True)
 
         with patch(
-            "file_organizer.config.path_manager.get_data_dir",
+            "config.path_manager.get_data_dir",
             return_value=fake_dir,
         ):
             db = PreferenceDatabaseManager()
@@ -70,7 +70,7 @@ class TestPreferenceDatabaseInit:
 
     def test_explicit_db_path_used(self, tmp_path: Path) -> None:
         """Explicit db_path is stored as-is."""
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 
@@ -101,7 +101,7 @@ class TestPreferenceDatabaseInitialize:
         the critical section after Thread-1 releases it, and hits the inner guard
         (``_initialized`` is already True) — returning early without re-running setup.
         """
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 
@@ -154,7 +154,7 @@ class TestPreferenceDatabaseInitialize:
 
     def test_first_time_schema_version_inserted(self, tmp_path: Path) -> None:
         """First initialization inserts schema version record (lines 172-176)."""
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 
@@ -169,7 +169,7 @@ class TestPreferenceDatabaseInitialize:
 
     def test_migration_branch_when_schema_version_is_old(self, tmp_path: Path) -> None:
         """Migration branch triggered when stored version < SCHEMA_VERSION (lines 178-181)."""
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 
@@ -200,7 +200,7 @@ class TestPreferenceDatabaseInitialize:
         cannot be patched directly.  Instead, patch get_connection() to return a
         MagicMock whose executescript raises so the except-branch fires.
         """
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 
@@ -227,7 +227,7 @@ class TestPreferenceDatabaseInitialize:
 class TestPreferenceDatabaseMigrate:
     def test_migrate_inserts_version_record(self, tmp_path: Path) -> None:
         """_migrate() inserts target version into schema_version (lines 200-208)."""
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 
@@ -284,7 +284,7 @@ class TestPreferenceDatabaseClose:
 
     def test_close_no_connection_is_noop(self, tmp_path: Path) -> None:
         """close() when _connection is already None — no-op (line 248 false branch)."""
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 
@@ -302,7 +302,7 @@ class TestPreferenceDatabaseClose:
 class TestPreferenceDatabaseContextManager:
     def test_context_manager_initializes_and_closes(self, tmp_path: Path) -> None:
         """__enter__ calls initialize(); __exit__ calls close() (lines 253-260)."""
-        from file_organizer.services.intelligence.preference_database import (
+        from services.intelligence.preference_database import (
             PreferenceDatabaseManager,
         )
 

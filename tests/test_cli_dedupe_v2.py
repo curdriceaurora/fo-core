@@ -52,12 +52,12 @@ class TestDedupeImports:
     """Test that the module imports correctly."""
 
     def test_import_dedupe_app(self) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         assert dedupe_app is not None
 
     def test_registered_in_main(self) -> None:
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         # The dedupe sub-app should be registered
         assert app is not None
@@ -68,10 +68,10 @@ class TestDedupeScan:
     """Tests for the scan command."""
 
     def test_scan_no_duplicates(self, tmp_path: Path, mock_detector: MagicMock) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         with patch(
-            "file_organizer.cli.dedupe_v2._get_detector",
+            "cli.dedupe_v2._get_detector",
             return_value=mock_detector,
         ):
             result = runner.invoke(dedupe_app, ["scan", str(tmp_path)])
@@ -81,10 +81,10 @@ class TestDedupeScan:
     def test_scan_with_duplicates(
         self, tmp_path: Path, mock_detector_with_groups: MagicMock
     ) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         with patch(
-            "file_organizer.cli.dedupe_v2._get_detector",
+            "cli.dedupe_v2._get_detector",
             return_value=mock_detector_with_groups,
         ):
             result = runner.invoke(dedupe_app, ["scan", str(tmp_path)])
@@ -92,10 +92,10 @@ class TestDedupeScan:
         assert "1" in result.output  # 1 group
 
     def test_scan_json_output(self, tmp_path: Path, mock_detector_with_groups: MagicMock) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         with patch(
-            "file_organizer.cli.dedupe_v2._get_detector",
+            "cli.dedupe_v2._get_detector",
             return_value=mock_detector_with_groups,
         ):
             result = runner.invoke(dedupe_app, ["scan", str(tmp_path), "--json"])
@@ -109,10 +109,10 @@ class TestDedupeResolve:
     """Tests for the resolve command."""
 
     def test_resolve_no_duplicates(self, tmp_path: Path, mock_detector: MagicMock) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         with patch(
-            "file_organizer.cli.dedupe_v2._get_detector",
+            "cli.dedupe_v2._get_detector",
             return_value=mock_detector,
         ):
             result = runner.invoke(dedupe_app, ["resolve", str(tmp_path)])
@@ -120,10 +120,10 @@ class TestDedupeResolve:
         assert "no duplicates" in result.output.lower()
 
     def test_resolve_dry_run(self, tmp_path: Path, mock_detector_with_groups: MagicMock) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         with patch(
-            "file_organizer.cli.dedupe_v2._get_detector",
+            "cli.dedupe_v2._get_detector",
             return_value=mock_detector_with_groups,
         ):
             result = runner.invoke(
@@ -139,20 +139,20 @@ class TestDedupeReport:
     """Tests for the report command."""
 
     def test_report_empty(self, tmp_path: Path, mock_detector: MagicMock) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         with patch(
-            "file_organizer.cli.dedupe_v2._get_detector",
+            "cli.dedupe_v2._get_detector",
             return_value=mock_detector,
         ):
             result = runner.invoke(dedupe_app, ["report", str(tmp_path)])
         assert result.exit_code == 0
 
     def test_report_json(self, tmp_path: Path, mock_detector: MagicMock) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         with patch(
-            "file_organizer.cli.dedupe_v2._get_detector",
+            "cli.dedupe_v2._get_detector",
             return_value=mock_detector,
         ):
             result = runner.invoke(dedupe_app, ["report", str(tmp_path), "--json"])
@@ -164,16 +164,16 @@ class TestFormatSize:
     """Test _format_size helper."""
 
     def test_bytes(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert _format_size(100) == "100 B"
 
     def test_kilobytes(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert "KB" in _format_size(2048)
 
     def test_zero(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert _format_size(0) == "0 B"

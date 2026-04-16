@@ -7,11 +7,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.services.copilot.conversation import ConversationManager
-from file_organizer.services.copilot.engine import CopilotEngine
-from file_organizer.services.copilot.executor import CommandExecutor
-from file_organizer.services.copilot.intent_parser import IntentParser
-from file_organizer.services.copilot.models import (
+from services.copilot.conversation import ConversationManager
+from services.copilot.engine import CopilotEngine
+from services.copilot.executor import CommandExecutor
+from services.copilot.intent_parser import IntentParser
+from services.copilot.models import (
     CopilotMessage,
     CopilotSession,
     ExecutionResult,

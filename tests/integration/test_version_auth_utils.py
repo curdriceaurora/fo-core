@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.version import (
+from version import (
     VersionInfo,
     bump_version,
     get_version,

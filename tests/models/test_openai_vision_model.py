@@ -17,8 +17,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType, TokenExhaustionError
-from file_organizer.models.openai_vision_model import (
+from models.base import ModelConfig, ModelType, TokenExhaustionError
+from models.openai_vision_model import (
     OpenAIVisionModel,
     _bytes_to_data_url,
     _image_to_data_url,
@@ -147,7 +147,7 @@ class TestBytesToDataUrl:
 
 class TestOpenAIVisionModelInit:
     def test_init_sets_config(self, openai_vision_config: ModelConfig) -> None:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(openai_vision_config)
         assert model.config is openai_vision_config
         assert model.client is None
@@ -156,8 +156,8 @@ class TestOpenAIVisionModelInit:
     def test_init_raises_import_error_when_openai_missing(
         self, openai_vision_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", False):
-            with pytest.raises(ImportError, match="file-organizer\\[cloud\\]"):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", False):
+            with pytest.raises(ImportError, match="fo-core\\[cloud\\]"):
                 OpenAIVisionModel(openai_vision_config)
 
     def test_init_raises_value_error_for_wrong_model_type(self) -> None:
@@ -166,13 +166,13 @@ class TestOpenAIVisionModelInit:
             model_type=ModelType.TEXT,  # wrong for vision model
             provider="openai",
         )
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             with pytest.raises(ValueError, match="Expected VISION or VIDEO"):
                 OpenAIVisionModel(bad_config)
 
     def test_init_accepts_video_model_type(self) -> None:
         cfg = ModelConfig(name="gpt-4o", model_type=ModelType.VIDEO, provider="openai")
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(cfg)
         assert model.config.model_type == ModelType.VIDEO
 
@@ -188,13 +188,13 @@ class TestOpenAIVisionModelInitialize:
         openai_vision_config: ModelConfig,
         mock_openai_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(openai_vision_config)
 
         with (
-            patch("file_organizer.models._openai_client.OPENAI_AVAILABLE", True, create=True),
+            patch("models._openai_client.OPENAI_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._openai_client.OpenAI",
+                "models._openai_client.OpenAI",
                 create=True,
                 return_value=mock_openai_client,
             ) as mock_cls,
@@ -212,13 +212,13 @@ class TestOpenAIVisionModelInitialize:
         openai_vision_config: ModelConfig,
         mock_openai_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(openai_vision_config)
 
         with (
-            patch("file_organizer.models._openai_client.OPENAI_AVAILABLE", True, create=True),
+            patch("models._openai_client.OPENAI_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._openai_client.OpenAI",
+                "models._openai_client.OpenAI",
                 create=True,
                 return_value=mock_openai_client,
             ) as mock_cls,
@@ -236,7 +236,7 @@ class TestOpenAIVisionModelInitialize:
 
 class TestOpenAIVisionModelGenerateWithPath:
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> OpenAIVisionModel:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(config)
         model.client = client
         model._initialized = True
@@ -309,7 +309,7 @@ class TestOpenAIVisionModelGenerateWithPath:
 
 class TestOpenAIVisionModelGenerateWithBytes:
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> OpenAIVisionModel:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(config)
         model.client = client
         model._initialized = True
@@ -352,7 +352,7 @@ class TestOpenAIVisionModelGenerateWithBytes:
 
 class TestOpenAIVisionModelGenerateGuards:
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> OpenAIVisionModel:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(config)
         model.client = client
         model._initialized = True
@@ -361,7 +361,7 @@ class TestOpenAIVisionModelGenerateGuards:
     def test_raises_runtime_error_when_not_initialized(
         self, openai_vision_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(openai_vision_config)
 
         with pytest.raises(RuntimeError, match="not initialized"):
@@ -398,7 +398,7 @@ class TestOpenAIVisionModelAnalyzeImage:
     """analyze_image() delegates to generate() with the correct prompt."""
 
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> OpenAIVisionModel:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(config)
         model.client = client
         model._initialized = True
@@ -460,7 +460,7 @@ class TestOpenAIVisionModelCleanup:
         openai_vision_config: ModelConfig,
         mock_openai_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(openai_vision_config)
         model.client = mock_openai_client
         model._initialized = True
@@ -500,7 +500,7 @@ class TestOpenAIVisionModelTokenExhaustion:
     """Token-exhaustion detection and retry in OpenAIVisionModel.generate()."""
 
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> OpenAIVisionModel:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = OpenAIVisionModel(config)
         model.client = client
         model._initialized = True

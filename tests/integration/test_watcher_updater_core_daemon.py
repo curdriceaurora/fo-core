@@ -48,9 +48,9 @@ class TestFileEventHandlerCreated:
     """on_created routes a file event through the full pipeline."""
 
     def test_created_event_enqueued(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -69,9 +69,9 @@ class TestFileEventHandlerCreated:
     def test_created_tmp_file_filtered_out(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -83,9 +83,9 @@ class TestFileEventHandlerCreated:
     def test_modified_event_enqueued(self, tmp_path: Path) -> None:
         from watchdog.events import FileModifiedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -98,9 +98,9 @@ class TestFileEventHandlerCreated:
     def test_deleted_event_enqueued(self, tmp_path: Path) -> None:
         from watchdog.events import FileDeletedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -113,9 +113,9 @@ class TestFileEventHandlerCreated:
     def test_moved_event_has_dest_path(self, tmp_path: Path) -> None:
         from watchdog.events import FileMovedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -133,9 +133,9 @@ class TestFileEventHandlerCreated:
     def test_directory_created_event_passes_through(self, tmp_path: Path) -> None:
         from watchdog.events import DirCreatedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -152,9 +152,9 @@ class TestFileEventHandlerDebounce:
     def test_rapid_events_debounced(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=10.0)  # Long window
@@ -170,9 +170,9 @@ class TestFileEventHandlerDebounce:
     def test_debounce_expires_allows_second_event(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)  # No debounce
@@ -186,9 +186,9 @@ class TestFileEventHandlerDebounce:
     def test_pending_paths_tracks_state(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -200,9 +200,9 @@ class TestFileEventHandlerDebounce:
     def test_clear_debounce_state_resets(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -217,9 +217,9 @@ class TestFileEventHandlerCallbacks:
     def test_callback_invoked_on_created(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -234,9 +234,9 @@ class TestFileEventHandlerCallbacks:
     def test_callback_invoked_on_deleted(self, tmp_path: Path) -> None:
         from watchdog.events import FileDeletedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -251,9 +251,9 @@ class TestFileEventHandlerCallbacks:
     def test_callback_invoked_on_modified(self, tmp_path: Path) -> None:
         from watchdog.events import FileModifiedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -268,9 +268,9 @@ class TestFileEventHandlerCallbacks:
     def test_callback_invoked_on_moved(self, tmp_path: Path) -> None:
         from watchdog.events import FileMovedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -285,9 +285,9 @@ class TestFileEventHandlerCallbacks:
     def test_failing_callback_does_not_propagate(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.handler import FileEventHandler
-        from file_organizer.watcher.queue import EventQueue, EventType
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
 
         q = EventQueue()
         cfg = WatcherConfig(debounce_seconds=0.0)
@@ -309,8 +309,8 @@ class TestFileEventHandlerCallbacks:
 
 class TestFileMonitorLifecycle:
     def test_start_and_stop(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
         monitor = FileMonitor(config=cfg)
@@ -323,8 +323,8 @@ class TestFileMonitorLifecycle:
         assert monitor.is_running is False
 
     def test_start_twice_raises(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
         monitor = FileMonitor(config=cfg)
@@ -336,19 +336,19 @@ class TestFileMonitorLifecycle:
             monitor.stop()
 
     def test_stop_when_not_running_is_safe(self) -> None:
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.monitor import FileMonitor
 
         monitor = FileMonitor()
         monitor.stop()  # must not raise
 
     def test_default_observer_type_before_start(self) -> None:
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.monitor import FileMonitor
 
         monitor = FileMonitor()
         assert monitor.observer_type == "none"
 
     def test_is_running_false_before_start(self) -> None:
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.monitor import FileMonitor
 
         monitor = FileMonitor()
         assert monitor.is_running is False
@@ -356,12 +356,12 @@ class TestFileMonitorLifecycle:
     def test_polling_fallback_when_native_fails(self, tmp_path: Path) -> None:
         """FileMonitor falls back to PollingObserver when native observer raises."""
 
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
 
-        with patch("file_organizer.watcher.monitor.Observer", side_effect=Exception("unsupported")):
+        with patch("watcher.monitor.Observer", side_effect=Exception("unsupported")):
             monitor = FileMonitor(config=cfg)
             monitor.start()
             try:
@@ -373,7 +373,7 @@ class TestFileMonitorLifecycle:
 
 class TestFileMonitorDirectoryManagement:
     def test_add_directory_before_start(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.monitor import FileMonitor
 
         monitor = FileMonitor()
         sub = tmp_path / "sub"
@@ -382,8 +382,8 @@ class TestFileMonitorDirectoryManagement:
         assert sub.resolve() in monitor.config.watch_directories
 
     def test_add_directory_while_running(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
         monitor = FileMonitor(config=cfg)
@@ -397,8 +397,8 @@ class TestFileMonitorDirectoryManagement:
             monitor.stop()
 
     def test_add_duplicate_directory_raises(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
         monitor = FileMonitor(config=cfg)
@@ -410,8 +410,8 @@ class TestFileMonitorDirectoryManagement:
             monitor.stop()
 
     def test_remove_directory_while_running(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
         monitor = FileMonitor(config=cfg)
@@ -423,15 +423,15 @@ class TestFileMonitorDirectoryManagement:
             monitor.stop()
 
     def test_remove_unwatched_directory_raises(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.monitor import FileMonitor
 
         monitor = FileMonitor()
         with pytest.raises(ValueError):
             monitor.remove_directory(tmp_path / "nonexistent")
 
     def test_add_nonexistent_directory_while_running_raises(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
         monitor = FileMonitor(config=cfg)
@@ -445,8 +445,8 @@ class TestFileMonitorDirectoryManagement:
 
 class TestFileMonitorEventAccess:
     def test_get_events_returns_empty_when_no_events(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
         monitor = FileMonitor(config=cfg)
@@ -458,15 +458,15 @@ class TestFileMonitorEventAccess:
             monitor.stop()
 
     def test_event_count_zero_initially(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.config import WatcherConfig
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.config import WatcherConfig
+        from watcher.monitor import FileMonitor
 
         cfg = WatcherConfig(watch_directories=[tmp_path], debounce_seconds=0.0)
         monitor = FileMonitor(config=cfg)
         assert monitor.event_count == 0
 
     def test_callback_registration(self, tmp_path: Path) -> None:
-        from file_organizer.watcher.monitor import FileMonitor
+        from watcher.monitor import FileMonitor
 
         monitor = FileMonitor()
         cb = MagicMock()
@@ -486,34 +486,34 @@ class TestUpdateCheckerVersionParsing:
     """_parse_version helper and UpdateChecker.check() logic."""
 
     def test_parse_simple_version(self) -> None:
-        from file_organizer.updater.checker import _parse_version
+        from updater.checker import _parse_version
 
         assert _parse_version("2.0.0") == (2, 0, 0)
 
     def test_parse_version_with_v_prefix(self) -> None:
-        from file_organizer.updater.checker import _parse_version
+        from updater.checker import _parse_version
 
         assert _parse_version("v1.2.3") == (1, 2, 3)
 
     def test_parse_version_with_prerelease(self) -> None:
-        from file_organizer.updater.checker import _parse_version
+        from updater.checker import _parse_version
 
         assert _parse_version("2.0.0-alpha.1") == (2, 0, 0)
 
     def test_parse_version_single_segment(self) -> None:
-        from file_organizer.updater.checker import _parse_version
+        from updater.checker import _parse_version
 
         assert _parse_version("3") == (3,)
 
     def test_parse_empty_string_returns_zero(self) -> None:
-        from file_organizer.updater.checker import _parse_version
+        from updater.checker import _parse_version
 
         assert _parse_version("") == (0,)
 
 
 class TestUpdateCheckerCheck:
     def test_check_returns_none_when_up_to_date(self) -> None:
-        from file_organizer.updater.checker import ReleaseInfo, UpdateChecker
+        from updater.checker import ReleaseInfo, UpdateChecker
 
         checker = UpdateChecker(current_version="2.0.0")
 
@@ -524,7 +524,7 @@ class TestUpdateCheckerCheck:
         assert result is None
 
     def test_check_returns_release_when_newer(self) -> None:
-        from file_organizer.updater.checker import ReleaseInfo, UpdateChecker
+        from updater.checker import ReleaseInfo, UpdateChecker
 
         checker = UpdateChecker(current_version="1.0.0")
 
@@ -536,7 +536,7 @@ class TestUpdateCheckerCheck:
         assert result.version == "2.0.0"
 
     def test_check_returns_none_on_network_error(self) -> None:
-        from file_organizer.updater.checker import UpdateChecker
+        from updater.checker import UpdateChecker
 
         checker = UpdateChecker(current_version="1.0.0")
 
@@ -546,7 +546,7 @@ class TestUpdateCheckerCheck:
         assert result is None
 
     def test_check_returns_none_when_fetch_returns_none(self) -> None:
-        from file_organizer.updater.checker import UpdateChecker
+        from updater.checker import UpdateChecker
 
         checker = UpdateChecker(current_version="1.0.0")
 
@@ -556,7 +556,7 @@ class TestUpdateCheckerCheck:
         assert result is None
 
     def test_get_latest_release_returns_none_on_error(self) -> None:
-        from file_organizer.updater.checker import UpdateChecker
+        from updater.checker import UpdateChecker
 
         checker = UpdateChecker(current_version="1.0.0")
 
@@ -566,7 +566,7 @@ class TestUpdateCheckerCheck:
         assert result is None
 
     def test_get_latest_release_returns_release_info(self) -> None:
-        from file_organizer.updater.checker import ReleaseInfo, UpdateChecker
+        from updater.checker import ReleaseInfo, UpdateChecker
 
         checker = UpdateChecker(current_version="1.0.0")
         expected = ReleaseInfo(tag="v2.0.0", version="2.0.0")
@@ -578,13 +578,13 @@ class TestUpdateCheckerCheck:
         assert result.version == "2.0.0"
 
     def test_current_version_property(self) -> None:
-        from file_organizer.updater.checker import UpdateChecker
+        from updater.checker import UpdateChecker
 
         checker = UpdateChecker(current_version="3.1.0")
         assert checker.current_version == "3.1.0"
 
     def test_fetch_latest_release_404_returns_none(self) -> None:
-        from file_organizer.updater.checker import UpdateChecker
+        from updater.checker import UpdateChecker
 
         checker = UpdateChecker(current_version="1.0.0")
 
@@ -600,7 +600,7 @@ class TestUpdateCheckerCheck:
         assert result is None
 
     def test_fetch_latest_release_parses_response(self) -> None:
-        from file_organizer.updater.checker import UpdateChecker
+        from updater.checker import UpdateChecker
 
         checker = UpdateChecker(current_version="1.0.0")
 
@@ -627,7 +627,7 @@ class TestUpdateCheckerCheck:
         assert result.tag == "v2.5.0"
 
     def test_fetch_prerelease_included(self) -> None:
-        from file_organizer.updater.checker import UpdateChecker
+        from updater.checker import UpdateChecker
 
         checker = UpdateChecker(current_version="1.0.0", include_prereleases=True)
 
@@ -656,7 +656,7 @@ class TestUpdateCheckerCheck:
         assert "2.0.0" in result.version
 
     def test_parse_release_with_assets(self) -> None:
-        from file_organizer.updater.checker import UpdateChecker
+        from updater.checker import UpdateChecker
 
         data = {
             "tag_name": "v1.5.0",
@@ -687,28 +687,28 @@ class TestUpdateCheckerCheck:
 
 class TestInstallerPlatformHelpers:
     def test_get_platform_hints_darwin(self) -> None:
-        from file_organizer.updater.installer import _get_platform_hints
+        from updater.installer import _get_platform_hints
 
         with patch("platform.system", return_value="Darwin"):
             hints = _get_platform_hints()
         assert "macos" in hints or "darwin" in hints
 
     def test_get_platform_hints_windows(self) -> None:
-        from file_organizer.updater.installer import _get_platform_hints
+        from updater.installer import _get_platform_hints
 
         with patch("platform.system", return_value="Windows"):
             hints = _get_platform_hints()
         assert "windows" in hints or "win" in hints
 
     def test_get_platform_hints_linux(self) -> None:
-        from file_organizer.updater.installer import _get_platform_hints
+        from updater.installer import _get_platform_hints
 
         with patch("platform.system", return_value="Linux"):
             hints = _get_platform_hints()
         assert "linux" in hints
 
     def test_get_arch_hints_x86(self) -> None:
-        from file_organizer.updater.installer import _get_arch_hints
+        from updater.installer import _get_arch_hints
 
         with (
             patch("platform.machine", return_value="x86_64"),
@@ -718,7 +718,7 @@ class TestInstallerPlatformHelpers:
         assert "x86_64" in hints or "amd64" in hints
 
     def test_get_arch_hints_arm64(self) -> None:
-        from file_organizer.updater.installer import _get_arch_hints
+        from updater.installer import _get_arch_hints
 
         with (
             patch("platform.machine", return_value="arm64"),
@@ -728,7 +728,7 @@ class TestInstallerPlatformHelpers:
         assert "arm64" in hints or "aarch64" in hints
 
     def test_is_checksum_file_sha256(self) -> None:
-        from file_organizer.updater.installer import _is_checksum_file
+        from updater.installer import _is_checksum_file
 
         assert _is_checksum_file("sha256sums.sha256") is True
         assert _is_checksum_file("app.sig") is True
@@ -736,14 +736,14 @@ class TestInstallerPlatformHelpers:
         assert _is_checksum_file("app-linux") is False
 
     def test_score_asset_linux_appimage(self) -> None:
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         with patch("platform.system", return_value="Linux"):
             score = _score_asset("app.appimage")
         assert score > 0
 
     def test_score_asset_windows_exe(self) -> None:
-        from file_organizer.updater.installer import _score_asset
+        from updater.installer import _score_asset
 
         with patch("platform.system", return_value="Windows"):
             score = _score_asset("app.exe")
@@ -752,7 +752,7 @@ class TestInstallerPlatformHelpers:
 
 class TestUpdateInstallerSelectAsset:
     def _make_release_with_assets(self) -> object:
-        from file_organizer.updater.checker import AssetInfo, ReleaseInfo
+        from updater.checker import AssetInfo, ReleaseInfo
 
         return ReleaseInfo(
             tag="v2.0.0",
@@ -765,7 +765,7 @@ class TestUpdateInstallerSelectAsset:
         )
 
     def test_select_asset_linux(self) -> None:
-        from file_organizer.updater.installer import UpdateInstaller
+        from updater.installer import UpdateInstaller
 
         installer = UpdateInstaller(install_dir="/tmp")
         release = self._make_release_with_assets()
@@ -780,8 +780,8 @@ class TestUpdateInstallerSelectAsset:
         assert "linux" in asset.name.lower()
 
     def test_select_asset_no_match_returns_none(self) -> None:
-        from file_organizer.updater.checker import AssetInfo, ReleaseInfo
-        from file_organizer.updater.installer import UpdateInstaller
+        from updater.checker import AssetInfo, ReleaseInfo
+        from updater.installer import UpdateInstaller
 
         installer = UpdateInstaller(install_dir="/tmp")
         release = ReleaseInfo(
@@ -799,39 +799,39 @@ class TestUpdateInstallerSelectAsset:
         assert asset is None
 
     def test_rollback_returns_false_when_no_backup(self, tmp_path: Path) -> None:
-        from file_organizer.updater.installer import UpdateInstaller
+        from updater.installer import UpdateInstaller
 
         installer = UpdateInstaller(install_dir=tmp_path)
         result = installer.rollback("no-binary")
         assert result is False
 
     def test_rollback_succeeds_when_backup_exists(self, tmp_path: Path) -> None:
-        from file_organizer.updater.installer import UpdateInstaller
+        from updater.installer import UpdateInstaller
 
         installer = UpdateInstaller(install_dir=tmp_path)
-        backup = tmp_path / "file-organizer.bak"
+        backup = tmp_path / "fo.bak"
         backup.write_bytes(b"backup content")
 
-        result = installer.rollback("file-organizer")
+        result = installer.rollback("fo")
         assert result is True
-        target = tmp_path / "file-organizer"
+        target = tmp_path / "fo"
         assert target.exists()
 
     def test_install_creates_executable(self, tmp_path: Path) -> None:
-        from file_organizer.updater.installer import UpdateInstaller
+        from updater.installer import UpdateInstaller
 
         installer = UpdateInstaller(install_dir=tmp_path)
         downloaded = tmp_path / "fo-update-new.bin"
         downloaded.write_bytes(b"new binary content")
 
-        result = installer.install(downloaded, target_name="file-organizer")
+        result = installer.install(downloaded, target_name="fo")
 
         assert result.success is True
-        assert (tmp_path / "file-organizer").exists()
+        assert (tmp_path / "fo").exists()
 
     def test_download_asset_sha256_mismatch_returns_none(self, tmp_path: Path) -> None:
-        from file_organizer.updater.checker import AssetInfo
-        from file_organizer.updater.installer import UpdateInstaller
+        from updater.checker import AssetInfo
+        from updater.installer import UpdateInstaller
 
         installer = UpdateInstaller(install_dir=tmp_path)
         asset = AssetInfo(name="binary", url="https://example.com/binary", size=100)
@@ -850,8 +850,8 @@ class TestUpdateInstallerSelectAsset:
     def test_download_asset_success(self, tmp_path: Path) -> None:
         import hashlib
 
-        from file_organizer.updater.checker import AssetInfo
-        from file_organizer.updater.installer import UpdateInstaller
+        from updater.checker import AssetInfo
+        from updater.installer import UpdateInstaller
 
         installer = UpdateInstaller(install_dir=tmp_path)
         content = b"valid binary content"
@@ -879,7 +879,7 @@ class TestUpdateInstallerSelectAsset:
 
 class TestUpdateManager:
     def test_check_returns_status_not_available_when_no_release(self) -> None:
-        from file_organizer.updater.manager import UpdateManager
+        from updater.manager import UpdateManager
 
         mgr = UpdateManager(current_version="2.0.0")
 
@@ -890,8 +890,8 @@ class TestUpdateManager:
         assert status.current_version == "2.0.0"
 
     def test_check_returns_available_when_newer(self) -> None:
-        from file_organizer.updater.checker import ReleaseInfo
-        from file_organizer.updater.manager import UpdateManager
+        from updater.checker import ReleaseInfo
+        from updater.manager import UpdateManager
 
         mgr = UpdateManager(current_version="1.0.0")
         release = ReleaseInfo(tag="v2.0.0", version="2.0.0")
@@ -904,13 +904,13 @@ class TestUpdateManager:
         assert status.release is release
 
     def test_current_version_property(self) -> None:
-        from file_organizer.updater.manager import UpdateManager
+        from updater.manager import UpdateManager
 
         mgr = UpdateManager(current_version="3.0.0")
         assert mgr.current_version == "3.0.0"
 
     def test_update_no_update_available_returns_not_available(self) -> None:
-        from file_organizer.updater.manager import UpdateManager
+        from updater.manager import UpdateManager
 
         mgr = UpdateManager(current_version="2.0.0")
 
@@ -920,8 +920,8 @@ class TestUpdateManager:
         assert status.available is False
 
     def test_update_dry_run(self, tmp_path: Path) -> None:
-        from file_organizer.updater.checker import AssetInfo, ReleaseInfo
-        from file_organizer.updater.manager import UpdateManager
+        from updater.checker import AssetInfo, ReleaseInfo
+        from updater.manager import UpdateManager
 
         mgr = UpdateManager(current_version="1.0.0", install_dir=tmp_path)
         release = ReleaseInfo(
@@ -945,8 +945,8 @@ class TestUpdateManager:
         assert "dry run" in status.install_result.message.lower()
 
     def test_update_no_matching_asset_returns_failure(self) -> None:
-        from file_organizer.updater.checker import ReleaseInfo
-        from file_organizer.updater.manager import UpdateManager
+        from updater.checker import ReleaseInfo
+        from updater.manager import UpdateManager
 
         mgr = UpdateManager(current_version="1.0.0")
         release = ReleaseInfo(tag="v2.0.0", version="2.0.0", assets=[])
@@ -962,8 +962,8 @@ class TestUpdateManager:
         assert "compatible" in status.install_result.message.lower()
 
     def test_update_download_failure_returns_failure(self) -> None:
-        from file_organizer.updater.checker import AssetInfo, ReleaseInfo
-        from file_organizer.updater.manager import UpdateManager
+        from updater.checker import AssetInfo, ReleaseInfo
+        from updater.manager import UpdateManager
 
         mgr = UpdateManager(current_version="1.0.0")
         release = ReleaseInfo(
@@ -984,7 +984,7 @@ class TestUpdateManager:
         assert status.install_result.success is False
 
     def test_rollback_delegates_to_installer(self) -> None:
-        from file_organizer.updater.manager import UpdateManager
+        from updater.manager import UpdateManager
 
         mgr = UpdateManager(current_version="2.0.0")
 
@@ -995,13 +995,13 @@ class TestUpdateManager:
         mock_rb.assert_called_once()
 
     def test_message_up_to_date(self) -> None:
-        from file_organizer.updater.manager import UpdateStatus
+        from updater.manager import UpdateStatus
 
         status = UpdateStatus(available=False, current_version="1.0.0")
         assert "1.0.0" in status.message
 
     def test_message_update_available(self) -> None:
-        from file_organizer.updater.manager import UpdateStatus
+        from updater.manager import UpdateStatus
 
         status = UpdateStatus(available=True, current_version="1.0.0", latest_version="2.0.0")
         assert "2.0.0" in status.message
@@ -1014,14 +1014,14 @@ class TestUpdateManager:
 
 class TestMaybeCheckForUpdates:
     def test_returns_none_when_env_var_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from file_organizer.updater.background import maybe_check_for_updates
+        from updater.background import maybe_check_for_updates
 
         monkeypatch.setenv("FO_DISABLE_UPDATE_CHECK", "1")
         result = maybe_check_for_updates()
         assert result is None
 
     def test_returns_none_when_pytest_test_env_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from file_organizer.updater.background import maybe_check_for_updates
+        from updater.background import maybe_check_for_updates
 
         monkeypatch.delenv("FO_DISABLE_UPDATE_CHECK", raising=False)
         monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_something")
@@ -1031,7 +1031,7 @@ class TestMaybeCheckForUpdates:
     def test_returns_none_when_check_on_startup_disabled(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from file_organizer.updater.background import maybe_check_for_updates
+        from updater.background import maybe_check_for_updates
 
         monkeypatch.delenv("FO_DISABLE_UPDATE_CHECK", raising=False)
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
@@ -1042,14 +1042,14 @@ class TestMaybeCheckForUpdates:
         mock_cfg = MagicMock()
         mock_cfg.updates = mock_policy
 
-        with patch("file_organizer.updater.background.ConfigManager") as MockCM:
+        with patch("updater.background.ConfigManager") as MockCM:
             MockCM.return_value.load.return_value = mock_cfg
             result = maybe_check_for_updates()
 
         assert result is None
 
     def test_returns_none_when_not_due(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from file_organizer.updater.background import maybe_check_for_updates
+        from updater.background import maybe_check_for_updates
 
         monkeypatch.delenv("FO_DISABLE_UPDATE_CHECK", raising=False)
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
@@ -1067,15 +1067,15 @@ class TestMaybeCheckForUpdates:
         mock_store = MagicMock()
         mock_store.load.return_value = mock_state
 
-        with patch("file_organizer.updater.background.ConfigManager") as MockCM:
+        with patch("updater.background.ConfigManager") as MockCM:
             MockCM.return_value.load.return_value = mock_cfg
             result = maybe_check_for_updates(state_store=mock_store)
 
         assert result is None
 
     def test_performs_check_when_due(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from file_organizer.updater.background import maybe_check_for_updates
-        from file_organizer.updater.manager import UpdateStatus
+        from updater.background import maybe_check_for_updates
+        from updater.manager import UpdateStatus
 
         monkeypatch.delenv("FO_DISABLE_UPDATE_CHECK", raising=False)
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
@@ -1098,8 +1098,8 @@ class TestMaybeCheckForUpdates:
         expected_status = UpdateStatus(available=False, current_version="1.0.0")
 
         with (
-            patch("file_organizer.updater.background.ConfigManager") as MockCM,
-            patch("file_organizer.updater.background.UpdateManager") as MockMgr,
+            patch("updater.background.ConfigManager") as MockCM,
+            patch("updater.background.UpdateManager") as MockMgr,
         ):
             MockCM.return_value.load.return_value = mock_cfg
             MockMgr.return_value.check.return_value = expected_status
@@ -1119,7 +1119,7 @@ class TestDetectOllamaNotAvailable:
     """When the ollama package is absent, detect_ollama returns installed=False."""
 
     def test_detect_ollama_package_not_available(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         original = backend_detector.OLLAMA_AVAILABLE
         try:
@@ -1132,7 +1132,7 @@ class TestDetectOllamaNotAvailable:
         assert status.running is False
 
     def test_list_installed_models_package_not_available(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         original = backend_detector.OLLAMA_AVAILABLE
         try:
@@ -1148,7 +1148,7 @@ class TestDetectOllamaAvailable:
     """When ollama package is available, exercise various code paths."""
 
     def test_detect_ollama_cli_installed_service_running(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         if not backend_detector.OLLAMA_AVAILABLE:
             pytest.skip("ollama not installed")
@@ -1171,7 +1171,7 @@ class TestDetectOllamaAvailable:
         assert status.installed is True
 
     def test_detect_ollama_cli_not_found_service_running(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         if not backend_detector.OLLAMA_AVAILABLE:
             pytest.skip("ollama not installed")
@@ -1190,7 +1190,7 @@ class TestDetectOllamaAvailable:
         assert status.models_count == 2
 
     def test_detect_ollama_service_not_running(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         if not backend_detector.OLLAMA_AVAILABLE:
             pytest.skip("ollama not installed")
@@ -1209,7 +1209,7 @@ class TestDetectOllamaAvailable:
         assert status.running is False
 
     def test_detect_ollama_count_dict_response(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         if not backend_detector.OLLAMA_AVAILABLE:
             pytest.skip("ollama not installed")
@@ -1228,7 +1228,7 @@ class TestDetectOllamaAvailable:
         assert status.models_count == 2
 
     def test_detect_ollama_count_list_response(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         if not backend_detector.OLLAMA_AVAILABLE:
             pytest.skip("ollama not installed")
@@ -1249,7 +1249,7 @@ class TestDetectOllamaAvailable:
 
 class TestListInstalledModelsAvailable:
     def test_list_models_via_client_dict_response(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         if not backend_detector.OLLAMA_AVAILABLE:
             pytest.skip("ollama not installed")
@@ -1270,7 +1270,7 @@ class TestListInstalledModelsAvailable:
         assert models[0].name == "llama3"
 
     def test_list_models_via_client_fallback_cli(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         if not backend_detector.OLLAMA_AVAILABLE:
             pytest.skip("ollama not installed")
@@ -1289,7 +1289,7 @@ class TestListInstalledModelsAvailable:
         assert len(models) >= 1
 
     def test_list_models_cli_not_found_returns_empty(self) -> None:
-        from file_organizer.core import backend_detector
+        from core import backend_detector
 
         if not backend_detector.OLLAMA_AVAILABLE:
             pytest.skip("ollama not installed")
@@ -1317,7 +1317,7 @@ class TestHardwareProfileDataclass:
         ram_bytes: int = 16 * 1024**3,
         cpu_cores: int = 8,
     ) -> object:
-        from file_organizer.core.hardware_profile import GpuType, HardwareProfile
+        from core.hardware_profile import GpuType, HardwareProfile
 
         return HardwareProfile(
             gpu_type=GpuType(gpu_type),
@@ -1376,7 +1376,7 @@ class TestHardwareProfileDataclass:
 
 class TestDetectHardware:
     def test_detect_hardware_returns_profile(self) -> None:
-        from file_organizer.core.hardware_profile import HardwareProfile, detect_hardware
+        from core.hardware_profile import HardwareProfile, detect_hardware
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -1389,7 +1389,7 @@ class TestDetectHardware:
         assert profile.ram_bytes >= 0
 
     def test_detect_hardware_nvidia_detected(self) -> None:
-        from file_organizer.core.hardware_profile import GpuType, detect_hardware
+        from core.hardware_profile import GpuType, detect_hardware
 
         # nvidia-smi succeeds
         def mock_run(cmd, *args, **kwargs):
@@ -1409,7 +1409,7 @@ class TestDetectHardware:
         assert profile.gpu_name == "Tesla T4"
 
     def test_detect_hardware_no_gpu(self) -> None:
-        from file_organizer.core.hardware_profile import GpuType, detect_hardware
+        from core.hardware_profile import GpuType, detect_hardware
 
         mock_result = MagicMock()
         mock_result.returncode = 1
@@ -1420,7 +1420,7 @@ class TestDetectHardware:
         assert profile.gpu_type == GpuType.NONE
 
     def test_detect_nvidia_file_not_found(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_nvidia
+        from core.hardware_profile import _detect_nvidia
 
         with patch("subprocess.run", side_effect=FileNotFoundError):
             name, vram = _detect_nvidia()
@@ -1429,7 +1429,7 @@ class TestDetectHardware:
         assert vram == 0
 
     def test_detect_amd_file_not_found(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_amd
+        from core.hardware_profile import _detect_amd
 
         with patch("subprocess.run", side_effect=FileNotFoundError):
             name, vram = _detect_amd()
@@ -1438,7 +1438,7 @@ class TestDetectHardware:
         assert vram == 0
 
     def test_detect_apple_mps_non_darwin(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_apple_mps
+        from core.hardware_profile import _detect_apple_mps
 
         with patch("platform.system", return_value="Linux"):
             name, vram = _detect_apple_mps()
@@ -1447,7 +1447,7 @@ class TestDetectHardware:
         assert vram == 0
 
     def test_detect_apple_mps_darwin_non_apple_chip(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_apple_mps
+        from core.hardware_profile import _detect_apple_mps
 
         intel_result = MagicMock()
         intel_result.returncode = 0
@@ -1462,7 +1462,7 @@ class TestDetectHardware:
         assert name is None
 
     def test_detect_apple_mps_darwin_apple_chip_returns_unified_memory(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_apple_mps
+        from core.hardware_profile import _detect_apple_mps
 
         brand_result = MagicMock(returncode=0, stdout="Apple M3 Max")
         mem_result = MagicMock(returncode=0, stdout="68719476736")
@@ -1477,7 +1477,7 @@ class TestDetectHardware:
         assert vram == 68719476736
 
     def test_detect_apple_mps_darwin_subprocess_error_returns_none(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_apple_mps
+        from core.hardware_profile import _detect_apple_mps
 
         with (
             patch("platform.system", return_value="Darwin"),
@@ -1489,7 +1489,7 @@ class TestDetectHardware:
         assert vram == 0
 
     def test_detect_nvidia_malformed_output_returns_none(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_nvidia
+        from core.hardware_profile import _detect_nvidia
 
         malformed = MagicMock(returncode=0, stdout="Tesla T4 only")
 
@@ -1500,13 +1500,13 @@ class TestDetectHardware:
         assert vram == 0
 
     def test_get_cpu_cores_returns_positive(self) -> None:
-        from file_organizer.core.hardware_profile import _get_cpu_cores
+        from core.hardware_profile import _get_cpu_cores
 
         cores = _get_cpu_cores()
         assert cores >= 1
 
     def test_get_cpu_cores_importerror_falls_back_to_os_cpu_count(self) -> None:
-        from file_organizer.core.hardware_profile import _get_cpu_cores
+        from core.hardware_profile import _get_cpu_cores
 
         with (
             patch.dict("sys.modules", {"psutil": None}),
@@ -1517,7 +1517,7 @@ class TestDetectHardware:
         assert cores == 12
 
     def test_get_system_ram_uses_psutil_when_available(self) -> None:
-        from file_organizer.core.hardware_profile import _get_system_ram
+        from core.hardware_profile import _get_system_ram
 
         fake_psutil = SimpleNamespace(
             virtual_memory=MagicMock(return_value=SimpleNamespace(total=32 * 1024**3))
@@ -1530,7 +1530,7 @@ class TestDetectHardware:
         fake_psutil.virtual_memory.assert_called_once_with()
 
     def test_get_system_ram_darwin_fallback_uses_sysctl(self) -> None:
-        from file_organizer.core.hardware_profile import _get_system_ram
+        from core.hardware_profile import _get_system_ram
 
         sysctl_result = MagicMock(returncode=0, stdout="17179869184")
 
@@ -1544,7 +1544,7 @@ class TestDetectHardware:
         assert ram == 17179869184
 
     def test_get_system_ram_linux_proc_meminfo_fallback(self) -> None:
-        from file_organizer.core.hardware_profile import _get_system_ram
+        from core.hardware_profile import _get_system_ram
 
         with (
             patch.dict("sys.modules", {"psutil": None}),
@@ -1556,7 +1556,7 @@ class TestDetectHardware:
         assert ram == 2048 * 1024
 
     def test_detect_amd_default_name_with_missing_rows(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_amd
+        from core.hardware_profile import _detect_amd
 
         name_result = MagicMock(returncode=0, stdout="GPU,Name\n")
         mem_result = MagicMock(returncode=0, stdout="VRAM\n")
@@ -1568,7 +1568,7 @@ class TestDetectHardware:
         assert vram == 0
 
     def test_detect_amd_invalid_vram_keeps_name_and_zero_vram(self) -> None:
-        from file_organizer.core.hardware_profile import _detect_amd
+        from core.hardware_profile import _detect_amd
 
         name_result = MagicMock(returncode=0, stdout="GPU,Name\nRadeon Pro,foo\n")
         mem_result = MagicMock(returncode=0, stdout="VRAM\nnot-a-number,foo\n")
@@ -1580,21 +1580,19 @@ class TestDetectHardware:
         assert vram == 0
 
     def test_detect_hardware_apple_mps_detected(self) -> None:
-        from file_organizer.core.hardware_profile import GpuType, detect_hardware
+        from core.hardware_profile import GpuType, detect_hardware
 
         with (
-            patch("file_organizer.core.hardware_profile._detect_nvidia", return_value=(None, 0)),
+            patch("core.hardware_profile._detect_nvidia", return_value=(None, 0)),
             patch(
-                "file_organizer.core.hardware_profile._detect_apple_mps",
+                "core.hardware_profile._detect_apple_mps",
                 return_value=("Apple M2 Pro", 32 * 1024**3),
             ),
             patch(
-                "file_organizer.core.hardware_profile._detect_amd", return_value=("unused", 1)
+                "core.hardware_profile._detect_amd", return_value=("unused", 1)
             ) as mock_detect_amd,
-            patch(
-                "file_organizer.core.hardware_profile._get_system_ram", return_value=32 * 1024**3
-            ),
-            patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=10),
+            patch("core.hardware_profile._get_system_ram", return_value=32 * 1024**3),
+            patch("core.hardware_profile._get_cpu_cores", return_value=10),
             patch("platform.system", return_value="Darwin"),
             patch("platform.machine", return_value="arm64"),
         ):
@@ -1606,19 +1604,17 @@ class TestDetectHardware:
         mock_detect_amd.assert_not_called()
 
     def test_detect_hardware_amd_detected(self) -> None:
-        from file_organizer.core.hardware_profile import GpuType, detect_hardware
+        from core.hardware_profile import GpuType, detect_hardware
 
         with (
-            patch("file_organizer.core.hardware_profile._detect_nvidia", return_value=(None, 0)),
-            patch("file_organizer.core.hardware_profile._detect_apple_mps", return_value=(None, 0)),
+            patch("core.hardware_profile._detect_nvidia", return_value=(None, 0)),
+            patch("core.hardware_profile._detect_apple_mps", return_value=(None, 0)),
             patch(
-                "file_organizer.core.hardware_profile._detect_amd",
+                "core.hardware_profile._detect_amd",
                 return_value=("Radeon 7900", 24 * 1024**3),
             ) as mock_detect_amd,
-            patch(
-                "file_organizer.core.hardware_profile._get_system_ram", return_value=64 * 1024**3
-            ),
-            patch("file_organizer.core.hardware_profile._get_cpu_cores", return_value=16),
+            patch("core.hardware_profile._get_system_ram", return_value=64 * 1024**3),
+            patch("core.hardware_profile._get_cpu_cores", return_value=16),
             patch("platform.system", return_value="Linux"),
             patch("platform.machine", return_value="x86_64"),
         ):
@@ -1637,7 +1633,7 @@ class TestDetectHardware:
 
 class TestDaemonSchedulerTasks:
     def test_schedule_task_added(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         scheduler.schedule_task("test", 60.0, lambda: None)
@@ -1645,21 +1641,21 @@ class TestDaemonSchedulerTasks:
         assert scheduler.task_count == 1
 
     def test_schedule_zero_interval_raises(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         with pytest.raises(ValueError):
             scheduler.schedule_task("bad", 0.0, lambda: None)
 
     def test_schedule_negative_interval_raises(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         with pytest.raises(ValueError):
             scheduler.schedule_task("neg", -1.0, lambda: None)
 
     def test_cancel_existing_task(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         scheduler.schedule_task("task1", 5.0, lambda: None)
@@ -1668,14 +1664,14 @@ class TestDaemonSchedulerTasks:
         assert "task1" not in scheduler.task_names
 
     def test_cancel_nonexistent_task_returns_false(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         result = scheduler.cancel_task("ghost")
         assert result is False
 
     def test_replace_existing_task(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         cb1 = MagicMock()
@@ -1688,7 +1684,7 @@ class TestDaemonSchedulerTasks:
 
 class TestDaemonSchedulerRunning:
     def test_run_in_background_starts(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         scheduler.run_in_background()
@@ -1699,7 +1695,7 @@ class TestDaemonSchedulerRunning:
         assert scheduler.is_running is False
 
     def test_run_in_background_twice_raises(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         scheduler.run_in_background()
@@ -1710,13 +1706,13 @@ class TestDaemonSchedulerRunning:
             scheduler.stop()
 
     def test_stop_when_not_running_is_safe(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         scheduler.stop()  # must not raise
 
     def test_task_fired_when_interval_elapsed(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         called = threading.Event()
 
@@ -1732,7 +1728,7 @@ class TestDaemonSchedulerRunning:
             scheduler.stop()
 
     def test_task_exception_does_not_stop_scheduler(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         call_count = [0]
 
@@ -1754,7 +1750,7 @@ class TestDaemonSchedulerRunning:
             scheduler.stop()
 
     def test_blocking_run_stops_on_event(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         scheduler.schedule_task("noop", 60.0, lambda: None)
@@ -1771,19 +1767,19 @@ class TestDaemonSchedulerRunning:
         assert run_finished.wait(timeout=3.0), "run() did not stop within 3s"
 
     def test_task_count_zero_initially(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         assert scheduler.task_count == 0
 
     def test_task_names_empty_initially(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         scheduler = DaemonScheduler()
         assert scheduler.task_names == []
 
     def test_tick_skips_task_when_interval_not_elapsed(self) -> None:
-        from file_organizer.daemon.scheduler import DaemonScheduler
+        from daemon.scheduler import DaemonScheduler
 
         callback = MagicMock()
         scheduler = DaemonScheduler()
@@ -1802,8 +1798,8 @@ class TestDaemonSchedulerRunning:
 class TestDaemonServiceAdditional:
     def test_scheduler_task_count_after_start(self) -> None:
         """DaemonService registers default tasks on start."""
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -1814,8 +1810,8 @@ class TestDaemonServiceAdditional:
             daemon.stop()
 
     def test_scheduler_task_names_registered(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -1827,8 +1823,8 @@ class TestDaemonServiceAdditional:
             daemon.stop()
 
     def test_uptime_increases_over_time(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -1844,8 +1840,8 @@ class TestDaemonServiceAdditional:
             daemon.stop()
 
     def test_files_processed_starts_at_zero(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -1855,8 +1851,8 @@ class TestDaemonServiceAdditional:
             daemon.stop()
 
     def test_on_stop_callback_invoked_after_stop(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         stop_called = threading.Event()
@@ -1869,8 +1865,8 @@ class TestDaemonServiceAdditional:
         """_handle_signal should write to the wakeup pipe without raising."""
         import os
 
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         r, w = os.pipe()
@@ -1886,16 +1882,16 @@ class TestDaemonServiceAdditional:
 
     def test_handle_signal_when_pipe_none(self) -> None:
         """_handle_signal is a no-op when no pipe is set."""
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon._sig_wakeup_w = None
         daemon._handle_signal(15, None)  # must not raise
 
     def test_cleanup_calls_on_stop_callback(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         cb = MagicMock()

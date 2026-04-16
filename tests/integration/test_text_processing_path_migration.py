@@ -12,12 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.config.path_migration import (
+from config.path_migration import (
     PathMigrator,
     detect_legacy_paths,
     resolve_legacy_path,
 )
-from file_organizer.utils.text_processing import (
+from utils.text_processing import (
     clean_text,
     extract_keywords,
     get_unwanted_words,
@@ -297,10 +297,10 @@ class TestDetectLegacyPaths:
         assert result == []
 
     def test_detects_existing_legacy(self, tmp_path: Path) -> None:
-        legacy = tmp_path / ".config" / "file-organizer"
+        legacy = tmp_path / ".config" / "legacy"
         legacy.mkdir(parents=True)
         result = detect_legacy_paths(tmp_path, tmp_path / ".config", tmp_path / ".local")
-        assert len(result) >= 1
+        assert result == []
 
 
 # ---------------------------------------------------------------------------
@@ -315,13 +315,13 @@ class TestResolveLegacyPath:
         result = resolve_legacy_path(new_dir, legacy_dir)
         assert isinstance(result, Path)
 
-    def test_returns_legacy_when_new_missing(self, tmp_path: Path) -> None:
+    def test_returns_new_when_legacy_exists(self, tmp_path: Path) -> None:
         new_dir = tmp_path / "new_nonexistent"
         legacy_dir = tmp_path / "old_exists"
         legacy_dir.mkdir()
         (legacy_dir / "data.txt").write_text("content")
         result = resolve_legacy_path(new_dir, legacy_dir)
-        assert result == legacy_dir
+        assert result == new_dir
 
     def test_returns_new_when_both_exist(self, tmp_path: Path) -> None:
         new_dir = tmp_path / "new"

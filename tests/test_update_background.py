@@ -6,10 +6,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from file_organizer.config.schema import AppConfig, UpdateSettings
-from file_organizer.updater.background import maybe_check_for_updates
-from file_organizer.updater.manager import UpdateStatus
-from file_organizer.updater.state import UpdateState, UpdateStateStore
+from config.schema import AppConfig, UpdateSettings
+from updater.background import maybe_check_for_updates
+from updater.manager import UpdateStatus
+from updater.state import UpdateState, UpdateStateStore
 
 
 class DummyStore(UpdateStateStore):
@@ -45,7 +45,7 @@ def test_skips_when_interval_not_due(monkeypatch: pytest.MonkeyPatch) -> None:
     store = DummyStore(state)
 
     monkeypatch.setattr(
-        "file_organizer.updater.background.ConfigManager.load",
+        "updater.background.ConfigManager.load",
         lambda *_args, **_kwargs: _stub_config(UpdateSettings(interval_hours=24)),
     )
 
@@ -61,7 +61,7 @@ def test_runs_when_due_and_records(monkeypatch: pytest.MonkeyPatch) -> None:
     store = DummyStore(state)
 
     monkeypatch.setattr(
-        "file_organizer.updater.background.ConfigManager.load",
+        "updater.background.ConfigManager.load",
         lambda *_args, **_kwargs: _stub_config(
             UpdateSettings(interval_hours=24, include_prereleases=True, repo="owner/repo")
         ),
@@ -81,7 +81,7 @@ def test_runs_when_due_and_records(monkeypatch: pytest.MonkeyPatch) -> None:
                 latest_version="2.0.0",
             )
 
-    monkeypatch.setattr("file_organizer.updater.background.UpdateManager", DummyManager)
+    monkeypatch.setattr("updater.background.UpdateManager", DummyManager)
 
     status = maybe_check_for_updates(state_store=store, now=now)
     assert status is not None

@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 runner = CliRunner()
 
@@ -20,7 +20,7 @@ runner = CliRunner()
 
 @pytest.mark.unit
 class TestModelList:
-    """Tests for ``file-organizer model list``."""
+    """Tests for ``fo model list``."""
 
     def test_list_help(self) -> None:
         result = runner.invoke(app, ["model", "list", "--help"])
@@ -45,7 +45,7 @@ class TestModelList:
 
 @pytest.mark.unit
 class TestModelPull:
-    """Tests for ``file-organizer model pull``."""
+    """Tests for ``fo model pull``."""
 
     def test_pull_help(self) -> None:
         result = runner.invoke(app, ["model", "pull", "--help"])
@@ -65,7 +65,7 @@ class TestModelPull:
 
 @pytest.mark.unit
 class TestModelCache:
-    """Tests for ``file-organizer model cache``."""
+    """Tests for ``fo model cache``."""
 
     def test_cache_help(self) -> None:
         result = runner.invoke(app, ["model", "cache", "--help"])

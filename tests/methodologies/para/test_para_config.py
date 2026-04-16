@@ -12,11 +12,11 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from file_organizer.methodologies.para.categories import (
+from methodologies.para.categories import (
     CategorizationResult,
     PARACategory,
 )
-from file_organizer.methodologies.para.config import (
+from methodologies.para.config import (
     AIHeuristicConfig,
     CategoryThresholds,
     HeuristicWeights,
@@ -279,7 +279,7 @@ class TestLoadConfig:
     def test_load_config_none_uses_defaults(self) -> None:
         """When config_path is None and no default files exist, returns defaults."""
         with patch(
-            "file_organizer.methodologies.para.config._get_para_config_dir",
+            "methodologies.para.config._get_para_config_dir",
             return_value=Path("/nonexistent/dir"),
         ):
             cfg = load_config(None)
@@ -293,7 +293,7 @@ class TestLoadConfig:
             yaml.dump(data, f)
 
         with patch(
-            "file_organizer.methodologies.para.config._get_para_config_dir",
+            "methodologies.para.config._get_para_config_dir",
             return_value=tmp_path,
         ):
             cfg = load_config(None)
@@ -308,10 +308,10 @@ class TestLoadConfig:
 
         with (
             patch(
-                "file_organizer.methodologies.para.config._get_para_config_dir",
+                "methodologies.para.config._get_para_config_dir",
                 return_value=Path("/nonexistent/dir"),
             ),
-            patch("file_organizer.methodologies.para.config.Path.cwd", return_value=tmp_path),
+            patch("methodologies.para.config.Path.cwd", return_value=tmp_path),
         ):
             cfg = load_config(None)
             assert cfg.area_dir == "CWD_Areas"
@@ -324,16 +324,14 @@ class TestLoadConfig:
             yaml.dump(data, f)
 
         # Mock the module's __file__ path to be in tmp_path
-        import file_organizer.methodologies.para.config as config_module
+        import methodologies.para.config as config_module
 
         with (
             patch(
-                "file_organizer.methodologies.para.config._get_para_config_dir",
+                "methodologies.para.config._get_para_config_dir",
                 return_value=Path("/nonexistent/dir"),
             ),
-            patch(
-                "file_organizer.methodologies.para.config.Path.cwd", return_value=Path("/nowhere")
-            ),
+            patch("methodologies.para.config.Path.cwd", return_value=Path("/nowhere")),
             patch.object(config_module, "__file__", str(tmp_path / "config.py")),
         ):
             cfg = load_config(None)
@@ -341,15 +339,15 @@ class TestLoadConfig:
 
     def test_load_config_all_paths_missing(self) -> None:
         """When all default paths are missing, returns DEFAULT_CONFIG."""
-        import file_organizer.methodologies.para.config as config_module
+        import methodologies.para.config as config_module
 
         with (
             patch(
-                "file_organizer.methodologies.para.config._get_para_config_dir",
+                "methodologies.para.config._get_para_config_dir",
                 return_value=Path("/nonexistent1"),
             ),
             patch(
-                "file_organizer.methodologies.para.config.Path.cwd",
+                "methodologies.para.config.Path.cwd",
                 return_value=Path("/nonexistent2"),
             ),
             patch.object(config_module, "__file__", "/nonexistent3/config.py"),
@@ -361,11 +359,11 @@ class TestLoadConfig:
 
     def test_get_para_config_dir_lazy_import(self) -> None:
         """_get_para_config_dir performs lazy import to avoid circular deps."""
-        from file_organizer.methodologies.para.config import _get_para_config_dir
+        from methodologies.para.config import _get_para_config_dir
 
         # This should successfully import and call get_config_dir
         result = _get_para_config_dir()
         # Verify it returns a Path object with expected properties
         assert isinstance(result, Path)
         assert result.is_absolute()
-        assert "file-organizer" in str(result)
+        assert "fo" in str(result)

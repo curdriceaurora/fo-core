@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelType
-from file_organizer.services.vision_processor import ProcessedImage, VisionProcessor
+from models.base import ModelType
+from services.vision_processor import ProcessedImage, VisionProcessor
 
 pytestmark = pytest.mark.unit
 
@@ -74,8 +74,8 @@ class TestVisionProcessorInit:
         assert processor.vision_model is mock_vision_model
         assert processor._owns_model is False
 
-    @patch("file_organizer.services.vision_processor.get_vision_model")
-    @patch("file_organizer.services.vision_processor.VisionModel")
+    @patch("services.vision_processor.get_vision_model")
+    @patch("services.vision_processor.VisionModel")
     def test_init_creates_own_model(
         self, mock_vm_cls: MagicMock, mock_get_vision_model: MagicMock
     ) -> None:
@@ -583,10 +583,10 @@ class TestVisionProcessorLifecycle:
     def test_cleanup_owns_model(self, mock_vision_model: MagicMock) -> None:
         """Test cleanup calls model cleanup when processor owns the model."""
         mock_model = MagicMock()
-        with patch("file_organizer.services.vision_processor.VisionModel") as mock_cls:
+        with patch("services.vision_processor.VisionModel") as mock_cls:
             mock_cls.get_default_config.return_value = MagicMock()
             with patch(
-                "file_organizer.services.vision_processor.get_vision_model",
+                "services.vision_processor.get_vision_model",
                 return_value=mock_model,
             ):
                 processor = VisionProcessor()

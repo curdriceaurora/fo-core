@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.services import ProcessedFile
+from core.organizer import FileOrganizer
+from services import ProcessedFile
 
 
 @pytest.mark.unit
@@ -31,7 +31,7 @@ class TestParallelExecution:
         output_dir = tmp_path / "output"
 
         # Mock TextProcessor to simulate work and return valid results
-        with patch("file_organizer.core.organizer.TextProcessor") as MockProcessorCls:
+        with patch("core.organizer.TextProcessor") as MockProcessorCls:
             mock_processor = MockProcessorCls.return_value
 
             def side_effect(path: Path) -> ProcessedFile:
@@ -77,7 +77,7 @@ class TestParallelExecution:
         """Test that individual failures don't crash the batch."""
         output_dir = tmp_path / "output_err"
 
-        with patch("file_organizer.core.organizer.TextProcessor") as MockProcessorCls:
+        with patch("core.organizer.TextProcessor") as MockProcessorCls:
             mock_processor = MockProcessorCls.return_value
 
             def side_effect(path: Path) -> ProcessedFile:

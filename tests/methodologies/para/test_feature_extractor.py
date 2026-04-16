@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.ai.feature_extractor import (
+from methodologies.para.ai.feature_extractor import (
     FeatureExtractor,
 )
 
@@ -535,7 +535,7 @@ class TestEdgeCasesAndErrorHandling:
         """Should filter out matches that are empty or >= 200 chars."""
         import re
 
-        import file_organizer.methodologies.para.ai.feature_extractor as fe_module
+        import methodologies.para.ai.feature_extractor as fe_module
 
         # Create custom patterns that can match empty or long strings
         custom_patterns = [
@@ -570,7 +570,7 @@ class TestEdgeCasesAndErrorHandling:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should use st_birthtime on macOS platform (try/except AttributeError path)."""
-        import file_organizer.methodologies.para.ai.feature_extractor as fe_module
+        import methodologies.para.ai.feature_extractor as fe_module
 
         class MockStat:
             def __init__(self, *, now: float) -> None:
@@ -601,7 +601,7 @@ class TestEdgeCasesAndErrorHandling:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should use st_ctime on Windows platform (no st_birthtime → AttributeError)."""
-        import file_organizer.methodologies.para.ai.feature_extractor as fe_module
+        import methodologies.para.ai.feature_extractor as fe_module
 
         class MockStat:
             def __init__(self, *, now: float) -> None:
@@ -632,7 +632,7 @@ class TestEdgeCasesAndErrorHandling:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should use st_mtime on Linux platform (no st_birthtime → AttributeError)."""
-        import file_organizer.methodologies.para.ai.feature_extractor as fe_module
+        import methodologies.para.ai.feature_extractor as fe_module
 
         class MockStat:
             def __init__(self, *, now: float) -> None:

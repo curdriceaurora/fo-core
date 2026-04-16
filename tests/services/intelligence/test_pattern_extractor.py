@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.services.intelligence.pattern_extractor import (
+from services.intelligence.pattern_extractor import (
     NamingPattern,
     NamingPatternExtractor,
     PatternElement,

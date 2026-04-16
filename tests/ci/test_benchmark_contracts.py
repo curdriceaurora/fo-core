@@ -9,8 +9,8 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli import benchmark as benchmark_cli
-from file_organizer.cli.main import app
+from cli import benchmark as benchmark_cli
+from cli.main import app
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_PATH = REPO_ROOT / "tests" / "fixtures" / "benchmark_baseline.json"
@@ -404,7 +404,7 @@ def test_audio_synthesized_metadata_fallback_is_explicit_in_json_output(tmp_path
     audio_file.write_bytes(b"RIFF\x00\x00\x00\x00WAVE")
 
     with patch(
-        "file_organizer.services.audio.metadata_extractor.AudioMetadataExtractor.extract",
+        "services.audio.metadata_extractor.AudioMetadataExtractor.extract",
         side_effect=ImportError("optional audio extractors missing"),
     ):
         result = RUNNER.invoke(
@@ -514,5 +514,5 @@ def test_benchmark_docs_describe_suite_specific_behavior() -> None:
     assert "runner_profile_version" in cli_doc
     assert "synthetic metadata only when optional extractor dependencies are unavailable" in cli_doc
 
-    assert "file-organizer benchmark run ~/test-files --suite pipeline --json" in perf_doc
-    assert "file-organizer benchmark run ~/test-files --suite e2e --json" in perf_doc
+    assert "fo benchmark run ~/test-files --suite pipeline --json" in perf_doc
+    assert "fo benchmark run ~/test-files --suite e2e --json" in perf_doc

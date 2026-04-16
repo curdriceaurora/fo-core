@@ -1,7 +1,7 @@
 """Branch-coverage tests for ResumableProcessor.
 
 Targets the 79 lines missing from the 16% baseline in
-src/file_organizer/parallel/resume.py.  Every test class carries
+src/parallel/resume.py.  Every test class carries
 @pytest.mark.integration as requested.
 """
 
@@ -12,9 +12,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.parallel.models import Checkpoint, JobState, JobStatus
-from file_organizer.parallel.result import FileResult
-from file_organizer.parallel.resume import ResumableProcessor
+from parallel.models import Checkpoint, JobState, JobStatus
+from parallel.result import FileResult
+from parallel.resume import ResumableProcessor
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -452,7 +452,7 @@ class TestProcessAndCheckpointBranches:
         # Simulate time jumping forward so the elapsed >= 5.0 branch fires on f2
         time_values = iter([0.0, 6.0, 6.0])
 
-        with patch("file_organizer.parallel.resume.time.monotonic", side_effect=time_values):
+        with patch("parallel.resume.time.monotonic", side_effect=time_values):
             with patch.object(
                 processor._processor,
                 "process_batch_iter",

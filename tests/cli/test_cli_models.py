@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.unit]
 
@@ -25,7 +25,7 @@ runner = CliRunner()
 class TestModelList:
     """Tests for ``model list``."""
 
-    @patch("file_organizer.models.model_manager.ModelManager")
+    @patch("models.model_manager.ModelManager")
     def test_list_all_models(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -34,7 +34,7 @@ class TestModelList:
         assert result.exit_code == 0
         mock_mgr.display_models.assert_called_once_with(type_filter=None)
 
-    @patch("file_organizer.models.model_manager.ModelManager")
+    @patch("models.model_manager.ModelManager")
     def test_list_filter_by_type(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -52,7 +52,7 @@ class TestModelList:
 class TestModelPull:
     """Tests for ``model pull``."""
 
-    @patch("file_organizer.models.model_manager.ModelManager")
+    @patch("models.model_manager.ModelManager")
     def test_pull_success(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -62,7 +62,7 @@ class TestModelPull:
         assert result.exit_code == 0
         mock_mgr.pull_model.assert_called_once_with(name="qwen2.5:3b")
 
-    @patch("file_organizer.models.model_manager.ModelManager")
+    @patch("models.model_manager.ModelManager")
     def test_pull_failure(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -81,7 +81,7 @@ class TestModelPull:
 class TestModelCache:
     """Tests for ``model cache``."""
 
-    @patch("file_organizer.models.model_manager.ModelManager")
+    @patch("models.model_manager.ModelManager")
     def test_cache_with_data(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -94,7 +94,7 @@ class TestModelCache:
         assert result.exit_code == 0
         assert "2.5 GB" in result.output
 
-    @patch("file_organizer.models.model_manager.ModelManager")
+    @patch("models.model_manager.ModelManager")
     def test_cache_empty(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr

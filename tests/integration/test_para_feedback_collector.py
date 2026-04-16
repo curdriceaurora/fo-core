@@ -23,7 +23,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 def _make_suggestion(category: Any, confidence: float = 0.8) -> Any:
     """Build a minimal object that quacks like PARASuggestion."""
-    from file_organizer.methodologies.para.ai.suggestion_engine import PARASuggestion
+    from methodologies.para.ai.suggestion_engine import PARASuggestion
 
     return PARASuggestion(category=category, confidence=confidence)
 
@@ -38,8 +38,8 @@ class TestFeedbackEvent:
 
     def test_to_dict_round_trip(self, tmp_path: Path) -> None:
         """FeedbackEvent.to_dict() / from_dict() round-trips all fields."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackEvent
+        from methodologies.para.categories import PARACategory
 
         file_path = tmp_path / "docs" / "report.pdf"
         ts = datetime(2024, 6, 1, 12, 0, 0, tzinfo=UTC)
@@ -76,8 +76,8 @@ class TestFeedbackEvent:
 
     def test_timestamp_auto_set_when_none_is_not_possible(self) -> None:
         """timestamp has a default_factory so it is always set at construction."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackEvent
+        from methodologies.para.categories import PARACategory
 
         before = datetime.now(UTC)
         event = FeedbackEvent(
@@ -93,8 +93,8 @@ class TestFeedbackEvent:
 
     def test_post_init_sets_extension_from_file_path(self) -> None:
         """__post_init__ derives file_extension from file_path when not provided."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackEvent
+        from methodologies.para.categories import PARACategory
 
         event = FeedbackEvent(
             file_path=Path("/mock/projects/budget.xlsx"),
@@ -107,8 +107,8 @@ class TestFeedbackEvent:
 
     def test_post_init_sets_parent_directory_from_file_path(self) -> None:
         """__post_init__ derives parent_directory from file_path when not provided."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackEvent
+        from methodologies.para.categories import PARACategory
 
         event = FeedbackEvent(
             file_path=Path("/mock/invoices/q3.pdf"),
@@ -121,8 +121,8 @@ class TestFeedbackEvent:
 
     def test_post_init_does_not_overwrite_explicit_extension(self) -> None:
         """__post_init__ skips deriving fields when they are already supplied."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackEvent
+        from methodologies.para.categories import PARACategory
 
         event = FeedbackEvent(
             file_path=Path("/mock/data/file.pdf"),
@@ -144,8 +144,8 @@ class TestFeedbackEvent:
         file_path, so the final fields will reflect the path — this is the
         correct, expected behaviour.
         """
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackEvent
+        from methodologies.para.categories import PARACategory
 
         ts = datetime(2024, 1, 1, tzinfo=UTC)
         data = {
@@ -174,8 +174,8 @@ class TestFeedbackCollector:
 
     def test_record_acceptance_then_get_events(self, tmp_path: Path) -> None:
         """record_acceptance stores an event that get_events returns."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         collector = FeedbackCollector(storage_dir=tmp_path)
         suggestion = _make_suggestion(PARACategory.PROJECT, confidence=0.85)
@@ -191,8 +191,8 @@ class TestFeedbackCollector:
 
     def test_record_rejection_with_correction(self, tmp_path: Path) -> None:
         """record_rejection stores a rejection event with the corrected category."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         collector = FeedbackCollector(storage_dir=tmp_path)
         suggestion = _make_suggestion(PARACategory.PROJECT, confidence=0.65)
@@ -211,8 +211,8 @@ class TestFeedbackCollector:
 
     def test_get_accuracy_stats_counts(self, tmp_path: Path) -> None:
         """get_accuracy_stats reflects total, accepted, rejected counts and rate."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         collector = FeedbackCollector(storage_dir=tmp_path)
         sugg = _make_suggestion(PARACategory.AREA, confidence=0.7)
@@ -232,7 +232,7 @@ class TestFeedbackCollector:
 
     def test_get_accuracy_stats_empty(self, tmp_path: Path) -> None:
         """get_accuracy_stats returns zeroed AccuracyStats when no events exist."""
-        from file_organizer.methodologies.para.ai.feedback import AccuracyStats, FeedbackCollector
+        from methodologies.para.ai.feedback import AccuracyStats, FeedbackCollector
 
         collector = FeedbackCollector(storage_dir=tmp_path)
         stats = collector.get_accuracy_stats()
@@ -243,8 +243,8 @@ class TestFeedbackCollector:
 
     def test_clear_empties_events(self, tmp_path: Path) -> None:
         """clear() removes all events; subsequent get_events() returns empty list."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         collector = FeedbackCollector(storage_dir=tmp_path)
         sugg = _make_suggestion(PARACategory.PROJECT)
@@ -259,8 +259,8 @@ class TestFeedbackCollector:
 
     def test_persistence_across_instances(self, tmp_path: Path) -> None:
         """Events written by one FeedbackCollector are loaded by a new instance."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         collector1 = FeedbackCollector(storage_dir=tmp_path)
         sugg = _make_suggestion(PARACategory.ARCHIVE, confidence=0.9)
@@ -276,8 +276,8 @@ class TestFeedbackCollector:
 
     def test_ensure_loaded_lazy_and_idempotent(self, tmp_path: Path) -> None:
         """_ensure_loaded loads on first call; the _loaded flag prevents double-load."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         # Seed storage with one event
         seed = FeedbackCollector(storage_dir=tmp_path)
@@ -298,8 +298,8 @@ class TestFeedbackCollector:
 
     def test_multiple_events_persisted_and_loaded(self, tmp_path: Path) -> None:
         """Multiple events survive a write-load cycle with correct field values."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         collector = FeedbackCollector(storage_dir=tmp_path)
         sugg_proj = _make_suggestion(PARACategory.PROJECT, confidence=0.8)
@@ -322,8 +322,8 @@ class TestFeedbackCollector:
 
     def test_feedback_file_created_in_storage_dir(self, tmp_path: Path) -> None:
         """Recording an event creates feedback_events.json inside storage_dir."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         storage = tmp_path / "subdir"
         collector = FeedbackCollector(storage_dir=storage)
@@ -334,8 +334,8 @@ class TestFeedbackCollector:
 
     def test_accuracy_stats_confidence_averages(self, tmp_path: Path) -> None:
         """get_accuracy_stats computes per-acceptance/rejection confidence averages."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         collector = FeedbackCollector(storage_dir=tmp_path)
         sugg_high = _make_suggestion(PARACategory.PROJECT, confidence=0.9)
@@ -353,8 +353,8 @@ class TestFeedbackCollector:
 
     def test_per_category_accuracy_in_stats(self, tmp_path: Path) -> None:
         """get_accuracy_stats includes per-category accuracy dict."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackCollector
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackCollector
+        from methodologies.para.categories import PARACategory
 
         collector = FeedbackCollector(storage_dir=tmp_path)
         sugg = _make_suggestion(PARACategory.RESOURCE, confidence=0.8)
@@ -385,7 +385,7 @@ class TestPatternLearner:
         accepted: bool = True,
     ) -> list[Any]:
         """Return `count` FeedbackEvent objects for the given parameters."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent
+        from methodologies.para.ai.feedback import FeedbackEvent
 
         return [
             FeedbackEvent(
@@ -402,7 +402,7 @@ class TestPatternLearner:
 
     def test_learn_from_empty_events_returns_empty(self) -> None:
         """learn_from_feedback([]) returns an empty list."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.ai.feedback import PatternLearner
 
         learner = PatternLearner(min_occurrences=3)
         rules = learner.learn_from_feedback([])
@@ -410,8 +410,8 @@ class TestPatternLearner:
 
     def test_learn_extension_pattern_above_threshold(self) -> None:
         """Extension pattern emitted when occurrences >= min_occurrences."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner(min_occurrences=3)
         events = self._build_events(PARACategory.PROJECT, ".md", "work", count=4)
@@ -425,8 +425,8 @@ class TestPatternLearner:
 
     def test_learn_extension_pattern_below_threshold(self) -> None:
         """Extension pattern not emitted when occurrences < min_occurrences."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner(min_occurrences=5)
         events = self._build_events(PARACategory.AREA, ".pdf", "misc", count=3)
@@ -437,8 +437,8 @@ class TestPatternLearner:
 
     def test_learn_directory_pattern_above_threshold(self) -> None:
         """Directory pattern emitted when occurrences >= min_occurrences."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner(min_occurrences=3)
         events = self._build_events(PARACategory.RESOURCE, ".txt", "references", count=5)
@@ -453,8 +453,8 @@ class TestPatternLearner:
 
     def test_learn_mixed_acceptance_and_rejection_events(self) -> None:
         """Rejected events use the actual category, not suggested."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent, PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackEvent, PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner(min_occurrences=3)
 
@@ -494,7 +494,7 @@ class TestPatternLearner:
 
     def test_get_user_preferences_empty(self) -> None:
         """get_user_preferences returns zeroed dict for empty/None events."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.ai.feedback import PatternLearner
 
         learner = PatternLearner()
         prefs = learner.get_user_preferences(events=None)
@@ -505,8 +505,8 @@ class TestPatternLearner:
 
     def test_get_user_preferences_counts_categories(self) -> None:
         """get_user_preferences counts user's actual category choices."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner()
         events = self._build_events(
@@ -521,8 +521,8 @@ class TestPatternLearner:
 
     def test_get_user_preferences_override_patterns(self) -> None:
         """get_user_preferences lists rejection overrides with from/to fields."""
-        from file_organizer.methodologies.para.ai.feedback import FeedbackEvent, PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import FeedbackEvent, PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner()
         events = [
@@ -547,9 +547,9 @@ class TestPatternLearner:
 
     def test_adjust_weights_below_min_occurrences_returns_defaults(self) -> None:
         """adjust_weights returns default HeuristicWeights when events < min_occurrences."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
-        from file_organizer.methodologies.para.config import HeuristicWeights
+        from methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.categories import PARACategory
+        from methodologies.para.config import HeuristicWeights
 
         learner = PatternLearner(min_occurrences=5)
         events = self._build_events(PARACategory.PROJECT, ".md", "work", count=2)
@@ -564,8 +564,8 @@ class TestPatternLearner:
 
     def test_adjust_weights_high_acceptance_boosts_content(self) -> None:
         """High acceptance rate (> 80%) increases content weight."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner(min_occurrences=3)
         # 5 acceptances → 100% acceptance rate
@@ -584,8 +584,8 @@ class TestPatternLearner:
         Regardless, the resulting weights must still normalise to 1.0 and differ
         from what high-acceptance events produce.
         """
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner(min_occurrences=3)
 
@@ -613,8 +613,8 @@ class TestPatternLearner:
 
     def test_adjust_weights_sum_to_one(self) -> None:
         """Adjusted weights always sum to 1.0 (within floating point tolerance)."""
-        from file_organizer.methodologies.para.ai.feedback import PatternLearner
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.feedback import PatternLearner
+        from methodologies.para.categories import PARACategory
 
         learner = PatternLearner(min_occurrences=3)
         events = self._build_events(PARACategory.PROJECT, ".md", "proj", count=6, accepted=True)

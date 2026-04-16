@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.analytics import MetricsCalculator
+from services.analytics import MetricsCalculator
 
 
 @pytest.fixture

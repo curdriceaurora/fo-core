@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from file_organizer.services.deduplication.index import (
+from services.deduplication.index import (
     DuplicateGroup,
     DuplicateIndex,
     FileMetadata,

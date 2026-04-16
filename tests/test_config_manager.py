@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from file_organizer.config.manager import ConfigManager
-from file_organizer.config.schema import AppConfig, ModelPreset, UpdateSettings
-from file_organizer.models.base import DeviceType, ModelType
+from config.manager import ConfigManager
+from config.schema import AppConfig, ModelPreset, UpdateSettings
+from models.base import DeviceType, ModelType
 
 # ---------------------------------------------------------------------------
 # AppConfig / ModelPreset defaults

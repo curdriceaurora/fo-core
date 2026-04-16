@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.config import (
+from methodologies.johnny_decimal.config import (
     ConfigBuilder,
     JohnnyDecimalConfig,
     create_default_config,

@@ -14,17 +14,17 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.ai.feedback import (
+from methodologies.para.ai.feedback import (
     FeedbackCollector,
     PatternLearner,
 )
-from file_organizer.methodologies.para.ai.file_mover import PARAFileMover
-from file_organizer.methodologies.para.ai.suggestion_engine import (
+from methodologies.para.ai.file_mover import PARAFileMover
+from methodologies.para.ai.suggestion_engine import (
     PARASuggestion,
     PARASuggestionEngine,
 )
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
 
 
 @pytest.fixture
@@ -214,7 +214,7 @@ class TestFullPipeline:
     ) -> None:
         """PatternLearner should extract rules from accumulated feedback."""
         # Record several PDF -> RESOURCE feedbacks
-        from file_organizer.methodologies.para.ai.suggestion_engine import PARASuggestion
+        from methodologies.para.ai.suggestion_engine import PARASuggestion
 
         for i in range(5):
             suggestion = PARASuggestion(

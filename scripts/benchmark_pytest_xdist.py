@@ -109,7 +109,7 @@ SLICES: Final[dict[str, SliceDefinition]] = {
             "tests/",
             "-m",
             "ci",
-            "--cov=file_organizer",
+            "--cov=src",
             "--cov-report=xml",
             "--timeout=30",
             "--override-ini=addopts=",
@@ -120,7 +120,7 @@ SLICES: Final[dict[str, SliceDefinition]] = {
         description="Mainline-representative full suite with coverage",
         pytest_args=(
             "tests/",
-            "--cov=file_organizer",
+            "--cov=src",
             "--cov-fail-under=95",
             "--cov-report=xml",
             "--timeout=30",

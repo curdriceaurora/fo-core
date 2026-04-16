@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.profile_manager import ProfileManager
-from file_organizer.services.intelligence.profile_merger import ProfileMerger
-from file_organizer.services.intelligence.template_manager import TemplateManager
+from services.intelligence.profile_manager import ProfileManager
+from services.intelligence.profile_merger import ProfileMerger
+from services.intelligence.template_manager import TemplateManager
 
 
 @pytest.fixture
@@ -100,7 +100,7 @@ def test_merge_with_recent_strategy(merger, profile_manager, sample_profiles):
     from datetime import UTC, datetime, timedelta
     from unittest.mock import patch
 
-    import file_organizer.services.intelligence.profile_manager as _pm_mod
+    import services.intelligence.profile_manager as _pm_mod
 
     # Make profile2's update appear 1 hour in the future so it's definitely newer
     future_time = datetime.now(UTC) + timedelta(hours=1)

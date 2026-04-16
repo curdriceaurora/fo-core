@@ -176,21 +176,21 @@ config system.
 
 **Bad**:
 ```python
-TRASH_DIR = Path("~/.config/file-organizer/trash").expanduser()
+TRASH_DIR = Path("~/.config/fo/trash").expanduser()
 MAX_RETRIES = 3  # scattered throughout codebase
 model = OllamaModel("qwen2.5:3b-instruct-q4_K_M")
 ```
 
 **Good**:
 ```python
-from file_organizer.config import ConfigManager
+from config import ConfigManager
 trash_dir = ConfigManager.get_path("trash")
 max_retries = config.max_retries  # from AppConfig
 model = OllamaModel(config.text_model)
 ```
 
 **Pre-generation check**: Before hardcoding any string/number, ask:
-*"Does `ConfigManager` or `AppConfig` (`src/file_organizer/config/schema.py`) already own this value?"*
+*"Does `ConfigManager` or `AppConfig` (`src/config/schema.py`) already own this value?"*
 
 ---
 

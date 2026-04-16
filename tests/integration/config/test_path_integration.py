@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.config.path_manager import PathManager
+from config.path_manager import PathManager
 
 
 def test_path_manager_initialization():
@@ -66,9 +66,9 @@ def test_all_paths_follow_xdg_structure(tmp_path):
         data_path_str = str(path_manager.data_dir)
         state_path_str = str(path_manager.state_dir)
 
-        assert "file-organizer" in config_path_str
-        assert "file-organizer" in data_path_str
-        assert "file-organizer" in state_path_str
+        assert "fo" in config_path_str
+        assert "fo" in data_path_str
+        assert "fo" in state_path_str
 
         # All should be under user directory
         assert str(tmp_path) in config_path_str

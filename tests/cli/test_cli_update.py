@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.unit]
 
@@ -66,7 +66,7 @@ def _make_install_result(
 class TestUpdateCheck:
     """Tests for ``update check``."""
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_check_up_to_date(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -76,7 +76,7 @@ class TestUpdateCheck:
         assert result.exit_code == 0
         assert "up to date" in result.output.lower()
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_check_update_available(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -87,7 +87,7 @@ class TestUpdateCheck:
         assert result.exit_code == 0
         assert "Update available" in result.output or "available" in result.output.lower()
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_check_with_repo_option(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -100,7 +100,7 @@ class TestUpdateCheck:
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(repo="myorg/myrepo", include_prereleases=False)
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_check_with_prerelease(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -109,7 +109,7 @@ class TestUpdateCheck:
         result = runner.invoke(app, ["update", "check", "--pre"])
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(
-            repo="curdriceaurora/Local-File-Organizer",
+            repo="curdriceaurora/fo-core",
             include_prereleases=True,
         )
 
@@ -122,7 +122,7 @@ class TestUpdateCheck:
 class TestUpdateInstall:
     """Tests for ``update install``."""
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_install_up_to_date(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -132,7 +132,7 @@ class TestUpdateInstall:
         assert result.exit_code == 0
         assert "up to date" in result.output.lower()
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_install_success(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -144,7 +144,7 @@ class TestUpdateInstall:
         assert result.exit_code == 0
         assert "Updated successfully" in result.output
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_install_failure(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -156,7 +156,7 @@ class TestUpdateInstall:
         assert result.exit_code == 1
         assert "Download failed" in result.output
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_install_no_result(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -166,7 +166,7 @@ class TestUpdateInstall:
         assert result.exit_code == 1
         assert "failed" in result.output.lower()
 
-    @patch("file_organizer.updater.UpdateManager")
+    @patch("updater.UpdateManager")
     def test_install_dry_run(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -187,7 +187,7 @@ class TestUpdateInstall:
 class TestUpdateRollback:
     """Tests for ``update rollback``."""
 
-    @patch("file_organizer.updater.UpdateInstaller")
+    @patch("updater.UpdateInstaller")
     def test_rollback_success(self, mock_cls: MagicMock) -> None:
         mock_installer = MagicMock()
         mock_cls.return_value = mock_installer
@@ -197,7 +197,7 @@ class TestUpdateRollback:
         assert result.exit_code == 0
         assert "Rolled back" in result.output
 
-    @patch("file_organizer.updater.UpdateInstaller")
+    @patch("updater.UpdateInstaller")
     def test_rollback_no_backup(self, mock_cls: MagicMock) -> None:
         mock_installer = MagicMock()
         mock_cls.return_value = mock_installer

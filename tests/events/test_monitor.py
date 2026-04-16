@@ -12,13 +12,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.events.monitor import (
+from events.monitor import (
     ConsumerLag,
     EventMonitor,
     StreamStats,
     _parse_entry_timestamp,
 )
-from file_organizer.events.stream import RedisStreamManager
+from events.stream import RedisStreamManager
 
 # --- Fixtures ---
 
@@ -34,7 +34,7 @@ def mock_redis_client() -> MagicMock:
 @pytest.fixture
 def connected_manager(mock_redis_client: MagicMock) -> RedisStreamManager:
     """Create a connected RedisStreamManager with mocked Redis."""
-    with patch("file_organizer.events.stream.redis") as mock_redis_module:
+    with patch("events.stream.redis") as mock_redis_module:
         mock_redis_module.Redis.from_url.return_value = mock_redis_client
         manager = RedisStreamManager()
         manager.connect()

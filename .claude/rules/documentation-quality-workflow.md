@@ -25,9 +25,9 @@ This prevents 90% of errors before they're generated.
 |-----------|----------------|
 | Coverage gates | `pyproject.toml` + `.github/workflows/ci.yml` (multiple gates — see `ci-generation-patterns.md` C4) |
 | CI behavior | `.github/workflows/ci.yml` — read the actual job steps |
-| Method/class exists | `rg "def method_name\|class ClassName" src/file_organizer/` |
-| Feature exists | `ls src/file_organizer/<module>/` or grep test imports |
-| Config keys | `src/file_organizer/config/schema.py` — `AppConfig` Pydantic model |
+| Method/class exists | `rg "def method_name\|class ClassName" src/` |
+| Feature exists | `ls src/<module>/` or grep test imports |
+| Config keys | `src/config/schema.py` — `AppConfig` Pydantic model |
 
 ### Step 2: Write
 
@@ -58,7 +58,7 @@ bash .claude/scripts/pre-commit-validation.sh
 | Wrong coverage % | Check `ci-generation-patterns.md` C4 gate table before writing any number |
 | Non-existent method | `rg "def method_name" src/` before writing |
 | Stale `parsers` extra | Removed — valid extras: `dev cloud llama mlx claude audio video dedup archive scientific cad build search all` |
-| Stale `plugins` reference | `file_organizer.plugins` package removed; no plugin system exists |
+| Stale `plugins` reference | `plugins` package removed; no plugin system exists |
 | Stale API/web routes | fo-core is CLI-only; no FastAPI, no `@router` handlers |
 | `ollama ls` command | Correct command is `ollama list` |
 

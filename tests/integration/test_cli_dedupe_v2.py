@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.dedupe_v2 import dedupe_app
+from cli.dedupe_v2 import dedupe_app
 
 pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
@@ -94,7 +94,7 @@ class TestScanCommand:
         group = _make_group("deadbeef" * 8, [fm1, fm2])
         detector = _make_detector_with_groups({"deadbeef" * 8: group})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["scan", str(src)])
 
         assert result.exit_code == 0
@@ -112,7 +112,7 @@ class TestScanCommand:
         group = _make_group(hash_val, [fm1, fm2])
         detector = _make_detector_with_groups({hash_val: group})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["scan", str(src), "--json"])
 
         assert result.exit_code == 0
@@ -133,7 +133,7 @@ class TestScanCommand:
 
         detector = _make_detector_with_groups({})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["scan", str(src)])
 
         assert result.exit_code == 0
@@ -147,7 +147,7 @@ class TestScanCommand:
 
         detector = _make_detector_with_groups({})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["scan", str(src), "--json"])
 
         assert result.exit_code == 0
@@ -168,7 +168,7 @@ class TestScanCommand:
         g2 = _make_group(hash2, [fm2a, fm2b])
         detector = _make_detector_with_groups({hash1: g1, hash2: g2})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["scan", str(src)])
 
         assert result.exit_code == 0
@@ -191,7 +191,7 @@ class TestResolveCommand:
 
         detector = _make_detector_with_groups({})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["resolve", str(src)])
 
         assert result.exit_code == 0
@@ -212,7 +212,7 @@ class TestResolveCommand:
         group = _make_group(hash_val, [fm_old, fm_new])
         detector = _make_detector_with_groups({hash_val: group})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(src), "--strategy", "oldest", "--dry-run"],
@@ -240,7 +240,7 @@ class TestResolveCommand:
         group = _make_group(hash_val, [fm_a, fm_b])
         detector = _make_detector_with_groups({hash_val: group})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(src), "--strategy", "newest", "--dry-run"],
@@ -264,7 +264,7 @@ class TestResolveCommand:
         group = _make_group(hash_val, [fm_a, fm_b])
         detector = _make_detector_with_groups({hash_val: group})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(src), "--strategy", "manual"],
@@ -291,7 +291,7 @@ class TestResolveCommand:
         group = _make_group(hash_val, [fm_small, fm_large])
         detector = _make_detector_with_groups({hash_val: group})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(src), "--strategy", "largest", "--dry-run"],
@@ -327,7 +327,7 @@ class TestReportCommand:
         }
         detector = _make_detector_with_groups({hash_val: group}, stats=stats)
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["report", str(src)])
 
         assert result.exit_code == 0
@@ -350,7 +350,7 @@ class TestReportCommand:
         }
         detector = _make_detector_with_groups({hash_val: group}, stats=stats)
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["report", str(src), "--json"])
 
         assert result.exit_code == 0
@@ -371,7 +371,7 @@ class TestReportCommand:
         group = _make_group(hash_val, [fm1, fm2])
         detector = _make_detector_with_groups({hash_val: group})
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["report", str(src)])
 
         assert result.exit_code == 0
@@ -390,7 +390,7 @@ class TestReportCommand:
             stats={"total_files": 1, "duplicate_files": 0, "wasted_space": 0},
         )
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
             result = runner.invoke(dedupe_app, ["report", str(src)])
 
         assert result.exit_code == 0

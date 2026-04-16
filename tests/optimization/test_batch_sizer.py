@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+from optimization.batch_sizer import AdaptiveBatchSizer
 
 
 @pytest.mark.unit

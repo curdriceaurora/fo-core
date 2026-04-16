@@ -5,14 +5,14 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 runner = CliRunner()
 
 
 @pytest.mark.unit
 class TestAnalyticsCommand:
-    """Tests for ``file-organizer analytics``."""
+    """Tests for ``fo analytics``."""
 
     def test_analytics_help(self) -> None:
         result = runner.invoke(app, ["analytics", "--help"])

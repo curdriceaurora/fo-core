@@ -12,10 +12,10 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.copilot.executor import Intent, IntentType
-from file_organizer.services.copilot.intent_parser import IntentParser
-from file_organizer.services.deduplication.detector import DuplicateDetector
-from file_organizer.services.deduplication.index import DuplicateIndex
+from services.copilot.executor import Intent, IntentType
+from services.copilot.intent_parser import IntentParser
+from services.deduplication.detector import DuplicateDetector
+from services.deduplication.index import DuplicateIndex
 
 pytestmark = [pytest.mark.ci, pytest.mark.integration]
 
@@ -163,7 +163,7 @@ class TestDuplicateDetectorInit:
         assert d is not None
 
     def test_with_custom_hasher(self) -> None:
-        from file_organizer.services.deduplication.hasher import FileHasher
+        from services.deduplication.hasher import FileHasher
 
         hasher = FileHasher()
         d = DuplicateDetector(hasher=hasher)

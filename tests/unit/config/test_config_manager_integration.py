@@ -5,9 +5,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from file_organizer.config.manager import ConfigManager
-from file_organizer.config.path_manager import PathManager
-from file_organizer.config.schema import AppConfig
+from config.manager import ConfigManager
+from config.path_manager import PathManager
+from config.schema import AppConfig
 
 
 def test_config_manager_with_path_manager():
@@ -76,7 +76,7 @@ def test_config_manager_default_dir_vs_path_manager():
         tmp_path = Path(tmp_dir)
 
         # Set XDG_CONFIG_HOME to a custom location so PathManager differs
-        # from ConfigManager's hardcoded default (~/.config/file-organizer)
+        # from ConfigManager's hardcoded default (~/.config/fo)
         custom_xdg = tmp_path / "custom-xdg-config"
         with patch.dict(
             os.environ,

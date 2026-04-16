@@ -42,13 +42,13 @@ All readers share a maximum file size check before processing:
 
 | Parameter | Default | Location |
 |-----------|---------|----------|
-| `MAX_FILE_SIZE_BYTES` | 500 MB | `src/file_organizer/utils/readers/_base.py` |
+| `MAX_FILE_SIZE_BYTES` | 500 MB | `src/utils/readers/_base.py` |
 
 Files exceeding this limit raise `FileTooLargeError` and are skipped.
 
 ## Documents
 
-Source module: `src/file_organizer/utils/readers/documents.py`
+Source module: `src/utils/readers/documents.py`
 
 ### Plain Text (`.txt`, `.md`)
 
@@ -95,7 +95,7 @@ Only `.pptx` is supported. Legacy `.ppt` files are detected but will fail at run
 
 ## Ebooks
 
-Source module: `src/file_organizer/utils/readers/ebook.py`
+Source module: `src/utils/readers/ebook.py`
 
 ### EPUB (`.epub`)
 
@@ -108,7 +108,7 @@ Source module: `src/file_organizer/utils/readers/ebook.py`
 
 ## Archives
 
-Source module: `src/file_organizer/utils/readers/archives.py`
+Source module: `src/utils/readers/archives.py`
 
 Archive readers extract **metadata and file listings**, not file contents.
 
@@ -146,7 +146,7 @@ Archive readers extract **metadata and file listings**, not file contents.
 
 ## Scientific Data
 
-Source module: `src/file_organizer/utils/readers/scientific.py`
+Source module: `src/utils/readers/scientific.py`
 
 Scientific readers extract **structure and metadata** rather than raw data arrays.
 
@@ -170,7 +170,7 @@ Scientific readers extract **structure and metadata** rather than raw data array
 
 ## CAD
 
-Source module: `src/file_organizer/utils/readers/cad.py`
+Source module: `src/utils/readers/cad.py`
 
 ### DXF (`.dxf`)
 
@@ -203,7 +203,7 @@ Source module: `src/file_organizer/utils/readers/cad.py`
 
 ## Reader Dispatch
 
-The `read_file()` function in `src/file_organizer/utils/readers/__init__.py`:
+The `read_file()` function in `src/utils/readers/__init__.py`:
 
 1. Checks file size against `MAX_FILE_SIZE_BYTES` (500 MB)
 2. Handles compound extensions (`.tar.gz`, `.tar.bz2`, `.tar.xz`)
@@ -214,8 +214,8 @@ If an optional dependency is missing, the reader raises `ImportError` with insta
 
 ## Adding Support for New Formats
 
-1. Create or extend a reader function in `src/file_organizer/utils/readers/`
-2. Register the extension in the `readers` mapping inside `read_file()` in `src/file_organizer/utils/readers/__init__.py`
+1. Create or extend a reader function in `src/utils/readers/`
+2. Register the extension in the `readers` mapping inside `read_file()` in `src/utils/readers/__init__.py`
 3. If the format requires an optional dependency, add it to `pyproject.toml` under the appropriate install group
 4. Use the `_check_file_size()` helper for size validation
 5. Raise `FileReadError` on read failures

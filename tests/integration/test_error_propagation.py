@@ -16,8 +16,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.services.text_processor import TextProcessor
+from core.organizer import FileOrganizer
+from services.text_processor import TextProcessor
 
 from .conftest import make_text_config, make_vision_config, patch_text_generate_error
 

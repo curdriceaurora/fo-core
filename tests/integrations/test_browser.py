@@ -6,7 +6,7 @@ from datetime import UTC, datetime, tzinfo
 
 import pytest
 
-from file_organizer.integrations import BrowserExtensionManager
+from integrations import BrowserExtensionManager
 
 pytestmark = pytest.mark.ci
 
@@ -23,7 +23,7 @@ def test_issue_token_prunes_expired_records(monkeypatch: pytest.MonkeyPatch) -> 
                 return value
             return value.astimezone(tz)
 
-    monkeypatch.setattr("file_organizer.integrations.browser.datetime", _FakeDateTime)
+    monkeypatch.setattr("integrations.browser.datetime", _FakeDateTime)
 
     manager = BrowserExtensionManager(allowed_origins=["https://example.com"], token_ttl_seconds=1)
     first = manager.issue_token("ext-a")
@@ -45,7 +45,7 @@ def test_verify_token_prunes_expired_records(monkeypatch: pytest.MonkeyPatch) ->
                 return value
             return value.astimezone(tz)
 
-    monkeypatch.setattr("file_organizer.integrations.browser.datetime", _FakeDateTime)
+    monkeypatch.setattr("integrations.browser.datetime", _FakeDateTime)
 
     manager = BrowserExtensionManager(allowed_origins=["https://example.com"], token_ttl_seconds=1)
     token = manager.issue_token("ext-a").token

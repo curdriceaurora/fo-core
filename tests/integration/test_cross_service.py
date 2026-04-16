@@ -15,9 +15,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.services.text_processor import TextProcessor
-from file_organizer.services.vision_processor import VisionProcessor
+from core.organizer import FileOrganizer
+from services.text_processor import TextProcessor
+from services.vision_processor import VisionProcessor
 
 from .conftest import make_text_config, make_vision_config, minimal_png_bytes
 
@@ -182,7 +182,7 @@ class TestFallbackChain:
 
         # Patch initialize to simulate Ollama being down
         with patch(
-            "file_organizer.services.text_processor.TextProcessor.initialize",
+            "services.text_processor.TextProcessor.initialize",
             side_effect=ConnectionRefusedError("Connection refused"),
         ):
             result = org.organize(

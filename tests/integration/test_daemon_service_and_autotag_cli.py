@@ -35,7 +35,7 @@ pytestmark = pytest.mark.integration
 
 class TestDaemonConfig:
     def test_default_values(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
+        from daemon.config import DaemonConfig
 
         cfg = DaemonConfig()
         assert cfg.watch_directories == []
@@ -44,13 +44,13 @@ class TestDaemonConfig:
         assert cfg.dry_run is True
 
     def test_custom_pid_file(self, tmp_path: Path) -> None:
-        from file_organizer.daemon.config import DaemonConfig
+        from daemon.config import DaemonConfig
 
         cfg = DaemonConfig(pid_file=tmp_path / "daemon.pid")
         assert cfg.pid_file == tmp_path / "daemon.pid"
 
     def test_custom_watch_directories(self, tmp_path: Path) -> None:
-        from file_organizer.daemon.config import DaemonConfig
+        from daemon.config import DaemonConfig
 
         cfg = DaemonConfig(watch_directories=[tmp_path / "a", tmp_path / "b"])
         assert len(cfg.watch_directories) == 2
@@ -63,36 +63,36 @@ class TestDaemonConfig:
 
 class TestDaemonServiceProperties:
     def test_is_running_false_before_start(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         assert daemon.is_running is False
 
     def test_uptime_seconds_zero_before_start(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         assert daemon.uptime_seconds == 0.0
 
     def test_files_processed_zero_initially(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         assert daemon.files_processed == 0
 
     def test_scheduler_property_accessible(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         assert daemon.scheduler is not None
 
     def test_on_start_registers_callback(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         callback = MagicMock()
@@ -100,8 +100,8 @@ class TestDaemonServiceProperties:
         assert daemon._on_start_callback is callback
 
     def test_on_stop_registers_callback(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         callback = MagicMock()
@@ -116,8 +116,8 @@ class TestDaemonServiceProperties:
 
 class TestDaemonServiceLifecycle:
     def test_start_background_marks_running(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -127,8 +127,8 @@ class TestDaemonServiceLifecycle:
             daemon.stop()
 
     def test_stop_marks_not_running(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -136,8 +136,8 @@ class TestDaemonServiceLifecycle:
         assert daemon.is_running is False
 
     def test_uptime_seconds_positive_while_running(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -147,8 +147,8 @@ class TestDaemonServiceLifecycle:
             daemon.stop()
 
     def test_uptime_zero_after_stop(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -156,8 +156,8 @@ class TestDaemonServiceLifecycle:
         assert daemon.uptime_seconds == 0.0
 
     def test_pid_file_written_and_removed(self, tmp_path: Path) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         pid_file = tmp_path / "daemon.pid"
         daemon = DaemonService(DaemonConfig(pid_file=pid_file))
@@ -169,8 +169,8 @@ class TestDaemonServiceLifecycle:
         assert not pid_file.exists()
 
     def test_double_start_raises_runtime_error(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -181,15 +181,15 @@ class TestDaemonServiceLifecycle:
             daemon.stop()
 
     def test_stop_when_not_running_is_safe(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.stop()  # should not raise
 
     def test_on_start_callback_called(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         callback = MagicMock()
@@ -201,8 +201,8 @@ class TestDaemonServiceLifecycle:
             daemon.stop()
 
     def test_on_stop_callback_called(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         callback = MagicMock()
@@ -212,8 +212,8 @@ class TestDaemonServiceLifecycle:
         callback.assert_called_once()
 
     def test_restart_cycles_the_daemon(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.start_background()
@@ -224,8 +224,8 @@ class TestDaemonServiceLifecycle:
             daemon.stop()
 
     def test_failing_on_start_callback_doesnt_crash(self) -> None:
-        from file_organizer.daemon.config import DaemonConfig
-        from file_organizer.daemon.service import DaemonService
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
 
         daemon = DaemonService(DaemonConfig())
         daemon.on_start(lambda: (_ for _ in ()).throw(RuntimeError("boom")))
@@ -245,7 +245,7 @@ def _make_autotag_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command")
     sub.add_parser("other")
-    from file_organizer.cli.autotag import setup_autotag_parser
+    from cli.autotag import setup_autotag_parser
 
     setup_autotag_parser(sub)
     return parser
@@ -301,7 +301,7 @@ class TestSetupAutotagParser:
 
 class TestHandleAutotagCommand:
     def test_no_subcommand_exits_1(self, capsys) -> None:
-        from file_organizer.cli.autotag import handle_autotag_command
+        from cli.autotag import handle_autotag_command
 
         args = SimpleNamespace(autotag_command=None)
         with pytest.raises(SystemExit) as exc:
@@ -309,7 +309,7 @@ class TestHandleAutotagCommand:
         assert exc.value.code == 1
 
     def test_dispatches_to_suggest(self, tmp_path: Path) -> None:
-        from file_organizer.cli.autotag import handle_autotag_command
+        from cli.autotag import handle_autotag_command
 
         f = tmp_path / "f.txt"
         f.write_text("x")
@@ -321,7 +321,7 @@ class TestHandleAutotagCommand:
             min_confidence=0.0,
             json=False,
         )
-        with patch("file_organizer.cli.autotag.AutoTaggingService") as MockSvc:
+        with patch("cli.autotag.AutoTaggingService") as MockSvc:
             svc = MockSvc.return_value
             rec = MagicMock()
             rec.suggestions = []
@@ -354,7 +354,7 @@ class TestHandleSuggest:
         )
 
     def test_missing_file_writes_to_stderr(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_suggest
+        from cli.autotag import handle_suggest
 
         svc = MagicMock()
         args = self._make_args([str(tmp_path / "ghost.txt")])
@@ -363,7 +363,7 @@ class TestHandleSuggest:
         assert "not found" in err.lower() or "Error" in err
 
     def test_existing_file_json_output(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_suggest
+        from cli.autotag import handle_suggest
 
         f = tmp_path / "doc.txt"
         f.write_text("content")
@@ -383,7 +383,7 @@ class TestHandleSuggest:
         assert len(data) == 1
 
     def test_text_output_when_no_json(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_suggest
+        from cli.autotag import handle_suggest
 
         f = tmp_path / "doc.txt"
         f.write_text("content")
@@ -403,7 +403,7 @@ class TestHandleSuggest:
         assert "finance" in out
 
     def test_no_suggestions_message(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_suggest
+        from cli.autotag import handle_suggest
 
         f = tmp_path / "doc.txt"
         f.write_text("content")
@@ -425,7 +425,7 @@ class TestHandleSuggest:
 
 class TestHandleApply:
     def test_missing_file_exits_1(self, tmp_path: Path) -> None:
-        from file_organizer.cli.autotag import handle_apply
+        from cli.autotag import handle_apply
 
         svc = MagicMock()
         args = SimpleNamespace(file=str(tmp_path / "ghost.txt"), tags=["t1"])
@@ -434,7 +434,7 @@ class TestHandleApply:
         assert exc.value.code == 1
 
     def test_existing_file_records_tags(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_apply
+        from cli.autotag import handle_apply
 
         f = tmp_path / "doc.txt"
         f.write_text("x")
@@ -453,7 +453,7 @@ class TestHandleApply:
 
 class TestHandlePopular:
     def test_empty_popular_prints_no_data_message(self, capsys) -> None:
-        from file_organizer.cli.autotag import handle_popular
+        from cli.autotag import handle_popular
 
         svc = MagicMock()
         svc.get_popular_tags.return_value = []
@@ -463,7 +463,7 @@ class TestHandlePopular:
         assert "No tag usage" in out
 
     def test_popular_with_data_prints_tags(self, capsys) -> None:
-        from file_organizer.cli.autotag import handle_popular
+        from cli.autotag import handle_popular
 
         svc = MagicMock()
         svc.get_popular_tags.return_value = [("finance", 5), ("work", 3)]
@@ -481,7 +481,7 @@ class TestHandlePopular:
 
 class TestHandleRecent:
     def test_empty_recent_prints_message(self, capsys) -> None:
-        from file_organizer.cli.autotag import handle_recent
+        from cli.autotag import handle_recent
 
         svc = MagicMock()
         svc.get_recent_tags.return_value = []
@@ -491,7 +491,7 @@ class TestHandleRecent:
         assert "No tags" in out
 
     def test_recent_with_data_prints_tags(self, capsys) -> None:
-        from file_organizer.cli.autotag import handle_recent
+        from cli.autotag import handle_recent
 
         svc = MagicMock()
         svc.get_recent_tags.return_value = ["finance", "work"]
@@ -508,7 +508,7 @@ class TestHandleRecent:
 
 class TestHandleAnalyze:
     def test_missing_file_exits_1(self, tmp_path: Path) -> None:
-        from file_organizer.cli.autotag import handle_analyze
+        from cli.autotag import handle_analyze
 
         svc = MagicMock()
         args = SimpleNamespace(file=str(tmp_path / "ghost.txt"), keywords=False, entities=False)
@@ -517,7 +517,7 @@ class TestHandleAnalyze:
         assert exc.value.code == 1
 
     def test_analyze_prints_tags(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_analyze
+        from cli.autotag import handle_analyze
 
         f = tmp_path / "doc.txt"
         f.write_text("content")
@@ -529,7 +529,7 @@ class TestHandleAnalyze:
         assert "finance" in out
 
     def test_analyze_with_keywords(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_analyze
+        from cli.autotag import handle_analyze
 
         f = tmp_path / "doc.txt"
         f.write_text("content")
@@ -542,7 +542,7 @@ class TestHandleAnalyze:
         assert "budget" in out
 
     def test_analyze_with_entities(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_analyze
+        from cli.autotag import handle_analyze
 
         f = tmp_path / "doc.txt"
         f.write_text("content")
@@ -562,7 +562,7 @@ class TestHandleAnalyze:
 
 class TestHandleBatch:
     def test_not_a_directory_exits_1(self, tmp_path: Path) -> None:
-        from file_organizer.cli.autotag import handle_batch
+        from cli.autotag import handle_batch
 
         svc = MagicMock()
         args = SimpleNamespace(
@@ -576,7 +576,7 @@ class TestHandleBatch:
         assert exc.value.code == 1
 
     def test_no_files_found_prints_message(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_batch
+        from cli.autotag import handle_batch
 
         svc = MagicMock()
         args = SimpleNamespace(
@@ -590,7 +590,7 @@ class TestHandleBatch:
         assert "No files" in out
 
     def test_batch_with_files_prints_json(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_batch
+        from cli.autotag import handle_batch
 
         f = tmp_path / "doc.txt"
         f.write_text("content")
@@ -613,7 +613,7 @@ class TestHandleBatch:
         assert len(data) >= 1
 
     def test_batch_saves_to_output_file(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_batch
+        from cli.autotag import handle_batch
 
         f = tmp_path / "doc.txt"
         f.write_text("content")
@@ -634,7 +634,7 @@ class TestHandleBatch:
         assert isinstance(data, list)
 
     def test_batch_recursive_flag(self, tmp_path: Path, capsys) -> None:
-        from file_organizer.cli.autotag import handle_batch
+        from cli.autotag import handle_batch
 
         sub = tmp_path / "sub"
         sub.mkdir()

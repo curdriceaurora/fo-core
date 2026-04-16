@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.detection.heuristics import (
+from methodologies.para.detection.heuristics import (
     CategoryScore,
     ContentHeuristic,
     HeuristicEngine,
@@ -26,7 +26,7 @@ from file_organizer.methodologies.para.detection.heuristics import (
 #   needs_manual_review, metadata
 # - CategoryScore fields: category, score, confidence, signals
 # - Individual heuristic .evaluate() returns HeuristicResult (same as HeuristicEngine)
-from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine, TagPattern
+from services.auto_tagging.tag_learning import TagLearningEngine, TagPattern
 
 pytestmark = pytest.mark.integration
 

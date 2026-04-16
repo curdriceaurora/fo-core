@@ -17,7 +17,7 @@ pytestmark = pytest.mark.unit
 
 class TestEPUBMetadata:
     def test_post_init_defaults(self):
-        from file_organizer.utils.epub_enhanced import EPUBMetadata
+        from utils.epub_enhanced import EPUBMetadata
 
         meta = EPUBMetadata(title="Test", authors=["Author"])
         assert meta.identifiers == {}
@@ -27,7 +27,7 @@ class TestEPUBMetadata:
 
 class TestEPUBChapter:
     def test_create(self):
-        from file_organizer.utils.epub_enhanced import EPUBChapter
+        from utils.epub_enhanced import EPUBChapter
 
         ch = EPUBChapter(title="Ch1", content="Hello world", order=0, word_count=2)
         assert ch.title == "Ch1"
@@ -40,18 +40,18 @@ class TestEPUBChapter:
 
 class TestImportChecks:
     def test_no_ebooklib(self):
-        with patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", False):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+        with patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", False):
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             with pytest.raises(ImportError, match="ebooklib"):
                 EnhancedEPUBReader()
 
     def test_no_bs4(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", False),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", False),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             with pytest.raises(ImportError, match="beautifulsoup4"):
                 EnhancedEPUBReader()
@@ -65,10 +65,10 @@ class TestImportChecks:
 class TestWordToNumber:
     def test_known_words(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", True),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", True),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             reader = EnhancedEPUBReader()
             assert reader._word_to_number("one") == 1
@@ -85,10 +85,10 @@ class TestWordToNumber:
 class TestCleanISBN:
     def test_cleans_isbn(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", True),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", True),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             reader = EnhancedEPUBReader()
             assert reader._clean_isbn("978-3-16-148410-0") == "9783161484100"
@@ -103,10 +103,10 @@ class TestCleanISBN:
 class TestDetectSeries:
     def _get_reader(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", True),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", True),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             return EnhancedEPUBReader()
 
@@ -154,10 +154,10 @@ class TestDetectSeries:
 class TestHasCover:
     def test_has_cover_from_metadata(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", True),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", True),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             reader = EnhancedEPUBReader()
             mock_book = MagicMock()
@@ -166,10 +166,10 @@ class TestHasCover:
 
     def test_no_cover(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", True),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", True),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             reader = EnhancedEPUBReader()
             mock_book = MagicMock()
@@ -186,10 +186,10 @@ class TestHasCover:
 class TestDetectVersion:
     def test_version_from_attribute(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", True),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", True),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             reader = EnhancedEPUBReader()
             mock_book = MagicMock()
@@ -198,10 +198,10 @@ class TestDetectVersion:
 
     def test_version_exception(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", True),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", True),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             reader = EnhancedEPUBReader()
             mock_book = MagicMock()
@@ -218,10 +218,10 @@ class TestDetectVersion:
 class TestReadEpub:
     def test_file_not_found(self):
         with (
-            patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
-            patch("file_organizer.utils.epub_enhanced.BS4_AVAILABLE", True),
+            patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", True),
+            patch("utils.epub_enhanced.BS4_AVAILABLE", True),
         ):
-            from file_organizer.utils.epub_enhanced import EnhancedEPUBReader
+            from utils.epub_enhanced import EnhancedEPUBReader
 
             reader = EnhancedEPUBReader()
             with pytest.raises(FileNotFoundError):
@@ -235,8 +235,8 @@ class TestReadEpub:
 
 class TestGetEpubMetadata:
     def test_no_ebooklib(self):
-        with patch("file_organizer.utils.epub_enhanced.EBOOKLIB_AVAILABLE", False):
-            from file_organizer.utils.epub_enhanced import get_epub_metadata
+        with patch("utils.epub_enhanced.EBOOKLIB_AVAILABLE", False):
+            from utils.epub_enhanced import get_epub_metadata
 
             with pytest.raises(ImportError, match="ebooklib"):
                 get_epub_metadata(Path("/test.epub"))

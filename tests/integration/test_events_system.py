@@ -25,12 +25,12 @@ class TestEventConfig:
 
     def test_default_values(self) -> None:
         """Verify EventConfig initialises with expected default field values."""
-        from file_organizer.events.config import EventConfig
+        from events.config import EventConfig
 
         cfg = EventConfig()
         assert cfg.redis_url == "redis://localhost:6379/0"
         assert cfg.stream_prefix == "fileorg"
-        assert cfg.consumer_group == "file-organizer"
+        assert cfg.consumer_group == "fo"
         assert cfg.max_retries == 3
         assert cfg.retry_delay == 1.0
         assert cfg.block_ms == 5000
@@ -38,7 +38,7 @@ class TestEventConfig:
 
     def test_get_stream_name(self) -> None:
         """Verify stream name is built as prefix:suffix."""
-        from file_organizer.events.config import EventConfig
+        from events.config import EventConfig
 
         cfg = EventConfig(stream_prefix="myapp")
         name = cfg.get_stream_name("events")
@@ -46,7 +46,7 @@ class TestEventConfig:
 
     def test_custom_config(self) -> None:
         """Verify custom redis_url and batch_size are stored correctly."""
-        from file_organizer.events.config import EventConfig
+        from events.config import EventConfig
 
         cfg = EventConfig(redis_url="redis://remote:6379/1", batch_size=25)
         assert cfg.redis_url == "redis://remote:6379/1"
@@ -54,7 +54,7 @@ class TestEventConfig:
 
     def test_none_max_stream_length(self) -> None:
         """Verify max_stream_length can be set to None."""
-        from file_organizer.events.config import EventConfig
+        from events.config import EventConfig
 
         cfg = EventConfig(max_stream_length=None)
         assert cfg.max_stream_length is None
@@ -70,7 +70,7 @@ class TestEventType:
 
     def test_all_event_types_exist(self) -> None:
         """Verify all expected event type values are present in the enum."""
-        from file_organizer.events.types import EventType
+        from events.types import EventType
 
         expected = {
             "file.created",
@@ -86,7 +86,7 @@ class TestEventType:
 
     def test_event_type_values(self) -> None:
         """Verify specific EventType members map to their expected string values."""
-        from file_organizer.events.types import EventType
+        from events.types import EventType
 
         assert EventType.FILE_CREATED.value == "file.created"
         assert EventType.SCAN_COMPLETED.value == "scan.completed"
@@ -103,7 +103,7 @@ class TestFileEvent:
 
     def test_to_dict_contains_all_fields(self) -> None:
         """Verify to_dict includes event_type, file_path, metadata, and timestamp."""
-        from file_organizer.events.types import EventType, FileEvent
+        from events.types import EventType, FileEvent
 
         event = FileEvent(
             event_type=EventType.FILE_CREATED,
@@ -118,7 +118,7 @@ class TestFileEvent:
 
     def test_roundtrip(self) -> None:
         """Verify from_dict restores all fields set during construction."""
-        from file_organizer.events.types import EventType, FileEvent
+        from events.types import EventType, FileEvent
 
         ts = datetime(2025, 6, 15, 12, 0, 0, tzinfo=UTC)
         event = FileEvent(
@@ -136,7 +136,7 @@ class TestFileEvent:
 
     def test_from_dict_invalid_event_type_raises(self) -> None:
         """Verify from_dict raises ValueError for an unrecognised event_type string."""
-        from file_organizer.events.types import FileEvent
+        from events.types import FileEvent
 
         d = {
             "event_type": "not.real",
@@ -148,21 +148,21 @@ class TestFileEvent:
 
     def test_from_dict_missing_required_field_raises(self) -> None:
         """Verify from_dict raises KeyError when event_type is absent."""
-        from file_organizer.events.types import FileEvent
+        from events.types import FileEvent
 
         with pytest.raises(KeyError):
             FileEvent.from_dict({"file_path": "/x.txt"})
 
     def test_default_empty_metadata(self) -> None:
         """Verify metadata defaults to an empty dict when not provided."""
-        from file_organizer.events.types import EventType, FileEvent
+        from events.types import EventType, FileEvent
 
         event = FileEvent(event_type=EventType.FILE_DELETED, file_path="/f.txt")
         assert event.metadata == {}
 
     def test_metadata_preserved_through_roundtrip(self) -> None:
         """Verify nested metadata is preserved after to_dict/from_dict round-trip."""
-        from file_organizer.events.types import EventType, FileEvent
+        from events.types import EventType, FileEvent
 
         meta = {"key": "value", "nested": {"a": 1}}
         event = FileEvent(
@@ -186,7 +186,7 @@ class TestScanEvent:
 
     def test_to_dict_fields(self) -> None:
         """Verify to_dict includes scan_id, status, stats, and timestamp."""
-        from file_organizer.events.types import ScanEvent
+        from events.types import ScanEvent
 
         event = ScanEvent(
             scan_id="scan-001",
@@ -201,7 +201,7 @@ class TestScanEvent:
 
     def test_roundtrip(self) -> None:
         """Verify from_dict restores all ScanEvent fields correctly."""
-        from file_organizer.events.types import ScanEvent
+        from events.types import ScanEvent
 
         ts = datetime(2025, 1, 1, 0, 0, 0, tzinfo=UTC)
         event = ScanEvent(
@@ -219,7 +219,7 @@ class TestScanEvent:
 
     def test_empty_stats_default(self) -> None:
         """Verify stats defaults to an empty dict and survives a round-trip."""
-        from file_organizer.events.types import ScanEvent
+        from events.types import ScanEvent
 
         event = ScanEvent(scan_id="s", status="started", timestamp=datetime.now(UTC))
         d = event.to_dict()
@@ -237,7 +237,7 @@ class TestSubscription:
 
     def test_exact_topic_match(self) -> None:
         """Verify matches_topic returns True only for the exact topic string."""
-        from file_organizer.events.subscription import Subscription
+        from events.subscription import Subscription
 
         sub = Subscription(topic="file.created", handler=lambda d: None)
         assert sub.matches_topic("file.created") is True
@@ -245,7 +245,7 @@ class TestSubscription:
 
     def test_single_wildcard_match(self) -> None:
         """Verify single wildcard (*) matches one path segment only."""
-        from file_organizer.events.subscription import Subscription
+        from events.subscription import Subscription
 
         sub = Subscription(topic="file.*", handler=lambda d: None)
         assert sub.matches_topic("file.created") is True
@@ -255,7 +255,7 @@ class TestSubscription:
 
     def test_double_wildcard_match(self) -> None:
         """Verify double wildcard (**) matches any number of path segments."""
-        from file_organizer.events.subscription import Subscription
+        from events.subscription import Subscription
 
         sub = Subscription(topic="file.**", handler=lambda d: None)
         assert sub.matches_topic("file.created") is True
@@ -264,7 +264,7 @@ class TestSubscription:
 
     def test_filter_function_blocks(self) -> None:
         """Verify passes_filter delegates to the provided filter_fn."""
-        from file_organizer.events.subscription import Subscription
+        from events.subscription import Subscription
 
         sub = Subscription(
             topic="file.created",
@@ -277,7 +277,7 @@ class TestSubscription:
 
     def test_no_filter_always_passes(self) -> None:
         """Verify passes_filter returns True for any data when no filter_fn is set."""
-        from file_organizer.events.subscription import Subscription
+        from events.subscription import Subscription
 
         sub = Subscription(topic="x", handler=lambda d: None)
         assert sub.passes_filter({}) is True
@@ -285,7 +285,7 @@ class TestSubscription:
 
     def test_filter_exception_returns_false(self) -> None:
         """Verify passes_filter returns False when filter_fn raises an exception."""
-        from file_organizer.events.subscription import Subscription
+        from events.subscription import Subscription
 
         def bad_filter(data: dict) -> bool:
             raise RuntimeError("boom")
@@ -299,7 +299,7 @@ class TestSubscriptionRegistry:
 
     def test_register_and_count(self) -> None:
         """Verify count increments when a subscription is added."""
-        from file_organizer.events.subscription import SubscriptionRegistry
+        from events.subscription import SubscriptionRegistry
 
         registry = SubscriptionRegistry()
         assert registry.count == 0
@@ -312,7 +312,7 @@ class TestSubscriptionRegistry:
 
     def test_get_for_topic_returns_matching(self) -> None:
         """Verify get_for_topic returns only subscriptions matching the given topic."""
-        from file_organizer.events.subscription import SubscriptionRegistry
+        from events.subscription import SubscriptionRegistry
 
         registry = SubscriptionRegistry()
 
@@ -331,7 +331,7 @@ class TestSubscriptionRegistry:
 
     def test_inactive_subscription_not_returned(self) -> None:
         """Verify deactivated subscriptions are excluded from get_for_topic results."""
-        from file_organizer.events.subscription import SubscriptionRegistry
+        from events.subscription import SubscriptionRegistry
 
         registry = SubscriptionRegistry()
 
@@ -346,7 +346,7 @@ class TestSubscriptionRegistry:
 
     def test_get_active_excludes_deactivated(self) -> None:
         """Verify get_active omits deactivated subscriptions."""
-        from file_organizer.events.subscription import SubscriptionRegistry
+        from events.subscription import SubscriptionRegistry
 
         registry = SubscriptionRegistry()
 
@@ -366,7 +366,7 @@ class TestSubscriptionRegistry:
 
     def test_repr(self) -> None:
         """Verify repr includes the SubscriptionRegistry class name."""
-        from file_organizer.events.subscription import SubscriptionRegistry
+        from events.subscription import SubscriptionRegistry
 
         registry = SubscriptionRegistry()
         r = repr(registry)
@@ -374,7 +374,7 @@ class TestSubscriptionRegistry:
 
     def test_len(self) -> None:
         """Verify len(registry) reflects the number of registered subscriptions."""
-        from file_organizer.events.subscription import SubscriptionRegistry
+        from events.subscription import SubscriptionRegistry
 
         registry = SubscriptionRegistry()
 
@@ -395,7 +395,7 @@ class TestAuditEntry:
 
     def test_to_dict_fields(self) -> None:
         """Verify to_dict includes all expected AuditEntry fields."""
-        from file_organizer.events.audit import AuditEntry
+        from events.audit import AuditEntry
 
         ts = datetime(2025, 3, 15, 10, 0, 0, tzinfo=UTC)
         entry = AuditEntry(
@@ -414,7 +414,7 @@ class TestAuditEntry:
 
     def test_roundtrip(self) -> None:
         """Verify from_dict restores all AuditEntry fields correctly."""
-        from file_organizer.events.audit import AuditEntry
+        from events.audit import AuditEntry
 
         ts = datetime(2025, 6, 1, 0, 0, 0, tzinfo=UTC)
         entry = AuditEntry(
@@ -432,7 +432,7 @@ class TestAuditEntry:
 
 
 def _make_event(event_id: str = "msg-001", stream: str = "fileorg:events") -> object:
-    from file_organizer.events.stream import Event
+    from events.stream import Event
 
     return Event(id=event_id, stream=stream, data={"path": "/f.txt"})
 
@@ -442,7 +442,7 @@ class TestAuditLogger:
 
     def test_log_event_and_count(self, tmp_path: Path) -> None:
         """Verify logging one event increments the entry count to 1."""
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log_file = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_file)
@@ -452,7 +452,7 @@ class TestAuditLogger:
 
     def test_multiple_events(self, tmp_path: Path) -> None:
         """Verify logging five events yields a count of 5."""
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log_file = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_file)
@@ -462,7 +462,7 @@ class TestAuditLogger:
 
     def test_clear_resets_count(self, tmp_path: Path) -> None:
         """Verify clear() resets the entry count to zero."""
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log_file = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_file)
@@ -472,7 +472,7 @@ class TestAuditLogger:
 
     def test_get_entries_returns_logged_entries(self, tmp_path: Path) -> None:
         """Verify query_audit_log returns all logged entries with correct actions."""
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log_file = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_file)
@@ -487,7 +487,7 @@ class TestAuditLogger:
 
     def test_get_entries_with_action_filter(self, tmp_path: Path) -> None:
         """Verify query_audit_log with an action filter returns only matching entries."""
-        from file_organizer.events.audit import AuditFilter, AuditLogger
+        from events.audit import AuditFilter, AuditLogger
 
         log_file = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_file)
@@ -502,7 +502,7 @@ class TestAuditLogger:
 
     def test_empty_log_returns_zero_count(self, tmp_path: Path) -> None:
         """Verify get_entry_count returns 0 when no events have been logged."""
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log_file = tmp_path / "nonexistent.jsonl"
         logger = AuditLogger(log_path=log_file)
@@ -510,7 +510,7 @@ class TestAuditLogger:
 
     def test_repr(self, tmp_path: Path) -> None:
         """Verify repr includes the AuditLogger class name."""
-        from file_organizer.events.audit import AuditLogger
+        from events.audit import AuditLogger
 
         log_file = tmp_path / "audit.jsonl"
         logger = AuditLogger(log_path=log_file)
@@ -528,7 +528,7 @@ class TestMiddlewarePipeline:
 
     def test_pipeline_runs_before_publish(self) -> None:
         """Verify before_publish middleware is called and may mutate event data."""
-        from file_organizer.events.middleware import MiddlewarePipeline
+        from events.middleware import MiddlewarePipeline
 
         calls: list[str] = []
 
@@ -545,7 +545,7 @@ class TestMiddlewarePipeline:
 
     def test_pipeline_before_publish_cancel(self) -> None:
         """Verify returning None from before_publish cancels the publish."""
-        from file_organizer.events.middleware import MiddlewarePipeline
+        from events.middleware import MiddlewarePipeline
 
         second_called = False
 
@@ -568,7 +568,7 @@ class TestMiddlewarePipeline:
 
     def test_pipeline_after_publish(self) -> None:
         """Verify after_publish middleware receives the message_id."""
-        from file_organizer.events.middleware import MiddlewarePipeline
+        from events.middleware import MiddlewarePipeline
 
         after_calls: list[str] = []
 
@@ -583,7 +583,7 @@ class TestMiddlewarePipeline:
 
     def test_empty_pipeline_passthrough(self) -> None:
         """Verify an empty pipeline returns event data unchanged."""
-        from file_organizer.events.middleware import MiddlewarePipeline
+        from events.middleware import MiddlewarePipeline
 
         pipeline = MiddlewarePipeline()
         data = {"path": "/x.txt"}
@@ -601,7 +601,7 @@ class TestServiceBusDataClasses:
 
     def test_service_request_roundtrip(self) -> None:
         """Verify ServiceRequest to_dict includes all construction fields."""
-        from file_organizer.events.service_bus import ServiceRequest
+        from events.service_bus import ServiceRequest
 
         ts = datetime(2025, 5, 1, 0, 0, 0, tzinfo=UTC)
         req = ServiceRequest(
@@ -622,7 +622,7 @@ class TestServiceBusDataClasses:
 
     def test_service_response_fields(self) -> None:
         """Verify a successful ServiceResponse carries the expected data and no error."""
-        from file_organizer.events.service_bus import ServiceResponse
+        from events.service_bus import ServiceResponse
 
         resp = ServiceResponse(
             request_id="req-001",
@@ -636,7 +636,7 @@ class TestServiceBusDataClasses:
 
     def test_service_response_failure(self) -> None:
         """Verify a failed ServiceResponse carries the error message."""
-        from file_organizer.events.service_bus import ServiceResponse
+        from events.service_bus import ServiceResponse
 
         resp = ServiceResponse(
             request_id="req-002",
@@ -661,8 +661,8 @@ class TestEventConsumerHandlers:
         """Verify registering a handler increments registered_handlers count."""
         from unittest.mock import MagicMock
 
-        from file_organizer.events.consumer import EventConsumer
-        from file_organizer.events.types import EventType
+        from events.consumer import EventConsumer
+        from events.types import EventType
 
         mock_manager = MagicMock()
         consumer = EventConsumer(stream_manager=mock_manager)
@@ -678,8 +678,8 @@ class TestEventConsumerHandlers:
         """Verify registering two handlers for the same event type yields count 2."""
         from unittest.mock import MagicMock
 
-        from file_organizer.events.consumer import EventConsumer
-        from file_organizer.events.types import EventType
+        from events.consumer import EventConsumer
+        from events.types import EventType
 
         mock_manager = MagicMock()
         consumer = EventConsumer(stream_manager=mock_manager)
@@ -692,7 +692,7 @@ class TestEventConsumerHandlers:
         """Verify a newly created EventConsumer is not running."""
         from unittest.mock import MagicMock
 
-        from file_organizer.events.consumer import EventConsumer
+        from events.consumer import EventConsumer
 
         mock_manager = MagicMock()
         consumer = EventConsumer(stream_manager=mock_manager)
@@ -702,7 +702,7 @@ class TestEventConsumerHandlers:
         """Verify consumer_name is stored and accessible via _consumer_name."""
         from unittest.mock import MagicMock
 
-        from file_organizer.events.consumer import EventConsumer
+        from events.consumer import EventConsumer
 
         mock_manager = MagicMock()
         consumer = EventConsumer(stream_manager=mock_manager, consumer_name="worker-99")
@@ -721,7 +721,7 @@ class TestHealthChecker:
         """Verify HealthChecker stores the passed service bus as its internal bus."""
         from unittest.mock import MagicMock
 
-        from file_organizer.events.health import HealthChecker
+        from events.health import HealthChecker
 
         mock_bus = MagicMock()
         checker = HealthChecker(service_bus=mock_bus)
@@ -731,7 +731,7 @@ class TestHealthChecker:
         """Verify degraded and unhealthy threshold properties reflect constructor args."""
         from unittest.mock import MagicMock
 
-        from file_organizer.events.health import HealthChecker
+        from events.health import HealthChecker
 
         mock_bus = MagicMock()
         checker = HealthChecker(

@@ -3,7 +3,7 @@
 # Exclude these helpers from CodeQL path-injection alerts to avoid false positives.
 # These modules use configuration-controlled paths, not user-provided values.
 paths-ignore:
-  - src/file_organizer/api/utils.py
-  - src/file_organizer/api/api_keys.py
-  - src/file_organizer/api/routers/search.py
+  - src/api/utils.py
+  - src/api/api_keys.py
+  - src/api/routers/search.py
   - tests/fixtures/review_regressions/security/**

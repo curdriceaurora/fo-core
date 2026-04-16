@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.daemon import daemon_app
+from cli.daemon import daemon_app
 
 runner = CliRunner()
 
@@ -17,8 +17,8 @@ runner = CliRunner()
 class TestDaemonStart:
     """Tests for 'daemon start' command."""
 
-    @patch("file_organizer.daemon.service.DaemonService")
-    @patch("file_organizer.daemon.config.DaemonConfig")
+    @patch("daemon.service.DaemonService")
+    @patch("daemon.config.DaemonConfig")
     def test_start_foreground(self, mock_config_cls: MagicMock, mock_svc_cls: MagicMock) -> None:
         mock_svc = MagicMock()
         mock_svc_cls.return_value = mock_svc
@@ -28,8 +28,8 @@ class TestDaemonStart:
         assert result.exit_code == 0
         mock_svc.start.assert_called_once()
 
-    @patch("file_organizer.daemon.service.DaemonService")
-    @patch("file_organizer.daemon.config.DaemonConfig")
+    @patch("daemon.service.DaemonService")
+    @patch("daemon.config.DaemonConfig")
     def test_start_background(self, mock_config_cls: MagicMock, mock_svc_cls: MagicMock) -> None:
         mock_svc = MagicMock()
         mock_svc_cls.return_value = mock_svc
@@ -38,8 +38,8 @@ class TestDaemonStart:
         assert result.exit_code == 0
         mock_svc.start_background.assert_called_once()
 
-    @patch("file_organizer.daemon.service.DaemonService")
-    @patch("file_organizer.daemon.config.DaemonConfig")
+    @patch("daemon.service.DaemonService")
+    @patch("daemon.config.DaemonConfig")
     def test_start_with_dry_run(self, mock_config_cls: MagicMock, mock_svc_cls: MagicMock) -> None:
         mock_svc = MagicMock()
         mock_svc_cls.return_value = mock_svc
@@ -65,15 +65,15 @@ class TestDaemonStart:
 class TestDaemonStop:
     """Tests for 'daemon stop' command."""
 
-    @patch("file_organizer.daemon.pid.PidFileManager")
+    @patch("daemon.pid.PidFileManager")
     def test_stop_no_pid_file(self, mock_mgr_cls: MagicMock, tmp_path: Path) -> None:
         # Use a non-existent PID file
-        with patch("file_organizer.cli.daemon._DEFAULT_PID_FILE", tmp_path / "nopid"):
+        with patch("cli.daemon._DEFAULT_PID_FILE", tmp_path / "nopid"):
             result = runner.invoke(daemon_app, ["stop"])
         assert result.exit_code == 1
 
-    @patch("file_organizer.cli.daemon.os.kill")
-    @patch("file_organizer.daemon.pid.PidFileManager")
+    @patch("cli.daemon.os.kill")
+    @patch("daemon.pid.PidFileManager")
     def test_stop_success(
         self, mock_mgr_cls: MagicMock, mock_kill: MagicMock, tmp_path: Path
     ) -> None:
@@ -83,7 +83,7 @@ class TestDaemonStop:
         mock_mgr_cls.return_value = mock_mgr
         mock_mgr.read_pid.return_value = 12345
 
-        with patch("file_organizer.cli.daemon._DEFAULT_PID_FILE", pid_file):
+        with patch("cli.daemon._DEFAULT_PID_FILE", pid_file):
             result = runner.invoke(daemon_app, ["stop"])
         assert result.exit_code == 0
         assert "stopped" in result.output.lower()
@@ -93,18 +93,18 @@ class TestDaemonStop:
 class TestDaemonStatus:
     """Tests for 'daemon status' command."""
 
-    @patch("file_organizer.daemon.pid.PidFileManager")
+    @patch("daemon.pid.PidFileManager")
     def test_status_not_running(self, mock_mgr_cls: MagicMock, tmp_path: Path) -> None:
         mock_mgr = MagicMock()
         mock_mgr_cls.return_value = mock_mgr
         mock_mgr.is_running.return_value = False
 
-        with patch("file_organizer.cli.daemon._DEFAULT_PID_FILE", tmp_path / "nopid"):
+        with patch("cli.daemon._DEFAULT_PID_FILE", tmp_path / "nopid"):
             result = runner.invoke(daemon_app, ["status"])
         assert result.exit_code == 0
         assert "Stopped" in result.output
 
-    @patch("file_organizer.daemon.pid.PidFileManager")
+    @patch("daemon.pid.PidFileManager")
     def test_status_running(self, mock_mgr_cls: MagicMock, tmp_path: Path) -> None:
         pid_file = tmp_path / "daemon.pid"
         pid_file.write_text("99999")
@@ -113,7 +113,7 @@ class TestDaemonStatus:
         mock_mgr.is_running.return_value = True
         mock_mgr.read_pid.return_value = 99999
 
-        with patch("file_organizer.cli.daemon._DEFAULT_PID_FILE", pid_file):
+        with patch("cli.daemon._DEFAULT_PID_FILE", pid_file):
             result = runner.invoke(daemon_app, ["status"])
         assert result.exit_code == 0
         assert "Running" in result.output
@@ -123,7 +123,7 @@ class TestDaemonStatus:
 class TestDaemonProcess:
     """Tests for 'daemon process' command."""
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_process_success(self, mock_org_cls: MagicMock) -> None:
         mock_org = MagicMock()
         mock_org_cls.return_value = mock_org
@@ -141,7 +141,7 @@ class TestDaemonProcess:
         assert result.exit_code == 0
         assert "10" in result.output
 
-    @patch("file_organizer.core.organizer.FileOrganizer")
+    @patch("core.organizer.FileOrganizer")
     def test_process_dry_run(self, mock_org_cls: MagicMock) -> None:
         mock_org = MagicMock()
         mock_org_cls.return_value = mock_org

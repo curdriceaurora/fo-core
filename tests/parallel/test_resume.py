@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.parallel.checkpoint import CheckpointManager
-from file_organizer.parallel.config import ExecutorType, ParallelConfig
-from file_organizer.parallel.models import JobState, JobStatus
-from file_organizer.parallel.persistence import JobPersistence
-from file_organizer.parallel.resume import ResumableProcessor
+from parallel.checkpoint import CheckpointManager
+from parallel.config import ExecutorType, ParallelConfig
+from parallel.models import JobState, JobStatus
+from parallel.persistence import JobPersistence
+from parallel.resume import ResumableProcessor
 
 
 def _identity(path: Path) -> str:

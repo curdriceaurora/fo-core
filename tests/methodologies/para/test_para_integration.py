@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.methodologies.para.categories import (
+from methodologies.para.categories import (
     PARACategory,
 )
-from file_organizer.methodologies.para.detection.heuristics import (
+from methodologies.para.detection.heuristics import (
     HeuristicEngine,
 )
 

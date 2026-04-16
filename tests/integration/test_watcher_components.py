@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.watcher.config import WatcherConfig
-from file_organizer.watcher.queue import EventQueue, EventType, FileEvent
+from watcher.config import WatcherConfig
+from watcher.queue import EventQueue, EventType, FileEvent
 
 pytestmark = pytest.mark.integration
 

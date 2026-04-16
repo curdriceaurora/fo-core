@@ -1,4 +1,4 @@
-"""Tests for file_organizer.cli.rules module.
+"""Tests for cli.rules module.
 
 Tests the Typer-based rules management CLI commands including:
 - rules list, sets, add, remove, toggle
@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.rules import rules_app
-from file_organizer.services.copilot.rules.models import (
+from cli.rules import rules_app
+from services.copilot.rules.models import (
     ActionType,
     ConditionType,
     Rule,
@@ -29,7 +29,7 @@ pytestmark = [pytest.mark.unit]
 # We must patch at the source-module level so the runtime import picks up
 # our mocks.
 # ---------------------------------------------------------------------------
-_RULES_PKG = "file_organizer.services.copilot.rules"
+_RULES_PKG = "services.copilot.rules"
 _RULE_MGR_PATH = f"{_RULES_PKG}.RuleManager"
 _RULE_MGR_ADD_PATH = f"{_RULES_PKG}.rule_manager.RuleManager"
 _PREVIEW_ENGINE_PATH = f"{_RULES_PKG}.PreviewEngine"

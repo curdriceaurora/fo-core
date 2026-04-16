@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import BaseModel, ModelConfig, ModelType
-from file_organizer.optimization.lazy_loader import LazyModelLoader
+from models.base import BaseModel, ModelConfig, ModelType
+from optimization.lazy_loader import LazyModelLoader
 
 
 def _make_config(name: str = "test-model") -> ModelConfig:
@@ -241,7 +241,7 @@ class TestLazyModelLoaderDefaultLoader:
         mock_model.initialize = MagicMock()
 
         with patch(
-            "file_organizer.models.provider_factory.get_text_model",
+            "models.provider_factory.get_text_model",
             return_value=mock_model,
         ) as mock_get_text_model:
             model = LazyModelLoader._default_loader(cfg)

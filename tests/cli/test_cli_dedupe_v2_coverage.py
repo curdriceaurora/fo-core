@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.cli.dedupe_v2 — uncovered lines 28-236."""
+"""Coverage tests for cli.dedupe_v2 — uncovered lines 28-236."""
 
 from __future__ import annotations
 
@@ -34,32 +34,32 @@ class TestDedupeHelpers:
     """Covers _build_scan_options and _format_size."""
 
     def test_format_size_bytes(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert _format_size(500) == "500 B"
 
     def test_format_size_kb(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert "KB" in _format_size(2048)
 
     def test_format_size_mb(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert "MB" in _format_size(2 * 1024 * 1024)
 
     def test_format_size_gb(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert "GB" in _format_size(2 * 1024**3)
 
     def test_format_size_tb(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert "TB" in _format_size(2 * 1024**4)
 
     def test_format_size_pb(self) -> None:
-        from file_organizer.cli.dedupe_v2 import _format_size
+        from cli.dedupe_v2 import _format_size
 
         assert "PB" in _format_size(2 * 1024**5)
 
@@ -68,18 +68,18 @@ class TestDedupeScan:
     """Covers scan command."""
 
     def test_scan_no_duplicates(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = {}
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(dedupe_app, ["scan", str(tmp_path)])
 
         assert "No duplicates" in result.output
 
     def test_scan_with_duplicates_json(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         group = _FakeDupGroup(
             files=[
@@ -90,13 +90,13 @@ class TestDedupeScan:
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = {"abc123": group}
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(dedupe_app, ["scan", str(tmp_path), "--json"])
 
         assert result.exit_code == 0
 
     def test_scan_with_duplicates_table(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         group = _FakeDupGroup(
             files=[
@@ -107,7 +107,7 @@ class TestDedupeScan:
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = {"abc123": group}
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(dedupe_app, ["scan", str(tmp_path)])
 
         assert result.exit_code == 0
@@ -132,23 +132,23 @@ class TestDedupeResolve:
         return {"hash1": group}
 
     def test_resolve_no_duplicates(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = {}
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(dedupe_app, ["resolve", str(tmp_path)])
 
         assert "No duplicates" in result.output
 
     def test_resolve_oldest_dry_run(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = self._make_groups(tmp_path)
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(tmp_path), "--strategy", "oldest", "--dry-run"],
@@ -157,12 +157,12 @@ class TestDedupeResolve:
         assert "Dry run" in result.output or "Would remove" in result.output
 
     def test_resolve_newest(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = self._make_groups(tmp_path)
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(tmp_path), "--strategy", "newest", "--dry-run"],
@@ -171,12 +171,12 @@ class TestDedupeResolve:
         assert result.exit_code == 0
 
     def test_resolve_largest(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = self._make_groups(tmp_path)
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(tmp_path), "--strategy", "largest", "--dry-run"],
@@ -185,12 +185,12 @@ class TestDedupeResolve:
         assert result.exit_code == 0
 
     def test_resolve_smallest(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = self._make_groups(tmp_path)
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(tmp_path), "--strategy", "smallest", "--dry-run"],
@@ -199,12 +199,12 @@ class TestDedupeResolve:
         assert result.exit_code == 0
 
     def test_resolve_manual(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = self._make_groups(tmp_path)
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(
                 dedupe_app,
                 ["resolve", str(tmp_path), "--strategy", "manual"],
@@ -218,19 +218,19 @@ class TestDedupeReport:
     """Covers report command."""
 
     def test_report_json(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         mock_detector = MagicMock()
         mock_detector.get_duplicate_groups.return_value = {}
         mock_detector.get_statistics.return_value = {"total_files": 10}
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(dedupe_app, ["report", str(tmp_path), "--json"])
 
         assert result.exit_code == 0
 
     def test_report_table(self, tmp_path: Path) -> None:
-        from file_organizer.cli.dedupe_v2 import dedupe_app
+        from cli.dedupe_v2 import dedupe_app
 
         group = _FakeDupGroup(wasted_space=512)
         mock_detector = MagicMock()
@@ -240,7 +240,7 @@ class TestDedupeReport:
             "duplicate_files": 2,
         }
 
-        with patch("file_organizer.cli.dedupe_v2._get_detector", return_value=mock_detector):
+        with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
             result = runner.invoke(dedupe_app, ["report", str(tmp_path)])
 
         assert result.exit_code == 0

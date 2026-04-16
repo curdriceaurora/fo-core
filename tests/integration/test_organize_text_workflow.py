@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.services.text_processor import ProcessedFile
+from core.organizer import FileOrganizer
+from services.text_processor import ProcessedFile
 
 
 @pytest.fixture
@@ -47,8 +47,8 @@ def output_dir(tmp_path: Path) -> Path:
 class TestTextWorkflowsIntegration:
     """Integration tests for text file organization workflow."""
 
-    @patch("file_organizer.core.organizer.TextProcessor")
-    @patch("file_organizer.core.organizer.VisionProcessor")
+    @patch("core.organizer.TextProcessor")
+    @patch("core.organizer.VisionProcessor")
     def test_end_to_end_text_organization_copy(
         self, mock_vision_cls, mock_text_cls, source_dir, output_dir
     ):
@@ -99,8 +99,8 @@ class TestTextWorkflowsIntegration:
     @pytest.mark.skipif(
         sys.platform == "win32", reason="Hardlinks require admin privileges on Windows"
     )
-    @patch("file_organizer.core.organizer.TextProcessor")
-    @patch("file_organizer.core.organizer.VisionProcessor")
+    @patch("core.organizer.TextProcessor")
+    @patch("core.organizer.VisionProcessor")
     def test_end_to_end_text_organization_hardlink(
         self, mock_vision_cls, mock_text_cls, source_dir, output_dir
     ):
@@ -131,8 +131,8 @@ class TestTextWorkflowsIntegration:
         dst_stat = os.stat(auto_sorted_dir / "linked_report.txt")
         assert src_stat.st_ino == dst_stat.st_ino
 
-    @patch("file_organizer.core.organizer.TextProcessor")
-    @patch("file_organizer.core.organizer.VisionProcessor")
+    @patch("core.organizer.TextProcessor")
+    @patch("core.organizer.VisionProcessor")
     def test_end_to_end_collision_handling(
         self, mock_vision_cls, mock_text_cls, source_dir, output_dir
     ):

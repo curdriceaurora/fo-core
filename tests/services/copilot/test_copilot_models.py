@@ -1,4 +1,4 @@
-"""Tests for file_organizer.services.copilot.models.
+"""Tests for services.copilot.models.
 
 Covers MessageRole, IntentType, CopilotMessage, Intent, ExecutionResult,
 and CopilotSession dataclasses including all properties and edge cases.
@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from file_organizer.services.copilot.models import (
+from services.copilot.models import (
     CopilotMessage,
     CopilotSession,
     ExecutionResult,

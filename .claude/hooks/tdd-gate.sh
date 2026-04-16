@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tdd-gate: PreToolUse hook — enforce test-first for new src/file_organizer modules.
+# tdd-gate: PreToolUse hook — enforce test-first for new src modules.
 #
 # Behaviour:
 #   Write  (new file) — DENY if no test file exists for the target module.
@@ -36,8 +36,8 @@ if [[ "$FILE_PATH" != /* ]]; then
   FILE_PATH="$(pwd)/$FILE_PATH"
 fi
 
-# Only gate files under src/file_organizer/.
-if [[ "$FILE_PATH" != */src/file_organizer/*.py ]]; then
+# Only gate files under src/.
+if [[ "$FILE_PATH" != */src/*.py ]]; then
   exit 0
 fi
 
@@ -54,8 +54,8 @@ TESTS_DIR="$PROJECT_ROOT/tests"
 # Stem of the source file, e.g. "text_processor".
 STEM="${BASENAME%.py}"
 
-# Relative sub-path under file_organizer, e.g. "services/text_processor.py".
-REL="${FILE_PATH#"$PROJECT_ROOT/src/file_organizer/"}"
+# Relative sub-path under fo, e.g. "services/text_processor.py".
+REL="${FILE_PATH#"$PROJECT_ROOT/src/"}"
 REL_DIR=$(dirname "$REL")
 # Normalise "." (top-level module) to empty string so path joins are clean.
 [[ "$REL_DIR" == "." ]] && REL_DIR=""

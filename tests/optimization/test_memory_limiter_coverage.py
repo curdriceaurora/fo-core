@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.optimization.memory_limiter module.
+"""Coverage tests for optimization.memory_limiter module.
 
 Targets uncovered branches: enforce with non-callable evict_callback,
 _get_rss Linux/macOS paths, guarded context manager exit enforcement.
@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from file_organizer.optimization.memory_limiter import (
+from optimization.memory_limiter import (
     LimitAction,
     MemoryLimiter,
 )

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.optimization.memory_profiler import (
+from optimization.memory_profiler import (
     MemoryProfiler,
     MemorySnapshot,
     MemoryTimeline,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.history.database import DatabaseManager
+from history.database import DatabaseManager
 
 pytestmark = pytest.mark.unit
 

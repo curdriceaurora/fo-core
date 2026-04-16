@@ -6,24 +6,23 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from file_organizer.config.manager import ConfigManager
-from file_organizer.config.path_manager import PathManager
-from file_organizer.config.path_migration import PathMigrator, detect_legacy_paths
-from file_organizer.config.schema import AppConfig
-from file_organizer.services.intelligence.preference_store import PreferenceStore
+from config.manager import ConfigManager
+from config.path_manager import PathManager
+from config.path_migration import PathMigrator, detect_legacy_paths
+from config.schema import AppConfig
+from services.intelligence.preference_store import PreferenceStore
 
 
 def test_migration_detects_all_legacy_paths():
-    """Migration should detect all three legacy path variants"""
+    """Hard-cut identity should not auto-detect legacy app path variants."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
         config_home = tmp_path / ".config"
         data_home = tmp_path / ".local" / "share"
 
-        # Create all three legacy path variants
-        legacy_hyphen = tmp_path / ".file-organizer"
-        legacy_underscore = tmp_path / ".file_organizer"
-        legacy_config = config_home / "file-organizer"
+        legacy_hyphen = tmp_path / ".legacy-hyphen"
+        legacy_underscore = tmp_path / ".legacy-underscore"
+        legacy_config = config_home / "legacy"
 
         legacy_hyphen.mkdir()
         legacy_underscore.mkdir()
@@ -34,21 +33,17 @@ def test_migration_detects_all_legacy_paths():
         (legacy_underscore / "test.txt").write_text("legacy underscore")
         (legacy_config / "test.txt").write_text("legacy config")
 
-        # Detect should find all three
         detected = detect_legacy_paths(tmp_path, config_home, data_home)
 
-        assert len(detected) == 3
-        assert legacy_hyphen in detected
-        assert legacy_underscore in detected
-        assert legacy_config in detected
+        assert detected == []
 
 
 def test_migration_preserves_data_integrity():
     """Migration should preserve all file data without corruption"""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        legacy_path = tmp_path / ".file-organizer"
-        canonical_path = tmp_path / ".local" / "share" / "file-organizer"
+        legacy_path = tmp_path / ".fo"
+        canonical_path = tmp_path / ".local" / "share" / "fo"
 
         legacy_path.mkdir()
 
@@ -89,8 +84,8 @@ def test_migration_creates_timestamped_backup():
     """Migration should create a timestamped backup of original files"""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        legacy_path = tmp_path / ".file-organizer"
-        canonical_path = tmp_path / ".local" / "share" / "file-organizer"
+        legacy_path = tmp_path / ".fo"
+        canonical_path = tmp_path / ".local" / "share" / "fo"
 
         legacy_path.mkdir()
         (legacy_path / "important.txt").write_text("important data")
@@ -112,7 +107,7 @@ def test_backwards_compatibility_default_paths():
 
         with patch.dict(os.environ, {"HOME": str(tmp_path)}):
             # Old code using DEFAULT_CONFIG_DIR should still work
-            from file_organizer.config.manager import DEFAULT_CONFIG_DIR
+            from config.manager import DEFAULT_CONFIG_DIR
 
             config_manager_old = ConfigManager(config_dir=DEFAULT_CONFIG_DIR)
 
@@ -167,8 +162,8 @@ def test_migration_logging_creates_audit_trail():
     """Migration should create logs for audit and verification"""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        legacy_path = tmp_path / ".file-organizer"
-        canonical_path = tmp_path / ".local" / "share" / "file-organizer"
+        legacy_path = tmp_path / ".fo"
+        canonical_path = tmp_path / ".local" / "share" / "fo"
 
         legacy_path.mkdir()
         (legacy_path / "test.txt").write_text("test data")

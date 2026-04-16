@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.parallel.config import ParallelConfig
+from core.organizer import FileOrganizer
+from parallel.config import ParallelConfig
 
 from .conftest import (
     make_text_config,

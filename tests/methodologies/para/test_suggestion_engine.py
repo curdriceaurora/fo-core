@@ -12,14 +12,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.methodologies.para.ai.suggestion_engine import (
+from methodologies.para.ai.suggestion_engine import (
     PARASuggestion,
     PARASuggestionEngine,
     _confidence_label,
 )
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
-from file_organizer.methodologies.para.detection.heuristics import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
+from methodologies.para.detection.heuristics import (
     CategoryScore,
     HeuristicEngine,
     HeuristicResult,
@@ -794,7 +794,7 @@ class TestFeatureScoring:
         # Create an old file by mocking the feature extractor
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import MetadataFeatures
+        from methodologies.para.ai.feature_extractor import MetadataFeatures
 
         f = tmp_path / "old.txt"
         f.write_text("content")
@@ -834,7 +834,7 @@ class TestFeatureScoring:
 
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import MetadataFeatures
+        from methodologies.para.ai.feature_extractor import MetadataFeatures
 
         f = tmp_path / "old_medium.txt"
         f.write_text("content")
@@ -870,7 +870,7 @@ class TestFeatureScoring:
 
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import MetadataFeatures
+        from methodologies.para.ai.feature_extractor import MetadataFeatures
 
         f = tmp_path / "medium.txt"
         f.write_text("content")
@@ -906,7 +906,7 @@ class TestFeatureScoring:
 
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import MetadataFeatures
+        from methodologies.para.ai.feature_extractor import MetadataFeatures
 
         f = tmp_path / "rarely_accessed.txt"
         f.write_text("content")
@@ -942,7 +942,7 @@ class TestFeatureScoring:
 
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import MetadataFeatures
+        from methodologies.para.ai.feature_extractor import MetadataFeatures
 
         f = tmp_path / "frequently_accessed.txt"
         f.write_text("content")
@@ -978,7 +978,7 @@ class TestFeatureScoring:
 
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import StructuralFeatures
+        from methodologies.para.ai.feature_extractor import StructuralFeatures
 
         f = tmp_path / "file.txt"
         f.write_text("content")
@@ -1016,7 +1016,7 @@ class TestFeatureScoring:
 
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import StructuralFeatures
+        from methodologies.para.ai.feature_extractor import StructuralFeatures
 
         f = tmp_path / "file.txt"
         f.write_text("content")
@@ -1051,7 +1051,7 @@ class TestFeatureScoring:
 
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import StructuralFeatures
+        from methodologies.para.ai.feature_extractor import StructuralFeatures
 
         f = tmp_path / "file.txt"
         f.write_text("content")
@@ -1101,7 +1101,7 @@ class TestReasoningAndSubfolders:
         # Mock all feature extractors to return empty/neutral features
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import (
+        from methodologies.para.ai.feature_extractor import (
             MetadataFeatures,
             StructuralFeatures,
         )
@@ -1324,7 +1324,7 @@ class TestReasoningAndSubfolders:
 
         from unittest.mock import patch
 
-        from file_organizer.methodologies.para.ai.feature_extractor import MetadataFeatures
+        from methodologies.para.ai.feature_extractor import MetadataFeatures
 
         f = tmp_path / "file"  # No extension
         f.write_text("content")

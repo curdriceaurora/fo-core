@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 runner = CliRunner()
 
@@ -35,7 +35,7 @@ def _patch_text_model(mock_model: MagicMock | None = None):
     cls.get_default_config.return_value = MagicMock(name="test-model")
     instance = mock_model
     cls.return_value = instance
-    return patch("file_organizer.models.text_model.TextModel", cls)
+    return patch("models.text_model.TextModel", cls)
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ def test_analyze_handles_model_error(tmp_path: Path):
     with (
         _patch_text_model(mock_model),
         patch(
-            "file_organizer.services.analyzer.generate_category",
+            "services.analyzer.generate_category",
             side_effect=RuntimeError("AI analysis blew up"),
         ),
     ):
@@ -174,7 +174,7 @@ def test_analyze_handles_no_ollama(tmp_path: Path):
     f.write_text("content")
 
     with patch(
-        "file_organizer.models.text_model.TextModel",
+        "models.text_model.TextModel",
         side_effect=ImportError("no ollama"),
     ):
         result = runner.invoke(app, ["analyze", str(f)])

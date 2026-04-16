@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from file_organizer.integrations.base import (
+from integrations.base import (
     Integration,
     IntegrationConfig,
     IntegrationStatus,

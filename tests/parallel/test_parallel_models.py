@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.parallel.models import (
+from parallel.models import (
     Checkpoint,
     JobState,
     JobStatus,

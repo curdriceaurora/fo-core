@@ -13,9 +13,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.parallel.config import ExecutorType, ParallelConfig
-from file_organizer.parallel.processor import ParallelProcessor, _execute_with_timing
-from file_organizer.parallel.result import BatchResult, FileResult
+from parallel.config import ExecutorType, ParallelConfig
+from parallel.processor import ParallelProcessor, _execute_with_timing
+from parallel.result import BatchResult, FileResult
 
 pytestmark = [pytest.mark.ci, pytest.mark.unit]
 

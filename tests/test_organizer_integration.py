@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer, OrganizationResult
+from core.organizer import FileOrganizer, OrganizationResult
 
 # ---------------------------------------------------------------------------
 # Fixtures

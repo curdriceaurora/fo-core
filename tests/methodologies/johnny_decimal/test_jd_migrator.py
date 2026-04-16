@@ -12,20 +12,20 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     JohnnyDecimalNumber,
 )
-from file_organizer.methodologies.johnny_decimal.migrator import (
+from methodologies.johnny_decimal.migrator import (
     JohnnyDecimalMigrator,
     MigrationResult,
     RollbackInfo,
 )
-from file_organizer.methodologies.johnny_decimal.scanner import ScanResult
-from file_organizer.methodologies.johnny_decimal.transformer import (
+from methodologies.johnny_decimal.scanner import ScanResult
+from methodologies.johnny_decimal.transformer import (
     TransformationPlan,
     TransformationRule,
 )
-from file_organizer.methodologies.johnny_decimal.validator import ValidationResult
+from methodologies.johnny_decimal.validator import ValidationResult
 
 pytestmark = pytest.mark.unit
 

@@ -1,5 +1,5 @@
 """
-Shared test fixtures and configuration for the file_organizer test suite.
+Shared test fixtures and configuration for the fo test suite.
 
 Provides version-aware fixtures and skip markers for multi-version testing.
 Requires Python 3.11+.
@@ -315,7 +315,7 @@ def mock_nltk_ensure_data_no_op() -> None:
             ...
     """
 
-    with patch("file_organizer.utils.text_processing.ensure_nltk_data"):
+    with patch("utils.text_processing.ensure_nltk_data"):
         yield
 
 
@@ -332,4 +332,4 @@ def isolated_nltk_environment(monkeypatch: pytest.MonkeyPatch) -> None:
             ...
     """
     # Mock NLTK_AVAILABLE as False
-    monkeypatch.setattr("file_organizer.utils.text_processing.NLTK_AVAILABLE", False)
+    monkeypatch.setattr("utils.text_processing.NLTK_AVAILABLE", False)

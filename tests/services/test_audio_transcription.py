@@ -14,7 +14,7 @@ class TestAudioTranscriptionPlaceholder:
     def test_audio_transcription_module_exists(self):
         """Test that audio transcription module exists."""
         try:
-            from file_organizer.services.audio import transcriber
+            from services.audio import transcriber
 
             assert transcriber is not None
         except ImportError:
@@ -23,7 +23,7 @@ class TestAudioTranscriptionPlaceholder:
     def test_transcriber_initialization(self):
         """Test AudioTranscriber initialization."""
         try:
-            from file_organizer.services.audio.transcriber import AudioTranscriber
+            from services.audio.transcriber import AudioTranscriber
 
             transcriber = AudioTranscriber()
             assert transcriber is not None
@@ -33,7 +33,7 @@ class TestAudioTranscriptionPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Audio transcription not yet implemented")
     def test_transcribe_mp3_file(self, tmp_path):
         """Test transcribing MP3 file."""
-        from file_organizer.services.audio.transcriber import AudioTranscriber
+        from services.audio.transcriber import AudioTranscriber
 
         # Create fake MP3 file
         audio_file = tmp_path / "test.mp3"
@@ -48,7 +48,7 @@ class TestAudioTranscriptionPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Audio transcription not yet implemented")
     def test_transcribe_wav_file(self, tmp_path):
         """Test transcribing WAV file."""
-        from file_organizer.services.audio.transcriber import AudioTranscriber
+        from services.audio.transcriber import AudioTranscriber
 
         audio_file = tmp_path / "test.wav"
         audio_file.write_bytes(b"fake wav data")
@@ -61,7 +61,7 @@ class TestAudioTranscriptionPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Audio transcription not yet implemented")
     def test_language_detection(self, tmp_path):
         """Test language detection in transcription."""
-        from file_organizer.services.audio.transcriber import AudioTranscriber
+        from services.audio.transcriber import AudioTranscriber
 
         audio_file = tmp_path / "test.mp3"
         audio_file.write_bytes(b"fake audio")

@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fo-core"
-version = "0.1.0"
+version = "2.0.0-alpha.3"
 description = "Streamlined CLI file organizer powered by local AI (Ollama)"
 authors = [
-    {name = "Local File Organizer Team", email = "noreply@example.com"}
+    {name = "fo-core Team", email = "noreply@example.com"}
 ]
 readme = "README.md"
 license = {text = "MIT OR Apache-2.0"}
@@ -174,8 +174,7 @@ all = [
 ]
 
 [project.scripts]
-file-organizer = "file_organizer.cli:main"
-fo = "file_organizer.cli:main"  # Short alias
+fo = "cli:main"
 
 [project.urls]
 Homepage = "https://github.com/curdriceaurora/fo-core"
@@ -186,10 +185,7 @@ Issues = "https://github.com/curdriceaurora/fo-core/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-file_organizer = [
-    "py.typed",
-    "config/*.yaml",
-]
+"methodologies.para" = ["default_config.yaml"]
 
 # Ruff configuration (linting and formatting)
 [tool.ruff]
@@ -259,8 +255,8 @@ ignore_missing_imports = true
 # already carry `# pyre-ignore-all-errors` for the same reason.
 [[tool.mypy.overrides]]
 module = [
-    "file_organizer.models.mlx_text_model",
-    "file_organizer.models.llama_cpp_text_model",
+    "models.mlx_text_model",
+    "models.llama_cpp_text_model",
 ]
 ignore_errors = true
 
@@ -288,7 +284,7 @@ python_functions = ["test_*"]
 asyncio_mode = "auto"
 addopts = [
     "--strict-markers",
-    "--cov=file_organizer",
+    "--cov=src",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
@@ -313,8 +309,8 @@ markers = [
     "playwright: browser-based E2E tests (requires playwright install chromium; run with --override-ini='addopts=')",
 ]
 filterwarnings = [
-    "error::DeprecationWarning:file_organizer",
-    "error::PendingDeprecationWarning:file_organizer",
+    "error::DeprecationWarning:fo",
+    "error::PendingDeprecationWarning:fo",
     "ignore::DeprecationWarning:pkg_resources",
     "ignore::DeprecationWarning:google",
     "ignore::DeprecationWarning:importlib",
@@ -360,8 +356,27 @@ whitelist-regex = []
 # deptry: unused dependency detection
 # Run as: deptry src/  (scans source only)
 [tool.deptry]
-# First-party package — suppress DEP001 false positives from src-layout
-known_first_party = ["file_organizer"]
+# First-party packages — suppress DEP001 false positives from src-layout
+known_first_party = [
+    "cli",
+    "config",
+    "core",
+    "daemon",
+    "events",
+    "history",
+    "integrations",
+    "interfaces",
+    "methodologies",
+    "models",
+    "optimization",
+    "parallel",
+    "pipeline",
+    "services",
+    "undo",
+    "updater",
+    "utils",
+    "watcher",
+]
 # Only tool-only groups where packages are never imported in application code
 pep621_dev_dependency_groups = ["dev", "docs", "build"]
 # Map distribution names → import names for packages that differ

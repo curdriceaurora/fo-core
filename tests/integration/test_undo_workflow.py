@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.services.text_processor import ProcessedFile
+from core.organizer import FileOrganizer
+from services.text_processor import ProcessedFile
 
 
 @pytest.fixture
@@ -30,8 +30,8 @@ def output_dir(tmp_path: Path) -> Path:
 class TestUndoTextWorkflow:
     """Test undo/redo integration capabilities."""
 
-    @patch("file_organizer.core.organizer.TextProcessor")
-    @patch("file_organizer.core.organizer.VisionProcessor")
+    @patch("core.organizer.TextProcessor")
+    @patch("core.organizer.VisionProcessor")
     def test_undo_workflow_restores_source_and_output(
         self, mock_vision_cls, mock_text_cls, source_dir, output_dir
     ):
@@ -72,8 +72,8 @@ class TestUndoTextWorkflow:
         assert restored_source == initial_source
         assert restored_output == initial_output
 
-    @patch("file_organizer.core.organizer.TextProcessor")
-    @patch("file_organizer.core.organizer.VisionProcessor")
+    @patch("core.organizer.TextProcessor")
+    @patch("core.organizer.VisionProcessor")
     def test_redo_workflow_reapplies_last_operation(
         self, mock_vision_cls, mock_text_cls, source_dir, output_dir
     ):

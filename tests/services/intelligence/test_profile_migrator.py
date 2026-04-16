@@ -16,9 +16,9 @@ from unittest.mock import patch
 
 import pytest
 
-import file_organizer.services.intelligence.profile_migrator as _migrator_mod
-from file_organizer.services.intelligence.profile_manager import ProfileManager
-from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+import services.intelligence.profile_migrator as _migrator_mod
+from services.intelligence.profile_manager import ProfileManager
+from services.intelligence.profile_migrator import ProfileMigrator
 
 pytestmark = [pytest.mark.unit]
 

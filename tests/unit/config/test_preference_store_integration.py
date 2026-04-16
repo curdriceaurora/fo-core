@@ -5,8 +5,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from file_organizer.config.path_manager import PathManager
-from file_organizer.services.intelligence.preference_store import PreferenceStore
+from config.path_manager import PathManager
+from services.intelligence.preference_store import PreferenceStore
 
 
 def test_preference_store_with_path_manager():
@@ -93,7 +93,7 @@ def test_preference_store_default_dir_vs_path_manager():
             path_manager.ensure_directories()
 
             # They should be different
-            legacy_path = tmp_path / ".file_organizer" / "preferences"
+            legacy_path = tmp_path / ".fo" / "preferences"
             xdg_path = path_manager.data_dir / "preferences"
             assert legacy_path != xdg_path
 

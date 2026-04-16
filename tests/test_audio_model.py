@@ -15,7 +15,7 @@ class TestAudioModelPlaceholder:
     def test_audio_model_exists(self):
         """Test that AudioModel class exists."""
         try:
-            from file_organizer.models.audio_model import AudioModel
+            from models.audio_model import AudioModel
 
             assert AudioModel is not None
         except ImportError:
@@ -24,8 +24,8 @@ class TestAudioModelPlaceholder:
     def test_audio_model_init(self):
         """Test AudioModel initialization."""
         try:
-            from file_organizer.models.audio_model import AudioModel
-            from file_organizer.models.base import ModelConfig, ModelType
+            from models.audio_model import AudioModel
+            from models.base import ModelConfig, ModelType
 
             config = ModelConfig(
                 name="whisper-base",
@@ -39,8 +39,8 @@ class TestAudioModelPlaceholder:
     def test_audio_model_config_validation(self):
         """Test that AudioModel validates configuration."""
         try:
-            from file_organizer.models.audio_model import AudioModel
-            from file_organizer.models.base import ModelConfig, ModelType
+            from models.audio_model import AudioModel
+            from models.base import ModelConfig, ModelType
 
             config = ModelConfig(
                 name="whisper-base",

@@ -13,13 +13,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.events.pubsub import PubSubManager
-from file_organizer.events.service_bus import (
+from events.pubsub import PubSubManager
+from events.service_bus import (
     ServiceBus,
     ServiceRequest,
     ServiceResponse,
 )
-from file_organizer.events.stream import RedisStreamManager
+from events.stream import RedisStreamManager
 
 # ------------------------------------------------------------------
 # Fixtures

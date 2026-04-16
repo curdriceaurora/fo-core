@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.events.audit import AuditEntry, AuditFilter, AuditLogger
-from file_organizer.events.stream import Event
+from events.audit import AuditEntry, AuditFilter, AuditLogger
+from events.stream import Event
 
 # --- Fixtures ---
 

@@ -11,7 +11,7 @@ PYTHON_BIN="${PYTHON:-python3}"
 PYTHON_VERSIONS=("3.11.15" "3.12.13")
 PYENV_ROOT_DIR="${PYENV_ROOT:-${HOME}/.pyenv}"
 TMP_ROOT="${TMPDIR:-/tmp}"
-VENV_ROOT="${TMP_ROOT%/}/local-file-organizer-ci"
+VENV_ROOT="${TMP_ROOT%/}/fo-core-ci"
 
 print_usage() {
   cat <<'EOF'
@@ -23,7 +23,7 @@ Tasks:
   quick         Install deps, run lint, type-check, docs link check, and PR CI tests
   lint          pre-commit run --all-files
   unused-deps   deptry src/
-  type-check    mypy (14 gated packages — models + Tier 1 + Tier 2)
+  type-check    mypy (all source packages)
   links         docs link-integrity check from ci.yml
   test          run non-benchmark CI tests on Python 3.11.15 and 3.12.13 in parallel
   test-full     run main-branch non-benchmark suite on Python 3.11.15 and 3.12.13 in parallel
@@ -209,21 +209,7 @@ run_unused_deps() {
 }
 
 run_type_check() {
-  run_step "Run mypy" mypy \
-    src/file_organizer/models/ \
-    src/file_organizer/optimization/ \
-    src/file_organizer/parallel/ \
-    src/file_organizer/events/ \
-    src/file_organizer/daemon/ \
-    src/file_organizer/undo/ \
-    src/file_organizer/history/ \
-    src/file_organizer/interfaces/ \
-    src/file_organizer/updater/ \
-    src/file_organizer/pipeline/ \
-    src/file_organizer/methodologies/ \
-    src/file_organizer/integrations/ \
-    src/file_organizer/utils/ \
-    src/file_organizer/config/
+  run_step "Run mypy" mypy src/
 }
 
 run_test_pr_version() {
@@ -249,7 +235,7 @@ run_test_pr_version() {
     tests/ \
     -m \
     "ci and not benchmark" \
-    --cov=file_organizer \
+    --cov=src \
     --cov-report="xml:$venv_dir/coverage-pr.xml" \
     --timeout=30 \
     -n=auto \
@@ -276,7 +262,7 @@ run_test_full_version() {
     tests/ \
     -m \
     "not benchmark and not e2e" \
-    --cov=file_organizer \
+    --cov=src \
     --cov-fail-under=93 \
     --cov-report="xml:$venv_dir/coverage-full.xml" \
     --timeout=30 \
@@ -340,7 +326,7 @@ run_integration() {
       report_path="${RUNNER_TEMP:-/tmp}/integration-coverage-report.txt"
       pytest tests/ -m integration \
         --strict-markers \
-        --cov=file_organizer \
+        --cov=src \
         --cov-branch \
         --cov-report=term-missing \
         --cov-report=xml \
