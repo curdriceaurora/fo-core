@@ -111,7 +111,7 @@ class AudioMetadataExtractor:
     def _extract_with_mutagen(self, audio_path: Path) -> AudioMetadata:
         """Extract metadata using mutagen library."""
         try:
-            from mutagen import File as MutagenFile
+            from mutagen import File as MutagenFile  # type: ignore[attr-defined]
         except ImportError as e:
             raise ImportError(
                 "mutagen is required for audio metadata extraction. "

@@ -17,7 +17,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
 
@@ -125,7 +125,7 @@ class ProfileImporter:
         """Load and parse JSON file."""
         try:
             with open(file_path, encoding="utf-8") as f:
-                return json.load(f)
+                return cast(dict[str, Any], json.load(f))
         except json.JSONDecodeError as e:
             errors.append(f"Invalid JSON format: {e}")
             return None

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class SemanticAnalyzer:
         self.threshold = threshold
         logger.info(f"SemanticAnalyzer initialized with threshold={threshold}")
 
-    def compute_similarity(self, doc1_vector: np.ndarray, doc2_vector: np.ndarray) -> float:
+    def compute_similarity(self, doc1_vector: NDArray[Any], doc2_vector: NDArray[Any]) -> float:
         """Compute cosine similarity between two document vectors.
 
         Args:
@@ -58,7 +59,7 @@ class SemanticAnalyzer:
         return float(np.clip(similarity, 0.0, 1.0))
 
     def find_similar_documents(
-        self, embeddings: np.ndarray, paths: list[Path], min_similarity: float | None = None
+        self, embeddings: NDArray[Any], paths: list[Path], min_similarity: float | None = None
     ) -> dict[Path, list[tuple[Path, float]]]:
         """Find similar documents based on embeddings.
 
@@ -106,8 +107,8 @@ class SemanticAnalyzer:
 
     def find_similar_to_query(
         self,
-        query_embedding: np.ndarray,
-        document_embeddings: np.ndarray,
+        query_embedding: NDArray[Any],
+        document_embeddings: NDArray[Any],
         paths: list[Path],
         top_k: int | None = None,
         min_similarity: float | None = None,
@@ -188,7 +189,7 @@ class SemanticAnalyzer:
 
         return clusters
 
-    def compute_similarity_matrix(self, embeddings: np.ndarray) -> np.ndarray:
+    def compute_similarity_matrix(self, embeddings: NDArray[Any]) -> NDArray[Any]:
         """Compute full pairwise similarity matrix.
 
         Args:
@@ -213,7 +214,7 @@ class SemanticAnalyzer:
         return np.asarray(similarity_matrix)
 
     def get_duplicate_groups(
-        self, embeddings: np.ndarray, paths: list[Path], min_similarity: float | None = None
+        self, embeddings: NDArray[Any], paths: list[Path], min_similarity: float | None = None
     ) -> list[dict[str, Any]]:
         """Get groups of duplicate/similar documents with metadata.
 
@@ -279,7 +280,7 @@ class SemanticAnalyzer:
         self.threshold = threshold
         logger.info(f"Updated similarity threshold to {threshold}")
 
-    def get_statistics(self, similarity_matrix: np.ndarray) -> dict[str, Any]:
+    def get_statistics(self, similarity_matrix: NDArray[Any]) -> dict[str, Any]:
         """Compute statistics from similarity matrix.
 
         Args:

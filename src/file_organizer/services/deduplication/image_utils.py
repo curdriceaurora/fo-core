@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from PIL import Image, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
@@ -130,7 +130,7 @@ def get_image_dimensions(image_path: Path) -> tuple[int, int] | None:
     """
     try:
         with Image.open(image_path) as img:
-            return img.size
+            return cast(tuple[int, int], img.size)
     except (OSError, ValueError) as e:
         logger.warning(f"Could not get dimensions for {image_path}: {e}")
         return None
@@ -147,7 +147,7 @@ def get_image_format(image_path: Path) -> str | None:
     """
     try:
         with Image.open(image_path) as img:
-            return img.format
+            return cast("str | None", img.format)
     except (OSError, ValueError) as e:
         logger.warning(f"Could not determine format for {image_path}: {e}")
         return None

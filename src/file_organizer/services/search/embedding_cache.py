@@ -33,6 +33,7 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 
 from file_organizer.interfaces.search import EmbeddingCacheProtocol
 
@@ -51,14 +52,15 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _array_to_blob(arr: np.ndarray) -> bytes:
+def _array_to_blob(arr: NDArray[Any]) -> bytes:
     buf = io.BytesIO()
     np.save(buf, arr, allow_pickle=False)
     return buf.getvalue()
 
 
-def _blob_to_array(blob: bytes) -> np.ndarray:
-    return np.load(io.BytesIO(blob), allow_pickle=False)
+def _blob_to_array(blob: bytes) -> NDArray[Any]:
+    result: NDArray[Any] = np.load(io.BytesIO(blob), allow_pickle=False)
+    return result
 
 
 class EmbeddingCache:
@@ -111,8 +113,8 @@ class EmbeddingCache:
         self,
         path: Path,
         /,
-        compute: Callable[[str], np.ndarray],
-    ) -> np.ndarray:
+        compute: Callable[[str], NDArray[Any]],
+    ) -> NDArray[Any]:
         """Return a cached embedding for *path*, computing it if necessary.
 
         The cache entry is invalidated when:

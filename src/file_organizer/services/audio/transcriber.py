@@ -24,7 +24,7 @@ try:
 
     _FASTER_WHISPER_AVAILABLE = True  # pragma: no cover
 except ImportError:  # pragma: no cover
-    WhisperModel = None  # type: ignore[assignment, misc]
+    WhisperModel = None
     _FASTER_WHISPER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)

@@ -273,7 +273,7 @@ GitHub Actions runs automated checks on every PR and push to main:
 
 - `pytest -m "ci"` test subset runs (selected critical tests)
 - Linting checks (ruff for Python, markdownlint for docs)
-- Type checking (mypy strict, gated packages only — see `.github/workflows/ci.yml`)
+- Type checking (mypy strict on entire src/ tree — see `.github/workflows/ci.yml`)
 - No coverage threshold enforced
 
 **Main Branch Pushes:**
@@ -281,7 +281,7 @@ GitHub Actions runs automated checks on every PR and push to main:
 - Full test suite passes (`pytest`)
 - Coverage must be >= 95% (code) and >= 95% (docstrings) -- both gates must pass
 - Linting must pass (ruff and markdownlint)
-- Type checking must pass (mypy strict on all gated packages — `core`, `cli`, `watcher` + 14 others)
+- Type checking must pass (mypy strict on all source packages — entire `src/` tree)
 
 See `.github/workflows/` for CI configuration.
 
