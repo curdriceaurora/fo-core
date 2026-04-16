@@ -1,4 +1,4 @@
-"""Version management for File Organizer.
+"""Version management for fo-core.
 
 This module is the single source of truth for the package version.
 It provides utilities for parsing, comparing, and bumping semantic versions.
