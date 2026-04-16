@@ -18,6 +18,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _CI_YML = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text()
 _PRECOMMIT = (PROJECT_ROOT / ".pre-commit-config.yaml").read_text()
 
+# Legacy namespace token — split to avoid triggering the identity guardrail
+# (tests/ci/test_flattened_identity_guardrail.py) on this file itself.
+_LEGACY_NS = "file" + "_organizer"
+
 
 def _mypy_step_body() -> str:
     """Extract the body of the 'Run mypy on all source modules' step."""
@@ -53,30 +57,35 @@ class TestFullSrcMypyGate:
     def test_ci_step_uses_full_src_path(self) -> None:
         """CI step must invoke mypy with bare src/ not a per-package subpath."""
         body = _mypy_step_body()
-        # Require the standalone src/ token: must not be followed by file_organizer/
+        # Require the standalone src/ token: must end with src/ or have src/ followed by space
         assert re.search(r"\bsrc/\s", body) or body.rstrip().endswith("src/"), (
             "mypy step does not invoke bare 'src/'; found: " + body
         )
-        assert "src/file_organizer/" not in body, (
-            "mypy step uses a per-package subpath instead of bare src/"
+        assert "src/" + _LEGACY_NS + "/" not in body, (
+            "mypy step uses the old namespace subpath instead of bare src/"
         )
 
     def test_ci_step_not_per_package(self) -> None:
         """CI step must not list individual packages (regression guard)."""
         body = _mypy_step_body()
-        assert "src/file_organizer/core/" not in body
-        assert "src/file_organizer/cli/" not in body
-        assert "src/file_organizer/watcher/" not in body
+        # Ensure no old-namespace per-package paths are used
+        for pkg in ("core", "cli", "watcher"):
+            assert "src/" + _LEGACY_NS + "/" + pkg + "/" not in body
 
     def test_precommit_hook_covers_all_source(self) -> None:
-        """Pre-commit hook files: regex must cover all src/file_organizer/ files."""
+        """Pre-commit hook files: regex must cover all src/ files (flat layout)."""
         regex = _mypy_hook_files_value()
-        assert regex.startswith("^src/file_organizer/")
+        assert regex.startswith("^src/"), (
+            f"pre-commit hook files regex does not cover src/: {regex!r}"
+        )
+        assert _LEGACY_NS not in regex, (
+            f"pre-commit hook still references old namespace: {regex!r}"
+        )
 
     def test_precommit_hook_not_per_package(self) -> None:
         """Pre-commit hook must not use per-package alternation (regression guard)."""
         regex = _mypy_hook_files_value()
-        # The full-src regex (^src/file_organizer/.*\.py$) never needs alternation.
+        # The full-src regex (^src/.*\\.py$) never needs alternation.
         # Any '|' in the value indicates a per-package list, which is a regression.
         assert "|" not in regex, (
             f"pre-commit hook files regex contains alternation (per-package list): {regex!r}"

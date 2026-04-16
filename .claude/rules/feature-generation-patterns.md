@@ -24,6 +24,7 @@ there are no web routes, no HTTP server, no plugin system.
 unhandled to the caller, with no wrapping or user-facing message.
 
 **Bad**:
+
 ```python
 def process_file(path: Path) -> ProcessResult:
     content = self.reader.read(path)  # raises FileNotFoundError if missing
@@ -31,6 +32,7 @@ def process_file(path: Path) -> ProcessResult:
 ```
 
 **Good**:
+
 ```python
 def process_file(path: Path) -> ProcessResult:
     try:
@@ -55,6 +57,7 @@ ask: *"What exception can this raise, and does my code handle it?"*
 known; return type not declared. Mypy strict mode rejects these.
 
 **Bad**:
+
 ```python
 def get_metadata(file_path, config=None):
     result = self.processor.analyze(file_path)
@@ -62,6 +65,7 @@ def get_metadata(file_path, config=None):
 ```
 
 **Good**:
+
 ```python
 def get_metadata(
     file_path: Path,
@@ -83,6 +87,7 @@ boundaries (e.g., JSON deserialization before validation).
 non-atomic read-modify-write on shared data.
 
 **Bad**:
+
 ```python
 # BAD — 'w' truncates file before flock; race window between truncate and lock
 with open(cache_file, 'w') as f:
@@ -94,6 +99,7 @@ self.count += 1
 ```
 
 **Good**:
+
 ```python
 # GOOD — atomic write via temp file + rename
 import tempfile, os
@@ -125,6 +131,7 @@ config bypassed by reading `os.environ` directly instead of using the injected
 `AppConfig` / `ConfigManager` instance.
 
 **Bad**:
+
 ```python
 # BAD — user-supplied path used directly → directory traversal
 def organize(target_dir: str) -> None:
@@ -141,6 +148,7 @@ class TextProcessor:
 ```
 
 **Good**:
+
 ```python
 # GOOD — validate path against configured organize root
 def organize(target_dir: str, config: AppConfig) -> None:
@@ -175,6 +183,7 @@ class TextProcessor:
 config system.
 
 **Bad**:
+
 ```python
 TRASH_DIR = Path("~/.config/fo/trash").expanduser()
 MAX_RETRIES = 3  # scattered throughout codebase
@@ -182,6 +191,7 @@ model = OllamaModel("qwen2.5:3b-instruct-q4_K_M")
 ```
 
 **Good**:
+
 ```python
 from config import ConfigManager
 trash_dir = ConfigManager.get_path("trash")
@@ -200,6 +210,7 @@ model = OllamaModel(config.text_model)
 context managers; missing `finally` blocks.
 
 **Bad**:
+
 ```python
 conn = db.connect()
 results = conn.execute(query)
@@ -207,6 +218,7 @@ conn.close()  # never called if execute() raises
 ```
 
 **Good**:
+
 ```python
 with db.connect() as conn:
     results = conn.execute(query)
@@ -220,6 +232,7 @@ with db.connect() as conn:
 the service layer; presentation in the data layer.
 
 **Bad**:
+
 ```python
 # BAD — CLI command doing AI calls + file I/O + display directly
 @app.command()
@@ -232,6 +245,7 @@ def organize(path: str) -> None:
 ```
 
 **Good**:
+
 ```python
 # GOOD — CLI delegates; service owns logic; CLI owns display
 @app.command()
@@ -255,6 +269,7 @@ class FileOrganizer:
 instead of top-level `import` statements. Breaks static analysis and mypy.
 
 **Bad**:
+
 ```python
 @dataclass
 class Config:
@@ -262,6 +277,7 @@ class Config:
 ```
 
 **Good**:
+
 ```python
 import platformdirs
 
@@ -280,6 +296,7 @@ for optional deps instead.
 **What it is**: Docstring describes old behavior after the implementation changed.
 
 **Bad**:
+
 ```python
 def _init_text_processor(self) -> None:
     """On failure (Ollama unavailable), resets to None."""
@@ -290,6 +307,7 @@ def _init_text_processor(self) -> None:
 ```
 
 **Good**:
+
 ```python
 def _init_text_processor(self) -> None:
     """On any initialization failure (Ollama unavailable, config errors,

@@ -52,6 +52,7 @@ If you want to test with real audio files:
 4. Update tests to use real files instead of synthetic ones
 
 Example:
+
 ```python
 AUDIO_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "audio_samples"
 

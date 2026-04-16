@@ -35,7 +35,7 @@ import numpy as np
 from loguru import logger
 from numpy.typing import NDArray
 
-from file_organizer.interfaces.search import EmbeddingCacheProtocol
+from interfaces.search import EmbeddingCacheProtocol
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS embeddings (

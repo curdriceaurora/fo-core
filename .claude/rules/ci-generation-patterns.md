@@ -23,6 +23,7 @@ Sourced from CodeRabbit and Copilot review comments — 84 classified CI finding
 **What it is**: Hard wall-clock time limits in CI (e.g., `assert duration < 1`) that fail under shared runner load; `time.sleep` in tests instead of event-based waits.
 
 **Bad**:
+
 ```python
 # BAD — strict wall-clock limit fails under CI load
 start = time.time()
@@ -35,6 +36,7 @@ assert service.is_ready()
 ```
 
 **Good**:
+
 ```python
 # GOOD — relative threshold or no timing assertion
 result = process_file(large_file)
@@ -60,6 +62,7 @@ else:
 **What it is**: Job runs on events where it shouldn't — e.g., coverage upload on `pull_request` events (partial suite gives misleading metrics), or expensive jobs running on every push to every branch.
 
 **Bad**:
+
 ```yaml
 # BAD — coverage upload on PR events (partial suite = wrong metrics)
 on:
@@ -74,6 +77,7 @@ jobs:
 ```
 
 **Good**:
+
 ```yaml
 # GOOD — coverage upload only on main push
 on:
@@ -99,6 +103,7 @@ jobs:
 **What it is**: `@lru_cache` on functions that read env vars — cache holds stale values across test runs or when the env var changes between calls.
 
 **Bad**:
+
 ```python
 # BAD — cached function reads env var; cache never invalidated between tests
 @lru_cache(maxsize=None)
@@ -108,6 +113,7 @@ def get_config_manager() -> ConfigManager:
 ```
 
 **Good**:
+
 ```python
 # GOOD — no cache, fresh read each time (env may change in tests)
 def get_config_manager() -> ConfigManager:
@@ -142,6 +148,7 @@ rg "@lru_cache" src/ -A 5 | grep -B 3 "environ\|getenv"
 **What it is**: Coverage threshold declared in PR description, README, or docs doesn't match the value actually enforced in `pyproject.toml` or the workflow file.
 
 **Bad**:
+
 ```markdown
 <!-- In README.md — WRONG threshold -->
 ## CI Requirements
@@ -150,9 +157,11 @@ rg "@lru_cache" src/ -A 5 | grep -B 3 "environ\|getenv"
 # In PR description — WRONG threshold
 Coverage gate: 75%
 ```
+
 *(Actual enforced value in pyproject.toml: `cov-fail-under = 95`)*
 
 **Good**:
+
 ```bash
 # ALWAYS check actual value before documenting
 grep "cov-fail-under\|fail_under" pyproject.toml
@@ -203,6 +212,7 @@ When documenting a single number, use the gate that matches the context:
 **What it is**: Tokens logged or passed via query string in CI context; env vars echoed in workflow steps.
 
 **Bad**:
+
 ```yaml
 # BAD — env var echoed to logs
 - name: Debug
@@ -213,6 +223,7 @@ When documenting a single number, use the gate that matches the context:
 ```
 
 **Good**:
+
 ```yaml
 # GOOD — secret passed as environment variable
 - name: Run script
@@ -231,6 +242,7 @@ When documenting a single number, use the gate that matches the context:
 **What it is**: Full matrix on every PR; duplicated jobs; unnecessary steps not gated behind `if:` conditions; no caching of dependencies.
 
 **Bad**:
+
 ```yaml
 # BAD — full OS matrix on every PR
 strategy:
@@ -240,6 +252,7 @@ strategy:
 ```
 
 **Good**:
+
 ```yaml
 # GOOD — fast matrix on PR, full matrix on main
 strategy:
@@ -261,6 +274,7 @@ strategy:
 **What it is**: Setting a `--cov-fail-under` ratchet floor from a local measurement taken without erasing `.coverage` first. `pytest-cov` accumulates data across runs — a stale file from unit tests inflates the integration coverage number, and the floor is set too high. CI fails because it starts clean.
 
 **Bad**:
+
 ```bash
 # BAD — stale .coverage from unit runs pollutes the measurement
 pytest tests/ -m "integration" --cov=fo --cov-report=term-missing
@@ -269,6 +283,7 @@ pytest tests/ -m "integration" --cov=fo --cov-report=term-missing
 ```
 
 **Good**:
+
 ```bash
 # GOOD — always erase first so the measurement is clean
 bash .claude/scripts/measure-integration-coverage.sh
@@ -276,9 +291,11 @@ bash .claude/scripts/measure-integration-coverage.sh
 ```
 
 **Pre-generation check**: Before setting or bumping any `--cov-fail-under` floor, run:
+
 ```bash
 bash .claude/scripts/measure-integration-coverage.sh
 ```
+
 Use only the `TOTAL` line from that output. Never use a number from a run that did not start with `coverage erase`.
 
 ---
@@ -291,6 +308,7 @@ When `pip install` resolves the constraint it either silently installs an older 
 the constraint resolves by coincidence) or fails entirely.
 
 **Bad**:
+
 ```toml
 # BAD — rank-bm25 0.7.2 does not exist on PyPI; latest is 0.2.2
 [project.optional-dependencies]
@@ -300,6 +318,7 @@ search = [
 ```
 
 **Good**:
+
 ```bash
 # ALWAYS verify the version exists before writing the constraint
 pip index versions rank-bm25
@@ -307,6 +326,7 @@ pip index versions rank-bm25
 
 # THEN write the real latest version
 ```
+
 ```toml
 [project.optional-dependencies]
 search = [

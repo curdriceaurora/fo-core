@@ -267,10 +267,10 @@ ignore_errors = true
 # both CI (no extras) and local dev (with extras) pass mypy cleanly.
 [[tool.mypy.overrides]]
 module = [
-    "file_organizer.services.audio.metadata_extractor",
-    "file_organizer.utils.readers.cad",
-    "file_organizer.events.stream",
-    "file_organizer.services.deduplication.extractor",
+    "services.audio.metadata_extractor",
+    "utils.readers.cad",
+    "events.stream",
+    "services.deduplication.extractor",
 ]
 warn_unused_ignores = false
 

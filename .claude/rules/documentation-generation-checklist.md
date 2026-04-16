@@ -29,12 +29,14 @@ For any claim you plan to make, identify where it's verified in actual code:
 Never assume values - always extract from source:
 
 **❌ Wrong approach:**
+
 ```
 "I remember the coverage gate is... probably 95%"
 → Write "95% CI gate" without checking context
 ```
 
 **✅ Right approach:**
+
 ```bash
 # For unit test floor:
 grep cov-fail-under pyproject.toml          # → 95%
@@ -130,6 +132,7 @@ Before mentioning any feature, create a verification list:
 4. **Document only what exists** (no assumptions)
 
 **Example:**
+
 ```markdown
 # BAD: Written from memory
 The CI gate ensures at least 74% coverage on PRs.

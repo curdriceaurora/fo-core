@@ -140,6 +140,7 @@ Find duplicate images in a directory.
 - `Dict[str, List[Path]]`: Groups of similar images keyed by representative hash
 
 **Example:**
+
 ```python
 def progress(current, total):
     print(f"Processing: {current}/{total}")
@@ -164,6 +165,7 @@ Calculate similarity score between two images.
 - `float`: Similarity from 0.0 (different) to 1.0 (identical), or None if error
 
 **Example:**
+
 ```python
 similarity = deduper.compute_similarity(
     Path("photo1.jpg"),
@@ -186,6 +188,7 @@ Group images into clusters of similar images.
 - `List[List[Path]]`: List of image clusters (groups)
 
 **Example:**
+
 ```python
 images = list(Path("./photos").glob("*.jpg"))
 clusters = deduper.cluster_by_similarity(images)
@@ -409,6 +412,7 @@ Approximate speeds on modern hardware:
 | pHash | Medium | 50-100 |
 
 For large collections:
+
 ```python
 # Process in batches if needed
 from pathlib import Path
@@ -467,6 +471,7 @@ for i in range(0, len(all_images), batch_size):
 - **Process in batches**: Don't load all images at once
 
 ### Issue: Import errors
+
 ```bash
 pip install imagededup Pillow numpy
 ```
@@ -476,6 +481,7 @@ pip install imagededup Pillow numpy
 See `examples/image_dedup_example.py` for comprehensive usage examples.
 
 Run tests:
+
 ```bash
 python test_image_dedup_with_images.py
 ```
