@@ -65,8 +65,8 @@ class TestAIHeuristicUnavailable:
         # Patch both OLLAMA_AVAILABLE and ollama to prevent any real or leaked
         # mock client from reaching _parse_response (xdist isolation defence).
         with (
-            patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False),
-            patch(f"{_HEURISTICS_MODULE}.ollama", None),
+            patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", new=False),
+            patch(f"{_HEURISTICS_MODULE}.ollama", new=None),
         ):
             result = h.evaluate(test_file)
 

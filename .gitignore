@@ -83,7 +83,7 @@ site/
 
 # Backup files and directories
 *.bak
-.file_organizer_backups/
+.fo_backups/
 
 # Logs
 logs/
@@ -140,4 +140,3 @@ coverage.json
 # Superpowers scaffolding (implementation artifacts, not permanent docs)
 docs/superpowers/plans/
 docs/superpowers/specs/
-.worktrees/

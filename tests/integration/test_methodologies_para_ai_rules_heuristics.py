@@ -1317,8 +1317,8 @@ class TestAIHeuristicHelpers:
         # Patch both OLLAMA_AVAILABLE and ollama to prevent any real or leaked
         # mock client from reaching _parse_response (xdist isolation defence).
         with (
-            patch.object(_mod, "OLLAMA_AVAILABLE", False),
-            patch.object(_mod, "ollama", None),
+            patch.object(_mod, "OLLAMA_AVAILABLE", new=False),
+            patch.object(_mod, "ollama", new=None),
         ):
             result = h.evaluate(f)
         assert result.abstained is True
