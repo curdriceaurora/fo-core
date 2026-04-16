@@ -83,7 +83,7 @@ site/
 
 # Backup files and directories
 *.bak
-.file_organizer_backups/
+.fo_backups/
 
 # Logs
 logs/
