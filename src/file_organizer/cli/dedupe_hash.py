@@ -52,6 +52,7 @@ class ProgressTracker:
 
         if self.progress_bar is None:
             self.progress_bar = self.tqdm(total=total, desc="Hashing files", unit="files")
+        assert self.progress_bar is not None
         self.progress_bar.update(1)
 
     def close(self) -> None:

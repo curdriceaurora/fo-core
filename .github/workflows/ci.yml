@@ -103,7 +103,10 @@ jobs:
             src/file_organizer/methodologies/ \
             src/file_organizer/integrations/ \
             src/file_organizer/utils/ \
-            src/file_organizer/config/
+            src/file_organizer/config/ \
+            src/file_organizer/core/ \
+            src/file_organizer/cli/ \
+            src/file_organizer/watcher/
 
   link-integrity:
     runs-on: ubuntu-latest

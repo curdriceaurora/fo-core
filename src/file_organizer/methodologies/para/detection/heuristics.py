@@ -145,7 +145,7 @@ class TemporalHeuristic(Heuristic):
         # Cross-platform file age: use birth time if available (macOS/Windows),
         # fall back to modification time on Linux (st_ctime is inode change time, not creation).
         try:
-            ref_time = stat.st_birthtime  # type: ignore[attr-defined]  # macOS — true birth time
+            ref_time = stat.st_birthtime  # macOS — true birth time
         except AttributeError:
             if os.name == "nt":  # Windows
                 ref_time = getattr(stat, "st_ctime", stat.st_mtime)

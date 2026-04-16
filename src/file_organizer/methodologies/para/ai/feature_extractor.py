@@ -319,7 +319,7 @@ class FeatureExtractor:
         #   Windows → st_ctime    (creation time on NTFS)
         #   Linux  → st_mtime     (st_ctime is inode-change time, not creation)
         try:
-            creation_ref = stat.st_birthtime  # type: ignore[attr-defined]  # macOS — true birth time
+            creation_ref = stat.st_birthtime  # macOS — true birth time
         except AttributeError:
             if os.name == "nt":  # Windows — NTFS creation time
                 creation_ref = getattr(stat, "st_ctime", stat.st_mtime)

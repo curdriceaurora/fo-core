@@ -130,10 +130,10 @@ repos:
       # Strict mypy gate: 14 gated packages (Tier 1 + Tier 2)
       # ----------------------------------------------------------------
       - id: mypy-changed
-        name: mypy (gated packages — 14 pkgs, 164 files)
+        name: mypy (gated packages — 17 pkgs, 208 files)
         entry: bash scripts/run-mypy-changed.sh
         language: system
-        files: ^src/file_organizer/(models|optimization|parallel|events|daemon|undo|history|interfaces|updater|pipeline|methodologies|integrations|utils|config)/.*\.py$
+        files: ^src/file_organizer/(models|optimization|parallel|events|daemon|undo|history|interfaces|updater|pipeline|methodologies|integrations|utils|config|core|cli|watcher)/.*\.py$
         pass_filenames: true
 
       # ----------------------------------------------------------------

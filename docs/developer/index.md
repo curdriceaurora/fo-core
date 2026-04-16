@@ -178,7 +178,8 @@ def test_my_feature():
 ```bash
 ruff check .              # Linting
 black .                   # Formatting
-mypy .                    # Type checking
+pre-commit run mypy-changed --all-files   # Type checking (gated packages)
+# Authoritative package list: .github/workflows/ci.yml → "Run mypy on gated modules"
 pytest                    # Tests
 ```
 

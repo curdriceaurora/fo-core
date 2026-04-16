@@ -992,7 +992,7 @@ def run(
         if json_output:
             empty_outcome = _SuiteIterationOutcome(processed_count=0)
             classification = classifier([], empty_outcome)
-            output: dict[str, Any] = {
+            empty_output: dict[str, Any] = {
                 "suite": suite,
                 "effective_suite": classification.effective_suite,
                 "degraded": classification.degraded,
@@ -1002,15 +1002,15 @@ def run(
                 "hardware_profile": _detect_hardware_profile(),
                 "results": compute_stats([], 0),
             }
-            validate_benchmark_payload(output)
-            output = _maybe_attach_comparison_output(
-                output=output,
+            validate_benchmark_payload(empty_output)
+            empty_output = _maybe_attach_comparison_output(
+                output=empty_output,
                 compare_path=compare_path,
                 suite=suite,
                 console=console,
                 json_output=json_output,
             )
-            console.print(json.dumps(output, indent=2))
+            console.print(json.dumps(empty_output, indent=2))
         else:
             console.print("[yellow]No files found in the specified path.[/yellow]")
         return
