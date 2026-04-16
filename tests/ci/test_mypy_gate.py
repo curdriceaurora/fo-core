@@ -51,8 +51,15 @@ class TestFullSrcMypyGate:
     """Full-src gate: CI step and pre-commit hook must target src/ not per-package paths."""
 
     def test_ci_step_uses_full_src_path(self) -> None:
-        """CI step must target src/ not individual packages."""
-        assert "src/" in _mypy_step_body()
+        """CI step must invoke mypy with bare src/ not a per-package subpath."""
+        body = _mypy_step_body()
+        # Require the standalone src/ token: must not be followed by file_organizer/
+        assert re.search(r"\bsrc/\s", body) or body.rstrip().endswith("src/"), (
+            "mypy step does not invoke bare 'src/'; found: " + body
+        )
+        assert "src/file_organizer/" not in body, (
+            "mypy step uses a per-package subpath instead of bare src/"
+        )
 
     def test_ci_step_not_per_package(self) -> None:
         """CI step must not list individual packages (regression guard)."""
@@ -69,9 +76,11 @@ class TestFullSrcMypyGate:
     def test_precommit_hook_not_per_package(self) -> None:
         """Pre-commit hook must not use per-package alternation (regression guard)."""
         regex = _mypy_hook_files_value()
-        assert "|core|" not in regex
-        assert "|cli|" not in regex
-        assert "|watcher|" not in regex
+        # The full-src regex (^src/file_organizer/.*\.py$) never needs alternation.
+        # Any '|' in the value indicates a per-package list, which is a regression.
+        assert "|" not in regex, (
+            f"pre-commit hook files regex contains alternation (per-package list): {regex!r}"
+        )
 
     def test_precommit_hook_name_reflects_full_src(self) -> None:
         """Pre-commit hook name must reflect full-src coverage."""
