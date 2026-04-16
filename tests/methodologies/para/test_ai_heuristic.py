@@ -62,7 +62,12 @@ class TestAIHeuristicUnavailable:
         test_file = tmp_path / "notes.txt"
         test_file.write_text("project deadline tomorrow")
 
-        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False):
+        # Patch both OLLAMA_AVAILABLE and ollama to prevent any real or leaked
+        # mock client from reaching _parse_response (xdist isolation defence).
+        with (
+            patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False),
+            patch(f"{_HEURISTICS_MODULE}.ollama", None),
+        ):
             result = h.evaluate(test_file)
 
         assert result.overall_confidence == 0.0
