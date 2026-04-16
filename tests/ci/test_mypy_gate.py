@@ -10,7 +10,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Read at import time: intentional — these are required config files; missing files
+# should cause immediate, loud failure rather than a confusing assertion error.
 _CI_YML = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text()
 _PRECOMMIT = (PROJECT_ROOT / ".pre-commit-config.yaml").read_text()
 
@@ -22,7 +26,10 @@ def _mypy_step_body() -> str:
         _CI_YML,
         re.DOTALL,
     )
-    assert m, "Step 'Run mypy on all source modules' not found in ci.yml"
+    assert m, (
+        "Step 'Run mypy on all source modules' not found in ci.yml. "
+        "If the step was renamed, update both the CI workflow and this test."
+    )
     return m.group()
 
 
@@ -39,6 +46,7 @@ def _mypy_hook_files_value() -> str:
     return files_m.group(1)
 
 
+@pytest.mark.ci
 class TestFullSrcMypyGate:
     """Full-src gate: CI step and pre-commit hook must target src/ not per-package paths."""
 

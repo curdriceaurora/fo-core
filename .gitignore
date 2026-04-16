@@ -140,4 +140,3 @@ coverage.json
 # Superpowers scaffolding (implementation artifacts, not permanent docs)
 docs/superpowers/plans/
 docs/superpowers/specs/
-.worktrees/
