@@ -53,6 +53,7 @@ def _cleanup_imagededup_sys_modules() -> None:
     if sys.modules.get("imagededup.methods") is _imagededup_methods_mod:
         del sys.modules["imagededup.methods"]
 
+
 # Now import the module under test – the mocked modules will satisfy the
 # ``from imagededup.methods import …`` statement.
 import file_organizer.services.deduplication.image_dedup as _image_dedup_module  # noqa: E402

@@ -28,9 +28,7 @@ def test_image_deduplicator_finds_identical_images(tmp_path: Path) -> None:
     img.save(tmp_path / "img2.png")
 
     deduplicator = ImageDeduplicator(threshold=0)
-    clusters = deduplicator.cluster_by_similarity(
-        [tmp_path / "img1.png", tmp_path / "img2.png"]
-    )
+    clusters = deduplicator.cluster_by_similarity([tmp_path / "img1.png", tmp_path / "img2.png"])
 
     assert len(clusters) == 1  # identical PNGs must form exactly one cluster
     assert len(clusters[0]) == 2  # both images in the cluster
