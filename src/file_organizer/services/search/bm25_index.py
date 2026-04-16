@@ -22,7 +22,7 @@ try:
 
     _BM25_AVAILABLE = True
 except ImportError as _exc:  # pragma: no cover
-    BM25Okapi = None  # type: ignore[assignment, misc]
+    BM25Okapi = None
     _BM25_AVAILABLE = False
     _BM25_IMPORT_ERROR = _exc
 

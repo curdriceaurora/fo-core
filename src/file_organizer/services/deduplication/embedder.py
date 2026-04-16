@@ -9,8 +9,10 @@ import logging
 import pickle
 import threading
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +64,7 @@ class DocumentEmbedder:
         self.is_fitted = False
 
         # Cache for embeddings {document_hash: embedding}
-        self.embedding_cache: dict[str, np.ndarray] = {}
+        self.embedding_cache: dict[str, NDArray[Any]] = {}
         self._cache_lock = threading.Lock()
 
         # Load cache if available
@@ -73,7 +75,7 @@ class DocumentEmbedder:
             f"DocumentEmbedder initialized: max_features={max_features}, ngram_range={ngram_range}"
         )
 
-    def fit_transform(self, documents: list[str]) -> np.ndarray:
+    def fit_transform(self, documents: list[str]) -> NDArray[Any]:
         """Fit the vectorizer and transform documents to embeddings.
 
         Two corpus-size guards are applied before calling sklearn:
@@ -150,7 +152,7 @@ class DocumentEmbedder:
             logger.exception("Error during fit_transform")
             raise
 
-    def transform(self, document: str) -> np.ndarray:
+    def transform(self, document: str) -> NDArray[Any]:
         """Transform a single document to embedding.
 
         Args:
@@ -173,7 +175,7 @@ class DocumentEmbedder:
                 return self.embedding_cache[doc_hash]
 
         # Transform
-        embedding: np.ndarray = np.asarray(self.vectorizer.transform([document]).toarray()[0])
+        embedding: NDArray[Any] = np.asarray(self.vectorizer.transform([document]).toarray()[0])
 
         # Cache the embedding
         with self._cache_lock:
@@ -181,7 +183,7 @@ class DocumentEmbedder:
 
         return embedding
 
-    def transform_batch(self, documents: list[str]) -> np.ndarray:
+    def transform_batch(self, documents: list[str]) -> NDArray[Any]:
         """Transform multiple documents to embeddings.
 
         Args:
@@ -193,7 +195,7 @@ class DocumentEmbedder:
         if not self.is_fitted:
             raise RuntimeError("Vectorizer not fitted. Call fit_transform() first.")
 
-        embeddings: np.ndarray = np.asarray(self.vectorizer.transform(documents).toarray())
+        embeddings: NDArray[Any] = np.asarray(self.vectorizer.transform(documents).toarray())
 
         logger.debug(f"Transformed {len(documents)} documents")
 
@@ -229,7 +231,7 @@ class DocumentEmbedder:
 
         return {k: int(v) for k, v in self.vectorizer.vocabulary_.items()}
 
-    def get_top_terms(self, embedding: np.ndarray, top_n: int = 10) -> list[tuple[str, float]]:
+    def get_top_terms(self, embedding: NDArray[Any], top_n: int = 10) -> list[tuple[str, float]]:
         """Get top N terms from an embedding by weight.
 
         Args:

@@ -89,7 +89,7 @@ class FileMonitor:
                     e,
                     exc_info=True,
                 )
-                self._observer = PollingObserver(timeout=1.0)
+                self._observer = PollingObserver(timeout=1.0)  # type: ignore[no-untyped-call]
                 self._observer_type = "polling"
                 logger.info("Using polling observer for file system monitoring")
 
@@ -101,7 +101,7 @@ class FileMonitor:
             for directory in self.config.watch_directories:
                 self._schedule_directory(directory, self.config.recursive)
 
-            observer.start()
+            observer.start()  # type: ignore[no-untyped-call]
             self._running = True
             logger.info(
                 "FileMonitor started (%s observer), watching %d directories",
@@ -120,7 +120,7 @@ class FileMonitor:
                 return
 
             observer = self._observer
-            observer.stop()
+            observer.stop()  # type: ignore[no-untyped-call]
             observer.join(timeout=5.0)
             self._observer = None
             self._watches.clear()
@@ -177,7 +177,7 @@ class FileMonitor:
                 watch = self._watches[path_key]
                 observer = self._observer
                 assert observer is not None
-                observer.unschedule(watch)
+                observer.unschedule(watch)  # type: ignore[no-untyped-call]
 
             del self._watches[path_key]
 
@@ -298,7 +298,7 @@ class FileMonitor:
             raise FileNotFoundError(f"Watch directory does not exist: {path}")
 
         if self._observer is not None:
-            watch: ObservedWatch = self._observer.schedule(
+            watch: ObservedWatch = self._observer.schedule(  # type: ignore[no-untyped-call]
                 self.handler, str(path), recursive=recursive
             )
             self._watches[path_key] = watch

@@ -264,6 +264,20 @@ module = [
 ]
 ignore_errors = true
 
+# Optional-dep modules: mutagen, ezdxf, redis stubs are only available when
+# the corresponding extras are installed (audio, cad, cloud).  Without the extra,
+# the type: ignore comments that suppress attr-defined / assignment errors become
+# "unused" and trigger warn_unused_ignores.  Disable that check per-module so
+# both CI (no extras) and local dev (with extras) pass mypy cleanly.
+[[tool.mypy.overrides]]
+module = [
+    "file_organizer.services.audio.metadata_extractor",
+    "file_organizer.utils.readers.cad",
+    "file_organizer.events.stream",
+    "file_organizer.services.deduplication.extractor",
+]
+warn_unused_ignores = false
+
 # Pytest configuration
 [tool.pytest.ini_options]
 pythonpath = ["src"]

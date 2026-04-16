@@ -99,6 +99,7 @@ def _drain_startup_events(monitor: FileMonitor) -> None:
 class TestFileMonitorLifecycle:
     """Tests for start/stop lifecycle."""
 
+    @pytest.mark.ci
     def test_start_and_stop(self, monitor: FileMonitor) -> None:
         """Test basic start and stop cycle."""
         assert monitor.is_running is False
@@ -314,6 +315,7 @@ class TestFileMonitorFileDetection:
 class TestFileMonitorDynamicDirectories:
     """Tests for dynamically adding/removing watch directories."""
 
+    @pytest.mark.ci
     def test_add_directory_while_running(self, monitor: FileMonitor, tmp_path: Path) -> None:
         """Test adding a new directory to a running monitor."""
         monitor.start()
@@ -359,6 +361,7 @@ class TestFileMonitorDynamicDirectories:
         with pytest.raises(FileNotFoundError):
             monitor.add_directory(tmp_path / "nope")
 
+    @pytest.mark.ci
     def test_remove_directory(self, monitor: FileMonitor, watch_dir: Path) -> None:
         """Test removing a directory from monitoring."""
         monitor.start()
@@ -533,6 +536,7 @@ class TestFileMonitorObserverFallback:
         # Type is preserved after stop
         assert monitor.observer_type in ("native", "polling")
 
+    @pytest.mark.ci
     def test_fallback_to_polling_observer(self, watch_dir: Path) -> None:
         """Test that monitor falls back to PollingObserver when native fails.
 

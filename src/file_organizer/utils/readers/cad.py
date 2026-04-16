@@ -122,7 +122,7 @@ def read_dxf_file(file_path: str | Path, max_layers: int = 20) -> str:
     file_path = Path(file_path)
     _check_file_size(file_path)
     try:
-        doc = ezdxf.readfile(file_path)
+        doc = ezdxf.readfile(file_path)  # type: ignore[attr-defined]  # ezdxf stubs incomplete
         return _process_dxf_doc(doc, file_path, max_layers)
     except Exception as e:  # Intentional catch-all: ezdxf raises library-specific errors
         raise FileReadError(f"Failed to read DXF file {file_path}: {e}") from e
@@ -153,7 +153,7 @@ def read_dwg_file(file_path: str | Path) -> str:
     try:
         # Try to read with ezdxf (limited support).
         # Capture the returned document and pass it through to avoid re-opening the file.
-        doc = ezdxf.readfile(file_path)
+        doc = ezdxf.readfile(file_path)  # type: ignore[attr-defined]  # ezdxf stubs incomplete
         return _process_dxf_doc(doc, file_path)
 
     except Exception as e:  # Intentional catch-all: ezdxf raises library-specific errors

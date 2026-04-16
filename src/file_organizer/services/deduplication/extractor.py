@@ -127,7 +127,7 @@ class DocumentExtractor:
             try:
                 from pypdf.errors import PyPdfError
             except (ImportError, AttributeError):
-                PyPdfError = Exception
+                PyPdfError = Exception  # type: ignore[misc,assignment]  # fallback when pypdf.errors unavailable
 
             text_parts = []
 

@@ -170,7 +170,7 @@ def list_installed_models() -> list[InstalledModel]:
                 # ollama.Model dataclass
                 models.append(
                     InstalledModel(
-                        name=model_data.model,
+                        name=model_data.model or "",
                         size=getattr(model_data, "size", None),
                         modified=str(getattr(model_data, "modified_at", None)),
                     )
@@ -205,11 +205,11 @@ def list_installed_models() -> list[InstalledModel]:
             return _parse_ollama_list_text()
 
         data = json.loads(result.stdout)
-        models: list[InstalledModel] = []
+        cli_models: list[InstalledModel] = []
 
         if isinstance(data, dict) and "models" in data:
             for model_data in data["models"]:
-                models.append(
+                cli_models.append(
                     InstalledModel(
                         name=model_data.get("name", ""),
                         size=model_data.get("size"),
@@ -218,7 +218,7 @@ def list_installed_models() -> list[InstalledModel]:
                 )
         elif isinstance(data, list):
             for model_data in data:
-                models.append(
+                cli_models.append(
                     InstalledModel(
                         name=model_data.get("name", ""),
                         size=model_data.get("size"),
@@ -226,8 +226,8 @@ def list_installed_models() -> list[InstalledModel]:
                     )
                 )
 
-        logger.debug("Found {} installed models via Ollama CLI", len(models))
-        return models
+        logger.debug("Found {} installed models via Ollama CLI", len(cli_models))
+        return cli_models
 
     except FileNotFoundError:
         logger.debug("Ollama CLI not found")

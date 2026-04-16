@@ -15,7 +15,7 @@ try:
     from pydub.exceptions import PydubException
 except ImportError:  # pragma: no cover - optional dependency
 
-    class PydubException(Exception):
+    class PydubException(Exception):  # type: ignore[no-redef]
         """Fallback when pydub is unavailable."""
 
 
@@ -23,7 +23,7 @@ try:
     from tinytag import TinyTagException  # pyre-ignore[21]
 except ImportError:  # pragma: no cover - optional dependency
 
-    class TinyTagException(Exception):
+    class TinyTagException(Exception):  # type: ignore[no-redef]
         """Fallback when tinytag is unavailable."""
 
 
