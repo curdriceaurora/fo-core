@@ -127,7 +127,7 @@ repos:
         pass_filenames: false
 
       # ----------------------------------------------------------------
-      # Strict mypy gate: 14 gated packages (Tier 1 + Tier 2)
+      # Strict mypy gate: 17 gated packages (Tier 1 + Tier 2 + Tier 3)
       # ----------------------------------------------------------------
       - id: mypy-changed
         name: mypy (gated packages — 17 pkgs, 208 files)
