@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.auto_tagging.tag_recommender import (
+from services.auto_tagging.tag_recommender import (
     TagRecommendation,
     TagRecommender,
 )
-from file_organizer.services.intelligence.feedback_processor import FeedbackProcessor
+from services.intelligence.feedback_processor import FeedbackProcessor
 
 pytestmark = pytest.mark.integration
 

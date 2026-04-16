@@ -1,4 +1,4 @@
-"""Tests for file_organizer.cli.autotag module.
+"""Tests for cli.autotag module.
 
 Tests the argparse-based auto-tagging CLI commands including:
 - setup_autotag_parser
@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.cli.autotag import (
+from cli.autotag import (
     handle_analyze,
     handle_apply,
     handle_autotag_command,
@@ -103,36 +103,36 @@ class TestHandleAutotagCommand:
             min_confidence=40.0,
             json=False,
         )
-        with patch("file_organizer.cli.autotag.AutoTaggingService", return_value=mock_service):
-            with patch("file_organizer.cli.autotag.handle_suggest") as mock_handler:
+        with patch("cli.autotag.AutoTaggingService", return_value=mock_service):
+            with patch("cli.autotag.handle_suggest") as mock_handler:
                 handle_autotag_command(args)
                 mock_handler.assert_called_once()
 
     def test_route_apply(self, mock_service):
         args = Namespace(autotag_command="apply", file="test.txt", tags=["tag1"])
-        with patch("file_organizer.cli.autotag.AutoTaggingService", return_value=mock_service):
-            with patch("file_organizer.cli.autotag.handle_apply") as mock_handler:
+        with patch("cli.autotag.AutoTaggingService", return_value=mock_service):
+            with patch("cli.autotag.handle_apply") as mock_handler:
                 handle_autotag_command(args)
                 mock_handler.assert_called_once()
 
     def test_route_popular(self, mock_service):
         args = Namespace(autotag_command="popular", limit=20)
-        with patch("file_organizer.cli.autotag.AutoTaggingService", return_value=mock_service):
-            with patch("file_organizer.cli.autotag.handle_popular") as mock_handler:
+        with patch("cli.autotag.AutoTaggingService", return_value=mock_service):
+            with patch("cli.autotag.handle_popular") as mock_handler:
                 handle_autotag_command(args)
                 mock_handler.assert_called_once()
 
     def test_route_recent(self, mock_service):
         args = Namespace(autotag_command="recent", days=30, limit=20)
-        with patch("file_organizer.cli.autotag.AutoTaggingService", return_value=mock_service):
-            with patch("file_organizer.cli.autotag.handle_recent") as mock_handler:
+        with patch("cli.autotag.AutoTaggingService", return_value=mock_service):
+            with patch("cli.autotag.handle_recent") as mock_handler:
                 handle_autotag_command(args)
                 mock_handler.assert_called_once()
 
     def test_route_analyze(self, mock_service):
         args = Namespace(autotag_command="analyze", file="test.txt", keywords=False, entities=False)
-        with patch("file_organizer.cli.autotag.AutoTaggingService", return_value=mock_service):
-            with patch("file_organizer.cli.autotag.handle_analyze") as mock_handler:
+        with patch("cli.autotag.AutoTaggingService", return_value=mock_service):
+            with patch("cli.autotag.handle_analyze") as mock_handler:
                 handle_autotag_command(args)
                 mock_handler.assert_called_once()
 
@@ -140,15 +140,15 @@ class TestHandleAutotagCommand:
         args = Namespace(
             autotag_command="batch", directory="/tmp", pattern="*", recursive=False, output=None
         )
-        with patch("file_organizer.cli.autotag.AutoTaggingService", return_value=mock_service):
-            with patch("file_organizer.cli.autotag.handle_batch") as mock_handler:
+        with patch("cli.autotag.AutoTaggingService", return_value=mock_service):
+            with patch("cli.autotag.handle_batch") as mock_handler:
                 handle_autotag_command(args)
                 mock_handler.assert_called_once()
 
     def test_route_unknown(self, mock_service):
         args = Namespace(autotag_command=None)
         with (
-            patch("file_organizer.cli.autotag.AutoTaggingService", return_value=mock_service),
+            patch("cli.autotag.AutoTaggingService", return_value=mock_service),
             pytest.raises(SystemExit),
         ):
             handle_autotag_command(args)

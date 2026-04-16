@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.feedback_processor import FeedbackProcessor
+from services.intelligence.feedback_processor import FeedbackProcessor
 
 pytestmark = [pytest.mark.unit]
 

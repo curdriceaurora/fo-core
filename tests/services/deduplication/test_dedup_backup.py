@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.services.deduplication.backup import BackupManager
+from services.deduplication.backup import BackupManager
 
 pytestmark = [pytest.mark.unit]
 
@@ -69,7 +69,7 @@ class TestBackupManagerInit:
 
     def test_default_base_dir(self, tmp_path):
         """When base_dir is None, uses cwd."""
-        with patch("file_organizer.services.deduplication.backup.Path.cwd") as mock_cwd:
+        with patch("services.deduplication.backup.Path.cwd") as mock_cwd:
             mock_cwd.return_value = tmp_path
             mgr = BackupManager(base_dir=None)
             mock_cwd.assert_called_once()

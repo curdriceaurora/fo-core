@@ -1,7 +1,7 @@
 """Contract checks for prefetch-related public surfaces.
 
 These tests intentionally cover the public contract from multiple angles:
-- Typer-rendered CLI help for ``file-organizer organize``
+- Typer-rendered CLI help for ``fo organize``
 - Runtime docstrings on ``FileOrganizer`` and ``PipelineOrchestrator``
 - User/admin/architecture docs that describe prefetch behavior
 """
@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 FO_ROOT = Path(__file__).resolve().parents[2]
 CLI_REFERENCE_DOC = FO_ROOT / "docs" / "cli-reference.md"
@@ -39,7 +39,7 @@ def _rendered_text(text: str) -> str:
 
 def test_no_prefetch_contract_matches_cli_runtime_and_docs() -> None:
     """Covered surfaces: CLI help, FileOrganizer runtime docs, CLI/admin docs."""
-    from file_organizer.core.organizer import FileOrganizer
+    from core.organizer import FileOrganizer
 
     result = _RUNNER.invoke(app, ["organize", "--help"], terminal_width=120)
     rendered_help = _rendered_text(result.output)
@@ -64,7 +64,7 @@ def test_no_prefetch_contract_matches_cli_runtime_and_docs() -> None:
 
 def test_prefetch_depth_contract_matches_runtime_and_docs() -> None:
     """Covered surfaces: PipelineOrchestrator docstrings and admin tuning docs."""
-    from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+    from pipeline.orchestrator import PipelineOrchestrator
 
     init_doc = _normalized(inspect.getdoc(PipelineOrchestrator.__init__) or "")
     batch_doc = _normalized(inspect.getdoc(PipelineOrchestrator.process_batch) or "")
@@ -84,7 +84,7 @@ def test_prefetch_depth_contract_matches_runtime_and_docs() -> None:
 
 def test_prefetch_stages_contract_matches_runtime_and_docs() -> None:
     """Covered surfaces: PipelineOrchestrator docs plus admin/architecture docs."""
-    from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+    from pipeline.orchestrator import PipelineOrchestrator
 
     init_doc = _normalized(inspect.getdoc(PipelineOrchestrator.__init__) or "")
     batch_doc = _normalized(inspect.getdoc(PipelineOrchestrator.process_batch) or "")

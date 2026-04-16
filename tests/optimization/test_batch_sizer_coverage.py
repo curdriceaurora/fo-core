@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.optimization.batch_sizer module.
+"""Coverage tests for optimization.batch_sizer module.
 
 Targets uncovered branches: per_file_cost <= 0, _get_available_memory
 fallback paths, _get_total_memory sysctl path, _get_rss resource module
@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+from optimization.batch_sizer import AdaptiveBatchSizer
 
 pytestmark = pytest.mark.unit
 

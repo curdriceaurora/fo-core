@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.optimization.memory_limiter import (
+from optimization.memory_limiter import (
     LimitAction,
     MemoryLimiter,
     MemoryLimitError,

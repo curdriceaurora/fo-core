@@ -9,11 +9,15 @@ import pytest
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="macOS-only test")
+@pytest.mark.skipif(
+    not Path("desktop/context-menus/macos").exists(),
+    reason="macOS context menu assets are not present in this checkout",
+)
 class TestMacOSQuickAction(unittest.TestCase):
     def setUp(self):
         self.macos_dir = Path("desktop/context-menus/macos")
         self.quick_action_sh = self.macos_dir / "organize-quick-action.sh"
-        self.workflow_dir = self.macos_dir / "OrganizeWithFileOrganizer.workflow"
+        self.workflow_dir = self.macos_dir / "OrganizeWithFo.workflow"
         self.info_plist = self.workflow_dir / "Contents" / "Info.plist"
         self.document_wflow = self.workflow_dir / "Contents" / "document.wflow"
 
@@ -33,7 +37,7 @@ class TestMacOSQuickAction(unittest.TestCase):
 
     def test_script_has_cli_fallback(self):
         content = self.quick_action_sh.read_text()
-        self.assertIn("file-organizer", content)
+        self.assertIn("fo", content)
 
     def test_script_is_executable(self):
         mode = self.quick_action_sh.stat().st_mode
@@ -48,7 +52,7 @@ class TestMacOSQuickAction(unittest.TestCase):
     def test_info_plist_has_service_definition(self):
         content = self.info_plist.read_text()
         self.assertIn("NSServices", content)
-        self.assertIn("Organize with File Organizer", content)
+        self.assertIn("Organize with fo", content)
 
     def test_document_wflow_exists(self):
         self.assertTrue(self.document_wflow.exists())

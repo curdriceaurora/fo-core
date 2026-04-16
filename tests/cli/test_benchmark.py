@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli import benchmark as benchmark_cli
-from file_organizer.cli.main import app
+from cli import benchmark as benchmark_cli
+from cli.main import app
 
 runner = CliRunner()
 _FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"

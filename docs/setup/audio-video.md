@@ -115,7 +115,7 @@ Control precision and performance with compute types:
 
 ```python
 from pathlib import Path
-from file_organizer.services.audio.transcriber import AudioTranscriber, ModelSize, ComputeType
+from services.audio.transcriber import AudioTranscriber, ModelSize, ComputeType
 
 # Initialize transcriber
 transcriber = AudioTranscriber(
@@ -141,7 +141,7 @@ for segment in result.segments:
 #### Advanced Options
 
 ```python
-from file_organizer.services.audio.transcriber import (
+from services.audio.transcriber import (
     AudioTranscriber,
     TranscriptionOptions,
     ModelSize,
@@ -216,7 +216,7 @@ Audio transcription supports the following file formats:
 **Verification**: Check if a file is supported:
 
 ```python
-from file_organizer.core.types import AUDIO_EXTENSIONS
+from core.types import AUDIO_EXTENSIONS
 
 file_path = "my-file.mp3"
 is_supported = any(file_path.endswith(ext) for ext in AUDIO_EXTENSIONS)
@@ -289,9 +289,9 @@ for audio_file in audio_files:
 #### Organize by Transcribed Content
 
 ```python
-from file_organizer.services.audio.organizer import AudioOrganizer
-from file_organizer.services.audio.classifier import AudioClassifier
-from file_organizer.services.audio.metadata_extractor import AudioMetadataExtractor
+from services.audio.organizer import AudioOrganizer
+from services.audio.classifier import AudioClassifier
+from services.audio.metadata_extractor import AudioMetadataExtractor
 
 # Extract metadata
 metadata_extractor = AudioMetadataExtractor()
@@ -326,7 +326,7 @@ print(f"Planned moves: {len(plan.planned_moves)}")
 View audio file metadata and transcriptions via the CLI:
 
 ```bash
-file-organizer analyze ~/Music/podcast.mp3
+fo analyze ~/Music/podcast.mp3
 ```
 
 The `analyze` command displays:
@@ -410,7 +410,7 @@ transcriber = AudioTranscriber(device="cpu")
 
 ### Configuration
 
-Configure transcription settings in `~/.config/file-organizer/config.yaml`:
+Configure transcription settings in `~/.config/fo/config.yaml`:
 
 ```yaml
 audio:
@@ -532,7 +532,7 @@ Control sensitivity with threshold parameters:
 
 ```python
 from pathlib import Path
-from file_organizer.services.video.scene_detector import SceneDetector, DetectionMethod
+from services.video.scene_detector import SceneDetector, DetectionMethod
 
 # Initialize detector
 detector = SceneDetector(
@@ -560,7 +560,7 @@ for scene in result.scenes:
 #### Advanced Options
 
 ```python
-from file_organizer.services.video.scene_detector import SceneDetector, DetectionMethod
+from services.video.scene_detector import SceneDetector, DetectionMethod
 
 # High-sensitivity detection for subtle transitions
 detector = SceneDetector(
@@ -583,7 +583,7 @@ result = detector.detect_scenes(
 
 ```python
 from pathlib import Path
-from file_organizer.services.video.scene_detector import SceneDetector
+from services.video.scene_detector import SceneDetector
 
 detector = SceneDetector()
 result = detector.detect_scenes("video.mp4")
@@ -603,7 +603,7 @@ print(f"Saved {len(result.scenes)} thumbnails to {output_dir}")
 #### Save Scene List
 
 ```python
-from file_organizer.services.video.scene_detector import SceneDetector
+from services.video.scene_detector import SceneDetector
 
 detector = SceneDetector()
 result = detector.detect_scenes("video.mp4")
@@ -623,7 +623,7 @@ SceneDetector.save_scene_list(result, "scenes.csv")
 
 ```python
 from pathlib import Path
-from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor
+from services.video.metadata_extractor import VideoMetadataExtractor
 
 # Initialize extractor
 extractor = VideoMetadataExtractor()
@@ -646,7 +646,7 @@ print(f"Bitrate: {metadata.bitrate / 1000:.0f} kbps")
 #### Resolution Classification
 
 ```python
-from file_organizer.services.video.metadata_extractor import resolution_label
+from services.video.metadata_extractor import resolution_label
 
 # Classify resolution
 label = resolution_label(1920, 1080)
@@ -665,7 +665,7 @@ Process multiple videos efficiently:
 
 ```python
 from pathlib import Path
-from file_organizer.services.video.scene_detector import SceneDetector
+from services.video.scene_detector import SceneDetector
 
 detector = SceneDetector()
 video_files = list(Path("~/Videos").glob("*.mp4"))
@@ -699,7 +699,7 @@ These formats are explicitly supported by File Organizer's VIDEO_EXTENSIONS:
 **Verification**: Check if a file is recognized:
 
 ```python
-from file_organizer.core.types import VIDEO_EXTENSIONS
+from core.types import VIDEO_EXTENSIONS
 
 file_path = "my-video.mp4"
 is_recognized = any(file_path.endswith(ext) for ext in VIDEO_EXTENSIONS)
@@ -723,9 +723,9 @@ Depending on your OpenCV and FFmpeg installation, these formats may also work fo
 
 ```python
 from pathlib import Path
-from file_organizer.services.video.organizer import VideoOrganizer
-from file_organizer.services.video.scene_detector import SceneDetector
-from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor
+from services.video.organizer import VideoOrganizer
+from services.video.scene_detector import SceneDetector
+from services.video.metadata_extractor import VideoMetadataExtractor
 
 # Extract metadata
 metadata_extractor = VideoMetadataExtractor()
@@ -751,7 +751,7 @@ print(f"Duration: {scene_result.total_duration:.1f}s")
 #### Screen Recording Detection
 
 ```python
-from file_organizer.services.video.organizer import is_screen_recording
+from services.video.organizer import is_screen_recording
 
 # Detect screen recordings by filename
 if is_screen_recording("Screen Recording 2025-01-15 at 3.45.22 PM.mp4"):
@@ -915,7 +915,7 @@ detector = SceneDetector(
 )
 
 # Skip scene extraction, metadata only
-from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor
+from services.video.metadata_extractor import VideoMetadataExtractor
 extractor = VideoMetadataExtractor()
 metadata = extractor.extract("video.mp4")  # Much faster than scene detection
 ```
@@ -940,7 +940,7 @@ SceneDetector.extract_scene_thumbnails(
 
 ### Configuration
 
-Configure video analysis settings in `~/.config/file-organizer/config.yaml`:
+Configure video analysis settings in `~/.config/fo/config.yaml`:
 
 ```yaml
 video:
@@ -1017,7 +1017,7 @@ Create a test script to verify transcription works:
 ```bash
 # Create test script
 cat > test_audio.py << 'EOF'
-from file_organizer.services.audio.transcriber import AudioTranscriber, ModelSize, ComputeType
+from services.audio.transcriber import AudioTranscriber, ModelSize, ComputeType
 from pathlib import Path
 import sys
 
@@ -1072,7 +1072,7 @@ Initializing transcriber...
 ```bash
 # Create metadata test script
 cat > test_audio_metadata.py << 'EOF'
-from file_organizer.services.audio.metadata_extractor import AudioMetadataExtractor
+from services.audio.metadata_extractor import AudioMetadataExtractor
 from pathlib import Path
 import sys
 
@@ -1134,7 +1134,7 @@ Create a test script to verify scene detection works:
 ```bash
 # Create test script
 cat > test_video.py << 'EOF'
-from file_organizer.services.video.scene_detector import SceneDetector, DetectionMethod
+from services.video.scene_detector import SceneDetector, DetectionMethod
 from pathlib import Path
 import sys
 
@@ -1190,7 +1190,7 @@ Initializing scene detector...
 ```bash
 # Create metadata test script
 cat > test_video_metadata.py << 'EOF'
-from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor, resolution_label
+from services.video.metadata_extractor import VideoMetadataExtractor, resolution_label
 from pathlib import Path
 import sys
 
@@ -1238,13 +1238,13 @@ def test_audio_video_integration():
     """Test that audio and video processing can be imported together"""
     try:
         # Import audio components
-        from file_organizer.services.audio.transcriber import AudioTranscriber
-        from file_organizer.services.audio.metadata_extractor import AudioMetadataExtractor
+        from services.audio.transcriber import AudioTranscriber
+        from services.audio.metadata_extractor import AudioMetadataExtractor
         print("✓ Audio processing modules imported")
 
         # Import video components
-        from file_organizer.services.video.scene_detector import SceneDetector
-        from file_organizer.services.video.metadata_extractor import VideoMetadataExtractor
+        from services.video.scene_detector import SceneDetector
+        from services.video.metadata_extractor import VideoMetadataExtractor
         print("✓ Video processing modules imported")
 
         # Test initialization
@@ -1293,8 +1293,8 @@ import sys
 try:
     from faster_whisper import WhisperModel
     import torch, cv2, scenedetect
-    from file_organizer.services.audio.transcriber import AudioTranscriber
-    from file_organizer.services.video.scene_detector import SceneDetector
+    from services.audio.transcriber import AudioTranscriber
+    from services.video.scene_detector import SceneDetector
     print('✓ All audio/video dependencies installed')
     print(f'  - PyTorch: {torch.__version__}')
     print(f'  - OpenCV: {cv2.__version__}')

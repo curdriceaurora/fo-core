@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.auto_tagging.tag_learning import (
+from services.auto_tagging.tag_learning import (
     TagLearningEngine,
     TagPattern,
     TagUsage,

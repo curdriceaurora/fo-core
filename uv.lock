@@ -2028,7 +2028,7 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e4/b4/c8cd17629ced0b9644a71d399a91145aedef109c0333443bef015e45b704/llama_cpp_python-0.3.16.tar.gz", hash = "sha256:34ed0f9bd9431af045bb63d9324ae620ad0536653740e9bb163a2e1fcb973be6", size = 50688636, upload-time = "2025-08-15T04:58:29.212Z" }
 
 [[package]]
-name = "local-file-organizer"
+name = "fo-core"
 version = "2.0.0a3"
 source = { editable = "." }
 dependencies = [
@@ -2261,7 +2261,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "jinja2", marker = "extra == 'web'", specifier = ">=3.1.0" },
     { name = "llama-cpp-python", marker = "extra == 'llama'", specifier = ">=0.2.0" },
-    { name = "local-file-organizer", extras = ["dev", "gui", "cloud", "llama", "mlx", "claude", "audio", "video", "dedup", "archive", "scientific", "cad", "build", "parsers", "web", "search"], marker = "extra == 'all'" },
+    { name = "fo-core", extras = ["dev", "gui", "cloud", "llama", "mlx", "claude", "audio", "video", "dedup", "archive", "scientific", "cad", "build", "parsers", "web", "search"], marker = "extra == 'all'" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "lxml", marker = "extra == 'parsers'", specifier = ">=4.9.0" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.5.0" },

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from file_organizer.updater.state import UpdateState, UpdateStateStore
+from updater.state import UpdateState, UpdateStateStore
 
 
 def test_update_state_due_when_missing_timestamp() -> None:

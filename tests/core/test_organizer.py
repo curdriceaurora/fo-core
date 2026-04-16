@@ -14,11 +14,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.core.types import OrganizationResult
-from file_organizer.models.base import ModelConfig, ModelType
-from file_organizer.services.text_processor import ProcessedFile
-from file_organizer.services.vision_processor import ProcessedImage
+from core.organizer import FileOrganizer
+from core.types import OrganizationResult
+from models.base import ModelConfig, ModelType
+from services.text_processor import ProcessedFile
+from services.vision_processor import ProcessedImage
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ class TestFileOrganizer:
     def test_init(self, text_config: ModelConfig, vision_config: ModelConfig) -> None:
         """Test default and custom initialization."""
         with patch(
-            "file_organizer.config.provider_env.get_model_configs",
+            "config.provider_env.get_model_configs",
             return_value=(
                 ModelConfig(name="qwen2.5:3b-instruct-q4_K_M", model_type=ModelType.TEXT),
                 ModelConfig(name="qwen2.5vl:7b-q4_K_M", model_type=ModelType.VISION),
@@ -104,7 +104,7 @@ class TestFileOrganizer:
         with pytest.raises(ValueError, match="Input path does not exist"):
             organizer.organize(tmp_path / "missing", tmp_path / "out")
 
-    @patch("file_organizer.core.file_ops.collect_files")
+    @patch("core.file_ops.collect_files")
     def test_organize_empty_directory(
         self, mock_collect: MagicMock, organizer: FileOrganizer, tmp_path: Path
     ) -> None:
@@ -163,7 +163,7 @@ class TestFileOps:
 
     def test_collect_files(self, tmp_path: Path) -> None:
         """Test scanning files in a directory hierarchy."""
-        from file_organizer.core.file_ops import collect_files
+        from core.file_ops import collect_files
 
         (tmp_path / "file1.txt").touch()
         (tmp_path / ".hidden.txt").touch()
@@ -182,7 +182,7 @@ class TestFileOps:
 
     def test_simulate_organization(self, tmp_path: Path) -> None:
         """Test simulation builds output structure without creating files."""
-        from file_organizer.core.file_ops import simulate_organization
+        from core.file_ops import simulate_organization
 
         p1 = ProcessedFile(tmp_path / "f1.txt", "", "docs", "file_1")
         p2 = ProcessedFile(tmp_path / "f2.txt", "", "docs", "file_2")
@@ -198,10 +198,10 @@ class TestFileOps:
         }
         assert not out_path.exists()
 
-    @patch("file_organizer.core.file_ops.shutil.copy2")
+    @patch("core.file_ops.shutil.copy2")
     def test_organize_files_copy(self, mock_copy: MagicMock, tmp_path: Path) -> None:
         """Test physical file copy organization."""
-        from file_organizer.core.file_ops import organize_files
+        from core.file_ops import organize_files
 
         out_path = tmp_path / "out"
         f1 = tmp_path / "f1.txt"
@@ -221,10 +221,10 @@ class TestFileOps:
         mock_copy.assert_called_once_with(f1, out_path / "docs" / "file_1.txt")
         assert (out_path / "docs").is_dir()
 
-    @patch("file_organizer.core.file_ops.os.link")
+    @patch("core.file_ops.os.link")
     def test_organize_files_hardlink(self, mock_link: MagicMock, tmp_path: Path) -> None:
         """Test physical file hardlink organization."""
-        from file_organizer.core.file_ops import organize_files
+        from core.file_ops import organize_files
 
         out_path = tmp_path / "out"
         f1 = tmp_path / "f1.txt"
@@ -243,10 +243,10 @@ class TestFileOps:
         assert structure == {"docs": ["file_1.txt"]}
         mock_link.assert_called_once_with(f1, out_path / "docs" / "file_1.txt")
 
-    @patch("file_organizer.core.file_ops.shutil.copy2")
+    @patch("core.file_ops.shutil.copy2")
     def test_organize_files_collision(self, mock_copy: MagicMock, tmp_path: Path) -> None:
         """Test handling of identical filenames during copy."""
-        from file_organizer.core.file_ops import organize_files
+        from core.file_ops import organize_files
 
         out_path = tmp_path / "out"
         docs_dir = out_path / "docs"
@@ -270,7 +270,7 @@ class TestFileOps:
 
     def test_fallback_by_extension(self, tmp_path: Path) -> None:
         """Test extension-based fallback organization."""
-        from file_organizer.core.file_ops import fallback_by_extension
+        from core.file_ops import fallback_by_extension
 
         files = [tmp_path / "doc.pdf", tmp_path / "sheet.xlsx"]
         results = fallback_by_extension(files)
@@ -281,7 +281,7 @@ class TestFileOps:
 
     def test_cleanup_empty_dirs(self, tmp_path: Path) -> None:
         """Test empty directory cleanup removes only empty subdirs."""
-        from file_organizer.core.file_ops import cleanup_empty_dirs
+        from core.file_ops import cleanup_empty_dirs
 
         (tmp_path / "empty_sub").mkdir()
         (tmp_path / "non_empty_sub").mkdir()
@@ -308,7 +308,7 @@ class TestDisplay:
         """Ensure show_file_breakdown renders a Rich Table."""
         from rich.table import Table
 
-        from file_organizer.core.display import show_file_breakdown
+        from core.display import show_file_breakdown
 
         console = MagicMock()
         show_file_breakdown(
@@ -326,7 +326,7 @@ class TestDisplay:
 
     def test_show_summary_does_not_crash(self, tmp_path: Path) -> None:
         """Ensure show_summary renders statistics output."""
-        from file_organizer.core.display import show_summary
+        from core.display import show_summary
 
         console = MagicMock()
         res = OrganizationResult(total_files=5, processing_time=1.0)
@@ -336,7 +336,7 @@ class TestDisplay:
 
     def test_show_summary_surfaces_deduplicated_count(self, tmp_path: Path) -> None:
         """show_summary prints deduplicated line when deduplicated_files > 0."""
-        from file_organizer.core.display import show_summary
+        from core.display import show_summary
 
         console = MagicMock()
         res = OrganizationResult(total_files=5, processed_files=3, deduplicated_files=2)
@@ -355,10 +355,10 @@ class TestDisplay:
 class TestInitializer:
     """Tests for core.initializer module."""
 
-    @patch("file_organizer.core.initializer.TextProcessor")
+    @patch("core.initializer.TextProcessor")
     def test_init_text_processor_success(self, mock_text_cls: MagicMock) -> None:
         """Successful text processor init returns initialized processor."""
-        from file_organizer.core.initializer import init_text_processor
+        from core.initializer import init_text_processor
 
         config = ModelConfig(name="test", model_type=ModelType.TEXT)
         console = MagicMock()
@@ -368,10 +368,10 @@ class TestInitializer:
         mock_text_cls.return_value.initialize.assert_called_once()
         assert result is mock_text_cls.return_value
 
-    @patch("file_organizer.core.initializer.TextProcessor")
+    @patch("core.initializer.TextProcessor")
     def test_init_text_processor_failure_returns_none(self, mock_text_cls: MagicMock) -> None:
         """Any exception during text init returns None."""
-        from file_organizer.core.initializer import init_text_processor
+        from core.initializer import init_text_processor
 
         mock_text_cls.return_value.initialize.side_effect = ConnectionRefusedError("down")
         config = ModelConfig(name="test", model_type=ModelType.TEXT)
@@ -380,10 +380,10 @@ class TestInitializer:
 
         assert result is None
 
-    @patch("file_organizer.core.initializer.VisionProcessor")
+    @patch("core.initializer.VisionProcessor")
     def test_init_vision_processor_success(self, mock_vision_cls: MagicMock) -> None:
         """Successful vision processor init returns initialized processor."""
-        from file_organizer.core.initializer import init_vision_processor
+        from core.initializer import init_vision_processor
 
         config = ModelConfig(name="test", model_type=ModelType.VISION)
         console = MagicMock()
@@ -393,10 +393,10 @@ class TestInitializer:
         mock_vision_cls.return_value.initialize.assert_called_once()
         assert result is mock_vision_cls.return_value
 
-    @patch("file_organizer.core.initializer.VisionProcessor")
+    @patch("core.initializer.VisionProcessor")
     def test_init_vision_processor_failure_returns_none(self, mock_vision_cls: MagicMock) -> None:
         """Any exception during vision init returns None."""
-        from file_organizer.core.initializer import init_vision_processor
+        from core.initializer import init_vision_processor
 
         mock_vision_cls.return_value.initialize.side_effect = ImportError("missing")
         config = ModelConfig(name="test", model_type=ModelType.VISION)

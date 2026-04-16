@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.optimization.connection_pool import ConnectionPool, PoolStats
+from optimization.connection_pool import ConnectionPool, PoolStats
 
 # ---------------------------------------------------------------------------
 # Fixtures

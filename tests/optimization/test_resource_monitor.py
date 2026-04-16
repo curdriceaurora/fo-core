@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.optimization.resource_monitor import (
+from optimization.resource_monitor import (
     GpuMemoryInfo,
     MemoryInfo,
     ResourceMonitor,
@@ -67,7 +67,7 @@ class TestGpuMemoryInfo:
 class TestResourceMonitorMemory:
     """Tests for get_memory_usage with mocked psutil."""
 
-    @patch("file_organizer.optimization.resource_monitor.ResourceMonitor._get_memory_psutil")
+    @patch("optimization.resource_monitor.ResourceMonitor._get_memory_psutil")
     def test_get_memory_usage_with_psutil(self, mock_psutil: MagicMock) -> None:
         """Test that psutil is preferred when available."""
         expected = MemoryInfo(rss=100_000_000, vms=200_000_000, percent=5.0)
@@ -80,10 +80,10 @@ class TestResourceMonitorMemory:
         mock_psutil.assert_called_once()
 
     @patch(
-        "file_organizer.optimization.resource_monitor.ResourceMonitor._get_memory_psutil",
+        "optimization.resource_monitor.ResourceMonitor._get_memory_psutil",
         side_effect=ImportError("No module named 'psutil'"),
     )
-    @patch("file_organizer.optimization.resource_monitor.ResourceMonitor._get_memory_fallback")
+    @patch("optimization.resource_monitor.ResourceMonitor._get_memory_fallback")
     def test_get_memory_usage_fallback(
         self, mock_fallback: MagicMock, mock_psutil: MagicMock
     ) -> None:

@@ -29,7 +29,7 @@ pytestmark = pytest.mark.integration
 
 class TestReadTextSafe:
     def test_reads_text_file_content(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.hybrid_retriever import read_text_safe
+        from services.search.hybrid_retriever import read_text_safe
 
         f = tmp_path / "notes.txt"
         f.write_text("hello world", encoding="utf-8")
@@ -37,7 +37,7 @@ class TestReadTextSafe:
         assert result == "hello world"
 
     def test_returns_empty_for_binary_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.hybrid_retriever import read_text_safe
+        from services.search.hybrid_retriever import read_text_safe
 
         f = tmp_path / "data.bin"
         f.write_bytes(b"\x00\x01\x02\x03" * 200)
@@ -45,13 +45,13 @@ class TestReadTextSafe:
         assert result == ""
 
     def test_returns_empty_for_missing_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.hybrid_retriever import read_text_safe
+        from services.search.hybrid_retriever import read_text_safe
 
         result = read_text_safe(tmp_path / "ghost.txt")
         assert result == ""
 
     def test_respects_limit_parameter(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.hybrid_retriever import read_text_safe
+        from services.search.hybrid_retriever import read_text_safe
 
         f = tmp_path / "long.txt"
         f.write_text("A" * 1000, encoding="utf-8")
@@ -59,7 +59,7 @@ class TestReadTextSafe:
         assert len(result) == 10
 
     def test_default_limit_is_4096(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.hybrid_retriever import CORPUS_TEXT_LIMIT
+        from services.search.hybrid_retriever import CORPUS_TEXT_LIMIT
 
         assert CORPUS_TEXT_LIMIT == 4096
 
@@ -71,7 +71,7 @@ class TestReadTextSafe:
 
 class TestRrfFuse:
     def test_basic_fusion_of_two_lists(self) -> None:
-        from file_organizer.services.search.hybrid_retriever import _rrf_fuse
+        from services.search.hybrid_retriever import _rrf_fuse
 
         list_a = [(Path("a.txt"), 0.9), (Path("b.txt"), 0.5)]
         list_b = [(Path("b.txt"), 0.8), (Path("a.txt"), 0.4)]
@@ -82,7 +82,7 @@ class TestRrfFuse:
         assert Path("b.txt") in paths
 
     def test_document_in_both_lists_ranks_higher(self) -> None:
-        from file_organizer.services.search.hybrid_retriever import _rrf_fuse
+        from services.search.hybrid_retriever import _rrf_fuse
 
         common = Path("common.txt")
         unique = Path("unique.txt")
@@ -92,7 +92,7 @@ class TestRrfFuse:
         assert fused[0][0] == common
 
     def test_top_k_truncates_results(self) -> None:
-        from file_organizer.services.search.hybrid_retriever import _rrf_fuse
+        from services.search.hybrid_retriever import _rrf_fuse
 
         paths = [Path(f"{i}.txt") for i in range(10)]
         list_a = [(p, float(10 - i)) for i, p in enumerate(paths)]
@@ -100,19 +100,19 @@ class TestRrfFuse:
         assert len(fused) == 3
 
     def test_empty_lists_returns_empty(self) -> None:
-        from file_organizer.services.search.hybrid_retriever import _rrf_fuse
+        from services.search.hybrid_retriever import _rrf_fuse
 
         result = _rrf_fuse([], [], top_k=5)
         assert result == []
 
     def test_invalid_k_raises_value_error(self) -> None:
-        from file_organizer.services.search.hybrid_retriever import _rrf_fuse
+        from services.search.hybrid_retriever import _rrf_fuse
 
         with pytest.raises(ValueError, match="k must be positive"):
             _rrf_fuse([(Path("a.txt"), 1.0)], top_k=5, k=0)
 
     def test_scores_are_floats(self) -> None:
-        from file_organizer.services.search.hybrid_retriever import _rrf_fuse
+        from services.search.hybrid_retriever import _rrf_fuse
 
         list_a = [(Path("x.txt"), 0.9)]
         fused = _rrf_fuse(list_a, top_k=1)
@@ -131,7 +131,7 @@ class TestHybridRetriever:
         pytest.importorskip("sklearn")
 
     def _make_retriever(self, k: int = 60):
-        from file_organizer.services.search.hybrid_retriever import HybridRetriever
+        from services.search.hybrid_retriever import HybridRetriever
 
         return HybridRetriever(k=k)
 
@@ -186,7 +186,7 @@ class TestHybridRetriever:
             r.index(["doc a", "doc b"], [tmp_path / "a.txt"])
 
     def test_invalid_k_raises_value_error(self) -> None:
-        from file_organizer.services.search.hybrid_retriever import HybridRetriever
+        from services.search.hybrid_retriever import HybridRetriever
 
         with pytest.raises(ValueError, match="k must be positive"):
             HybridRetriever(k=0)
@@ -212,7 +212,7 @@ class TestHybridRetriever:
         paths = [tmp_path / "finance.txt", tmp_path / "meeting.txt"]
 
         with patch(
-            "file_organizer.services.search.hybrid_retriever.VectorIndex.index",
+            "services.search.hybrid_retriever.VectorIndex.index",
             side_effect=ValueError("vectorizer rejected corpus"),
         ) as mock_vector_index:
             r.index(docs, paths)
@@ -231,7 +231,7 @@ class TestHybridRetriever:
 
 class TestEmbeddingCache:
     def _make_cache(self, tmp_path: Path, model: str = "test-model"):
-        from file_organizer.services.search.embedding_cache import EmbeddingCache
+        from services.search.embedding_cache import EmbeddingCache
 
         db = tmp_path / "test_cache.db"
         return EmbeddingCache(db_path=db, model=model)
@@ -283,7 +283,7 @@ class TestEmbeddingCache:
         cache.close()
 
     def test_model_change_invalidates_cache(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.embedding_cache import EmbeddingCache
+        from services.search.embedding_cache import EmbeddingCache
 
         f = tmp_path / "doc.txt"
         f.write_text("some text", encoding="utf-8")
@@ -331,14 +331,14 @@ class TestEmbeddingCache:
 
     def test_db_path_property(self, tmp_path: Path) -> None:
         db = tmp_path / "my.db"
-        from file_organizer.services.search.embedding_cache import EmbeddingCache
+        from services.search.embedding_cache import EmbeddingCache
 
         cache = EmbeddingCache(db_path=db)
         assert cache.db_path == db
         cache.close()
 
     def test_context_manager_closes_on_exit(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.embedding_cache import EmbeddingCache
+        from services.search.embedding_cache import EmbeddingCache
 
         db = tmp_path / "ctx.db"
         with EmbeddingCache(db_path=db) as cache:

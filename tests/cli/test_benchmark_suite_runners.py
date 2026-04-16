@@ -10,9 +10,9 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from file_organizer.cli import benchmark as benchmark_cli
-from file_organizer.cli.main import app
-from file_organizer.models.base import ModelType
+from cli import benchmark as benchmark_cli
+from cli.main import app
+from models.base import ModelType
 
 runner = CliRunner()
 
@@ -118,7 +118,7 @@ def test_vision_suite_does_not_require_backend_model_pull() -> None:
     assert image_file.is_file(), f"Missing fixture image: {image_file}"
 
     with patch(
-        "file_organizer.services.vision_processor.get_vision_model",
+        "services.vision_processor.get_vision_model",
         side_effect=RuntimeError("backend model pull should not be used in suite runner"),
     ) as mocked_get_vision_model:
         benchmark_cli._run_vision_suite([image_file])
@@ -130,11 +130,11 @@ def test_vision_suite_does_not_require_backend_model_pull() -> None:
 def test_audio_suite_warns_when_falling_back_to_io() -> None:
     """Audio suite should emit a warning when no audio candidates are available."""
     expected_result = 7
-    with patch("file_organizer.cli.benchmark._run_io_suite") as mocked_io_suite:
+    with patch("cli.benchmark._run_io_suite") as mocked_io_suite:
         mocked_io_suite.return_value = benchmark_cli._SuiteIterationOutcome(
             processed_count=expected_result
         )
-        with patch("file_organizer.cli.benchmark.typer.echo") as mocked_echo:
+        with patch("cli.benchmark.typer.echo") as mocked_echo:
             result = benchmark_cli._run_audio_suite([_CORPUS_DIR / "sample_notes.txt"])
 
     mocked_io_suite.assert_called_once_with([_CORPUS_DIR / "sample_notes.txt"])
@@ -153,7 +153,7 @@ def test_io_suite_logs_oserror_traceback_for_failed_stat() -> None:
     fake_path.suffix = ".txt"
     fake_path.stat.side_effect = OSError("permission denied")
 
-    with patch("file_organizer.cli.benchmark.logger.debug") as mocked_debug:
+    with patch("cli.benchmark.logger.debug") as mocked_debug:
         result = benchmark_cli._run_io_suite([fake_path])
 
     assert result.processed_count == 1
@@ -164,7 +164,7 @@ def test_io_suite_logs_oserror_traceback_for_failed_stat() -> None:
 @pytest.mark.unit
 def test_text_suite_warns_and_skips_when_no_text_candidates() -> None:
     """Text suite should skip when no text candidates are available."""
-    with patch("file_organizer.cli.benchmark.typer.echo") as mocked_echo:
+    with patch("cli.benchmark.typer.echo") as mocked_echo:
         result = benchmark_cli._run_text_suite([_CORPUS_DIR / "sample_photo.jpg"])
 
     assert result.processed_count == 0
@@ -178,7 +178,7 @@ def test_text_suite_warns_and_skips_when_no_text_candidates() -> None:
 @pytest.mark.unit
 def test_vision_suite_warns_and_skips_when_no_vision_candidates() -> None:
     """Vision suite should skip when no vision candidates are available."""
-    with patch("file_organizer.cli.benchmark.typer.echo") as mocked_echo:
+    with patch("cli.benchmark.typer.echo") as mocked_echo:
         result = benchmark_cli._run_vision_suite([_CORPUS_DIR / "sample_notes.txt"])
 
     assert result.processed_count == 0
@@ -220,7 +220,7 @@ def test_execute_suite_iteration_measures_runner_before_classification() -> None
         return benchmark_cli._SuiteExecutionClassification(effective_suite="io", degraded=False)
 
     with patch(
-        "file_organizer.cli.benchmark.time.monotonic",
+        "cli.benchmark.time.monotonic",
         side_effect=[10.0, 10.25],
     ) as mocked_monotonic:
         elapsed_ms, processed_count, classification = benchmark_cli._execute_suite_iteration(

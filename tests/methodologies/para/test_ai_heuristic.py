@@ -14,9 +14,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import AIHeuristicConfig
-from file_organizer.methodologies.para.detection.heuristics import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import AIHeuristicConfig
+from methodologies.para.detection.heuristics import (
     AIHeuristic,
     HeuristicEngine,
 )
@@ -25,7 +25,7 @@ from file_organizer.methodologies.para.detection.heuristics import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-_HEURISTICS_MODULE = "file_organizer.methodologies.para.detection.heuristics"
+_HEURISTICS_MODULE = "methodologies.para.detection.heuristics"
 
 
 def _make_ollama_response(scores: dict[str, float], reasoning: str = "test") -> dict[str, Any]:
@@ -611,35 +611,35 @@ class TestCategoryScoreValidation:
 
     def test_invalid_score_below_zero(self) -> None:
         """CategoryScore raises ValueError when score < 0.0."""
-        from file_organizer.methodologies.para.detection.heuristics import CategoryScore
+        from methodologies.para.detection.heuristics import CategoryScore
 
         with pytest.raises(ValueError, match="Score must be in range"):
             CategoryScore(category=PARACategory.PROJECT, score=-0.1, confidence=0.5)
 
     def test_invalid_score_above_one(self) -> None:
         """CategoryScore raises ValueError when score > 1.0."""
-        from file_organizer.methodologies.para.detection.heuristics import CategoryScore
+        from methodologies.para.detection.heuristics import CategoryScore
 
         with pytest.raises(ValueError, match="Score must be in range"):
             CategoryScore(category=PARACategory.AREA, score=1.5, confidence=0.5)
 
     def test_invalid_confidence_below_zero(self) -> None:
         """CategoryScore raises ValueError when confidence < 0.0."""
-        from file_organizer.methodologies.para.detection.heuristics import CategoryScore
+        from methodologies.para.detection.heuristics import CategoryScore
 
         with pytest.raises(ValueError, match="Confidence must be in range"):
             CategoryScore(category=PARACategory.RESOURCE, score=0.5, confidence=-0.1)
 
     def test_invalid_confidence_above_one(self) -> None:
         """CategoryScore raises ValueError when confidence > 1.0."""
-        from file_organizer.methodologies.para.detection.heuristics import CategoryScore
+        from methodologies.para.detection.heuristics import CategoryScore
 
         with pytest.raises(ValueError, match="Confidence must be in range"):
             CategoryScore(category=PARACategory.ARCHIVE, score=0.5, confidence=1.2)
 
     def test_valid_boundary_values(self) -> None:
         """CategoryScore accepts exact boundary values 0.0 and 1.0."""
-        from file_organizer.methodologies.para.detection.heuristics import CategoryScore
+        from methodologies.para.detection.heuristics import CategoryScore
 
         s1 = CategoryScore(category=PARACategory.PROJECT, score=0.0, confidence=0.0)
         assert s1.score == 0.0
@@ -661,7 +661,7 @@ class TestTemporalHeuristicComprehensive:
 
     def test_nonexistent_file_returns_zero_scores(self, tmp_path: Path) -> None:
         """Non-existent file returns all-zero scores with manual review flag."""
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         h = TemporalHeuristic(weight=0.25)
         ghost_file = tmp_path / "does_not_exist.txt"
@@ -678,7 +678,7 @@ class TestTemporalHeuristicComprehensive:
         """_contains_old_year correctly identifies old years in various formats."""
         from datetime import UTC, datetime
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         current_year = datetime.now(UTC).year
         h = TemporalHeuristic(weight=0.25)
@@ -700,7 +700,7 @@ class TestTemporalHeuristicComprehensive:
         """Recent year in path does NOT trigger archive scoring."""
         from datetime import UTC, datetime
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         current_year = datetime.now(UTC).year
         h = TemporalHeuristic(weight=0.25)
@@ -720,7 +720,7 @@ class TestTemporalHeuristicComprehensive:
         """File modified exactly 30 days ago does NOT trigger recent_modified."""
         import time
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "boundary.txt"
@@ -739,7 +739,7 @@ class TestTemporalHeuristicComprehensive:
         """AREA score triggered for files modified between 30-180 days ago."""
         import time
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "area_file.txt"
@@ -759,7 +759,7 @@ class TestTemporalHeuristicComprehensive:
         """RESOURCE score for files with large create/modify gap on supported platforms."""
         import time
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "reference.pdf"
@@ -782,7 +782,7 @@ class TestTemporalHeuristicComprehensive:
         """ARCHIVE score for files modified >180 days and accessed >90 days ago."""
         import time
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "ancient.txt"
@@ -811,7 +811,7 @@ class TestContentHeuristicComprehensive:
 
     def test_date_pattern_yyyy_mm_dd(self, tmp_path: Path) -> None:
         """Date pattern YYYY-MM-DD in filename triggers PROJECT score."""
-        from file_organizer.methodologies.para.detection.heuristics import ContentHeuristic
+        from methodologies.para.detection.heuristics import ContentHeuristic
 
         h = ContentHeuristic(weight=0.35)
         f = tmp_path / "report_2024-03-15.pdf"
@@ -825,7 +825,7 @@ class TestContentHeuristicComprehensive:
 
     def test_date_pattern_due_underscore_digits(self, tmp_path: Path) -> None:
         """Date pattern due_NN in filename triggers PROJECT score."""
-        from file_organizer.methodologies.para.detection.heuristics import ContentHeuristic
+        from methodologies.para.detection.heuristics import ContentHeuristic
 
         h = ContentHeuristic(weight=0.35)
         f = tmp_path / "task_due_15.txt"
@@ -839,7 +839,7 @@ class TestContentHeuristicComprehensive:
 
     def test_keyword_matching_word_boundaries(self, tmp_path: Path) -> None:
         """Keyword matching respects word boundaries (no false positives)."""
-        from file_organizer.methodologies.para.detection.heuristics import ContentHeuristic
+        from methodologies.para.detection.heuristics import ContentHeuristic
 
         h = ContentHeuristic(weight=0.35)
 
@@ -865,7 +865,7 @@ class TestContentHeuristicComprehensive:
 
     def test_content_area_keywords(self, tmp_path: Path) -> None:
         """AREA keywords in path trigger AREA score."""
-        from file_organizer.methodologies.para.detection.heuristics import ContentHeuristic
+        from methodologies.para.detection.heuristics import ContentHeuristic
 
         h = ContentHeuristic(weight=0.35)
         # Use directory separator for word boundaries
@@ -884,7 +884,7 @@ class TestContentHeuristicComprehensive:
 
     def test_content_resource_keywords(self, tmp_path: Path) -> None:
         """RESOURCE keywords in path trigger RESOURCE score."""
-        from file_organizer.methodologies.para.detection.heuristics import ContentHeuristic
+        from methodologies.para.detection.heuristics import ContentHeuristic
 
         h = ContentHeuristic(weight=0.35)
         # Use directory separator for word boundaries
@@ -903,7 +903,7 @@ class TestContentHeuristicComprehensive:
 
     def test_content_archive_keywords(self, tmp_path: Path) -> None:
         """ARCHIVE keywords in path trigger ARCHIVE score."""
-        from file_organizer.methodologies.para.detection.heuristics import ContentHeuristic
+        from methodologies.para.detection.heuristics import ContentHeuristic
 
         h = ContentHeuristic(weight=0.35)
         # Use directory separator and hyphens for word boundaries
@@ -932,7 +932,7 @@ class TestStructuralHeuristicComprehensive:
 
     def test_structural_area_directory_indicators(self, tmp_path: Path) -> None:
         """Files in 'areas', 'ongoing', 'active', 'current' folders score as AREA."""
-        from file_organizer.methodologies.para.detection.heuristics import StructuralHeuristic
+        from methodologies.para.detection.heuristics import StructuralHeuristic
 
         h = StructuralHeuristic(weight=0.30)
 
@@ -950,7 +950,7 @@ class TestStructuralHeuristicComprehensive:
 
     def test_structural_resource_directory_indicators(self, tmp_path: Path) -> None:
         """Files in resource/reference/library folders score as RESOURCE."""
-        from file_organizer.methodologies.para.detection.heuristics import StructuralHeuristic
+        from methodologies.para.detection.heuristics import StructuralHeuristic
 
         h = StructuralHeuristic(weight=0.30)
 
@@ -968,7 +968,7 @@ class TestStructuralHeuristicComprehensive:
 
     def test_structural_archive_directory_indicators(self, tmp_path: Path) -> None:
         """Files in archive/old/past folders score as ARCHIVE."""
-        from file_organizer.methodologies.para.detection.heuristics import StructuralHeuristic
+        from methodologies.para.detection.heuristics import StructuralHeuristic
 
         h = StructuralHeuristic(weight=0.30)
 
@@ -986,7 +986,7 @@ class TestStructuralHeuristicComprehensive:
 
     def test_structural_deep_nesting_project_indicator(self, tmp_path: Path) -> None:
         """Files with depth > 3 score higher for PROJECT."""
-        from file_organizer.methodologies.para.detection.heuristics import StructuralHeuristic
+        from methodologies.para.detection.heuristics import StructuralHeuristic
 
         h = StructuralHeuristic(weight=0.30)
 
@@ -1088,7 +1088,7 @@ class TestHeuristicEngineEdgeCases:
 
     def test_engine_all_heuristics_fail_returns_zero_result(self, tmp_path: Path) -> None:
         """When all heuristics raise exceptions, engine returns zero result."""
-        from file_organizer.methodologies.para.detection.heuristics import (
+        from methodologies.para.detection.heuristics import (
             HeuristicResult,
         )
 
@@ -1115,7 +1115,7 @@ class TestHeuristicEngineEdgeCases:
 
     def test_engine_top_score_zero_confidence_zero(self, tmp_path: Path) -> None:
         """When all category scores are zero, overall_confidence is zero."""
-        from file_organizer.methodologies.para.detection.heuristics import (
+        from methodologies.para.detection.heuristics import (
             CategoryScore,
             HeuristicResult,
         )
@@ -1164,7 +1164,7 @@ class TestHeuristicEngineEdgeCases:
 
     def test_engine_no_recommendation_needs_review(self, tmp_path: Path) -> None:
         """Engine sets needs_manual_review when no category meets threshold."""
-        from file_organizer.methodologies.para.config import CategoryThresholds
+        from methodologies.para.config import CategoryThresholds
 
         f = tmp_path / "test.txt"
         f.write_text("test")
@@ -1180,7 +1180,7 @@ class TestHeuristicEngineEdgeCases:
 
     def test_engine_recommendation_meets_threshold(self, tmp_path: Path) -> None:
         """Engine recommends category when its score meets threshold."""
-        from file_organizer.methodologies.para.config import CategoryThresholds
+        from methodologies.para.config import CategoryThresholds
 
         # Create a file that will score high for ARCHIVE category
         archive_folder = tmp_path / "archive" / "old"
@@ -1223,7 +1223,7 @@ class TestRemainingCoverage:
         """RESOURCE signal triggered when create/modify gap > 30 days."""
         import time
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "reference.txt"
@@ -1247,7 +1247,7 @@ class TestRemainingCoverage:
         """File modified <30 days ago triggers recent_modified signal."""
         import time
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         h = TemporalHeuristic(weight=0.25)
         f = tmp_path / "recent.txt"
@@ -1272,7 +1272,7 @@ class TestPlatformSpecificPaths:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """On Windows, st_ctime is used for file creation time."""
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         class MockStat:
             def __init__(self, *, now: float) -> None:
@@ -1299,7 +1299,7 @@ class TestPlatformSpecificPaths:
     ) -> None:
         """On Linux (without birthtime), st_mtime is used as creation proxy."""
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         class MockStat:
             def __init__(self, *, now: float) -> None:
@@ -1375,7 +1375,7 @@ class TestPlatformSpecificBranches:
         """macOS branch uses st_birthtime (try succeeds — no AttributeError)."""
         import time
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         f = tmp_path / "test.txt"
         f.write_text("test")
@@ -1403,7 +1403,7 @@ class TestPlatformSpecificBranches:
     ) -> None:
         """Windows branch uses st_ctime when no st_birthtime (AttributeError → Windows branch)."""
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         f = tmp_path / "test.txt"
         f.write_text("test")
@@ -1434,7 +1434,7 @@ class TestPlatformSpecificBranches:
     ) -> None:
         """Linux branch uses st_mtime as creation time proxy (no st_birthtime → AttributeError)."""
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         f = tmp_path / "test.txt"
         f.write_text("test")
@@ -1466,7 +1466,7 @@ class TestPlatformSpecificBranches:
         """RESOURCE stable_reference signal when create/modify gap > 30 days."""
         import time
 
-        from file_organizer.methodologies.para.detection.heuristics import TemporalHeuristic
+        from methodologies.para.detection.heuristics import TemporalHeuristic
 
         f = tmp_path / "reference.pdf"
         f.write_text("reference")

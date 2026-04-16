@@ -19,7 +19,7 @@ Exit codes:
     0  All models at or above threshold
     1  At least one model below threshold (regression detected)
     2  Model initialization failure (Ollama not reachable)
-    3  Import/setup failure (file_organizer package not importable)
+    3  Import/setup failure (fo package not importable)
     4  Inference failure during a benchmark run
 """
 
@@ -369,11 +369,11 @@ def _make_processor(model_name: str | None) -> object:
     """Build and return an initialized TextProcessor for ``model_name``.
 
     Raises:
-        ImportError: If the file_organizer package is not importable.
+        ImportError: If the fo package is not importable.
         Exception: If the model cannot be initialized (Ollama not reachable).
     """
-    from file_organizer.models.base import ModelConfig, ModelType
-    from file_organizer.services.text_processor import TextProcessor
+    from models.base import ModelConfig, ModelType
+    from services.text_processor import TextProcessor
 
     if model_name is not None:
         config = ModelConfig(name=model_name, model_type=ModelType.TEXT)
@@ -456,15 +456,15 @@ def run_benchmark(model_name: str | None, verbose: bool, threshold: float) -> in
         0 if all models meet the threshold.
         1 if at least one model is below threshold (regression).
         2 if a model cannot be initialized (Ollama not reachable).
-        3 if the file_organizer package is not importable (setup failure).
+        3 if the fo package is not importable (setup failure).
         4 if inference fails during a benchmark run.
     """
     try:
-        from file_organizer.services.text_processor import (
+        from services.text_processor import (
             TextProcessor,  # noqa: F401 (import check)
         )
     except ImportError:
-        print("ERROR: file_organizer package not importable.  Run from repo root.", file=sys.stderr)
+        print("ERROR: fo package not importable.  Run from repo root.", file=sys.stderr)
         return 3
 
     models_to_run: list[str | None] = MODEL_TIERS if model_name == "all" else [model_name]

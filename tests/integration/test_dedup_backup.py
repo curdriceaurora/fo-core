@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.services.deduplication.backup import BackupManager
+from services.deduplication.backup import BackupManager
 
 pytestmark = pytest.mark.integration
 

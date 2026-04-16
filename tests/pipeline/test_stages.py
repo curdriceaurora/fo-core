@@ -12,11 +12,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.interfaces.pipeline import PipelineStage, StageContext
-from file_organizer.pipeline.stages.analyzer import AnalyzerStage
-from file_organizer.pipeline.stages.postprocessor import PostprocessorStage
-from file_organizer.pipeline.stages.preprocessor import PreprocessorStage
-from file_organizer.pipeline.stages.writer import WriterStage
+from interfaces.pipeline import PipelineStage, StageContext
+from pipeline.stages.analyzer import AnalyzerStage
+from pipeline.stages.postprocessor import PostprocessorStage
+from pipeline.stages.preprocessor import PreprocessorStage
+from pipeline.stages.writer import WriterStage
 
 # ---------------------------------------------------------------------------
 # StageContext
@@ -183,8 +183,8 @@ class TestAnalyzerStage:
 
     def test_processes_file_with_router_and_pool(self, tmp_path: Path) -> None:
         """When router and pool are configured, analyzer invokes processor."""
-        from file_organizer.pipeline.processor_pool import ProcessorPool
-        from file_organizer.pipeline.router import FileRouter
+        from pipeline.processor_pool import ProcessorPool
+        from pipeline.router import FileRouter
 
         f = tmp_path / "doc.txt"
         f.write_text("hello")
@@ -391,8 +391,8 @@ class TestPipelineComposition:
 
     def test_orchestrator_with_stages(self, tmp_path: Path) -> None:
         """PipelineOrchestrator delegates to stages when configured."""
-        from file_organizer.pipeline.config import PipelineConfig
-        from file_organizer.pipeline.orchestrator import PipelineOrchestrator
+        from pipeline.config import PipelineConfig
+        from pipeline.orchestrator import PipelineOrchestrator
 
         src = tmp_path / "file.txt"
         src.write_text("hello")

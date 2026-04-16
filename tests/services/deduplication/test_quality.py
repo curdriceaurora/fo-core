@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.services.deduplication.quality import (
+from services.deduplication.quality import (
     ImageFormat,
     ImageQualityAnalyzer,
     QualityMetrics,

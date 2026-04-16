@@ -49,7 +49,7 @@ def mock_vectorizer():
 @pytest.fixture
 def embedder(mock_vectorizer):
     """Create a DocumentEmbedder with mocked sklearn."""
-    from file_organizer.services.deduplication.embedder import DocumentEmbedder
+    from services.deduplication.embedder import DocumentEmbedder
 
     # DocumentEmbedder defers sklearn import to __init__
     # Mock the import at instantiation using patch.dict so ALL three entries are
@@ -102,7 +102,7 @@ class TestDocumentEmbedderInit:
                 # Force reimport
                 import importlib
 
-                import file_organizer.services.deduplication.embedder as mod
+                import services.deduplication.embedder as mod
 
                 importlib.reload(mod)
                 mod.DocumentEmbedder()
@@ -213,7 +213,7 @@ class TestTransform:
     def test_cache_hit_emits_debug_log(self, embedder, mock_vectorizer) -> None:
         """Cache-hit path logs a debug message (covers embedder.py logger.debug line)."""
         embedder.is_fitted = True
-        with patch("file_organizer.services.deduplication.embedder.logger") as mock_logger:
+        with patch("services.deduplication.embedder.logger") as mock_logger:
             embedder.transform("cache test doc")  # populates cache
             embedder.transform("cache test doc")  # hits cache → executes logger.debug
         mock_logger.debug.assert_any_call("Cache hit for document (hash=%s)", unittest.mock.ANY)
@@ -346,7 +346,7 @@ class TestModelPersistence:
 
         # MagicMock can't be pickled, so mock pickle operations
         sentinel = object()
-        with patch("file_organizer.services.deduplication.embedder.pickle.dump") as mock_dump:
+        with patch("services.deduplication.embedder.pickle.dump") as mock_dump:
             embedder.save_model(p)
             # save_model opens the file and calls pickle.dump
             mock_dump.assert_called_once()

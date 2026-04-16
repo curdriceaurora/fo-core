@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.core.organizer import FileOrganizer
-from file_organizer.services import ProcessedFile
+from core.organizer import FileOrganizer
+from services import ProcessedFile
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -79,7 +79,7 @@ class TestProcessAudioFiles:
         organizer = FileOrganizer()
 
         with patch(
-            "file_organizer.core.organizer.AudioMetadataExtractor.extract",
+            "core.organizer.AudioMetadataExtractor.extract",
             side_effect=RuntimeError("bad file"),
         ):
             results = organizer._process_audio_files([audio])
@@ -93,7 +93,7 @@ class TestProcessAudioFiles:
         organizer = FileOrganizer()
 
         with patch(
-            "file_organizer.core.organizer.AudioMetadataExtractor.extract",
+            "core.organizer.AudioMetadataExtractor.extract",
             side_effect=RuntimeError("bad"),
         ):
             results = organizer._process_audio_files([audio])
@@ -153,7 +153,7 @@ class TestProcessVideoFiles:
         organizer = FileOrganizer()
 
         with patch(
-            "file_organizer.core.organizer.VideoMetadataExtractor.extract",
+            "core.organizer.VideoMetadataExtractor.extract",
             side_effect=RuntimeError("corrupt"),
         ):
             results = organizer._process_video_files([video])
@@ -269,8 +269,8 @@ class TestOrganizeRouting:
                 organizer, "_process_video_files", wraps=organizer._process_video_files
             ) as mock_video,
             # Prevent real Ollama/model connections during test
-            patch("file_organizer.core.organizer.TextProcessor") as mock_tp_cls,
-            patch("file_organizer.core.organizer.VisionProcessor") as mock_vp_cls,
+            patch("core.organizer.TextProcessor") as mock_tp_cls,
+            patch("core.organizer.VisionProcessor") as mock_vp_cls,
         ):
             mock_text.return_value = []
             mock_img.return_value = []

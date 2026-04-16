@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.cli.benchmark — uncovered lines 59-60, 66-86, 117-118, 131, 138."""
+"""Coverage tests for cli.benchmark — uncovered lines 59-60, 66-86, 117-118, 131, 138."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ runner = CliRunner()
 
 
 def _get_app():
-    from file_organizer.cli import app
+    from cli import app
 
     return app
 
@@ -79,11 +79,11 @@ class TestBenchmarkEvenIterations:
 
         with (
             patch(
-                "file_organizer.optimization.memory_profiler.MemoryProfiler",
+                "optimization.memory_profiler.MemoryProfiler",
                 return_value=mock_profiler,
             ),
             patch(
-                "file_organizer.optimization.resource_monitor.ResourceMonitor",
+                "optimization.resource_monitor.ResourceMonitor",
                 return_value=mock_monitor,
             ),
         ):

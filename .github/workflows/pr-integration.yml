@@ -19,7 +19,7 @@ name: PR Integration Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, epic/flatten-src-fo]
     types: [opened, reopened, ready_for_review, synchronize]
     paths-ignore:
       - ".claude/**"
@@ -70,7 +70,7 @@ jobs:
           pytest tests/ \
             --strict-markers \
             -m "integration and not benchmark" \
-            --cov=file_organizer \
+            --cov=src \
             --cov-branch \
             --cov-report=term-missing \
             --cov-report=xml \

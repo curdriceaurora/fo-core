@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.models.base import BaseModel, ModelConfig, ModelType
+from models.base import BaseModel, ModelConfig, ModelType
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci, pytest.mark.smoke]
 

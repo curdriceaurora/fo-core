@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.parallel.models import Checkpoint, JobState, JobStatus
-from file_organizer.parallel.result import FileResult
-from file_organizer.parallel.resume import ResumableProcessor
+from parallel.models import Checkpoint, JobState, JobStatus
+from parallel.result import FileResult
+from parallel.resume import ResumableProcessor
 
 pytestmark = pytest.mark.unit
 

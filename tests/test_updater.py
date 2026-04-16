@@ -9,14 +9,14 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.updater.checker import (
+from updater.checker import (
     AssetInfo,
     ReleaseInfo,
     UpdateChecker,
     _parse_version,
 )
-from file_organizer.updater.installer import UpdateInstaller
-from file_organizer.updater.manager import UpdateManager, UpdateStatus
+from updater.installer import UpdateInstaller
+from updater.manager import UpdateManager, UpdateStatus
 
 # ---------------------------------------------------------------------------
 # Version parsing
@@ -107,7 +107,7 @@ class TestUpdateChecker:
             "published_at": "2026-01-01T00:00:00Z",
             "assets": [
                 {
-                    "name": "file-organizer-linux-x86_64",
+                    "name": "fo-linux-x86_64",
                     "browser_download_url": "https://example.com/bin",
                     "size": 50000000,
                     "content_type": "application/octet-stream",
@@ -132,9 +132,9 @@ class TestUpdateInstaller:
         installer = UpdateInstaller()
         release = ReleaseInfo(
             assets=[
-                AssetInfo(name="file-organizer-2.0.0-linux-x86_64", url="u1"),
-                AssetInfo(name="file-organizer-2.0.0-macos-arm64", url="u2"),
-                AssetInfo(name="file-organizer-2.0.0-windows-x86_64.exe", url="u3"),
+                AssetInfo(name="fo-2.0.0-linux-x86_64", url="u1"),
+                AssetInfo(name="fo-2.0.0-macos-arm64", url="u2"),
+                AssetInfo(name="fo-2.0.0-windows-x86_64.exe", url="u3"),
                 AssetInfo(name="SHA256SUMS.txt", url="u4"),
             ]
         )
@@ -150,8 +150,8 @@ class TestUpdateInstaller:
         installer = UpdateInstaller()
         release = ReleaseInfo(
             assets=[
-                AssetInfo(name="file-organizer-2.0.0-linux-x86_64", url="u1"),
-                AssetInfo(name="file-organizer-2.0.0-macos-arm64", url="u2"),
+                AssetInfo(name="fo-2.0.0-linux-x86_64", url="u1"),
+                AssetInfo(name="fo-2.0.0-macos-arm64", url="u2"),
             ]
         )
         with (
@@ -166,8 +166,8 @@ class TestUpdateInstaller:
         installer = UpdateInstaller()
         release = ReleaseInfo(
             assets=[
-                AssetInfo(name="file-organizer-2.0.0-macos-arm64.dmg", url="u1"),
-                AssetInfo(name="file-organizer-2.0.0-macos-arm64", url="u2"),
+                AssetInfo(name="fo-2.0.0-macos-arm64.dmg", url="u1"),
+                AssetInfo(name="fo-2.0.0-macos-arm64", url="u2"),
             ]
         )
         with (
@@ -191,8 +191,8 @@ class TestUpdateInstaller:
         installer = UpdateInstaller()
         release = ReleaseInfo(
             assets=[
-                AssetInfo(name="file-organizer-2.0.0-linux-x86_64.tar.gz", url="u1"),
-                AssetInfo(name="file-organizer-2.0.0-linux-x86_64.AppImage", url="u2"),
+                AssetInfo(name="fo-2.0.0-linux-x86_64.tar.gz", url="u1"),
+                AssetInfo(name="fo-2.0.0-linux-x86_64.AppImage", url="u2"),
             ]
         )
         with (
@@ -207,8 +207,8 @@ class TestUpdateInstaller:
         installer = UpdateInstaller()
         release = ReleaseInfo(
             assets=[
-                AssetInfo(name="file-organizer-2.0.0-windows-setup.exe", url="u1"),
-                AssetInfo(name="file-organizer-2.0.0-windows-x86_64.exe", url="u2"),
+                AssetInfo(name="fo-2.0.0-windows-setup.exe", url="u1"),
+                AssetInfo(name="fo-2.0.0-windows-x86_64.exe", url="u2"),
             ]
         )
         with (
@@ -226,8 +226,8 @@ class TestUpdateInstaller:
         downloaded = tmp_path / "new-binary"
         downloaded.write_bytes(b"new-content")
 
-        expected_name = "file-organizer.exe" if sys.platform == "win32" else "file-organizer"
-        result = installer.install(downloaded, target_name="file-organizer")
+        expected_name = "fo.exe" if sys.platform == "win32" else "fo"
+        result = installer.install(downloaded, target_name="fo")
         assert result.success is True
         assert (tmp_path / expected_name).exists()
         assert (tmp_path / expected_name).read_bytes() == b"new-content"
@@ -235,7 +235,7 @@ class TestUpdateInstaller:
     def test_install_uses_appimage_env(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        appimage = tmp_path / "file-organizer-2.0.0-linux-x86_64.AppImage"
+        appimage = tmp_path / "fo-2.0.0-linux-x86_64.AppImage"
         appimage.write_bytes(b"old-content")
         monkeypatch.setenv("APPIMAGE", str(appimage))
         installer = UpdateInstaller()
@@ -243,15 +243,15 @@ class TestUpdateInstaller:
         downloaded = tmp_path / "new-appimage"
         downloaded.write_bytes(b"new-content")
 
-        result = installer.install(downloaded, target_name="file-organizer")
+        result = installer.install(downloaded, target_name="fo")
         assert result.success is True
         assert appimage.read_bytes() == b"new-content"
-        assert (tmp_path / "file-organizer-2.0.0-linux-x86_64.AppImage.bak").exists()
+        assert (tmp_path / "fo-2.0.0-linux-x86_64.AppImage.bak").exists()
 
     def test_install_creates_backup(self, tmp_path: Path) -> None:
         installer = UpdateInstaller(install_dir=tmp_path)
 
-        expected_name = "file-organizer.exe" if sys.platform == "win32" else "file-organizer"
+        expected_name = "fo.exe" if sys.platform == "win32" else "fo"
 
         # Create existing binary
         existing = tmp_path / expected_name
@@ -261,7 +261,7 @@ class TestUpdateInstaller:
         downloaded = tmp_path / "new-binary"
         downloaded.write_bytes(b"new-content")
 
-        result = installer.install(downloaded, target_name="file-organizer")
+        result = installer.install(downloaded, target_name="fo")
         assert result.success is True
         assert (tmp_path / f"{expected_name}.bak").read_bytes() == b"old-content"
         assert (tmp_path / expected_name).read_bytes() == b"new-content"
@@ -269,7 +269,7 @@ class TestUpdateInstaller:
     def test_rollback(self, tmp_path: Path) -> None:
         installer = UpdateInstaller(install_dir=tmp_path)
 
-        expected_name = "file-organizer.exe" if sys.platform == "win32" else "file-organizer"
+        expected_name = "fo.exe" if sys.platform == "win32" else "fo"
 
         # Create backup
         (tmp_path / f"{expected_name}.bak").write_bytes(b"old-content")
@@ -320,7 +320,7 @@ class TestUpdateManager:
 
     def test_rollback_delegates(self, tmp_path: Path) -> None:
         mgr = UpdateManager(install_dir=tmp_path)
-        expected_name = "file-organizer.exe" if sys.platform == "win32" else "file-organizer"
+        expected_name = "fo.exe" if sys.platform == "win32" else "fo"
         (tmp_path / f"{expected_name}.bak").write_bytes(b"old")
         assert mgr.rollback() is True
 
@@ -335,7 +335,7 @@ class TestUpdateCLI:
     def test_update_help(self) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["update", "--help"])
@@ -345,7 +345,7 @@ class TestUpdateCLI:
     def test_check_help(self) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["update", "check", "--help"])
@@ -354,7 +354,7 @@ class TestUpdateCLI:
     def test_install_help(self) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["update", "install", "--help"])
@@ -363,7 +363,7 @@ class TestUpdateCLI:
     def test_rollback_help(self) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["update", "rollback", "--help"])

@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.audio.classifier import AudioType
-from file_organizer.services.audio.metadata_extractor import AudioMetadata
-from file_organizer.services.audio.organizer import (
+from services.audio.classifier import AudioType
+from services.audio.metadata_extractor import AudioMetadata
+from services.audio.organizer import (
     AudioOrganizer,
     FileMove,
     OrganizationResult,

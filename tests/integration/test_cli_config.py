@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.integration]
 
@@ -44,7 +44,7 @@ class TestConfigList:
         from unittest.mock import patch
 
         with patch(
-            "file_organizer.config.ConfigManager.list_profiles",
+            "config.ConfigManager.list_profiles",
             return_value=[],
         ):
             result = runner.invoke(app, ["config", "list"])
@@ -55,7 +55,7 @@ class TestConfigList:
         from unittest.mock import patch
 
         with patch(
-            "file_organizer.config.ConfigManager.list_profiles",
+            "config.ConfigManager.list_profiles",
             return_value=["default", "work", "personal"],
         ):
             result = runner.invoke(app, ["config", "list"])
@@ -166,7 +166,7 @@ class TestConfigEdit:
         Uses an isolated config dir via monkeypatch to avoid races with other
         tests that write to the shared default profile under xdist parallelism.
         """
-        monkeypatch.setattr("file_organizer.config.manager.DEFAULT_CONFIG_DIR", tmp_path)
+        monkeypatch.setattr("config.manager.DEFAULT_CONFIG_DIR", tmp_path)
         runner.invoke(app, ["config", "edit", "--text-model", "llama3.2:3b"])
         result = runner.invoke(app, ["config", "show"])
         assert result.exit_code == 0

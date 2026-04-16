@@ -16,8 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType, TokenExhaustionError
-from file_organizer.models.claude_vision_model import ClaudeVisionModel, _build_image_block
+from models.base import ModelConfig, ModelType, TokenExhaustionError
+from models.claude_vision_model import ClaudeVisionModel, _build_image_block
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -129,7 +129,7 @@ class TestBuildImageBlock:
 
 class TestClaudeVisionModelInit:
     def test_init_sets_config(self, claude_vision_config: ModelConfig) -> None:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(claude_vision_config)
         assert model.config is claude_vision_config
         assert model.client is None
@@ -138,8 +138,8 @@ class TestClaudeVisionModelInit:
     def test_init_raises_import_error_when_anthropic_missing(
         self, claude_vision_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", False):
-            with pytest.raises(ImportError, match="file-organizer\\[claude\\]"):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", False):
+            with pytest.raises(ImportError, match="fo-core\\[claude\\]"):
                 ClaudeVisionModel(claude_vision_config)
 
     def test_init_raises_value_error_for_wrong_model_type(self) -> None:
@@ -148,7 +148,7 @@ class TestClaudeVisionModelInit:
             model_type=ModelType.TEXT,  # wrong
             provider="claude",
         )
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             with pytest.raises(ValueError, match="Expected VISION or VIDEO"):
                 ClaudeVisionModel(bad_config)
 
@@ -156,7 +156,7 @@ class TestClaudeVisionModelInit:
         cfg = ModelConfig(
             name="claude-3-5-sonnet-20241022", model_type=ModelType.VIDEO, provider="claude"
         )
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(cfg)
         assert model.config.model_type == ModelType.VIDEO
 
@@ -172,13 +172,13 @@ class TestClaudeVisionModelInitialize:
         claude_vision_config: ModelConfig,
         mock_claude_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(claude_vision_config)
 
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 create=True,
                 return_value=mock_claude_client,
             ) as mock_cls,
@@ -194,13 +194,13 @@ class TestClaudeVisionModelInitialize:
         claude_vision_config: ModelConfig,
         mock_claude_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(claude_vision_config)
 
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 create=True,
                 return_value=mock_claude_client,
             ) as mock_cls,
@@ -218,7 +218,7 @@ class TestClaudeVisionModelInitialize:
 
 class TestClaudeVisionModelGenerateWithPath:
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> ClaudeVisionModel:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(config)
         model.client = client
         model._initialized = True
@@ -314,7 +314,7 @@ class TestClaudeVisionModelGenerateWithPath:
 
 class TestClaudeVisionModelGenerateWithBytes:
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> ClaudeVisionModel:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(config)
         model.client = client
         model._initialized = True
@@ -356,7 +356,7 @@ class TestClaudeVisionModelGenerateWithBytes:
 
 class TestClaudeVisionModelGenerateGuards:
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> ClaudeVisionModel:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(config)
         model.client = client
         model._initialized = True
@@ -365,7 +365,7 @@ class TestClaudeVisionModelGenerateGuards:
     def test_raises_runtime_error_when_not_initialized(
         self, claude_vision_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(claude_vision_config)
 
         with pytest.raises(RuntimeError, match="not initialized"):
@@ -400,7 +400,7 @@ class TestClaudeVisionModelGenerateGuards:
 
 class TestClaudeVisionModelAnalyzeImage:
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> ClaudeVisionModel:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(config)
         model.client = client
         model._initialized = True
@@ -459,7 +459,7 @@ class TestClaudeVisionModelCleanup:
     def test_cleanup_calls_close_on_client(self, claude_vision_config: ModelConfig) -> None:
         """cleanup() must call client.close() to release the httpx connection pool."""
         mock_client = MagicMock()
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(claude_vision_config)
         model.client = mock_client
         model._initialized = True
@@ -473,7 +473,7 @@ class TestClaudeVisionModelCleanup:
         self, claude_vision_config: ModelConfig
     ) -> None:
         mock_client = MagicMock()
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(claude_vision_config)
         model.client = mock_client
         model._initialized = True
@@ -486,7 +486,7 @@ class TestClaudeVisionModelCleanup:
     def test_cleanup_suppresses_close_exception(self, claude_vision_config: ModelConfig) -> None:
         mock_client = MagicMock()
         mock_client.close.side_effect = RuntimeError("close failed")
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(claude_vision_config)
         model.client = mock_client
         model._initialized = True
@@ -527,7 +527,7 @@ class TestClaudeVisionModelDefaultConfig:
 
 class TestClaudeVisionModelTokenExhaustion:
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> ClaudeVisionModel:
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeVisionModel(config)
         model.client = client
         model._initialized = True

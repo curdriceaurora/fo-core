@@ -27,8 +27,8 @@ def _make_engine_stub(
     subfolder: str | None = None,
 ) -> MagicMock:
     """Return a mock PARASuggestionEngine whose suggest() returns a PARASuggestion."""
-    from file_organizer.methodologies.para.ai.suggestion_engine import PARASuggestion
-    from file_organizer.methodologies.para.categories import PARACategory
+    from methodologies.para.ai.suggestion_engine import PARASuggestion
+    from methodologies.para.categories import PARACategory
 
     cat = PARACategory(category)
     suggestion = PARASuggestion(
@@ -50,7 +50,7 @@ def _make_mover(
     confidence: float = 0.75,
 ) -> Any:
     """Construct a PARAFileMover wired to a stub engine and tmp_path root."""
-    from file_organizer.methodologies.para.ai.file_mover import PARAFileMover
+    from methodologies.para.ai.file_mover import PARAFileMover
 
     stub = engine_stub or _make_engine_stub(category=category, confidence=confidence)
     return PARAFileMover(suggestion_engine=stub, root_dir=tmp_path)
@@ -66,8 +66,8 @@ class TestMoveSuggestion:
 
     def test_valid_confidence_stored(self, tmp_path: Path) -> None:
         """MoveSuggestion stores valid confidence without error."""
-        from file_organizer.methodologies.para.ai.file_mover import MoveSuggestion
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.file_mover import MoveSuggestion
+        from methodologies.para.categories import PARACategory
 
         sugg = MoveSuggestion(
             file_path=tmp_path / "note.txt",
@@ -81,8 +81,8 @@ class TestMoveSuggestion:
 
     def test_confidence_zero_is_valid(self, tmp_path: Path) -> None:
         """confidence=0.0 is a valid boundary value."""
-        from file_organizer.methodologies.para.ai.file_mover import MoveSuggestion
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.file_mover import MoveSuggestion
+        from methodologies.para.categories import PARACategory
 
         sugg = MoveSuggestion(
             file_path=tmp_path / "f.txt",
@@ -94,8 +94,8 @@ class TestMoveSuggestion:
 
     def test_confidence_one_is_valid(self, tmp_path: Path) -> None:
         """confidence=1.0 is a valid boundary value."""
-        from file_organizer.methodologies.para.ai.file_mover import MoveSuggestion
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.file_mover import MoveSuggestion
+        from methodologies.para.categories import PARACategory
 
         sugg = MoveSuggestion(
             file_path=tmp_path / "f.txt",
@@ -107,8 +107,8 @@ class TestMoveSuggestion:
 
     def test_confidence_above_one_raises(self, tmp_path: Path) -> None:
         """confidence > 1.0 raises ValueError from __post_init__."""
-        from file_organizer.methodologies.para.ai.file_mover import MoveSuggestion
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.file_mover import MoveSuggestion
+        from methodologies.para.categories import PARACategory
 
         with pytest.raises(ValueError, match="confidence"):
             MoveSuggestion(
@@ -120,8 +120,8 @@ class TestMoveSuggestion:
 
     def test_confidence_below_zero_raises(self, tmp_path: Path) -> None:
         """confidence < 0.0 raises ValueError from __post_init__."""
-        from file_organizer.methodologies.para.ai.file_mover import MoveSuggestion
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.file_mover import MoveSuggestion
+        from methodologies.para.categories import PARACategory
 
         with pytest.raises(ValueError, match="confidence"):
             MoveSuggestion(
@@ -133,8 +133,8 @@ class TestMoveSuggestion:
 
     def test_reasoning_defaults_to_empty_list(self, tmp_path: Path) -> None:
         """reasoning field defaults to [] when not supplied."""
-        from file_organizer.methodologies.para.ai.file_mover import MoveSuggestion
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.file_mover import MoveSuggestion
+        from methodologies.para.categories import PARACategory
 
         sugg = MoveSuggestion(
             file_path=tmp_path / "f.txt",
@@ -155,28 +155,28 @@ class TestOrganizationReport:
 
     def test_success_rate_zero_when_no_files(self) -> None:
         """success_rate is 0.0 when total_files is 0."""
-        from file_organizer.methodologies.para.ai.file_mover import OrganizationReport
+        from methodologies.para.ai.file_mover import OrganizationReport
 
         report = OrganizationReport()
         assert report.success_rate == 0.0
 
     def test_success_rate_all_moved(self) -> None:
         """success_rate is 1.0 when all files are moved."""
-        from file_organizer.methodologies.para.ai.file_mover import OrganizationReport
+        from methodologies.para.ai.file_mover import OrganizationReport
 
         report = OrganizationReport(total_files=5, moved=5)
         assert report.success_rate == 1.0
 
     def test_success_rate_partial(self) -> None:
         """success_rate returns moved/total_files."""
-        from file_organizer.methodologies.para.ai.file_mover import OrganizationReport
+        from methodologies.para.ai.file_mover import OrganizationReport
 
         report = OrganizationReport(total_files=4, moved=3)
         assert abs(report.success_rate - 0.75) < 1e-9
 
     def test_success_rate_none_moved(self) -> None:
         """success_rate is 0.0 when no files were moved but total_files > 0."""
-        from file_organizer.methodologies.para.ai.file_mover import OrganizationReport
+        from methodologies.para.ai.file_mover import OrganizationReport
 
         report = OrganizationReport(total_files=3, moved=0)
         assert report.success_rate == 0.0
@@ -201,7 +201,7 @@ class TestPARAFileMover:
 
     def test_suggest_move_happy_path(self, tmp_path: Path) -> None:
         """suggest_move returns a MoveSuggestion with expected category and path."""
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.categories import PARACategory
 
         stub = _make_engine_stub(category="resource", confidence=0.75)
         mover = _make_mover(tmp_path, engine_stub=stub)
@@ -279,8 +279,8 @@ class TestPARAFileMover:
 
     def test_move_file_missing_source_returns_failure(self, tmp_path: Path) -> None:
         """move_file returns MoveResult with success=False when source is missing."""
-        from file_organizer.methodologies.para.ai.file_mover import MoveSuggestion
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.ai.file_mover import MoveSuggestion
+        from methodologies.para.categories import PARACategory
 
         mover = _make_mover(tmp_path)
         sugg = MoveSuggestion(
@@ -324,7 +324,7 @@ class TestPARAFileMover:
 
     def test_is_already_organized_true_when_in_category_dir(self, tmp_path: Path) -> None:
         """_is_already_organized returns True for a file already in its category folder."""
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.categories import PARACategory
 
         mover = _make_mover(tmp_path)
 
@@ -337,7 +337,7 @@ class TestPARAFileMover:
 
     def test_is_already_organized_false_when_outside_category_dir(self, tmp_path: Path) -> None:
         """_is_already_organized returns False for a file outside the category folder."""
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.categories import PARACategory
 
         mover = _make_mover(tmp_path)
 
@@ -433,7 +433,7 @@ class TestPARAFileMover:
         """suggest_archive returns ARCHIVE suggestion for files older than threshold."""
         import time
 
-        from file_organizer.methodologies.para.categories import PARACategory
+        from methodologies.para.categories import PARACategory
 
         mover = _make_mover(tmp_path)
 

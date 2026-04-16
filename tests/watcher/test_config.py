@@ -1,4 +1,4 @@
-"""Tests for file_organizer.watcher.config module.
+"""Tests for watcher.config module.
 
 Covers WatcherConfig initialization, validation, should_include_file filtering,
 and _matches_pattern pattern matching.
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.watcher.config import DEFAULT_EXCLUDE_PATTERNS, WatcherConfig, _matches_pattern
+from watcher.config import DEFAULT_EXCLUDE_PATTERNS, WatcherConfig, _matches_pattern
 
 pytestmark = [pytest.mark.unit]
 

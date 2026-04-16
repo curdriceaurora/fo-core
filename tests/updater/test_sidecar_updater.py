@@ -1,4 +1,4 @@
-"""Tests for file_organizer.updater.sidecar_updater module.
+"""Tests for updater.sidecar_updater module.
 
 Covers check_backend_update, coordinated_update, and BackendUpdateStatus /
 CoordinatedUpdateResult data classes.
@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.updater.checker import AssetInfo, ReleaseInfo
-from file_organizer.updater.installer import InstallResult
-from file_organizer.updater.sidecar_updater import (
+from updater.checker import AssetInfo, ReleaseInfo
+from updater.installer import InstallResult
+from updater.sidecar_updater import (
     BackendUpdateStatus,
     CoordinatedUpdateResult,
     check_backend_update,
@@ -22,13 +22,13 @@ from file_organizer.updater.sidecar_updater import (
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
-_CHECKER_PATH = "file_organizer.updater.sidecar_updater.UpdateChecker"
-_INSTALLER_PATH = "file_organizer.updater.sidecar_updater.UpdateInstaller"
-_MANAGER_PATH = "file_organizer.updater.sidecar_updater.UpdateManager"
+_CHECKER_PATH = "updater.sidecar_updater.UpdateChecker"
+_INSTALLER_PATH = "updater.sidecar_updater.UpdateInstaller"
+_MANAGER_PATH = "updater.sidecar_updater.UpdateManager"
 
 
 def _make_release(version: str = "2.0.0") -> ReleaseInfo:
-    asset = AssetInfo(name=f"file-organizer-{version}-linux-x86_64", url="https://example.com/bin")
+    asset = AssetInfo(name=f"fo-{version}-linux-x86_64", url="https://example.com/bin")
     return ReleaseInfo(version=version, assets=[asset])
 
 

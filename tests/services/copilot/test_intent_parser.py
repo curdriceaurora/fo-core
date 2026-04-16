@@ -1,4 +1,4 @@
-"""Tests for file_organizer.services.copilot.intent_parser.
+"""Tests for services.copilot.intent_parser.
 
 Covers IntentParser.parse() keyword matching, confidence scoring,
 parameter extraction for every intent type, and edge cases.
@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.services.copilot.intent_parser import IntentParser
-from file_organizer.services.copilot.models import IntentType
+from services.copilot.intent_parser import IntentParser
+from services.copilot.models import IntentType
 
 pytestmark = [pytest.mark.ci, pytest.mark.unit]
 

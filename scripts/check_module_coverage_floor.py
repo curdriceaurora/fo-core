@@ -9,7 +9,7 @@ Why this exists:
 
 Expected report format is pytest-cov's table output (``--cov-report=term-missing``),
 for rows like:
-    src/file_organizer/foo.py   123   10   20   4   88%   12-18, 44
+    src/foo.py   123   10   20   4   88%   12-18, 44
 
 --update-baseline mode
 ----------------------
@@ -44,7 +44,7 @@ from typing import Any
 
 ANSI_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 ROW_RE = re.compile(
-    r"(src/file_organizer/\S+)\s+"  # module path
+    r"(src/\S+)\s+"  # module path
     r"(\d+)\s+"  # stmts
     r"(\d+)\s+"  # miss
     r"(\d+)\s+"  # branch

@@ -16,11 +16,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.intelligence.profile_importer import (
+from services.intelligence.profile_importer import (
     ProfileImporter,
     ValidationResult,
 )
-from file_organizer.services.intelligence.profile_manager import ProfileManager
+from services.intelligence.profile_manager import ProfileManager
 
 pytestmark = [pytest.mark.unit]
 
@@ -706,9 +706,7 @@ class TestBackupProfile:
         """Test that _backup_profile creates a backup file."""
         profile = profile_manager.create_profile("bk_test", "Backup test profile")
 
-        with patch(
-            "file_organizer.services.intelligence.profile_exporter.ProfileExporter"
-        ) as MockExporter:
+        with patch("services.intelligence.profile_exporter.ProfileExporter") as MockExporter:
             mock_instance = MockExporter.return_value
             mock_instance.export_profile.return_value = True
             importer._backup_profile(profile)
@@ -725,7 +723,7 @@ class TestBackupProfile:
         profile = profile_manager.create_profile("bk_exc", "Backup exception")
 
         with patch(
-            "file_organizer.services.intelligence.profile_exporter.ProfileExporter",
+            "services.intelligence.profile_exporter.ProfileExporter",
             side_effect=ValueError("export error"),
         ):
             # Should not raise

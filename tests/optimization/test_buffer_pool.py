@@ -7,8 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-import file_organizer.optimization.buffer_pool as buffer_pool_module
-from file_organizer.optimization.buffer_pool import BufferPool
+import optimization.buffer_pool as buffer_pool_module
+from optimization.buffer_pool import BufferPool
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 

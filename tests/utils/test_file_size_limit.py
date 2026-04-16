@@ -22,7 +22,7 @@ import pytest
 
 # Issue #339 implementation is required — import unconditionally so that a
 # missing symbol causes a collection error rather than silent test skipping.
-from file_organizer.utils.file_readers import (
+from utils.file_readers import (
     MAX_FILE_SIZE_BYTES,
     FileTooLargeError,
     read_docx_file,  # noqa: F401 — verified via importlib in TestUnboundedReadersSizeGate
@@ -30,7 +30,7 @@ from file_organizer.utils.file_readers import (
     read_file,
     read_presentation_file,  # noqa: F401 — verified via importlib in TestUnboundedReadersSizeGate
 )
-from file_organizer.utils.readers._base import _check_file_size
+from utils.readers._base import _check_file_size
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -131,7 +131,7 @@ class TestReadFileDispatcherSizeGate:
         huge_stat = _make_stat(MAX_FILE_SIZE_BYTES + 1)
         with (
             patch.object(Path, "stat", return_value=huge_stat),
-            patch("file_organizer.utils.readers.read_tar_file") as mock_tar,
+            patch("utils.readers.read_tar_file") as mock_tar,
         ):
             with pytest.raises(FileTooLargeError):
                 read_file(str(fake_tar))
@@ -186,7 +186,7 @@ class TestUnboundedReadersSizeGate:
         """
         import importlib
 
-        module = importlib.import_module("file_organizer.utils.file_readers")
+        module = importlib.import_module("utils.file_readers")
         reader = getattr(module, reader_name)
 
         # Create a dummy file so Path resolution does not fail on missing path.
@@ -198,9 +198,9 @@ class TestUnboundedReadersSizeGate:
         # Patch availability flags so readers don't raise ImportError before
         # reaching the file size check (optional deps may not be installed).
         _availability_patches = {
-            "read_docx_file": "file_organizer.utils.readers.documents.DOCX_AVAILABLE",
-            "read_presentation_file": "file_organizer.utils.readers.documents.PPTX_AVAILABLE",
-            "read_ebook_file": "file_organizer.utils.readers.ebook.EBOOKLIB_AVAILABLE",
+            "read_docx_file": "utils.readers.documents.DOCX_AVAILABLE",
+            "read_presentation_file": "utils.readers.documents.PPTX_AVAILABLE",
+            "read_ebook_file": "utils.readers.ebook.EBOOKLIB_AVAILABLE",
         }
         avail_target = _availability_patches.get(reader_name)
 

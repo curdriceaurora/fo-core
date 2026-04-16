@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.utils.readers._base import FileReadError
+from utils.readers._base import FileReadError
 
 pytestmark = pytest.mark.integration
 
@@ -66,14 +66,14 @@ class TestReadEbookFile:
         pytest.importorskip("ebooklib")
 
     def test_import_error_when_ebooklib_unavailable(self) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
-        with patch("file_organizer.utils.readers.ebook.EBOOKLIB_AVAILABLE", False):
+        with patch("utils.readers.ebook.EBOOKLIB_AVAILABLE", False):
             with pytest.raises(ImportError, match="ebooklib is not installed"):
                 read_ebook_file("test.epub")
 
     def test_unsupported_format_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         mobi_file = tmp_path / "book.mobi"
         mobi_file.touch()
@@ -82,7 +82,7 @@ class TestReadEbookFile:
             read_ebook_file(mobi_file)
 
     def test_unsupported_format_fb2(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         fb2_file = tmp_path / "book.fb2"
         fb2_file.touch()
@@ -91,7 +91,7 @@ class TestReadEbookFile:
             read_ebook_file(fb2_file)
 
     def test_real_epub_extraction(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         epub_path = _make_epub(
             tmp_path,
@@ -107,7 +107,7 @@ class TestReadEbookFile:
         assert "Hello world content here." in result
 
     def test_html_tags_stripped(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         epub_path = _make_epub(
             tmp_path,
@@ -123,7 +123,7 @@ class TestReadEbookFile:
         assert "Body text here." in result
 
     def test_max_chars_truncation(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         long_text = "A" * 5000
         epub_path = _make_epub(
@@ -136,7 +136,7 @@ class TestReadEbookFile:
         assert len(result) == 100
 
     def test_multi_chapter_epub(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         epub_path = _make_epub(
             tmp_path,
@@ -154,7 +154,7 @@ class TestReadEbookFile:
         assert "Chapter three content." in result
 
     def test_max_chars_stops_early_across_chapters(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         long_chapter = "<html><body><p>" + ("X" * 2000) + "</p></body></html>"
         epub_path = _make_epub(
@@ -167,7 +167,7 @@ class TestReadEbookFile:
         assert len(result) == 500
 
     def test_epub_with_path_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         epub_path = _make_epub(
             tmp_path,
@@ -179,7 +179,7 @@ class TestReadEbookFile:
         assert "String path test." in result
 
     def test_nonexistent_epub_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.ebook import read_ebook_file
+        from utils.readers.ebook import read_ebook_file
 
         missing = tmp_path / "missing.epub"
 

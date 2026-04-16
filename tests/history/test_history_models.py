@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.history.models import (
+from history.models import (
     Operation,
     OperationStatus,
     OperationType,

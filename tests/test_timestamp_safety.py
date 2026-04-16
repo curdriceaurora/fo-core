@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-SRC_DIR = Path(__file__).parent.parent / "src" / "file_organizer"
+SRC_DIR = Path(__file__).parent.parent / "src" / "fo"
 
 
 @pytest.mark.unit

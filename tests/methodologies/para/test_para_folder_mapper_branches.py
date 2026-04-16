@@ -12,9 +12,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
-from file_organizer.methodologies.para.folder_mapper import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
+from methodologies.para.folder_mapper import (
     CategoryFolderMapper,
     MappingResult,
     MappingStrategy,
@@ -129,7 +129,7 @@ class TestFolderMapperBranches:
 
     def test_mapper_with_provided_heuristic_engine(self, config: PARAConfig) -> None:
         """CategoryFolderMapper uses provided heuristic engine (line 93)."""
-        from file_organizer.methodologies.para.detection.heuristics import HeuristicEngine
+        from methodologies.para.detection.heuristics import HeuristicEngine
 
         custom_engine = HeuristicEngine()
         mapper = CategoryFolderMapper(config, heuristic_engine=custom_engine)

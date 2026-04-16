@@ -25,7 +25,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 def _make_db(tmp_path: Path) -> Any:
     """Create a fresh in-memory-like DatabaseManager backed by tmp_path."""
-    from file_organizer.history.database import DatabaseManager
+    from history.database import DatabaseManager
 
     db_path = tmp_path / "test_history.db"
     db = DatabaseManager(db_path)
@@ -35,7 +35,7 @@ def _make_db(tmp_path: Path) -> Any:
 
 def _make_history(tmp_path: Path) -> Any:
     """Create a fresh OperationHistory backed by tmp_path."""
-    from file_organizer.history.tracker import OperationHistory
+    from history.tracker import OperationHistory
 
     db_path = tmp_path / "test_history.db"
     return OperationHistory(db_path=db_path)
@@ -65,7 +65,7 @@ def _make_operation(
     transaction_id: str | None = None,
 ) -> Any:
     """Build an Operation dataclass for use in tests."""
-    from file_organizer.history.models import Operation, OperationStatus, OperationType
+    from history.models import Operation, OperationStatus, OperationType
 
     src = tmp_path / src_name
     dst = tmp_path / dst_name if dst_name else None
@@ -90,7 +90,7 @@ class TestOperationValidator:
     """Tests for OperationValidator — validate_undo / validate_redo paths."""
 
     def test_validate_undo_move_happy_path(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         # Create files so conditions are satisfied
         _src = tmp_path / "original.txt"
@@ -107,7 +107,7 @@ class TestOperationValidator:
         assert len(result.conflicts) == 0
 
     def test_validate_undo_move_destination_missing(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         op = _make_operation(
@@ -122,7 +122,7 @@ class TestOperationValidator:
         assert any("file_missing" in str(ct) for ct in conflict_types)
 
     def test_validate_undo_already_rolled_back(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         op = _make_operation(tmp_path, op_type="move", status="rolled_back")
@@ -133,7 +133,7 @@ class TestOperationValidator:
         assert "rolled back" in result.error_message.lower()
 
     def test_validate_undo_failed_operation_has_warning(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         _src = tmp_path / "original.txt"
         dst = tmp_path / "moved.txt"
@@ -149,7 +149,7 @@ class TestOperationValidator:
         assert len(result.warnings) >= 1
 
     def test_validate_undo_rename_happy_path(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         new_name = tmp_path / "new_name.txt"
         new_name.write_text("content")
@@ -163,7 +163,7 @@ class TestOperationValidator:
         assert result.can_proceed is True
 
     def test_validate_undo_create_file_exists(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         created_file = tmp_path / "created.txt"
         created_file.write_text("content")
@@ -175,7 +175,7 @@ class TestOperationValidator:
         assert result.can_proceed is True
 
     def test_validate_undo_create_file_missing(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         op = _make_operation(tmp_path, op_type="create", src_name="missing.txt", dst_name=None)
@@ -185,7 +185,7 @@ class TestOperationValidator:
         assert len(result.conflicts) == 1
 
     def test_validate_undo_copy_destination_exists(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         copy_path = tmp_path / "copy.txt"
         copy_path.write_text("content")
@@ -197,7 +197,7 @@ class TestOperationValidator:
         assert result.can_proceed is True
 
     def test_validate_undo_delete_file_in_trash(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         trash_dir = tmp_path / "trash"
         # Set up file in trash at expected path: trash / <op_id> / filename
@@ -216,7 +216,7 @@ class TestOperationValidator:
         assert result.can_proceed is True
 
     def test_validate_undo_delete_file_not_in_trash(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         op = _make_operation(tmp_path, op_type="delete", src_name="lost.txt", dst_name=None)
@@ -227,7 +227,7 @@ class TestOperationValidator:
         assert any("file_missing" in str(ct) for ct in conflict_types)
 
     def test_validate_redo_not_rolled_back(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         op = _make_operation(tmp_path, op_type="move", status="completed")
@@ -237,7 +237,7 @@ class TestOperationValidator:
         assert result.error_message is not None
 
     def test_validate_redo_move_happy_path(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         src = tmp_path / "source.txt"
         src.write_text("content")  # source exists again after undo
@@ -255,7 +255,7 @@ class TestOperationValidator:
         assert result.can_proceed is True
 
     def test_validate_redo_create_path_occupied(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         existing = tmp_path / "existing.txt"
         existing.write_text("conflict")
@@ -273,7 +273,7 @@ class TestOperationValidator:
     def test_check_file_integrity_matches(self, tmp_path: Path) -> None:
         import hashlib
 
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         test_file = tmp_path / "test.txt"
         test_file.write_bytes(b"hello world")
@@ -283,7 +283,7 @@ class TestOperationValidator:
         assert validator.check_file_integrity(test_file, expected_hash) is True
 
     def test_check_file_integrity_mismatch(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         test_file = tmp_path / "test.txt"
         test_file.write_bytes(b"hello world")
@@ -292,14 +292,14 @@ class TestOperationValidator:
         assert validator.check_file_integrity(test_file, "deadbeef" * 8) is False
 
     def test_check_file_integrity_missing_file(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         missing = tmp_path / "no_such.txt"
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         assert validator.check_file_integrity(missing, "anyhash") is False
 
     def test_check_path_exists_true(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         f = tmp_path / "exists.txt"
         f.write_text("x")
@@ -307,19 +307,19 @@ class TestOperationValidator:
         assert validator.check_path_exists(f) is True
 
     def test_check_path_exists_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         assert validator.check_path_exists(tmp_path / "ghost.txt") is False
 
     def test_check_path_available_true(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         assert validator.check_path_available(tmp_path / "free.txt") is True
 
     def test_check_path_available_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         taken = tmp_path / "taken.txt"
         taken.write_text("x")
@@ -327,7 +327,7 @@ class TestOperationValidator:
         assert validator.check_path_available(taken) is False
 
     def test_check_conflicts_undo_delegates(self, tmp_path: Path) -> None:
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         op = _make_operation(tmp_path, op_type="create", src_name="missing.txt", dst_name=None)
@@ -336,13 +336,13 @@ class TestOperationValidator:
         assert len(conflicts) >= 1
 
     def test_validation_result_bool_true(self, tmp_path: Path) -> None:
-        from file_organizer.undo.models import ValidationResult
+        from undo.models import ValidationResult
 
         vr = ValidationResult(can_proceed=True)
         assert bool(vr) is True
 
     def test_validation_result_bool_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.models import ValidationResult
+        from undo.models import ValidationResult
 
         vr = ValidationResult(can_proceed=False, error_message="nope")
         assert bool(vr) is False
@@ -350,7 +350,7 @@ class TestOperationValidator:
     def test_hash_mismatch_detected_in_move_undo(self, tmp_path: Path) -> None:
         import hashlib
 
-        from file_organizer.undo.validator import OperationValidator
+        from undo.validator import OperationValidator
 
         dst = tmp_path / "moved.txt"
         dst.write_bytes(b"modified content")
@@ -380,8 +380,8 @@ class TestRollbackEngine:
     """Tests for RollbackExecutor — rollback/redo of each operation type."""
 
     def test_rollback_move_success(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         src = tmp_path / "original.txt"
         dst = tmp_path / "moved.txt"
@@ -400,8 +400,8 @@ class TestRollbackEngine:
         assert not dst.exists()
 
     def test_rollback_move_missing_destination(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         executor = RollbackExecutor(validator)
@@ -412,8 +412,8 @@ class TestRollbackEngine:
         assert result is False
 
     def test_rollback_rename_success(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         old_name = tmp_path / "old.txt"
         new_name = tmp_path / "new.txt"
@@ -430,8 +430,8 @@ class TestRollbackEngine:
         assert not new_name.exists()
 
     def test_rollback_rename_no_destination(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         executor = RollbackExecutor(validator)
@@ -442,8 +442,8 @@ class TestRollbackEngine:
         assert result is False
 
     def test_rollback_copy_success(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         copy_path = tmp_path / "copy.txt"
         copy_path.write_text("copied content")
@@ -460,8 +460,8 @@ class TestRollbackEngine:
         assert not copy_path.exists()
 
     def test_rollback_copy_no_destination(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         executor = RollbackExecutor(validator)
@@ -472,8 +472,8 @@ class TestRollbackEngine:
         assert result is False
 
     def test_rollback_create_success(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         created_file = tmp_path / "created.txt"
         created_file.write_text("new file")
@@ -490,8 +490,8 @@ class TestRollbackEngine:
         assert not created_file.exists()
 
     def test_rollback_delete_from_trash(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         trash_dir = tmp_path / "trash"
         op_id = 7
@@ -514,8 +514,8 @@ class TestRollbackEngine:
         assert original_path.exists()
 
     def test_rollback_delete_not_in_trash(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         executor = RollbackExecutor(validator)
@@ -526,8 +526,8 @@ class TestRollbackEngine:
         assert result is False
 
     def test_redo_move_success(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         src = tmp_path / "source.txt"
         src.write_text("content")
@@ -549,8 +549,8 @@ class TestRollbackEngine:
         assert dst.exists()
 
     def test_redo_move_no_destination(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         src = tmp_path / "source.txt"
         src.write_text("content")
@@ -565,8 +565,8 @@ class TestRollbackEngine:
         assert result is False
 
     def test_redo_rename_success(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         old_name = tmp_path / "old.txt"
         old_name.write_text("content")
@@ -583,8 +583,8 @@ class TestRollbackEngine:
         assert (tmp_path / "new.txt").exists()
 
     def test_redo_copy_success(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         src = tmp_path / "source.txt"
         src.write_text("content")
@@ -605,8 +605,8 @@ class TestRollbackEngine:
         assert (tmp_path / "copy.txt").exists()
 
     def test_redo_copy_no_destination(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         src = tmp_path / "source.txt"
         src.write_text("x")
@@ -621,8 +621,8 @@ class TestRollbackEngine:
         assert result is False
 
     def test_redo_create_file(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         new_file = tmp_path / "recreated.txt"
         assert not new_file.exists()
@@ -644,8 +644,8 @@ class TestRollbackEngine:
         assert new_file.exists()
 
     def test_redo_create_directory(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         executor = RollbackExecutor(validator)
@@ -660,8 +660,8 @@ class TestRollbackEngine:
         assert (tmp_path / "new_dir").is_dir()
 
     def test_redo_delete_success(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         target = tmp_path / "target.txt"
         target.write_text("to delete again")
@@ -683,8 +683,8 @@ class TestRollbackEngine:
         assert not target.exists()
 
     def test_rollback_transaction_all_succeed(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         # Setup two files at destination positions
         dst1 = tmp_path / "dest1.txt"
@@ -709,8 +709,8 @@ class TestRollbackEngine:
         assert result.operations_failed == 0
 
     def test_rollback_transaction_partial_failure(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         # Only first destination exists
         dst1 = tmp_path / "dest1.txt"
@@ -732,8 +732,8 @@ class TestRollbackEngine:
         assert result.operations_rolled_back + result.operations_failed == 2
 
     def test_rollback_operation_unknown_type(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         validator = OperationValidator(trash_dir=tmp_path / "trash")
         executor = RollbackExecutor(validator)
@@ -745,8 +745,8 @@ class TestRollbackEngine:
         assert result is False
 
     def test_move_to_trash_creates_correct_path(self, tmp_path: Path) -> None:
-        from file_organizer.undo.rollback import RollbackExecutor
-        from file_organizer.undo.validator import OperationValidator
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
 
         test_file = tmp_path / "to_trash.txt"
         test_file.write_text("content")
@@ -770,7 +770,7 @@ class TestUndoManager:
     """Tests for UndoManager high-level undo/redo interface."""
 
     def test_init_creates_default_components(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -781,7 +781,7 @@ class TestUndoManager:
         assert manager.max_stack_size == 1000
 
     def test_undo_last_operation_empty_history(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -791,7 +791,7 @@ class TestUndoManager:
         assert result is False
 
     def test_redo_last_operation_empty_history(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -801,7 +801,7 @@ class TestUndoManager:
         assert result is False
 
     def test_get_undo_stack_empty(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -812,7 +812,7 @@ class TestUndoManager:
         assert len(stack) == 0
 
     def test_get_redo_stack_empty(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -823,8 +823,8 @@ class TestUndoManager:
         assert len(stack) == 0
 
     def test_get_undo_stack_with_operations(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.undo_manager import UndoManager
+        from history.models import OperationType
+        from undo.undo_manager import UndoManager
 
         src = tmp_path / "file.txt"
         src.write_text("content")
@@ -838,7 +838,7 @@ class TestUndoManager:
         assert len(stack) == 1
 
     def test_undo_operation_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -848,7 +848,7 @@ class TestUndoManager:
         assert result is False
 
     def test_redo_operation_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -858,7 +858,7 @@ class TestUndoManager:
         assert result is False
 
     def test_can_undo_not_found_returns_false_with_message(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -870,7 +870,7 @@ class TestUndoManager:
         assert "not found" in reason.lower()
 
     def test_can_redo_not_found_returns_false_with_message(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -881,7 +881,7 @@ class TestUndoManager:
         assert len(reason) > 0
 
     def test_clear_redo_stack_no_error(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -889,7 +889,7 @@ class TestUndoManager:
         manager.clear_redo_stack()
 
     def test_context_manager_closes_on_exit(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         with UndoManager(history=history) as manager:
@@ -897,7 +897,7 @@ class TestUndoManager:
         # After exit, no exception means close() ran cleanly
 
     def test_undo_transaction_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -907,7 +907,7 @@ class TestUndoManager:
         assert result is False
 
     def test_redo_transaction_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history)
@@ -917,8 +917,8 @@ class TestUndoManager:
         assert result is False
 
     def test_undo_operation_already_rolled_back(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationStatus, OperationType
-        from file_organizer.undo.undo_manager import UndoManager
+        from history.models import OperationStatus, OperationType
+        from undo.undo_manager import UndoManager
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -937,8 +937,8 @@ class TestUndoManager:
         assert result is False
 
     def test_redo_operation_not_rolled_back(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.undo_manager import UndoManager
+        from history.models import OperationType
+        from undo.undo_manager import UndoManager
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -952,8 +952,8 @@ class TestUndoManager:
         assert result is False
 
     def test_can_undo_already_rolled_back(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationStatus, OperationType
-        from file_organizer.undo.undo_manager import UndoManager
+        from history.models import OperationStatus, OperationType
+        from undo.undo_manager import UndoManager
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -972,8 +972,8 @@ class TestUndoManager:
         assert "rolled back" in reason.lower()
 
     def test_can_redo_operation_not_rolled_back(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.undo_manager import UndoManager
+        from history.models import OperationType
+        from undo.undo_manager import UndoManager
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -987,7 +987,7 @@ class TestUndoManager:
         assert len(reason) > 0
 
     def test_custom_max_stack_size_respected(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         history = _make_history(tmp_path)
         manager = UndoManager(history=history, max_stack_size=50)
@@ -995,8 +995,8 @@ class TestUndoManager:
         assert manager.max_stack_size == 50
 
     def test_undo_last_with_completed_operation_calls_rollback(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.undo_manager import UndoManager
+        from history.models import OperationType
+        from undo.undo_manager import UndoManager
 
         src = tmp_path / "file.txt"
         dst = tmp_path / "dest.txt"
@@ -1028,7 +1028,7 @@ class TestHistoryViewer:
     """Tests for HistoryViewer display and filtering methods."""
 
     def test_show_recent_no_operations_prints_message(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1038,8 +1038,8 @@ class TestHistoryViewer:
         assert "No operations found" in out
 
     def test_show_recent_with_operations(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.viewer import HistoryViewer
+        from history.models import OperationType
+        from undo.viewer import HistoryViewer
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -1053,8 +1053,8 @@ class TestHistoryViewer:
         assert "1 most recent operations" in out
 
     def test_filter_operations_by_type(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.viewer import HistoryViewer
+        from history.models import OperationType
+        from undo.viewer import HistoryViewer
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -1072,7 +1072,7 @@ class TestHistoryViewer:
     def test_filter_operations_invalid_type_returns_empty(
         self, tmp_path: Path, capsys: Any
     ) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1084,7 +1084,7 @@ class TestHistoryViewer:
     def test_filter_operations_invalid_status_returns_empty(
         self, tmp_path: Path, capsys: Any
     ) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1094,8 +1094,8 @@ class TestHistoryViewer:
         assert len(results) == 0
 
     def test_filter_operations_by_status(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.viewer import HistoryViewer
+        from history.models import OperationType
+        from undo.viewer import HistoryViewer
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -1110,8 +1110,8 @@ class TestHistoryViewer:
         assert results[0].status.value == "completed"
 
     def test_search_by_path_found(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.viewer import HistoryViewer
+        from history.models import OperationType
+        from undo.viewer import HistoryViewer
 
         src = tmp_path / "unique_search_term.txt"
         src.write_text("x")
@@ -1125,7 +1125,7 @@ class TestHistoryViewer:
         assert len(results) == 1
 
     def test_search_by_path_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1135,7 +1135,7 @@ class TestHistoryViewer:
         assert len(results) == 0
 
     def test_get_statistics_empty_db(self, tmp_path: Path) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1148,8 +1148,8 @@ class TestHistoryViewer:
         assert "by_status" in stats
 
     def test_get_statistics_with_data(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.viewer import HistoryViewer
+        from history.models import OperationType
+        from undo.viewer import HistoryViewer
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -1167,7 +1167,7 @@ class TestHistoryViewer:
         assert stats["oldest_operation"] is not None
 
     def test_show_operation_details_not_found(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1177,8 +1177,8 @@ class TestHistoryViewer:
         assert "not found" in out.lower()
 
     def test_show_operation_details_found(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.viewer import HistoryViewer
+        from history.models import OperationType
+        from undo.viewer import HistoryViewer
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -1193,7 +1193,7 @@ class TestHistoryViewer:
         assert "move" in out.lower()
 
     def test_show_statistics_output(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1203,8 +1203,8 @@ class TestHistoryViewer:
         assert "Total operations" in out
 
     def test_display_filtered_by_search(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.viewer import HistoryViewer
+        from history.models import OperationType
+        from undo.viewer import HistoryViewer
 
         src = tmp_path / "important_file.txt"
         src.write_text("x")
@@ -1218,7 +1218,7 @@ class TestHistoryViewer:
         assert "important_file" in out
 
     def test_display_filtered_no_results(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1228,14 +1228,14 @@ class TestHistoryViewer:
         assert "No operations found" in out
 
     def test_context_manager(self, tmp_path: Path) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         with HistoryViewer(history=history) as viewer:
             assert viewer is not None
 
     def test_parse_date_iso_format(self, tmp_path: Path) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1247,7 +1247,7 @@ class TestHistoryViewer:
         assert result.day == 15
 
     def test_parse_date_ymd_format(self, tmp_path: Path) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1258,7 +1258,7 @@ class TestHistoryViewer:
         assert result.month == 6
 
     def test_parse_date_invalid_returns_none(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1267,7 +1267,7 @@ class TestHistoryViewer:
         assert result is None
 
     def test_show_transaction_not_found(self, tmp_path: Path, capsys: Any) -> None:
-        from file_organizer.undo.viewer import HistoryViewer
+        from undo.viewer import HistoryViewer
 
         history = _make_history(tmp_path)
         viewer = HistoryViewer(history=history)
@@ -1277,8 +1277,8 @@ class TestHistoryViewer:
         assert "not found" in out.lower()
 
     def test_filter_with_date_range(self, tmp_path: Path) -> None:
-        from file_organizer.history.models import OperationType
-        from file_organizer.undo.viewer import HistoryViewer
+        from history.models import OperationType
+        from undo.viewer import HistoryViewer
 
         src = tmp_path / "file.txt"
         src.write_text("x")
@@ -1303,7 +1303,7 @@ class TestHistoryCleanup:
     """Tests for HistoryCleanup — retention policies and database maintenance."""
 
     def test_init_with_defaults(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
+        from history.cleanup import HistoryCleanup, HistoryCleanupConfig
 
         db = _make_db(tmp_path)
         cleanup = HistoryCleanup(db)
@@ -1313,7 +1313,7 @@ class TestHistoryCleanup:
         assert cleanup.config.max_operations == 10000
 
     def test_init_with_custom_config(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
+        from history.cleanup import HistoryCleanup, HistoryCleanupConfig
 
         db = _make_db(tmp_path)
         config = HistoryCleanupConfig(max_operations=100, max_age_days=30)
@@ -1323,7 +1323,7 @@ class TestHistoryCleanup:
         assert cleanup.config.max_age_days == 30
 
     def test_should_cleanup_false_when_disabled(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
+        from history.cleanup import HistoryCleanup, HistoryCleanupConfig
 
         db = _make_db(tmp_path)
         config = HistoryCleanupConfig(auto_cleanup_enabled=False)
@@ -1332,7 +1332,7 @@ class TestHistoryCleanup:
         assert cleanup.should_cleanup() is False
 
     def test_should_cleanup_false_when_under_limits(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
+        from history.cleanup import HistoryCleanup, HistoryCleanupConfig
 
         db = _make_db(tmp_path)
         config = HistoryCleanupConfig(max_operations=10000, auto_cleanup_enabled=True)
@@ -1342,8 +1342,8 @@ class TestHistoryCleanup:
         assert cleanup.should_cleanup() is False
 
     def test_cleanup_old_operations_removes_old_records(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
-        from file_organizer.history.models import OperationType
+        from history.cleanup import HistoryCleanup
+        from history.models import OperationType
 
         db = _make_db(tmp_path)
         history = _make_history(tmp_path)
@@ -1359,8 +1359,8 @@ class TestHistoryCleanup:
         assert db.get_operation_count() == 0
 
     def test_cleanup_by_count_keeps_most_recent(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
-        from file_organizer.history.models import OperationType
+        from history.cleanup import HistoryCleanup
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1377,8 +1377,8 @@ class TestHistoryCleanup:
         assert remaining <= 3
 
     def test_cleanup_by_count_zero_max_deletes_all(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
-        from file_organizer.history.models import OperationType
+        from history.cleanup import HistoryCleanup
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1392,7 +1392,7 @@ class TestHistoryCleanup:
         assert history.db.get_operation_count() == 0
 
     def test_cleanup_by_count_negative_raises(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
+        from history.cleanup import HistoryCleanup
 
         db = _make_db(tmp_path)
         cleanup = HistoryCleanup(db)
@@ -1401,7 +1401,7 @@ class TestHistoryCleanup:
             cleanup.cleanup_by_count(max_operations=-1)
 
     def test_cleanup_by_count_no_cleanup_needed(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
+        from history.cleanup import HistoryCleanup
 
         db = _make_db(tmp_path)
         cleanup = HistoryCleanup(db)
@@ -1412,8 +1412,8 @@ class TestHistoryCleanup:
         assert deleted == 0
 
     def test_cleanup_failed_operations(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
-        from file_organizer.history.models import OperationStatus, OperationType
+        from history.cleanup import HistoryCleanup
+        from history.models import OperationStatus, OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1430,8 +1430,8 @@ class TestHistoryCleanup:
         assert history.db.get_operation_count() == 0
 
     def test_cleanup_rolled_back_operations(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
-        from file_organizer.history.models import OperationStatus, OperationType
+        from history.cleanup import HistoryCleanup
+        from history.models import OperationStatus, OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1448,8 +1448,8 @@ class TestHistoryCleanup:
         assert history.db.get_operation_count() == 0
 
     def test_clear_all_requires_confirm(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
-        from file_organizer.history.models import OperationType
+        from history.cleanup import HistoryCleanup
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1463,8 +1463,8 @@ class TestHistoryCleanup:
         assert history.db.get_operation_count() == 1
 
     def test_clear_all_with_confirm(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
-        from file_organizer.history.models import OperationType
+        from history.cleanup import HistoryCleanup
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1478,7 +1478,7 @@ class TestHistoryCleanup:
         assert history.db.get_operation_count() == 0
 
     def test_get_statistics_empty(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
+        from history.cleanup import HistoryCleanup
 
         db = _make_db(tmp_path)
         cleanup = HistoryCleanup(db)
@@ -1490,8 +1490,8 @@ class TestHistoryCleanup:
         assert "database_size_mb" in stats
 
     def test_get_statistics_with_data(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
-        from file_organizer.history.models import OperationType
+        from history.cleanup import HistoryCleanup
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1506,7 +1506,7 @@ class TestHistoryCleanup:
         assert stats["operations_completed"] == 1
 
     def test_auto_cleanup_not_needed(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
+        from history.cleanup import HistoryCleanup, HistoryCleanupConfig
 
         db = _make_db(tmp_path)
         config = HistoryCleanupConfig(auto_cleanup_enabled=True, max_operations=10000)
@@ -1519,8 +1519,8 @@ class TestHistoryCleanup:
         assert result["deleted_operations"] == 0
 
     def test_auto_cleanup_when_over_limit(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
-        from file_organizer.history.models import OperationType
+        from history.cleanup import HistoryCleanup, HistoryCleanupConfig
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1536,7 +1536,7 @@ class TestHistoryCleanup:
         assert result["deleted_operations"] >= 0
 
     def test_cleanup_by_size_no_cleanup_needed(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanup
+        from history.cleanup import HistoryCleanup
 
         db = _make_db(tmp_path)
         cleanup = HistoryCleanup(db)
@@ -1546,7 +1546,7 @@ class TestHistoryCleanup:
         assert deleted == 0
 
     def test_cleanup_config_defaults(self, tmp_path: Path) -> None:
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         config = HistoryCleanupConfig()
 
@@ -1566,7 +1566,7 @@ class TestHistoryExporter:
     """Tests for HistoryExporter — JSON/CSV export of operations and transactions."""
 
     def test_export_to_json_empty_db(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
+        from history.export import HistoryExporter
 
         db = _make_db(tmp_path)
         exporter = HistoryExporter(db)
@@ -1579,8 +1579,8 @@ class TestHistoryExporter:
         assert stats["operations_exported"] == 0
 
     def test_export_to_json_with_data(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1601,8 +1601,8 @@ class TestHistoryExporter:
         assert len(data["operations"]) == 1
 
     def test_export_to_json_with_operation_type_filter(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1621,8 +1621,8 @@ class TestHistoryExporter:
         assert all(op["operation_type"] == "move" for op in data["operations"])
 
     def test_export_to_json_with_date_filter(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1638,8 +1638,8 @@ class TestHistoryExporter:
         assert stats["operations_exported"] == 1
 
     def test_export_to_json_excludes_transactions_when_flag_false(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1655,7 +1655,7 @@ class TestHistoryExporter:
         assert "transactions" not in data
 
     def test_export_to_csv_empty_db(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
+        from history.export import HistoryExporter
 
         db = _make_db(tmp_path)
         exporter = HistoryExporter(db)
@@ -1668,8 +1668,8 @@ class TestHistoryExporter:
         assert isinstance(count, int)
 
     def test_export_to_csv_with_data(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1690,8 +1690,8 @@ class TestHistoryExporter:
         assert rows[0]["operation_type"] == "move"
 
     def test_export_to_csv_with_type_filter(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1706,7 +1706,7 @@ class TestHistoryExporter:
         assert count == 1
 
     def test_export_transactions_to_csv_empty(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
+        from history.export import HistoryExporter
 
         db = _make_db(tmp_path)
         exporter = HistoryExporter(db)
@@ -1717,8 +1717,8 @@ class TestHistoryExporter:
         assert count == 0
 
     def test_export_transactions_to_csv_with_data(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1735,7 +1735,7 @@ class TestHistoryExporter:
         assert output.exists()
 
     def test_export_statistics_to_json(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
+        from history.export import HistoryExporter
 
         db = _make_db(tmp_path)
         exporter = HistoryExporter(db)
@@ -1753,8 +1753,8 @@ class TestHistoryExporter:
         assert "database_size_mb" in data
 
     def test_export_statistics_with_data(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1772,7 +1772,7 @@ class TestHistoryExporter:
         assert data["operations_move"] == 1
 
     def test_export_to_json_creates_parent_dirs(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
+        from history.export import HistoryExporter
 
         db = _make_db(tmp_path)
         exporter = HistoryExporter(db)
@@ -1783,8 +1783,8 @@ class TestHistoryExporter:
         assert output.exists()
 
     def test_export_to_csv_creates_parent_dirs(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1798,8 +1798,8 @@ class TestHistoryExporter:
         assert output.exists()
 
     def test_export_csv_has_all_expected_columns(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"
@@ -1819,8 +1819,8 @@ class TestHistoryExporter:
             assert col in fieldnames, f"Missing column: {col}"
 
     def test_export_json_operation_count_in_stats(self, tmp_path: Path) -> None:
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
+        from history.export import HistoryExporter
+        from history.models import OperationType
 
         history = _make_history(tmp_path)
         src = tmp_path / "file.txt"

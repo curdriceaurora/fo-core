@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType
+from models.base import ModelConfig, ModelType
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -27,17 +27,17 @@ def _make_config(
 
 class TestImportGuard:
     def test_raises_import_error_if_mlx_lm_missing(self) -> None:
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", False):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", False):
+            from models.mlx_text_model import MLXTextModel
 
             with pytest.raises(ImportError, match="mlx-lm"):
                 MLXTextModel(_make_config())
 
     def test_import_error_mentions_install_command(self) -> None:
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", False):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", False):
+            from models.mlx_text_model import MLXTextModel
 
-            with pytest.raises(ImportError, match=r"local-file-organizer\[mlx\]"):
+            with pytest.raises(ImportError, match=r"fo-core\[mlx\]"):
                 MLXTextModel(_make_config())
 
 
@@ -49,22 +49,22 @@ class TestConstruction:
             provider="mlx",
             model_path="mlx-community/Qwen2.5-3B-Instruct-4bit",
         )
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
+            from models.mlx_text_model import MLXTextModel
 
             with pytest.raises(ValueError, match=r"ModelType\.TEXT"):
                 MLXTextModel(cfg)
 
     def test_raises_if_model_path_missing(self) -> None:
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
+            from models.mlx_text_model import MLXTextModel
 
             with pytest.raises(ValueError, match="model_path"):
                 MLXTextModel(_make_config(model_path=""))
 
     def test_model_and_tokenizer_start_none(self) -> None:
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
         assert model._model is None
@@ -77,13 +77,13 @@ class TestInitialize:
         mock_model = object()
         mock_tokenizer = object()
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 MagicMock(return_value=(mock_model, mock_tokenizer)),
             ) as mock_load,
         ):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
             model.initialize()
@@ -95,13 +95,13 @@ class TestInitialize:
 
     def test_initialize_is_idempotent(self) -> None:
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 MagicMock(return_value=(object(), object())),
             ) as mock_load,
         ):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
             model.initialize()
@@ -111,13 +111,13 @@ class TestInitialize:
 
     def test_initialize_raises_runtime_error_on_load_failure(self) -> None:
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 MagicMock(side_effect=RuntimeError("load failed")),
             ),
         ):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
             with pytest.raises(RuntimeError, match="Could not load MLX model"):
@@ -125,13 +125,13 @@ class TestInitialize:
 
     def test_initialize_raises_runtime_error_on_invalid_load_shape(self) -> None:
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 MagicMock(return_value=object()),
             ),
         ):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
             with pytest.raises(RuntimeError, match=r"expected \(model, tokenizer\)"):
@@ -141,13 +141,13 @@ class TestInitialize:
 class TestGenerate:
     def _initialized_model(self) -> tuple[Any, Any]:
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 MagicMock(return_value=(object(), object())),
             ),
         ):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
             model.initialize()
@@ -156,15 +156,15 @@ class TestGenerate:
     def test_generate_returns_stripped_text(self) -> None:
         model, _ = self._initialized_model()
         with patch(
-            "file_organizer.models.mlx_text_model.mlx_generate",
+            "models.mlx_text_model.mlx_generate",
             MagicMock(return_value="  result  "),
         ):
             result = model.generate("hello")
         assert result == "result"
 
     def test_generate_raises_when_not_initialized(self) -> None:
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
             with pytest.raises(RuntimeError, match="initialize"):
@@ -173,7 +173,7 @@ class TestGenerate:
     def test_generate_passes_prompt_and_max_tokens(self) -> None:
         model, _ = self._initialized_model()
         mock_generate = MagicMock(return_value="ok")
-        with patch("file_organizer.models.mlx_text_model.mlx_generate", mock_generate):
+        with patch("models.mlx_text_model.mlx_generate", mock_generate):
             model.generate("prompt", max_tokens=128)
 
         args, kwargs = mock_generate.call_args
@@ -193,7 +193,7 @@ class TestGenerate:
             return "ok"
 
         with patch(
-            "file_organizer.models.mlx_text_model.mlx_generate",
+            "models.mlx_text_model.mlx_generate",
             MagicMock(side_effect=_side_effect),
         ):
             assert model.generate("prompt") == "ok"
@@ -209,7 +209,7 @@ class TestGenerate:
             return "ok"
 
         with patch(
-            "file_organizer.models.mlx_text_model.mlx_generate",
+            "models.mlx_text_model.mlx_generate",
             MagicMock(side_effect=_side_effect),
         ):
             model.generate("prompt")  # probes all variants; caches working index
@@ -227,7 +227,7 @@ class TestGenerate:
             raise TypeError("bad prompt type")
 
         with patch(
-            "file_organizer.models.mlx_text_model.mlx_generate",
+            "models.mlx_text_model.mlx_generate",
             MagicMock(side_effect=_side_effect),
         ):
             with pytest.raises(TypeError, match="bad prompt type"):
@@ -238,7 +238,7 @@ class TestGenerate:
     def test_generate_propagates_non_type_errors(self) -> None:
         model, _ = self._initialized_model()
         with patch(
-            "file_organizer.models.mlx_text_model.mlx_generate",
+            "models.mlx_text_model.mlx_generate",
             MagicMock(side_effect=ValueError("boom")),
         ):
             with pytest.raises(ValueError, match="boom"):
@@ -248,13 +248,13 @@ class TestGenerate:
 class TestCleanup:
     def test_cleanup_clears_model_and_tokenizer(self) -> None:
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 MagicMock(return_value=(object(), object())),
             ),
         ):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
             model.initialize()
@@ -266,13 +266,13 @@ class TestCleanup:
 
     def test_cleanup_waits_for_in_flight_generations(self) -> None:
         with (
-            patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True),
+            patch("models.mlx_text_model.MLX_LM_AVAILABLE", True),
             patch(
-                "file_organizer.models.mlx_text_model.mlx_load",
+                "models.mlx_text_model.mlx_load",
                 MagicMock(return_value=(object(), object())),
             ),
         ):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+            from models.mlx_text_model import MLXTextModel
 
             model = MLXTextModel(_make_config())
             model.initialize()
@@ -312,8 +312,8 @@ class TestCleanup:
 
 class TestDefaults:
     def test_returns_model_config_with_mlx_provider(self) -> None:
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
+            from models.mlx_text_model import MLXTextModel
 
             cfg = MLXTextModel.get_default_config("mlx-community/Qwen2.5-3B-Instruct-4bit")
 
@@ -322,8 +322,8 @@ class TestDefaults:
         assert cfg.model_path == "mlx-community/Qwen2.5-3B-Instruct-4bit"
 
     def test_default_config_has_sensible_defaults(self) -> None:
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
-            from file_organizer.models.mlx_text_model import MLXTextModel
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
+            from models.mlx_text_model import MLXTextModel
 
             cfg = MLXTextModel.get_default_config()
 

@@ -12,21 +12,21 @@ from pathlib import Path
 import pytest
 
 FO_ROOT = Path(__file__).resolve().parents[2]
-SRC_ROOT = FO_ROOT / "src" / "file_organizer"
+SRC_ROOT = FO_ROOT / "src"
 _TRACEBACK_LOGGING_ENFORCED_PATHS = {
-    "src/file_organizer/api/routers/realtime.py",
-    "src/file_organizer/cli/autotag_v2.py",
-    "src/file_organizer/cli/benchmark.py",
-    "src/file_organizer/plugins/executor.py",
-    "src/file_organizer/services/deduplication/backup.py",
-    "src/file_organizer/tui/analytics_view.py",
-    "src/file_organizer/tui/audio_view.py",
-    "src/file_organizer/tui/copilot_view.py",
-    "src/file_organizer/tui/file_preview.py",
-    "src/file_organizer/tui/methodology_view.py",
-    "src/file_organizer/tui/organization_preview.py",
-    "src/file_organizer/tui/undo_history_view.py",
-    "src/file_organizer/utils/readers/cad.py",
+    "src/api/routers/realtime.py",
+    "src/cli/autotag_v2.py",
+    "src/cli/benchmark.py",
+    "src/plugins/executor.py",
+    "src/services/deduplication/backup.py",
+    "src/tui/analytics_view.py",
+    "src/tui/audio_view.py",
+    "src/tui/copilot_view.py",
+    "src/tui/file_preview.py",
+    "src/tui/methodology_view.py",
+    "src/tui/organization_preview.py",
+    "src/tui/undo_history_view.py",
+    "src/utils/readers/cad.py",
 }
 
 pytestmark = pytest.mark.ci

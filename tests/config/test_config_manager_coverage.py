@@ -8,8 +8,8 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from file_organizer.config.manager import ConfigManager
-from file_organizer.config.schema import AppConfig, ModelPreset, UpdateSettings
+from config.manager import ConfigManager
+from config.schema import AppConfig, ModelPreset, UpdateSettings
 
 pytestmark = pytest.mark.unit
 
@@ -187,9 +187,9 @@ class TestConfigManagerModuleDelegation:
         model_cfg = mgr.to_vision_model_config(cfg)
         assert model_cfg.name == cfg.models.vision_model
 
-    @patch("file_organizer.config.manager.WatcherConfig", create=True)
+    @patch("config.manager.WatcherConfig", create=True)
     def test_to_watcher_config(self, mock_watcher_cls):
-        with patch("file_organizer.watcher.config.WatcherConfig", mock_watcher_cls, create=True):
+        with patch("watcher.config.WatcherConfig", mock_watcher_cls, create=True):
             mgr = ConfigManager()
             cfg = AppConfig(watcher={"poll_interval": 2})
             mgr.to_watcher_config(cfg)

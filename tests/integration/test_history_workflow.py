@@ -17,15 +17,15 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
-from file_organizer.history.export import HistoryExporter
-from file_organizer.history.models import (
+from history.cleanup import HistoryCleanup, HistoryCleanupConfig
+from history.export import HistoryExporter
+from history.models import (
     OperationStatus,
     OperationType,
     TransactionStatus,
 )
-from file_organizer.history.tracker import OperationHistory
-from file_organizer.history.transaction import OperationTransaction
+from history.tracker import OperationHistory
+from history.transaction import OperationTransaction
 
 pytestmark = pytest.mark.integration
 

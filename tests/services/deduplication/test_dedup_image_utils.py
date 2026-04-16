@@ -26,7 +26,7 @@ _pil_image_mod.open = _mock_image_cls.open  # type: ignore[attr-defined]
 sys.modules.setdefault("PIL", _pil_mod)
 sys.modules.setdefault("PIL.Image", _pil_image_mod)
 
-from file_organizer.services.deduplication.image_utils import (  # noqa: E402
+from services.deduplication.image_utils import (  # noqa: E402
     FORMAT_QUALITY_RANK,
     SUPPORTED_FORMATS,
     ImageMetadata,
@@ -211,9 +211,7 @@ class TestGetImageMetadata:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open", return_value=mock_img
-        ):
+        with patch("services.deduplication.image_utils.Image.open", return_value=mock_img):
             result = get_image_metadata(p)
 
         assert result is not None
@@ -226,7 +224,7 @@ class TestGetImageMetadata:
         p.write_bytes(b"bad")
 
         with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open",
+            "services.deduplication.image_utils.Image.open",
             side_effect=OSError("corrupt"),
         ):
             result = get_image_metadata(p)
@@ -238,7 +236,7 @@ class TestGetImageMetadata:
         p.write_bytes(b"bad")
 
         with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open",
+            "services.deduplication.image_utils.Image.open",
             side_effect=RuntimeError("unknown"),
         ):
             result = get_image_metadata(p)
@@ -264,9 +262,7 @@ class TestGetImageDimensions:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open", return_value=mock_img
-        ):
+        with patch("services.deduplication.image_utils.Image.open", return_value=mock_img):
             result = get_image_dimensions(p)
 
         assert result == (640, 480)
@@ -276,7 +272,7 @@ class TestGetImageDimensions:
         p.write_bytes(b"bad")
 
         with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open",
+            "services.deduplication.image_utils.Image.open",
             side_effect=OSError("fail"),
         ):
             result = get_image_dimensions(p)
@@ -302,9 +298,7 @@ class TestGetImageFormat:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open", return_value=mock_img
-        ):
+        with patch("services.deduplication.image_utils.Image.open", return_value=mock_img):
             result = get_image_format(p)
 
         assert result == "PNG"
@@ -314,7 +308,7 @@ class TestGetImageFormat:
         p.write_bytes(b"bad")
 
         with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open",
+            "services.deduplication.image_utils.Image.open",
             side_effect=OSError("fail"),
         ):
             result = get_image_format(p)
@@ -362,7 +356,7 @@ class TestValidateImageFile:
         mock_img_size.__exit__ = MagicMock(return_value=False)
 
         with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open",
+            "services.deduplication.image_utils.Image.open",
             side_effect=[mock_img_verify, mock_img_size],
         ):
             is_valid, msg = validate_image_file(p)
@@ -375,7 +369,7 @@ class TestValidateImageFile:
         p.write_bytes(b"not an image")
 
         with patch(
-            "file_organizer.services.deduplication.image_utils.Image.open",
+            "services.deduplication.image_utils.Image.open",
             side_effect=OSError("corrupt"),
         ):
             is_valid, msg = validate_image_file(p)
@@ -400,7 +394,7 @@ class TestFilterValidImages:
         invalid.write_bytes(b"fake")
 
         with patch(
-            "file_organizer.services.deduplication.image_utils.validate_image_file",
+            "services.deduplication.image_utils.validate_image_file",
             side_effect=[(True, None), (False, "bad")],
         ):
             result = filter_valid_images([valid, invalid])
@@ -506,7 +500,7 @@ class TestCompareImageQuality:
 
     def test_both_none(self):
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             return_value=None,
         ):
             result = compare_image_quality(Path("a.jpg"), Path("b.jpg"))
@@ -522,7 +516,7 @@ class TestCompareImageQuality:
             size_bytes=5000,
         )
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             side_effect=[None, meta],
         ):
             result = compare_image_quality(Path("a.jpg"), Path("b.jpg"))
@@ -538,7 +532,7 @@ class TestCompareImageQuality:
             size_bytes=5000,
         )
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             side_effect=[meta, None],
         ):
             result = compare_image_quality(Path("a.jpg"), Path("b.jpg"))
@@ -562,7 +556,7 @@ class TestCompareImageQuality:
             size_bytes=5000,
         )
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             side_effect=[meta1, meta2],
         ):
             result = compare_image_quality(Path("a.png"), Path("b.png"))
@@ -586,7 +580,7 @@ class TestCompareImageQuality:
             size_bytes=5000,
         )
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             side_effect=[meta1, meta2],
         ):
             result = compare_image_quality(Path("a.png"), Path("b.jpg"))
@@ -610,7 +604,7 @@ class TestCompareImageQuality:
             size_bytes=5000,
         )
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             side_effect=[meta1, meta2],
         ):
             result = compare_image_quality(Path("a.png"), Path("b.png"))
@@ -626,7 +620,7 @@ class TestCompareImageQuality:
             size_bytes=5000,
         )
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             side_effect=[meta, meta],
         ):
             result = compare_image_quality(Path("a.png"), Path("b.png"))
@@ -642,7 +636,7 @@ class TestGetBestQualityImage:
 
     def test_all_invalid(self):
         with patch(
-            "file_organizer.services.deduplication.image_utils.filter_valid_images",
+            "services.deduplication.image_utils.filter_valid_images",
             return_value=[],
         ):
             assert get_best_quality_image([Path("a.jpg")]) is None
@@ -667,7 +661,7 @@ class TestGetImageInfoString:
             size_bytes=1024000,
         )
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             return_value=meta,
         ):
             result = get_image_info_string(Path("test.png"))
@@ -676,7 +670,7 @@ class TestGetImageInfoString:
 
     def test_with_unreadable_image(self):
         with patch(
-            "file_organizer.services.deduplication.image_utils.get_image_metadata",
+            "services.deduplication.image_utils.get_image_metadata",
             return_value=None,
         ):
             result = get_image_info_string(Path("bad.png"))

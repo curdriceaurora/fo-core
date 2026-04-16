@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType, TokenExhaustionError
-from file_organizer.models.claude_text_model import ClaudeTextModel
+from models.base import ModelConfig, ModelType, TokenExhaustionError
+from models.claude_text_model import ClaudeTextModel
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -82,7 +82,7 @@ class TestClaudeTextModelInit:
     """Constructor validation."""
 
     def test_init_sets_config(self, claude_config: ModelConfig) -> None:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
         assert model.config is claude_config
         assert model.client is None
@@ -91,8 +91,8 @@ class TestClaudeTextModelInit:
     def test_init_raises_import_error_when_anthropic_missing(
         self, claude_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", False):
-            with pytest.raises(ImportError, match="file-organizer\\[claude\\]"):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", False):
+            with pytest.raises(ImportError, match="fo-core\\[claude\\]"):
                 ClaudeTextModel(claude_config)
 
     def test_init_raises_value_error_for_wrong_model_type(self) -> None:
@@ -101,7 +101,7 @@ class TestClaudeTextModelInit:
             model_type=ModelType.VISION,  # wrong
             provider="claude",
         )
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             with pytest.raises(ValueError, match="Expected TEXT"):
                 ClaudeTextModel(bad_config)
 
@@ -119,13 +119,13 @@ class TestClaudeTextModelInitialize:
         claude_config: ModelConfig,
         mock_claude_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
 
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 create=True,
                 return_value=mock_claude_client,
             ) as mock_cls,
@@ -142,13 +142,13 @@ class TestClaudeTextModelInitialize:
         claude_config: ModelConfig,
         mock_claude_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
 
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 create=True,
                 return_value=mock_claude_client,
             ) as mock_cls,
@@ -164,13 +164,13 @@ class TestClaudeTextModelInitialize:
     ) -> None:
         """When api_key is None the SDK reads ANTHROPIC_API_KEY from env."""
         cfg = _make_config(api_key=None)
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(cfg)
 
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 create=True,
                 return_value=mock_claude_client,
             ) as mock_cls,
@@ -192,13 +192,13 @@ class TestClaudeTextModelInitialize:
             api_key="sk-ant-test",
             api_base_url="https://custom.endpoint.example.com",
         )
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(cfg)
 
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 create=True,
                 return_value=mock_claude_client,
             ) as mock_cls,
@@ -210,13 +210,13 @@ class TestClaudeTextModelInitialize:
         assert "base_url" not in call_kwargs
 
     def test_initialize_propagates_exception(self, claude_config: ModelConfig) -> None:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
 
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 create=True,
                 side_effect=RuntimeError("auth failure"),
             ),
@@ -237,7 +237,7 @@ class TestClaudeTextModelGenerate:
     """generate() calls messages.create with the correct payload."""
 
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> ClaudeTextModel:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(config)
         model.client = client
         model._initialized = True
@@ -294,7 +294,7 @@ class TestClaudeTextModelGenerate:
     def test_generate_raises_runtime_error_when_not_initialized(
         self, claude_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
 
         with pytest.raises(RuntimeError, match="not initialized"):
@@ -336,7 +336,7 @@ class TestClaudeTextModelCleanup:
     def test_cleanup_calls_close_on_client(self, claude_config: ModelConfig) -> None:
         """cleanup() must call client.close() to release the httpx connection pool."""
         mock_client = MagicMock()
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
         model.client = mock_client
         model._initialized = True
@@ -348,7 +348,7 @@ class TestClaudeTextModelCleanup:
 
     def test_cleanup_resets_state(self, claude_config: ModelConfig) -> None:
         mock_client = MagicMock()
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
         model.client = mock_client
         model._initialized = True
@@ -360,7 +360,7 @@ class TestClaudeTextModelCleanup:
 
     def test_cleanup_is_safe_when_not_initialized(self, claude_config: ModelConfig) -> None:
         """cleanup() on an uninitialised model must not raise."""
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
 
         model.cleanup()  # should not raise
@@ -372,7 +372,7 @@ class TestClaudeTextModelCleanup:
         """Exceptions from client.close() are swallowed — not re-raised."""
         mock_client = MagicMock()
         mock_client.close.side_effect = RuntimeError("close failed")
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
         model.client = mock_client
         model._initialized = True
@@ -421,13 +421,13 @@ class TestClaudeTextModelContextManager:
         claude_config: ModelConfig,
         mock_claude_client: MagicMock,
     ) -> None:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(claude_config)
 
         with (
-            patch("file_organizer.models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
+            patch("models._claude_client.ANTHROPIC_AVAILABLE", True, create=True),
             patch(
-                "file_organizer.models._claude_client.Anthropic",
+                "models._claude_client.Anthropic",
                 create=True,
                 return_value=mock_claude_client,
             ),
@@ -448,7 +448,7 @@ class TestClaudeTextModelTokenExhaustion:
     """stop_reason == 'max_tokens' triggers retry with doubled max_tokens."""
 
     def _make_initialized(self, config: ModelConfig, client: MagicMock) -> ClaudeTextModel:
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = ClaudeTextModel(config)
         model.client = client
         model._initialized = True

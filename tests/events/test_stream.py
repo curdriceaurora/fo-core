@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.events.config import EventConfig
-from file_organizer.events.stream import (
+from events.config import EventConfig
+from events.stream import (
     Event,
     RedisStreamManager,
     _parse_timestamp_from_id,
@@ -115,7 +115,7 @@ class TestRedisStreamManagerInit:
 class TestRedisStreamManagerConnect:
     """Tests for connect/disconnect lifecycle."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_connect_success(self, mock_redis_module: MagicMock):
         """Test successful Redis connection."""
         mock_client = MagicMock()
@@ -129,7 +129,7 @@ class TestRedisStreamManagerConnect:
         assert manager.is_connected is True
         mock_redis_module.Redis.from_url.assert_called_once()
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_connect_with_custom_url(self, mock_redis_module: MagicMock):
         """Test connection with a custom URL override."""
         mock_client = MagicMock()
@@ -144,7 +144,7 @@ class TestRedisStreamManagerConnect:
             "redis://other:6380/2", decode_responses=True, socket_timeout=5
         )
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_connect_failure(self, mock_redis_module: MagicMock):
         """Test graceful handling of connection failure."""
         mock_redis_module.Redis.from_url.side_effect = ConnectionError("refused")
@@ -155,7 +155,7 @@ class TestRedisStreamManagerConnect:
         assert result is False
         assert manager.is_connected is False
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_disconnect(self, mock_redis_module: MagicMock):
         """Test disconnection cleans up state."""
         mock_client = MagicMock()
@@ -176,7 +176,7 @@ class TestRedisStreamManagerConnect:
         manager.disconnect()  # Should not raise
         assert manager.is_connected is False
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_disconnect_handles_close_error(self, mock_redis_module: MagicMock):
         """Test disconnect handles errors during close."""
         mock_client = MagicMock()
@@ -207,7 +207,7 @@ class TestRedisStreamManagerPublish:
         manager.connect()
         return manager, mock_client
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_success(self, mock_redis_module: MagicMock):
         """Test successful event publishing."""
         manager, mock_client = self._create_connected_manager(mock_redis_module)
@@ -218,7 +218,7 @@ class TestRedisStreamManagerPublish:
         assert result == "1700000000000-0"
         mock_client.xadd.assert_called_once()
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_uses_prefixed_stream_name(self, mock_redis_module: MagicMock):
         """Test that stream names are prefixed."""
         manager, mock_client = self._create_connected_manager(mock_redis_module)
@@ -229,7 +229,7 @@ class TestRedisStreamManagerPublish:
         call_kwargs = mock_client.xadd.call_args
         assert call_kwargs.kwargs["name"] == "fileorg:events"
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_with_max_len(self, mock_redis_module: MagicMock):
         """Test publishing with explicit max length."""
         manager, mock_client = self._create_connected_manager(mock_redis_module)
@@ -241,7 +241,7 @@ class TestRedisStreamManagerPublish:
         assert call_kwargs.kwargs["maxlen"] == 500
         assert call_kwargs.kwargs["approximate"] is True
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_with_default_max_len(self, mock_redis_module: MagicMock):
         """Test publishing uses config max_stream_length."""
         config = EventConfig(max_stream_length=5000)
@@ -258,7 +258,7 @@ class TestRedisStreamManagerPublish:
         call_kwargs = mock_client.xadd.call_args
         assert call_kwargs.kwargs["maxlen"] == 5000
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_no_max_len_when_none(self, mock_redis_module: MagicMock):
         """Test publishing without trimming when max_stream_length is None."""
         config = EventConfig(max_stream_length=None)
@@ -281,7 +281,7 @@ class TestRedisStreamManagerPublish:
         result = manager.publish("events", {"key": "value"})
         assert result is None
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_handles_redis_error(self, mock_redis_module: MagicMock):
         """Test publish handles Redis errors gracefully."""
         manager, mock_client = self._create_connected_manager(mock_redis_module)
@@ -295,7 +295,7 @@ class TestRedisStreamManagerPublish:
 class TestRedisStreamManagerConsumerGroup:
     """Tests for consumer group operations."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_create_consumer_group_success(self, mock_redis_module: MagicMock):
         """Test creating a consumer group."""
         mock_client = MagicMock()
@@ -310,12 +310,12 @@ class TestRedisStreamManagerConsumerGroup:
         assert result is True
         mock_client.xgroup_create.assert_called_once_with(
             name="fileorg:events",
-            groupname="file-organizer",
+            groupname="fo",
             id="0",
             mkstream=True,
         )
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_create_consumer_group_custom_name(self, mock_redis_module: MagicMock):
         """Test creating a group with a custom name."""
         mock_client = MagicMock()
@@ -335,7 +335,7 @@ class TestRedisStreamManagerConsumerGroup:
             mkstream=True,
         )
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_create_consumer_group_already_exists(self, mock_redis_module: MagicMock):
         """Test that existing groups are handled silently."""
         mock_client = MagicMock()
@@ -351,7 +351,7 @@ class TestRedisStreamManagerConsumerGroup:
         result = manager.create_consumer_group("events")
         assert result is True
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_create_consumer_group_error(self, mock_redis_module: MagicMock):
         """Test that other errors return False."""
         mock_client = MagicMock()
@@ -376,7 +376,7 @@ class TestRedisStreamManagerConsumerGroup:
 class TestRedisStreamManagerReadGroup:
     """Tests for reading from consumer groups."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_read_group_returns_events(self, mock_redis_module: MagicMock):
         """Test reading messages from a consumer group."""
         mock_client = MagicMock()
@@ -402,7 +402,7 @@ class TestRedisStreamManagerReadGroup:
         assert events[0].data["file_path"] == "/a.txt"
         assert events[1].id == "1700000000001-0"
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_read_group_empty_results(self, mock_redis_module: MagicMock):
         """Test reading when no messages available."""
         mock_client = MagicMock()
@@ -416,7 +416,7 @@ class TestRedisStreamManagerReadGroup:
         events = manager.read_group("events")
         assert events == []
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_read_group_none_results(self, mock_redis_module: MagicMock):
         """Test reading when Redis returns None."""
         mock_client = MagicMock()
@@ -436,7 +436,7 @@ class TestRedisStreamManagerReadGroup:
         events = manager.read_group("events")
         assert events == []
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_read_group_handles_error(self, mock_redis_module: MagicMock):
         """Test reading handles Redis errors gracefully."""
         mock_client = MagicMock()
@@ -450,7 +450,7 @@ class TestRedisStreamManagerReadGroup:
         events = manager.read_group("events")
         assert events == []
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_read_group_with_custom_params(self, mock_redis_module: MagicMock):
         """Test reading with custom count and block parameters."""
         mock_client = MagicMock()
@@ -464,7 +464,7 @@ class TestRedisStreamManagerReadGroup:
         manager.read_group("events", count=5, block_ms=1000)
 
         mock_client.xreadgroup.assert_called_once_with(
-            groupname="file-organizer",
+            groupname="fo",
             consumername="worker-1",
             streams={"fileorg:events": ">"},
             count=5,
@@ -476,7 +476,7 @@ class TestRedisStreamManagerReadGroup:
 class TestRedisStreamManagerAcknowledge:
     """Tests for acknowledging messages."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_acknowledge_success(self, mock_redis_module: MagicMock):
         """Test successful acknowledgment."""
         mock_client = MagicMock()
@@ -490,7 +490,7 @@ class TestRedisStreamManagerAcknowledge:
         result = manager.acknowledge("events", message_id="1-0")
         assert result is True
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_acknowledge_not_found(self, mock_redis_module: MagicMock):
         """Test acknowledging a non-existent message."""
         mock_client = MagicMock()
@@ -510,7 +510,7 @@ class TestRedisStreamManagerAcknowledge:
         result = manager.acknowledge("events", message_id="1-0")
         assert result is False
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_acknowledge_handles_error(self, mock_redis_module: MagicMock):
         """Test acknowledge handles errors gracefully."""
         mock_client = MagicMock()
@@ -529,7 +529,7 @@ class TestRedisStreamManagerAcknowledge:
 class TestRedisStreamManagerStreamInfo:
     """Tests for stream information queries."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_get_stream_length(self, mock_redis_module: MagicMock):
         """Test getting stream length."""
         mock_client = MagicMock()
@@ -547,7 +547,7 @@ class TestRedisStreamManagerStreamInfo:
         manager = RedisStreamManager()
         assert manager.get_stream_length("events") == 0
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_get_pending_count(self, mock_redis_module: MagicMock):
         """Test getting pending message count."""
         mock_client = MagicMock()
@@ -570,7 +570,7 @@ class TestRedisStreamManagerStreamInfo:
 class TestRedisStreamManagerContextManager:
     """Tests for context manager protocol."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_context_manager(self, mock_redis_module: MagicMock):
         """Test using the manager as a context manager."""
         mock_client = MagicMock()
@@ -582,7 +582,7 @@ class TestRedisStreamManagerContextManager:
 
         assert manager.is_connected is False
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_context_manager_disconnects_on_error(self, mock_redis_module: MagicMock):
         """Test context manager cleans up on exception."""
         mock_client = MagicMock()

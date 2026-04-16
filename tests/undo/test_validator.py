@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.models import Operation, OperationStatus, OperationType
-from file_organizer.undo.models import ConflictType
-from file_organizer.undo.validator import OperationValidator
+from history.models import Operation, OperationStatus, OperationType
+from undo.models import ConflictType
+from undo.validator import OperationValidator
 
 
 @pytest.mark.unit
@@ -599,7 +599,7 @@ class TestOperationValidator(unittest.TestCase):
 
     def test_init_default_trash_dir(self):
         """Test validator initializes with default trash dir."""
-        from file_organizer.config.path_manager import get_data_dir
+        from config.path_manager import get_data_dir
 
         validator = OperationValidator(trash_dir=None)
         expected = get_data_dir() / "trash"

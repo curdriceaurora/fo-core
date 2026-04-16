@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType, TokenExhaustionError
-from file_organizer.models.vision_model import VisionModel
+from models.base import ModelConfig, ModelType, TokenExhaustionError
+from models.vision_model import VisionModel
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -23,7 +23,7 @@ def vision_model_config() -> ModelConfig:
 
 def _make_initialized_model(config: ModelConfig) -> tuple[VisionModel, MagicMock]:
     """Helper to create an initialized VisionModel with mocked client."""
-    with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+    with patch("models.vision_model.OLLAMA_AVAILABLE", True):
         model = VisionModel(config)
     mock_client = MagicMock()
     model.client = mock_client
@@ -37,14 +37,14 @@ class TestVisionModel:
 
     def test_initialization(self, vision_model_config: ModelConfig) -> None:
         """Test VisionModel initialization."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
             assert model.config == vision_model_config
             assert model.config.model_type == ModelType.VISION
 
     def test_generate_from_image(self, vision_model_config: ModelConfig) -> None:
         """Test text generation from image."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
 
             mock_client = MagicMock()
@@ -54,9 +54,7 @@ class TestVisionModel:
                 "total_duration": 1000000000,
             }
 
-            with patch(
-                "file_organizer.models.vision_model.ollama.Client", return_value=mock_client
-            ):
+            with patch("models.vision_model.ollama.Client", return_value=mock_client):
                 # Mock Path.exists to return True
                 with patch("pathlib.Path.exists", return_value=True):
                     model.initialize()
@@ -74,15 +72,13 @@ class TestVisionModel:
 
     def test_generate_from_image_error(self, vision_model_config: ModelConfig) -> None:
         """Test image generation error handling."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
 
             mock_client = MagicMock()
             mock_client.generate.side_effect = RuntimeError("Ollama error")
 
-            with patch(
-                "file_organizer.models.vision_model.ollama.Client", return_value=mock_client
-            ):
+            with patch("models.vision_model.ollama.Client", return_value=mock_client):
                 with patch("pathlib.Path.exists", return_value=True):
                     model.initialize()
                     with pytest.raises(Exception) as excinfo:
@@ -101,21 +97,21 @@ class TestVisionModelInit:
 
     def test_init_missing_ollama(self, vision_model_config: ModelConfig) -> None:
         """Test initialization fails when Ollama is unavailable."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", False):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", False):
             with pytest.raises(ImportError, match="Ollama is not installed"):
                 VisionModel(vision_model_config)
 
     def test_init_wrong_model_type(self) -> None:
         """Test initialization fails with non-VISION/VIDEO model type."""
         config = ModelConfig(name="text-model", model_type=ModelType.TEXT)
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             with pytest.raises(ValueError, match="Expected VISION or VIDEO"):
                 VisionModel(config)
 
     def test_init_video_model_type_accepted(self) -> None:
         """Test VIDEO model type is accepted."""
         config = ModelConfig(name="video-model", model_type=ModelType.VIDEO)
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(config)
             assert model.config.model_type == ModelType.VIDEO
 
@@ -124,13 +120,13 @@ class TestVisionModelInit:
 class TestVisionModelInitialize:
     """Tests for VisionModel.initialize() method."""
 
-    @patch("file_organizer.models.vision_model.ollama.Client")
+    @patch("models.vision_model.ollama.Client")
     def test_initialize_pulls_model_if_missing(
         self, mock_client_cls: MagicMock, vision_model_config: ModelConfig
     ) -> None:
         """Test model is pulled when not found locally."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
-            from file_organizer.models.vision_model import ollama
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
+            from models.vision_model import ollama
 
             model = VisionModel(vision_model_config)
             mock_client = MagicMock()
@@ -143,12 +139,12 @@ class TestVisionModelInitialize:
             mock_client.pull.assert_called_once_with(vision_model_config.name)
             assert model._initialized is True
 
-    @patch("file_organizer.models.vision_model.ollama.Client")
+    @patch("models.vision_model.ollama.Client")
     def test_initialize_already_initialized(
         self, mock_client_cls: MagicMock, vision_model_config: ModelConfig
     ) -> None:
         """Test initialize is a no-op when already initialized."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
             model._initialized = True
 
@@ -156,12 +152,12 @@ class TestVisionModelInitialize:
 
             mock_client_cls.assert_not_called()
 
-    @patch("file_organizer.models.vision_model.ollama.Client")
+    @patch("models.vision_model.ollama.Client")
     def test_initialize_error_propagates(
         self, mock_client_cls: MagicMock, vision_model_config: ModelConfig
     ) -> None:
         """Test initialization error propagates."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
             mock_client_cls.side_effect = RuntimeError("connection refused")
 
@@ -175,7 +171,7 @@ class TestVisionModelGenerate:
 
     def test_generate_uninitialized(self, vision_model_config: ModelConfig) -> None:
         """Test generate raises when not initialized."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
             with pytest.raises(RuntimeError, match="Model not initialized"):
                 model.generate("test", image_path="/path/to/img.jpg")
@@ -308,12 +304,12 @@ class TestVisionModelMisc:
         assert config.name == "my-vision-model"
         assert config.model_type == ModelType.VISION
 
-    @patch("file_organizer.models.vision_model.ollama.Client")
+    @patch("models.vision_model.ollama.Client")
     def test_test_connection_success(
         self, mock_client_cls: MagicMock, vision_model_config: ModelConfig
     ) -> None:
         """Test successful connection returns status dict."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
             mock_client = MagicMock()
             mock_client.show.return_value = {"size": "6GB"}
@@ -329,17 +325,17 @@ class TestVisionModelMisc:
 
     def test_test_connection_uninitialized(self, vision_model_config: ModelConfig) -> None:
         """Test connection check fails when not initialized."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
             with pytest.raises(RuntimeError, match="Model not initialized"):
                 model.test_connection()
 
-    @patch("file_organizer.models.vision_model.ollama.Client")
+    @patch("models.vision_model.ollama.Client")
     def test_test_connection_error(
         self, mock_client_cls: MagicMock, vision_model_config: ModelConfig
     ) -> None:
         """Test connection error returns error status dict."""
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = VisionModel(vision_model_config)
             mock_client = MagicMock()
             # First show() call succeeds during init, second fails during test_connection

@@ -5,7 +5,7 @@ or .github/ from all docs/**/*.md files and asserts each path exists relative
 to the repo root.
 
 Catches content drift where docs reference renamed/moved files, e.g.:
-  core/file_organizer.py renamed to core/organizer.py
+  core/py renamed to core/organizer.py
 
 Exclusion Strategy
 ------------------
@@ -46,7 +46,7 @@ DOCS_DIR = REPO_ROOT / "docs"
 # Path extraction pattern
 # ---------------------------------------------------------------------------
 # Match backtick-wrapped repo-relative paths such as:
-#   `src/file_organizer/utils/text_processing.py`
+#   `src/utils/text_processing.py`
 #   `tests/docs/conftest.py`
 #   `.github/workflows/ci.yml`
 # Requires a file extension to avoid matching bare directory references.
@@ -65,6 +65,8 @@ PATH_PATTERN = re.compile(r"`((?:src|core|tests|scripts|\.github)/[^`\s]+\.[a-zA
 EXCLUDED_DOC_DIRS: set[str] = {
     # Design and planning specs that list files-to-be-created.
     "plans",
+    # Internal agent planning notes contain illustrative snippets and future paths.
+    "superpowers",
 }
 
 # ---------------------------------------------------------------------------

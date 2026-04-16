@@ -17,7 +17,7 @@ def benchmark_cli_startup() -> float:
     """Measure time to import CLI module."""
     start = time.perf_counter()
     result = subprocess.run(
-        [sys.executable, "-c", "from file_organizer.cli import main"],
+        [sys.executable, "-c", "from cli import main"],
         capture_output=True,
         text=True,
         timeout=10,
@@ -33,7 +33,7 @@ def benchmark_help_command() -> float:
     """Measure time to run '--help'."""
     start = time.perf_counter()
     result = subprocess.run(
-        [sys.executable, "-m", "file_organizer.cli.main", "--help"],
+        [sys.executable, "-m", "cli.main", "--help"],
         capture_output=True,
         text=True,
         timeout=10,

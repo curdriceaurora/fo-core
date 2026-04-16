@@ -1,4 +1,4 @@
-"""Tests for file_organizer.services.copilot.rules.preview module.
+"""Tests for services.copilot.rules.preview module.
 
 Covers PreviewEngine, FileMatch, PreviewResult dataclass, and all
 condition types including SIZE_GREATER, SIZE_LESS, CONTENT_CONTAINS,
@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.services.copilot.rules.models import (
+from services.copilot.rules.models import (
     ActionType,
     ConditionType,
     Rule,
@@ -22,7 +22,7 @@ from file_organizer.services.copilot.rules.models import (
     RuleCondition,
     RuleSet,
 )
-from file_organizer.services.copilot.rules.preview import (
+from services.copilot.rules.preview import (
     FileMatch,
     PreviewEngine,
     PreviewResult,

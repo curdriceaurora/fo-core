@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from file_organizer.config.path_manager import PathManager, get_canonical_paths
+from config.path_manager import PathManager, get_canonical_paths
 
 
 def test_get_canonical_paths_uses_xdg_when_available():
@@ -19,13 +19,13 @@ def test_get_canonical_paths_uses_xdg_when_available():
     ):
         paths = get_canonical_paths()
 
-        assert paths["config"] == Path("/tmp/test-xdg-config/file-organizer")
-        assert paths["data"] == Path("/tmp/test-xdg-data/file-organizer")
-        assert paths["state"] == Path("/tmp/test-xdg-state/file-organizer")
+        assert paths["config"] == Path("/tmp/test-xdg-config/fo")
+        assert paths["data"] == Path("/tmp/test-xdg-data/fo")
+        assert paths["state"] == Path("/tmp/test-xdg-state/fo")
         # Cache uses platformdirs user_cache_dir, which is independent of XDG_DATA_HOME
         from platformdirs import user_cache_dir
 
-        assert paths["cache"] == Path(user_cache_dir("file-organizer"))
+        assert paths["cache"] == Path(user_cache_dir("fo"))
 
 
 def test_get_canonical_paths_uses_home_defaults():
@@ -45,9 +45,9 @@ def test_get_canonical_paths_uses_home_defaults():
 
         # platformdirs returns platform-appropriate defaults (XDG on Linux,
         # ~/Library/... on macOS, %APPDATA% on Windows).
-        assert paths["config"] == Path(user_config_dir("file-organizer"))
-        assert paths["data"] == Path(user_data_dir("file-organizer"))
-        assert paths["cache"] == Path(user_cache_dir("file-organizer"))
+        assert paths["config"] == Path(user_config_dir("fo"))
+        assert paths["data"] == Path(user_data_dir("fo"))
+        assert paths["cache"] == Path(user_cache_dir("fo"))
 
 
 def test_path_manager_creates_directories():

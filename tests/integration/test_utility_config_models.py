@@ -13,9 +13,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from file_organizer.daemon.config import DaemonConfig
-from file_organizer.events.config import EventConfig
-from file_organizer.models._openai_response import is_openai_token_exhausted
+from daemon.config import DaemonConfig
+from events.config import EventConfig
+from models._openai_response import is_openai_token_exhausted
 
 pytestmark = pytest.mark.integration
 

@@ -4,7 +4,7 @@ on:
     branches: [main, develop]
     paths: ['docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
   pull_request:
-    branches: [main]
+    branches: [main, epic/flatten-src-fo]
     paths: ['docs/**', 'mkdocs.yml', '.github/workflows/docs.yml']
 
 jobs:

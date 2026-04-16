@@ -115,6 +115,7 @@ A pre-commit configuration is defined in `.pre-commit-config.yaml`. After runnin
 **Mandatory patterns enforced in pre-commit validation:**
 
 1. **Dict-style dataclass access** → use `hasattr()`
+
    ```python
    # ❌ Wrong
    if "field" in obj:
@@ -126,6 +127,7 @@ A pre-commit configuration is defined in `.pre-commit-config.yaml`. After runnin
    ```
 
 2. **Wrong return types** → read implementation first
+
    ```python
    # ❌ Wrong (assumes return type without verifying)
    result1, result2 = function()
@@ -135,12 +137,14 @@ A pre-commit configuration is defined in `.pre-commit-config.yaml`. After runnin
    ```
 
 3. **Non-existent imports** → verify module exists
+
    ```bash
    # Check import works
-   python3 -c "from file_organizer.module import Class; print('OK')"
+   python3 -c "from module import Class; print('OK')"
    ```
 
 4. **Wrong constructor params** → check class definition
+
    ```python
    # ❌ Wrong (uses non-existent parameter)
    config = Config(param_that_doesnt_exist=True)
@@ -150,6 +154,7 @@ A pre-commit configuration is defined in `.pre-commit-config.yaml`. After runnin
    ```
 
 5. **Build artifacts** → add to `.gitignore`
+
    ```
    .coverage
    *.bak

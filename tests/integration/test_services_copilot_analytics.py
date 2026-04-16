@@ -24,7 +24,7 @@ pytestmark = pytest.mark.integration
 
 class TestCopilotEngine:
     def test_chat_template_fallback_returns_string(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine()
         response = engine.chat("help")
@@ -32,7 +32,7 @@ class TestCopilotEngine:
         assert len(response) > 0
 
     def test_chat_unknown_intent_returns_string(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine()
         response = engine.chat("xyzzy frobulate the quux")
@@ -40,7 +40,7 @@ class TestCopilotEngine:
         assert len(response) > 0
 
     def test_chat_status_intent(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine()
         response = engine.chat("what is the current status")
@@ -48,7 +48,7 @@ class TestCopilotEngine:
         assert len(response) > 0
 
     def test_chat_with_llm_calls_text_model(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         mock_model = MagicMock()
         mock_model.generate.return_value = "I can organise your files."
@@ -62,7 +62,7 @@ class TestCopilotEngine:
         assert len(call_prompt) > 0
 
     def test_chat_llm_exception_falls_back_to_template(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         mock_model = MagicMock()
         mock_model.generate.side_effect = RuntimeError("Ollama unavailable")
@@ -74,7 +74,7 @@ class TestCopilotEngine:
         assert len(response) > 0
 
     def test_session_property_tracks_messages(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine()
         engine.chat("hello")
@@ -82,7 +82,7 @@ class TestCopilotEngine:
         assert len(engine.session.messages) == 4
 
     def test_conversation_property_accessible(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine()
         engine.chat("hello")
@@ -90,7 +90,7 @@ class TestCopilotEngine:
         assert conv is not None
 
     def test_reset_clears_conversation_and_session(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine()
         engine.chat("first message")
@@ -102,7 +102,7 @@ class TestCopilotEngine:
         assert engine.conversation.get_context_string() == ""
 
     def test_multiple_turns_builds_context(self) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine()
         engine.chat("Hello")
@@ -111,13 +111,13 @@ class TestCopilotEngine:
         assert len(engine.session.messages) == 6
 
     def test_working_directory_stored_in_session(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine(working_directory=str(tmp_path))
         assert engine.session.working_directory == str(tmp_path)
 
     def test_chat_with_organise_intent(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine(working_directory=str(tmp_path))
         response = engine.chat(f"organise files in {tmp_path}")
@@ -125,7 +125,7 @@ class TestCopilotEngine:
         assert len(response) > 0
 
     def test_find_intent_without_retriever(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.engine import CopilotEngine
+        from services.copilot.engine import CopilotEngine
 
         engine = CopilotEngine(working_directory=str(tmp_path))
         response = engine.chat("find my tax documents")
@@ -140,7 +140,7 @@ class TestCopilotEngine:
 
 class TestAnalyticsService:
     def _make_service(self):
-        from file_organizer.services.analytics.analytics_service import AnalyticsService
+        from services.analytics.analytics_service import AnalyticsService
 
         return AnalyticsService()
 
@@ -153,7 +153,7 @@ class TestAnalyticsService:
         (sub / "archive.zip").write_bytes(b"zip data " * 50)
 
     def test_get_storage_stats_returns_storage_stats(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import StorageStats
+        from models.analytics import StorageStats
 
         self._populate_dir(tmp_path)
         svc = self._make_service()
@@ -163,7 +163,7 @@ class TestAnalyticsService:
         assert stats.total_size > 0
 
     def test_get_storage_stats_empty_dir(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import StorageStats
+        from models.analytics import StorageStats
 
         svc = self._make_service()
         stats = svc.get_storage_stats(tmp_path)
@@ -172,7 +172,7 @@ class TestAnalyticsService:
         assert stats.total_size == 0
 
     def test_get_duplicate_stats_no_duplicates(self) -> None:
-        from file_organizer.models.analytics import DuplicateStats
+        from models.analytics import DuplicateStats
 
         svc = self._make_service()
         result = svc.get_duplicate_stats([], total_size=1000)
@@ -182,7 +182,7 @@ class TestAnalyticsService:
         assert result.space_wasted == 0
 
     def test_get_duplicate_stats_with_duplicates(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import DuplicateStats
+        from models.analytics import DuplicateStats
 
         f1 = tmp_path / "file_a.txt"
         f2 = tmp_path / "file_b.txt"
@@ -198,7 +198,7 @@ class TestAnalyticsService:
         assert result.space_wasted > 0
 
     def test_generate_dashboard_returns_dashboard(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import AnalyticsDashboard
+        from models.analytics import AnalyticsDashboard
 
         self._populate_dir(tmp_path)
         svc = self._make_service()
@@ -209,7 +209,7 @@ class TestAnalyticsService:
         assert dashboard.generated_at is not None
 
     def test_generate_dashboard_duplicate_groups_propagated(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import AnalyticsDashboard
+        from models.analytics import AnalyticsDashboard
 
         f1 = tmp_path / "copy_a.txt"
         f2 = tmp_path / "copy_b.txt"
@@ -223,7 +223,7 @@ class TestAnalyticsService:
         assert dashboard.duplicate_stats.duplicate_groups == 1
 
     def test_get_quality_metrics_returns_quality_metrics(self, tmp_path: Path) -> None:
-        from file_organizer.models.analytics import QualityMetrics
+        from models.analytics import QualityMetrics
 
         self._populate_dir(tmp_path)
         svc = self._make_service()
@@ -231,7 +231,7 @@ class TestAnalyticsService:
         assert isinstance(metrics, QualityMetrics)
 
     def test_calculate_time_saved_returns_time_savings(self) -> None:
-        from file_organizer.models.analytics import TimeSavings
+        from models.analytics import TimeSavings
 
         svc = self._make_service()
         result = svc.calculate_time_saved(total_files=100, duplicates_removed=10)

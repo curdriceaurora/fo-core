@@ -110,7 +110,7 @@ repos:
           CHANGED=$(git diff --cached --name-only -- "src/**/*.py" "src/*.py")
           if [ -z "$CHANGED" ]; then exit 0; fi
           MERGE_BASE=$(git merge-base HEAD origin/main 2>/dev/null || echo HEAD~1)
-          pytest tests/ -q --override-ini="addopts=" --cov=file_organizer --cov-report=xml:coverage.xml --no-header 2>/dev/null
+          pytest tests/ -q --override-ini="addopts=" --cov=src --cov-report=xml:coverage.xml --no-header 2>/dev/null
           diff-cover coverage.xml --compare-branch="$MERGE_BASE" --fail-under=80 --quiet
           '
         language: system
@@ -127,13 +127,13 @@ repos:
         pass_filenames: false
 
       # ----------------------------------------------------------------
-      # Strict mypy gate: all source packages (src/)
+      # Strict mypy gate: all source packages
       # ----------------------------------------------------------------
       - id: mypy-changed
-        name: mypy (all source — strict mode)
+        name: mypy (all source packages)
         entry: bash scripts/run-mypy-changed.sh
         language: system
-        files: ^src/file_organizer/.*\.py$
+        files: ^src/.*\.py$
         pass_filenames: true
 
       # ----------------------------------------------------------------
@@ -167,7 +167,7 @@ repos:
         name: search corpus safety (S1/S2)
         entry: bash -c "pytest tests/ci/test_search_code_quality.py -k 'symlink or hidden' -q --override-ini='addopts='"
         language: system
-        files: ^src/file_organizer/services/search/
+        files: ^src/services/search/
         pass_filenames: false
 
       # ----------------------------------------------------------------
@@ -179,7 +179,7 @@ repos:
         name: T10 predicate negative-case coverage
         entry: python .claude/scripts/check_predicate_negative_coverage.py
         language: system
-        files: ^(src/file_organizer/review_regressions/|tests/unit/review_regressions/test_)
+        files: ^(src/review_regressions/|tests/unit/review_regressions/test_)
         pass_filenames: true
 
       # ----------------------------------------------------------------
@@ -209,6 +209,6 @@ repos:
             docs/testing/|
             docs/developer/testing\.md|
             \.github/copilot-instructions\.md|
-            src/file_organizer/services/deduplication/README_IMAGE_DEDUP\.md|
+            src/services/deduplication/README_IMAGE_DEDUP\.md|
             tests/fixtures/
           )

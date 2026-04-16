@@ -2,14 +2,14 @@
 
 ## Overview
 
-This guide walks you through migrating your existing folder structure to the Johnny Decimal system using File Organizer v2.0's automated migration tools.
+This guide walks you through migrating your existing folder structure to the Johnny Decimal system using fo-core's automated migration tools.
 
 ## Before You Begin
 
 ### Prerequisites
 
 1. **Python 3.12+** installed
-2. **File Organizer v2.0** installed
+2. **fo-core** installed
 3. **Backup** of your files (migration tool creates backups, but better safe than sorry)
 4. **Time** to plan your structure (30-60 minutes)
 5. **Review permissions** on folders you want to migrate
@@ -31,7 +31,7 @@ First, analyze your existing folder structure:
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import FolderScanner
+from methodologies.johnny_decimal import FolderScanner
 
 # Initialize scanner
 scanner = FolderScanner()
@@ -61,7 +61,7 @@ Detected patterns: ['PARA methodology detected', 'Deep hierarchical structure']
 Create a configuration that matches your needs:
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     JohnnyDecimalConfig,
     ConfigBuilder,
 )
@@ -85,7 +85,7 @@ config = (
 )
 
 # Option C: PARA-compatible configuration
-from file_organizer.methodologies.johnny_decimal import create_para_compatible_config
+from methodologies.johnny_decimal import create_para_compatible_config
 config = create_para_compatible_config()
 ```
 
@@ -94,7 +94,7 @@ config = create_para_compatible_config()
 Generate a detailed migration plan:
 
 ```python
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalMigrator
+from methodologies.johnny_decimal import JohnnyDecimalMigrator
 
 # Initialize migrator with configuration
 migrator = JohnnyDecimalMigrator(
@@ -258,7 +258,7 @@ result = migrator.execute_migration(plan, dry_run=False)
 If you're using PARA, use the compatibility layer:
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     create_para_compatible_config,
     PARAJohnnyDecimalBridge,
 )
@@ -473,7 +473,7 @@ for path in result.skipped_paths:
 
 ```python
 from pathlib import Path
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalMigrator
+from methodologies.johnny_decimal import JohnnyDecimalMigrator
 
 # Simple migration with defaults
 migrator = JohnnyDecimalMigrator()
@@ -489,7 +489,7 @@ print(f"Done! Transformed {result.transformed_count} folders")
 ### Example 2: PARA Migration
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     create_para_compatible_config,
     JohnnyDecimalMigrator,
 )
@@ -512,7 +512,7 @@ result = migrator.execute_migration(plan, dry_run=False)
 ### Example 3: Custom Structure with Validation
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     ConfigBuilder,
     JohnnyDecimalMigrator,
 )

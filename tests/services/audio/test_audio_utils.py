@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.audio.utils import (
+from services.audio.utils import (
     calculate_audio_checksum,
     convert_audio_format,
     detect_silence_segments,
@@ -270,20 +270,20 @@ class TestValidateAudioFile:
         assert "Unsupported" in msg
 
     def test_valid_file(self, audio_file):
-        with patch("file_organizer.services.audio.utils.get_audio_duration", return_value=5.0):
+        with patch("services.audio.utils.get_audio_duration", return_value=5.0):
             valid, msg = validate_audio_file(audio_file)
         assert valid
         assert msg is None
 
     def test_zero_duration(self, audio_file):
-        with patch("file_organizer.services.audio.utils.get_audio_duration", return_value=0.0):
+        with patch("services.audio.utils.get_audio_duration", return_value=0.0):
             valid, msg = validate_audio_file(audio_file)
         assert not valid
         assert "zero duration" in msg
 
     def test_read_error(self, audio_file):
         with patch(
-            "file_organizer.services.audio.utils.get_audio_duration",
+            "services.audio.utils.get_audio_duration",
             side_effect=RuntimeError("corrupt"),
         ):
             valid, msg = validate_audio_file(audio_file)

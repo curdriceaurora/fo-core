@@ -1,4 +1,4 @@
-"""Tests for file_organizer.cli.dedupe_hash helper module."""
+"""Tests for cli.dedupe_hash helper module."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from rich.console import Console
 
-from file_organizer.cli.dedupe_hash import (
+from cli.dedupe_hash import (
     ProgressTracker,
     create_scan_options,
     initialize_hash_detector,
@@ -83,7 +83,7 @@ class TestScanHelpers:
     def test_create_scan_options_delegates_to_services_module(self) -> None:
         sentinel = object()
         with patch(
-            "file_organizer.services.deduplication.detector.ScanOptions",
+            "services.deduplication.detector.ScanOptions",
             return_value=sentinel,
         ) as mock_options:
             result = create_scan_options(
@@ -102,7 +102,7 @@ class TestScanHelpers:
     def test_initialize_hash_detector_delegates_to_services_module(self) -> None:
         sentinel = object()
         with patch(
-            "file_organizer.services.deduplication.detector.DuplicateDetector",
+            "services.deduplication.detector.DuplicateDetector",
             return_value=sentinel,
         ) as mock_detector:
             result = initialize_hash_detector()

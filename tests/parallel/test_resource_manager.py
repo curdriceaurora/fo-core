@@ -12,7 +12,7 @@ import unittest
 
 import pytest
 
-from file_organizer.parallel.resource_manager import (
+from parallel.resource_manager import (
     ResourceConfig,
     ResourceManager,
     ResourceType,

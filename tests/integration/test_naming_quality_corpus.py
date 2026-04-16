@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.services.text_processor import TextProcessor
+from services.text_processor import TextProcessor
 
 # ---------------------------------------------------------------------------
 # Corpus: (raw_ai_output, max_words, expected_result)
@@ -67,7 +67,7 @@ class TestCleanAiGeneratedName:
         # Patch the model so no Ollama/network access is needed
         import unittest.mock as mock
 
-        with mock.patch("file_organizer.services.text_processor.get_text_model") as mock_factory:
+        with mock.patch("services.text_processor.get_text_model") as mock_factory:
             mock_factory.return_value = mock.MagicMock()
             self.processor = TextProcessor.__new__(TextProcessor)
             # Minimal initialisation — only the clean method is tested

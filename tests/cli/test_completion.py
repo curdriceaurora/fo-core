@@ -1,4 +1,4 @@
-"""Tests for file_organizer.cli.completion module.
+"""Tests for cli.completion module.
 
 Tests path auto-completion callbacks for Typer CLI arguments:
 - complete_directory: Yield directory completions
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.cli.completion import complete_directory, complete_file
+from cli.completion import complete_directory, complete_file
 
 pytestmark = [pytest.mark.unit]
 

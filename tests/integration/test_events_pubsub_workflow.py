@@ -6,11 +6,11 @@ from typing import Any
 
 import pytest
 
-from file_organizer.events.middleware import MiddlewarePipeline
-from file_organizer.events.publisher import EventPublisher
-from file_organizer.events.pubsub import PubSubManager
-from file_organizer.events.service_bus import ServiceBus
-from file_organizer.events.types import EventType
+from events.middleware import MiddlewarePipeline
+from events.publisher import EventPublisher
+from events.pubsub import PubSubManager
+from events.service_bus import ServiceBus
+from events.types import EventType
 
 pytestmark = pytest.mark.integration
 

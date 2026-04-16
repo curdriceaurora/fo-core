@@ -9,8 +9,8 @@ import pytest
 
 pytest.importorskip("rank_bm25")
 
-from file_organizer.interfaces.search import IndexProtocol
-from file_organizer.services.search.bm25_index import BM25Index, _tokenise
+from interfaces.search import IndexProtocol
+from services.search.bm25_index import BM25Index, _tokenise
 
 # ---------------------------------------------------------------------------
 # Helpers

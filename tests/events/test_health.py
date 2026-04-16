@@ -13,15 +13,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.events.discovery import ServiceDiscovery
-from file_organizer.events.health import (
+from events.discovery import ServiceDiscovery
+from events.health import (
     HealthChecker,
     HealthStatus,
     ServiceHealth,
 )
-from file_organizer.events.pubsub import PubSubManager
-from file_organizer.events.service_bus import ServiceBus, ServiceRequest
-from file_organizer.events.stream import RedisStreamManager
+from events.pubsub import PubSubManager
+from events.service_bus import ServiceBus, ServiceRequest
+from events.stream import RedisStreamManager
 
 # ------------------------------------------------------------------
 # Fixtures

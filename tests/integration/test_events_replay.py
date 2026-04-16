@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.events.replay import EventReplayManager, ReplayConfig
+from events.replay import EventReplayManager, ReplayConfig
 
 
 @pytest.fixture

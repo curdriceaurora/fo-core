@@ -14,9 +14,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType, TokenExhaustionError
-from file_organizer.models.text_model import TextModel, _GuardedIterator
-from file_organizer.models.vision_model import VisionModel
+from models.base import ModelConfig, ModelType, TokenExhaustionError
+from models.text_model import TextModel, _GuardedIterator
+from models.vision_model import VisionModel
 
 pytestmark = [pytest.mark.integration]
 
@@ -29,7 +29,7 @@ pytestmark = [pytest.mark.integration]
 def _make_text_model() -> TextModel:
     """Return an initialised TextModel with a MagicMock Ollama client."""
     config = TextModel.get_default_config("test-model")
-    with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
+    with patch("models.text_model.OLLAMA_AVAILABLE", True):
         model = TextModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -39,7 +39,7 @@ def _make_text_model() -> TextModel:
 def _make_vision_model() -> VisionModel:
     """Return an initialised VisionModel with a MagicMock Ollama client."""
     config = VisionModel.get_default_config("test-vision-model")
-    with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+    with patch("models.vision_model.OLLAMA_AVAILABLE", True):
         model = VisionModel(config)
     model._initialized = True
     model.client = MagicMock()
@@ -212,7 +212,7 @@ class TestTextModelLifecycle:
     def test_wrong_model_type_raises_value_error(self) -> None:
         config = ModelConfig(name="test", model_type=ModelType.VISION)
         with (
-            patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True),
+            patch("models.text_model.OLLAMA_AVAILABLE", True),
             pytest.raises(ValueError, match="TEXT"),
         ):
             TextModel(config)
@@ -220,7 +220,7 @@ class TestTextModelLifecycle:
     def test_ollama_not_available_raises_import_error(self) -> None:
         config = TextModel.get_default_config()
         with (
-            patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", False),
+            patch("models.text_model.OLLAMA_AVAILABLE", False),
             pytest.raises(ImportError),
         ):
             TextModel(config)
@@ -362,7 +362,7 @@ class TestVisionModelLifecycle:
     def test_wrong_model_type_raises_value_error(self) -> None:
         config = ModelConfig(name="test", model_type=ModelType.TEXT)
         with (
-            patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True),
+            patch("models.vision_model.OLLAMA_AVAILABLE", True),
             pytest.raises(ValueError, match="VISION or VIDEO"),
         ):
             VisionModel(config)
@@ -370,7 +370,7 @@ class TestVisionModelLifecycle:
     def test_ollama_not_available_raises_import_error(self) -> None:
         config = VisionModel.get_default_config()
         with (
-            patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", False),
+            patch("models.vision_model.OLLAMA_AVAILABLE", False),
             pytest.raises(ImportError),
         ):
             VisionModel(config)

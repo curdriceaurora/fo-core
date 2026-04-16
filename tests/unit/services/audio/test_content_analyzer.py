@@ -1,10 +1,10 @@
-from file_organizer.services.audio.content_analyzer import (
+from services.audio.content_analyzer import (
     AudioContentAnalyzer,
     ContentAnalysis,
     _tokenize,
 )
-from file_organizer.services.audio.metadata_extractor import AudioMetadata
-from file_organizer.services.audio.transcriber import Segment, TranscriptionResult
+from services.audio.metadata_extractor import AudioMetadata
+from services.audio.transcriber import Segment, TranscriptionResult
 
 
 def test_tokenize():

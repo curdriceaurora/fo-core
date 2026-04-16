@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 runner = CliRunner()
 
@@ -54,7 +54,7 @@ def test_autotag_suggest_help():
     assert "directory" in result.stdout.lower() or "DIRECTORY" in result.stdout
 
 
-@patch("file_organizer.services.auto_tagging.AutoTaggingService")
+@patch("services.auto_tagging.AutoTaggingService")
 def test_autotag_suggest_files(mock_service_cls, tmp_path):
     """suggest scans a directory and displays tag suggestions."""
     # Create files in tmp dir
@@ -78,7 +78,7 @@ def test_autotag_suggest_files(mock_service_cls, tmp_path):
     assert "docs" in result.stdout
 
 
-@patch("file_organizer.services.auto_tagging.AutoTaggingService")
+@patch("services.auto_tagging.AutoTaggingService")
 def test_autotag_apply_tags(mock_service_cls, tmp_path):
     """apply records tags for a file."""
     test_file = tmp_path / "report.pdf"
@@ -96,7 +96,7 @@ def test_autotag_apply_tags(mock_service_cls, tmp_path):
     assert call_args[0][1] == ["tag1", "tag2"]
 
 
-@patch("file_organizer.services.auto_tagging.AutoTaggingService")
+@patch("services.auto_tagging.AutoTaggingService")
 def test_autotag_popular_tags(mock_service_cls):
     """popular shows most-used tags."""
     mock_service = MagicMock()
@@ -109,7 +109,7 @@ def test_autotag_popular_tags(mock_service_cls):
     assert "docs" in result.stdout
 
 
-@patch("file_organizer.services.auto_tagging.AutoTaggingService")
+@patch("services.auto_tagging.AutoTaggingService")
 def test_autotag_popular_with_limit(mock_service_cls):
     """popular respects --limit flag."""
     mock_service = MagicMock()
@@ -121,7 +121,7 @@ def test_autotag_popular_with_limit(mock_service_cls):
     mock_service.get_popular_tags.assert_called_once_with(limit=5)
 
 
-@patch("file_organizer.services.auto_tagging.AutoTaggingService")
+@patch("services.auto_tagging.AutoTaggingService")
 def test_autotag_recent_tags(mock_service_cls):
     """recent shows recently used tags."""
     mock_service = MagicMock()
@@ -134,7 +134,7 @@ def test_autotag_recent_tags(mock_service_cls):
     assert "docs" in result.stdout
 
 
-@patch("file_organizer.services.auto_tagging.AutoTaggingService")
+@patch("services.auto_tagging.AutoTaggingService")
 def test_autotag_batch_mode(mock_service_cls, tmp_path):
     """batch processes all files in a directory."""
     (tmp_path / "file1.txt").write_text("hello")
@@ -161,7 +161,7 @@ def test_autotag_nonexistent_dir():
     assert result.exit_code == 1
 
 
-@patch("file_organizer.services.auto_tagging.AutoTaggingService")
+@patch("services.auto_tagging.AutoTaggingService")
 def test_autotag_json_output(mock_service_cls, tmp_path):
     """suggest --json outputs valid JSON."""
     (tmp_path / "data.csv").write_text("a,b,c\n1,2,3")

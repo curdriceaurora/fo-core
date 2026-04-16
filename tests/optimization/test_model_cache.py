@@ -8,9 +8,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import file_organizer.optimization.model_cache as _cache_mod
-from file_organizer.models.base import BaseModel, ModelConfig, ModelType
-from file_organizer.optimization.model_cache import CacheStats, ModelCache
+import optimization.model_cache as _cache_mod
+from models.base import BaseModel, ModelConfig, ModelType
+from optimization.model_cache import CacheStats, ModelCache
 
 
 def _make_mock_model(name: str = "test-model") -> MagicMock:

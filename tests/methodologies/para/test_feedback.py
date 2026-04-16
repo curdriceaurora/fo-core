@@ -11,14 +11,14 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.ai.feedback import (
+from methodologies.para.ai.feedback import (
     FeedbackCollector,
     FeedbackEvent,
     PatternLearner,
 )
-from file_organizer.methodologies.para.ai.suggestion_engine import PARASuggestion
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import HeuristicWeights
+from methodologies.para.ai.suggestion_engine import PARASuggestion
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import HeuristicWeights
 
 
 def _make_suggestion(

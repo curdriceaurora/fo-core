@@ -284,7 +284,7 @@ Best approach: Use both together!
 
 Yes! Johnny Decimal is just a naming convention, so it works on all platforms.
 
-File Organizer v2.0 supports:
+fo-core supports:
 
 - ✅ macOS
 - ✅ Linux
@@ -419,7 +419,7 @@ See [API Reference](api-reference.md) for details.
 Use the API:
 
 ```python
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalSystem
+from methodologies.johnny_decimal import JohnnyDecimalSystem
 
 system = JohnnyDecimalSystem()
 
@@ -569,15 +569,15 @@ Check:
 
 ```python
 # Create system
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalSystem
+from methodologies.johnny_decimal import JohnnyDecimalSystem
 system = JohnnyDecimalSystem()
 
 # Migrate existing
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalMigrator
+from methodologies.johnny_decimal import JohnnyDecimalMigrator
 migrator = JohnnyDecimalMigrator()
 
 # PARA integration
-from file_organizer.methodologies.johnny_decimal import create_para_compatible_config
+from methodologies.johnny_decimal import create_para_compatible_config
 config = create_para_compatible_config()
 ```
 

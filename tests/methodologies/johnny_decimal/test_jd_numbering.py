@@ -13,13 +13,13 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     CategoryDefinition,
     JohnnyDecimalNumber,
     NumberingScheme,
     get_default_scheme,
 )
-from file_organizer.methodologies.johnny_decimal.numbering import (
+from methodologies.johnny_decimal.numbering import (
     InvalidNumberError,
     JohnnyDecimalGenerator,
     NumberConflictError,

@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.events.config import EventConfig
-from file_organizer.events.stream import (
+from events.config import EventConfig
+from events.stream import (
     Event,
     RedisConnectionError,
     RedisStreamManager,
@@ -98,7 +98,7 @@ class TestParseTimestampFromIdBranches:
 class TestConnectExactArgs:
     """Verifies connect() calls Redis.from_url with correct keyword args."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_connect_uses_configured_url(self, mock_redis_mod: MagicMock):
         """connect() calls Redis.from_url with the URL from EventConfig."""
         mock_client = MagicMock()
@@ -115,7 +115,7 @@ class TestConnectExactArgs:
             socket_timeout=5,
         )
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_connect_override_url_used_not_config_url(self, mock_redis_mod: MagicMock):
         """An explicit URL passed to connect() overrides the EventConfig URL."""
         mock_client = MagicMock()
@@ -132,7 +132,7 @@ class TestConnectExactArgs:
             socket_timeout=5,
         )
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_connect_sets_is_connected_true_on_success(self, mock_redis_mod: MagicMock):
         """is_connected transitions from False to True after a successful connect()."""
         mock_client = MagicMock()
@@ -144,7 +144,7 @@ class TestConnectExactArgs:
         manager.connect()
         assert manager.is_connected is True
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_connect_failure_clears_redis_attribute(self, mock_redis_mod: MagicMock):
         """A failed connect() leaves _redis as None and is_connected as False."""
         mock_redis_mod.Redis.from_url.side_effect = RuntimeError("refused")
@@ -163,7 +163,7 @@ class TestConnectExactArgs:
 class TestPublishNoMaxlenBranch:
     """Covers the branch where max_stream_length is None — no maxlen kwarg added."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_no_maxlen_kwarg_when_config_none(self, mock_redis_mod: MagicMock):
         """When max_stream_length is None, xadd is called without maxlen or approximate kwargs."""
         config = EventConfig(max_stream_length=None)
@@ -181,7 +181,7 @@ class TestPublishNoMaxlenBranch:
         assert "maxlen" not in call_kwargs
         assert "approximate" not in call_kwargs
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_with_explicit_max_len_overrides_none_config(self, mock_redis_mod: MagicMock):
         """Passing max_len to publish() adds maxlen to xadd even when config is None."""
         config = EventConfig(max_stream_length=None)
@@ -199,7 +199,7 @@ class TestPublishNoMaxlenBranch:
         assert call_kwargs["maxlen"] == 250
         assert call_kwargs["approximate"] is True
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_publish_stream_name_prefixed_exactly(self, mock_redis_mod: MagicMock):
         """The xadd name argument is the stream_prefix joined to the stream name."""
         config = EventConfig(stream_prefix="myns", max_stream_length=None)
@@ -479,7 +479,7 @@ class TestSubscribeAsyncGenerator:
         events = asyncio.get_event_loop().run_until_complete(collect())
         assert events == []
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_subscribe_yields_events_then_stops(self, mock_redis_mod: MagicMock):
         """subscribe() yields events from read_group until disconnected.
 
@@ -520,7 +520,7 @@ class TestSubscribeAsyncGenerator:
         assert seen[0].id == "1700000000000-0"
         assert seen[0].data == {"event_type": "file.created"}
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_subscribe_calls_create_consumer_group_before_reading(self, mock_redis_mod: MagicMock):
         """subscribe() must call create_consumer_group before starting the read loop."""
         mock_client = MagicMock()
@@ -556,7 +556,7 @@ class TestSubscribeAsyncGenerator:
         assert call_order[0] == "group_create"
         assert "xreadgroup" in call_order
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_subscribe_with_custom_consumer_name(self, mock_redis_mod: MagicMock):
         """subscribe() forwards a custom consumer_name to the xreadgroup call."""
         mock_client = MagicMock()
@@ -727,7 +727,7 @@ class TestSubscribeAsyncGenerator:
 class TestReprConnectedState:
     """repr() reflects connected state accurately."""
 
-    @patch("file_organizer.events.stream.redis")
+    @patch("events.stream.redis")
     def test_repr_shows_connected_true_when_connected(self, mock_redis_mod: MagicMock):
         """repr() includes connected=True and the Redis URL after a successful connect."""
         mock_client = MagicMock()

@@ -2,7 +2,7 @@ import pytest
 from datetime import datetime, UTC
 from pathlib import Path
 
-from file_organizer.services.intelligence.preference_tracker import (
+from services.intelligence.preference_tracker import (
     PreferenceTracker,
     PreferenceType,
     CorrectionType,

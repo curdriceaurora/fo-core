@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.integration]
 
@@ -27,13 +27,13 @@ class TestRulesList:
         mock_rs = MagicMock()
         mock_rs.rules = []
         mock_mgr.load_rule_set.return_value = mock_rs
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "list"])
         assert result.exit_code == 0
         assert "no rules" in result.output.lower()
 
     def test_rules_list_shows_rules(self) -> None:
-        from file_organizer.services.copilot.rules.models import (
+        from services.copilot.rules.models import (
             ActionType,
             ConditionType,
             Rule,
@@ -52,7 +52,7 @@ class TestRulesList:
         mock_rs = MagicMock()
         mock_rs.rules = [rule]
         mock_mgr.load_rule_set.return_value = mock_rs
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "list"])
         assert result.exit_code == 0
         assert "pdf-archive" in result.output
@@ -62,7 +62,7 @@ class TestRulesList:
         mock_rs = MagicMock()
         mock_rs.rules = []
         mock_mgr.load_rule_set.return_value = mock_rs
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "list", "--set", "work-rules"])
         assert result.exit_code == 0
         mock_mgr.load_rule_set.assert_called_once_with("work-rules")
@@ -72,7 +72,7 @@ class TestRulesSets:
     def test_rules_sets_empty(self) -> None:
         mock_mgr = MagicMock()
         mock_mgr.list_rule_sets.return_value = []
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "sets"])
         assert result.exit_code == 0
         assert "no rule sets" in result.output.lower() or "rules add" in result.output.lower()
@@ -80,7 +80,7 @@ class TestRulesSets:
     def test_rules_sets_shows_names(self) -> None:
         mock_mgr = MagicMock()
         mock_mgr.list_rule_sets.return_value = ["default", "archive", "work"]
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "sets"])
         assert result.exit_code == 0
         assert "default" in result.output
@@ -90,8 +90,8 @@ class TestRulesSets:
 
 
 _RULE_MGR_PATCHES = (
-    "file_organizer.services.copilot.rules.RuleManager",
-    "file_organizer.services.copilot.rules.rule_manager.RuleManager",
+    "services.copilot.rules.RuleManager",
+    "services.copilot.rules.rule_manager.RuleManager",
 )
 
 
@@ -186,7 +186,7 @@ class TestRulesRemove:
     def test_rules_remove_found(self) -> None:
         mock_mgr = MagicMock()
         mock_mgr.remove_rule.return_value = True
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "remove", "my-rule"])
         assert result.exit_code == 0
         assert "removed" in result.output.lower()
@@ -195,7 +195,7 @@ class TestRulesRemove:
     def test_rules_remove_not_found(self) -> None:
         mock_mgr = MagicMock()
         mock_mgr.remove_rule.return_value = False
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "remove", "ghost"])
         assert result.exit_code == 0
         assert "not found" in result.output.lower()
@@ -205,7 +205,7 @@ class TestRulesToggle:
     def test_rules_toggle_to_enabled(self) -> None:
         mock_mgr = MagicMock()
         mock_mgr.toggle_rule.return_value = True
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "toggle", "my-rule"])
         assert result.exit_code == 0
         assert "enabled" in result.output.lower()
@@ -213,7 +213,7 @@ class TestRulesToggle:
     def test_rules_toggle_to_disabled(self) -> None:
         mock_mgr = MagicMock()
         mock_mgr.toggle_rule.return_value = False
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "toggle", "my-rule"])
         assert result.exit_code == 0
         assert "disabled" in result.output.lower()
@@ -221,7 +221,7 @@ class TestRulesToggle:
     def test_rules_toggle_not_found(self) -> None:
         mock_mgr = MagicMock()
         mock_mgr.toggle_rule.return_value = None
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "toggle", "ghost"])
         assert result.exit_code == 0
         assert "not found" in result.output.lower()
@@ -233,13 +233,13 @@ class TestRulesPreview:
         mock_rs = MagicMock()
         mock_rs.enabled_rules = []
         mock_mgr.load_rule_set.return_value = mock_rs
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "preview", str(tmp_path)])
         assert result.exit_code == 0
         assert "no enabled rules" in result.output.lower()
 
     def test_rules_preview_with_matches(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.models import (
+        from services.copilot.rules.models import (
             ActionType,
             ConditionType,
             Rule,
@@ -268,9 +268,9 @@ class TestRulesPreview:
         mock_preview_engine.preview.return_value = mock_result
 
         with (
-            patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr),
+            patch("services.copilot.rules.RuleManager", return_value=mock_mgr),
             patch(
-                "file_organizer.services.copilot.rules.PreviewEngine",
+                "services.copilot.rules.PreviewEngine",
                 return_value=mock_preview_engine,
             ),
         ):
@@ -281,25 +281,25 @@ class TestRulesPreview:
 
 class TestRulesExportImport:
     def test_rules_export_stdout(self) -> None:
-        from file_organizer.services.copilot.rules.models import RuleSet
+        from services.copilot.rules.models import RuleSet
 
         mock_mgr = MagicMock()
         mock_rs = RuleSet(name="default", rules=[])
         mock_mgr.load_rule_set.return_value = mock_rs
 
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "export"])
         assert result.exit_code == 0
 
     def test_rules_export_to_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.copilot.rules.models import RuleSet
+        from services.copilot.rules.models import RuleSet
 
         output_file = tmp_path / "rules.yaml"
         mock_mgr = MagicMock()
         mock_rs = RuleSet(name="default", rules=[])
         mock_mgr.load_rule_set.return_value = mock_rs
 
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "export", "--output", str(output_file)])
         assert result.exit_code == 0
         assert output_file.exists()
@@ -316,7 +316,7 @@ class TestRulesExportImport:
             encoding="utf-8",
         )
         mock_mgr = MagicMock()
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(app, ["rules", "import", str(yaml_file)])
         assert result.exit_code == 0
         assert "imported" in result.output.lower()
@@ -333,7 +333,7 @@ class TestRulesExportImport:
         yaml_file = tmp_path / "rules.yaml"
         yaml_file.write_text("name: original\nrules: []\n", encoding="utf-8")
         mock_mgr = MagicMock()
-        with patch("file_organizer.services.copilot.rules.RuleManager", return_value=mock_mgr):
+        with patch("services.copilot.rules.RuleManager", return_value=mock_mgr):
             result = runner.invoke(
                 app,
                 ["rules", "import", str(yaml_file), "--set", "overridden"],

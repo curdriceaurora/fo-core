@@ -16,9 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.models import OperationStatus, OperationType
-from file_organizer.history.tracker import OperationHistory
-from file_organizer.undo.viewer import HistoryViewer
+from history.models import OperationStatus, OperationType
+from history.tracker import OperationHistory
+from undo.viewer import HistoryViewer
 
 
 @pytest.mark.unit

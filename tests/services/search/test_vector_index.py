@@ -9,8 +9,8 @@ import pytest
 
 pytest.importorskip("sklearn")
 
-from file_organizer.interfaces.search import IndexProtocol
-from file_organizer.services.search.vector_index import VectorIndex
+from interfaces.search import IndexProtocol
+from services.search.vector_index import VectorIndex
 
 # ---------------------------------------------------------------------------
 # Helpers

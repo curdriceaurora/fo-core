@@ -18,8 +18,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPTS_DIR.parents[1]
 _V2_ROOT = _SCRIPTS_DIR.parent
 _PYPROJECT_TOML = _V2_ROOT / "pyproject.toml"
-_VERSION_FILE = _V2_ROOT / "src" / "file_organizer" / "version.py"
-_INIT_FILE = _V2_ROOT / "src" / "file_organizer" / "__init__.py"
+_VERSION_FILE = _V2_ROOT / "src" / "version.py"
 _CHANGELOG = _PROJECT_ROOT / "CHANGELOG.md"
 
 
@@ -72,8 +71,8 @@ def bump_version(part: str) -> str:
 
     # Import version utilities from the package
     sys.path.insert(0, str(_V2_ROOT / "src"))
-    from file_organizer.version import bump_version as _bump
-    from file_organizer.version import parse_version
+    from version import bump_version as _bump
+    from version import parse_version
 
     current = _read_current_version_from_pyproject()
     # Strip pre-release for bumping, treating base version as the starting point
@@ -86,9 +85,6 @@ def bump_version(part: str) -> str:
 
     # Update version.py
     _update_version_py(_VERSION_FILE, new_version)
-
-    # Update __init__.py
-    _update_init_py(_INIT_FILE, new_version)
 
     return new_version
 
@@ -114,20 +110,6 @@ def _update_file_version(filepath: Path, old_version: str, new_version: str, pat
 
 def _update_version_py(filepath: Path, new_version: str) -> None:
     """Update __version__ in version.py."""
-    content = filepath.read_text()
-    updated = re.sub(
-        r'(__version__\s*=\s*")[^"]+(")',
-        rf"\g<1>{new_version}\2",
-        content,
-        count=1,
-    )
-    if updated == content:
-        raise RuntimeError(f"Failed to update __version__ in {filepath}")
-    filepath.write_text(updated)
-
-
-def _update_init_py(filepath: Path, new_version: str) -> None:
-    """Update __version__ in __init__.py."""
     content = filepath.read_text()
     updated = re.sub(
         r'(__version__\s*=\s*")[^"]+(")',
@@ -251,7 +233,7 @@ def create_release_notes(version: str, changelog: str) -> str:
 ## Installation
 
 ```bash
-pip install local-file-organizer=={version}
+pip install fo-core=={version}
 ```
 
 ## Full Changelog
@@ -312,17 +294,6 @@ def validate_release() -> list[str]:
         else:
             errors.append("Could not read version from version.py")
 
-        # Check __init__.py
-        init_content = _INIT_FILE.read_text()
-        init_match = re.search(r'__version__\s*=\s*"([^"]+)"', init_content)
-        if init_match:
-            init_ver = init_match.group(1)
-            if init_ver != pyproject_version:
-                errors.append(
-                    f"Version mismatch: pyproject.toml={pyproject_version}, __init__.py={init_ver}"
-                )
-        else:
-            errors.append("Could not read version from __init__.py")
     except (RuntimeError, FileNotFoundError) as exc:
         errors.append(f"Version check failed: {exc}")
 

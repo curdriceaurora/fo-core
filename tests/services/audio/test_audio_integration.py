@@ -13,21 +13,21 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.audio.classifier import (
+from services.audio.classifier import (
     AudioClassifier,
     AudioType,
     ClassificationResult,
 )
-from file_organizer.services.audio.content_analyzer import (
+from services.audio.content_analyzer import (
     AudioContentAnalyzer,
     ContentAnalysis,
 )
-from file_organizer.services.audio.metadata_extractor import AudioMetadata
-from file_organizer.services.audio.organizer import (
+from services.audio.metadata_extractor import AudioMetadata
+from services.audio.organizer import (
     AudioOrganizer,
     OrganizationRules,
 )
-from file_organizer.services.audio.transcriber import (
+from services.audio.transcriber import (
     Segment,
     TranscriptionOptions,
     TranscriptionResult,

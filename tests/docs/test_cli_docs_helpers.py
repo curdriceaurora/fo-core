@@ -49,7 +49,7 @@ class TestCommandIsDocumented:
         assert _command_is_documented(doc, "autotag suggest") is True
 
     def test_usage_pattern(self) -> None:
-        doc = "```\nfile-organizer organize INPUT_DIR OUTPUT_DIR\n```\n"
+        doc = "```\nfo organize INPUT_DIR OUTPUT_DIR\n```\n"
         assert _command_is_documented(doc, "organize") is True
 
     def test_table_row_with_leading_spaces(self) -> None:
@@ -81,7 +81,7 @@ class TestCommandIsDocumented:
         """Table cell without leading pipe should not match table pattern."""
         doc = "`organize` | Organizes files |\n"
         # No leading |, so table_pattern won't match. But check usage/header too.
-        # This should NOT match because there's no header and no 'file-organizer' usage.
+        # This should NOT match because there's no header and no 'fo' usage.
         assert _command_is_documented(doc, "organize") is False
 
 

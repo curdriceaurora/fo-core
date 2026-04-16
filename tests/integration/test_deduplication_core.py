@@ -28,11 +28,9 @@ class TestDocumentExtractor:
     """Tests for DocumentExtractor (extractor.py)."""
 
     def _make_extractor(self) -> Any:
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+        from services.deduplication.extractor import DocumentExtractor
 
-        with patch(
-            "file_organizer.services.deduplication.extractor.DocumentExtractor._check_dependencies"
-        ):
+        with patch("services.deduplication.extractor.DocumentExtractor._check_dependencies"):
             return DocumentExtractor()
 
     def test_supported_formats_populated(self) -> None:
@@ -234,20 +232,14 @@ class TestImageDeduplicator:
         pytest.importorskip("PIL")
 
     def _make_deduplicator(self, method: str = "phash", threshold: int = 10) -> Any:
-        from file_organizer.services.deduplication.image_dedup import ImageDeduplicator
+        from services.deduplication.image_dedup import ImageDeduplicator
 
         mock_hasher = MagicMock()
         with (
-            patch(
-                "file_organizer.services.deduplication.image_dedup.PHash", return_value=mock_hasher
-            ),
-            patch(
-                "file_organizer.services.deduplication.image_dedup.DHash", return_value=mock_hasher
-            ),
-            patch(
-                "file_organizer.services.deduplication.image_dedup.AHash", return_value=mock_hasher
-            ),
-            patch("file_organizer.services.deduplication.image_dedup._IMAGEDEDUP_AVAILABLE", True),
+            patch("services.deduplication.image_dedup.PHash", return_value=mock_hasher),
+            patch("services.deduplication.image_dedup.DHash", return_value=mock_hasher),
+            patch("services.deduplication.image_dedup.AHash", return_value=mock_hasher),
+            patch("services.deduplication.image_dedup._IMAGEDEDUP_AVAILABLE", True),
         ):
             dedup = ImageDeduplicator(hash_method=method, threshold=threshold)
             dedup.hasher = mock_hasher
@@ -267,31 +259,29 @@ class TestImageDeduplicator:
         assert dedup.hash_method == "ahash"
 
     def test_init_invalid_method_raises(self) -> None:
-        from file_organizer.services.deduplication.image_dedup import ImageDeduplicator
+        from services.deduplication.image_dedup import ImageDeduplicator
 
         with (
-            patch("file_organizer.services.deduplication.image_dedup._IMAGEDEDUP_AVAILABLE", True),
-            patch("file_organizer.services.deduplication.image_dedup.PHash"),
+            patch("services.deduplication.image_dedup._IMAGEDEDUP_AVAILABLE", True),
+            patch("services.deduplication.image_dedup.PHash"),
         ):
             with pytest.raises(ValueError, match="Unsupported hash method"):
                 ImageDeduplicator(hash_method="whash")
 
     def test_init_invalid_threshold_raises(self) -> None:
-        from file_organizer.services.deduplication.image_dedup import ImageDeduplicator
+        from services.deduplication.image_dedup import ImageDeduplicator
 
         with (
-            patch("file_organizer.services.deduplication.image_dedup._IMAGEDEDUP_AVAILABLE", True),
-            patch("file_organizer.services.deduplication.image_dedup.PHash"),
+            patch("services.deduplication.image_dedup._IMAGEDEDUP_AVAILABLE", True),
+            patch("services.deduplication.image_dedup.PHash"),
         ):
             with pytest.raises(ValueError, match="Threshold must be between"):
                 ImageDeduplicator(hash_method="phash", threshold=100)
 
     def test_init_imagededup_not_available_raises(self) -> None:
-        from file_organizer.services.deduplication.image_dedup import ImageDeduplicator
+        from services.deduplication.image_dedup import ImageDeduplicator
 
-        with patch(
-            "file_organizer.services.deduplication.image_dedup._IMAGEDEDUP_AVAILABLE", False
-        ):
+        with patch("services.deduplication.image_dedup._IMAGEDEDUP_AVAILABLE", False):
             with pytest.raises(ImportError, match="imagededup is required"):
                 ImageDeduplicator()
 
@@ -492,7 +482,7 @@ class TestSemanticAnalyzer:
     """Tests for SemanticAnalyzer (semantic.py)."""
 
     def _make_analyzer(self, threshold: float = 0.85) -> Any:
-        from file_organizer.services.deduplication.semantic import SemanticAnalyzer
+        from services.deduplication.semantic import SemanticAnalyzer
 
         return SemanticAnalyzer(threshold=threshold)
 
@@ -501,13 +491,13 @@ class TestSemanticAnalyzer:
         assert analyzer.threshold == 0.7
 
     def test_init_invalid_threshold_low(self) -> None:
-        from file_organizer.services.deduplication.semantic import SemanticAnalyzer
+        from services.deduplication.semantic import SemanticAnalyzer
 
         with pytest.raises(ValueError, match="Threshold must be between 0 and 1"):
             SemanticAnalyzer(threshold=-0.1)
 
     def test_init_invalid_threshold_high(self) -> None:
-        from file_organizer.services.deduplication.semantic import SemanticAnalyzer
+        from services.deduplication.semantic import SemanticAnalyzer
 
         with pytest.raises(ValueError, match="Threshold must be between 0 and 1"):
             SemanticAnalyzer(threshold=1.5)
@@ -679,7 +669,7 @@ class TestBackupManager:
     """Tests for BackupManager (backup.py)."""
 
     def _make_manager(self, tmp_path: Path) -> Any:
-        from file_organizer.services.deduplication.backup import BackupManager
+        from services.deduplication.backup import BackupManager
 
         return BackupManager(base_dir=tmp_path)
 
@@ -872,24 +862,24 @@ class TestImageUtils:
         return path
 
     def test_supported_formats_constant(self) -> None:
-        from file_organizer.services.deduplication.image_utils import SUPPORTED_FORMATS
+        from services.deduplication.image_utils import SUPPORTED_FORMATS
 
         assert ".jpg" in SUPPORTED_FORMATS
         assert ".png" in SUPPORTED_FORMATS
         assert len(SUPPORTED_FORMATS) >= 5
 
     def test_is_supported_format_jpg(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import is_supported_format
+        from services.deduplication.image_utils import is_supported_format
 
         assert is_supported_format(tmp_path / "img.jpg") is True
 
     def test_is_supported_format_txt_false(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import is_supported_format
+        from services.deduplication.image_utils import is_supported_format
 
         assert is_supported_format(tmp_path / "doc.txt") is False
 
     def test_get_image_metadata_valid_png(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_metadata
+        from services.deduplication.image_utils import get_image_metadata
 
         f = self._make_real_png(tmp_path / "img.png")
         meta = get_image_metadata(f)
@@ -899,13 +889,13 @@ class TestImageUtils:
         assert meta.resolution == 600
 
     def test_get_image_metadata_missing_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_metadata
+        from services.deduplication.image_utils import get_image_metadata
 
         result = get_image_metadata(tmp_path / "ghost.png")
         assert result is None
 
     def test_get_image_metadata_to_dict(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_metadata
+        from services.deduplication.image_utils import get_image_metadata
 
         f = self._make_real_png(tmp_path / "img.png")
         meta = get_image_metadata(f)
@@ -917,7 +907,7 @@ class TestImageUtils:
         assert d["width"] == 20
 
     def test_image_metadata_repr(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_metadata
+        from services.deduplication.image_utils import get_image_metadata
 
         f = self._make_real_png(tmp_path / "img.png")
         meta = get_image_metadata(f)
@@ -927,7 +917,7 @@ class TestImageUtils:
         assert "img.png" in r
 
     def test_get_image_dimensions_valid(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_dimensions
+        from services.deduplication.image_utils import get_image_dimensions
 
         f = self._make_real_png(tmp_path / "dim.png")
         dims = get_image_dimensions(f)
@@ -935,7 +925,7 @@ class TestImageUtils:
         assert dims == (20, 30)
 
     def test_get_image_dimensions_invalid(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_dimensions
+        from services.deduplication.image_utils import get_image_dimensions
 
         f = tmp_path / "bad.jpg"
         f.write_bytes(b"not an image")
@@ -943,14 +933,14 @@ class TestImageUtils:
         assert result is None
 
     def test_get_image_format_valid(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_format
+        from services.deduplication.image_utils import get_image_format
 
         f = self._make_real_png(tmp_path / "fmt.png")
         fmt = get_image_format(f)
         assert fmt == "PNG"
 
     def test_get_image_format_invalid(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_format
+        from services.deduplication.image_utils import get_image_format
 
         f = tmp_path / "bad.jpg"
         f.write_bytes(b"corrupt")
@@ -958,7 +948,7 @@ class TestImageUtils:
         assert result is None
 
     def test_validate_image_file_valid(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import validate_image_file
+        from services.deduplication.image_utils import validate_image_file
 
         f = self._make_real_png(tmp_path / "valid.png")
         valid, err = validate_image_file(f)
@@ -966,14 +956,14 @@ class TestImageUtils:
         assert err is None
 
     def test_validate_image_file_missing(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import validate_image_file
+        from services.deduplication.image_utils import validate_image_file
 
         valid, err = validate_image_file(tmp_path / "missing.png")
         assert valid is False
         assert err is not None
 
     def test_validate_image_file_corrupt(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import validate_image_file
+        from services.deduplication.image_utils import validate_image_file
 
         f = tmp_path / "corrupt.jpg"
         f.write_bytes(b"\xff\xd8\xff garbage")
@@ -982,7 +972,7 @@ class TestImageUtils:
         assert err is not None
 
     def test_validate_image_file_unsupported_ext(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import validate_image_file
+        from services.deduplication.image_utils import validate_image_file
 
         f = tmp_path / "doc.xyz"
         f.write_text("not image")
@@ -991,14 +981,14 @@ class TestImageUtils:
         assert "Unsupported" in (err or "")
 
     def test_filter_valid_images_empty_list(self) -> None:
-        from file_organizer.services.deduplication.image_utils import filter_valid_images
+        from services.deduplication.image_utils import filter_valid_images
 
         result = filter_valid_images([])
         assert isinstance(result, list)
         assert len(result) == 0
 
     def test_filter_valid_images_mixed(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import filter_valid_images
+        from services.deduplication.image_utils import filter_valid_images
 
         valid_f = self._make_real_png(tmp_path / "good.png")
         bad_f = tmp_path / "bad.png"
@@ -1008,13 +998,13 @@ class TestImageUtils:
         assert bad_f not in result
 
     def test_find_images_in_directory_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import find_images_in_directory
+        from services.deduplication.image_utils import find_images_in_directory
 
         with pytest.raises(FileNotFoundError):
             find_images_in_directory(tmp_path / "nonexistent")
 
     def test_find_images_in_directory_not_a_dir(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import find_images_in_directory
+        from services.deduplication.image_utils import find_images_in_directory
 
         f = tmp_path / "file.txt"
         f.write_text("x")
@@ -1022,7 +1012,7 @@ class TestImageUtils:
             find_images_in_directory(f)
 
     def test_find_images_in_directory_finds_pngs(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import find_images_in_directory
+        from services.deduplication.image_utils import find_images_in_directory
 
         self._make_real_png(tmp_path / "img1.png")
         self._make_real_png(tmp_path / "img2.png")
@@ -1030,7 +1020,7 @@ class TestImageUtils:
         assert len(result) == 2
 
     def test_find_images_non_recursive_excludes_subdirs(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import find_images_in_directory
+        from services.deduplication.image_utils import find_images_in_directory
 
         sub = tmp_path / "sub"
         sub.mkdir()
@@ -1042,7 +1032,7 @@ class TestImageUtils:
         assert "nested.png" not in names
 
     def test_group_images_by_format(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import group_images_by_format
+        from services.deduplication.image_utils import group_images_by_format
 
         imgs = [tmp_path / "a.jpg", tmp_path / "b.png", tmp_path / "c.jpg"]
         groups = group_images_by_format(imgs)
@@ -1051,19 +1041,19 @@ class TestImageUtils:
         assert len(groups[".jpg"]) == 2
 
     def test_get_format_quality_score_png(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_format_quality_score
+        from services.deduplication.image_utils import get_format_quality_score
 
         score = get_format_quality_score(tmp_path / "img.png")
         assert score == 5
 
     def test_get_format_quality_score_jpg(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_format_quality_score
+        from services.deduplication.image_utils import get_format_quality_score
 
         score = get_format_quality_score(tmp_path / "img.jpg")
         assert score == 2
 
     def test_get_format_quality_score_unknown(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_format_quality_score
+        from services.deduplication.image_utils import get_format_quality_score
 
         score = get_format_quality_score(tmp_path / "img.xyz")
         assert score == 0
@@ -1071,7 +1061,7 @@ class TestImageUtils:
     def test_compare_image_quality_higher_resolution_wins(self, tmp_path: Path) -> None:
         from PIL import Image as PILImage
 
-        from file_organizer.services.deduplication.image_utils import compare_image_quality
+        from services.deduplication.image_utils import compare_image_quality
 
         big = tmp_path / "big.png"
         small = tmp_path / "small.png"
@@ -1083,7 +1073,7 @@ class TestImageUtils:
     def test_compare_image_quality_equal(self, tmp_path: Path) -> None:
         from PIL import Image as PILImage
 
-        from file_organizer.services.deduplication.image_utils import compare_image_quality
+        from services.deduplication.image_utils import compare_image_quality
 
         img1 = tmp_path / "img1.png"
         img2 = tmp_path / "img2.png"
@@ -1095,7 +1085,7 @@ class TestImageUtils:
     def test_get_best_quality_image_from_list(self, tmp_path: Path) -> None:
         from PIL import Image as PILImage
 
-        from file_organizer.services.deduplication.image_utils import get_best_quality_image
+        from services.deduplication.image_utils import get_best_quality_image
 
         big = tmp_path / "big.png"
         small = tmp_path / "small.png"
@@ -1105,32 +1095,32 @@ class TestImageUtils:
         assert best == big
 
     def test_get_best_quality_image_empty_list(self) -> None:
-        from file_organizer.services.deduplication.image_utils import get_best_quality_image
+        from services.deduplication.image_utils import get_best_quality_image
 
         result = get_best_quality_image([])
         assert result is None
 
     def test_format_file_size_bytes(self) -> None:
-        from file_organizer.services.deduplication.image_utils import format_file_size
+        from services.deduplication.image_utils import format_file_size
 
         result = format_file_size(512)
         assert "512" in result
         assert "B" in result
 
     def test_format_file_size_kilobytes(self) -> None:
-        from file_organizer.services.deduplication.image_utils import format_file_size
+        from services.deduplication.image_utils import format_file_size
 
         result = format_file_size(2048)
         assert "KB" in result
 
     def test_format_file_size_megabytes(self) -> None:
-        from file_organizer.services.deduplication.image_utils import format_file_size
+        from services.deduplication.image_utils import format_file_size
 
         result = format_file_size(2 * 1024 * 1024)
         assert "MB" in result
 
     def test_get_image_info_string_valid(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_info_string
+        from services.deduplication.image_utils import get_image_info_string
 
         f = self._make_real_png(tmp_path / "info.png")
         result = get_image_info_string(f)
@@ -1138,7 +1128,7 @@ class TestImageUtils:
         assert "20x30" in result
 
     def test_get_image_info_string_invalid(self, tmp_path: Path) -> None:
-        from file_organizer.services.deduplication.image_utils import get_image_info_string
+        from services.deduplication.image_utils import get_image_info_string
 
         f = tmp_path / "bad.png"
         f.write_bytes(b"garbage")
@@ -1156,7 +1146,7 @@ class TestConfidenceScorer:
     """Tests for ConfidenceScorer (smart_suggestions.py)."""
 
     def _make_scorer(self) -> Any:
-        from file_organizer.services.smart_suggestions import ConfidenceScorer
+        from services.smart_suggestions import ConfidenceScorer
 
         return ConfidenceScorer()
 
@@ -1168,7 +1158,7 @@ class TestConfidenceScorer:
         return pa
 
     def test_score_suggestion_returns_confidence_factors(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
+        from models.suggestion_types import SuggestionType
 
         scorer = self._make_scorer()
         f = tmp_path / "file.txt"
@@ -1178,7 +1168,7 @@ class TestConfidenceScorer:
         assert hasattr(result, "pattern_strength")
 
     def test_score_suggestion_with_pattern_analysis(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
+        from models.suggestion_types import SuggestionType
 
         scorer = self._make_scorer()
         f = tmp_path / "file.txt"
@@ -1273,7 +1263,7 @@ class TestConfidenceScorer:
         assert score == 50.0
 
     def test_score_suggestion_with_user_history(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import SuggestionType
+        from models.suggestion_types import SuggestionType
 
         scorer = self._make_scorer()
         f = tmp_path / "file.txt"
@@ -1321,7 +1311,7 @@ class TestSuggestionEngine:
     """Tests for SuggestionEngine (smart_suggestions.py)."""
 
     def _make_engine(self, min_confidence: float = 0.0) -> Any:
-        from file_organizer.services.smart_suggestions import SuggestionEngine
+        from services.smart_suggestions import SuggestionEngine
 
         return SuggestionEngine(text_model=None, min_confidence=min_confidence)
 
@@ -1357,7 +1347,7 @@ class TestSuggestionEngine:
             assert s.confidence >= 0.0
 
     def test_rank_suggestions_sorted_by_confidence(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import Suggestion, SuggestionType
+        from models.suggestion_types import Suggestion, SuggestionType
 
         engine = self._make_engine()
         s1 = Suggestion(
@@ -1379,7 +1369,7 @@ class TestSuggestionEngine:
         assert result == []
 
     def test_explain_suggestion_contains_type(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import Suggestion, SuggestionType
+        from models.suggestion_types import Suggestion, SuggestionType
 
         engine = self._make_engine()
         s = Suggestion(
@@ -1395,7 +1385,7 @@ class TestSuggestionEngine:
         assert "test reason" in explanation
 
     def test_explain_suggestion_with_factors(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import Suggestion, SuggestionType
+        from models.suggestion_types import Suggestion, SuggestionType
 
         engine = self._make_engine()
         s = Suggestion(
@@ -1447,7 +1437,7 @@ class TestSuggestionEngine:
         assert result is None
 
     def test_generate_move_reasoning_no_strong_factors(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import ConfidenceFactors
+        from models.suggestion_types import ConfidenceFactors
 
         engine = self._make_engine()
         f = tmp_path / "file.txt"
@@ -1458,7 +1448,7 @@ class TestSuggestionEngine:
         assert len(result) >= 5
 
     def test_generate_move_reasoning_with_strong_pattern(self, tmp_path: Path) -> None:
-        from file_organizer.models.suggestion_types import ConfidenceFactors
+        from models.suggestion_types import ConfidenceFactors
 
         engine = self._make_engine()
         f = tmp_path / "file.txt"

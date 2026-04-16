@@ -80,7 +80,7 @@ class TestSuggestImports:
     """Test that the module imports correctly."""
 
     def test_import_suggest_app(self) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         assert suggest_app is not None
 
@@ -95,14 +95,14 @@ class TestSuggestFiles:
         mock_engine: MagicMock,
         mock_analyzer: MagicMock,
     ) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         # Create a file so the directory isn't empty
         (tmp_path / "test.txt").touch()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(tmp_path)])
         assert result.exit_code == 0
@@ -114,16 +114,16 @@ class TestSuggestFiles:
         mock_engine_with_suggestions: MagicMock,
         mock_analyzer: MagicMock,
     ) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "doc.txt").touch()
 
         with (
             patch(
-                "file_organizer.cli.suggest._get_engine",
+                "cli.suggest._get_engine",
                 return_value=mock_engine_with_suggestions,
             ),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(tmp_path)])
         assert result.exit_code == 0
@@ -135,23 +135,23 @@ class TestSuggestFiles:
         mock_engine_with_suggestions: MagicMock,
         mock_analyzer: MagicMock,
     ) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "doc.txt").touch()
 
         with (
             patch(
-                "file_organizer.cli.suggest._get_engine",
+                "cli.suggest._get_engine",
                 return_value=mock_engine_with_suggestions,
             ),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(tmp_path), "--json"])
         assert result.exit_code == 0
         assert "doc.txt" in result.output
 
     def test_files_empty_directory(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         result = runner.invoke(suggest_app, ["files", str(tmp_path)])
         assert result.exit_code == 0
@@ -163,19 +163,19 @@ class TestSuggestPatterns:
     """Tests for the patterns command."""
 
     def test_patterns_no_patterns(self, tmp_path: Path, mock_analyzer: MagicMock) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(tmp_path)])
         assert result.exit_code == 0
 
     def test_patterns_with_results(
         self, tmp_path: Path, mock_analyzer_with_patterns: MagicMock
     ) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         with patch(
-            "file_organizer.cli.suggest._get_analyzer",
+            "cli.suggest._get_analyzer",
             return_value=mock_analyzer_with_patterns,
         ):
             result = runner.invoke(suggest_app, ["patterns", str(tmp_path)])
@@ -183,10 +183,10 @@ class TestSuggestPatterns:
         assert "DATE_PREFIX" in result.output
 
     def test_patterns_json(self, tmp_path: Path, mock_analyzer_with_patterns: MagicMock) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         with patch(
-            "file_organizer.cli.suggest._get_analyzer",
+            "cli.suggest._get_analyzer",
             return_value=mock_analyzer_with_patterns,
         ):
             result = runner.invoke(suggest_app, ["patterns", str(tmp_path), "--json"])
@@ -204,13 +204,13 @@ class TestSuggestApply:
         mock_engine: MagicMock,
         mock_analyzer: MagicMock,
     ) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "test.txt").touch()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["apply", str(tmp_path)])
         assert result.exit_code == 0
@@ -222,16 +222,16 @@ class TestSuggestApply:
         mock_engine_with_suggestions: MagicMock,
         mock_analyzer: MagicMock,
     ) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "doc.txt").touch()
 
         with (
             patch(
-                "file_organizer.cli.suggest._get_engine",
+                "cli.suggest._get_engine",
                 return_value=mock_engine_with_suggestions,
             ),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["apply", str(tmp_path), "--dry-run"])
         assert result.exit_code == 0

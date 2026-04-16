@@ -28,11 +28,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.interfaces.pipeline import StageContext
-from file_organizer.optimization.buffer_pool import BufferPool
-from file_organizer.pipeline.config import PipelineConfig
-from file_organizer.pipeline.orchestrator import PipelineOrchestrator
-from file_organizer.pipeline.router import ProcessorType
+from interfaces.pipeline import StageContext
+from optimization.buffer_pool import BufferPool
+from pipeline.config import PipelineConfig
+from pipeline.orchestrator import PipelineOrchestrator
+from pipeline.router import ProcessorType
 
 pytestmark = pytest.mark.integration
 
@@ -634,7 +634,7 @@ class TestStagedBatchProcessing:
             prefetch_depth=2,
             prefetch_stages=2,
         )
-        with caplog.at_level(logging.WARNING, logger="file_organizer.pipeline.orchestrator"):
+        with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator"):
             results = orch.process_batch(files)
 
         # All results must be produced despite the warning
@@ -823,7 +823,7 @@ class TestBufferKeyInContext:
 
     def test_buffer_not_present_after_process_file_staged(self, tmp_path: Path) -> None:
         """After _process_file_staged completes, the buffer must not leak via extra."""
-        from file_organizer.pipeline.orchestrator import _BUFFER_KEY
+        from pipeline.orchestrator import _BUFFER_KEY
 
         captured_extras: list[dict] = []
 

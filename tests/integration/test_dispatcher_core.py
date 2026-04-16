@@ -20,12 +20,12 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 # Patch targets
 # ---------------------------------------------------------------------------
 
-_PROGRESS_TARGET = "file_organizer.core.dispatcher.create_progress"
+_PROGRESS_TARGET = "core.dispatcher.create_progress"
 
 # Audio/video: the functions use local imports, so patch in the source modules.
-_AUDIO_CLASSIFIER_TARGET = "file_organizer.services.audio.classifier.AudioClassifier"
-_AUDIO_ORGANIZER_TARGET = "file_organizer.services.audio.organizer.AudioOrganizer"
-_VIDEO_ORGANIZER_TARGET = "file_organizer.services.video.organizer.VideoOrganizer"
+_AUDIO_CLASSIFIER_TARGET = "services.audio.classifier.AudioClassifier"
+_AUDIO_ORGANIZER_TARGET = "services.audio.organizer.AudioOrganizer"
+_VIDEO_ORGANIZER_TARGET = "services.video.organizer.VideoOrganizer"
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +69,8 @@ class TestProcessTextFiles:
     """Tests for process_text_files()."""
 
     def test_success_result_appended(self) -> None:
-        from file_organizer.core.dispatcher import process_text_files
-        from file_organizer.services import ProcessedFile
+        from core.dispatcher import process_text_files
+        from services import ProcessedFile
 
         file_path = Path("/mock/docs/report.txt")
         processed = ProcessedFile(
@@ -101,8 +101,8 @@ class TestProcessTextFiles:
 
     def test_success_result_with_error_field_appended(self) -> None:
         """A 'success' batch result whose ProcessedFile has a non-None error is still appended."""
-        from file_organizer.core.dispatcher import process_text_files
-        from file_organizer.services import ProcessedFile
+        from core.dispatcher import process_text_files
+        from services import ProcessedFile
 
         file_path = Path("/mock/docs/broken.txt")
         processed = ProcessedFile(
@@ -130,8 +130,8 @@ class TestProcessTextFiles:
         assert results[0].error == "Could not parse file"
 
     def test_failure_result_creates_error_fallback(self) -> None:
-        from file_organizer.core.dispatcher import process_text_files
-        from file_organizer.core.types import ERROR_FALLBACK_FOLDER
+        from core.dispatcher import process_text_files
+        from core.types import ERROR_FALLBACK_FOLDER
 
         file_path = Path("/mock/docs/missing.txt")
         file_result = _make_file_result(success=False, path=file_path, error="process failed")
@@ -155,7 +155,7 @@ class TestProcessTextFiles:
 
     def test_failure_result_unknown_error_message(self) -> None:
         """When error is None on a failed result, fallback should use 'Unknown error'."""
-        from file_organizer.core.dispatcher import process_text_files
+        from core.dispatcher import process_text_files
 
         file_path = Path("/mock/docs/mystery.txt")
         file_result = _make_file_result(success=False, path=file_path, error=None)
@@ -176,7 +176,7 @@ class TestProcessTextFiles:
         assert results[0].error == "Unknown error"
 
     def test_empty_files_returns_empty_list(self) -> None:
-        from file_organizer.core.dispatcher import process_text_files
+        from core.dispatcher import process_text_files
 
         mock_pp = MagicMock()
         mock_pp.process_batch_iter.return_value = iter([])
@@ -193,9 +193,9 @@ class TestProcessTextFiles:
         assert results == []
 
     def test_mixed_results_all_appended(self) -> None:
-        from file_organizer.core.dispatcher import process_text_files
-        from file_organizer.core.types import ERROR_FALLBACK_FOLDER
-        from file_organizer.services import ProcessedFile
+        from core.dispatcher import process_text_files
+        from core.types import ERROR_FALLBACK_FOLDER
+        from services import ProcessedFile
 
         path_ok = Path("/mock/docs/good.txt")
         path_fail = Path("/mock/docs/bad.txt")
@@ -236,8 +236,8 @@ class TestProcessImageFiles:
     """Tests for process_image_files()."""
 
     def test_success_result_appended(self) -> None:
-        from file_organizer.core.dispatcher import process_image_files
-        from file_organizer.services import ProcessedImage
+        from core.dispatcher import process_image_files
+        from services import ProcessedImage
 
         file_path = Path("/mock/photos/sunset.jpg")
         processed = ProcessedImage(
@@ -267,8 +267,8 @@ class TestProcessImageFiles:
         assert results[0].description == "A sunset over the ocean"
 
     def test_success_result_with_error_field(self) -> None:
-        from file_organizer.core.dispatcher import process_image_files
-        from file_organizer.services import ProcessedImage
+        from core.dispatcher import process_image_files
+        from services import ProcessedImage
 
         file_path = Path("/mock/photos/corrupt.jpg")
         processed = ProcessedImage(
@@ -296,8 +296,8 @@ class TestProcessImageFiles:
         assert results[0].error == "EXIF parse failed"
 
     def test_failure_result_creates_error_fallback(self) -> None:
-        from file_organizer.core.dispatcher import process_image_files
-        from file_organizer.core.types import ERROR_FALLBACK_FOLDER
+        from core.dispatcher import process_image_files
+        from core.types import ERROR_FALLBACK_FOLDER
 
         file_path = Path("/mock/photos/missing.png")
         file_result = _make_file_result(success=False, path=file_path, error="vision timeout")
@@ -321,7 +321,7 @@ class TestProcessImageFiles:
         assert results[0].filename == "missing"
 
     def test_failure_result_unknown_error(self) -> None:
-        from file_organizer.core.dispatcher import process_image_files
+        from core.dispatcher import process_image_files
 
         file_path = Path("/mock/photos/unknown.jpg")
         file_result = _make_file_result(success=False, path=file_path, error=None)
@@ -342,7 +342,7 @@ class TestProcessImageFiles:
         assert results[0].error == "Unknown error"
 
     def test_empty_input_returns_empty_list(self) -> None:
-        from file_organizer.core.dispatcher import process_image_files
+        from core.dispatcher import process_image_files
 
         mock_pp = MagicMock()
         mock_pp.process_batch_iter.return_value = iter([])
@@ -398,7 +398,7 @@ class TestProcessAudioFiles:
         return dest
 
     def test_success_path_appended(self) -> None:
-        from file_organizer.core.dispatcher import process_audio_files
+        from core.dispatcher import process_audio_files
 
         audio_path = Path("/mock/music/song.mp3")
         meta = self._make_audio_metadata(artist="The Band", title="My Song")
@@ -427,7 +427,7 @@ class TestProcessAudioFiles:
         assert results[0].file_path == audio_path
 
     def test_success_description_contains_type_and_artist(self) -> None:
-        from file_organizer.core.dispatcher import process_audio_files
+        from core.dispatcher import process_audio_files
 
         audio_path = Path("/mock/music/track.mp3")
         meta = self._make_audio_metadata(artist="DJ Echo", title="Night Drive")
@@ -454,8 +454,8 @@ class TestProcessAudioFiles:
 
     def test_extraction_os_error_uses_audio_fallback_folder(self) -> None:
         """OSError during extract() → fallback folder, error message preserved."""
-        from file_organizer.core.dispatcher import process_audio_files
-        from file_organizer.core.types import AUDIO_FALLBACK_FOLDER
+        from core.dispatcher import process_audio_files
+        from core.types import AUDIO_FALLBACK_FOLDER
 
         audio_path = Path("/mock/music/corrupt.mp3")
 
@@ -477,8 +477,8 @@ class TestProcessAudioFiles:
         assert results[0].filename == "corrupt"
 
     def test_extraction_value_error_uses_audio_fallback_folder(self) -> None:
-        from file_organizer.core.dispatcher import process_audio_files
-        from file_organizer.core.types import AUDIO_FALLBACK_FOLDER
+        from core.dispatcher import process_audio_files
+        from core.types import AUDIO_FALLBACK_FOLDER
 
         audio_path = Path("/mock/music/bad.flac")
         mock_extractor_instance = MagicMock()
@@ -496,14 +496,14 @@ class TestProcessAudioFiles:
         assert results[0].error == "bad tag data"
 
     def test_empty_input_returns_empty_list(self) -> None:
-        from file_organizer.core.dispatcher import process_audio_files
+        from core.dispatcher import process_audio_files
 
         results = process_audio_files([])
 
         assert results == []
 
     def test_multiple_files_all_processed(self) -> None:
-        from file_organizer.core.dispatcher import process_audio_files
+        from core.dispatcher import process_audio_files
 
         paths = [Path(f"/mock/music/track{i}.mp3") for i in range(3)]
 
@@ -551,7 +551,7 @@ class TestProcessVideoFiles:
     """
 
     def test_success_path_appended(self) -> None:
-        from file_organizer.core.dispatcher import process_video_files
+        from core.dispatcher import process_video_files
 
         video_path = Path("/mock/videos/movie.mp4")
         meta = MagicMock()
@@ -575,8 +575,8 @@ class TestProcessVideoFiles:
         assert results[0].file_path == video_path
 
     def test_file_not_found_uses_video_fallback_folder(self) -> None:
-        from file_organizer.core.dispatcher import process_video_files
-        from file_organizer.core.types import VIDEO_FALLBACK_FOLDER
+        from core.dispatcher import process_video_files
+        from core.types import VIDEO_FALLBACK_FOLDER
 
         video_path = Path("/mock/videos/missing.avi")
 
@@ -594,8 +594,8 @@ class TestProcessVideoFiles:
         assert results[0].filename == "missing"
 
     def test_os_error_uses_video_fallback_folder(self) -> None:
-        from file_organizer.core.dispatcher import process_video_files
-        from file_organizer.core.types import VIDEO_FALLBACK_FOLDER
+        from core.dispatcher import process_video_files
+        from core.types import VIDEO_FALLBACK_FOLDER
 
         video_path = Path("/mock/videos/locked.mkv")
         mock_extractor_instance = MagicMock()
@@ -610,8 +610,8 @@ class TestProcessVideoFiles:
         assert results[0].error == "permission denied"
 
     def test_runtime_error_uses_video_fallback_folder(self) -> None:
-        from file_organizer.core.dispatcher import process_video_files
-        from file_organizer.core.types import VIDEO_FALLBACK_FOLDER
+        from core.dispatcher import process_video_files
+        from core.types import VIDEO_FALLBACK_FOLDER
 
         video_path = Path("/mock/videos/crash.mp4")
         mock_extractor_instance = MagicMock()
@@ -626,14 +626,14 @@ class TestProcessVideoFiles:
         assert results[0].error == "ffprobe crashed"
 
     def test_empty_input_returns_empty_list(self) -> None:
-        from file_organizer.core.dispatcher import process_video_files
+        from core.dispatcher import process_video_files
 
         results = process_video_files([])
 
         assert results == []
 
     def test_multiple_files_all_processed(self) -> None:
-        from file_organizer.core.dispatcher import process_video_files
+        from core.dispatcher import process_video_files
 
         paths = [Path(f"/mock/videos/clip{i}.mp4") for i in range(4)]
 
@@ -651,7 +651,7 @@ class TestProcessVideoFiles:
         assert len(results) == 4
 
     def test_description_stored_from_organizer(self) -> None:
-        from file_organizer.core.dispatcher import process_video_files
+        from core.dispatcher import process_video_files
 
         video_path = Path("/mock/videos/documentary.mp4")
         meta = MagicMock()

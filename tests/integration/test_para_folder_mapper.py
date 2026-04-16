@@ -19,9 +19,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
-from file_organizer.methodologies.para.folder_mapper import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
+from methodologies.para.folder_mapper import (
     CategoryFolderMapper,
     MappingResult,
     MappingStrategy,

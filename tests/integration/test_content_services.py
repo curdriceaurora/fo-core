@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.auto_tagging.content_analyzer import ContentTagAnalyzer
-from file_organizer.services.deduplication.extractor import DocumentExtractor
+from services.auto_tagging.content_analyzer import ContentTagAnalyzer
+from services.deduplication.extractor import DocumentExtractor
 
 pytestmark = pytest.mark.integration
 

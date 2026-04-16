@@ -13,17 +13,17 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     AreaDefinition,
     CategoryDefinition,
     JohnnyDecimalNumber,
     NumberingScheme,
     get_default_scheme,
 )
-from file_organizer.methodologies.johnny_decimal.numbering import JohnnyDecimalGenerator
-from file_organizer.methodologies.johnny_decimal.scanner import FolderInfo
-from file_organizer.methodologies.johnny_decimal.system import JohnnyDecimalSystem
-from file_organizer.methodologies.johnny_decimal.transformer import (
+from methodologies.johnny_decimal.numbering import JohnnyDecimalGenerator
+from methodologies.johnny_decimal.scanner import FolderInfo
+from methodologies.johnny_decimal.system import JohnnyDecimalSystem
+from methodologies.johnny_decimal.transformer import (
     FolderTransformer,
     TransformationPlan,
     TransformationRule,

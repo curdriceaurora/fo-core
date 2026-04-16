@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.unit]
 
@@ -77,9 +77,9 @@ def _make_pattern(
 class TestSuggestFiles:
     """Tests for ``suggest files``."""
 
-    @patch("file_organizer.cli.suggest._get_analyzer")
-    @patch("file_organizer.cli.suggest._get_engine")
-    @patch("file_organizer.cli.suggest._collect_files")
+    @patch("cli.suggest._get_analyzer")
+    @patch("cli.suggest._get_engine")
+    @patch("cli.suggest._collect_files")
     def test_files_no_files(
         self,
         mock_collect: MagicMock,
@@ -93,9 +93,9 @@ class TestSuggestFiles:
         assert result.exit_code == 0
         assert "No files found" in result.output
 
-    @patch("file_organizer.cli.suggest._get_analyzer")
-    @patch("file_organizer.cli.suggest._get_engine")
-    @patch("file_organizer.cli.suggest._collect_files")
+    @patch("cli.suggest._get_analyzer")
+    @patch("cli.suggest._get_engine")
+    @patch("cli.suggest._collect_files")
     def test_files_with_suggestions(
         self,
         mock_collect: MagicMock,
@@ -122,9 +122,9 @@ class TestSuggestFiles:
         assert result.exit_code == 0
         assert "a.txt" in result.output
 
-    @patch("file_organizer.cli.suggest._get_analyzer")
-    @patch("file_organizer.cli.suggest._get_engine")
-    @patch("file_organizer.cli.suggest._collect_files")
+    @patch("cli.suggest._get_analyzer")
+    @patch("cli.suggest._get_engine")
+    @patch("cli.suggest._collect_files")
     def test_files_below_threshold(
         self,
         mock_collect: MagicMock,
@@ -157,9 +157,9 @@ class TestSuggestFiles:
 class TestSuggestApply:
     """Tests for ``suggest apply``."""
 
-    @patch("file_organizer.cli.suggest._get_analyzer")
-    @patch("file_organizer.cli.suggest._get_engine")
-    @patch("file_organizer.cli.suggest._collect_files")
+    @patch("cli.suggest._get_analyzer")
+    @patch("cli.suggest._get_engine")
+    @patch("cli.suggest._collect_files")
     def test_apply_no_files(
         self,
         mock_collect: MagicMock,
@@ -173,9 +173,9 @@ class TestSuggestApply:
         assert result.exit_code == 0
         assert "No files found" in result.output
 
-    @patch("file_organizer.cli.suggest._get_analyzer")
-    @patch("file_organizer.cli.suggest._get_engine")
-    @patch("file_organizer.cli.suggest._collect_files")
+    @patch("cli.suggest._get_analyzer")
+    @patch("cli.suggest._get_engine")
+    @patch("cli.suggest._collect_files")
     def test_apply_dry_run(
         self,
         mock_collect: MagicMock,
@@ -211,7 +211,7 @@ class TestSuggestApply:
 class TestSuggestPatterns:
     """Tests for ``suggest patterns``."""
 
-    @patch("file_organizer.cli.suggest._get_analyzer")
+    @patch("cli.suggest._get_analyzer")
     def test_patterns_empty(self, mock_get_analyzer: MagicMock, tmp_path: Path) -> None:
         mock_analyzer = MagicMock()
         mock_get_analyzer.return_value = mock_analyzer
@@ -223,7 +223,7 @@ class TestSuggestPatterns:
         assert result.exit_code == 0
         assert "No naming patterns" in result.output
 
-    @patch("file_organizer.cli.suggest._get_analyzer")
+    @patch("cli.suggest._get_analyzer")
     def test_patterns_with_data(self, mock_get_analyzer: MagicMock, tmp_path: Path) -> None:
         mock_analyzer = MagicMock()
         mock_get_analyzer.return_value = mock_analyzer
@@ -239,7 +239,7 @@ class TestSuggestPatterns:
         assert "date_prefix" in result.output
         assert ".pdf" in result.output
 
-    @patch("file_organizer.cli.suggest._get_analyzer")
+    @patch("cli.suggest._get_analyzer")
     def test_patterns_json(self, mock_get_analyzer: MagicMock, tmp_path: Path) -> None:
         mock_analyzer = MagicMock()
         mock_get_analyzer.return_value = mock_analyzer

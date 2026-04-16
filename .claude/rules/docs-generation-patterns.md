@@ -43,7 +43,7 @@ Call `TextProcessor.extract_text(file_path)` to extract content.
 
 ```bash
 # BEFORE writing: verify the method exists
-grep "def " src/file_organizer/services/text_processor.py
+grep "def " src/services/text_processor.py
 # → def process_file(self, file_path: Path) -> str:
 ```
 
@@ -83,7 +83,7 @@ grep -r "old/path/to/module" docs/
 ```bash
 # Test every code example before committing
 python3 -c "
-from file_organizer.services.text_processor import TextProcessor
+from services.text_processor import TextProcessor
 processor = TextProcessor()
 # ... example code here
 "
@@ -105,7 +105,7 @@ processor = TextProcessor()
 
 ```bash
 # Find public methods not mentioned in docs
-grep "def " src/file_organizer/services/my_service.py | grep -v "^#" | grep -v "__"
+grep "def " src/services/my_service.py | grep -v "^#" | grep -v "__"
 # Compare with docs mentions
 grep "def_name\|method_name" docs/
 ```
@@ -178,6 +178,7 @@ grep -n "complete\|planned\|TODO\|not yet\|coming soon" docs/my-doc.md
 **What it is**: Shell scripts embedded in documentation have code bugs — wrong regex, missing `read -r`, non-recursive globs, or incorrect variable quoting. Distinct from D3 BROKEN_EXAMPLE (which is about API/import errors); D7 is script logic bugs that won't work as described.
 
 **Bad**:
+
 ```bash
 # BAD — non-recursive glob misses nested files
 for f in /path/to/files/*.py; do ...
@@ -193,6 +194,7 @@ if [[ "$filename" =~ .*\.py ]]; then  # . matches any char
 ```
 
 **Good**:
+
 ```bash
 # GOOD — recursive glob with ** and globstar
 shopt -s globstar
@@ -209,6 +211,7 @@ if [[ "$filename" =~ .*\.py$ ]]; then
 ```
 
 **Pre-generation check**: For every shell script in documentation, run it locally before committing. Use `shellcheck` for automated detection:
+
 ```bash
 shellcheck your_script.sh
 ```

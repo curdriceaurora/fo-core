@@ -12,7 +12,7 @@ def test_scientific_reads_hdf5_file(tmp_path: Path) -> None:
     h5py = pytest.importorskip("h5py")
     import numpy as np  # numpy is a transitive dep of h5py
 
-    from file_organizer.utils.readers.scientific import read_hdf5_file
+    from utils.readers.scientific import read_hdf5_file
 
     # Create a minimal HDF5 file with one dataset and one attribute
     hdf5_path = tmp_path / "test.h5"

@@ -9,7 +9,7 @@
 ## Device Support
 
 ```python
-from file_organizer.models.base import DeviceType
+from models.base import DeviceType
 
 DeviceType.AUTO    # Automatic detection (recommended)
 DeviceType.CPU     # CPU inference (universal)

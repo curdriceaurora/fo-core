@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.events.subscription import (
+from events.subscription import (
     Subscription,
     SubscriptionRegistry,
     _topic_to_regex,

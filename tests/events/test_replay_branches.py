@@ -12,16 +12,16 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from file_organizer.events.consumer import EventConsumer
-from file_organizer.events.replay import (
+from events.consumer import EventConsumer
+from events.replay import (
     EventReplayManager,
     ReplayConfig,
     _datetime_to_redis_ms,
     _increment_id,
     _parse_timestamp_from_id,
 )
-from file_organizer.events.stream import RedisStreamManager
-from file_organizer.events.types import EventType
+from events.stream import RedisStreamManager
+from events.types import EventType
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -39,7 +39,7 @@ def mock_redis_client() -> MagicMock:
 @pytest.fixture()
 def connected_manager(mock_redis_client: MagicMock) -> RedisStreamManager:
     """Yield a RedisStreamManager that is already connected via a mock redis client."""
-    with patch("file_organizer.events.stream.redis") as mock_redis_mod:
+    with patch("events.stream.redis") as mock_redis_mod:
         mock_redis_mod.Redis.from_url.return_value = mock_redis_client
         manager = RedisStreamManager()
         manager.connect()
@@ -368,7 +368,7 @@ class TestReplayToConsumerDelayBranch:
         consumer = EventConsumer()
         start = datetime(2024, 1, 1, tzinfo=UTC)
 
-        with patch("file_organizer.events.replay.time") as mock_time:
+        with patch("events.replay.time") as mock_time:
             count = replay.replay_to_consumer("file-events", start, consumer)
 
         assert count == 2
@@ -391,7 +391,7 @@ class TestReplayToConsumerDelayBranch:
         consumer = EventConsumer()
         start = datetime(2024, 1, 1, tzinfo=UTC)
 
-        with patch("file_organizer.events.replay.time") as mock_time:
+        with patch("events.replay.time") as mock_time:
             count = replay.replay_to_consumer("file-events", start, consumer)
 
         assert count == 1
@@ -419,7 +419,7 @@ class TestReplayToConsumerDelayBranch:
 
         start = datetime(2024, 1, 1, tzinfo=UTC)
 
-        with patch("file_organizer.events.replay.time") as mock_time:
+        with patch("events.replay.time") as mock_time:
             count = replay.replay_to_consumer("file-events", start, consumer)
 
         assert count == 1
@@ -479,7 +479,7 @@ class TestReplayToConsumerDryRun:
         start = datetime(2024, 1, 1, tzinfo=UTC)
         consumer = EventConsumer()
 
-        with patch("file_organizer.events.replay.time") as mock_time:
+        with patch("events.replay.time") as mock_time:
             count = replay.replay_to_consumer("file-events", start, consumer)
 
         assert count == 0

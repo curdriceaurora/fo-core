@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from file_organizer.services.analyzer import (
+from services.analyzer import (
     MAX_CONFIDENCE,
     MIN_CONFIDENCE,
     calculate_confidence,

@@ -15,7 +15,7 @@
 #define AppPublisher "File Organizer Team"
 #define AppURL "https://github.com/curdriceaurora/Local-File-Organizer"
 #ifndef AppExeName
-  #define AppExeName "file-organizer.exe"
+  #define AppExeName "fo.exe"
 #endif
 ; Inno Download Plugin — required for downloading WebView2 at install time.
 ; Install from: https://mitrichsoftware.wordpress.com/inno-setup-tools/inno-download-plugin/
@@ -35,7 +35,7 @@ DefaultGroupName={#AppName}
 AllowNoIcons=yes
 LicenseFile=..\LICENSE
 OutputDir=..\dist
-OutputBaseFilename=file-organizer-{#AppVersion}-windows-setup
+OutputBaseFilename=fo-{#AppVersion}-windows-setup
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -53,7 +53,7 @@ Name: "addtopath"; Description: "Add to system PATH"; GroupDescription: "System 
 
 [Files]
 ; Main executable from PyInstaller dist/
-Source: "..\dist\file-organizer-*-windows-*.exe"; DestDir: "{app}"; DestName: "{#AppExeName}"; Flags: ignoreversion
+Source: "..\dist\fo-*-windows-*.exe"; DestDir: "{app}"; DestName: "{#AppExeName}"; Flags: ignoreversion
 
 ; WebView2 Bootstrapper - downloaded/included for offline install support
 Source: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall external skipifsourcedoesntexist

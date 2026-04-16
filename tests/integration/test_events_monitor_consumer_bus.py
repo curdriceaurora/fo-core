@@ -14,22 +14,22 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.events.config import EventConfig
-from file_organizer.events.consumer import EventConsumer
-from file_organizer.events.middleware import (
+from events.config import EventConfig
+from events.consumer import EventConsumer
+from events.middleware import (
     LoggingMiddleware,
     MetricsMiddleware,
     MiddlewarePipeline,
     RetryMiddleware,
 )
-from file_organizer.events.monitor import (
+from events.monitor import (
     ConsumerLag,
     EventMonitor,
     StreamStats,
     _parse_entry_timestamp,
 )
-from file_organizer.events.stream import Event, RedisStreamManager
-from file_organizer.events.types import EventType
+from events.stream import Event, RedisStreamManager
+from events.types import EventType
 
 pytestmark = pytest.mark.integration
 
@@ -1023,7 +1023,7 @@ class TestServiceBusRegistration:
     """Service registration and lookup."""
 
     def test_register_service_adds_to_registry(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(name="test-bus", pubsub=_FakePubSub())
         bus.register_service("echo", lambda req: {"ok": True})
@@ -1031,7 +1031,7 @@ class TestServiceBusRegistration:
         assert "echo" in bus.list_services()
 
     def test_register_duplicate_service_raises(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(name="test-bus", pubsub=_FakePubSub())
         bus.register_service("svc", lambda req: {})
@@ -1039,7 +1039,7 @@ class TestServiceBusRegistration:
             bus.register_service("svc", lambda req: {})
 
     def test_deregister_existing_service_returns_true(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(name="test-bus", pubsub=_FakePubSub())
         bus.register_service("svc", lambda req: {})
@@ -1047,13 +1047,13 @@ class TestServiceBusRegistration:
         assert bus.has_service("svc") is False
 
     def test_deregister_nonexistent_service_returns_false(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         assert bus.deregister_service("ghost") is False
 
     def test_list_services_is_sorted(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         bus.register_service("zebra", lambda req: {})
@@ -1061,7 +1061,7 @@ class TestServiceBusRegistration:
         assert bus.list_services() == ["apple", "zebra"]
 
     def test_services_property_returns_snapshot(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         bus.register_service("svc", lambda req: {})
@@ -1073,7 +1073,7 @@ class TestServiceBusSendRequest:
     """send_request success, error, timeout, and missing-service paths."""
 
     def test_successful_request_returns_success_response(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         pubsub = _FakePubSub()
         bus = ServiceBus(name="gateway", pubsub=pubsub)
@@ -1086,7 +1086,7 @@ class TestServiceBusSendRequest:
         assert response.error is None
 
     def test_request_to_missing_service_returns_error_response(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         response = bus.send_request("nonexistent", "action")
@@ -1095,7 +1095,7 @@ class TestServiceBusSendRequest:
         assert bus.error_count == 1
 
     def test_handler_exception_returns_error_response(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
 
@@ -1109,7 +1109,7 @@ class TestServiceBusSendRequest:
         assert bus.error_count == 1
 
     def test_request_count_increments(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         bus.register_service("svc", lambda req: {})
@@ -1118,7 +1118,7 @@ class TestServiceBusSendRequest:
         assert bus.request_count == 2
 
     def test_send_request_publishes_request_and_response_events(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         pubsub = _FakePubSub()
         bus = ServiceBus(name="gw", pubsub=pubsub)
@@ -1129,7 +1129,7 @@ class TestServiceBusSendRequest:
         assert "service.response.svc.act" in topics
 
     def test_handler_returning_non_dict_gives_empty_data(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         bus.register_service("svc", lambda req: "not a dict")
@@ -1138,7 +1138,7 @@ class TestServiceBusSendRequest:
         assert response.data == {}
 
     def test_response_includes_duration_ms(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         bus.register_service("svc", lambda req: {})
@@ -1150,7 +1150,7 @@ class TestServiceBusBroadcast:
     """broadcast sends to all registered services."""
 
     def test_broadcast_reaches_all_services(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         results_a: list = []
@@ -1166,7 +1166,7 @@ class TestServiceBusBroadcast:
         assert responses["b"].success is True
 
     def test_broadcast_empty_bus_returns_empty_dict(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(pubsub=_FakePubSub())
         responses = bus.broadcast("ping")
@@ -1177,7 +1177,7 @@ class TestServiceBusDataclasses:
     """ServiceRequest and ServiceResponse serialization."""
 
     def test_service_request_to_dict(self) -> None:
-        from file_organizer.events.service_bus import ServiceRequest
+        from events.service_bus import ServiceRequest
 
         req = ServiceRequest(
             id="req-1",
@@ -1195,7 +1195,7 @@ class TestServiceBusDataclasses:
         assert "timestamp" in d
 
     def test_service_response_to_dict(self) -> None:
-        from file_organizer.events.service_bus import ServiceResponse
+        from events.service_bus import ServiceResponse
 
         resp = ServiceResponse(
             request_id="req-1",
@@ -1212,7 +1212,7 @@ class TestServiceBusDataclasses:
         assert d["duration_ms"] == pytest.approx(12.5)
 
     def test_service_response_error_to_dict(self) -> None:
-        from file_organizer.events.service_bus import ServiceResponse
+        from events.service_bus import ServiceResponse
 
         resp = ServiceResponse(
             request_id="req-2",
@@ -1224,7 +1224,7 @@ class TestServiceBusDataclasses:
         assert d["error"] == "something went wrong"
 
     def test_service_bus_repr(self) -> None:
-        from file_organizer.events.service_bus import ServiceBus
+        from events.service_bus import ServiceBus
 
         bus = ServiceBus(name="my-bus", pubsub=_FakePubSub())
         r = repr(bus)

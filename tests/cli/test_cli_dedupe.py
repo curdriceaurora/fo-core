@@ -1,4 +1,4 @@
-"""Tests for file_organizer.cli.dedupe module.
+"""Tests for cli.dedupe module.
 
 Tests the argparse-based deduplication CLI including:
 - dedupe_command function
@@ -15,15 +15,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 from rich.console import Console
 
-from file_organizer.cli.dedupe import DedupeConfig, dedupe_command, main
-from file_organizer.cli.dedupe_display import (
+from cli.dedupe import DedupeConfig, dedupe_command, main
+from cli.dedupe_display import (
     display_duplicate_group,
     display_summary,
     format_datetime,
     format_size,
 )
-from file_organizer.cli.dedupe_removal import remove_files
-from file_organizer.cli.dedupe_strategy import (
+from cli.dedupe_removal import remove_files
+from cli.dedupe_strategy import (
     get_user_selection,
     select_files_to_keep,
 )
@@ -35,9 +35,9 @@ pytestmark = [pytest.mark.ci, pytest.mark.unit]
 # We must patch at the source-module level so the runtime import picks up
 # our mocks.
 # ---------------------------------------------------------------------------
-_DETECTOR_PATH = "file_organizer.services.deduplication.detector.DuplicateDetector"
-_SCAN_OPTS_PATH = "file_organizer.services.deduplication.detector.ScanOptions"
-_BACKUP_MGR_PATH = "file_organizer.services.deduplication.backup.BackupManager"
+_DETECTOR_PATH = "services.deduplication.detector.DuplicateDetector"
+_SCAN_OPTS_PATH = "services.deduplication.detector.ScanOptions"
+_BACKUP_MGR_PATH = "services.deduplication.backup.BackupManager"
 
 
 def _ensure_dedup_modules_loaded():
@@ -56,8 +56,8 @@ def _ensure_dedup_modules_loaded():
     import sys
 
     for mod_name in (
-        "file_organizer.services.deduplication.detector",
-        "file_organizer.services.deduplication.backup",
+        "services.deduplication.detector",
+        "services.deduplication.backup",
     ):
         if mod_name not in sys.modules:
             try:
@@ -572,7 +572,7 @@ class TestGetUserSelectionInteractive:
             {"path": Path("/a/f1.txt")},
             {"path": Path("/a/f2.txt")},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.return_value = "s"
             result = get_user_selection(files, "manual", batch=False)
         assert result == []
@@ -583,7 +583,7 @@ class TestGetUserSelectionInteractive:
             {"path": Path("/a/f1.txt")},
             {"path": Path("/a/f2.txt")},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.return_value = "a"
             result = get_user_selection(files, "manual", batch=False)
         assert result == []
@@ -594,7 +594,7 @@ class TestGetUserSelectionInteractive:
             {"path": Path("/a/f1.txt")},
             {"path": Path("/a/f2.txt")},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.return_value = "1"
             result = get_user_selection(files, "manual", batch=False)
         assert result == [1]  # Remove index 1
@@ -605,7 +605,7 @@ class TestGetUserSelectionInteractive:
             {"path": Path("/a/f1.txt")},
             {"path": Path("/a/f2.txt")},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.side_effect = ["xyz", "1"]
             result = get_user_selection(files, "manual", batch=False)
         assert result == [1]
@@ -616,7 +616,7 @@ class TestGetUserSelectionInteractive:
             {"path": Path("/a/f1.txt")},
             {"path": Path("/a/f2.txt")},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.side_effect = ["99", "1"]
             result = get_user_selection(files, "manual", batch=False)
         assert result == [1]
@@ -624,7 +624,7 @@ class TestGetUserSelectionInteractive:
     def test_manual_keyboard_interrupt(self):
         """KeyboardInterrupt during manual selection is re-raised."""
         files = [{"path": Path("/a/f1.txt")}]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.side_effect = KeyboardInterrupt
             with pytest.raises(KeyboardInterrupt):
                 get_user_selection(files, "manual", batch=False)
@@ -639,7 +639,7 @@ class TestGetUserSelectionConfirm:
             {"path": Path("/a/f1.txt"), "keep": True},
             {"path": Path("/a/f2.txt"), "keep": False},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.return_value = "y"
             result = get_user_selection(files, "oldest", batch=False)
         assert result == [1]
@@ -649,7 +649,7 @@ class TestGetUserSelectionConfirm:
             {"path": Path("/a/f1.txt"), "keep": True},
             {"path": Path("/a/f2.txt"), "keep": False},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.return_value = "n"
             result = get_user_selection(files, "oldest", batch=False)
         assert result == []
@@ -659,7 +659,7 @@ class TestGetUserSelectionConfirm:
             {"path": Path("/a/f1.txt"), "keep": True},
             {"path": Path("/a/f2.txt"), "keep": False},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.return_value = "skip"
             result = get_user_selection(files, "oldest", batch=False)
         assert result == []
@@ -669,7 +669,7 @@ class TestGetUserSelectionConfirm:
             {"path": Path("/a/f1.txt"), "keep": True},
             {"path": Path("/a/f2.txt"), "keep": False},
         ]
-        with patch("file_organizer.cli.dedupe.console") as mock_console:
+        with patch("cli.dedupe.console") as mock_console:
             mock_console.input.side_effect = ["maybe", "y"]
             result = get_user_selection(files, "oldest", batch=False)
         assert result == [1]
@@ -742,7 +742,7 @@ class TestDedupeCommandDuplicates:
             patch(_DETECTOR_PATH, return_value=mock_detector),
             patch(_BACKUP_MGR_PATH, return_value=MagicMock()),
             patch(_SCAN_OPTS_PATH),
-            patch("file_organizer.cli.dedupe.console") as mock_console,
+            patch("cli.dedupe.console") as mock_console,
         ):
             mock_console.input.return_value = "y"
             # Need to allow print calls through
@@ -772,7 +772,7 @@ class TestDedupeCommandDuplicates:
             patch(_DETECTOR_PATH, return_value=mock_detector),
             patch(_BACKUP_MGR_PATH, return_value=MagicMock()),
             patch(_SCAN_OPTS_PATH),
-            patch("file_organizer.cli.dedupe.console") as mock_console,
+            patch("cli.dedupe.console") as mock_console,
         ):
             mock_console.input.return_value = "n"
             mock_console.print = MagicMock()
@@ -893,14 +893,14 @@ class TestMain:
     """Tests for the main() entry point."""
 
     def test_main_calls_dedupe_command(self):
-        with patch("file_organizer.cli.dedupe.dedupe_command", return_value=0) as mock_cmd:
+        with patch("cli.dedupe.dedupe_command", return_value=0) as mock_cmd:
             with pytest.raises(SystemExit) as exc_info:
                 main()
             mock_cmd.assert_called_once()
             assert exc_info.value.code == 0
 
     def test_main_propagates_exit_code(self):
-        with patch("file_organizer.cli.dedupe.dedupe_command", return_value=1):
+        with patch("cli.dedupe.dedupe_command", return_value=1):
             with pytest.raises(SystemExit) as exc_info:
                 main()
             assert exc_info.value.code == 1

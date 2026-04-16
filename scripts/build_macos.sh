@@ -36,7 +36,7 @@ if [[ "$ARCH" == "arm64" || "$ARCH" == "aarch64" ]]; then
 elif [[ "$ARCH" == "x86_64" || "$ARCH" == "amd64" ]]; then
     ARCH="x86_64"
 fi
-DMG_NAME="file-organizer-${VERSION}-macos-${ARCH}"
+DMG_NAME="fo-${VERSION}-macos-${ARCH}"
 SIGN_IDENTITY=""
 NOTARIZE=false
 UNIVERSAL=false
@@ -79,10 +79,10 @@ EXECUTABLE=""
 
 if [[ "$UNIVERSAL" == "true" ]]; then
     if [[ -z "$ARM_EXEC" ]]; then
-        ARM_EXEC=$(find "${DIST_DIR}" -maxdepth 1 -name "file-organizer-*macos-arm64*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
+        ARM_EXEC=$(find "${DIST_DIR}" -maxdepth 1 -name "fo-*macos-arm64*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
     fi
     if [[ -z "$X86_EXEC" ]]; then
-        X86_EXEC=$(find "${DIST_DIR}" -maxdepth 1 -name "file-organizer-*macos-x86_64*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
+        X86_EXEC=$(find "${DIST_DIR}" -maxdepth 1 -name "fo-*macos-x86_64*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
     fi
 
     if [[ -z "$ARM_EXEC" || -z "$X86_EXEC" ]]; then
@@ -96,14 +96,14 @@ if [[ "$UNIVERSAL" == "true" ]]; then
         exit 1
     fi
 
-    UNIVERSAL_EXEC="${BUILD_DIR}/file-organizer-universal"
+    UNIVERSAL_EXEC="${BUILD_DIR}/fo-universal"
     echo "    Creating universal binary with lipo..."
     lipo -create "$ARM_EXEC" "$X86_EXEC" -output "$UNIVERSAL_EXEC"
     chmod +x "$UNIVERSAL_EXEC"
     EXECUTABLE="$UNIVERSAL_EXEC"
-    DMG_NAME="file-organizer-${VERSION}-macos-universal"
+    DMG_NAME="fo-${VERSION}-macos-universal"
 else
-    EXECUTABLE=$(find "${DIST_DIR}" -maxdepth 1 -name "file-organizer-*macos-${ARCH}*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
+    EXECUTABLE=$(find "${DIST_DIR}" -maxdepth 1 -name "fo-*macos-${ARCH}*" -type f ! -name "*.dmg" ! -name "*.sha256" 2>/dev/null | head -1)
 fi
 
 if [[ -z "$EXECUTABLE" ]]; then
@@ -125,8 +125,8 @@ mkdir -p "${APP_DIR}/Contents/MacOS"
 mkdir -p "${APP_DIR}/Contents/Resources"
 
 # Copy executable
-cp "${EXECUTABLE}" "${APP_DIR}/Contents/MacOS/file-organizer"
-chmod +x "${APP_DIR}/Contents/MacOS/file-organizer"
+cp "${EXECUTABLE}" "${APP_DIR}/Contents/MacOS/fo"
+chmod +x "${APP_DIR}/Contents/MacOS/fo"
 
 # Create Info.plist
 cat > "${APP_DIR}/Contents/Info.plist" << PLIST
@@ -146,7 +146,7 @@ cat > "${APP_DIR}/Contents/Info.plist" << PLIST
     <key>CFBundleShortVersionString</key>
     <string>${VERSION}</string>
     <key>CFBundleExecutable</key>
-    <string>file-organizer</string>
+    <string>fo</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
@@ -200,7 +200,7 @@ INSTALLATION:
 3. Pull required models:
    ollama pull qwen2.5:3b-instruct-q4_K_M
    ollama pull qwen2.5vl:7b-q4_K_M
-4. Run from terminal: /Applications/File Organizer.app/Contents/MacOS/file-organizer --help
+4. Run from terminal: /Applications/File Organizer.app/Contents/MacOS/fo --help
 
 REQUIREMENTS:
 - macOS 11.0 or later

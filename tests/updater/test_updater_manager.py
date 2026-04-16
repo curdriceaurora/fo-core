@@ -1,4 +1,4 @@
-"""Tests for file_organizer.updater.manager module.
+"""Tests for updater.manager module.
 
 Covers UpdateStatus, UpdateManager.check, update (with dry_run), and rollback.
 """
@@ -9,9 +9,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.updater.checker import AssetInfo, ReleaseInfo
-from file_organizer.updater.installer import InstallResult
-from file_organizer.updater.manager import UpdateManager, UpdateStatus
+from updater.checker import AssetInfo, ReleaseInfo
+from updater.installer import InstallResult
+from updater.manager import UpdateManager, UpdateStatus
 
 pytestmark = [pytest.mark.unit]
 
@@ -58,8 +58,8 @@ class TestUpdateStatus:
 class TestUpdateManagerCheck:
     """Test UpdateManager.check method."""
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_no_update(self, mock_installer_cls, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.current_version = "1.0.0"
@@ -72,8 +72,8 @@ class TestUpdateManagerCheck:
         assert status.available is False
         assert status.current_version == "1.0.0"
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_update_available(self, mock_installer_cls, mock_checker_cls):
         release = ReleaseInfo(tag="v2.0.0", version="2.0.0")
         mock_checker = MagicMock()
@@ -98,8 +98,8 @@ class TestUpdateManagerCheck:
 class TestUpdateManagerUpdate:
     """Test UpdateManager.update method."""
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_no_update_available(self, mock_installer_cls, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.current_version = "1.0.0"
@@ -111,8 +111,8 @@ class TestUpdateManagerUpdate:
         status = mgr.update()
         assert status.available is False
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_no_compatible_asset(self, mock_installer_cls, mock_checker_cls):
         release = ReleaseInfo(tag="v2.0.0", version="2.0.0", assets=[])
         mock_checker = MagicMock()
@@ -130,8 +130,8 @@ class TestUpdateManagerUpdate:
         assert status.install_result.success is False
         assert "No compatible" in status.install_result.message
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_download_failed(self, mock_installer_cls, mock_checker_cls):
         asset = AssetInfo(name="app.bin", url="https://example.com/app.bin", size=100)
         release = ReleaseInfo(tag="v2.0.0", version="2.0.0", assets=[asset])
@@ -153,8 +153,8 @@ class TestUpdateManagerUpdate:
         assert status.install_result.success is False
         assert "Download failed" in status.install_result.message
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_dry_run(self, mock_installer_cls, mock_checker_cls, tmp_path):
         asset = AssetInfo(name="app.bin", url="https://example.com/app.bin", size=100)
         release = ReleaseInfo(tag="v2.0.0", version="2.0.0", assets=[asset])
@@ -179,8 +179,8 @@ class TestUpdateManagerUpdate:
         assert status.install_result.success is True
         assert "Dry run" in status.install_result.message
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_full_install(self, mock_installer_cls, mock_checker_cls, tmp_path):
         asset = AssetInfo(name="app.bin", url="https://example.com/app.bin", size=100)
         release = ReleaseInfo(tag="v2.0.0", version="2.0.0", assets=[asset])
@@ -215,8 +215,8 @@ class TestUpdateManagerUpdate:
 class TestUpdateManagerRollback:
     """Test UpdateManager.rollback method."""
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_rollback_delegates(self, mock_installer_cls, mock_checker_cls):
         mock_installer = MagicMock()
         mock_installer.rollback.return_value = True
@@ -227,8 +227,8 @@ class TestUpdateManagerRollback:
         assert mgr.rollback() is True
         mock_installer.rollback.assert_called_once()
 
-    @patch("file_organizer.updater.manager.UpdateChecker")
-    @patch("file_organizer.updater.manager.UpdateInstaller")
+    @patch("updater.manager.UpdateChecker")
+    @patch("updater.manager.UpdateInstaller")
     def test_current_version_property(self, mock_installer_cls, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.current_version = "3.0.0"

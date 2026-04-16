@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.models import Operation, OperationType
-from file_organizer.undo.rollback import RollbackExecutor
+from history.models import Operation, OperationType
+from undo.rollback import RollbackExecutor
 
 pytestmark = pytest.mark.unit
 

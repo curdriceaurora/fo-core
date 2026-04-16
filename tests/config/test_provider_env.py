@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.config.provider_env import get_current_provider, get_model_configs_from_env
-from file_organizer.models.base import ModelType
-from file_organizer.models.text_model import TextModel
-from file_organizer.models.vision_model import VisionModel
+from config.provider_env import get_current_provider, get_model_configs_from_env
+from models.base import ModelType
+from models.text_model import TextModel
+from models.vision_model import VisionModel
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -202,7 +202,7 @@ class TestGetModelConfigsFromEnvMLX:
         monkeypatch.setenv("FO_PROVIDER", "mlx")
         monkeypatch.delenv("FO_MLX_MODEL_PATH", raising=False)
 
-        with patch("file_organizer.config.provider_env.logger.warning") as mock_warning:
+        with patch("config.provider_env.logger.warning") as mock_warning:
             text_cfg, vision_cfg = get_model_configs_from_env()
 
         assert text_cfg.provider == "mlx"

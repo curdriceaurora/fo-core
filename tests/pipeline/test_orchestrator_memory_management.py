@@ -8,11 +8,11 @@ from unittest.mock import Mock
 
 import pytest
 
-from file_organizer.interfaces.pipeline import StageContext
-from file_organizer.optimization.buffer_pool import BufferPool
-from file_organizer.optimization.resource_monitor import MemoryInfo
-from file_organizer.pipeline.config import PipelineConfig
-from file_organizer.pipeline.orchestrator import PipelineOrchestrator, ProcessingResult
+from interfaces.pipeline import StageContext
+from optimization.buffer_pool import BufferPool
+from optimization.resource_monitor import MemoryInfo
+from pipeline.config import PipelineConfig
+from pipeline.orchestrator import PipelineOrchestrator, ProcessingResult
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 

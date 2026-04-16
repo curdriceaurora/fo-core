@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.methodologies.para.rules.engine import ActionType, RuleAction
+from methodologies.para.rules.engine import ActionType, RuleAction
 
 
 @pytest.mark.unit

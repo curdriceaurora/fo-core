@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.pipeline.processor_pool import ProcessorPool
-from file_organizer.pipeline.router import ProcessorType
+from pipeline.processor_pool import ProcessorPool
+from pipeline.router import ProcessorType
 
 pytestmark = pytest.mark.unit
 

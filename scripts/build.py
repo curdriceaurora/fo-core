@@ -114,8 +114,8 @@ def _entry_point(config: BuildConfig) -> Path:
         Path to the Python entry-point module.
     """
     if isinstance(config, DesktopBuildConfig):
-        return _PROJECT_ROOT / "src" / "file_organizer" / "desktop" / "app.py"
-    return _PROJECT_ROOT / "src" / "file_organizer" / "cli" / "main.py"
+        return _PROJECT_ROOT / "src" / "desktop" / "app.py"
+    return _PROJECT_ROOT / "src" / "cli" / "main.py"
 
 
 def _spec_path(config: BuildConfig) -> Path:
@@ -128,8 +128,8 @@ def _spec_path(config: BuildConfig) -> Path:
         Path to the PyInstaller spec file.
     """
     if isinstance(config, DesktopBuildConfig):
-        return _PROJECT_ROOT / "file_organizer_desktop.spec"
-    return _PROJECT_ROOT / "file_organizer.spec"
+        return _PROJECT_ROOT / "fo_desktop.spec"
+    return _PROJECT_ROOT / "spec"
 
 
 def build_command(config: BuildConfig, *, one_dir: bool = False, debug: bool = False) -> list[str]:

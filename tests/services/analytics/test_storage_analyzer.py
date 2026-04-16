@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.models.analytics import FileDistribution, StorageStats
-from file_organizer.services.analytics import StorageAnalyzer
+from models.analytics import FileDistribution, StorageStats
+from services.analytics import StorageAnalyzer
 
 
 @pytest.fixture

@@ -12,17 +12,17 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     JohnnyDecimalNumber,
     get_default_scheme,
 )
-from file_organizer.methodologies.johnny_decimal.numbering import JohnnyDecimalGenerator
-from file_organizer.methodologies.johnny_decimal.system import JohnnyDecimalSystem
-from file_organizer.methodologies.johnny_decimal.transformer import (
+from methodologies.johnny_decimal.numbering import JohnnyDecimalGenerator
+from methodologies.johnny_decimal.system import JohnnyDecimalSystem
+from methodologies.johnny_decimal.transformer import (
     TransformationPlan,
     TransformationRule,
 )
-from file_organizer.methodologies.johnny_decimal.validator import (
+from methodologies.johnny_decimal.validator import (
     MigrationValidator,
     ValidationIssue,
     ValidationResult,

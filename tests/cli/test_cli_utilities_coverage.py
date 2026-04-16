@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.cli.utilities — uncovered lines."""
+"""Coverage tests for cli.utilities — uncovered lines."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ runner = CliRunner()
 
 def _make_app() -> typer.Typer:
     """Build a minimal Typer app wrapping the utilities functions."""
-    from file_organizer.cli.utilities import analyze, search
+    from cli.utilities import analyze, search
 
     app = typer.Typer()
     app.command("search")(search)
@@ -208,7 +208,7 @@ class TestSemanticSearchHiddenFileFiltering:
         assert "late_bundle.tar.gz" in result.output
 
     def test_json_output_skips_files_that_disappear(self, tmp_path: Path) -> None:
-        from file_organizer.cli import utilities
+        from cli import utilities
 
         disappearing = tmp_path / "report.txt"
         disappearing.write_text("hello")
@@ -233,7 +233,7 @@ class TestSemanticSearchHiddenFileFiltering:
         assert json.loads(buffer.getvalue()) == []
 
     def test_text_output_skips_files_that_disappear(self, tmp_path: Path) -> None:
-        from file_organizer.cli import utilities
+        from cli import utilities
 
         disappearing = tmp_path / "report.txt"
         disappearing.write_text("hello")
@@ -249,7 +249,7 @@ class TestSemanticSearchHiddenFileFiltering:
         console = Console(file=buffer, force_terminal=False)
         with (
             patch("pathlib.Path.stat", autospec=True, side_effect=flaky_stat),
-            patch("file_organizer.cli.utilities.console", console),
+            patch("cli.utilities.console", console),
             patch("typer.echo", side_effect=lambda value: buffer.write(f"{value}\n")),
             warnings.catch_warnings(record=True) as caught,
         ):
@@ -271,7 +271,7 @@ class TestSemanticIndexBuildFailure:
         (tmp_path / "report.txt").write_text("quarterly budget finance report")
         (tmp_path / "notes.txt").write_text("meeting notes and agenda items")
 
-        with patch("file_organizer.services.search.hybrid_retriever.HybridRetriever") as mock_cls:
+        with patch("services.search.hybrid_retriever.HybridRetriever") as mock_cls:
             mock_cls.return_value.index.side_effect = ValueError("corpus too small")
             result = runner.invoke(app, ["search", "finance", str(tmp_path), "--semantic"])
 

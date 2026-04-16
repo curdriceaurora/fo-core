@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType
-from file_organizer.models.provider_registry import (
+from models.base import ModelConfig, ModelType
+from models.provider_registry import (
     ProviderRegistry,
     _register_builtins,
     _registry,
@@ -69,9 +69,9 @@ class TestBuiltinRegistration:
             model_type=ModelType.TEXT,
             provider="claude",
         )
-        with patch("file_organizer.models.claude_text_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_text_model.ANTHROPIC_AVAILABLE", True):
             model = _registry.get_text_model(cfg)
-        from file_organizer.models.claude_text_model import ClaudeTextModel
+        from models.claude_text_model import ClaudeTextModel
 
         assert isinstance(model, ClaudeTextModel)
 
@@ -81,9 +81,9 @@ class TestBuiltinRegistration:
             model_type=ModelType.VISION,
             provider="claude",
         )
-        with patch("file_organizer.models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
+        with patch("models.claude_vision_model.ANTHROPIC_AVAILABLE", True):
             model = _registry.get_vision_model(cfg)
-        from file_organizer.models.claude_vision_model import ClaudeVisionModel
+        from models.claude_vision_model import ClaudeVisionModel
 
         assert isinstance(model, ClaudeVisionModel)
 
@@ -163,9 +163,9 @@ class TestGetTextModel:
             fresh_registry.get_text_model(cfg)
 
     def test_dispatches_ollama_to_text_model(self, text_config: ModelConfig) -> None:
-        with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
+        with patch("models.text_model.OLLAMA_AVAILABLE", True):
             model = _registry.get_text_model(text_config)
-        from file_organizer.models.text_model import TextModel
+        from models.text_model import TextModel
 
         assert isinstance(model, TextModel)
 
@@ -176,9 +176,9 @@ class TestGetTextModel:
             provider="llama_cpp",
             model_path="/fake/model.gguf",
         )
-        with patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
+        with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = _registry.get_text_model(cfg)
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         assert isinstance(model, LlamaCppTextModel)
 
@@ -189,9 +189,9 @@ class TestGetTextModel:
             provider="mlx",
             model_path="mlx-community/Qwen2.5-3B-Instruct-4bit",
         )
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
             model = _registry.get_text_model(cfg)
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         assert isinstance(model, MLXTextModel)
 
@@ -243,9 +243,9 @@ class TestGetVisionModel:
             _registry.get_vision_model(cfg)
 
     def test_dispatches_ollama_to_vision_model(self, vision_config: ModelConfig) -> None:
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = _registry.get_vision_model(vision_config)
-        from file_organizer.models.vision_model import VisionModel
+        from models.vision_model import VisionModel
 
         assert isinstance(model, VisionModel)
 

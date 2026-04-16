@@ -12,15 +12,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.events.consumer import EventConsumer
-from file_organizer.events.replay import (
+from events.consumer import EventConsumer
+from events.replay import (
     EventReplayManager,
     ReplayConfig,
     _datetime_to_redis_ms,
     _increment_id,
     _parse_timestamp_from_id,
 )
-from file_organizer.events.stream import RedisStreamManager
+from events.stream import RedisStreamManager
 
 # --- Fixtures ---
 
@@ -36,7 +36,7 @@ def mock_redis_client() -> MagicMock:
 @pytest.fixture
 def connected_manager(mock_redis_client: MagicMock) -> RedisStreamManager:
     """Create a connected RedisStreamManager with mocked Redis."""
-    with patch("file_organizer.events.stream.redis") as mock_redis_module:
+    with patch("events.stream.redis") as mock_redis_module:
         mock_redis_module.Redis.from_url.return_value = mock_redis_client
         manager = RedisStreamManager()
         manager.connect()
@@ -353,7 +353,7 @@ class TestReplayToConsumer:
 
         handler = MagicMock()
         consumer = EventConsumer()
-        from file_organizer.events.types import EventType
+        from events.types import EventType
 
         consumer.register_handler(EventType.FILE_CREATED, handler)
 
@@ -378,7 +378,7 @@ class TestReplayToConsumer:
 
         handler = MagicMock()
         consumer = EventConsumer()
-        from file_organizer.events.types import EventType
+        from events.types import EventType
 
         consumer.register_handler(EventType.FILE_CREATED, handler)
 
@@ -400,7 +400,7 @@ class TestReplayToConsumer:
 
         handler = MagicMock(side_effect=RuntimeError("handler failed"))
         consumer = EventConsumer()
-        from file_organizer.events.types import EventType
+        from events.types import EventType
 
         consumer.register_handler(EventType.FILE_CREATED, handler)
 

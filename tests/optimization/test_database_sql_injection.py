@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.optimization.database import DatabaseOptimizer
+from optimization.database import DatabaseOptimizer
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -26,7 +26,7 @@ pytestmark = pytest.mark.integration
 
 class TestResourceConfig:
     def test_default_values(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         cfg = ResourceConfig()
         assert cfg.max_cpu_percent == 80.0
@@ -35,7 +35,7 @@ class TestResourceConfig:
         assert cfg.max_gpu_percent == 0.0
 
     def test_custom_values(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         cfg = ResourceConfig(
             max_cpu_percent=50.0,
@@ -49,49 +49,49 @@ class TestResourceConfig:
         assert cfg.max_gpu_percent == 25.0
 
     def test_zero_cpu_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         with pytest.raises(ValueError, match="max_cpu_percent must be > 0"):
             ResourceConfig(max_cpu_percent=0)
 
     def test_negative_cpu_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         with pytest.raises(ValueError, match="max_cpu_percent must be > 0"):
             ResourceConfig(max_cpu_percent=-10.0)
 
     def test_zero_memory_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         with pytest.raises(ValueError, match="max_memory_mb must be > 0"):
             ResourceConfig(max_memory_mb=0)
 
     def test_negative_memory_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         with pytest.raises(ValueError, match="max_memory_mb must be > 0"):
             ResourceConfig(max_memory_mb=-1)
 
     def test_zero_io_operations_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         with pytest.raises(ValueError, match="max_io_operations must be > 0"):
             ResourceConfig(max_io_operations=0)
 
     def test_negative_io_operations_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         with pytest.raises(ValueError, match="max_io_operations must be > 0"):
             ResourceConfig(max_io_operations=-1)
 
     def test_negative_gpu_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         with pytest.raises(ValueError, match="max_gpu_percent must be >= 0"):
             ResourceConfig(max_gpu_percent=-5.0)
 
     def test_zero_gpu_is_valid(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig
+        from parallel.resource_manager import ResourceConfig
 
         cfg = ResourceConfig(max_gpu_percent=0.0)
         assert cfg.max_gpu_percent == 0.0
@@ -104,14 +104,14 @@ class TestResourceConfig:
 
 class TestResourceManagerInit:
     def test_config_property(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig, ResourceManager
+        from parallel.resource_manager import ResourceConfig, ResourceManager
 
         cfg = ResourceConfig(max_cpu_percent=60.0)
         mgr = ResourceManager(cfg)
         assert mgr.config is cfg
 
     def test_initial_used_is_zero(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -122,7 +122,7 @@ class TestResourceManagerInit:
             assert mgr.get_used(rt) == 0.0
 
     def test_initial_available_equals_limit(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -142,7 +142,7 @@ class TestResourceManagerInit:
 
 class TestResourceManagerAcquire:
     def test_acquire_within_limit_returns_true(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -152,7 +152,7 @@ class TestResourceManagerAcquire:
         assert mgr.acquire(ResourceType.CPU, 40.0) is True
 
     def test_acquire_exactly_at_limit_returns_true(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -162,7 +162,7 @@ class TestResourceManagerAcquire:
         assert mgr.acquire(ResourceType.CPU, 80.0) is True
 
     def test_acquire_exceeding_limit_returns_false(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -172,7 +172,7 @@ class TestResourceManagerAcquire:
         assert mgr.acquire(ResourceType.CPU, 81.0) is False
 
     def test_acquire_reduces_available(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -183,7 +183,7 @@ class TestResourceManagerAcquire:
         assert mgr.get_available(ResourceType.CPU) == 70.0
 
     def test_acquire_increases_used(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -194,7 +194,7 @@ class TestResourceManagerAcquire:
         assert mgr.get_used(ResourceType.MEMORY) == 256.0
 
     def test_acquire_zero_always_succeeds(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -204,7 +204,7 @@ class TestResourceManagerAcquire:
         assert mgr.acquire(ResourceType.CPU, 0.0) is True
 
     def test_acquire_negative_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -215,14 +215,14 @@ class TestResourceManagerAcquire:
             mgr.acquire(ResourceType.CPU, -1.0)
 
     def test_acquire_unknown_resource_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig, ResourceManager
+        from parallel.resource_manager import ResourceConfig, ResourceManager
 
         mgr = ResourceManager(ResourceConfig())
         with pytest.raises(ValueError, match="Unknown resource type"):
             mgr.acquire("nonexistent", 10.0)
 
     def test_sequential_acquires_respect_limit(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -237,7 +237,7 @@ class TestResourceManagerAcquire:
 
 class TestResourceManagerRelease:
     def test_release_restores_available(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -249,7 +249,7 @@ class TestResourceManagerRelease:
         assert mgr.get_available(ResourceType.CPU) == 100.0
 
     def test_release_clamps_to_zero(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -260,7 +260,7 @@ class TestResourceManagerRelease:
         assert mgr.get_used(ResourceType.CPU) == 0.0
 
     def test_release_negative_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -271,7 +271,7 @@ class TestResourceManagerRelease:
             mgr.release(ResourceType.CPU, -1.0)
 
     def test_release_unknown_resource_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig, ResourceManager
+        from parallel.resource_manager import ResourceConfig, ResourceManager
 
         mgr = ResourceManager(ResourceConfig())
         with pytest.raises(ValueError, match="Unknown resource type"):
@@ -280,7 +280,7 @@ class TestResourceManagerRelease:
 
 class TestResourceManagerUtilization:
     def test_utilization_zero_when_idle(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -290,7 +290,7 @@ class TestResourceManagerUtilization:
         assert mgr.get_utilization(ResourceType.CPU) == 0.0
 
     def test_utilization_one_when_fully_used(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -301,7 +301,7 @@ class TestResourceManagerUtilization:
         assert mgr.get_utilization(ResourceType.CPU) == pytest.approx(1.0)
 
     def test_utilization_half_when_half_used(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -312,7 +312,7 @@ class TestResourceManagerUtilization:
         assert mgr.get_utilization(ResourceType.CPU) == pytest.approx(0.5)
 
     def test_utilization_zero_gpu_limit_zero(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -322,21 +322,21 @@ class TestResourceManagerUtilization:
         assert mgr.get_utilization(ResourceType.GPU) == 0.0
 
     def test_utilization_unknown_resource_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig, ResourceManager
+        from parallel.resource_manager import ResourceConfig, ResourceManager
 
         mgr = ResourceManager(ResourceConfig())
         with pytest.raises(ValueError, match="Unknown resource type"):
             mgr.get_utilization("nope")
 
     def test_get_available_unknown_resource_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig, ResourceManager
+        from parallel.resource_manager import ResourceConfig, ResourceManager
 
         mgr = ResourceManager(ResourceConfig())
         with pytest.raises(ValueError, match="Unknown resource type"):
             mgr.get_available("ghost")
 
     def test_get_used_unknown_resource_raises(self) -> None:
-        from file_organizer.parallel.resource_manager import ResourceConfig, ResourceManager
+        from parallel.resource_manager import ResourceConfig, ResourceManager
 
         mgr = ResourceManager(ResourceConfig())
         with pytest.raises(ValueError, match="Unknown resource type"):
@@ -345,7 +345,7 @@ class TestResourceManagerUtilization:
 
 class TestResourceManagerReset:
     def test_reset_clears_all_used(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -359,7 +359,7 @@ class TestResourceManagerReset:
         assert mgr.get_used(ResourceType.MEMORY) == 0.0
 
     def test_reset_restores_full_availability(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -374,7 +374,7 @@ class TestResourceManagerReset:
 
 class TestResourceManagerThreadSafety:
     def test_concurrent_acquires_do_not_exceed_limit(self) -> None:
-        from file_organizer.parallel.resource_manager import (
+        from parallel.resource_manager import (
             ResourceConfig,
             ResourceManager,
             ResourceType,
@@ -407,10 +407,10 @@ class TestResourceManagerThreadSafety:
 
 class TestCreateExecutorExtended:
     def test_process_executor_fallback_on_os_error(self) -> None:
-        from file_organizer.parallel.executor import create_executor
+        from parallel.executor import create_executor
 
         with patch(
-            "file_organizer.parallel.executor.ProcessPoolExecutor",
+            "parallel.executor.ProcessPoolExecutor",
             side_effect=OSError("semaphore limit"),
         ):
             executor, executor_type = create_executor("process", max_workers=2)
@@ -421,10 +421,10 @@ class TestCreateExecutorExtended:
                 executor.shutdown(wait=False)
 
     def test_process_executor_fallback_on_runtime_error(self) -> None:
-        from file_organizer.parallel.executor import create_executor
+        from parallel.executor import create_executor
 
         with patch(
-            "file_organizer.parallel.executor.ProcessPoolExecutor",
+            "parallel.executor.ProcessPoolExecutor",
             side_effect=RuntimeError("no semaphores"),
         ):
             executor, executor_type = create_executor("process", max_workers=1)
@@ -434,7 +434,7 @@ class TestCreateExecutorExtended:
                 executor.shutdown(wait=False)
 
     def test_thread_executor_submits_and_returns_result(self) -> None:
-        from file_organizer.parallel.executor import create_executor
+        from parallel.executor import create_executor
 
         executor, executor_type = create_executor("thread", max_workers=2)
         try:
@@ -445,7 +445,7 @@ class TestCreateExecutorExtended:
             executor.shutdown(wait=True)
 
     def test_multiple_tasks_run_concurrently(self) -> None:
-        from file_organizer.parallel.executor import create_executor
+        from parallel.executor import create_executor
 
         executor, _ = create_executor("thread", max_workers=4)
         try:
@@ -468,8 +468,8 @@ class TestCreateExecutorExtended:
 
 class TestParallelProcessorExtended:
     def test_process_batch_iter_empty_yields_nothing(self) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         cfg = ParallelConfig(max_workers=1, retry_count=0, timeout_per_file=30.0)
         proc = ParallelProcessor(cfg)
@@ -477,8 +477,8 @@ class TestParallelProcessorExtended:
         assert results == []
 
     def test_process_batch_iter_yields_results(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         files = []
         for i in range(3):
@@ -494,8 +494,8 @@ class TestParallelProcessorExtended:
         assert all(r.success for r in results)
 
     def test_process_batch_iter_with_external_executor(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         files = [tmp_path / f"e{i}.txt" for i in range(2)]
         for f in files:
@@ -511,8 +511,8 @@ class TestParallelProcessorExtended:
         assert all(r.success for r in results)
 
     def test_process_batch_iter_failure_included(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         f = tmp_path / "fail.txt"
         f.write_text("x", encoding="utf-8")
@@ -529,8 +529,8 @@ class TestParallelProcessorExtended:
         assert "deliberate error" in results[0].error  # type: ignore[operator]
 
     def test_retry_retries_failed_files(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         f = tmp_path / "retry.txt"
         f.write_text("content", encoding="utf-8")
@@ -552,23 +552,23 @@ class TestParallelProcessorExtended:
         assert call_count["n"] == 2
 
     def test_shutdown_is_noop(self) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         proc = ParallelProcessor(ParallelConfig())
         proc.shutdown()  # should not raise
 
     def test_config_property_returns_same_object(self) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         cfg = ParallelConfig(max_workers=2)
         proc = ParallelProcessor(cfg)
         assert proc.config is cfg
 
     def test_default_config_used_when_none(self) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         proc = ParallelProcessor(None)
         assert isinstance(proc.config, ParallelConfig)
@@ -576,8 +576,8 @@ class TestParallelProcessorExtended:
         assert proc.config.retry_count == 2  # default retry count
 
     def test_process_batch_files_per_second_positive(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.config import ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         files = []
         for i in range(4):
@@ -592,8 +592,8 @@ class TestParallelProcessorExtended:
         assert result.files_per_second > 0
 
     def test_process_executor_type_uses_create_executor(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.config import ExecutorType, ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ExecutorType, ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         f = tmp_path / "proc.txt"
         f.write_text("data", encoding="utf-8")
@@ -608,7 +608,7 @@ class TestParallelProcessorExtended:
         # Force thread fallback so lambda is picklable; verifies the process executor
         # config path is exercised and falls back gracefully.
         with patch(
-            "file_organizer.parallel.executor.ProcessPoolExecutor",
+            "parallel.executor.ProcessPoolExecutor",
             side_effect=OSError("no semaphores in test"),
         ):
             result = proc.process_batch([f], lambda p: "ok")
@@ -622,7 +622,7 @@ class TestParallelProcessorExtended:
 
 class TestRateThrottlerExtended:
     def test_reset_clears_stats(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=10.0)
         throttler.acquire()
@@ -633,7 +633,7 @@ class TestRateThrottlerExtended:
         assert stats.denied == 0
 
     def test_reset_restores_full_bucket(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=2.0)
         throttler.acquire()
@@ -645,7 +645,7 @@ class TestRateThrottlerExtended:
         assert throttler.acquire() is True
 
     def test_stats_denied_count(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=1.0)
         throttler.acquire()  # allowed
@@ -654,28 +654,28 @@ class TestRateThrottlerExtended:
         assert stats.denied >= 1
 
     def test_stats_window_seconds_matches_config(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=5.0, window_seconds=2.0)
         stats = throttler.stats()
         assert stats.window_seconds == 2.0
 
     def test_stats_max_rate_matches_config(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=7.5)
         stats = throttler.stats()
         assert stats.max_rate == 7.5
 
     def test_stats_current_rate_zero_before_any_acquire(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=10.0)
         stats = throttler.stats()
         assert stats.current_rate == 0.0
 
     def test_wait_acquires_token_eventually(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         # High rate so wait returns almost immediately
         throttler = RateThrottler(max_rate=1000.0, window_seconds=1.0)
@@ -685,7 +685,7 @@ class TestRateThrottlerExtended:
         assert stats.allowed >= 1
 
     def test_concurrent_acquires_are_thread_safe(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=100.0)
         successes: list[bool] = []
@@ -706,20 +706,20 @@ class TestRateThrottlerExtended:
         assert all(successes)
 
     def test_negative_max_rate_raises(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         with pytest.raises(ValueError, match="max_rate must be > 0"):
             RateThrottler(max_rate=-1.0)
 
     def test_negative_window_raises(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         with pytest.raises(ValueError, match="window_seconds must be > 0"):
             RateThrottler(max_rate=1.0, window_seconds=-1.0)
 
     def test_token_refill_over_time(self) -> None:
-        import file_organizer.parallel.throttle as _throttle_mod
-        from file_organizer.parallel.throttle import RateThrottler
+        import parallel.throttle as _throttle_mod
+        from parallel.throttle import RateThrottler
 
         current_time = [1000.0]
 
@@ -737,7 +737,7 @@ class TestRateThrottlerExtended:
             assert throttler.acquire() is True
 
     def test_stats_allowed_increments_on_each_acquire(self) -> None:
-        from file_organizer.parallel.throttle import RateThrottler
+        from parallel.throttle import RateThrottler
 
         throttler = RateThrottler(max_rate=10.0)
         for _ in range(5):

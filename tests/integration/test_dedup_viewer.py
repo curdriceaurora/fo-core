@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PIL import Image
 
-from file_organizer.services.deduplication.viewer import (
+from services.deduplication.viewer import (
     ComparisonViewer,
 )
 
@@ -23,7 +23,7 @@ def duplicate_images(tmp_path: Path) -> list[Path]:
     return [img1_path, img2_path]
 
 
-@patch("file_organizer.services.deduplication.viewer.Prompt.ask")
+@patch("services.deduplication.viewer.Prompt.ask")
 def test_comparison_viewer_interactive_select_all(
     mock_ask: MagicMock, duplicate_images: list[Path]
 ) -> None:
@@ -34,7 +34,7 @@ def test_comparison_viewer_interactive_select_all(
     mock_ask.assert_called_once_with("Your selection", default="all")
 
 
-@patch("file_organizer.services.deduplication.viewer.Prompt.ask")
+@patch("services.deduplication.viewer.Prompt.ask")
 def test_comparison_viewer_interactive_select_specific(
     mock_ask: MagicMock, duplicate_images: list[Path]
 ) -> None:
@@ -46,7 +46,7 @@ def test_comparison_viewer_interactive_select_specific(
     mock_ask.assert_called_once_with("Your selection", default="all")
 
 
-@patch("file_organizer.services.deduplication.viewer.Prompt.ask")
+@patch("services.deduplication.viewer.Prompt.ask")
 def test_comparison_viewer_interactive_select_ignores_invalid_entries(
     mock_ask: MagicMock, duplicate_images: list[Path]
 ) -> None:
@@ -57,7 +57,7 @@ def test_comparison_viewer_interactive_select_ignores_invalid_entries(
     mock_ask.assert_called_once_with("Your selection", default="all")
 
 
-@patch("file_organizer.services.deduplication.viewer.Prompt.ask")
+@patch("services.deduplication.viewer.Prompt.ask")
 def test_comparison_viewer_interactive_select_none(
     mock_ask: MagicMock, duplicate_images: list[Path]
 ) -> None:
@@ -68,7 +68,7 @@ def test_comparison_viewer_interactive_select_none(
     mock_ask.assert_called_once_with("Your selection", default="all")
 
 
-@patch("file_organizer.services.deduplication.viewer.Prompt.ask")
+@patch("services.deduplication.viewer.Prompt.ask")
 def test_comparison_viewer_show_comparison_auto(
     mock_ask: MagicMock, duplicate_images: list[Path]
 ) -> None:
@@ -83,7 +83,7 @@ def test_comparison_viewer_show_comparison_auto(
     mock_ask.assert_called_once_with("\nYour choice", default="a")
 
 
-@patch("file_organizer.services.deduplication.viewer.Prompt.ask")
+@patch("services.deduplication.viewer.Prompt.ask")
 def test_comparison_viewer_show_comparison_skip(
     mock_ask: MagicMock, duplicate_images: list[Path]
 ) -> None:

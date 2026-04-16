@@ -10,15 +10,15 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.categories import (
+from methodologies.para.categories import (
     CategorizationResult,
     CategoryDefinition,
     PARACategory,
     get_all_category_definitions,
     get_category_definition,
 )
-from file_organizer.methodologies.para.config import CategoryThresholds
-from file_organizer.methodologies.para.detection.heuristics import (
+from methodologies.para.config import CategoryThresholds
+from methodologies.para.detection.heuristics import (
     ContentHeuristic,
     HeuristicEngine,
     StructuralHeuristic,

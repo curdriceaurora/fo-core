@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.events.config import EventConfig
-from file_organizer.events.stream import (
+from events.config import EventConfig
+from events.stream import (
     Event,
     RedisStreamManager,
     _parse_timestamp_from_id,
@@ -45,7 +45,7 @@ class TestEvent:
 
 class TestNoRedis:
     def test_connect_no_redis(self, manager):
-        with patch("file_organizer.events.stream.redis", None):
+        with patch("events.stream.redis", None):
             result = manager.connect()
         assert result is False
 
@@ -97,7 +97,7 @@ class TestProperties:
 
 class TestContextManager:
     def test_enter_exit(self, config):
-        with patch("file_organizer.events.stream.redis", None):
+        with patch("events.stream.redis", None):
             with RedisStreamManager(config=config) as mgr:
                 assert mgr.is_connected is False
 
@@ -140,7 +140,7 @@ class TestConnect:
         mock_redis_mod = MagicMock()
         mock_conn = MagicMock()
         mock_redis_mod.Redis.from_url.return_value = mock_conn
-        with patch("file_organizer.events.stream.redis", mock_redis_mod):
+        with patch("events.stream.redis", mock_redis_mod):
             result = manager.connect()
         assert result is True
         assert manager.is_connected is True
@@ -148,7 +148,7 @@ class TestConnect:
     def test_connect_failure(self, manager):
         mock_redis_mod = MagicMock()
         mock_redis_mod.Redis.from_url.side_effect = Exception("refused")
-        with patch("file_organizer.events.stream.redis", mock_redis_mod):
+        with patch("events.stream.redis", mock_redis_mod):
             result = manager.connect()
         assert result is False
         assert manager.is_connected is False
@@ -157,7 +157,7 @@ class TestConnect:
         mock_redis_mod = MagicMock()
         mock_conn = MagicMock()
         mock_redis_mod.Redis.from_url.return_value = mock_conn
-        with patch("file_organizer.events.stream.redis", mock_redis_mod):
+        with patch("events.stream.redis", mock_redis_mod):
             result = manager.connect(redis_url="redis://custom:6380")
         assert result is True
 

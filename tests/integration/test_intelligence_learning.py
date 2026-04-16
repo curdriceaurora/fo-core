@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.pattern_learner import PatternLearner
-from file_organizer.services.intelligence.preference_database import PreferenceDatabaseManager
+from services.intelligence.pattern_learner import PatternLearner
+from services.intelligence.preference_database import PreferenceDatabaseManager
 
 pytestmark = pytest.mark.integration
 

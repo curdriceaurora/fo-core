@@ -33,7 +33,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 
 # Verify
-file-organizer --version
+fo --version
 ```
 
 ### Adding Dev Dependencies
@@ -123,11 +123,11 @@ For first-wave review-regression CI parity, you can run the same audit command
 used by the standing enforcement checks:
 
 ```bash
-python3 -m file_organizer.review_regressions.audit \
+python3 -m review_regressions.audit \
   --root . \
-  --detector file_organizer.review_regressions.security:SECURITY_DETECTORS \
-  --detector file_organizer.review_regressions.correctness:CORRECTNESS_DETECTORS \
-  --detector file_organizer.review_regressions.test_quality:TEST_QUALITY_DETECTORS \
+  --detector review_regressions.security:SECURITY_DETECTORS \
+  --detector review_regressions.correctness:CORRECTNESS_DETECTORS \
+  --detector review_regressions.test_quality:TEST_QUALITY_DETECTORS \
   --fail-on-findings
 ```
 
@@ -162,7 +162,7 @@ add it to `.pre-commit-config.yaml` or `tests/ci`, then let this script invoke i
 ruff check src/
 
 # Type check
-mypy src/file_organizer/ --strict
+mypy src/ --strict
 
 # Validate integration coverage against current baseline
 bash scripts/coverage/ratchet.sh check
@@ -300,7 +300,7 @@ Example: `fix(history): replace deprecated datetime.utcnow() with timezone-aware
 pytest
 
 # Run with coverage
-pytest --cov=file_organizer --cov-report=html
+pytest --cov=src --cov-report=html
 
 # Run specific test subsets
 pytest -m unit           # Unit tests only

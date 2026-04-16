@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 runner = CliRunner()
 
@@ -17,7 +17,7 @@ class TestVersionCommand:
     def test_version_output(self) -> None:
         result = runner.invoke(app, ["version"])
         assert result.exit_code == 0
-        assert "file-organizer" in result.output
+        assert "fo" in result.output
         assert "2.0.0" in result.output
 
 
@@ -120,6 +120,6 @@ class TestGlobalOptions:
 
 def _make_manager(config_dir):
     """Helper to create a ConfigManager pointing at a temp dir."""
-    from file_organizer.config import ConfigManager
+    from config import ConfigManager
 
     return ConfigManager(config_dir)

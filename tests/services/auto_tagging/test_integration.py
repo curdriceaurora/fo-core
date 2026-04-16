@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.auto_tagging import AutoTaggingService
+from services.auto_tagging import AutoTaggingService
 
 
 @pytest.fixture

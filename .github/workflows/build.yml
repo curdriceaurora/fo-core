@@ -73,9 +73,9 @@ jobs:
         shell: bash
         run: |
           if [ "${{ matrix.platform }}" = "windows" ]; then
-            cli_exe=$(find dist -name "file-organizer-*.exe" -type f | head -1)
+            cli_exe=$(find dist -name "fo-*.exe" -type f | head -1)
           else
-            cli_exe=$(find dist -maxdepth 1 -type f -name "file-organizer-*" -perm /111 \
+            cli_exe=$(find dist -maxdepth 1 -type f -name "fo-*" -perm /111 \
               -not -name "*.AppImage" \
               -not -name "*.tar.gz" \
               -not -name "*.zip" \
@@ -105,7 +105,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: file-organizer-${{ matrix.platform }}-${{ matrix.arch }}
+          name: fo-${{ matrix.platform }}-${{ matrix.arch }}
           path: dist/*
           retention-days: 30
 
@@ -125,7 +125,7 @@ jobs:
       - name: Create checksums
         run: |
           cd artifacts
-          find . -type f \( -name "file-organizer*" -o -name "*.exe" \) | while read f; do
+          find . -type f \( -name "fo*" -o -name "*.exe" \) | while read f; do
             sha256sum "$f" >> SHA256SUMS.txt
           done
           cat SHA256SUMS.txt

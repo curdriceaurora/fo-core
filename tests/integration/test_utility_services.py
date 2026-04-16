@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
-from file_organizer.utils.chart_generator import ChartGenerator
-from file_organizer.utils.text_processing import (
+from services.analytics.storage_analyzer import StorageAnalyzer
+from utils.chart_generator import ChartGenerator
+from utils.text_processing import (
     clean_text,
     extract_keywords,
     sanitize_filename,

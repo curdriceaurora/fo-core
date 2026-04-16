@@ -55,7 +55,7 @@ def _make_tar(tmp_path: Path, name: str, files: dict[str, bytes], mode: str = "w
 
 class TestReadZipFile:
     def test_basic_zip_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "test.zip", {"a.txt": b"hello"})
         result = read_zip_file(zp)
@@ -63,14 +63,14 @@ class TestReadZipFile:
         assert len(result) > 0
 
     def test_zip_contains_filename_in_header(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "myarchive.zip", {"note.txt": b"content"})
         result = read_zip_file(zp)
         assert "myarchive.zip" in result
 
     def test_zip_total_files_count(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(
             tmp_path,
@@ -81,14 +81,14 @@ class TestReadZipFile:
         assert "Total files: 3" in result
 
     def test_zip_lists_files(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "list.zip", {"readme.md": b"# README"})
         result = read_zip_file(zp)
         assert "readme.md" in result
 
     def test_zip_max_files_truncates(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         files = {f"{i}.txt": f"file {i}".encode() for i in range(10)}
         zp = _make_zip(tmp_path, "many.zip", files)
@@ -96,21 +96,21 @@ class TestReadZipFile:
         assert "and 7 more files" in result
 
     def test_zip_no_truncation_when_max_files_large(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "few.zip", {"x.txt": b"x", "y.txt": b"y"})
         result = read_zip_file(zp, max_files=100)
         assert "more files" not in result
 
     def test_zip_encrypted_field_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "enc.zip", {"data.bin": b"data"})
         result = read_zip_file(zp)
         assert "Encrypted:" in result
 
     def test_zip_compression_ratio_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         # Large content compresses well
         zp = _make_zip(tmp_path, "comp.zip", {"big.txt": b"A" * 10000})
@@ -118,14 +118,14 @@ class TestReadZipFile:
         assert "Compression ratio:" in result
 
     def test_zip_empty_archive(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "empty.zip", {})
         result = read_zip_file(zp)
         assert "Total files: 0" in result
 
     def test_zip_accepts_string_path(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "str.zip", {"f.txt": b"hello"})
         result = read_zip_file(str(zp))
@@ -133,8 +133,8 @@ class TestReadZipFile:
         assert "f.txt" in result
 
     def test_zip_invalid_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_zip_file
 
         broken = tmp_path / "broken.zip"
         broken.write_bytes(b"this is not a zip file")
@@ -142,14 +142,14 @@ class TestReadZipFile:
             read_zip_file(broken)
 
     def test_zip_missing_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_zip_file
 
         with pytest.raises(FileReadError):
             read_zip_file(tmp_path / "nonexistent.zip")
 
     def test_zip_max_files_zero(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_zip_file
+        from utils.readers.archives import read_zip_file
 
         zp = _make_zip(tmp_path, "zero.zip", {"a.txt": b"a"})
         result = read_zip_file(zp, max_files=0)
@@ -157,12 +157,12 @@ class TestReadZipFile:
         assert len(result) > 0
 
     def test_py7zr_available_flag_is_bool(self) -> None:
-        from file_organizer.utils.readers.archives import PY7ZR_AVAILABLE
+        from utils.readers.archives import PY7ZR_AVAILABLE
 
         assert PY7ZR_AVAILABLE is True or PY7ZR_AVAILABLE is False
 
     def test_rarfile_available_flag_is_bool(self) -> None:
-        from file_organizer.utils.readers.archives import RARFILE_AVAILABLE
+        from utils.readers.archives import RARFILE_AVAILABLE
 
         assert RARFILE_AVAILABLE is True or RARFILE_AVAILABLE is False
 
@@ -174,7 +174,7 @@ class TestReadZipFile:
 
 class TestReadTarFile:
     def test_plain_tar_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "test.tar", {"doc.txt": b"hello tar"})
         result = read_tar_file(tp)
@@ -182,49 +182,49 @@ class TestReadTarFile:
         assert "test.tar" in result
 
     def test_tar_total_files_count(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "multi.tar", {"a.txt": b"a", "b.txt": b"b", "c.txt": b"c"})
         result = read_tar_file(tp)
         assert "Total files: 3" in result
 
     def test_tar_lists_files(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "list.tar", {"notes.txt": b"notes"})
         result = read_tar_file(tp)
         assert "notes.txt" in result
 
     def test_tar_gz_compression_detected(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "archive.tar.gz", {"f.txt": b"hello"}, mode="w:gz")
         result = read_tar_file(tp)
         assert "GZ" in result
 
     def test_tgz_compression_detected(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "archive.tgz", {"f.txt": b"hello"}, mode="w:gz")
         result = read_tar_file(tp)
         assert "GZ" in result
 
     def test_tar_bz2_compression_detected(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "archive.tar.bz2", {"f.txt": b"hello"}, mode="w:bz2")
         result = read_tar_file(tp)
         assert "BZ2" in result
 
     def test_plain_tar_no_compression(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "plain.tar", {"f.txt": b"data"})
         result = read_tar_file(tp)
         assert "None" in result
 
     def test_tar_max_files_truncates(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         files = {f"{i}.txt": f"file {i}".encode() for i in range(10)}
         tp = _make_tar(tmp_path, "many.tar", files)
@@ -232,7 +232,7 @@ class TestReadTarFile:
         assert "and 6 more files" in result
 
     def test_tar_accepts_string_path(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "str.tar", {"f.txt": b"x"})
         result = read_tar_file(str(tp))
@@ -240,8 +240,8 @@ class TestReadTarFile:
         assert "x" in result
 
     def test_tar_invalid_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_tar_file
 
         broken = tmp_path / "broken.tar"
         broken.write_bytes(b"not a tar")
@@ -249,14 +249,14 @@ class TestReadTarFile:
             read_tar_file(broken)
 
     def test_tar_missing_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers._base import FileReadError
+        from utils.readers.archives import read_tar_file
 
         with pytest.raises(FileReadError):
             read_tar_file(tmp_path / "ghost.tar")
 
     def test_tar_with_directory_members(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tar_path = tmp_path / "withdir.tar"
         with tarfile.open(tar_path, "w") as tf:
@@ -272,7 +272,7 @@ class TestReadTarFile:
         assert "Total directories: 1" in result
 
     def test_tar_total_size_reported(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.archives import read_tar_file
+        from utils.readers.archives import read_tar_file
 
         tp = _make_tar(tmp_path, "size.tar", {"big.txt": b"X" * 2048})
         result = read_tar_file(tp)
@@ -288,8 +288,8 @@ class TestRead7zFile:
     def test_raises_import_error_when_py7zr_unavailable(self, tmp_path: Path) -> None:
         from unittest.mock import patch
 
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers import archives
+        from utils.readers.archives import read_7z_file
 
         with patch.object(archives, "PY7ZR_AVAILABLE", False):
             with pytest.raises(ImportError, match="py7zr"):
@@ -299,8 +299,8 @@ class TestRead7zFile:
         from types import SimpleNamespace
         from unittest.mock import MagicMock, patch
 
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_7z_file
+        from utils.readers import archives
+        from utils.readers.archives import read_7z_file
 
         fake_file = SimpleNamespace(
             filename="sample.txt",
@@ -339,8 +339,8 @@ class TestReadRarFile:
     def test_raises_import_error_when_rarfile_unavailable(self, tmp_path: Path) -> None:
         from unittest.mock import patch
 
-        from file_organizer.utils.readers import archives
-        from file_organizer.utils.readers.archives import read_rar_file
+        from utils.readers import archives
+        from utils.readers.archives import read_rar_file
 
         with patch.object(archives, "RARFILE_AVAILABLE", False):
             with pytest.raises(ImportError, match="rarfile"):

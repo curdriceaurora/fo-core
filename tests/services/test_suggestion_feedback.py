@@ -1,4 +1,4 @@
-"""Tests for file_organizer.services.suggestion_feedback module.
+"""Tests for services.suggestion_feedback module.
 
 Covers SuggestionFeedback CRUD, learning stats, confidence adjustment,
 user history, old feedback cleanup, and export.
@@ -13,8 +13,8 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.models.suggestion_types import Suggestion, SuggestionType
-from file_organizer.services.suggestion_feedback import (
+from models.suggestion_types import Suggestion, SuggestionType
+from services.suggestion_feedback import (
     FeedbackEntry,
     LearningStats,
     SuggestionFeedback,

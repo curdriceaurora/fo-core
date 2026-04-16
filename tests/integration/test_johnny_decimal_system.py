@@ -14,27 +14,27 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     AreaDefinition,
     CategoryDefinition,
     JohnnyDecimalNumber,
     NumberingScheme,
 )
-from file_organizer.methodologies.johnny_decimal.numbering import (
+from methodologies.johnny_decimal.numbering import (
     InvalidNumberError,
     JohnnyDecimalGenerator,
     NumberConflictError,
 )
-from file_organizer.methodologies.johnny_decimal.scanner import (
+from methodologies.johnny_decimal.scanner import (
     FolderInfo,
     FolderScanner,
     ScanResult,
 )
-from file_organizer.methodologies.johnny_decimal.transformer import (
+from methodologies.johnny_decimal.transformer import (
     FolderTransformer,
     TransformationPlan,
 )
-from file_organizer.methodologies.johnny_decimal.validator import (
+from methodologies.johnny_decimal.validator import (
     MigrationValidator,
     ValidationIssue,
     ValidationResult,

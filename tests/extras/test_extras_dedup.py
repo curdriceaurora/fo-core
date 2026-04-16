@@ -16,7 +16,7 @@ def test_image_deduplicator_finds_identical_images(tmp_path: Path) -> None:
         pytest.skip("imagededup is mocked by unit tests — real package not installed")
     from PIL import Image  # Pillow is a dep of imagededup
 
-    from file_organizer.services.deduplication.image_dedup import ImageDeduplicator
+    from services.deduplication.image_dedup import ImageDeduplicator
 
     # Use PNG (lossless) so both saves produce bit-identical files and the
     # perceptual hash distance is guaranteed to be 0.

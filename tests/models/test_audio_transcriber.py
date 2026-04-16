@@ -15,7 +15,7 @@ import pytest
 mock_faster_whisper = MagicMock()
 sys.modules.setdefault("faster_whisper", mock_faster_whisper)
 
-from file_organizer.models.audio_transcriber import (  # noqa: E402
+from models.audio_transcriber import (  # noqa: E402
     AudioTranscriber,
     ComputeType,
     LanguageDetection,
@@ -340,7 +340,7 @@ class TestLoadModel:
     def test_load_model_success(self, make_transcriber: Any) -> None:
         t = make_transcriber()
         mock_model = MagicMock()
-        with patch("file_organizer.models.audio_transcriber.WhisperModel", return_value=mock_model):
+        with patch("models.audio_transcriber.WhisperModel", return_value=mock_model):
             model = t._load_model()
         assert model is mock_model
 
@@ -356,7 +356,7 @@ class TestLoadModel:
     def test_load_model_failure_raises_runtime_error(self, make_transcriber: Any) -> None:
         t = make_transcriber()
         with patch(
-            "file_organizer.models.audio_transcriber.WhisperModel",
+            "models.audio_transcriber.WhisperModel",
             side_effect=RuntimeError("download failed"),
         ):
             with pytest.raises(RuntimeError, match="Model loading failed"):
@@ -365,9 +365,7 @@ class TestLoadModel:
     def test_load_model_with_cache_dir(self, make_transcriber: Any, tmp_path: Path) -> None:
         t = make_transcriber(cache_dir=tmp_path)
         mock_model = MagicMock()
-        with patch(
-            "file_organizer.models.audio_transcriber.WhisperModel", return_value=mock_model
-        ) as mock_cls:
+        with patch("models.audio_transcriber.WhisperModel", return_value=mock_model) as mock_cls:
             t._load_model()
             _, kwargs = mock_cls.call_args
             assert kwargs["download_root"] == str(tmp_path)
@@ -375,9 +373,7 @@ class TestLoadModel:
     def test_load_model_without_cache_dir(self, make_transcriber: Any) -> None:
         t = make_transcriber(cache_dir=None)
         mock_model = MagicMock()
-        with patch(
-            "file_organizer.models.audio_transcriber.WhisperModel", return_value=mock_model
-        ) as mock_cls:
+        with patch("models.audio_transcriber.WhisperModel", return_value=mock_model) as mock_cls:
             t._load_model()
             _, kwargs = mock_cls.call_args
             assert kwargs["download_root"] is None
@@ -750,12 +746,12 @@ class TestMissingFasterWhisper:
 
     def test_init_raises_import_error_when_dep_missing(self) -> None:
         """ImportError is raised with install hint when faster-whisper absent."""
-        import file_organizer.models.audio_transcriber as _mod
+        import models.audio_transcriber as _mod
 
         original = _mod._FASTER_WHISPER_AVAILABLE
         try:
             _mod._FASTER_WHISPER_AVAILABLE = False
-            with pytest.raises(ImportError, match="pip install 'local-file-organizer\\[audio\\]'"):
+            with pytest.raises(ImportError, match="pip install 'fo-core\\[audio\\]'"):
                 AudioTranscriber()
         finally:
             _mod._FASTER_WHISPER_AVAILABLE = original

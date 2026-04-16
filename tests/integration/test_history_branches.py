@@ -27,7 +27,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 
 def _make_db(tmp_path: Path):
-    from file_organizer.history.database import DatabaseManager
+    from history.database import DatabaseManager
 
     db = DatabaseManager(tmp_path / "test.db")
     db.initialize()
@@ -35,7 +35,7 @@ def _make_db(tmp_path: Path):
 
 
 def _make_history(tmp_path: Path):
-    from file_organizer.history.tracker import OperationHistory
+    from history.tracker import OperationHistory
 
     return OperationHistory(tmp_path / "history.db")
 
@@ -48,7 +48,7 @@ def _make_history(tmp_path: Path):
 class TestDatabaseManagerBranches:
     def test_double_initialize_is_noop(self, tmp_path: Path) -> None:
         """Second call to initialize() returns early (line 93 branch)."""
-        from file_organizer.history.database import DatabaseManager
+        from history.database import DatabaseManager
 
         db = DatabaseManager(tmp_path / "db.sqlite")
         db.initialize()
@@ -76,7 +76,7 @@ class TestDatabaseManagerBranches:
 
     def test_context_manager_enter_exit(self, tmp_path: Path) -> None:
         """__enter__ / __exit__ work correctly (lines 282-283, 287)."""
-        from file_organizer.history.database import DatabaseManager
+        from history.database import DatabaseManager
 
         db_path = tmp_path / "ctx.db"
         with DatabaseManager(db_path) as db:
@@ -98,7 +98,7 @@ class TestDatabaseManagerBranches:
 
     def test_close_noop_when_no_connection(self, tmp_path: Path) -> None:
         """close() is a no-op when _connection is already None."""
-        from file_organizer.history.database import DatabaseManager
+        from history.database import DatabaseManager
 
         db = DatabaseManager(tmp_path / "no_conn.db")
         db._connection = None
@@ -113,7 +113,7 @@ class TestDatabaseManagerBranches:
 class TestOperationTransactionGuardBranches:
     def test_commit_outside_context_returns_false(self, tmp_path: Path) -> None:
         """commit() when transaction_id is None returns False (lines 252-254)."""
-        from file_organizer.history.transaction import OperationTransaction
+        from history.transaction import OperationTransaction
 
         history = _make_history(tmp_path)
         txn = OperationTransaction(history)
@@ -123,7 +123,7 @@ class TestOperationTransactionGuardBranches:
 
     def test_rollback_outside_context_returns_false(self, tmp_path: Path) -> None:
         """rollback() when transaction_id is None returns False (lines 276-278)."""
-        from file_organizer.history.transaction import OperationTransaction
+        from history.transaction import OperationTransaction
 
         history = _make_history(tmp_path)
         txn = OperationTransaction(history)
@@ -132,7 +132,7 @@ class TestOperationTransactionGuardBranches:
 
     def test_commit_already_rolled_back_returns_false(self, tmp_path: Path) -> None:
         """commit() on already-rolled-back txn returns False (lines 248-250)."""
-        from file_organizer.history.transaction import OperationTransaction
+        from history.transaction import OperationTransaction
 
         history = _make_history(tmp_path)
         with OperationTransaction(history) as txn:
@@ -143,7 +143,7 @@ class TestOperationTransactionGuardBranches:
 
     def test_rollback_already_rolled_back_returns_false(self, tmp_path: Path) -> None:
         """rollback() called twice returns False on second call (lines 268-270)."""
-        from file_organizer.history.transaction import OperationTransaction
+        from history.transaction import OperationTransaction
 
         history = _make_history(tmp_path)
         with OperationTransaction(history) as txn:
@@ -153,7 +153,7 @@ class TestOperationTransactionGuardBranches:
 
     def test_rollback_already_committed_returns_false(self, tmp_path: Path) -> None:
         """rollback() after commit() returns False (lines 272-274)."""
-        from file_organizer.history.transaction import OperationTransaction
+        from history.transaction import OperationTransaction
 
         history = _make_history(tmp_path)
         with OperationTransaction(history) as txn:
@@ -163,7 +163,7 @@ class TestOperationTransactionGuardBranches:
 
     def test_context_exit_with_exception_calls_rollback(self, tmp_path: Path) -> None:
         """__exit__ on exception triggers rollback (not already-rolled-back path)."""
-        from file_organizer.history.transaction import OperationTransaction
+        from history.transaction import OperationTransaction
 
         history = _make_history(tmp_path)
         try:
@@ -183,8 +183,8 @@ class TestOperationTransactionGuardBranches:
 class TestOperationHistoryBranches:
     def test_log_operation_hash_failure_is_silenced(self, tmp_path: Path) -> None:
         """Exception in _calculate_file_hash is caught; op still logged (lines 71-72)."""
-        from file_organizer.history.models import OperationType
-        from file_organizer.history.tracker import OperationHistory
+        from history.models import OperationType
+        from history.tracker import OperationHistory
 
         tracker = OperationHistory(tmp_path / "h.db")
         src = tmp_path / "source.txt"
@@ -203,8 +203,8 @@ class TestOperationHistoryBranches:
         """
         import os
 
-        from file_organizer.history.models import OperationType
-        from file_organizer.history.tracker import OperationHistory
+        from history.models import OperationType
+        from history.tracker import OperationHistory
 
         # Create a real backing file so _calculate_file_hash(open(...)) works.
         real_src = tmp_path / "source2.txt"
@@ -234,7 +234,7 @@ class TestOperationHistoryBranches:
 
     def test_commit_transaction_failure_returns_false(self, tmp_path: Path) -> None:
         """commit_transaction returns False when db.execute_query raises (lines 195-197)."""
-        from file_organizer.history.tracker import OperationHistory
+        from history.tracker import OperationHistory
 
         tracker = OperationHistory(tmp_path / "h3.db")
         txn_id = tracker.start_transaction()
@@ -246,7 +246,7 @@ class TestOperationHistoryBranches:
 
     def test_rollback_transaction_failure_returns_false(self, tmp_path: Path) -> None:
         """rollback_transaction returns False when db.transaction raises (lines 228-230)."""
-        from file_organizer.history.tracker import OperationHistory
+        from history.tracker import OperationHistory
 
         tracker = OperationHistory(tmp_path / "h4.db")
         txn_id = tracker.start_transaction()
@@ -258,7 +258,7 @@ class TestOperationHistoryBranches:
 
     def test_get_operations_negative_limit_raises(self, tmp_path: Path) -> None:
         """get_operations with limit < 0 raises ValueError (line 287)."""
-        from file_organizer.history.tracker import OperationHistory
+        from history.tracker import OperationHistory
 
         tracker = OperationHistory(tmp_path / "h5.db")
         with pytest.raises(ValueError, match="non-negative"):
@@ -273,10 +273,10 @@ class TestOperationHistoryBranches:
 class TestHistoryExporterTimezoneBranches:
     def _setup_exporter_with_ops(self, tmp_path: Path):
         """Create DB with one operation and return an exporter."""
-        from file_organizer.history.database import DatabaseManager
-        from file_organizer.history.export import HistoryExporter
-        from file_organizer.history.models import OperationType
-        from file_organizer.history.tracker import OperationHistory
+        from history.database import DatabaseManager
+        from history.export import HistoryExporter
+        from history.models import OperationType
+        from history.tracker import OperationHistory
 
         db_path = tmp_path / "export.db"
         history = OperationHistory(db_path)

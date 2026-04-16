@@ -54,20 +54,20 @@ Install the appropriate optional dependency group based on the feature you're us
 
 | Feature | Error Pattern | Install Command |
 |---------|---------------|-----------------|
-| Audio transcription | `faster_whisper`, `torch` | `pip install "local-file-organizer[audio]"` |
-| Video processing | `cv2`, `scenedetect` | `pip install "local-file-organizer[video]"` |
-| Image deduplication | `imagededup` | `pip install "local-file-organizer[dedup]"` |
-| Semantic search | `rank_bm25`, `sklearn` | `pip install "local-file-organizer[search]"` |
-| Archive support | `py7zr` | `pip install "local-file-organizer[archive]"` |
-| Scientific formats | `h5py`, `netCDF4` | `pip install "local-file-organizer[scientific]"` |
-| CAD file support | `ezdxf` | `pip install "local-file-organizer[cad]"` |
-| Claude API provider | `anthropic` | `pip install "local-file-organizer[claude]"` |
-| Document parsers | `fitz`, `docx`, `openpyxl`, `pptx`, `ebooklib`, `bs4` | `pip install "local-file-organizer[parsers]"` |
-| OpenAI-compatible API | `openai` | `pip install "local-file-organizer[cloud]"` |
-| llama.cpp inference | `llama_cpp` | `pip install "local-file-organizer[llama]"` |
-| MLX inference (macOS) | `mlx_lm` | `pip install "local-file-organizer[mlx]"` |
-| GUI interface | `PyQt6` | `pip install "local-file-organizer[gui]"` |
-| All features | Any of the above | `pip install "local-file-organizer[all]"` |
+| Audio transcription | `faster_whisper`, `torch` | `pip install "fo-core[audio]"` |
+| Video processing | `cv2`, `scenedetect` | `pip install "fo-core[video]"` |
+| Image deduplication | `imagededup` | `pip install "fo-core[dedup]"` |
+| Semantic search | `rank_bm25`, `sklearn` | `pip install "fo-core[search]"` |
+| Archive support | `py7zr` | `pip install "fo-core[archive]"` |
+| Scientific formats | `h5py`, `netCDF4` | `pip install "fo-core[scientific]"` |
+| CAD file support | `ezdxf` | `pip install "fo-core[cad]"` |
+| Claude API provider | `anthropic` | `pip install "fo-core[claude]"` |
+| Document parsers | `fitz`, `docx`, `openpyxl`, `pptx`, `ebooklib`, `bs4` | `pip install "fo-core[parsers]"` |
+| OpenAI-compatible API | `openai` | `pip install "fo-core[cloud]"` |
+| llama.cpp inference | `llama_cpp` | `pip install "fo-core[llama]"` |
+| MLX inference (macOS) | `mlx_lm` | `pip install "fo-core[mlx]"` |
+| GUI interface | `PyQt6` | `pip install "fo-core[gui]"` |
+| All features | Any of the above | `pip install "fo-core[all]"` |
 
 For more details, see [Dependencies & Setup](setup/dependencies.md).
 
@@ -97,11 +97,11 @@ Follow the instruction in the error message, or use the table above to install t
 # Add your terminal application or Python
 
 # Option 2: Use a different directory
-mkdir ~/file-organizer-workspace
-file-organizer organize ~/file-organizer-workspace ~/organized
+mkdir ~/fo-workspace
+fo organize ~/fo-workspace ~/organized
 
 # Option 3: Copy files to an accessible location first
-cp -r ~/Desktop/files ~/file-organizer-workspace/
+cp -r ~/Desktop/files ~/fo-workspace/
 ```
 
 ### Cannot Read File Error
@@ -135,18 +135,18 @@ sudo chown $USER /path/to/file
 
 ```bash
 # Process sequentially instead of in parallel
-file-organizer organize /path/to/input /path/to/output --sequential
+fo organize /path/to/input /path/to/output --sequential
 
 # Limit number of parallel workers
-file-organizer organize /path/to/input /path/to/output --max-workers 2
+fo organize /path/to/input /path/to/output --max-workers 2
 
 # Process subdirectories separately
 for dir in /path/*/; do
-  file-organizer organize "$dir" /output
+  fo organize "$dir" /output
 done
 
 # Skip vision processing for large directories
-file-organizer organize /path/to/input /path/to/output --no-vision
+fo organize /path/to/input /path/to/output --no-vision
 ```
 
 For production deployments with high memory demands, see [Performance Tuning](reference/performance.md).
@@ -163,10 +163,10 @@ Audio transcription uses `faster-whisper` (not Ollama). Model size and device ar
 
 ```bash
 # Process files sequentially to limit concurrent memory use
-file-organizer organize /audio /output --sequential
+fo organize /audio /output --sequential
 
 # Skip vision processing to free up resources
-file-organizer organize /audio /output --text-only
+fo organize /audio /output --text-only
 ```
 
 For GPU memory issues with Ollama models, reduce the model size or restrict GPU access via environment variables like `CUDA_VISIBLE_DEVICES=""` (NVIDIA) or `HIP_VISIBLE_DEVICES=""` (AMD) to force CPU-only inference.
@@ -199,7 +199,7 @@ python -c "import yaml; yaml.safe_load(open('config.yaml'))"
 # - Incorrect indentation
 
 # View current config to check for errors
-file-organizer config show
+fo config show
 ```
 
 ### Config File Not Found
@@ -208,21 +208,21 @@ file-organizer config show
 
 **Cause**: Configuration file does not exist in the expected location. The config path is determined by `platformdirs` and varies by OS:
 
-- **Linux**: `~/.config/file-organizer/`
-- **macOS**: `~/Library/Application Support/file-organizer/`
-- **Windows**: `%APPDATA%\file-organizer\`
+- **Linux**: `~/.config/fo/`
+- **macOS**: `~/Library/Application Support/fo/`
+- **Windows**: `%APPDATA%\fo\`
 
 **Solution**:
 
 ```bash
 # View the current config path and values
-file-organizer config show
+fo config show
 
 # Open the config file in your editor to create/edit it
-file-organizer config edit
+fo config edit
 
 # List all available config keys
-file-organizer config list
+fo config list
 ```
 
 ### XDG Config Migration
@@ -235,10 +235,10 @@ file-organizer config list
 
 ```bash
 # Check where config is currently stored
-file-organizer config show
+fo config show
 
 # Edit config in the correct location
-file-organizer config edit
+fo config edit
 
 # Or set XDG_CONFIG_HOME explicitly (Linux only)
 export XDG_CONFIG_HOME=~/.config
@@ -332,16 +332,16 @@ Use the built-in deduplication tools to identify and manage duplicates:
 
 ```bash
 # Scan for duplicates
-file-organizer dedupe scan /path/to/files
+fo dedupe scan /path/to/files
 
 # View deduplication report
-file-organizer dedupe report
+fo dedupe report
 
 # Resolve duplicates interactively
-file-organizer dedupe resolve
+fo dedupe resolve
 
 # Preview organization without moving files
-file-organizer organize /input /output --dry-run
+fo organize /input /output --dry-run
 ```
 
 ### Filename Too Long Error
@@ -356,7 +356,7 @@ The application handles filename length internally. If you encounter this error:
 
 ```bash
 # Preview what filenames would be generated
-file-organizer organize /path/to/input /path/to/output --dry-run
+fo organize /path/to/input /path/to/output --dry-run
 
 # Manually rename problematic source files before organizing
 for f in *; do
@@ -378,7 +378,7 @@ The application sanitizes filenames automatically during organization. To previe
 
 ```bash
 # Preview organization to see how filenames will be handled
-file-organizer organize /path/to/input /path/to/output --dry-run
+fo organize /path/to/input /path/to/output --dry-run
 ```
 
 If source files have problematic names, rename them before organizing:
@@ -419,7 +419,7 @@ exiftool -all= -tagsfromfile @ -all:all -unsafe -icc_profile image.jpg
 file image.jpg  # Should show "JPEG image data"
 
 # Analyze a specific file for details
-file-organizer analyze image.jpg --verbose
+fo analyze image.jpg --verbose
 ```
 
 ### PDF Metadata Extraction Timeout
@@ -432,13 +432,13 @@ file-organizer analyze image.jpg --verbose
 
 ```bash
 # Analyze the problematic PDF to see what's happening
-file-organizer analyze problematic.pdf --verbose
+fo analyze problematic.pdf --verbose
 
 # Repair corrupt PDF with Ghostscript
 gs -o repaired.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress input.pdf
 
 # Install parsers group for better PDF support
-pip install "local-file-organizer[parsers]"
+pip install "fo-core[parsers]"
 ```
 
 ### Video Metadata Extraction Error
@@ -465,7 +465,7 @@ ffmpeg -v error -i video.mp4 -f null - 2>error.log
 cat error.log
 
 # Analyze the video file
-file-organizer analyze video.mp4 --verbose
+fo analyze video.mp4 --verbose
 ```
 
 ## Plugin/Extension Errors
@@ -480,19 +480,19 @@ file-organizer analyze video.mp4 --verbose
 
 ```bash
 # List available plugins in the marketplace
-file-organizer marketplace list
+fo marketplace list
 
 # Search for a specific plugin
-file-organizer marketplace search <keyword>
+fo marketplace search <keyword>
 
 # Install a plugin
-file-organizer marketplace install <plugin-name>
+fo marketplace install <plugin-name>
 
 # Check plugin details
-file-organizer marketplace info <plugin-name>
+fo marketplace info <plugin-name>
 
 # List installed plugins
-file-organizer marketplace installed
+fo marketplace installed
 ```
 
 ### Plugin Configuration Error
@@ -505,14 +505,14 @@ file-organizer marketplace installed
 
 ```bash
 # Check plugin details for configuration requirements
-file-organizer marketplace info <plugin-name>
+fo marketplace info <plugin-name>
 
 # Check for available updates
-file-organizer marketplace updates
+fo marketplace updates
 
 # Reinstall the plugin
-file-organizer marketplace uninstall <plugin-name>
-file-organizer marketplace install <plugin-name>
+fo marketplace uninstall <plugin-name>
+fo marketplace install <plugin-name>
 ```
 
 ## Archive Processing Errors
@@ -527,7 +527,7 @@ file-organizer marketplace install <plugin-name>
 
 ```bash
 # Install archive support
-pip install "local-file-organizer[archive]"
+pip install "fo-core[archive]"
 
 # Supported formats: ZIP, TAR, GZ, BZ2, XZ, 7Z, RAR (read-only)
 
@@ -569,7 +569,7 @@ Archive bomb detection is a built-in safety feature. If you trust the archive so
 
 ```bash
 # Install video dependencies
-pip install "local-file-organizer[video]"
+pip install "fo-core[video]"
 
 # This includes: opencv-python, scenedetect, and related libraries
 
@@ -597,7 +597,7 @@ sudo apt-get install ffmpeg
 ffmpeg -i video.mp4 -ss 00:00:05 -vframes 1 thumbnail.jpg
 
 # Analyze the video file for details
-file-organizer analyze video.mp4 --verbose
+fo analyze video.mp4 --verbose
 ```
 
 ### Video Processing Timeout
@@ -610,13 +610,13 @@ file-organizer analyze video.mp4 --verbose
 
 ```bash
 # Process videos sequentially to avoid resource contention
-file-organizer organize /videos /output --sequential
+fo organize /videos /output --sequential
 
 # Skip vision processing for video-heavy directories
-file-organizer organize /videos /output --text-only
+fo organize /videos /output --text-only
 
 # Analyze individual files to identify problematic ones
-file-organizer analyze large-video.mp4 --verbose
+fo analyze large-video.mp4 --verbose
 ```
 
 ## Image Processing Errors
@@ -631,16 +631,16 @@ file-organizer analyze large-video.mp4 --verbose
 
 ```bash
 # Install deduplication dependencies
-pip install "local-file-organizer[dedup]"
+pip install "fo-core[dedup]"
 
 # Scan for duplicates
-file-organizer dedupe scan /path/to/images
+fo dedupe scan /path/to/images
 
 # View the deduplication report
-file-organizer dedupe report
+fo dedupe report
 
 # Resolve duplicates interactively
-file-organizer dedupe resolve
+fo dedupe resolve
 ```
 
 ### Image Format Conversion Failed
@@ -687,7 +687,7 @@ img.save('output.jpg')
 "
 
 # Analyze the image to understand the issue
-file-organizer analyze input.png --verbose
+fo analyze input.png --verbose
 ```
 
 ## Search Issues
@@ -702,19 +702,19 @@ file-organizer analyze input.png --verbose
 
 ```bash
 # Install search dependencies
-pip install "local-file-organizer[search]"
+pip install "fo-core[search]"
 
 # Run a search query
-file-organizer search "query terms" --type documents
+fo search "query terms" --type documents
 
 # Use semantic search mode
-file-organizer search "query terms" --semantic
+fo search "query terms" --semantic
 
 # Limit results
-file-organizer search "query terms" --limit 20
+fo search "query terms" --limit 20
 
 # Output as JSON for programmatic use
-file-organizer search "query terms" --json
+fo search "query terms" --json
 ```
 
 ### Search Index Build Failed
@@ -727,12 +727,12 @@ file-organizer search "query terms" --json
 
 ```bash
 # Check if files have extractable text
-file-organizer analyze /path/to/files --verbose
+fo analyze /path/to/files --verbose
 
 # Ensure files contain actual text content
 # Vector search requires at least a few meaningful documents
 # Try with more files or use keyword-based search
-file-organizer search "query" --type all
+fo search "query" --type all
 ```
 
 ## Getting Help
@@ -748,10 +748,10 @@ If you can't find a solution here:
 
    ```bash
    # Enable verbose logging
-   file-organizer organize /input /output --verbose
+   fo organize /input /output --verbose
 
    # Check system logs
-   journalctl -u file-organizer
+   journalctl -u fo
    ```
 
 3. **Community Support**:
@@ -763,12 +763,12 @@ If you can't find a solution here:
 
    ```bash
    # System information
-   file-organizer version
+   fo version
    python --version
    ollama --version
 
    # Hardware details
-   file-organizer hardware-info
+   fo hardware-info
    ```
 
 ## Admin

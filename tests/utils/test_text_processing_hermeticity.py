@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.utils.text_processing import (
+from utils.text_processing import (
     clean_text,
     ensure_nltk_data,
     extract_keywords,
@@ -125,10 +125,10 @@ class TestNLTKHermeticity:
 class TestNLTKMockingCompleteness:
     """Tests verifying NLTK mocking is complete for all code paths."""
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.word_tokenize")
-    @patch("file_organizer.utils.text_processing.stopwords")
-    @patch("file_organizer.utils.text_processing.WordNetLemmatizer")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.stopwords")
+    @patch("utils.text_processing.WordNetLemmatizer")
     def test_clean_text_with_mocked_nltk(
         self,
         mock_lemmatizer_cls: MagicMock,
@@ -150,8 +150,8 @@ class TestNLTKMockingCompleteness:
         # Verify mocks were called
         mock_tokenize.assert_called()
 
-    @patch("file_organizer.utils.text_processing.NLTK_AVAILABLE", True)
-    @patch("file_organizer.utils.text_processing.word_tokenize")
+    @patch("utils.text_processing.NLTK_AVAILABLE", True)
+    @patch("utils.text_processing.word_tokenize")
     @patch("nltk.probability.FreqDist", create=True)
     def test_extract_keywords_with_mocked_nltk(
         self,

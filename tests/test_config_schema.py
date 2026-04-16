@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.config.schema import AppConfig, ModelPreset, UpdateSettings
+from config.schema import AppConfig, ModelPreset, UpdateSettings
 
 # ---------------------------------------------------------------------------
 # ModelPreset
@@ -160,4 +160,4 @@ class TestUpdateSettings:
         assert updates.check_on_startup is True
         assert updates.interval_hours == 24
         assert updates.include_prereleases is False
-        assert updates.repo == "curdriceaurora/Local-File-Organizer"
+        assert updates.repo == "curdriceaurora/fo-core"

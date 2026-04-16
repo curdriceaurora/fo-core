@@ -11,12 +11,12 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from file_organizer.services.misplacement_detector import (
+from services.misplacement_detector import (
     ContextAnalysis,
     MisplacedFile,
     MisplacementDetector,
 )
-from file_organizer.services.pattern_analyzer import PatternAnalyzer
+from services.pattern_analyzer import PatternAnalyzer
 
 
 @pytest.mark.unit

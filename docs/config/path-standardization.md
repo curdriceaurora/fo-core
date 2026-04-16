@@ -2,7 +2,7 @@
 
 ## Overview
 
-File Organizer v2.0 standardizes application paths following the **XDG Base Directory Specification**, replacing legacy hardcoded paths with a centralized, configurable path management system.
+fo-core standardizes application paths following the **XDG Base Directory Specification**, replacing legacy hardcoded paths with a centralized, configurable path management system.
 
 ## Key Changes
 
@@ -11,14 +11,14 @@ File Organizer v2.0 standardizes application paths following the **XDG Base Dire
 The `PathManager` class provides unified access to all application paths:
 
 ```python
-from file_organizer.config.path_manager import PathManager
+from config.path_manager import PathManager
 
 path_manager = PathManager()
 
 # Access standard directories
-config_dir = path_manager.config_dir          # ~/.config/file-organizer (XDG_CONFIG_HOME)
-data_dir = path_manager.data_dir              # ~/.local/share/file-organizer (XDG_DATA_HOME)
-state_dir = path_manager.state_dir            # ~/.local/state/file-organizer (XDG_STATE_HOME)
+config_dir = path_manager.config_dir          # ~/.config/fo (XDG_CONFIG_HOME)
+data_dir = path_manager.data_dir              # ~/.local/share/fo (XDG_DATA_HOME)
+state_dir = path_manager.state_dir            # ~/.local/state/fo (XDG_STATE_HOME)
 cache_dir = path_manager.cache_dir            # data_dir/cache
 
 # Access specific files
@@ -44,15 +44,15 @@ The following legacy paths are now deprecated and should not be used:
 
 | Old Path | New Path | Notes |
 |----------|----------|-------|
-| `~/.config/file-organizer` | `~/.config/file-organizer` | Still supported for config |
-| `~/.file-organizer` | `~/.local/share/file-organizer` | Data files moved to data_dir |
-| `~/.file_organizer` | `~/.local/share/file-organizer` | Underscore variant (legacy typo) |
+| `~/.config/fo` | `~/.config/fo` | Still supported for config |
+| `~/.fo` | `~/.local/share/fo` | Data files moved to data_dir |
+| `~/.fo` | `~/.local/share/fo` | Underscore variant (legacy typo) |
 
 ## Migration Guide
 
 ### For End Users
 
-File Organizer v2.0 automatically migrates from legacy paths:
+fo-core automatically migrates from legacy paths:
 
 1. **First Run**: The application detects legacy paths and creates a backup
 2. **Migration**: Files are copied to new XDG-compliant locations
@@ -61,7 +61,7 @@ File Organizer v2.0 automatically migrates from legacy paths:
 To manually trigger migration:
 
 ```bash
-file-organizer config migrate --from-legacy
+fo config migrate --from-legacy
 ```
 
 ### For Developers
@@ -71,7 +71,7 @@ file-organizer config migrate --from-legacy
 Always use PathManager for path access:
 
 ```python
-from file_organizer.config.path_manager import PathManager
+from config.path_manager import PathManager
 
 path_manager = PathManager()
 
@@ -94,14 +94,14 @@ Replace hardcoded paths with PathManager:
 **Before (Legacy):**
 
 ```python
-DEFAULT_CONFIG_DIR = Path.home() / ".config" / "file-organizer"
+DEFAULT_CONFIG_DIR = Path.home() / ".config" / "fo"
 config_path = DEFAULT_CONFIG_DIR / "config.json"
 ```
 
 **After (New):**
 
 ```python
-from file_organizer.config.path_manager import PathManager
+from config.path_manager import PathManager
 
 path_manager = PathManager()
 config_path = path_manager.config_file
@@ -112,7 +112,7 @@ config_path = path_manager.config_file
 Modules that manage their own paths should accept a PathManager parameter:
 
 ```python
-from file_organizer.config.path_manager import PathManager
+from config.path_manager import PathManager
 
 class MyService:
     def __init__(self, path_manager: PathManager | None = None):
@@ -126,8 +126,8 @@ class MyService:
 Both classes support custom path parameters:
 
 ```python
-from file_organizer.config import ConfigManager, PathManager
-from file_organizer.services.intelligence.preference_store import PreferenceStore
+from config import ConfigManager, PathManager
+from services.intelligence.preference_store import PreferenceStore
 
 path_manager = PathManager()
 path_manager.ensure_directories()
@@ -144,7 +144,7 @@ pref_store = PreferenceStore(storage_path=path_manager.data_dir / "preferences")
 ### PathManager
 
 - **Purpose**: Unified interface for all application paths
-- **Location**: `file_organizer.config.path_manager`
+- **Location**: `config.path_manager`
 - **Key Methods**:
   - `ensure_directories()`: Create all necessary directories
   - `get_path(category)`: Get path by category name
@@ -152,7 +152,7 @@ pref_store = PreferenceStore(storage_path=path_manager.data_dir / "preferences")
 ### PathMigrator
 
 - **Purpose**: Migrate files from legacy to canonical paths
-- **Location**: `file_organizer.config.path_migration`
+- **Location**: `config.path_migration`
 - **Features**:
   - Automatic backup creation with timestamp
   - Safe file copying with metadata preservation
@@ -164,9 +164,9 @@ pref_store = PreferenceStore(storage_path=path_manager.data_dir / "preferences")
 - **Purpose**: Detect legacy path locations
 - **Returns**: List of legacy paths that exist
 - **Checks**:
-  - `~/.file-organizer` (legacy hyphen variant)
-  - `~/.file_organizer` (legacy underscore variant)
-  - `~/.config/file-organizer` (old canonical location)
+  - `~/.fo` (legacy hyphen variant)
+  - `~/.fo` (legacy underscore variant)
+  - `~/.config/fo` (old canonical location)
 
 ## Backwards Compatibility
 
@@ -183,15 +183,15 @@ Configure paths using environment variables:
 ```bash
 # Use custom config directory
 export XDG_CONFIG_HOME=/custom/config
-file-organizer config list
+fo config list
 
 # Use custom data directory
 export XDG_DATA_HOME=/custom/data
-file-organizer analyze
+fo analyze
 
 # Use custom state directory
 export XDG_STATE_HOME=/custom/state
-file-organizer daemon start
+fo daemon start
 ```
 
 ## Testing Path Configuration
@@ -200,13 +200,13 @@ Verify your path configuration:
 
 ```bash
 # Show current paths
-file-organizer config paths
+fo config paths
 
 # Show path debug info
-file-organizer config paths --verbose
+fo config paths --verbose
 
 # Show migration status
-file-organizer config migration-status
+fo config migration-status
 ```
 
 ## Troubleshooting
@@ -215,8 +215,8 @@ file-organizer config migration-status
 
 If files aren't found after migration:
 
-1. Check backup location: `ls -la ~/.file-organizer.backup.*`
-2. Manually restore: `cp -r ~/.file-organizer.backup.TIMESTAMP/* ~/.local/share/file-organizer/`
+1. Check backup location: `ls -la ~/.fo.backup.*`
+2. Manually restore: `cp -r ~/.fo.backup.TIMESTAMP/* ~/.local/share/fo/`
 3. Report issue with migration log
 
 ### Permission Denied Errors
@@ -225,9 +225,9 @@ If you see permission errors:
 
 ```bash
 # Fix directory permissions
-chmod -R 755 ~/.config/file-organizer
-chmod -R 755 ~/.local/share/file-organizer
-chmod -R 755 ~/.local/state/file-organizer
+chmod -R 755 ~/.config/fo
+chmod -R 755 ~/.local/share/fo
+chmod -R 755 ~/.local/state/fo
 ```
 
 ### XDG Variables Not Working
@@ -238,12 +238,12 @@ Ensure environment variables are set before launching:
 export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_STATE_HOME="$HOME/.local/state"
-file-organizer
+fo
 ```
 
 ## See Also
 
 - **XDG Base Directory Specification**: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-- **Path Manager Implementation**: `src/file_organizer/config/path_manager.py`
-- **Path Migration**: `src/file_organizer/config/path_migration.py`
+- **Path Manager Implementation**: `src/config/path_manager.py`
+- **Path Migration**: `src/config/path_migration.py`
 - **Integration Tests**: `tests/integration/config/test_path_integration.py`

@@ -10,9 +10,9 @@ The following hardcoded path patterns are **deprecated** and will be removed in 
 
 ```python
 # DEPRECATED - Do not use in new code
-DEFAULT_CONFIG_DIR = Path.home() / ".config" / "file-organizer"
-DEFAULT_DATA_DIR = Path.home() / ".file-organizer"
-DEFAULT_PREFERENCES_DIR = Path.home() / ".file_organizer" / "preferences"
+DEFAULT_CONFIG_DIR = Path.home() / ".config" / "fo"
+DEFAULT_DATA_DIR = Path.home() / ".fo"
+DEFAULT_PREFERENCES_DIR = Path.home() / ".fo" / "preferences"
 ```
 
 ### Why This Change?
@@ -44,7 +44,7 @@ The project is currently at v0.1.0 alpha. A specific removal milestone has not b
 from pathlib import Path
 
 # ❌ DEPRECATED - Direct path construction
-config_dir = Path.home() / ".config" / "file-organizer"
+config_dir = Path.home() / ".config" / "fo"
 config_file = config_dir / "config.json"
 
 # Hard to test, not customizable
@@ -55,7 +55,7 @@ if config_file.exists():
 #### New Pattern (RECOMMENDED)
 
 ```python
-from file_organizer.config.path_manager import PathManager
+from config.path_manager import PathManager
 
 # ✅ NEW - Use centralized PathManager
 path_manager = PathManager()
@@ -75,10 +75,10 @@ import warnings
 from pathlib import Path
 
 # This pattern is deprecated
-config_dir = Path.home() / ".config" / "file-organizer"
+config_dir = Path.home() / ".config" / "fo"
 
 # DeprecationWarning: Hardcoded path construction is deprecated.
-# Use PathManager instead: from file_organizer.config.path_manager import PathManager
+# Use PathManager instead: from config.path_manager import PathManager
 ```
 
 ### Modules Being Updated
@@ -116,7 +116,7 @@ If you need to suppress warnings temporarily (not recommended):
 
 ```python
 import warnings
-from file_organizer.config.path_manager import DEPRECATION_WARNINGS
+from config.path_manager import DEPRECATION_WARNINGS
 
 # Suppress specific warning category
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -130,7 +130,7 @@ warnings.filterwarnings("ignore", message=".*hardcoded path.*")
 If you encounter issues with path migration:
 
 1. **Check the guide**: [Path Standardization Guide](./path-standardization.md)
-2. **Run diagnostics**: `file-organizer config paths --verbose`
+2. **Run diagnostics**: `fo config paths --verbose`
 3. **File an issue**: https://github.com/curdriceaurora/fo-core/issues
 4. **Check backups**: Migration backups are preserved with `.backup.TIMESTAMP` suffix
 

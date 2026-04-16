@@ -14,7 +14,7 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app as cli_app
+from cli.main import app as cli_app
 from tests.integration.conftest import FakeTextModel, make_text_config
 
 pytestmark = [pytest.mark.integration, pytest.mark.smoke]
@@ -40,7 +40,7 @@ class TestCliRunnerFixture:
     def test_help_mentions_app_name(self, cli_runner: CliRunner) -> None:
         """Help text includes the application name."""
         result = cli_runner.invoke(cli_app, ["--help"])
-        assert "file-organizer" in result.output.lower()
+        assert "fo" in result.output.lower()
 
     def test_successive_invocations_are_independent(self, cli_runner: CliRunner) -> None:
         """Multiple invocations on the same runner are independent (no state leak)."""

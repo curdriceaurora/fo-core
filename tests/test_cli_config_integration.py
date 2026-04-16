@@ -9,8 +9,8 @@ from __future__ import annotations
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
-from file_organizer.config import AppConfig, ConfigManager, ModelPreset
+from cli.main import app
+from config import AppConfig, ConfigManager, ModelPreset
 
 runner = CliRunner()
 
@@ -22,7 +22,7 @@ runner = CliRunner()
 
 @pytest.mark.unit
 class TestConfigShow:
-    """Tests for ``file-organizer config show``."""
+    """Tests for ``fo config show``."""
 
     def test_show_default_profile(self) -> None:
         result = runner.invoke(app, ["config", "show"])
@@ -48,7 +48,7 @@ class TestConfigShow:
 
 @pytest.mark.unit
 class TestConfigList:
-    """Tests for ``file-organizer config list``."""
+    """Tests for ``fo config list``."""
 
     def test_list_runs_successfully(self) -> None:
         result = runner.invoke(app, ["config", "list"])
@@ -69,7 +69,7 @@ class TestConfigList:
 
 @pytest.mark.unit
 class TestConfigEdit:
-    """Tests for ``file-organizer config edit``."""
+    """Tests for ``fo config edit``."""
 
     def test_edit_text_model(self) -> None:
         result = runner.invoke(app, ["config", "edit", "--text-model", "test:latest"])

@@ -26,7 +26,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.config.provider_env import (
+from config.provider_env import (
     _get_claude_configs,
     _get_llama_cpp_configs,
     _get_mlx_configs,
@@ -35,9 +35,9 @@ from file_organizer.config.provider_env import (
     get_model_configs,
     get_model_configs_from_env,
 )
-from file_organizer.models.base import ModelType
-from file_organizer.models.text_model import TextModel
-from file_organizer.models.vision_model import VisionModel
+from models.base import ModelType
+from models.text_model import TextModel
+from models.vision_model import VisionModel
 
 pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
@@ -385,11 +385,11 @@ class TestOpenAINoKeyWarningIntegration:
 class TestGetModelConfigsFromProfileIntegration:
     def test_returns_none_when_profile_has_default_preset(self) -> None:
         """When the loaded profile is fully at defaults, None is returned."""
-        from file_organizer.config.schema import AppConfig, ModelPreset
+        from config.schema import AppConfig, ModelPreset
 
         default_app_cfg = AppConfig(models=ModelPreset())
 
-        with patch("file_organizer.config.manager.ConfigManager") as mock_cls:
+        with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
             mgr.load.return_value = default_app_cfg
 
@@ -399,7 +399,7 @@ class TestGetModelConfigsFromProfileIntegration:
 
     def test_returns_none_on_os_error(self) -> None:
         """OSError during profile load is caught and None is returned."""
-        with patch("file_organizer.config.manager.ConfigManager") as mock_cls:
+        with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
             mgr.load.side_effect = OSError("disk error")
 
@@ -409,7 +409,7 @@ class TestGetModelConfigsFromProfileIntegration:
 
     def test_returns_none_on_value_error(self) -> None:
         """ValueError during profile load is caught and None is returned."""
-        with patch("file_organizer.config.manager.ConfigManager") as mock_cls:
+        with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
             mgr.load.side_effect = ValueError("bad config value")
 
@@ -421,21 +421,21 @@ class TestGetModelConfigsFromProfileIntegration:
         """ImportError (missing optional dependency) is caught and None is returned."""
         import sys
 
-        with patch.dict(sys.modules, {"file_organizer.config.manager": None}):
+        with patch.dict(sys.modules, {"config.manager": None}):
             result = _get_model_configs_from_profile("default")
 
         assert result is None
 
     def test_returns_configs_when_profile_has_custom_preset(self) -> None:
         """Non-default profile values are returned as (text_cfg, vision_cfg)."""
-        from file_organizer.config.schema import AppConfig, ModelPreset
-        from file_organizer.models.base import ModelConfig
+        from config.schema import AppConfig, ModelPreset
+        from models.base import ModelConfig
 
         custom_app_cfg = AppConfig(models=ModelPreset(text_model="llama3:8b"))
         text_cfg = ModelConfig(name="llama3:8b", model_type=ModelType.TEXT)
         vision_cfg = ModelConfig(name="llava:13b", model_type=ModelType.VISION)
 
-        with patch("file_organizer.config.manager.ConfigManager") as mock_cls:
+        with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
             mgr.load.return_value = custom_app_cfg
             mgr.to_text_model_config.return_value = text_cfg
@@ -462,7 +462,7 @@ class TestGetModelConfigsFallbackIntegration:
         monkeypatch.delenv("FO_PROFILE", raising=False)
 
         with patch(
-            "file_organizer.config.provider_env._get_model_configs_from_profile",
+            "config.provider_env._get_model_configs_from_profile",
             return_value=None,
         ):
             text_cfg, vision_cfg = get_model_configs()

@@ -24,7 +24,7 @@ pytestmark = pytest.mark.integration
 
 
 def _optimizer(db_path: str = ":memory:"):
-    from file_organizer.optimization.database import DatabaseOptimizer
+    from optimization.database import DatabaseOptimizer
 
     return DatabaseOptimizer(db_path)
 
@@ -43,7 +43,7 @@ def _create_test_table(optimizer, table: str = "test_table") -> None:
 
 class TestDataclasses:
     def test_table_stats_fields(self) -> None:
-        from file_organizer.optimization.database import TableStats
+        from optimization.database import TableStats
 
         ts = TableStats(name="foo", row_count=10, index_count=2, size_bytes=4096)
         assert ts.name == "foo"
@@ -52,7 +52,7 @@ class TestDataclasses:
         assert ts.size_bytes == 4096
 
     def test_query_plan_step_fields(self) -> None:
-        from file_organizer.optimization.database import QueryPlanStep
+        from optimization.database import QueryPlanStep
 
         step = QueryPlanStep(id=1, parent=0, detail="SCAN TABLE foo")
         assert step.id == 1
@@ -60,7 +60,7 @@ class TestDataclasses:
         assert "SCAN" in step.detail
 
     def test_query_plan_fields(self) -> None:
-        from file_organizer.optimization.database import QueryPlan
+        from optimization.database import QueryPlan
 
         plan = QueryPlan(query="SELECT 1", steps=[], estimated_cost=0.0)
         assert plan.query == "SELECT 1"
@@ -68,7 +68,7 @@ class TestDataclasses:
         assert plan.estimated_cost == 0.0
 
     def test_query_plan_with_steps(self) -> None:
-        from file_organizer.optimization.database import QueryPlan, QueryPlanStep
+        from optimization.database import QueryPlan, QueryPlanStep
 
         steps = [QueryPlanStep(id=1, parent=0, detail="SCAN TABLE t")]
         plan = QueryPlan(query="SELECT * FROM t", steps=steps, estimated_cost=100.0)
@@ -83,20 +83,20 @@ class TestDataclasses:
 
 class TestDatabaseOptimizerInit:
     def test_constructor_with_memory(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         opt = DatabaseOptimizer(":memory:")
         assert opt._db_path == ":memory:"
 
     def test_constructor_with_path_string(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         db_file = str(tmp_path / "test.db")
         opt = DatabaseOptimizer(db_file)
         assert opt._db_path == db_file
 
     def test_constructor_with_path_object(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         db_file = tmp_path / "test.db"
         opt = DatabaseOptimizer(db_file)
@@ -131,40 +131,40 @@ class TestDatabaseOptimizerInit:
 
 class TestValidateIdentifier:
     def test_valid_identifier(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         DatabaseOptimizer._validate_identifier("valid_name")  # no exception
 
     def test_valid_identifier_with_digits(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         DatabaseOptimizer._validate_identifier("name123")
 
     def test_leading_underscore_is_valid(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         DatabaseOptimizer._validate_identifier("_private")
 
     def test_leading_digit_raises_value_error(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         with pytest.raises(ValueError, match="Invalid SQL identifier"):
             DatabaseOptimizer._validate_identifier("1invalid")
 
     def test_space_in_name_raises_value_error(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         with pytest.raises(ValueError):
             DatabaseOptimizer._validate_identifier("bad name")
 
     def test_hyphen_in_name_raises_value_error(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         with pytest.raises(ValueError):
             DatabaseOptimizer._validate_identifier("bad-name")
 
     def test_semicolon_raises_value_error(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         with pytest.raises(ValueError):
             DatabaseOptimizer._validate_identifier("name;drop")
@@ -177,39 +177,39 @@ class TestValidateIdentifier:
 
 class TestValidatePragmaValue:
     def test_valid_journal_mode_wal(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         DatabaseOptimizer._validate_pragma_value("journal_mode", "WAL")
 
     def test_valid_journal_mode_case_insensitive(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         DatabaseOptimizer._validate_pragma_value("journal_mode", "wal")
 
     def test_invalid_journal_mode_raises(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         with pytest.raises(ValueError):
             DatabaseOptimizer._validate_pragma_value("journal_mode", "INVALID")
 
     def test_integer_pragma_valid(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         DatabaseOptimizer._validate_pragma_value("cache_size", "-8192")
 
     def test_integer_pragma_non_integer_raises(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         with pytest.raises(ValueError):
             DatabaseOptimizer._validate_pragma_value("cache_size", "notanint")
 
     def test_unknown_pragma_integer_passes(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         DatabaseOptimizer._validate_pragma_value("page_size", "4096")
 
     def test_unknown_pragma_non_integer_raises(self) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         with pytest.raises(ValueError):
             DatabaseOptimizer._validate_pragma_value("unknown_pragma", "bad_value")
@@ -273,7 +273,7 @@ class TestAnalyzeTables:
         assert results == []
 
     def test_with_one_table(self) -> None:
-        from file_organizer.optimization.database import TableStats
+        from optimization.database import TableStats
 
         opt = _optimizer()
         _create_test_table(opt)
@@ -307,7 +307,7 @@ class TestAnalyzeTables:
 
 class TestVacuum:
     def test_vacuum_completes_without_error(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         db_file = str(tmp_path / "vacuum_test.db")
         opt = DatabaseOptimizer(db_file)
@@ -323,7 +323,7 @@ class TestVacuum:
 
 class TestGetQueryPlan:
     def test_valid_query_returns_plan(self) -> None:
-        from file_organizer.optimization.database import QueryPlan
+        from optimization.database import QueryPlan
 
         opt = _optimizer()
         _create_test_table(opt)
@@ -339,7 +339,7 @@ class TestGetQueryPlan:
         assert plan.steps == []
 
     def test_plan_steps_type(self) -> None:
-        from file_organizer.optimization.database import QueryPlanStep
+        from optimization.database import QueryPlanStep
 
         opt = _optimizer()
         _create_test_table(opt)
@@ -360,7 +360,7 @@ class TestGetQueryPlan:
 
 class TestOptimizePragmas:
     def test_returns_dict_with_pragma_keys(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.database import DatabaseOptimizer
+        from optimization.database import DatabaseOptimizer
 
         db_file = str(tmp_path / "pragma_test.db")
         opt = DatabaseOptimizer(db_file)

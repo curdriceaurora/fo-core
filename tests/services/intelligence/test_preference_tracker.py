@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.preference_tracker import (
+from services.intelligence.preference_tracker import (
     Correction,
     CorrectionType,
     Preference,

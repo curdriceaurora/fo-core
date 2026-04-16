@@ -15,7 +15,7 @@ import pytest
 @pytest.mark.smoke
 def test_archive_reads_7z_file(tmp_path: Path) -> None:
     py7zr = pytest.importorskip("py7zr")
-    from file_organizer.utils.readers.archives import read_7z_file
+    from utils.readers.archives import read_7z_file
 
     # Create a minimal 7z archive containing one text file
     archive_path = tmp_path / "test.7z"

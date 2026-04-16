@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.events.discovery import ServiceDiscovery, ServiceInfo
+from events.discovery import ServiceDiscovery, ServiceInfo
 
 # ------------------------------------------------------------------
 # Fixtures

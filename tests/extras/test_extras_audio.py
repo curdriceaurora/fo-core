@@ -22,7 +22,7 @@ def _make_wav(path: Path) -> None:
 @pytest.mark.smoke
 def test_audio_metadata_extractor_reads_wav(tmp_path: Path) -> None:
     pytest.importorskip("mutagen")
-    from file_organizer.services.audio.metadata_extractor import (
+    from services.audio.metadata_extractor import (
         AudioMetadata,
         AudioMetadataExtractor,
     )

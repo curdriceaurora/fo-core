@@ -44,9 +44,9 @@ PHANTOM_ENDPOINTS = [
     "/api/v1/analyze/duplicates",  # Wrong — should be /dedupe/*
 ]
 
-# Real importable modules under src/file_organizer/
+# Real importable modules under src/
 REAL_MODULES_CHECK = [
-    "file_organizer",
+    "fo",
 ]
 
 
@@ -199,10 +199,10 @@ class TestCurlExamples:
 class TestImportPathsInExamples:
     """Validate that import statements in examples reference real modules."""
 
-    def test_file_organizer_imports_use_real_packages(self, all_doc_files: list[Path]) -> None:
-        """Python imports from file_organizer.* must reference existing top-level modules."""
-        # Get real top-level subpackages under src/file_organizer/
-        fo_src = SRC_DIR / "file_organizer"
+    def test_fo_imports_use_real_packages(self, all_doc_files: list[Path]) -> None:
+        """Python imports from * must reference existing top-level modules."""
+        # Get real top-level subpackages under src/
+        fo_src = SRC_DIR / "fo"
         real_subpackages = set()
         if fo_src.exists():
             for p in fo_src.iterdir():
@@ -212,7 +212,7 @@ class TestImportPathsInExamples:
                     real_subpackages.add(p.stem)
 
         if not real_subpackages:
-            pytest.skip("Cannot find file_organizer source directory")
+            pytest.skip("Cannot find fo source directory")
 
         violations = []
 
@@ -221,13 +221,13 @@ class TestImportPathsInExamples:
             python_blocks = extract_code_blocks(content, "python")
 
             for block in python_blocks:
-                # Find: from file_organizer.X import Y  or  import file_organizer.X
-                imports = re.findall(r"(?:from|import)\s+file_organizer\.(\w+)", block)
+                # Find: from X import Y  or  import X
+                imports = re.findall(r"(?:from|import)\s+fo\.(\w+)", block)
                 for subpkg in imports:
                     if subpkg not in real_subpackages:
                         rel = md_file.relative_to(DOCS_DIR)
                         violations.append(
-                            f"  {rel}: imports from 'file_organizer.{subpkg}' "
+                            f"  {rel}: imports from '{subpkg}' "
                             f"but that subpackage doesn't exist. "
                             f"Real subpackages: {sorted(real_subpackages)}"
                         )

@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-from file_organizer.config.path_manager import (
+from config.path_manager import (
     APP_NAME,
     PathManager,
     get_cache_dir,
@@ -208,7 +208,7 @@ class TestPathManager:
             "logs": tmp_path / "state" / "logs",
         }
         with mock.patch(
-            "file_organizer.config.path_manager.get_canonical_paths",
+            "config.path_manager.get_canonical_paths",
             return_value=mock_paths,
         ):
             pm = PathManager()

@@ -10,8 +10,8 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.daemon.config import DaemonConfig
-from file_organizer.daemon.service import DaemonService
+from daemon.config import DaemonConfig
+from daemon.service import DaemonService
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 

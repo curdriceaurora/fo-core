@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 FO_ROOT = Path(__file__).resolve().parents[2]
-DETECTORS_DIR = FO_ROOT / "src" / "file_organizer" / "review_regressions"
+DETECTORS_DIR = FO_ROOT / "src" / "fo" / "review_regressions"
 UNIT_TESTS_DIR = FO_ROOT / "tests" / "unit" / "review_regressions"
 
 # Maps detector module stem → test module stem
@@ -66,7 +66,7 @@ def _affected_module_stems(staged_paths: list[Path]) -> set[str]:
         rel = path.relative_to(FO_ROOT) if path.is_absolute() else path
         rel_str = str(rel)
         # Detector file staged directly
-        if rel_str.startswith("src/file_organizer/review_regressions/"):
+        if rel_str.startswith("src/review_regressions/"):
             stem = path.stem
             if stem in _MODULE_TO_TEST:
                 stems.add(stem)

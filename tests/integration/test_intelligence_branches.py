@@ -24,13 +24,13 @@ pytestmark = [pytest.mark.ci, pytest.mark.integration]
 
 
 def _make_manager(tmp_path: Path):
-    from file_organizer.services.intelligence.profile_manager import ProfileManager
+    from services.intelligence.profile_manager import ProfileManager
 
     return ProfileManager(storage_path=tmp_path / "profiles")
 
 
 def _make_importer(tmp_path: Path):
-    from file_organizer.services.intelligence.profile_importer import ProfileImporter
+    from services.intelligence.profile_importer import ProfileImporter
 
     manager = _make_manager(tmp_path)
     return ProfileImporter(manager), manager
@@ -328,7 +328,7 @@ class TestImportSelectiveMethod:
 
 class TestPatternLearnerBranches:
     def _make_learner(self, tmp_path: Path):
-        from file_organizer.services.intelligence.pattern_learner import PatternLearner
+        from services.intelligence.pattern_learner import PatternLearner
 
         return PatternLearner(storage_path=tmp_path / "pl_data")
 

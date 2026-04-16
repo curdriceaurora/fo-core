@@ -16,8 +16,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.migration_manager import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.migration_manager import (
     BackupIntegrityError,
     MigrationFile,
     MigrationPlan,
@@ -31,7 +31,7 @@ pytestmark = pytest.mark.unit
 @pytest.fixture
 def manager(tmp_path: Path) -> PARAMigrationManager:
     """Create a migration manager with mocked path manager."""
-    with patch("file_organizer.methodologies.para.migration_manager.PathManager") as pm_cls:
+    with patch("methodologies.para.migration_manager.PathManager") as pm_cls:
         pm = MagicMock()
         pm.data_dir = tmp_path / "data"
         pm.data_dir.mkdir(parents=True, exist_ok=True)
@@ -310,7 +310,7 @@ class TestInitialization:
 
     def test_init_with_custom_heuristic_engine(self, tmp_path: Path) -> None:
         """Custom heuristic engine is used when provided."""
-        with patch("file_organizer.methodologies.para.migration_manager.PathManager") as pm_cls:
+        with patch("methodologies.para.migration_manager.PathManager") as pm_cls:
             pm = MagicMock()
             pm.data_dir = tmp_path / "data"
             pm.data_dir.mkdir(parents=True, exist_ok=True)
@@ -522,7 +522,7 @@ class TestExecuteMigrationAdvanced:
             original_utime(path, times)
 
         monkeypatch.setattr(
-            "file_organizer.methodologies.para.migration_manager.os.utime",
+            "methodologies.para.migration_manager.os.utime",
             track_utime,
         )
 
@@ -900,7 +900,7 @@ class TestInternalVerifyBackup:
         self, manager: PARAMigrationManager, tmp_path: Path
     ) -> None:
         """_verify_backup raises when backup file is missing (line 601)."""
-        from file_organizer.methodologies.para.migration_manager import BackupMetadata
+        from methodologies.para.migration_manager import BackupMetadata
 
         backup_dir = manager.backup_root / "test_backup"
         backup_dir.mkdir(parents=True)
@@ -934,7 +934,7 @@ class TestInternalVerifyBackup:
         self, manager: PARAMigrationManager, tmp_path: Path
     ) -> None:
         """_verify_backup raises when file hash mismatches (line 607)."""
-        from file_organizer.methodologies.para.migration_manager import BackupMetadata
+        from methodologies.para.migration_manager import BackupMetadata
 
         backup_dir = manager.backup_root / "test_backup"
         backup_dir.mkdir(parents=True)

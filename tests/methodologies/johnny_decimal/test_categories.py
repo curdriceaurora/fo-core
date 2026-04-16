@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     AreaDefinition,
     CategoryDefinition,
     JohnnyDecimalNumber,

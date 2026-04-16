@@ -17,13 +17,13 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
-from file_organizer.methodologies.para.detection.heuristics import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
+from methodologies.para.detection.heuristics import (
     CategoryScore,
     HeuristicResult,
 )
-from file_organizer.methodologies.para.migration_manager import (
+from methodologies.para.migration_manager import (
     BackupIntegrityError,
     MigrationFile,
     MigrationPlan,
@@ -449,7 +449,7 @@ class TestMigrationManagerEdgeCases:
 
     def test_migration_manager_with_custom_heuristic_engine(self, config, tmp_path):
         """Test migration manager with custom heuristic engine."""
-        from file_organizer.methodologies.para.detection.heuristics import HeuristicEngine
+        from methodologies.para.detection.heuristics import HeuristicEngine
 
         custom_engine = HeuristicEngine(enable_ai=False)
         manager = PARAMigrationManager(config, heuristic_engine=custom_engine)
@@ -557,7 +557,7 @@ class TestMigrationManagerEdgeCases:
             original_utime(path, times)
 
         monkeypatch.setattr(
-            "file_organizer.methodologies.para.migration_manager.os.utime",
+            "methodologies.para.migration_manager.os.utime",
             track_utime,
         )
 
@@ -1083,7 +1083,7 @@ class TestMigrationManagerEdgeCases:
         self, migration_manager, temp_source, temp_target
     ):
         """Test _verify_backup detects missing backup files."""
-        from file_organizer.methodologies.para.migration_manager import BackupMetadata
+        from methodologies.para.migration_manager import BackupMetadata
 
         plan = migration_manager.analyze_source(temp_source, temp_target, recursive=False)
         backup_id = migration_manager._create_backup(plan)
@@ -1123,7 +1123,7 @@ class TestMigrationManagerEdgeCases:
         self, migration_manager, temp_source, temp_target
     ):
         """Test _verify_backup detects hash mismatches."""
-        from file_organizer.methodologies.para.migration_manager import BackupMetadata
+        from methodologies.para.migration_manager import BackupMetadata
 
         plan = migration_manager.analyze_source(temp_source, temp_target, recursive=False)
         backup_id = migration_manager._create_backup(plan)

@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from file_organizer.interfaces.search import EmbeddingCacheProtocol
-from file_organizer.services.search.embedding_cache import EmbeddingCache
+from interfaces.search import EmbeddingCacheProtocol
+from services.search.embedding_cache import EmbeddingCache
 
 # ---------------------------------------------------------------------------
 # Helpers

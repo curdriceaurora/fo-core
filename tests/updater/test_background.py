@@ -1,4 +1,4 @@
-"""Tests for file_organizer.updater.background module.
+"""Tests for updater.background module.
 
 Covers maybe_check_for_updates function with various config scenarios,
 environment variables, and throttling behavior.
@@ -12,9 +12,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.updater.background import maybe_check_for_updates
-from file_organizer.updater.manager import UpdateStatus
-from file_organizer.updater.state import UpdateState, UpdateStateStore
+from updater.background import maybe_check_for_updates
+from updater.manager import UpdateStatus
+from updater.state import UpdateState, UpdateStateStore
 
 pytestmark = [pytest.mark.unit]
 
@@ -51,9 +51,9 @@ class TestMaybeCheckForUpdates:
         with patch.dict(os.environ, {}, clear=False):
             _clear_update_check_env()
             with (
-                patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr,
-                patch("file_organizer.updater.background.UpdateStateStore") as mock_store_cls,
-                patch("file_organizer.updater.background.UpdateManager") as mock_update_mgr,
+                patch("updater.background.ConfigManager") as mock_cfg_mgr,
+                patch("updater.background.UpdateStateStore") as mock_store_cls,
+                patch("updater.background.UpdateManager") as mock_update_mgr,
             ):
                 mock_cfg = MagicMock()
                 mock_cfg.updates.check_on_startup = False
@@ -72,16 +72,14 @@ class TestMaybeCheckForUpdates:
         with patch.dict(os.environ, {}, clear=False):
             _clear_update_check_env()
             with (
-                patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr,
-                patch("file_organizer.updater.background.UpdateManager") as mock_update_mgr,
+                patch("updater.background.ConfigManager") as mock_cfg_mgr,
+                patch("updater.background.UpdateManager") as mock_update_mgr,
             ):
                 mock_cfg = MagicMock()
                 mock_cfg.updates.check_on_startup = True
                 mock_cfg.updates.interval_hours = 24
                 mock_cfg_mgr.return_value.load.return_value = mock_cfg
-                with patch(
-                    "file_organizer.updater.background.UpdateStateStore", return_value=store
-                ):
+                with patch("updater.background.UpdateStateStore", return_value=store):
                     result = maybe_check_for_updates()
                     assert result is None
                     mock_cfg_mgr.return_value.load.assert_called_once_with(profile="default")
@@ -96,14 +94,14 @@ class TestMaybeCheckForUpdates:
         # Remove env-based early returns to allow the function to proceed.
         with patch.dict(os.environ, {}, clear=False):
             _clear_update_check_env()
-            with patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr:
+            with patch("updater.background.ConfigManager") as mock_cfg_mgr:
                 mock_cfg = MagicMock()
                 mock_cfg.updates.check_on_startup = True
                 mock_cfg.updates.interval_hours = 24
                 mock_cfg.updates.repo = "test/repo"
                 mock_cfg.updates.include_prereleases = False
                 mock_cfg_mgr.return_value.load.return_value = mock_cfg
-                with patch("file_organizer.updater.background.UpdateManager") as mock_mgr:
+                with patch("updater.background.UpdateManager") as mock_mgr:
                     mock_mgr_inst = MagicMock()
                     status = UpdateStatus(
                         available=False,
@@ -111,9 +109,7 @@ class TestMaybeCheckForUpdates:
                     )
                     mock_mgr_inst.check.return_value = status
                     mock_mgr.return_value = mock_mgr_inst
-                    with patch(
-                        "file_organizer.updater.background.UpdateStateStore", return_value=store
-                    ):
+                    with patch("updater.background.UpdateStateStore", return_value=store):
                         result = maybe_check_for_updates()
                         assert result is not None
                         assert result.available is False
@@ -125,14 +121,14 @@ class TestMaybeCheckForUpdates:
         store.load.return_value = old_state
         with patch.dict(os.environ, {}, clear=False):
             _clear_update_check_env()
-            with patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr:
+            with patch("updater.background.ConfigManager") as mock_cfg_mgr:
                 mock_cfg = MagicMock()
                 mock_cfg.updates.check_on_startup = True
                 mock_cfg.updates.interval_hours = 24
                 mock_cfg.updates.repo = "test/repo"
                 mock_cfg.updates.include_prereleases = False
                 mock_cfg_mgr.return_value.load.return_value = mock_cfg
-                with patch("file_organizer.updater.background.UpdateManager") as mock_mgr:
+                with patch("updater.background.UpdateManager") as mock_mgr:
                     mock_mgr_inst = MagicMock()
                     status = UpdateStatus(
                         available=True,
@@ -141,9 +137,7 @@ class TestMaybeCheckForUpdates:
                     )
                     mock_mgr_inst.check.return_value = status
                     mock_mgr.return_value = mock_mgr_inst
-                    with patch(
-                        "file_organizer.updater.background.UpdateStateStore", return_value=store
-                    ):
+                    with patch("updater.background.UpdateStateStore", return_value=store):
                         maybe_check_for_updates()
                         # Verify record_check was called with latest version
                         store.record_check.assert_called_once()
@@ -157,14 +151,14 @@ class TestMaybeCheckForUpdates:
         store.load.return_value = old_state
         with patch.dict(os.environ, {}, clear=False):
             _clear_update_check_env()
-            with patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr:
+            with patch("updater.background.ConfigManager") as mock_cfg_mgr:
                 mock_cfg = MagicMock()
                 mock_cfg.updates.check_on_startup = True
                 mock_cfg.updates.interval_hours = 24
                 mock_cfg.updates.repo = "test/repo"
                 mock_cfg.updates.include_prereleases = False
                 mock_cfg_mgr.return_value.load.return_value = mock_cfg
-                with patch("file_organizer.updater.background.UpdateManager") as mock_mgr:
+                with patch("updater.background.UpdateManager") as mock_mgr:
                     mock_mgr_inst = MagicMock()
                     status = UpdateStatus(
                         available=False,
@@ -172,9 +166,7 @@ class TestMaybeCheckForUpdates:
                     )
                     mock_mgr_inst.check.return_value = status
                     mock_mgr.return_value = mock_mgr_inst
-                    with patch(
-                        "file_organizer.updater.background.UpdateStateStore", return_value=store
-                    ):
+                    with patch("updater.background.UpdateStateStore", return_value=store):
                         maybe_check_for_updates()
                         store.record_check.assert_called_once()
                         args = store.record_check.call_args
@@ -187,17 +179,15 @@ class TestMaybeCheckForUpdates:
         store.load.return_value = old_state
         with patch.dict(os.environ, {}, clear=False):
             _clear_update_check_env()
-            with patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr:
+            with patch("updater.background.ConfigManager") as mock_cfg_mgr:
                 mock_cfg = MagicMock()
                 mock_cfg.updates.check_on_startup = True
                 mock_cfg.updates.interval_hours = 24
                 mock_cfg.updates.repo = "test/repo"
                 mock_cfg.updates.include_prereleases = False
                 mock_cfg_mgr.return_value.load.return_value = mock_cfg
-                with patch("file_organizer.updater.background.UpdateManager"):
-                    with patch(
-                        "file_organizer.updater.background.UpdateStateStore", return_value=store
-                    ):
+                with patch("updater.background.UpdateManager"):
+                    with patch("updater.background.UpdateStateStore", return_value=store):
                         maybe_check_for_updates(profile="custom")
                         mock_cfg_mgr.return_value.load.assert_called_with(profile="custom")
 
@@ -208,14 +198,14 @@ class TestMaybeCheckForUpdates:
         custom_store.load.return_value = old_state
         with patch.dict(os.environ, {}, clear=False):
             _clear_update_check_env()
-            with patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr:
+            with patch("updater.background.ConfigManager") as mock_cfg_mgr:
                 mock_cfg = MagicMock()
                 mock_cfg.updates.check_on_startup = True
                 mock_cfg.updates.interval_hours = 24
                 mock_cfg.updates.repo = "test/repo"
                 mock_cfg.updates.include_prereleases = False
                 mock_cfg_mgr.return_value.load.return_value = mock_cfg
-                with patch("file_organizer.updater.background.UpdateManager"):
+                with patch("updater.background.UpdateManager"):
                     maybe_check_for_updates(state_store=custom_store)
                     custom_store.load.assert_called()
 
@@ -228,14 +218,14 @@ class TestMaybeCheckForUpdates:
         store.load.return_value = state
         with patch.dict(os.environ, {}, clear=False):
             _clear_update_check_env()
-            with patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr:
+            with patch("updater.background.ConfigManager") as mock_cfg_mgr:
                 mock_cfg = MagicMock()
                 mock_cfg.updates.check_on_startup = True
                 mock_cfg.updates.interval_hours = 24
                 mock_cfg.updates.repo = "test/repo"
                 mock_cfg.updates.include_prereleases = False
                 mock_cfg_mgr.return_value.load.return_value = mock_cfg
-                with patch("file_organizer.updater.background.UpdateManager") as mock_mgr:
+                with patch("updater.background.UpdateManager") as mock_mgr:
                     mock_mgr_inst = MagicMock()
                     status = UpdateStatus(
                         available=False,
@@ -243,9 +233,7 @@ class TestMaybeCheckForUpdates:
                     )
                     mock_mgr_inst.check.return_value = status
                     mock_mgr.return_value = mock_mgr_inst
-                    with patch(
-                        "file_organizer.updater.background.UpdateStateStore", return_value=store
-                    ):
+                    with patch("updater.background.UpdateStateStore", return_value=store):
                         now = datetime(2024, 1, 15, 14, 0, 0, tzinfo=UTC)
                         result = maybe_check_for_updates(now=now)
                         # Should have checked since 2 days > 24 hours
@@ -253,11 +241,11 @@ class TestMaybeCheckForUpdates:
 
     def test_uses_default_store_path_when_none_provided(self):
         """Creates default store when state_store not provided."""
-        with patch("file_organizer.updater.background.ConfigManager") as mock_cfg_mgr:
+        with patch("updater.background.ConfigManager") as mock_cfg_mgr:
             mock_cfg = MagicMock()
             mock_cfg.updates.check_on_startup = False
             mock_cfg_mgr.return_value.load.return_value = mock_cfg
-            with patch("file_organizer.updater.background.UpdateStateStore"):
+            with patch("updater.background.UpdateStateStore"):
                 maybe_check_for_updates()
                 # Should have tried to create a store instance
                 # (though disabled checks mean it returns None before calling)

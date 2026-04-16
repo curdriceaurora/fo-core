@@ -13,8 +13,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-import file_organizer.cli._globals as _cli_globals
-from file_organizer.cli.main import app
+import cli._globals as _cli_globals
+from cli.main import app
 
 pytestmark = [pytest.mark.integration]
 
@@ -206,7 +206,7 @@ class TestDoctorFileDetection:
 
     def test_detect_audio_files(self, audio_files_dir: Path) -> None:
         """Doctor detects audio files and recommends audio group."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(audio_files_dir), "--json"])
             assert result.exit_code == 0
 
@@ -216,7 +216,7 @@ class TestDoctorFileDetection:
 
     def test_detect_multiple_groups(self, mixed_media_dir: Path) -> None:
         """Doctor detects multiple file types and recommends multiple groups."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--json"])
             assert result.exit_code == 0
 
@@ -231,7 +231,7 @@ class TestDoctorFileDetection:
 
     def test_recursive_scanning(self, nested_structure_dir: Path) -> None:
         """Doctor recursively scans subdirectories."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(nested_structure_dir), "--json"])
             assert result.exit_code == 0
 
@@ -244,7 +244,7 @@ class TestDoctorFileDetection:
 
     def test_hidden_files_excluded(self, nested_structure_dir: Path) -> None:
         """Doctor excludes hidden files and directories from scan."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(nested_structure_dir), "--json"])
             assert result.exit_code == 0
 
@@ -260,7 +260,7 @@ class TestDoctorFileDetection:
         (doctor_test_dir / "video.Mp4").write_text("video")
         (doctor_test_dir / "doc.PDF").write_text("pdf")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(doctor_test_dir), "--json"])
             assert result.exit_code == 0
 
@@ -281,7 +281,7 @@ class TestDoctorDependencyDetection:
 
     def test_all_dependencies_installed(self, audio_files_dir: Path) -> None:
         """Doctor detects when all dependencies are already installed."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=True):
+        with patch("cli.doctor.is_group_installed", return_value=True):
             result = runner.invoke(app, ["doctor", str(audio_files_dir)])
             assert result.exit_code == 0
             assert "already installed" in result.output.lower()
@@ -293,7 +293,7 @@ class TestDoctorDependencyDetection:
             # Simulate audio and video installed, others not
             return group in {"audio", "video"}
 
-        with patch("file_organizer.cli.doctor.is_group_installed", side_effect=mock_is_installed):
+        with patch("cli.doctor.is_group_installed", side_effect=mock_is_installed):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--json"])
             assert result.exit_code == 0
 
@@ -311,7 +311,7 @@ class TestDoctorDependencyDetection:
         def mock_is_installed(group: str) -> bool:
             return group == "audio"
 
-        with patch("file_organizer.cli.doctor.is_group_installed", side_effect=mock_is_installed):
+        with patch("cli.doctor.is_group_installed", side_effect=mock_is_installed):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--json"])
             assert result.exit_code == 0
 
@@ -345,8 +345,8 @@ class TestDoctorInstallation:
         mock_result.returncode = 0
         monkeypatch.setattr(_cli_globals, "dry_run", False)
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.confirm_action", return_value=True):
                 with patch("subprocess.run", return_value=mock_result) as mock_run:
                     result = runner.invoke(app, ["doctor", str(audio_files_dir), "--install"])
                     assert result.exit_code == 0
@@ -361,7 +361,7 @@ class TestDoctorInstallation:
         mock_result.returncode = 0
         monkeypatch.setattr(_cli_globals, "dry_run", False)
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("subprocess.run", return_value=mock_result) as mock_run:
                 result = runner.invoke(app, ["--yes", "doctor", str(audio_files_dir), "--install"])
                 # Should succeed without prompting
@@ -370,8 +370,8 @@ class TestDoctorInstallation:
 
     def test_install_with_dry_run_flag(self, audio_files_dir: Path) -> None:
         """Global --dry-run flag prevents actual installation."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.confirm_action", return_value=True):
                 with patch("subprocess.run") as mock_run:
                     result = runner.invoke(
                         app, ["--dry-run", "doctor", str(audio_files_dir), "--install"]
@@ -386,8 +386,8 @@ class TestDoctorInstallation:
 
     def test_user_cancels_installation(self, audio_files_dir: Path) -> None:
         """User can cancel installation at confirmation prompt."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.confirm_action", return_value=False):
                 with patch("subprocess.run") as mock_run:
                     result = runner.invoke(app, ["doctor", str(audio_files_dir), "--install"])
                     assert result.exit_code == 0
@@ -403,8 +403,8 @@ class TestDoctorInstallation:
         mock_result.returncode = 1  # Failure
         monkeypatch.setattr(_cli_globals, "dry_run", False)
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.confirm_action", return_value=True):
                 with patch("subprocess.run", return_value=mock_result):
                     result = runner.invoke(app, ["doctor", str(audio_files_dir), "--install"])
                     # Command should complete even if installation fails
@@ -419,8 +419,8 @@ class TestDoctorInstallation:
         mock_result.returncode = 0
         monkeypatch.setattr(_cli_globals, "dry_run", False)
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.confirm_action", return_value=True):
                 with patch("subprocess.run", return_value=mock_result) as mock_run:
                     result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--install"])
                     assert result.exit_code == 0
@@ -438,7 +438,7 @@ class TestDoctorJSONOutput:
 
     def test_json_output_structure(self, mixed_media_dir: Path) -> None:
         """JSON output contains all required fields."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--json"])
             assert result.exit_code == 0
 
@@ -452,7 +452,7 @@ class TestDoctorJSONOutput:
 
     def test_json_detected_groups_structure(self, audio_files_dir: Path) -> None:
         """JSON detected_groups contains complete group information."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(audio_files_dir), "--json"])
             assert result.exit_code == 0
 
@@ -470,7 +470,7 @@ class TestDoctorJSONOutput:
 
     def test_json_extension_counts(self, mixed_media_dir: Path) -> None:
         """JSON output includes accurate extension counts."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--json"])
             assert result.exit_code == 0
 
@@ -483,7 +483,7 @@ class TestDoctorJSONOutput:
 
     def test_json_valid_syntax(self, audio_files_dir: Path) -> None:
         """JSON output is valid and parseable."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(audio_files_dir), "--json"])
             assert result.exit_code == 0
             # Should not raise JSONDecodeError
@@ -501,13 +501,13 @@ class TestDoctorGlobalFlags:
 
     def test_verbose_flag_accepted(self, audio_files_dir: Path) -> None:
         """Global --verbose flag is accepted without error."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["--verbose", "doctor", str(audio_files_dir)])
             assert result.exit_code == 0
 
     def test_json_flag_at_global_level(self, audio_files_dir: Path) -> None:
         """Global --json flag produces JSON output with expected structure."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["--json", "doctor", str(audio_files_dir)])
             assert result.exit_code == 0
             # Parse output as JSON and verify structure keys
@@ -525,7 +525,7 @@ class TestDoctorGlobalFlags:
         mock_result.returncode = 0
         monkeypatch.setattr(_cli_globals, "dry_run", False)
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("subprocess.run", return_value=mock_result):
                 result = runner.invoke(
                     app, ["--no-interactive", "doctor", str(audio_files_dir), "--install"]
@@ -549,7 +549,7 @@ class TestDoctorEdgeCases:
         deep_path.mkdir(parents=True)
         (deep_path / "song.mp3").write_text("audio")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(tmp_path), "--json"])
             assert result.exit_code == 0
             output = json.loads(result.output)
@@ -564,7 +564,7 @@ class TestDoctorEdgeCases:
         for i in range(100):
             (test_dir / f"song{i}.mp3").write_text("audio")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(test_dir), "--json"])
             assert result.exit_code == 0
             output = json.loads(result.output)
@@ -580,7 +580,7 @@ class TestDoctorEdgeCases:
         (test_dir / "file_with_underscores.pdf").write_text("pdf")
         (test_dir / "file[brackets].docx").write_text("docx")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(test_dir), "--json"])
             assert result.exit_code == 0
             output = json.loads(result.output)
@@ -602,7 +602,7 @@ class TestDoctorEdgeCases:
             # Skip symlink test if not supported
             pytest.skip("Symlinks not supported on this system")
 
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(test_dir), "--json"])
             # Should complete without hanging
             assert result.exit_code == 0
@@ -618,7 +618,7 @@ class TestDoctorRecommendations:
 
     def test_recommendations_show_file_counts(self, mixed_media_dir: Path) -> None:
         """Recommendations display shows file counts per group."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir)])
             assert result.exit_code == 0
             # Should show numeric counts in output
@@ -626,15 +626,15 @@ class TestDoctorRecommendations:
 
     def test_recommendations_show_install_commands(self, audio_files_dir: Path) -> None:
         """Recommendations include pip install commands."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(audio_files_dir)])
             assert result.exit_code == 0
             assert "pip install" in result.output.lower()
-            assert "file-organizer[audio]" in result.output
+            assert "fo-core[audio]" in result.output
 
     def test_recommendations_show_prerequisites(self, audio_files_dir: Path) -> None:
         """Recommendations display system prerequisites."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(audio_files_dir)])
             assert result.exit_code == 0
             # Audio group has FFmpeg prerequisite — verify it appears in output
@@ -646,7 +646,7 @@ class TestDoctorRecommendations:
         def mock_is_installed(group: str) -> bool:
             return group == "audio"
 
-        with patch("file_organizer.cli.doctor.is_group_installed", side_effect=mock_is_installed):
+        with patch("cli.doctor.is_group_installed", side_effect=mock_is_installed):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir)])
             assert result.exit_code == 0
             # Installed groups show checkmark; non-installed don't get "already installed"
@@ -672,14 +672,14 @@ class TestDoctorEndToEndWorkflows:
         monkeypatch.setattr(_cli_globals, "dry_run", False)
 
         # Step 1: Run doctor without install to see recommendations
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir)])
             assert result.exit_code == 0
             assert "missing" in result.output.lower()
 
         # Step 2: Run doctor with --install to install dependencies
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
-            with patch("file_organizer.cli.doctor.confirm_action", return_value=True):
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor.confirm_action", return_value=True):
                 with patch("subprocess.run", return_value=mock_result) as mock_run:
                     result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--install"])
                     assert result.exit_code == 0
@@ -687,7 +687,7 @@ class TestDoctorEndToEndWorkflows:
 
     def test_ci_automation_workflow(self, audio_files_dir: Path) -> None:
         """Simulate CI/automation usage with --dry-run and --json flags."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=False):
+        with patch("cli.doctor.is_group_installed", return_value=False):
             result = runner.invoke(app, ["--dry-run", "doctor", str(audio_files_dir), "--json"])
             assert result.exit_code == 0
 
@@ -701,7 +701,7 @@ class TestDoctorEndToEndWorkflows:
 
     def test_already_configured_user_workflow(self, audio_files_dir: Path) -> None:
         """User with all dependencies installed sees confirmation."""
-        with patch("file_organizer.cli.doctor.is_group_installed", return_value=True):
+        with patch("cli.doctor.is_group_installed", return_value=True):
             result = runner.invoke(app, ["doctor", str(audio_files_dir)])
             assert result.exit_code == 0
             assert "already installed" in result.output.lower()
@@ -713,7 +713,7 @@ class TestDoctorEndToEndWorkflows:
             # Simulate audio and video already installed
             return group in {"audio", "video"}
 
-        with patch("file_organizer.cli.doctor.is_group_installed", side_effect=mock_is_installed):
+        with patch("cli.doctor.is_group_installed", side_effect=mock_is_installed):
             result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--json"])
             assert result.exit_code == 0
 

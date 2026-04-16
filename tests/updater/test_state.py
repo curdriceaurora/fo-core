@@ -1,4 +1,4 @@
-"""Tests for file_organizer.updater.state module.
+"""Tests for updater.state module.
 
 Covers UpdateState.last_checked_at, due, UpdateStateStore.load, save,
 record_check, and state file persistence.
@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.updater.state import UpdateState, UpdateStateStore
+from updater.state import UpdateState, UpdateStateStore
 
 pytestmark = [pytest.mark.unit]
 

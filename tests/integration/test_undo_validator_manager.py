@@ -21,9 +21,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.history.models import Operation, OperationStatus, OperationType
-from file_organizer.undo.models import ValidationResult
-from file_organizer.undo.validator import OperationValidator
+from history.models import Operation, OperationStatus, OperationType
+from undo.models import ValidationResult
+from undo.validator import OperationValidator
 
 pytestmark = pytest.mark.integration
 
@@ -729,7 +729,7 @@ class TestCheckConflicts:
 
 class TestUndoManagerUndoLastOperation:
     def test_no_operations_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = []
@@ -737,7 +737,7 @@ class TestUndoManagerUndoLastOperation:
         assert manager.undo_last_operation() is False
 
     def test_operation_with_none_id_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, op_id=None)
@@ -746,7 +746,7 @@ class TestUndoManagerUndoLastOperation:
         assert manager.undo_last_operation() is False
 
     def test_delegates_to_undo_operation(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, op_id=42)
@@ -770,7 +770,7 @@ class TestUndoManagerUndoLastOperation:
 
 class TestUndoManagerUndoOperation:
     def _make_manager(self, operations: list, validate_result: ValidationResult):
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = operations
@@ -784,7 +784,7 @@ class TestUndoManagerUndoOperation:
         return UndoManager(history=mock_history, validator=mock_validator, executor=mock_executor)
 
     def test_operation_not_found_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = []
@@ -792,7 +792,7 @@ class TestUndoManagerUndoOperation:
         assert manager.undo_operation(999) is False
 
     def test_already_rolled_back_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.ROLLED_BACK, op_id=5)
@@ -822,7 +822,7 @@ class TestUndoManagerUndoOperation:
         assert result is True
 
     def test_executor_failure_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, op_id=11)
@@ -844,7 +844,7 @@ class TestUndoManagerUndoOperation:
 
 class TestUndoManagerRedoOperation:
     def test_redo_last_no_operations_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = []
@@ -852,7 +852,7 @@ class TestUndoManagerRedoOperation:
         assert manager.redo_last_operation() is False
 
     def test_redo_last_none_id_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.ROLLED_BACK, op_id=None)
@@ -861,7 +861,7 @@ class TestUndoManagerRedoOperation:
         assert manager.redo_last_operation() is False
 
     def test_redo_operation_not_found_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = []
@@ -869,7 +869,7 @@ class TestUndoManagerRedoOperation:
         assert manager.redo_operation(555) is False
 
     def test_redo_operation_not_rolled_back_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.COMPLETED, op_id=20)
@@ -878,7 +878,7 @@ class TestUndoManagerRedoOperation:
         assert manager.redo_operation(20) is False
 
     def test_redo_validation_fails_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.ROLLED_BACK, op_id=21)
@@ -891,7 +891,7 @@ class TestUndoManagerRedoOperation:
         assert manager.redo_operation(21) is False
 
     def test_redo_executor_success_returns_true(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.ROLLED_BACK, op_id=22)
@@ -909,7 +909,7 @@ class TestUndoManagerRedoOperation:
         assert manager.redo_operation(22) is True
 
     def test_redo_executor_failure_returns_false(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.ROLLED_BACK, op_id=23)
@@ -931,7 +931,7 @@ class TestUndoManagerRedoOperation:
 
 class TestUndoManagerCanUndoCanRedo:
     def test_can_undo_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = []
@@ -941,7 +941,7 @@ class TestUndoManagerCanUndoCanRedo:
         assert "not found" in reason.lower()
 
     def test_can_undo_already_rolled_back(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.ROLLED_BACK, op_id=2)
@@ -952,7 +952,7 @@ class TestUndoManagerCanUndoCanRedo:
         assert "rolled back" in reason.lower()
 
     def test_can_undo_validation_passes(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, op_id=3)
@@ -964,7 +964,7 @@ class TestUndoManagerCanUndoCanRedo:
         assert can is True
 
     def test_can_undo_validation_fails(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, op_id=4)
@@ -979,7 +979,7 @@ class TestUndoManagerCanUndoCanRedo:
         assert "conflict" in reason.lower()
 
     def test_can_redo_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = []
@@ -989,7 +989,7 @@ class TestUndoManagerCanUndoCanRedo:
         assert "not found" in reason.lower()
 
     def test_can_redo_not_rolled_back(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.COMPLETED, op_id=5)
@@ -999,7 +999,7 @@ class TestUndoManagerCanUndoCanRedo:
         assert can is False
 
     def test_can_redo_validation_passes(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.ROLLED_BACK, op_id=6)
@@ -1011,7 +1011,7 @@ class TestUndoManagerCanUndoCanRedo:
         assert can is True
 
     def test_can_redo_validation_fails(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         op = _make_op(tmp_path, status=OperationStatus.ROLLED_BACK, op_id=7)
@@ -1032,7 +1032,7 @@ class TestUndoManagerCanUndoCanRedo:
 
 class TestUndoManagerStacks:
     def test_get_undo_stack_returns_list(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = []
@@ -1041,7 +1041,7 @@ class TestUndoManagerStacks:
         assert result == []
 
     def test_get_redo_stack_returns_list(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         mock_history.get_operations.return_value = []
@@ -1050,7 +1050,7 @@ class TestUndoManagerStacks:
         assert result == []
 
     def test_context_manager_closes_history(self, tmp_path: Path) -> None:
-        from file_organizer.undo.undo_manager import UndoManager
+        from undo.undo_manager import UndoManager
 
         mock_history = MagicMock()
         manager = UndoManager(history=mock_history)

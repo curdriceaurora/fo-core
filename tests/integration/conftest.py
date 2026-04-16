@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.models.base import BaseModel, ModelConfig, ModelType
+from models.base import BaseModel, ModelConfig, ModelType
 
 # ---------------------------------------------------------------------------
 # Deterministic model stubs
@@ -80,7 +80,7 @@ def stub_text_model_init() -> Iterator[None]:
     The model is marked as initialized without creating a real client.
     """
     with patch(
-        "file_organizer.models.text_model.TextModel.initialize",
+        "models.text_model.TextModel.initialize",
         _fake_model_init,
     ):
         yield
@@ -97,14 +97,14 @@ def stub_text_model_generate() -> Iterator[MagicMock]:
     """
     with (
         patch(
-            "file_organizer.models.text_model.TextModel._do_generate",
+            "models.text_model.TextModel._do_generate",
             side_effect=_stub_text_generate,
         ) as mock_gen,
         patch(
-            "file_organizer.models.text_model.TextModel._enter_generate",
+            "models.text_model.TextModel._enter_generate",
         ),
         patch(
-            "file_organizer.models.text_model.TextModel._exit_generate",
+            "models.text_model.TextModel._exit_generate",
         ),
     ):
         yield mock_gen
@@ -114,7 +114,7 @@ def stub_text_model_generate() -> Iterator[MagicMock]:
 def stub_vision_model_init() -> Iterator[None]:
     """Patch ``VisionModel.initialize()`` to skip Ollama client setup."""
     with patch(
-        "file_organizer.models.vision_model.VisionModel.initialize",
+        "models.vision_model.VisionModel.initialize",
         _fake_model_init,
     ):
         yield
@@ -131,14 +131,14 @@ def stub_vision_model_generate() -> Iterator[MagicMock]:
     """
     with (
         patch(
-            "file_organizer.models.vision_model.VisionModel._do_generate",
+            "models.vision_model.VisionModel._do_generate",
             side_effect=_stub_vision_generate,
         ) as mock_gen,
         patch(
-            "file_organizer.models.vision_model.VisionModel._enter_generate",
+            "models.vision_model.VisionModel._enter_generate",
         ),
         patch(
-            "file_organizer.models.vision_model.VisionModel._exit_generate",
+            "models.vision_model.VisionModel._exit_generate",
         ),
     ):
         yield mock_gen
@@ -157,7 +157,7 @@ def stub_all_models(
 @pytest.fixture()
 def stub_nltk() -> Iterator[None]:
     """Patch ``ensure_nltk_data()`` to no-op for integration tests."""
-    with patch("file_organizer.services.text_processor.ensure_nltk_data"):
+    with patch("services.text_processor.ensure_nltk_data"):
         yield
 
 
@@ -262,7 +262,7 @@ def _isolate_user_env(tmp_path: Path) -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def _bypass_setup_wizard() -> Iterator[None]:
     """Skip the setup wizard check so organize/preview commands work in tests."""
-    with patch("file_organizer.cli.organize._check_setup_completed", return_value=True):
+    with patch("cli.organize._check_setup_completed", return_value=True):
         yield
 
 
@@ -315,7 +315,7 @@ def integration_output_dir(tmp_path: Path) -> Path:
 def isolated_config_dir(tmp_path: Path) -> Path:
     """Temp config directory that won't read user's real config.
 
-    Prevents ``ConfigManager`` from picking up ``~/.config/file-organizer/``
+    Prevents ``ConfigManager`` from picking up ``~/.config/fo/``
     settings during tests.
     """
     cfg = tmp_path / "config"
@@ -398,11 +398,11 @@ def patch_text_generate(
     """
     with (
         patch(
-            "file_organizer.models.text_model.TextModel._do_generate",
+            "models.text_model.TextModel._do_generate",
             side_effect=side_effect,
         ) as mock_gen,
-        patch("file_organizer.models.text_model.TextModel._enter_generate"),
-        patch("file_organizer.models.text_model.TextModel._exit_generate"),
+        patch("models.text_model.TextModel._enter_generate"),
+        patch("models.text_model.TextModel._exit_generate"),
     ):
         yield mock_gen
 

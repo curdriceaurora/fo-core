@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.models import Operation, OperationStatus, OperationType
-from file_organizer.undo.rollback import RollbackExecutor
-from file_organizer.undo.validator import OperationValidator
+from history.models import Operation, OperationStatus, OperationType
+from undo.rollback import RollbackExecutor
+from undo.validator import OperationValidator
 
 
 @pytest.mark.unit

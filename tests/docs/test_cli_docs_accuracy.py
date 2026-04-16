@@ -54,14 +54,14 @@ class _Command(NamedTuple):
 
 def _get_click_app() -> click.Group:
     """Import the main Typer app and return the underlying Click group."""
-    from file_organizer.cli.main import app as typer_app
+    from cli.main import app as typer_app
 
     return typer.main.get_group(typer_app)
 
 
 def _get_profile_group() -> click.Group:
     """Import the profile Click group (registered via Click interop)."""
-    from file_organizer.cli.profile import profile_command
+    from cli.profile import profile_command
 
     return profile_command
 
@@ -175,8 +175,8 @@ def _command_is_documented(doc_content: str, command_path: str) -> bool:
         return True
 
     # Pattern 3: in a code block as a usage line
-    # e.g. file-organizer organize INPUT_DIR OUTPUT_DIR
-    usage_pattern = rf"file-organizer\s+{escaped}\b"
+    # e.g. fo organize INPUT_DIR OUTPUT_DIR
+    usage_pattern = rf"fo\s+{escaped}\b"
     if re.search(usage_pattern, doc_content):
         return True
 

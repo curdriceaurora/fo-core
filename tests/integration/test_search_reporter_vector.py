@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.deduplication.reporter import StorageReporter
+from services.deduplication.reporter import StorageReporter
 
 pytestmark = pytest.mark.integration
 
@@ -191,25 +191,25 @@ class TestVectorIndexInit:
         pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_created(self) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         assert idx is not None
 
     def test_empty_initially(self) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         assert idx.size == 0
 
     def test_search_before_index_empty(self) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         assert idx.search("anything") == []
 
     def test_with_threshold(self) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex(similarity_threshold=0.5)
         assert idx is not None
@@ -221,7 +221,7 @@ class TestVectorIndexIndex:
         pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_sets_size(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         paths = [tmp_path / f"doc{i}.txt" for i in range(3)]
@@ -229,14 +229,14 @@ class TestVectorIndexIndex:
         assert idx.size == 3
 
     def test_mismatched_lengths_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         with pytest.raises(ValueError, match="equal length"):
             idx.index(["a", "b"], [tmp_path / "one.txt"])
 
     def test_empty_corpus_resets(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         paths = [tmp_path / f"d{i}.txt" for i in range(4)]
@@ -248,7 +248,7 @@ class TestVectorIndexIndex:
         assert idx.size == 0
 
     def test_reindex_replaces_old(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         old_paths = [tmp_path / f"old{i}.txt" for i in range(4)]
@@ -266,7 +266,7 @@ class TestVectorIndexSearch:
         pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_returns_list(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         paths = [tmp_path / f"d{i}.txt" for i in range(4)]
@@ -284,7 +284,7 @@ class TestVectorIndexSearch:
         assert len(result) >= 1
 
     def test_results_are_tuples(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         paths = [tmp_path / f"d{i}.txt" for i in range(4)]
@@ -298,7 +298,7 @@ class TestVectorIndexSearch:
             assert len(item) == 2
 
     def test_scores_are_floats(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         paths = [tmp_path / f"d{i}.txt" for i in range(3)]
@@ -309,7 +309,7 @@ class TestVectorIndexSearch:
             assert 0.0 <= score <= 1.0
 
     def test_empty_query(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         paths = [tmp_path / f"d{i}.txt" for i in range(4)]
@@ -320,7 +320,7 @@ class TestVectorIndexSearch:
         assert result == []
 
     def test_top_k_limit(self, tmp_path: Path) -> None:
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.vector_index import VectorIndex
 
         idx = VectorIndex()
         paths = [tmp_path / f"d{i}.txt" for i in range(8)]

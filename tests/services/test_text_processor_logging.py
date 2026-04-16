@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelType
-from file_organizer.services.text_processor import TextProcessor
+from models.base import ModelType
+from services.text_processor import TextProcessor
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -36,7 +36,7 @@ def mock_text_model():
 @pytest.fixture
 def processor(mock_text_model):
     """Create TextProcessor with a mock model, skipping NLTK init."""
-    with patch("file_organizer.services.text_processor.ensure_nltk_data"):
+    with patch("services.text_processor.ensure_nltk_data"):
         tp = TextProcessor(text_model=mock_text_model)
     return tp
 
@@ -66,9 +66,9 @@ class TestInfoLevelDoesNotLeakContent:
         _reset_model_side_effect(mock_text_model, folder_resp="healthcare_technology")
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.logger") as mock_logger,
             patch(
-                "file_organizer.services.text_processor.read_file",
+                "services.text_processor.read_file",
                 return_value="healthcare content",
             ),
         ):
@@ -85,10 +85,8 @@ class TestInfoLevelDoesNotLeakContent:
         _reset_model_side_effect(mock_text_model, filename_resp="patient_data_analysis")
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch(
-                "file_organizer.services.text_processor.read_file", return_value="medical records"
-            ),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="medical records"),
         ):
             processor.process_file("/tmp/records.txt")
 
@@ -105,9 +103,9 @@ class TestInfoLevelDoesNotLeakContent:
         )
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.logger") as mock_logger,
             patch(
-                "file_organizer.services.text_processor.read_file",
+                "services.text_processor.read_file",
                 return_value="financial planning",
             ),
         ):
@@ -140,11 +138,9 @@ class TestWarningLevelDoesNotLeakContent:
         ]
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch("file_organizer.services.text_processor.read_file", return_value="some text"),
-            patch(
-                "file_organizer.services.text_processor.clean_text", return_value="fallback_folder"
-            ),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="some text"),
+            patch("services.text_processor.clean_text", return_value="fallback_folder"),
         ):
             processor.process_file("/tmp/short_folder.txt")
 
@@ -166,9 +162,9 @@ class TestWarningLevelDoesNotLeakContent:
         ]
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch("file_organizer.services.text_processor.read_file", return_value="some code"),
-            patch("file_organizer.services.text_processor.clean_text", return_value="code_snippet"),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="some code"),
+            patch("services.text_processor.clean_text", return_value="code_snippet"),
         ):
             processor.process_file("/tmp/short_fn.txt")
 
@@ -185,9 +181,9 @@ class TestWarningLevelDoesNotLeakContent:
         ]
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch("file_organizer.services.text_processor.read_file", return_value="content"),
-            patch("file_organizer.services.text_processor.clean_text", return_value="fallback"),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="content"),
+            patch("services.text_processor.clean_text", return_value="fallback"),
         ):
             processor.process_file("/tmp/warn_test.txt")
 
@@ -222,8 +218,8 @@ class TestDebugLevelDoesNotLeakAiResponses:
         ]
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch("file_organizer.services.text_processor.read_file", return_value="text"),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="text"),
         ):
             processor.process_file("/tmp/debug_test.txt")
 
@@ -243,8 +239,8 @@ class TestDebugLevelDoesNotLeakAiResponses:
         ]
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch("file_organizer.services.text_processor.read_file", return_value="text"),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="text"),
         ):
             processor.process_file("/tmp/debug_fn_test.txt")
 
@@ -264,8 +260,8 @@ class TestDebugLevelDoesNotLeakAiResponses:
         ]
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch("file_organizer.services.text_processor.read_file", return_value="python code"),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="python code"),
         ):
             processor.process_file("/tmp/code_guide.txt")
 
@@ -297,10 +293,8 @@ class TestLogMessageFormats:
         )
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch(
-                "file_organizer.services.text_processor.read_file", return_value="recipe content"
-            ),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="recipe content"),
         ):
             processor.process_file("/tmp/recipe.txt")
 
@@ -318,10 +312,8 @@ class TestLogMessageFormats:
         )
 
         with (
-            patch("file_organizer.services.text_processor.logger") as mock_logger,
-            patch(
-                "file_organizer.services.text_processor.read_file", return_value="cooking content"
-            ),
+            patch("services.text_processor.logger") as mock_logger,
+            patch("services.text_processor.read_file", return_value="cooking content"),
         ):
             processor.process_file("/tmp/cooking.txt")
 

@@ -65,7 +65,7 @@ Ollama is the default provider, installed with File Organizer. No additional dep
 Ollama is included in the base installation:
 
 ```bash
-pip install local-file-organizer
+pip install fo-core
 ```
 
 #### Setup
@@ -92,7 +92,7 @@ export OLLAMA_HOST=http://localhost:11434
 
 #### Model Selection
 
-Edit your config file (run `file-organizer config show` to find its location):
+Edit your config file (run `fo config show` to find its location):
 
 ```yaml
 models:
@@ -104,7 +104,7 @@ models:
 Or use the CLI:
 
 ```bash
-file-organizer config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
+fo config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
 ```
 
 #### Verification
@@ -112,7 +112,7 @@ file-organizer config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
 ```bash
 # Test text inference
 echo "Test" > test.txt
-file-organizer analyze test.txt
+fo analyze test.txt
 
 # Check Ollama status
 ollama list
@@ -138,7 +138,7 @@ Install the cloud extra dependency:
 
 ```bash
 # From PyPI
-pip install "local-file-organizer[cloud]"
+pip install "fo-core[cloud]"
 
 # From source
 pip install -e ".[cloud]"
@@ -185,7 +185,7 @@ export FO_OPENAI_MODEL=gpt-4o
 FO_PROVIDER=openai \
 FO_OPENAI_API_KEY=sk-... \
 FO_OPENAI_MODEL=gpt-4o-mini \
-file-organizer analyze ~/Downloads
+fo analyze ~/Downloads
 ```
 
 #### Known Limitations
@@ -209,7 +209,7 @@ Install the Claude extra dependency:
 
 ```bash
 # From PyPI
-pip install "local-file-organizer[claude]"
+pip install "fo-core[claude]"
 
 # From source
 pip install -e ".[claude]"
@@ -258,7 +258,7 @@ Check [Anthropic's model documentation](https://docs.anthropic.com/en/docs/about
 FO_PROVIDER=claude \
 FO_CLAUDE_API_KEY=sk-ant-... \
 FO_CLAUDE_MODEL=claude-3-5-sonnet-20241022 \
-file-organizer analyze ~/Downloads
+fo analyze ~/Downloads
 ```
 
 #### Known Limitations
@@ -282,7 +282,7 @@ Install the LLaMA.cpp extra dependency:
 
 ```bash
 # From PyPI
-pip install "local-file-organizer[llama]"
+pip install "fo-core[llama]"
 
 # From source
 pip install -e ".[llama]"
@@ -331,7 +331,7 @@ Look for quantized versions (Q4_K_M, Q5_K_M) for better performance.
 # Test with environment variables set
 FO_PROVIDER=llama_cpp \
 FO_LLAMA_CPP_MODEL_PATH=/path/to/model.gguf \
-file-organizer analyze ~/Downloads
+fo analyze ~/Downloads
 ```
 
 #### Known Limitations
@@ -355,7 +355,7 @@ MLX provides optimized inference on Apple Silicon using Apple's MLX framework.
 
 ```bash
 # From PyPI
-pip install "local-file-organizer[mlx]"
+pip install "fo-core[mlx]"
 
 # From source
 pip install -e ".[mlx]"
@@ -399,7 +399,7 @@ export FO_MLX_MODEL_PATH=mlx-community/Qwen2.5-3B-Instruct-4bit
 # Test with environment variables set
 FO_PROVIDER=mlx \
 FO_MLX_MODEL_PATH=mlx-community/Qwen2.5-3B-Instruct-4bit \
-file-organizer analyze ~/Downloads
+fo analyze ~/Downloads
 ```
 
 #### Known Limitations
@@ -429,7 +429,7 @@ Install the cloud extra dependency (same as OpenAI):
 
 ```bash
 # From PyPI
-pip install "local-file-organizer[cloud]"
+pip install "fo-core[cloud]"
 
 # From source
 pip install -e ".[cloud]"
@@ -477,7 +477,7 @@ FO_PROVIDER=openai \
 FO_OPENAI_API_KEY=gsk_... \
 FO_OPENAI_BASE_URL=https://api.groq.com/openai/v1 \
 FO_OPENAI_MODEL=llama-3.1-70b-versatile \
-file-organizer analyze ~/Downloads
+fo analyze ~/Downloads
 ```
 
 #### Known Limitations
@@ -504,7 +504,7 @@ LM Studio provides a user-friendly GUI for downloading and running models locall
 
 ```bash
 # From PyPI
-pip install "local-file-organizer[cloud]"
+pip install "fo-core[cloud]"
 
 # From source
 pip install -e ".[cloud]"
@@ -555,7 +555,7 @@ Popular model choices:
 FO_PROVIDER=openai \
 FO_OPENAI_BASE_URL=http://localhost:1234/v1 \
 FO_OPENAI_MODEL=your-model-name \
-file-organizer analyze ~/Downloads
+fo analyze ~/Downloads
 ```
 
 #### Known Limitations
@@ -588,7 +588,7 @@ unset FO_PROVIDER
 
 ### Via Configuration File
 
-Edit your config file (run `file-organizer config show` to find its location):
+Edit your config file (run `fo config show` to find its location):
 
 ```yaml
 models:
@@ -622,10 +622,10 @@ Unknown provider 'openai'. Registered providers: ['ollama'].
 **Solution:** Install the required extra dependency:
 
 ```bash
-pip install "local-file-organizer[cloud]"  # For OpenAI/Groq/LM Studio
-pip install "local-file-organizer[claude]"  # For Claude
-pip install "local-file-organizer[llama]"   # For LLaMA.cpp
-pip install "local-file-organizer[mlx]"     # For MLX
+pip install "fo-core[cloud]"  # For OpenAI/Groq/LM Studio
+pip install "fo-core[claude]"  # For Claude
+pip install "fo-core[llama]"   # For LLaMA.cpp
+pip install "fo-core[mlx]"     # For MLX
 ```
 
 ### API Key Not Set Warning

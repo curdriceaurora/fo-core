@@ -21,9 +21,9 @@ from watchdog.events import (
     FileMovedEvent,
 )
 
-from file_organizer.watcher.config import WatcherConfig
-from file_organizer.watcher.handler import FileEventHandler
-from file_organizer.watcher.queue import EventQueue, EventType, FileEvent
+from watcher.config import WatcherConfig
+from watcher.handler import FileEventHandler
+from watcher.queue import EventQueue, EventType, FileEvent
 
 
 @pytest.fixture
@@ -146,7 +146,7 @@ class TestFileEventHandlerDebounce:
         self, queue: EventQueue, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test that events after debounce window are processed."""
-        import file_organizer.watcher.handler as _handler_module
+        import watcher.handler as _handler_module
 
         config = WatcherConfig(debounce_seconds=0.1, exclude_patterns=[])
         handler = FileEventHandler(config, queue)

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.video.metadata_extractor import (
+from services.video.metadata_extractor import (
     VideoMetadata,
     VideoMetadataExtractor,
     _parse_datetime,

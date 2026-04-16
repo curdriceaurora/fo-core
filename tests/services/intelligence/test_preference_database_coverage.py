@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.services.intelligence.preference_database import (
+from services.intelligence.preference_database import (
     PreferenceDatabaseManager,
 )
 

@@ -1,4 +1,4 @@
-"""Direct tests for file_organizer.cli.undo_history helper functions."""
+"""Direct tests for cli.undo_history helper functions."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.cli import undo_history
+from cli import undo_history
 
 pytestmark = [pytest.mark.ci, pytest.mark.unit]
 

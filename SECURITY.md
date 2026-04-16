@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Currently, the following versions of Local-File-Organizer are being supported with security updates:
+Currently, the following versions of fo-core are being supported with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -11,7 +11,7 @@ Currently, the following versions of Local-File-Organizer are being supported wi
 
 ## Reporting a Vulnerability
 
-We take the security of Local-File-Organizer seriously. If you believe you have found a security vulnerability in this project, please report it to us as described below.
+We take the security of fo-core seriously. If you believe you have found a security vulnerability in this project, please report it to us as described below.
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 

@@ -24,9 +24,9 @@ def mock_nltk_globally(
     in clean containers without host NLTK corpus data.
     """
     with (
-        patch("file_organizer.utils.text_processing.word_tokenize", mock_nltk_tokenizer),
-        patch("file_organizer.utils.text_processing.stopwords", mock_nltk_stopwords),
-        patch("file_organizer.utils.text_processing.WordNetLemmatizer", mock_nltk_lemmatizer),
-        patch("file_organizer.utils.text_processing.nltk.probability.FreqDist", mock_nltk_freqdist),
+        patch("utils.text_processing.word_tokenize", mock_nltk_tokenizer),
+        patch("utils.text_processing.stopwords", mock_nltk_stopwords),
+        patch("utils.text_processing.WordNetLemmatizer", mock_nltk_lemmatizer),
+        patch("utils.text_processing.nltk.probability.FreqDist", mock_nltk_freqdist),
     ):
         yield

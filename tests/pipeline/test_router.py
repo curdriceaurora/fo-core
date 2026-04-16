@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.pipeline.router import FileRouter, ProcessorType
+from pipeline.router import FileRouter, ProcessorType
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci, pytest.mark.smoke]
 

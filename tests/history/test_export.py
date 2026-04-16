@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.export import HistoryExporter
-from file_organizer.history.models import OperationType
-from file_organizer.history.tracker import OperationHistory
+from history.export import HistoryExporter
+from history.models import OperationType
+from history.tracker import OperationHistory
 
 
 @pytest.mark.unit

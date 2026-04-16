@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.services.copilot.executor import (
+from services.copilot.executor import (
     CommandExecutor,
     ExecutionResult,
     Intent,

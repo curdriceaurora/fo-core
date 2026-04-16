@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from file_organizer.services.intelligence.profile_manager import (
+from services.intelligence.profile_manager import (
     Profile,
     ProfileManager,
 )

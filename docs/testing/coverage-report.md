@@ -2,7 +2,7 @@
 
 **Status**: ✅ COMPLETE
 **Date**: 2026-03-07
-**Coverage**: 96.8% docstrings | 95%+ tested modules | 916+ tests
+**Coverage**: 96.8% docstrings | 95%+ tested modules | 15,600+ tests
 
 ## Executive Summary
 
@@ -12,7 +12,7 @@ Epic #571 "Desktop UI Test Coverage" increased project **docstring coverage from
 
 | Metric | Target | Actual | Status |
 |--------|--------|--------|--------|
-| Test count | 500+ | 916+ | ✅ +83% |
+| Test count | 500+ | 15,600+ | ✅ +3020% |
 | Docstring coverage | 95% | 95.0% | ✅ |
 | API module coverage | 80% | 92% | ✅ +12% |
 | Services coverage | 80% | 82% | ✅ +2% |
@@ -29,14 +29,14 @@ Epic #571 "Desktop UI Test Coverage" increased project **docstring coverage from
 
 #### Task #572: API Router & Middleware Tests
 
-- **Coverage**: 92% on `src/file_organizer/api/`
+- **Coverage**: 92% on `src/api/`
 - **Tests**: 100+ unit tests across routers and middleware
 - **Components**: organize, files, search, health, auth, config, dedupe, integrations, marketplace, daemon, realtime, system
 - **Status**: ✅ Complete
 
 #### Task #575: Plugin System & Marketplace Tests
 
-- **Coverage**: 75% on `src/file_organizer/plugins/`
+- **Coverage**: 75% on `src/plugins/`
 - **Tests**: 40+ tests for plugin lifecycle, registry, marketplace
 - **Status**: ✅ Complete
 
@@ -48,14 +48,14 @@ Epic #571 "Desktop UI Test Coverage" increased project **docstring coverage from
 
 #### Task #580: Web Route & HTMX Endpoint Tests
 
-- **Coverage**: 78% on `src/file_organizer/web/`
+- **Coverage**: 78% on `src/web/`
 - **Tests**: 40+ tests for routes, HTMX endpoints, template rendering
 - **PR**: #635 (March 6)
 - **Status**: ✅ Complete
 
 #### Task #581: Services Intelligence Tests
 
-- **Coverage**: 82% on `src/file_organizer/services/`
+- **Coverage**: 82% on `src/services/`
 - **Tests**: 300+ tests covering analytics, audio, auto-tagging, copilot, deduplication, video
 - **Status**: ✅ Complete
 
@@ -149,8 +149,8 @@ These gaps represent ~15% of codebase and will be addressed in Phase C work.
 
 ### Full Suite
 
-- **Count**: 916+ tests
-- **Duration**: ~40 seconds
+- **Count**: 15,600+ tests
+- **Duration**: ~3-4 minutes (CI)
 - **Coverage**: 95%+ on all tested modules
 - **Markers**: All markers except `@pytest.mark.slow`
 
@@ -218,7 +218,7 @@ Tests are integrated with GitHub Actions:
 
    ```bash
    # Check docstring coverage
-   interrogate -v src/file_organizer --fail-under 95
+   interrogate -v src --fail-under 95
    ```
 
 ## Phase C Roadmap
@@ -247,7 +247,7 @@ Work remaining to reach 100% code coverage:
 
 ### Highlights
 
-- ✅ 916+ tests passing consistently
+- ✅ 15,600+ tests passing consistently
 - ✅ 96.8% docstring coverage (exceeded 90% target at epic close; gate now 95% via #854)
 - ✅ 92%+ on critical modules (API, services, models)
 - ✅ Comprehensive test patterns documented

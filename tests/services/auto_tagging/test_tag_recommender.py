@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.auto_tagging.content_analyzer import ContentTagAnalyzer
-from file_organizer.services.auto_tagging.tag_learning import TagLearningEngine
-from file_organizer.services.auto_tagging.tag_recommender import (
+from services.auto_tagging.content_analyzer import ContentTagAnalyzer
+from services.auto_tagging.tag_learning import TagLearningEngine
+from services.auto_tagging.tag_recommender import (
     TagRecommendation,
     TagRecommender,
     TagSuggestion,

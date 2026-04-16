@@ -126,7 +126,7 @@ fo config set key val   # Update a setting
 fo doctor               # Verify setup
 ```
 
-Config file lives at `~/.config/file-organizer/config.yaml`.
+Config file lives at `~/.config/fo/config.yaml`.
 
 ### Can I customize organization rules?
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     CompatibilityAnalyzer,
     HybridOrganizer,
     JohnnyDecimalNumber,
@@ -21,7 +21,7 @@ from file_organizer.methodologies.johnny_decimal import (
     PARAJohnnyDecimalBridge,
     create_para_compatible_config,
 )
-from file_organizer.methodologies.johnny_decimal.config import (
+from methodologies.johnny_decimal.config import (
     JohnnyDecimalConfig,
     create_default_config,
 )

@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.integration]
 
@@ -27,10 +27,10 @@ class TestVersionCommand:
 
     def test_version_output_contains_package_name(self) -> None:
         result = runner.invoke(app, ["version"])
-        assert "file-organizer" in result.output.lower()
+        assert "fo" in result.output.lower()
 
     def test_version_shows_version_string(self) -> None:
-        from file_organizer.version import __version__
+        from version import __version__
 
         result = runner.invoke(app, ["version"])
         assert __version__ in result.output
@@ -55,7 +55,7 @@ def _make_hw_profile() -> SimpleNamespace:
 class TestHardwareInfoCommand:
     def test_hardware_info_text_exits_zero(self) -> None:
         with patch(
-            "file_organizer.core.hardware_profile.detect_hardware",
+            "core.hardware_profile.detect_hardware",
             return_value=_make_hw_profile(),
         ):
             result = runner.invoke(app, ["hardware-info"])
@@ -67,7 +67,7 @@ class TestHardwareInfoCommand:
         import json
 
         with patch(
-            "file_organizer.core.hardware_profile.detect_hardware",
+            "core.hardware_profile.detect_hardware",
             return_value=_make_hw_profile(),
         ):
             result = runner.invoke(app, ["hardware-info", "--json"])

@@ -25,8 +25,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 
 def _make_manager(tmp_path: Path):
-    from file_organizer.services.intelligence.profile_manager import ProfileManager
-    from file_organizer.services.intelligence.template_manager import TemplateManager
+    from services.intelligence.profile_manager import ProfileManager
+    from services.intelligence.template_manager import TemplateManager
 
     pm = ProfileManager(tmp_path / "profiles")
     tm = TemplateManager(pm)

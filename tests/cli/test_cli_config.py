@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.unit]
 
@@ -27,7 +27,7 @@ def _make_config(
     device: str = "auto",
     check_on_startup: bool = True,
     interval_hours: int = 24,
-    repo: str = "curdriceaurora/Local-File-Organizer",
+    repo: str = "curdriceaurora/fo-core",
     include_prereleases: bool = False,
 ) -> MagicMock:
     """Return a mock AppConfig object."""
@@ -53,7 +53,7 @@ def _make_config(
 class TestConfigShow:
     """Tests for ``config show``."""
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_show_default_profile(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -65,7 +65,7 @@ class TestConfigShow:
         assert "qwen2.5:3b" in result.output
         assert "qwen2.5vl:7b" in result.output
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_show_custom_profile(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -85,7 +85,7 @@ class TestConfigShow:
 class TestConfigList:
     """Tests for ``config list``."""
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_list_profiles(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -97,7 +97,7 @@ class TestConfigList:
         assert "work" in result.output
         assert "personal" in result.output
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_list_empty(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -116,7 +116,7 @@ class TestConfigList:
 class TestConfigEdit:
     """Tests for ``config edit``."""
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_edit_text_model(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -128,25 +128,25 @@ class TestConfigEdit:
         assert "Saved" in result.output
         assert cfg.models.text_model == "llama3:8b"
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_edit_invalid_temperature(self, mock_cls: MagicMock) -> None:
         result = runner.invoke(app, ["config", "edit", "--temperature", "2.5"])
         assert result.exit_code == 1
         assert "temperature must be between" in result.output
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_edit_invalid_device(self, mock_cls: MagicMock) -> None:
         result = runner.invoke(app, ["config", "edit", "--device", "tpu"])
         assert result.exit_code == 1
         assert "device must be one of" in result.output
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_edit_invalid_methodology(self, mock_cls: MagicMock) -> None:
         result = runner.invoke(app, ["config", "edit", "--methodology", "custom"])
         assert result.exit_code == 1
         assert "methodology must be one of" in result.output
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_edit_valid_device(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr
@@ -157,7 +157,7 @@ class TestConfigEdit:
         assert result.exit_code == 0
         assert cfg.models.device == "cpu"
 
-    @patch("file_organizer.config.ConfigManager")
+    @patch("config.ConfigManager")
     def test_edit_methodology(self, mock_cls: MagicMock) -> None:
         mock_mgr = MagicMock()
         mock_cls.return_value = mock_mgr

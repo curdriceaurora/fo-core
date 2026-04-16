@@ -13,11 +13,11 @@ from typing import Any
 
 import pytest
 
-from file_organizer.services.intelligence.preference_store import (
+from services.intelligence.preference_store import (
     PreferenceStore,
     SchemaVersion,
 )
-from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
+from services.intelligence.profile_manager import Profile, ProfileManager
 
 pytestmark = pytest.mark.integration
 

@@ -1,4 +1,4 @@
-"""Extended tests for file_organizer.services.intelligence.profile_manager.
+"""Extended tests for services.intelligence.profile_manager.
 
 Covers Profile validation edge cases, ProfileManager CRUD operations,
 sanitization, atomic writes, thread safety, and error handling for
@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.services.intelligence.profile_manager import Profile, ProfileManager
+from services.intelligence.profile_manager import Profile, ProfileManager
 
 pytestmark = [pytest.mark.unit]
 

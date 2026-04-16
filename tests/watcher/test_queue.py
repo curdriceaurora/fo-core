@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.watcher.queue import EventQueue, EventType, FileEvent
+from watcher.queue import EventQueue, EventType, FileEvent
 
 pytestmark = [pytest.mark.unit]
 # Note: EventQueue tests use threading.Thread, making them

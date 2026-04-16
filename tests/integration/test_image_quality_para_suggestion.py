@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.deduplication.quality import (
+from services.deduplication.quality import (
     ImageFormat,
     ImageQualityAnalyzer,
     QualityMetrics,
@@ -438,7 +438,7 @@ class TestIsLikelyCropped:
 
 
 try:
-    from file_organizer.methodologies.para.ai.suggestion_engine import SuggestionEngine
+    from methodologies.para.ai.suggestion_engine import SuggestionEngine
 
     _suggestion_engine_available = True
 except Exception:

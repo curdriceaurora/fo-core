@@ -11,18 +11,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.methodologies.johnny_decimal.adapters import (
+from methodologies.johnny_decimal.adapters import (
     AdapterRegistry,
     FileSystemAdapter,
     OrganizationItem,
     PARAAdapter,
     create_default_registry,
 )
-from file_organizer.methodologies.johnny_decimal.categories import (
+from methodologies.johnny_decimal.categories import (
     JohnnyDecimalNumber,
     NumberLevel,
 )
-from file_organizer.methodologies.johnny_decimal.config import (
+from methodologies.johnny_decimal.config import (
     JohnnyDecimalConfig,
     create_para_compatible_config,
 )

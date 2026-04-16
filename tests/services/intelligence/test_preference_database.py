@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.preference_database import PreferenceDatabaseManager
+from services.intelligence.preference_database import PreferenceDatabaseManager
 
 
 @pytest.fixture

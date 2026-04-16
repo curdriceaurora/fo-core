@@ -9,7 +9,7 @@ File Organizer uses `pytest` for comprehensive test coverage with 916+ tests acr
 pytest
 
 # Run with coverage report
-pytest --cov=file_organizer --cov-report=html
+pytest --cov=src --cov-report=html
 
 # Fast smoke tests (pre-commit validation, matches actual gate)
 pytest tests/ -m "smoke" -q --strict-markers --timeout=30 --override-ini="addopts="
@@ -95,14 +95,14 @@ These represent ~15% of the codebase and are marked for Phase C work.
 
 ```bash
 # Per-module coverage
-pytest --cov=file_organizer.services --cov-report=term-missing
+pytest --cov=services --cov-report=term-missing
 
 # Full project coverage with HTML report
-pytest --cov=file_organizer --cov-report=html
+pytest --cov=src --cov-report=html
 # Open htmlcov/index.html to view
 
 # Docstring coverage (requires interrogate)
-interrogate -v src/file_organizer --fail-under 95
+interrogate -v src --fail-under 95
 ```
 
 ## Testing Patterns
@@ -113,7 +113,7 @@ Test services with real dependencies, mocking only external boundaries:
 
 ```python
 from pathlib import Path
-from file_organizer.services.text_processor import TextProcessor
+from services.text_processor import TextProcessor
 
 def test_text_processor(tmp_path):
     processor = TextProcessor()
@@ -132,7 +132,7 @@ Use `typer.testing.CliRunner` for CLI command testing:
 
 ```python
 from typer.testing import CliRunner
-from file_organizer.cli.main import app
+from cli.main import app
 
 runner = CliRunner()
 

@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.history.cleanup import HistoryCleanup, HistoryCleanupConfig
-from file_organizer.history.models import OperationStatus, OperationType
-from file_organizer.history.tracker import OperationHistory
+from history.cleanup import HistoryCleanup, HistoryCleanupConfig
+from history.models import OperationStatus, OperationType
+from history.tracker import OperationHistory
 
 
 @pytest.mark.unit

@@ -10,7 +10,7 @@ import unittest
 
 import pytest
 
-from file_organizer.undo.models import (
+from undo.models import (
     Conflict,
     ConflictType,
     RollbackResult,

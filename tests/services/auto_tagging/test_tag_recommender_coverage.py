@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.services.auto_tagging.tag_recommender import (
+from services.auto_tagging.tag_recommender import (
     TagRecommendation,
     TagRecommender,
     TagSuggestion,

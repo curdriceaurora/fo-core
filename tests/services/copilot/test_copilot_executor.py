@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.services.copilot.executor import CommandExecutor
-from file_organizer.services.copilot.models import (
+from services.copilot.executor import CommandExecutor
+from services.copilot.models import (
     ExecutionResult,
     Intent,
     IntentType,
@@ -104,7 +104,7 @@ class TestHandleOrganize:
         assert "not found" in result.message.lower() or "Directory" in result.message
 
     @patch(
-        "file_organizer.core.organizer.FileOrganizer",
+        "core.organizer.FileOrganizer",
         side_effect=ImportError("no"),
     )
     def test_organizer_import_error(self, _mock, executor, tmp_path):
@@ -126,7 +126,7 @@ class TestHandleOrganize:
         mock_organizer.organize.return_value = mock_result
 
         with patch(
-            "file_organizer.core.organizer.FileOrganizer",
+            "core.organizer.FileOrganizer",
             return_value=mock_organizer,
         ):
             result = executor._handle_organize(
@@ -146,7 +146,7 @@ class TestHandleOrganize:
         mock_organizer.organize.return_value = mock_result
 
         with patch(
-            "file_organizer.core.organizer.FileOrganizer",
+            "core.organizer.FileOrganizer",
             return_value=mock_organizer,
         ):
             result = executor._handle_organize(
@@ -163,7 +163,7 @@ class TestHandleOrganize:
         mock_organizer.organize.return_value = mock_result
 
         with patch(
-            "file_organizer.core.organizer.FileOrganizer",
+            "core.organizer.FileOrganizer",
             return_value=mock_organizer,
         ):
             result = executor._handle_organize(_intent(IntentType.ORGANIZE, source=str(sub)))
@@ -347,8 +347,8 @@ class TestHandleUndoRedo:
         mock_manager = MagicMock()
         mock_manager.undo_last_operation.return_value = True
         with (
-            patch("file_organizer.history.tracker.OperationHistory") as mock_history_cls,
-            patch("file_organizer.undo.undo_manager.UndoManager", return_value=mock_manager),
+            patch("history.tracker.OperationHistory") as mock_history_cls,
+            patch("undo.undo_manager.UndoManager", return_value=mock_manager),
         ):
             mock_history_cls.return_value = MagicMock()
             result = executor._handle_undo(_intent(IntentType.UNDO))
@@ -359,8 +359,8 @@ class TestHandleUndoRedo:
         mock_manager = MagicMock()
         mock_manager.undo_last_operation.return_value = False
         with (
-            patch("file_organizer.history.tracker.OperationHistory") as mock_history_cls,
-            patch("file_organizer.undo.undo_manager.UndoManager", return_value=mock_manager),
+            patch("history.tracker.OperationHistory") as mock_history_cls,
+            patch("undo.undo_manager.UndoManager", return_value=mock_manager),
         ):
             mock_history_cls.return_value = MagicMock()
             result = executor._handle_undo(_intent(IntentType.UNDO))
@@ -368,7 +368,7 @@ class TestHandleUndoRedo:
         assert "nothing" in result.message.lower()
 
     def test_undo_import_error(self, executor):
-        with patch.dict("sys.modules", {"file_organizer.history.tracker": None}):
+        with patch.dict("sys.modules", {"history.tracker": None}):
             # Force ImportError via the lazy import in the handler
             result = executor._handle_undo(_intent(IntentType.UNDO))
         # May succeed or fail depending on import mechanism; just check no crash
@@ -378,8 +378,8 @@ class TestHandleUndoRedo:
         mock_manager = MagicMock()
         mock_manager.redo_last_operation.return_value = True
         with (
-            patch("file_organizer.history.tracker.OperationHistory") as mock_history_cls,
-            patch("file_organizer.undo.undo_manager.UndoManager", return_value=mock_manager),
+            patch("history.tracker.OperationHistory") as mock_history_cls,
+            patch("undo.undo_manager.UndoManager", return_value=mock_manager),
         ):
             mock_history_cls.return_value = MagicMock()
             result = executor._handle_redo(_intent(IntentType.REDO))
@@ -390,8 +390,8 @@ class TestHandleUndoRedo:
         mock_manager = MagicMock()
         mock_manager.redo_last_operation.return_value = False
         with (
-            patch("file_organizer.history.tracker.OperationHistory") as mock_history_cls,
-            patch("file_organizer.undo.undo_manager.UndoManager", return_value=mock_manager),
+            patch("history.tracker.OperationHistory") as mock_history_cls,
+            patch("undo.undo_manager.UndoManager", return_value=mock_manager),
         ):
             mock_history_cls.return_value = MagicMock()
             result = executor._handle_redo(_intent(IntentType.REDO))
@@ -416,7 +416,7 @@ class TestHandlePreview:
         mock_organizer.organize.return_value = mock_result
 
         with patch(
-            "file_organizer.core.organizer.FileOrganizer",
+            "core.organizer.FileOrganizer",
             return_value=mock_organizer,
         ):
             result = executor._handle_preview(_intent(IntentType.PREVIEW, source=str(sub)))
@@ -447,7 +447,7 @@ class TestHandleSuggest:
     def test_suggest_engine_available(self, executor, tmp_path):
         f = tmp_path / "file.txt"
         f.write_text("x")
-        with patch.dict("sys.modules", {"file_organizer.services.smart_suggestions": MagicMock()}):
+        with patch.dict("sys.modules", {"services.smart_suggestions": MagicMock()}):
             result = executor._handle_suggest(_intent(IntentType.SUGGEST, paths=[str(f)]))
         assert result.success
         assert "available" in result.message.lower()
@@ -455,7 +455,7 @@ class TestHandleSuggest:
     def test_suggest_engine_unavailable(self, executor, tmp_path):
         f = tmp_path / "file.txt"
         f.write_text("x")
-        with patch.dict("sys.modules", {"file_organizer.services.smart_suggestions": None}):
+        with patch.dict("sys.modules", {"services.smart_suggestions": None}):
             # The import inside the handler will raise ImportError
             result = executor._handle_suggest(_intent(IntentType.SUGGEST, paths=[str(f)]))
         # Either branch returns success=True
@@ -501,7 +501,7 @@ class TestBuildRetrieverHiddenFiles:
 
     def test_hidden_files_excluded_from_retriever_corpus(self, tmp_path: Path) -> None:
         """Hidden files (dot-prefixed) must not be included in the search corpus."""
-        from file_organizer.utils import is_hidden
+        from utils import is_hidden
 
         # The filter logic in executor.py line 234:
         # if entry.is_symlink() or not entry.is_file() or is_hidden(entry): continue
@@ -525,7 +525,7 @@ class TestBuildRetrieverHiddenFiles:
         except OSError:
             pytest.skip("Symlinks not supported")
 
-        from file_organizer.utils import is_hidden
+        from utils import is_hidden
 
         entries = list(tmp_path.iterdir())
         filtered = [e for e in entries if not e.is_symlink() and e.is_file() and not is_hidden(e)]
@@ -536,7 +536,7 @@ class TestBuildRetrieverHiddenFiles:
         """_build_retriever_for_root uses relative path for is_hidden to avoid false positives."""
         from unittest.mock import patch
 
-        from file_organizer.services.copilot.executor import CommandExecutor
+        from services.copilot.executor import CommandExecutor
 
         (tmp_path / "report.txt").write_text("quarterly budget finance report")
         (tmp_path / "notes.txt").write_text("meeting agenda items budget")
@@ -546,9 +546,7 @@ class TestBuildRetrieverHiddenFiles:
 
         executor = CommandExecutor()
         try:
-            with patch(
-                "file_organizer.services.search.hybrid_retriever.HybridRetriever"
-            ) as mock_cls:
+            with patch("services.search.hybrid_retriever.HybridRetriever") as mock_cls:
                 mock_instance = mock_cls.return_value
                 mock_instance.index.return_value = None
                 executor._build_retriever_for_root(tmp_path)

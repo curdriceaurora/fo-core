@@ -20,13 +20,13 @@
 
 | Component | Purpose | Source Module |
 |-----------|---------|---------------|
-| ModelConfig | Inference parameters | `src/file_organizer/models/base.py` |
-| ParallelConfig | Worker pool and timeouts | `src/file_organizer/parallel/config.py` |
-| AdaptiveBatchSizer | Memory-aware batch sizing | `src/file_organizer/optimization/batch_sizer.py` |
-| ModelCache | LRU model caching with TTL | `src/file_organizer/optimization/model_cache.py` |
-| ModelWarmup | Background model pre-loading | `src/file_organizer/optimization/warmup.py` |
-| ResourceMonitor | Memory and GPU monitoring | `src/file_organizer/optimization/resource_monitor.py` |
-| MemoryLimiter | Hard memory caps | `src/file_organizer/optimization/memory_limiter.py` |
+| ModelConfig | Inference parameters | `src/models/base.py` |
+| ParallelConfig | Worker pool and timeouts | `src/parallel/config.py` |
+| AdaptiveBatchSizer | Memory-aware batch sizing | `src/optimization/batch_sizer.py` |
+| ModelCache | LRU model caching with TTL | `src/optimization/model_cache.py` |
+| ModelWarmup | Background model pre-loading | `src/optimization/warmup.py` |
+| ResourceMonitor | Memory and GPU monitoring | `src/optimization/resource_monitor.py` |
+| MemoryLimiter | Hard memory caps | `src/optimization/memory_limiter.py` |
 
 ## Model Configuration
 
@@ -72,7 +72,7 @@
 - Increase `timeout_per_file` for large PDFs or videos (120–300 s)
 
 ```python
-from file_organizer.parallel.config import ParallelConfig, ExecutorType
+from parallel.config import ParallelConfig, ExecutorType
 
 config = ParallelConfig(
     max_workers=4,
@@ -95,9 +95,9 @@ config = ParallelConfig(
 | `memory_limiter` | `None` | Optional `MemoryLimiter` to gate prefetch slots |
 
 ```python
-from file_organizer.optimization.memory_limiter import MemoryLimiter, LimitAction
-from file_organizer.pipeline.orchestrator import PipelineOrchestrator
-from file_organizer.pipeline.stages import PreprocessorStage, AnalyzerStage
+from optimization.memory_limiter import MemoryLimiter, LimitAction
+from pipeline.orchestrator import PipelineOrchestrator
+from pipeline.stages import PreprocessorStage, AnalyzerStage
 
 limiter = MemoryLimiter(max_memory_mb=2048, action=LimitAction.WARN)
 pipeline = PipelineOrchestrator(
@@ -125,7 +125,7 @@ results = pipeline.process_batch(files)
 | `max_batch_size` | `1000` | Maximum files per batch |
 
 ```python
-from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+from optimization.batch_sizer import AdaptiveBatchSizer
 
 sizer = AdaptiveBatchSizer(target_memory_percent=60.0)
 sizer.set_bounds(min_size=5, max_size=100)
@@ -142,7 +142,7 @@ batch_size = sizer.calculate_batch_size(file_sizes, overhead_per_file=1024)
 | `ttl_seconds` | `300.0` | Time-to-live before a cached model expires |
 
 ```python
-from file_organizer.optimization.model_cache import ModelCache
+from optimization.model_cache import ModelCache
 
 cache = ModelCache(max_models=3, ttl_seconds=600)
 model = cache.get_or_load("qwen2.5:3b", loader_fn)
@@ -158,7 +158,7 @@ stats = cache.stats()
 | `max_workers` | `2` | Maximum parallel model loading threads |
 
 ```python
-from file_organizer.optimization.warmup import ModelWarmup
+from optimization.warmup import ModelWarmup
 
 warmup = ModelWarmup(cache, loader_factory, max_workers=2)
 result = warmup.warmup(["qwen2.5:3b", "qwen2.5vl:7b"])
@@ -173,7 +173,7 @@ result = warmup.warmup(["qwen2.5:3b", "qwen2.5vl:7b"])
 | `threshold_percent` | `85.0` | Memory usage % that triggers eviction |
 
 ```python
-from file_organizer.optimization.resource_monitor import ResourceMonitor
+from optimization.resource_monitor import ResourceMonitor
 
 monitor = ResourceMonitor()
 if monitor.should_evict(threshold_percent=80.0):
@@ -190,7 +190,7 @@ if monitor.should_evict(threshold_percent=80.0):
 | `action` | `WARN` | `WARN`, `BLOCK`, `EVICT_CACHE`, or `RAISE` |
 
 ```python
-from file_organizer.optimization.memory_limiter import MemoryLimiter, LimitAction
+from optimization.memory_limiter import MemoryLimiter, LimitAction
 
 limiter = MemoryLimiter(max_memory_mb=4096, action=LimitAction.EVICT_CACHE)
 limiter.set_evict_callback(cache.clear)
@@ -219,9 +219,9 @@ with limiter.guarded():
 ## Benchmarking
 
 ```bash
-file-organizer benchmark run ~/test-files --suite io --json
-file-organizer benchmark run ~/test-files --suite text --json
-file-organizer benchmark run ~/test-files --suite vision --json
-file-organizer benchmark run ~/test-files --suite pipeline --json
-file-organizer benchmark run ~/test-files --suite e2e --json
+fo benchmark run ~/test-files --suite io --json
+fo benchmark run ~/test-files --suite text --json
+fo benchmark run ~/test-files --suite vision --json
+fo benchmark run ~/test-files --suite pipeline --json
+fo benchmark run ~/test-files --suite e2e --json
 ```

@@ -32,7 +32,7 @@ ollama pull qwen2.5:3b-instruct-q4_K_M    # Text model (~1.9 GB)
 ollama pull qwen2.5vl:7b-q4_K_M           # Vision model (~6.0 GB)
 
 # Verify the installation
-file-organizer version
+fo version
 ```
 
 ### Optional Feature Packs
@@ -63,7 +63,7 @@ Extend functionality by installing optional dependency groups:
 
 ## CLI Commands Overview
 
-File Organizer provides two equivalent entrypoints: `file-organizer` and the short alias `fo`.
+File Organizer provides two equivalent entrypoints: `fo` and the short alias `fo`.
 
 | Command | Description |
 |---------|-------------|
@@ -98,13 +98,13 @@ The `organize` command analyzes files in an input directory and moves them to ca
 
 ```bash
 # Dry run first to preview changes
-file-organizer organize ~/Downloads ~/Organized --dry-run
+fo organize ~/Downloads ~/Organized --dry-run
 
 # Run the actual organization
-file-organizer organize ~/Downloads ~/Organized
+fo organize ~/Downloads ~/Organized
 
 # Verbose output for debugging
-file-organizer organize ~/Downloads ~/Organized --verbose
+fo organize ~/Downloads ~/Organized --verbose
 ```
 
 ### Previewing Changes
@@ -112,7 +112,7 @@ file-organizer organize ~/Downloads ~/Organized --verbose
 Use `preview` for a quick dry-run view:
 
 ```bash
-file-organizer preview ~/Downloads
+fo preview ~/Downloads
 ```
 
 ### Searching Files
@@ -120,7 +120,7 @@ file-organizer preview ~/Downloads
 Search through organized files by filename pattern or keyword:
 
 ```bash
-file-organizer search "quarterly report" ~/Organized
+fo search "quarterly report" ~/Organized
 ```
 
 ### Analyzing Individual Files
@@ -128,7 +128,7 @@ file-organizer search "quarterly report" ~/Organized
 Inspect what the AI detects about a specific file:
 
 ```bash
-file-organizer analyze ~/Documents/report.pdf
+fo analyze ~/Documents/report.pdf
 ```
 
 ## Copilot
@@ -139,17 +139,17 @@ The Copilot is an AI assistant that can answer questions about your files and pe
 
 ```bash
 # Start an interactive session
-file-organizer copilot chat
+fo copilot chat
 
 # Specify a working directory
-file-organizer copilot chat --dir ~/Documents
+fo copilot chat --dir ~/Documents
 ```
 
 ### Single-Shot Mode
 
 ```bash
 # Ask a single question
-file-organizer copilot chat "How many PDF files are in my Documents folder?"
+fo copilot chat "How many PDF files are in my Documents folder?"
 ```
 
 ## Daemon and Background Processing
@@ -160,26 +160,26 @@ The daemon watches directories for new files and organizes them automatically.
 
 ```bash
 # Watch a directory
-file-organizer daemon start --watch-dir ~/Downloads --output-dir ~/Organized
+fo daemon start --watch-dir ~/Downloads --output-dir ~/Organized
 
 # Run in foreground (useful for debugging)
-file-organizer daemon start --watch-dir ~/Downloads --output-dir ~/Organized --foreground
+fo daemon start --watch-dir ~/Downloads --output-dir ~/Organized --foreground
 
 # Adjust poll interval (seconds)
-file-organizer daemon start --watch-dir ~/Downloads --output-dir ~/Organized --poll-interval 30
+fo daemon start --watch-dir ~/Downloads --output-dir ~/Organized --poll-interval 30
 
 # Dry-run mode (log actions without moving files)
-file-organizer daemon start --watch-dir ~/Downloads --output-dir ~/Organized --dry-run
+fo daemon start --watch-dir ~/Downloads --output-dir ~/Organized --dry-run
 ```
 
 ### Managing the Daemon
 
 ```bash
 # Check daemon status
-file-organizer daemon status
+fo daemon status
 
 # Stop the daemon
-file-organizer daemon stop
+fo daemon stop
 ```
 
 ## Organization Methodologies
@@ -214,19 +214,19 @@ Find and resolve duplicate files using perceptual hashing (for images) and conte
 ### Scanning for Duplicates
 
 ```bash
-file-organizer dedupe scan ~/Documents
+fo dedupe scan ~/Documents
 ```
 
 ### Resolving Duplicates
 
 ```bash
-file-organizer dedupe resolve ~/Documents
+fo dedupe resolve ~/Documents
 ```
 
 ### Generating Reports
 
 ```bash
-file-organizer dedupe report ~/Documents
+fo dedupe report ~/Documents
 ```
 
 !!! note
@@ -240,31 +240,31 @@ The auto-tagging system suggests and applies tags to files based on AI analysis 
 
 ```bash
 # Suggest tags for files in a directory
-file-organizer autotag suggest ~/Documents
+fo autotag suggest ~/Documents
 ```
 
 ### Applying Tags
 
 ```bash
 # Apply specific tags to a file
-file-organizer autotag apply ~/Documents/report.pdf finance quarterly
+fo autotag apply ~/Documents/report.pdf finance quarterly
 ```
 
 ### Viewing Popular Tags
 
 ```bash
 # List the most commonly used tags
-file-organizer autotag popular
+fo autotag popular
 ```
 
 ### Batch Operations
 
 ```bash
 # Tag files in batch
-file-organizer autotag batch ~/Documents
+fo autotag batch ~/Documents
 
 # View recently applied tags
-file-organizer autotag recent
+fo autotag recent
 ```
 
 ## Organization Rules
@@ -275,32 +275,32 @@ Rules let you override AI decisions with explicit patterns. When a file matches 
 
 ```bash
 # List all rules
-file-organizer rules list
+fo rules list
 
 # List rule sets
-file-organizer rules sets
+fo rules sets
 ```
 
 ### Adding Rules
 
 ```bash
-file-organizer rules add my-rule --pattern "*.invoice.*" --action move --dest "Documents/Financial"
+fo rules add my-rule --pattern "*.invoice.*" --action move --dest "Documents/Financial"
 ```
 
 ### Previewing and Managing Rules
 
 ```bash
 # Preview what a rule would match in a directory
-file-organizer rules preview ~/Documents
+fo rules preview ~/Documents
 
 # Remove a rule
-file-organizer rules remove my-rule
+fo rules remove my-rule
 
 # Export rules to a YAML file
-file-organizer rules export --output rules-backup.yaml
+fo rules export --output rules-backup.yaml
 
 # Import rules from a YAML file
-file-organizer rules import rules-backup.yaml
+fo rules import rules-backup.yaml
 ```
 
 ## Smart Suggestions
@@ -311,16 +311,16 @@ Get AI-powered suggestions for where to place files based on your existing direc
 
 ```bash
 # Suggest placements for files
-file-organizer suggest files ~/Unsorted
+fo suggest files ~/Unsorted
 
 # View detected patterns
-file-organizer suggest patterns ~/Unsorted
+fo suggest patterns ~/Unsorted
 ```
 
 ### Applying Suggestions
 
 ```bash
-file-organizer suggest apply ~/Unsorted
+fo suggest apply ~/Unsorted
 ```
 
 ## Analytics
@@ -329,7 +329,7 @@ View storage analytics, file distribution, and organization metrics.
 
 ```bash
 # Display analytics dashboard
-file-organizer analytics
+fo analytics
 ```
 
 ## Profiles
@@ -340,32 +340,32 @@ Profiles allow you to save and switch between different configuration sets. This
 
 ```bash
 # List all profiles
-file-organizer profile list
+fo profile list
 
 # Show current active profile
-file-organizer profile current
+fo profile current
 
 # Create a new profile
-file-organizer profile create work
+fo profile create work
 
 # Activate a profile
-file-organizer profile activate work
+fo profile activate work
 
 # Delete a profile
-file-organizer profile delete old-profile
+fo profile delete old-profile
 ```
 
 ### Exporting and Importing
 
 ```bash
 # Export a profile (--output is required)
-file-organizer profile export work --output work-profile.json
+fo profile export work --output work-profile.json
 
 # Import a profile from a JSON file
-file-organizer profile import work-profile.json
+fo profile import work-profile.json
 
 # Merge two or more profiles into a new one (--output is required)
-file-organizer profile merge work personal --output combined
+fo profile merge work personal --output combined
 ```
 
 ## Undo and Redo
@@ -374,13 +374,13 @@ All file move operations are tracked and reversible.
 
 ```bash
 # Undo the last operation
-file-organizer undo
+fo undo
 
 # Redo the last undone operation
-file-organizer redo
+fo redo
 
 # View operation history
-file-organizer history
+fo history
 ```
 
 ## Configuration
@@ -389,29 +389,29 @@ file-organizer history
 
 ```bash
 # Show current configuration
-file-organizer config show
+fo config show
 
 # Show configuration for a specific profile
-file-organizer config show --profile work
+fo config show --profile work
 
 # List available configuration profiles
-file-organizer config list
+fo config list
 ```
 
 ### Editing Configuration
 
 ```bash
 # Edit configuration interactively
-file-organizer config edit
+fo config edit
 
 # Edit specific settings directly
-file-organizer config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
-file-organizer config edit --vision-model "qwen2.5vl:7b-q4_K_M"
-file-organizer config edit --temperature 0.7
-file-organizer config edit --device auto
+fo config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
+fo config edit --vision-model "qwen2.5vl:7b-q4_K_M"
+fo config edit --temperature 0.7
+fo config edit --device auto
 
 # Edit a specific profile's configuration
-file-organizer config edit --profile work
+fo config edit --profile work
 ```
 
 ## AI Model Management
@@ -420,25 +420,25 @@ file-organizer config edit --profile work
 
 ```bash
 # List all available models
-file-organizer model list
+fo model list
 
 # Filter by type
-file-organizer model list --type text
-file-organizer model list --type vision
+fo model list --type text
+fo model list --type vision
 ```
 
 ### Pulling Models
 
 ```bash
 # Pull a model by name
-file-organizer model pull qwen2.5:3b-instruct-q4_K_M
+fo model pull qwen2.5:3b-instruct-q4_K_M
 ```
 
 ### Cache Management
 
 ```bash
 # View model cache status
-file-organizer model cache
+fo model cache
 ```
 
 ## Self-Update
@@ -447,20 +447,20 @@ file-organizer model cache
 
 ```bash
 # Check if a newer version is available
-file-organizer update check
+fo update check
 
 # Include pre-release versions
-file-organizer update check --pre
+fo update check --pre
 ```
 
 ### Installing Updates
 
 ```bash
 # Download and install the latest version
-file-organizer update install
+fo update install
 
 # Dry run (download without installing)
-file-organizer update install --dry-run
+fo update install --dry-run
 ```
 
 ## Supported File Types
@@ -512,7 +512,7 @@ ollama pull qwen2.5vl:7b-q4_K_M
 Add `--verbose` (or `-v`) to any command for detailed logging:
 
 ```bash
-file-organizer organize ~/Downloads ~/Organized --verbose
+fo organize ~/Downloads ~/Organized --verbose
 ```
 
 ### Checking Health
@@ -520,7 +520,7 @@ file-organizer organize ~/Downloads ~/Organized --verbose
 Verify Ollama and the application are working:
 
 ```bash
-file-organizer doctor .
+fo doctor .
 ```
 
 For more detailed troubleshooting, see [Troubleshooting](troubleshooting.md).

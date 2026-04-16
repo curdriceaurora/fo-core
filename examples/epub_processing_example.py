@@ -7,7 +7,7 @@ comprehensive metadata and content from EPUB files.
 
 from pathlib import Path
 
-from file_organizer.utils.epub_enhanced import (
+from utils.epub_enhanced import (
     EnhancedEPUBReader,
     get_epub_metadata,
     read_epub_simple,

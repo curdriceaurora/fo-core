@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.copilot.rules.models import (
+from services.copilot.rules.models import (
     ActionType,
     ConditionType,
     Rule,
@@ -14,8 +14,8 @@ from file_organizer.services.copilot.rules.models import (
     RuleCondition,
     RuleSet,
 )
-from file_organizer.services.copilot.rules.preview import PreviewEngine
-from file_organizer.services.copilot.rules.rule_manager import RuleManager
+from services.copilot.rules.preview import PreviewEngine
+from services.copilot.rules.rule_manager import RuleManager
 
 # ---------------------------------------------------------------------------
 # Model tests
@@ -323,7 +323,7 @@ class TestRulesCLI:
     def test_rules_help(self) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["rules", "--help"])
@@ -333,7 +333,7 @@ class TestRulesCLI:
     def test_rules_list_help(self) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["rules", "list", "--help"])
@@ -342,7 +342,7 @@ class TestRulesCLI:
     def test_rules_preview_help(self) -> None:
         from typer.testing import CliRunner
 
-        from file_organizer.cli.main import app
+        from cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["rules", "preview", "--help"])

@@ -33,7 +33,7 @@ pytestmark = pytest.mark.integration
 
 
 def _tracker():
-    from file_organizer.services.intelligence.preference_tracker import PreferenceTracker
+    from services.intelligence.preference_tracker import PreferenceTracker
 
     return PreferenceTracker()
 
@@ -46,7 +46,7 @@ def _tracker():
 class TestPreferenceMetadataFromDict:
     def test_from_dict_with_last_used(self) -> None:
         """last_used present in dict → parsed to datetime."""
-        from file_organizer.services.intelligence.preference_tracker import PreferenceMetadata
+        from services.intelligence.preference_tracker import PreferenceMetadata
 
         now_iso = datetime.now(UTC).isoformat()
         data = {
@@ -60,7 +60,7 @@ class TestPreferenceMetadataFromDict:
 
     def test_from_dict_without_last_used(self) -> None:
         """last_used absent → None."""
-        from file_organizer.services.intelligence.preference_tracker import PreferenceMetadata
+        from services.intelligence.preference_tracker import PreferenceMetadata
 
         now_iso = datetime.now(UTC).isoformat()
         data = {"created": now_iso, "updated": now_iso}
@@ -69,7 +69,7 @@ class TestPreferenceMetadataFromDict:
 
     def test_from_dict_last_used_none_explicit(self) -> None:
         """last_used=None in dict → None."""
-        from file_organizer.services.intelligence.preference_tracker import PreferenceMetadata
+        from services.intelligence.preference_tracker import PreferenceMetadata
 
         now_iso = datetime.now(UTC).isoformat()
         data = {"created": now_iso, "updated": now_iso, "last_used": None}
@@ -78,7 +78,7 @@ class TestPreferenceMetadataFromDict:
 
     def test_from_dict_defaults(self) -> None:
         """confidence/frequency/source all have defaults."""
-        from file_organizer.services.intelligence.preference_tracker import PreferenceMetadata
+        from services.intelligence.preference_tracker import PreferenceMetadata
 
         now_iso = datetime.now(UTC).isoformat()
         meta = PreferenceMetadata.from_dict({"created": now_iso, "updated": now_iso})
@@ -95,7 +95,7 @@ class TestPreferenceMetadataFromDict:
 class TestPreferenceFromDict:
     def test_from_dict_with_context(self) -> None:
         """context present in dict is preserved."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             Preference,
         )
 
@@ -112,7 +112,7 @@ class TestPreferenceFromDict:
 
     def test_from_dict_without_context(self) -> None:
         """context absent → empty dict."""
-        from file_organizer.services.intelligence.preference_tracker import Preference
+        from services.intelligence.preference_tracker import Preference
 
         now_iso = datetime.now(UTC).isoformat()
         data = {
@@ -133,7 +133,7 @@ class TestPreferenceFromDict:
 class TestCorrectionGetPatternKey:
     def test_pattern_key_with_suffix(self) -> None:
         """File with extension → suffix used in key."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             Correction,
             CorrectionType,
         )
@@ -150,7 +150,7 @@ class TestCorrectionGetPatternKey:
 
     def test_pattern_key_no_suffix(self) -> None:
         """File without extension → 'no_ext' used in key."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             Correction,
             CorrectionType,
         )
@@ -166,7 +166,7 @@ class TestCorrectionGetPatternKey:
 
     def test_pattern_key_destination_parent_name(self) -> None:
         """Destination with parent → parent name in key."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             Correction,
             CorrectionType,
         )
@@ -182,7 +182,7 @@ class TestCorrectionGetPatternKey:
 
     def test_correction_to_dict(self) -> None:
         """to_dict produces the expected fields."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             Correction,
             CorrectionType,
         )
@@ -208,7 +208,7 @@ class TestCorrectionGetPatternKey:
 class TestExtractPreferencesFromCorrection:
     def test_file_move_creates_folder_mapping(self) -> None:
         """FILE_MOVE → PreferenceType.FOLDER_MAPPING."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -225,7 +225,7 @@ class TestExtractPreferencesFromCorrection:
 
     def test_file_rename_creates_naming_pattern(self) -> None:
         """FILE_RENAME → PreferenceType.NAMING_PATTERN."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -242,7 +242,7 @@ class TestExtractPreferencesFromCorrection:
 
     def test_category_change_creates_category_override(self) -> None:
         """CATEGORY_CHANGE → PreferenceType.CATEGORY_OVERRIDE."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -260,7 +260,7 @@ class TestExtractPreferencesFromCorrection:
 
     def test_category_change_missing_new_category_defaults_unknown(self) -> None:
         """CATEGORY_CHANGE without new_category in context → 'unknown'."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -276,7 +276,7 @@ class TestExtractPreferencesFromCorrection:
 
     def test_other_correction_type_creates_custom(self) -> None:
         """FOLDER_CREATION → PreferenceType.CUSTOM (the else branch)."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -292,7 +292,7 @@ class TestExtractPreferencesFromCorrection:
 
     def test_manual_override_creates_custom(self) -> None:
         """MANUAL_OVERRIDE → PreferenceType.CUSTOM."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -308,7 +308,7 @@ class TestExtractPreferencesFromCorrection:
 
     def test_repeated_same_correction_updates_existing_preference(self) -> None:
         """Second identical correction → updates existing preference (frequency++)."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -336,7 +336,7 @@ class TestExtractPreferencesFromCorrection:
         So both corrections need the same parent *name* (e.g. 'docs') but different
         full parent paths so that the stored value changes.
         """
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -361,7 +361,7 @@ class TestExtractPreferencesFromCorrection:
 
     def test_value_unchanged_does_not_set_flag(self) -> None:
         """Same value repeated → value_changed flag NOT set."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -385,7 +385,7 @@ class TestExtractPreferencesFromCorrection:
 class TestGetPreference:
     def test_get_folder_mapping_no_match_returns_none(self) -> None:
         """FOLDER_MAPPING with no tracked extensions → None."""
-        from file_organizer.services.intelligence.preference_tracker import PreferenceType
+        from services.intelligence.preference_tracker import PreferenceType
 
         tracker = _tracker()
         result = tracker.get_preference(Path("/a/file.pdf"), PreferenceType.FOLDER_MAPPING)
@@ -393,7 +393,7 @@ class TestGetPreference:
 
     def test_get_folder_mapping_returns_best_match(self) -> None:
         """FOLDER_MAPPING matches by source extension, returns highest-confidence pref."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -410,7 +410,7 @@ class TestGetPreference:
 
     def test_get_naming_pattern_no_match_returns_none(self) -> None:
         """NAMING_PATTERN with no tracked patterns → None."""
-        from file_organizer.services.intelligence.preference_tracker import PreferenceType
+        from services.intelligence.preference_tracker import PreferenceType
 
         tracker = _tracker()
         result = tracker.get_preference(Path("/a/file.txt"), PreferenceType.NAMING_PATTERN)
@@ -418,7 +418,7 @@ class TestGetPreference:
 
     def test_get_naming_pattern_returns_match(self) -> None:
         """NAMING_PATTERN exact match returns preference."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -436,7 +436,7 @@ class TestGetPreference:
 
     def test_get_category_override_no_match(self) -> None:
         """CATEGORY_OVERRIDE with nothing tracked → None."""
-        from file_organizer.services.intelligence.preference_tracker import PreferenceType
+        from services.intelligence.preference_tracker import PreferenceType
 
         tracker = _tracker()
         result = tracker.get_preference(Path("/x/f.pdf"), PreferenceType.CATEGORY_OVERRIDE)
@@ -444,7 +444,7 @@ class TestGetPreference:
 
     def test_get_custom_no_match(self) -> None:
         """CUSTOM preference not found → None."""
-        from file_organizer.services.intelligence.preference_tracker import PreferenceType
+        from services.intelligence.preference_tracker import PreferenceType
 
         tracker = _tracker()
         result = tracker.get_preference(Path("/x/f.txt"), PreferenceType.CUSTOM)
@@ -452,7 +452,7 @@ class TestGetPreference:
 
     def test_get_folder_mapping_updates_last_used(self) -> None:
         """Successful FOLDER_MAPPING lookup updates last_used timestamp."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -476,7 +476,7 @@ class TestGetPreference:
 class TestGetAllPreferences:
     def test_unfiltered_returns_all(self) -> None:
         """No filter → returns all preference types."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         tracker.track_correction(
@@ -494,7 +494,7 @@ class TestGetAllPreferences:
 
     def test_filtered_by_type(self) -> None:
         """Filter by type → returns only matching preferences."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -517,7 +517,7 @@ class TestGetAllPreferences:
 
     def test_filtered_type_with_no_matches(self) -> None:
         """Filter by type that has no preferences → empty list."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -540,7 +540,7 @@ class TestGetAllPreferences:
 class TestUpdatePreferenceConfidence:
     def test_success_increases_confidence(self) -> None:
         """success=True → confidence increases, capped at 0.98."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -561,7 +561,7 @@ class TestUpdatePreferenceConfidence:
 
     def test_failure_decreases_confidence(self) -> None:
         """success=False → confidence decreases, floored at 0.1."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -582,7 +582,7 @@ class TestUpdatePreferenceConfidence:
 
     def test_success_increments_statistics(self) -> None:
         """success=True → successful_applications counter increments."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -600,7 +600,7 @@ class TestUpdatePreferenceConfidence:
 
     def test_failure_increments_statistics(self) -> None:
         """success=False → failed_applications counter increments."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -618,7 +618,7 @@ class TestUpdatePreferenceConfidence:
 
     def test_confidence_cap_at_0_98(self) -> None:
         """Calling success many times caps at 0.98."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -636,7 +636,7 @@ class TestUpdatePreferenceConfidence:
 
     def test_confidence_floor_at_0_1(self) -> None:
         """Calling failure many times floors at 0.1."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -669,7 +669,7 @@ class TestGetStatistics:
 
     def test_statistics_with_preferences(self) -> None:
         """With preferences → average_confidence computed."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         tracker.track_correction(
@@ -685,7 +685,7 @@ class TestGetStatistics:
 
     def test_statistics_total_correction_history(self) -> None:
         """total_correction_history matches number of tracked corrections."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         for i in range(3):
@@ -706,7 +706,7 @@ class TestGetStatistics:
 class TestClearPreferences:
     def test_clear_all_removes_everything(self) -> None:
         """clear_preferences(None) clears all preferences and corrections."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         tracker.track_correction(
@@ -725,7 +725,7 @@ class TestClearPreferences:
 
     def test_clear_by_type_removes_only_matching(self) -> None:
         """clear_preferences(type) removes only that type, keeps others."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -749,7 +749,7 @@ class TestClearPreferences:
 
     def test_clear_by_type_when_storage_key_becomes_empty(self) -> None:
         """When all prefs in a storage key are removed, the key is deleted."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -767,7 +767,7 @@ class TestClearPreferences:
 
     def test_clear_returns_zero_when_nothing_to_clear(self) -> None:
         """Clearing a type with no preferences returns 0."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -783,7 +783,7 @@ class TestClearPreferences:
 
     def test_clear_by_type_updates_total_preferences_stat(self) -> None:
         """Clearing by type decrements total_preferences in statistics."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -807,7 +807,7 @@ class TestClearPreferences:
 class TestExportImportData:
     def test_export_contains_all_fields(self) -> None:
         """export_data returns preferences, corrections, statistics, exported_at."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         tracker.track_correction(
@@ -824,7 +824,7 @@ class TestExportImportData:
 
     def test_import_data_round_trip(self) -> None:
         """export → import → same preferences available."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceTracker,
             PreferenceType,
@@ -846,7 +846,7 @@ class TestExportImportData:
 
     def test_import_data_replaces_existing(self) -> None:
         """import_data clears existing preferences before importing."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             CorrectionType,
             PreferenceType,
         )
@@ -923,7 +923,7 @@ class TestExportImportData:
 class TestCorrectionQueries:
     def test_get_corrections_for_file_match(self) -> None:
         """Returns corrections where source or destination matches."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         target = Path("/a/x.pdf")
@@ -943,7 +943,7 @@ class TestCorrectionQueries:
 
     def test_get_corrections_for_file_destination_match(self) -> None:
         """Returns correction where destination matches target."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         dest = Path("/docs/x.pdf")
@@ -957,7 +957,7 @@ class TestCorrectionQueries:
 
     def test_get_corrections_for_file_no_match(self) -> None:
         """Returns empty list when no corrections match."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         tracker.track_correction(
@@ -970,7 +970,7 @@ class TestCorrectionQueries:
 
     def test_get_recent_corrections_sorted(self) -> None:
         """Recent corrections are sorted newest-first, limited by limit."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         for i in range(5):
@@ -987,7 +987,7 @@ class TestCorrectionQueries:
 
     def test_get_recent_corrections_default_limit(self) -> None:
         """Default limit=10 is applied."""
-        from file_organizer.services.intelligence.preference_tracker import CorrectionType
+        from services.intelligence.preference_tracker import CorrectionType
 
         tracker = _tracker()
         for i in range(15):
@@ -1008,7 +1008,7 @@ class TestCorrectionQueries:
 class TestConvenienceFunctions:
     def test_create_tracker(self) -> None:
         """create_tracker() returns a fresh PreferenceTracker."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             PreferenceTracker,
             create_tracker,
         )
@@ -1019,7 +1019,7 @@ class TestConvenienceFunctions:
 
     def test_track_file_move(self) -> None:
         """track_file_move() creates a FOLDER_MAPPING preference."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             PreferenceType,
             create_tracker,
             track_file_move,
@@ -1031,7 +1031,7 @@ class TestConvenienceFunctions:
 
     def test_track_file_rename(self) -> None:
         """track_file_rename() creates a NAMING_PATTERN preference."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             PreferenceType,
             create_tracker,
             track_file_rename,
@@ -1043,7 +1043,7 @@ class TestConvenienceFunctions:
 
     def test_track_category_change(self) -> None:
         """track_category_change() creates a CATEGORY_OVERRIDE preference."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             PreferenceType,
             create_tracker,
             track_category_change,
@@ -1057,7 +1057,7 @@ class TestConvenienceFunctions:
 
     def test_track_category_change_with_extra_context(self) -> None:
         """track_category_change() with extra context merges it into the correction."""
-        from file_organizer.services.intelligence.preference_tracker import (
+        from services.intelligence.preference_tracker import (
             PreferenceType,
             create_tracker,
             track_category_change,

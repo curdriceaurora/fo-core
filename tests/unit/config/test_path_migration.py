@@ -1,14 +1,13 @@
 """Tests for path migration from legacy locations."""
 
-from file_organizer.config.path_migration import PathMigrator, detect_legacy_paths
+from config.path_migration import PathMigrator, detect_legacy_paths
 
 
 def test_detect_legacy_paths_finds_old_locations(tmp_path):
-    """Should detect all 3 legacy path patterns"""
-    # Create mock legacy directories
-    legacy_1 = tmp_path / ".file-organizer"
-    legacy_2 = tmp_path / ".file_organizer"
-    legacy_3 = tmp_path / ".config" / "file-organizer"
+    """Hard-cut identity should not detect legacy app paths."""
+    legacy_1 = tmp_path / ".legacy-one"
+    legacy_2 = tmp_path / ".legacy-two"
+    legacy_3 = tmp_path / ".config" / "legacy"
 
     legacy_1.mkdir()
     legacy_2.mkdir()
@@ -18,21 +17,19 @@ def test_detect_legacy_paths_finds_old_locations(tmp_path):
         home=tmp_path, config_home=tmp_path / ".config", data_home=tmp_path / ".local" / "share"
     )
 
-    assert legacy_1 in detected
-    assert legacy_2 in detected
-    assert legacy_3 in detected
+    assert detected == []
 
 
 def test_path_migrator_copies_legacy_files(tmp_path):
     """Should copy files from legacy to canonical locations"""
     # Setup legacy directory with files
-    legacy = tmp_path / ".file-organizer"
+    legacy = tmp_path / ".fo"
     legacy.mkdir()
     (legacy / "config.json").write_text('{"test": true}')
     (legacy / "preferences.json").write_text("{}")
 
     # Setup canonical directory
-    canonical = tmp_path / ".config" / "file-organizer"
+    canonical = tmp_path / ".config" / "fo"
     canonical.mkdir(parents=True)
 
     migrator = PathMigrator(legacy, canonical)
@@ -46,11 +43,11 @@ def test_path_migrator_copies_legacy_files(tmp_path):
 
 def test_path_migrator_creates_backup(tmp_path):
     """Should create backup of legacy path before migration"""
-    legacy = tmp_path / ".file-organizer"
+    legacy = tmp_path / ".fo"
     legacy.mkdir()
     (legacy / "config.json").write_text('{"original": true}')
 
-    canonical = tmp_path / ".config" / "file-organizer"
+    canonical = tmp_path / ".config" / "fo"
     canonical.mkdir(parents=True)
 
     migrator = PathMigrator(legacy, canonical)
@@ -62,10 +59,10 @@ def test_path_migrator_creates_backup(tmp_path):
 
 def test_path_migrator_logs_migration(tmp_path):
     """Should log migration details for audit trail"""
-    legacy = tmp_path / ".file-organizer"
+    legacy = tmp_path / ".fo"
     legacy.mkdir()
 
-    canonical = tmp_path / ".config" / "file-organizer"
+    canonical = tmp_path / ".config" / "fo"
     canonical.mkdir(parents=True)
 
     migrator = PathMigrator(legacy, canonical)

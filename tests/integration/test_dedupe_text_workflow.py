@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.deduplication.detector import DuplicateDetector, ScanOptions
+from services.deduplication.detector import DuplicateDetector, ScanOptions
 
 
 @pytest.fixture

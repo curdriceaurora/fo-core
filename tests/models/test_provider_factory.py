@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType
-from file_organizer.models.provider_factory import get_text_model, get_vision_model
-from file_organizer.models.text_model import TextModel
-from file_organizer.models.vision_model import VisionModel
+from models.base import ModelConfig, ModelType
+from models.provider_factory import get_text_model, get_vision_model
+from models.text_model import TextModel
+from models.vision_model import VisionModel
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -76,7 +76,7 @@ def mlx_text_config() -> ModelConfig:
 
 class TestGetTextModel:
     def test_ollama_provider_returns_text_model(self, ollama_text_config: ModelConfig) -> None:
-        with patch("file_organizer.models.text_model.OLLAMA_AVAILABLE", True):
+        with patch("models.text_model.OLLAMA_AVAILABLE", True):
             model = get_text_model(ollama_text_config)
 
         assert isinstance(model, TextModel)
@@ -85,11 +85,11 @@ class TestGetTextModel:
     def test_openai_provider_returns_openai_text_model(
         self, openai_text_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.openai_text_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_text_model.OPENAI_AVAILABLE", True):
             model = get_text_model(openai_text_config)
 
         # Import here to avoid eager loading in module scope
-        from file_organizer.models.openai_text_model import OpenAITextModel
+        from models.openai_text_model import OpenAITextModel
 
         assert isinstance(model, OpenAITextModel)
         assert model.config is openai_text_config
@@ -97,19 +97,19 @@ class TestGetTextModel:
     def test_llama_cpp_provider_returns_llama_cpp_text_model(
         self, llama_cpp_text_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
+        with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = get_text_model(llama_cpp_text_config)
 
-        from file_organizer.models.llama_cpp_text_model import LlamaCppTextModel
+        from models.llama_cpp_text_model import LlamaCppTextModel
 
         assert isinstance(model, LlamaCppTextModel)
         assert model.config is llama_cpp_text_config
 
     def test_mlx_provider_returns_mlx_text_model(self, mlx_text_config: ModelConfig) -> None:
-        with patch("file_organizer.models.mlx_text_model.MLX_LM_AVAILABLE", True):
+        with patch("models.mlx_text_model.MLX_LM_AVAILABLE", True):
             model = get_text_model(mlx_text_config)
 
-        from file_organizer.models.mlx_text_model import MLXTextModel
+        from models.mlx_text_model import MLXTextModel
 
         assert isinstance(model, MLXTextModel)
         assert model.config is mlx_text_config
@@ -148,7 +148,7 @@ class TestGetTextModel:
 
 class TestGetVisionModel:
     def test_ollama_provider_returns_vision_model(self, ollama_vision_config: ModelConfig) -> None:
-        with patch("file_organizer.models.vision_model.OLLAMA_AVAILABLE", True):
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
             model = get_vision_model(ollama_vision_config)
 
         assert isinstance(model, VisionModel)
@@ -157,10 +157,10 @@ class TestGetVisionModel:
     def test_openai_provider_returns_openai_vision_model(
         self, openai_vision_config: ModelConfig
     ) -> None:
-        with patch("file_organizer.models.openai_vision_model.OPENAI_AVAILABLE", True):
+        with patch("models.openai_vision_model.OPENAI_AVAILABLE", True):
             model = get_vision_model(openai_vision_config)
 
-        from file_organizer.models.openai_vision_model import OpenAIVisionModel
+        from models.openai_vision_model import OpenAIVisionModel
 
         assert isinstance(model, OpenAIVisionModel)
         assert model.config is openai_vision_config

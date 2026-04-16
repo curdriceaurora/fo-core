@@ -58,5 +58,5 @@ TMP=$(mktemp "${SETTINGS}.XXXXXX")
 echo "$UPDATED" > "$TMP" || { rm -f "$TMP"; echo "ERROR: failed to write $SETTINGS" >&2; exit 1; }
 mv "$TMP" "$SETTINGS"
 echo "✅ tdd-gate hook registered in $SETTINGS"
-echo "   Fires on Write/Edit to src/file_organizer/**/*.py"
+echo "   Fires on Write/Edit to src/**/*.py"
 echo "   New files without tests will be blocked. Edits get advisory warnings."

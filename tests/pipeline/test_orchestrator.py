@@ -8,13 +8,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.pipeline.config import PipelineConfig
-from file_organizer.pipeline.orchestrator import (
+from pipeline.config import PipelineConfig
+from pipeline.orchestrator import (
     PipelineOrchestrator,
     PipelineStats,
     ProcessingResult,
 )
-from file_organizer.pipeline.router import ProcessorType
+from pipeline.router import ProcessorType
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 

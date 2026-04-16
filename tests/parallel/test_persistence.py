@@ -15,8 +15,8 @@ from unittest.mock import patch
 
 import pytest
 
-from file_organizer.parallel.models import JobState, JobStatus, JobSummary
-from file_organizer.parallel.persistence import JobPersistence
+from parallel.models import JobState, JobStatus, JobSummary
+from parallel.persistence import JobPersistence
 
 
 @pytest.mark.unit
@@ -26,14 +26,14 @@ class TestJobPersistenceInit(unittest.TestCase):
     def test_default_jobs_dir(self) -> None:
         """Test that default directory resolves to a platform-appropriate path.
 
-        The default may be the legacy ``~/.file-organizer/jobs`` when that
+        The default may be the legacy ``~/.fo/jobs`` when that
         directory already contains data, or the new XDG-compliant path
         returned by ``get_data_dir() / "jobs"`` for fresh installs.
         """
-        from file_organizer.config.path_manager import get_data_dir
+        from config.path_manager import get_data_dir
 
         persistence = JobPersistence()
-        legacy = Path.home() / ".file-organizer" / "jobs"
+        legacy = Path.home() / ".fo" / "jobs"
         canonical = get_data_dir() / "jobs"
         self.assertIn(persistence.jobs_dir, {legacy, canonical})
 

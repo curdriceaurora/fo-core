@@ -11,8 +11,8 @@ import pytest
 pytest.importorskip("rank_bm25")
 pytest.importorskip("sklearn")
 
-from file_organizer.interfaces.search import RetrieverProtocol
-from file_organizer.services.search.hybrid_retriever import HybridRetriever, _rrf_fuse
+from interfaces.search import RetrieverProtocol
+from services.search.hybrid_retriever import HybridRetriever, _rrf_fuse
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -167,8 +167,8 @@ class TestHybridRetrieverInit:
 
     def test_custom_bm25_and_vector_injected(self) -> None:
         """Custom BM25 and vector index instances are stored on the retriever."""
-        from file_organizer.services.search.bm25_index import BM25Index
-        from file_organizer.services.search.vector_index import VectorIndex
+        from services.search.bm25_index import BM25Index
+        from services.search.vector_index import VectorIndex
 
         bm25 = BM25Index()
         vector = VectorIndex()

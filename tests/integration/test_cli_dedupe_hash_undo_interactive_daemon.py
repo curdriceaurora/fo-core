@@ -22,7 +22,7 @@ import pytest
 from rich.console import Console
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = pytest.mark.integration
 
@@ -54,7 +54,7 @@ class TestProgressTrackerIntegration:
 
     def test_init_without_tqdm_prints_hint(self) -> None:
         """ProgressTracker init falls back gracefully when tqdm is missing."""
-        from file_organizer.cli.dedupe_hash import ProgressTracker
+        from cli.dedupe_hash import ProgressTracker
 
         console = Console(record=True)
         import builtins
@@ -74,7 +74,7 @@ class TestProgressTrackerIntegration:
 
     def test_callback_noop_when_tqdm_absent(self) -> None:
         """callback() is a no-op when tqdm is unavailable."""
-        from file_organizer.cli.dedupe_hash import ProgressTracker
+        from cli.dedupe_hash import ProgressTracker
 
         console = Console(record=True)
         tracker = ProgressTracker(console)
@@ -85,7 +85,7 @@ class TestProgressTrackerIntegration:
 
     def test_callback_creates_and_updates_progress_bar(self) -> None:
         """callback() initialises tqdm on first call and updates on subsequent calls."""
-        from file_organizer.cli.dedupe_hash import ProgressTracker
+        from cli.dedupe_hash import ProgressTracker
 
         console = Console(record=True)
         tracker = ProgressTracker(console)
@@ -101,7 +101,7 @@ class TestProgressTrackerIntegration:
 
     def test_close_shuts_down_open_bar(self) -> None:
         """close() calls progress_bar.close() and resets to None."""
-        from file_organizer.cli.dedupe_hash import ProgressTracker
+        from cli.dedupe_hash import ProgressTracker
 
         console = Console(record=True)
         tracker = ProgressTracker(console)
@@ -117,7 +117,7 @@ class TestProgressTrackerIntegration:
 
     def test_close_is_noop_when_no_bar(self) -> None:
         """close() does not raise when progress_bar is None."""
-        from file_organizer.cli.dedupe_hash import ProgressTracker
+        from cli.dedupe_hash import ProgressTracker
 
         console = Console(record=True)
         tracker = ProgressTracker(console)
@@ -130,7 +130,7 @@ class TestScanForDuplicatesIntegration:
 
     def test_no_duplicates_returns_empty_dict(self) -> None:
         """scan_for_duplicates returns {} and prints success when no groups."""
-        from file_organizer.cli.dedupe_hash import scan_for_duplicates
+        from cli.dedupe_hash import scan_for_duplicates
 
         console = Console(record=True)
         detector = MagicMock()
@@ -146,7 +146,7 @@ class TestScanForDuplicatesIntegration:
 
     def test_with_duplicates_returns_groups_and_prints_summary(self) -> None:
         """scan_for_duplicates returns groups and prints total count."""
-        from file_organizer.cli.dedupe_hash import scan_for_duplicates
+        from cli.dedupe_hash import scan_for_duplicates
 
         console = Console(record=True)
         detector = MagicMock()
@@ -162,7 +162,7 @@ class TestScanForDuplicatesIntegration:
 
     def test_progress_tracker_none_does_not_close(self) -> None:
         """progress_tracker=None skips the close() call."""
-        from file_organizer.cli.dedupe_hash import scan_for_duplicates
+        from cli.dedupe_hash import scan_for_duplicates
 
         console = Console(record=True)
         detector = MagicMock()
@@ -173,7 +173,7 @@ class TestScanForDuplicatesIntegration:
 
     def test_multiple_groups_totals_correctly(self) -> None:
         """Total duplicate count sums across all groups."""
-        from file_organizer.cli.dedupe_hash import scan_for_duplicates
+        from cli.dedupe_hash import scan_for_duplicates
 
         console = Console(record=True)
         detector = MagicMock()
@@ -194,11 +194,11 @@ class TestCreateScanOptionsIntegration:
 
     def test_returns_scan_options_from_services_layer(self) -> None:
         """create_scan_options delegates to services.deduplication.detector.ScanOptions."""
-        from file_organizer.cli.dedupe_hash import create_scan_options
+        from cli.dedupe_hash import create_scan_options
 
         sentinel = object()
         with patch(
-            "file_organizer.services.deduplication.detector.ScanOptions",
+            "services.deduplication.detector.ScanOptions",
             return_value=sentinel,
         ) as mock_cls:
             result = create_scan_options(
@@ -216,10 +216,10 @@ class TestCreateScanOptionsIntegration:
 
     def test_passes_all_params_through(self) -> None:
         """All keyword args are forwarded to ScanOptions."""
-        from file_organizer.cli.dedupe_hash import create_scan_options
+        from cli.dedupe_hash import create_scan_options
 
         with patch(
-            "file_organizer.services.deduplication.detector.ScanOptions",
+            "services.deduplication.detector.ScanOptions",
         ) as mock_cls:
             create_scan_options(
                 algorithm="md5",
@@ -245,11 +245,11 @@ class TestInitializeHashDetectorIntegration:
 
     def test_returns_duplicate_detector_instance(self) -> None:
         """initialize_hash_detector wraps the services layer."""
-        from file_organizer.cli.dedupe_hash import initialize_hash_detector
+        from cli.dedupe_hash import initialize_hash_detector
 
         sentinel = object()
         with patch(
-            "file_organizer.services.deduplication.detector.DuplicateDetector",
+            "services.deduplication.detector.DuplicateDetector",
             return_value=sentinel,
         ) as mock_cls:
             result = initialize_hash_detector()
@@ -268,14 +268,14 @@ class TestDedupeCommandIntegration:
 
     def test_nonexistent_directory_exits_1(self, tmp_path: Path) -> None:
         """dedupe_command returns 1 when directory does not exist."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         result = dedupe_command([str(tmp_path / "nonexistent")])
         assert result == 1
 
     def test_file_path_instead_of_dir_exits_1(self, tmp_path: Path) -> None:
         """dedupe_command returns 1 when path is a file not a directory."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         f = tmp_path / "file.txt"
         f.write_text("hello")
@@ -284,11 +284,11 @@ class TestDedupeCommandIntegration:
 
     def test_no_duplicates_returns_0(self, tmp_path: Path) -> None:
         """dedupe_command returns 0 when scan finds no duplicates."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         (tmp_path / "a.txt").write_text("unique")
         with patch(
-            "file_organizer.cli.dedupe.scan_for_duplicates",
+            "cli.dedupe.scan_for_duplicates",
             return_value={},
         ):
             result = dedupe_command([str(tmp_path)])
@@ -296,7 +296,7 @@ class TestDedupeCommandIntegration:
 
     def test_dry_run_with_duplicates_returns_0(self, tmp_path: Path) -> None:
         """dedupe_command in dry-run mode returns 0 and does not remove files."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         (tmp_path / "a.txt").write_text("dup")
         (tmp_path / "b.txt").write_text("dup")
@@ -306,11 +306,11 @@ class TestDedupeCommandIntegration:
 
         with (
             patch(
-                "file_organizer.cli.dedupe.scan_for_duplicates",
+                "cli.dedupe.scan_for_duplicates",
                 return_value={"abc": group},
             ),
             patch(
-                "file_organizer.cli.dedupe_removal.process_duplicate_group",
+                "cli.dedupe_removal.process_duplicate_group",
                 return_value=(0, 0),
             ) as mock_process,
         ):
@@ -320,7 +320,7 @@ class TestDedupeCommandIntegration:
 
     def test_with_duplicates_calls_process_group(self, tmp_path: Path) -> None:
         """dedupe_command calls process_duplicate_group for each group found."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         group = MagicMock()
         group.count = 2
@@ -328,11 +328,11 @@ class TestDedupeCommandIntegration:
 
         with (
             patch(
-                "file_organizer.cli.dedupe.scan_for_duplicates",
+                "cli.dedupe.scan_for_duplicates",
                 return_value={"hash1": group},
             ),
             patch(
-                "file_organizer.cli.dedupe_removal.process_duplicate_group",
+                "cli.dedupe_removal.process_duplicate_group",
                 mock_process,
             ),
         ):
@@ -343,7 +343,7 @@ class TestDedupeCommandIntegration:
 
     def test_safe_mode_disabled_no_backup_manager(self, tmp_path: Path) -> None:
         """--no-safe-mode passes None backup_manager to process_duplicate_group."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         group = MagicMock()
         group.count = 2
@@ -351,11 +351,11 @@ class TestDedupeCommandIntegration:
 
         with (
             patch(
-                "file_organizer.cli.dedupe.scan_for_duplicates",
+                "cli.dedupe.scan_for_duplicates",
                 return_value={"hash1": group},
             ),
             patch(
-                "file_organizer.cli.dedupe_removal.process_duplicate_group",
+                "cli.dedupe_removal.process_duplicate_group",
                 mock_process,
             ),
         ):
@@ -367,10 +367,10 @@ class TestDedupeCommandIntegration:
 
     def test_keyboard_interrupt_returns_130(self, tmp_path: Path) -> None:
         """KeyboardInterrupt during scanning returns exit code 130."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         with patch(
-            "file_organizer.cli.dedupe.scan_for_duplicates",
+            "cli.dedupe.scan_for_duplicates",
             side_effect=KeyboardInterrupt(),
         ):
             result = dedupe_command([str(tmp_path)])
@@ -378,10 +378,10 @@ class TestDedupeCommandIntegration:
 
     def test_exception_returns_1(self, tmp_path: Path) -> None:
         """Unexpected exceptions return exit code 1."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         with patch(
-            "file_organizer.cli.dedupe.scan_for_duplicates",
+            "cli.dedupe.scan_for_duplicates",
             side_effect=RuntimeError("boom"),
         ):
             result = dedupe_command([str(tmp_path)])
@@ -389,7 +389,7 @@ class TestDedupeCommandIntegration:
 
     def test_algorithm_md5_passed_correctly(self, tmp_path: Path) -> None:
         """--algorithm md5 is passed through to create_scan_options."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         scan_opts_calls: list = []
 
@@ -399,11 +399,11 @@ class TestDedupeCommandIntegration:
 
         with (
             patch(
-                "file_organizer.cli.dedupe.scan_for_duplicates",
+                "cli.dedupe.scan_for_duplicates",
                 return_value={},
             ),
             patch(
-                "file_organizer.cli.dedupe.create_scan_options",
+                "cli.dedupe.create_scan_options",
                 side_effect=capture_scan_opts,
             ),
         ):
@@ -414,10 +414,10 @@ class TestDedupeCommandIntegration:
 
     def test_verbose_flag_does_not_crash(self, tmp_path: Path) -> None:
         """--verbose flag enables debug logging without crashing."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         with patch(
-            "file_organizer.cli.dedupe.scan_for_duplicates",
+            "cli.dedupe.scan_for_duplicates",
             return_value={},
         ):
             result = dedupe_command([str(tmp_path), "--verbose"])
@@ -425,7 +425,7 @@ class TestDedupeCommandIntegration:
 
     def test_include_exclude_patterns_passed(self, tmp_path: Path) -> None:
         """--include and --exclude patterns reach scan_options."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         scan_opts_calls: list = []
 
@@ -434,8 +434,8 @@ class TestDedupeCommandIntegration:
             return MagicMock()
 
         with (
-            patch("file_organizer.cli.dedupe.scan_for_duplicates", return_value={}),
-            patch("file_organizer.cli.dedupe.create_scan_options", side_effect=capture),
+            patch("cli.dedupe.scan_for_duplicates", return_value={}),
+            patch("cli.dedupe.create_scan_options", side_effect=capture),
         ):
             result = dedupe_command([str(tmp_path), "--include", "*.jpg", "--exclude", "*.tmp"])
 
@@ -445,7 +445,7 @@ class TestDedupeCommandIntegration:
 
     def test_batch_strategy_oldest(self, tmp_path: Path) -> None:
         """--batch --strategy oldest passes batch=True."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         group = MagicMock()
         group.count = 2
@@ -453,11 +453,11 @@ class TestDedupeCommandIntegration:
 
         with (
             patch(
-                "file_organizer.cli.dedupe.scan_for_duplicates",
+                "cli.dedupe.scan_for_duplicates",
                 return_value={"hash1": group},
             ),
             patch(
-                "file_organizer.cli.dedupe_removal.process_duplicate_group",
+                "cli.dedupe_removal.process_duplicate_group",
                 mock_process,
             ),
         ):
@@ -470,7 +470,7 @@ class TestDedupeCommandIntegration:
 
     def test_main_entry_point_calls_sys_exit(self) -> None:
         """main() passes dedupe_command result to sys.exit."""
-        from file_organizer.cli import dedupe as dedupe_mod
+        from cli import dedupe as dedupe_mod
 
         with (
             patch.object(dedupe_mod, "dedupe_command", return_value=0),
@@ -482,7 +482,7 @@ class TestDedupeCommandIntegration:
 
     def test_safe_mode_with_removals_calls_display_backup_info(self, tmp_path: Path) -> None:
         """display_backup_info is called when safe_mode=True and files were removed."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         group = MagicMock()
         group.count = 2
@@ -490,15 +490,15 @@ class TestDedupeCommandIntegration:
 
         with (
             patch(
-                "file_organizer.cli.dedupe.scan_for_duplicates",
+                "cli.dedupe.scan_for_duplicates",
                 return_value={"h": group},
             ),
             patch(
-                "file_organizer.cli.dedupe_removal.process_duplicate_group",
+                "cli.dedupe_removal.process_duplicate_group",
                 return_value=(1, 1024),
             ),
             patch(
-                "file_organizer.cli.dedupe_display.display_backup_info",
+                "cli.dedupe_display.display_backup_info",
                 mock_display_backup,
             ),
         ):
@@ -509,7 +509,7 @@ class TestDedupeCommandIntegration:
 
     def test_no_recursive_flag(self, tmp_path: Path) -> None:
         """--no-recursive passes recursive=False through to scan options."""
-        from file_organizer.cli.dedupe import dedupe_command
+        from cli.dedupe import dedupe_command
 
         scan_opts_calls: list = []
 
@@ -518,8 +518,8 @@ class TestDedupeCommandIntegration:
             return MagicMock()
 
         with (
-            patch("file_organizer.cli.dedupe.scan_for_duplicates", return_value={}),
-            patch("file_organizer.cli.dedupe.create_scan_options", side_effect=capture),
+            patch("cli.dedupe.scan_for_duplicates", return_value={}),
+            patch("cli.dedupe.create_scan_options", side_effect=capture),
         ):
             result = dedupe_command([str(tmp_path), "--no-recursive"])
 
@@ -537,7 +537,7 @@ class TestInteractiveSetFlags:
 
     def test_set_flags_yes_makes_confirm_return_true(self) -> None:
         """confirm_action returns True immediately when yes=True."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
         interactive.set_flags(yes=True, no_interactive=False)
         try:
@@ -548,7 +548,7 @@ class TestInteractiveSetFlags:
 
     def test_set_flags_no_interactive_returns_default(self) -> None:
         """confirm_action returns the default value when no_interactive=True."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
         interactive.set_flags(yes=False, no_interactive=True)
         try:
@@ -561,11 +561,11 @@ class TestInteractiveSetFlags:
 
     def test_confirm_action_calls_rich_confirm_when_interactive(self) -> None:
         """confirm_action delegates to Confirm.ask when flags are off."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
         interactive.set_flags(yes=False, no_interactive=False)
         try:
-            with patch("file_organizer.cli.interactive.Confirm.ask", return_value=True) as mock_ask:
+            with patch("cli.interactive.Confirm.ask", return_value=True) as mock_ask:
                 result = interactive.confirm_action("Are you sure?", default=False)
             assert result is True
             mock_ask.assert_called_once_with("Are you sure?", default=False)
@@ -578,7 +578,7 @@ class TestPromptChoice:
 
     def test_no_interactive_with_default_returns_default(self) -> None:
         """prompt_choice returns default when no_interactive=True."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
         interactive.set_flags(yes=False, no_interactive=True)
         try:
@@ -589,11 +589,11 @@ class TestPromptChoice:
 
     def test_no_interactive_without_default_calls_prompt_ask(self) -> None:
         """prompt_choice falls through to Prompt.ask when no default given in no-interactive mode."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
         interactive.set_flags(yes=False, no_interactive=True)
         try:
-            with patch("file_organizer.cli.interactive.Prompt.ask", return_value="a") as mock_ask:
+            with patch("cli.interactive.Prompt.ask", return_value="a") as mock_ask:
                 result = interactive.prompt_choice("Pick one", ["a", "b", "c"])
             assert result == "a"
             mock_ask.assert_called_once()
@@ -602,11 +602,11 @@ class TestPromptChoice:
 
     def test_interactive_with_default_calls_prompt_with_default(self) -> None:
         """prompt_choice passes default to Prompt.ask when interactive."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
         interactive.set_flags(yes=False, no_interactive=False)
         try:
-            with patch("file_organizer.cli.interactive.Prompt.ask", return_value="c") as mock_ask:
+            with patch("cli.interactive.Prompt.ask", return_value="c") as mock_ask:
                 result = interactive.prompt_choice("Pick one", ["a", "b", "c"], default="c")
             assert result == "c"
             mock_ask.assert_called_once_with("Pick one", choices=["a", "b", "c"], default="c")
@@ -615,11 +615,11 @@ class TestPromptChoice:
 
     def test_interactive_without_default_calls_prompt_ask(self) -> None:
         """prompt_choice calls Prompt.ask without default when not supplied."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
         interactive.set_flags(yes=False, no_interactive=False)
         try:
-            with patch("file_organizer.cli.interactive.Prompt.ask", return_value="a") as mock_ask:
+            with patch("cli.interactive.Prompt.ask", return_value="a") as mock_ask:
                 result = interactive.prompt_choice("Pick one", ["a", "b"])
             assert result == "a"
             mock_ask.assert_called_once_with("Pick one", choices=["a", "b"])
@@ -632,19 +632,19 @@ class TestPromptDirectory:
 
     def test_returns_valid_directory_on_first_try(self, tmp_path: Path) -> None:
         """prompt_directory returns path when first input is a valid dir."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
-        with patch("file_organizer.cli.interactive.Prompt.ask", return_value=str(tmp_path)):
+        with patch("cli.interactive.Prompt.ask", return_value=str(tmp_path)):
             result = interactive.prompt_directory("Enter dir")
 
         assert result == tmp_path.resolve()
 
     def test_reprompts_on_invalid_then_returns_valid(self, tmp_path: Path) -> None:
         """prompt_directory loops until a valid directory is entered."""
-        from file_organizer.cli import interactive
+        from cli import interactive
 
         calls = ["/nonexistent/path/xyz", str(tmp_path)]
-        with patch("file_organizer.cli.interactive.Prompt.ask", side_effect=calls):
+        with patch("cli.interactive.Prompt.ask", side_effect=calls):
             result = interactive.prompt_directory("Enter dir")
 
         assert result == tmp_path.resolve()
@@ -657,7 +657,7 @@ class TestCreateProgress:
         """create_progress returns a configured Rich Progress object."""
         from rich.progress import Progress
 
-        from file_organizer.cli.interactive import create_progress
+        from cli.interactive import create_progress
 
         progress = create_progress()
         assert isinstance(progress, Progress)
@@ -678,7 +678,7 @@ class TestDaemonWatchCommand:
         mock_monitor = MagicMock()
         mock_monitor.get_events_blocking.side_effect = KeyboardInterrupt()
 
-        with patch("file_organizer.watcher.monitor.FileMonitor", return_value=mock_monitor):
+        with patch("watcher.monitor.FileMonitor", return_value=mock_monitor):
             result = runner.invoke(app, ["daemon", "watch", str(tmp_path)])
 
         assert result.exit_code == 0
@@ -703,7 +703,7 @@ class TestDaemonWatchCommand:
         mock_monitor = MagicMock()
         mock_monitor.get_events_blocking.side_effect = _get_events
 
-        with patch("file_organizer.watcher.monitor.FileMonitor", return_value=mock_monitor):
+        with patch("watcher.monitor.FileMonitor", return_value=mock_monitor):
             result = runner.invoke(app, ["daemon", "watch", str(tmp_path)])
 
         assert result.exit_code == 0
@@ -714,7 +714,7 @@ class TestDaemonWatchCommand:
         mock_monitor = MagicMock()
         mock_monitor.get_events_blocking.side_effect = KeyboardInterrupt()
 
-        with patch("file_organizer.watcher.monitor.FileMonitor", return_value=mock_monitor):
+        with patch("watcher.monitor.FileMonitor", return_value=mock_monitor):
             runner.invoke(app, ["daemon", "watch", str(tmp_path)])
 
         mock_monitor.stop.assert_called_once()
@@ -725,8 +725,8 @@ class TestDaemonWatchCommand:
         mock_monitor.get_events_blocking.side_effect = KeyboardInterrupt()
 
         with (
-            patch("file_organizer.watcher.monitor.FileMonitor", return_value=mock_monitor),
-            patch("file_organizer.watcher.config.WatcherConfig") as mock_cfg_cls,
+            patch("watcher.monitor.FileMonitor", return_value=mock_monitor),
+            patch("watcher.config.WatcherConfig") as mock_cfg_cls,
         ):
             runner.invoke(app, ["daemon", "watch", str(tmp_path), "--poll-interval", "2.5"])
 
@@ -751,7 +751,7 @@ class TestDaemonWatchCommand:
         mock_monitor = MagicMock()
         mock_monitor.get_events_blocking.side_effect = _get_events
 
-        with patch("file_organizer.watcher.monitor.FileMonitor", return_value=mock_monitor):
+        with patch("watcher.monitor.FileMonitor", return_value=mock_monitor):
             result = runner.invoke(app, ["daemon", "watch", str(tmp_path)])
 
         assert result.exit_code == 0
@@ -766,8 +766,8 @@ class TestDaemonStartForegroundDryRun:
         mock_service.start.side_effect = KeyboardInterrupt()
 
         with (
-            patch("file_organizer.daemon.service.DaemonService", return_value=mock_service),
-            patch("file_organizer.cli.daemon._DEFAULT_PID_FILE", tmp_path / "daemon.pid"),
+            patch("daemon.service.DaemonService", return_value=mock_service),
+            patch("cli.daemon._DEFAULT_PID_FILE", tmp_path / "daemon.pid"),
         ):
             result = runner.invoke(app, ["daemon", "start", "--foreground", "--dry-run"])
 
@@ -779,8 +779,8 @@ class TestDaemonStartForegroundDryRun:
         mock_service = MagicMock()
 
         with (
-            patch("file_organizer.daemon.service.DaemonService", return_value=mock_service),
-            patch("file_organizer.cli.daemon._DEFAULT_PID_FILE", tmp_path / "daemon.pid"),
+            patch("daemon.service.DaemonService", return_value=mock_service),
+            patch("cli.daemon._DEFAULT_PID_FILE", tmp_path / "daemon.pid"),
         ):
             result = runner.invoke(app, ["daemon", "start", "--dry-run"])
 
@@ -793,8 +793,8 @@ class TestDaemonStartForegroundDryRun:
         mock_service.start.side_effect = KeyboardInterrupt()
 
         with (
-            patch("file_organizer.daemon.service.DaemonService", return_value=mock_service),
-            patch("file_organizer.cli.daemon._DEFAULT_PID_FILE", tmp_path / "daemon.pid"),
+            patch("daemon.service.DaemonService", return_value=mock_service),
+            patch("cli.daemon._DEFAULT_PID_FILE", tmp_path / "daemon.pid"),
         ):
             result = runner.invoke(app, ["daemon", "start", "--foreground"])
 
@@ -828,7 +828,7 @@ class TestDaemonProcessErrorTruncation:
             )
 
         with patch(
-            "file_organizer.core.organizer.FileOrganizer.organize",
+            "core.organizer.FileOrganizer.organize",
             return_value=_FakeResult(),
         ):
             result = runner.invoke(
@@ -867,7 +867,7 @@ class TestDaemonProcessErrorTruncation:
             )
 
         with patch(
-            "file_organizer.core.organizer.FileOrganizer.organize",
+            "core.organizer.FileOrganizer.organize",
             return_value=_FakeResult(),
         ):
             result = runner.invoke(
@@ -894,7 +894,7 @@ class TestUndoHistoryIntegration:
 
     def test_preview_undo_operation_not_found_in_stack(self, capsys) -> None:
         """preview_undo_operation returns 1 when op not in the undo stack (line 125+128)."""
-        from file_organizer.cli import undo_history
+        from cli import undo_history
 
         manager = MagicMock()
         manager.can_undo.return_value = (True, "")
@@ -908,7 +908,7 @@ class TestUndoHistoryIntegration:
 
     def test_preview_undo_transaction_not_found(self, capsys) -> None:
         """preview_undo_transaction returns 1 when transaction not found (line 177-178)."""
-        from file_organizer.cli import undo_history
+        from cli import undo_history
 
         manager = MagicMock()
         manager.history.get_transaction.return_value = None
@@ -920,7 +920,7 @@ class TestUndoHistoryIntegration:
 
     def test_preview_redo_operation_not_found_in_redo_stack(self, capsys) -> None:
         """preview_redo_operation returns 1 when op not in redo stack (lines 231-232)."""
-        from file_organizer.cli import undo_history
+        from cli import undo_history
 
         manager = MagicMock()
         manager.can_redo.return_value = (True, "")
@@ -934,7 +934,7 @@ class TestUndoHistoryIntegration:
 
     def test_preview_undo_operation_success_op_found(self, capsys) -> None:
         """preview_undo_operation returns 0 when op is undoable and found (covers branch)."""
-        from file_organizer.cli import undo_history
+        from cli import undo_history
 
         manager = MagicMock()
         manager.can_undo.return_value = (True, "")
@@ -949,7 +949,7 @@ class TestUndoHistoryIntegration:
 
     def test_preview_undo_operation_cannot_undo_branch(self, capsys) -> None:
         """preview_undo_operation returns 1 with reason when can_undo=False."""
-        from file_organizer.cli import undo_history
+        from cli import undo_history
 
         manager = MagicMock()
         manager.can_undo.return_value = (False, "already undone")
@@ -961,7 +961,7 @@ class TestUndoHistoryIntegration:
 
     def test_execute_undo_failure_returns_1(self, capsys) -> None:
         """execute_undo returns 1 when undo_last_operation returns False."""
-        from file_organizer.cli import undo_history
+        from cli import undo_history
 
         manager = MagicMock()
         manager.undo_last_operation.return_value = False
@@ -973,7 +973,7 @@ class TestUndoHistoryIntegration:
 
     def test_execute_redo_failure_returns_1(self, capsys) -> None:
         """execute_redo returns 1 when redo_last_operation returns False."""
-        from file_organizer.cli import undo_history
+        from cli import undo_history
 
         manager = MagicMock()
         manager.redo_last_operation.return_value = False
@@ -985,7 +985,7 @@ class TestUndoHistoryIntegration:
 
     def test_preview_undo_transaction_success_with_many_ops(self, capsys) -> None:
         """preview_undo_transaction prints truncated operation list for large transactions."""
-        from file_organizer.cli import undo_history
+        from cli import undo_history
 
         manager = MagicMock()
         manager.history.get_transaction.return_value = MagicMock()

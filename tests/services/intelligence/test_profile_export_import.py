@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.profile_exporter import ProfileExporter
-from file_organizer.services.intelligence.profile_importer import ProfileImporter
-from file_organizer.services.intelligence.profile_manager import ProfileManager
+from services.intelligence.profile_exporter import ProfileExporter
+from services.intelligence.profile_importer import ProfileImporter
+from services.intelligence.profile_manager import ProfileManager
 
 
 @pytest.fixture

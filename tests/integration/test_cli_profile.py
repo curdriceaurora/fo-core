@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from file_organizer.cli.profile import profile_command
+from cli.profile import profile_command
 
 pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
@@ -50,7 +50,7 @@ def _make_profile(
 
 class TestListProfiles:
     def test_list_empty(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.list_profiles.return_value = []
             result = runner.invoke(profile_command, ["list"])
         assert result.exit_code == 0
@@ -58,7 +58,7 @@ class TestListProfiles:
 
     def test_list_single_active_profile(self) -> None:
         profile = _make_profile("work")
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             inst = mock_cls.return_value
             inst.list_profiles.return_value = [profile]
             inst._get_active_profile_name.return_value = "work"
@@ -70,7 +70,7 @@ class TestListProfiles:
     def test_list_multiple_profiles_inactive(self) -> None:
         p1 = _make_profile("alpha")
         p2 = _make_profile("beta")
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             inst = mock_cls.return_value
             inst.list_profiles.return_value = [p1, p2]
             inst._get_active_profile_name.return_value = "other"
@@ -85,7 +85,7 @@ class TestListProfiles:
             "prefs-profile",
             preferences={"global": {"a": 1, "b": 2}, "directory_specific": {"x": 1}},
         )
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             inst = mock_cls.return_value
             inst.list_profiles.return_value = [profile]
             inst._get_active_profile_name.return_value = ""
@@ -103,7 +103,7 @@ class TestListProfiles:
 class TestCreateProfile:
     def test_create_success(self) -> None:
         profile = _make_profile("newprofile")
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.create_profile.return_value = profile
             result = runner.invoke(profile_command, ["create", "newprofile"])
         assert result.exit_code == 0
@@ -112,7 +112,7 @@ class TestCreateProfile:
 
     def test_create_with_description(self) -> None:
         profile = _make_profile("desc-profile")
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             inst = mock_cls.return_value
             inst.create_profile.return_value = profile
             result = runner.invoke(
@@ -123,7 +123,7 @@ class TestCreateProfile:
 
     def test_create_and_activate(self) -> None:
         profile = _make_profile("activated")
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             inst = mock_cls.return_value
             inst.create_profile.return_value = profile
             inst.activate_profile.return_value = True
@@ -133,7 +133,7 @@ class TestCreateProfile:
         assert "Activated profile" in result.output
 
     def test_create_returns_none_aborts(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.create_profile.return_value = None
             result = runner.invoke(profile_command, ["create", "bad"])
         # Abort causes non-zero or output about failure
@@ -141,7 +141,7 @@ class TestCreateProfile:
 
     def test_create_activate_fails(self) -> None:
         profile = _make_profile("fail-act")
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             inst = mock_cls.return_value
             inst.create_profile.return_value = profile
             inst.activate_profile.return_value = False
@@ -157,7 +157,7 @@ class TestCreateProfile:
 
 class TestActivateProfile:
     def test_activate_success(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.activate_profile.return_value = True
             result = runner.invoke(profile_command, ["activate", "work"])
         assert result.exit_code == 0
@@ -165,7 +165,7 @@ class TestActivateProfile:
         assert "work" in result.output
 
     def test_activate_not_found(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.activate_profile.return_value = False
             result = runner.invoke(profile_command, ["activate", "ghost"])
         assert result.exit_code != 0
@@ -179,7 +179,7 @@ class TestActivateProfile:
 
 class TestDeleteProfile:
     def test_delete_with_force_flag(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.delete_profile.return_value = True
             result = runner.invoke(profile_command, ["delete", "old", "--force"])
         assert result.exit_code == 0
@@ -187,21 +187,21 @@ class TestDeleteProfile:
         assert "old" in result.output
 
     def test_delete_confirm_yes(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.delete_profile.return_value = True
             result = runner.invoke(profile_command, ["delete", "old"], input="y\n")
         assert result.exit_code == 0
         assert "Deleted profile" in result.output
 
     def test_delete_confirm_no_cancels(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.delete_profile.return_value = True
             result = runner.invoke(profile_command, ["delete", "old"], input="n\n")
         assert result.exit_code == 0
         assert "Cancelled" in result.output
 
     def test_delete_fails_aborts(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.delete_profile.return_value = False
             result = runner.invoke(profile_command, ["delete", "noexist", "--force"])
         assert result.exit_code != 0
@@ -216,7 +216,7 @@ class TestDeleteProfile:
 class TestShowCurrentProfile:
     def test_show_current_success(self) -> None:
         profile = _make_profile("mywork")
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.get_active_profile.return_value = profile
             result = runner.invoke(profile_command, ["current"])
         assert result.exit_code == 0
@@ -224,7 +224,7 @@ class TestShowCurrentProfile:
         assert "mywork" in result.output
 
     def test_show_current_no_active_profile(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.get_active_profile.return_value = None
             result = runner.invoke(profile_command, ["current"])
         assert result.exit_code != 0
@@ -237,7 +237,7 @@ class TestShowCurrentProfile:
         )
         profile.learned_patterns = {"p1": 1, "p2": 2}
         profile.confidence_data = {"c1": 0.9}
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_cls:
+        with patch("cli.profile.ProfileManager") as mock_cls:
             mock_cls.return_value.get_active_profile.return_value = profile
             result = runner.invoke(profile_command, ["current"])
         assert result.exit_code == 0
@@ -254,8 +254,8 @@ class TestShowCurrentProfile:
 class TestExportProfile:
     def test_export_full_success(self, tmp_path) -> None:
         output_file = str(tmp_path / "out.json")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileExporter") as mock_exp:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileExporter") as mock_exp:
                 mock_exp.return_value.export_profile.return_value = True
                 result = runner.invoke(
                     profile_command, ["export", "myprofile", "--output", output_file]
@@ -266,8 +266,8 @@ class TestExportProfile:
 
     def test_export_selective_success(self, tmp_path) -> None:
         output_file = str(tmp_path / "out.json")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileExporter") as mock_exp:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileExporter") as mock_exp:
                 mock_exp.return_value.export_selective.return_value = True
                 result = runner.invoke(
                     profile_command,
@@ -285,8 +285,8 @@ class TestExportProfile:
 
     def test_export_failure_aborts(self, tmp_path) -> None:
         output_file = str(tmp_path / "out.json")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileExporter") as mock_exp:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileExporter") as mock_exp:
                 mock_exp.return_value.export_profile.return_value = False
                 result = runner.invoke(
                     profile_command, ["export", "myprofile", "--output", output_file]
@@ -305,8 +305,8 @@ class TestImportProfile:
         import_file = tmp_path / "profile.json"
         import_file.write_text("{}")  # must exist for click.Path(exists=True)
         profile = _make_profile("imported")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileImporter") as mock_imp:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileImporter") as mock_imp:
                 mock_imp.return_value.import_profile.return_value = profile
                 result = runner.invoke(profile_command, ["import", str(import_file)])
         assert result.exit_code == 0
@@ -316,8 +316,8 @@ class TestImportProfile:
     def test_import_returns_none_aborts(self, tmp_path) -> None:
         import_file = tmp_path / "profile.json"
         import_file.write_text("{}")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileImporter") as mock_imp:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileImporter") as mock_imp:
                 mock_imp.return_value.import_profile.return_value = None
                 result = runner.invoke(profile_command, ["import", str(import_file)])
         assert result.exit_code != 0
@@ -327,8 +327,8 @@ class TestImportProfile:
         import_file = tmp_path / "profile.json"
         import_file.write_text("{}")
         profile = _make_profile("renamed")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileImporter") as mock_imp:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileImporter") as mock_imp:
                 mock_imp.return_value.import_profile.return_value = profile
                 result = runner.invoke(
                     profile_command,
@@ -352,8 +352,8 @@ class TestImportProfile:
             "confidence_data_count": 1,
             "validation": {"valid": True, "errors": [], "warnings": []},
         }
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileImporter") as mock_imp:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileImporter") as mock_imp:
                 mock_imp.return_value.preview_import.return_value = preview_data
                 result = runner.invoke(profile_command, ["import", str(import_file), "--preview"])
         assert result.exit_code == 0
@@ -364,8 +364,8 @@ class TestImportProfile:
     def test_import_preview_none_aborts(self, tmp_path) -> None:
         import_file = tmp_path / "profile.json"
         import_file.write_text("{}")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileImporter") as mock_imp:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileImporter") as mock_imp:
                 mock_imp.return_value.preview_import.return_value = None
                 result = runner.invoke(profile_command, ["import", str(import_file), "--preview"])
         assert result.exit_code != 0
@@ -380,8 +380,8 @@ class TestImportProfile:
 class TestMergeProfiles:
     def test_merge_success(self) -> None:
         merged = _make_profile("merged-result")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMerger") as mock_merger:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMerger") as mock_merger:
                 mock_merger.return_value.merge_profiles.return_value = merged
                 result = runner.invoke(
                     profile_command,
@@ -392,8 +392,8 @@ class TestMergeProfiles:
         assert "merged-result" in result.output
 
     def test_merge_too_few_profiles_errors(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMerger"):
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMerger"):
                 result = runner.invoke(
                     profile_command,
                     ["merge", "alpha", "--output", "merged-result"],
@@ -402,8 +402,8 @@ class TestMergeProfiles:
         assert "Need at least 2 profiles" in result.output
 
     def test_merge_returns_none_aborts(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMerger") as mock_merger:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMerger") as mock_merger:
                 mock_merger.return_value.merge_profiles.return_value = None
                 result = runner.invoke(
                     profile_command,
@@ -414,8 +414,8 @@ class TestMergeProfiles:
 
     def test_merge_with_strategy(self) -> None:
         merged = _make_profile("merged-recent")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMerger") as mock_merger:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMerger") as mock_merger:
                 mock_merger.return_value.merge_profiles.return_value = merged
                 result = runner.invoke(
                     profile_command,
@@ -434,8 +434,8 @@ class TestMergeProfiles:
 
     def test_merge_show_conflicts_no_conflicts(self) -> None:
         merged = _make_profile("merged-no-conf")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMerger") as mock_merger:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMerger") as mock_merger:
                 mock_merger.return_value.get_merge_conflicts.return_value = {}
                 mock_merger.return_value.merge_profiles.return_value = merged
                 result = runner.invoke(
@@ -454,8 +454,8 @@ class TestMergeProfiles:
 
     def test_merge_show_conflicts_confirms_yes(self) -> None:
         merged = _make_profile("merged-conf")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMerger") as mock_merger:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMerger") as mock_merger:
                 mock_merger.return_value.get_merge_conflicts.return_value = {
                     "naming": ["snake_case", "camelCase"]
                 }
@@ -484,8 +484,8 @@ class TestMergeProfiles:
 
 class TestTemplateCommands:
     def test_list_templates(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.TemplateManager") as mock_tm:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.TemplateManager") as mock_tm:
                 mock_tm.return_value.list_templates.return_value = ["starter", "developer"]
                 mock_tm.return_value.get_template.side_effect = lambda name: {
                     "description": f"Template {name}"
@@ -496,8 +496,8 @@ class TestTemplateCommands:
         assert "developer" in result.output
 
     def test_list_templates_empty(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.TemplateManager") as mock_tm:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.TemplateManager") as mock_tm:
                 mock_tm.return_value.list_templates.return_value = []
                 result = runner.invoke(profile_command, ["template", "list"])
         assert result.exit_code == 0
@@ -505,8 +505,8 @@ class TestTemplateCommands:
 
     def test_apply_template_success(self) -> None:
         profile = _make_profile("from-template")
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.TemplateManager") as mock_tm:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.TemplateManager") as mock_tm:
                 mock_tm.return_value.create_profile_from_template.return_value = profile
                 result = runner.invoke(
                     profile_command, ["template", "apply", "starter", "from-template"]
@@ -516,8 +516,8 @@ class TestTemplateCommands:
 
     def test_apply_template_and_activate(self) -> None:
         profile = _make_profile("from-template")
-        with patch("file_organizer.cli.profile.ProfileManager") as mock_pm:
-            with patch("file_organizer.cli.profile.TemplateManager") as mock_tm:
+        with patch("cli.profile.ProfileManager") as mock_pm:
+            with patch("cli.profile.TemplateManager") as mock_tm:
                 mock_tm.return_value.create_profile_from_template.return_value = profile
                 mock_pm.return_value.activate_profile.return_value = True
                 result = runner.invoke(
@@ -528,8 +528,8 @@ class TestTemplateCommands:
         assert "Activated profile" in result.output
 
     def test_apply_template_returns_none_aborts(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.TemplateManager") as mock_tm:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.TemplateManager") as mock_tm:
                 mock_tm.return_value.create_profile_from_template.return_value = None
                 result = runner.invoke(
                     profile_command, ["template", "apply", "bad-template", "newprofile"]
@@ -549,8 +549,8 @@ class TestTemplateCommands:
             "learned_patterns": ["docs", "code"],
             "confidence_levels": {"high": 0.9},
         }
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.TemplateManager") as mock_tm:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.TemplateManager") as mock_tm:
                 mock_tm.return_value.preview_template.return_value = preview
                 result = runner.invoke(profile_command, ["template", "preview", "starter"])
         assert result.exit_code == 0
@@ -558,8 +558,8 @@ class TestTemplateCommands:
         assert "Starter template" in result.output
 
     def test_preview_template_not_found(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.TemplateManager") as mock_tm:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.TemplateManager") as mock_tm:
                 mock_tm.return_value.preview_template.return_value = None
                 result = runner.invoke(profile_command, ["template", "preview", "nonexistent"])
         assert result.exit_code != 0
@@ -573,8 +573,8 @@ class TestTemplateCommands:
 
 class TestMigrateProfile:
     def test_migrate_success(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMigrator") as mock_mig:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMigrator") as mock_mig:
                 mock_mig.return_value.migrate_version.return_value = True
                 result = runner.invoke(
                     profile_command,
@@ -584,8 +584,8 @@ class TestMigrateProfile:
         assert "Migrated profile 'myprofile' to version 2.0" in result.output
 
     def test_migrate_with_no_backup(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMigrator") as mock_mig:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMigrator") as mock_mig:
                 mock_mig.return_value.migrate_version.return_value = True
                 result = runner.invoke(
                     profile_command,
@@ -597,8 +597,8 @@ class TestMigrateProfile:
         )
 
     def test_migrate_failure_aborts(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMigrator") as mock_mig:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMigrator") as mock_mig:
                 mock_mig.return_value.migrate_version.return_value = False
                 result = runner.invoke(
                     profile_command,
@@ -615,16 +615,16 @@ class TestMigrateProfile:
 
 class TestValidateProfile:
     def test_validate_success(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMigrator") as mock_mig:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMigrator") as mock_mig:
                 mock_mig.return_value.validate_migration.return_value = True
                 result = runner.invoke(profile_command, ["validate", "myprofile"])
         assert result.exit_code == 0
         assert "is valid" in result.output
 
     def test_validate_failure_aborts(self) -> None:
-        with patch("file_organizer.cli.profile.ProfileManager"):
-            with patch("file_organizer.cli.profile.ProfileMigrator") as mock_mig:
+        with patch("cli.profile.ProfileManager"):
+            with patch("cli.profile.ProfileMigrator") as mock_mig:
                 mock_mig.return_value.validate_migration.return_value = False
                 result = runner.invoke(profile_command, ["validate", "broken-profile"])
         assert result.exit_code != 0

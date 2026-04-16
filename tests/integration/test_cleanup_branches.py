@@ -24,7 +24,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 
 def _make_db(tmp_path: Path):
-    from file_organizer.history.database import DatabaseManager
+    from history.database import DatabaseManager
 
     db = DatabaseManager(tmp_path / "history.db")
     db.initialize()
@@ -32,7 +32,7 @@ def _make_db(tmp_path: Path):
 
 
 def _make_cleanup(tmp_path: Path, config=None):
-    from file_organizer.history.cleanup import HistoryCleanup
+    from history.cleanup import HistoryCleanup
 
     db = _make_db(tmp_path)
     cleanup = HistoryCleanup(db, config)
@@ -61,7 +61,7 @@ def _insert_operations(db, count: int) -> None:
 class TestShouldCleanupSizeBranch:
     def test_should_cleanup_false_when_disabled(self, tmp_path: Path) -> None:
         """auto_cleanup_enabled=False always returns False."""
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         _, cleanup = _make_cleanup(
             tmp_path, config=HistoryCleanupConfig(auto_cleanup_enabled=False)
@@ -70,7 +70,7 @@ class TestShouldCleanupSizeBranch:
 
     def test_should_cleanup_true_when_count_exceeded(self, tmp_path: Path) -> None:
         """Returns True when operation count >= max_operations."""
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         db, cleanup = _make_cleanup(tmp_path, config=HistoryCleanupConfig(max_operations=2))
         _insert_operations(db, 3)
@@ -81,7 +81,7 @@ class TestShouldCleanupSizeBranch:
 
         Mock get_database_size to return > max_size_mb bytes.
         """
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         db, cleanup = _make_cleanup(
             tmp_path,
@@ -94,7 +94,7 @@ class TestShouldCleanupSizeBranch:
 
     def test_should_cleanup_false_when_within_limits(self, tmp_path: Path) -> None:
         """Returns False when both count and size are within limits."""
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         _, cleanup = _make_cleanup(
             tmp_path,
@@ -159,7 +159,7 @@ class TestCleanupByCountBranches:
 
     def test_cleanup_by_count_uses_config_default(self, tmp_path: Path) -> None:
         """max_operations=None falls through to config.max_operations."""
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         db, cleanup = _make_cleanup(tmp_path, config=HistoryCleanupConfig(max_operations=2))
         _insert_operations(db, 5)
@@ -222,7 +222,7 @@ class TestCleanupBySizeBranches:
 class TestAutoCleanupBranches:
     def test_auto_cleanup_not_needed_returns_zeros(self, tmp_path: Path) -> None:
         """should_cleanup() returns False → early return with zero stats (lines 325-327)."""
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         _, cleanup = _make_cleanup(
             tmp_path,
@@ -237,7 +237,7 @@ class TestAutoCleanupBranches:
 
     def test_auto_cleanup_by_age_when_count_exceeded(self, tmp_path: Path) -> None:
         """auto_cleanup runs age cleanup first; all 5 ops (in the past) are purged."""
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         db, cleanup = _make_cleanup(
             tmp_path,
@@ -254,7 +254,7 @@ class TestAutoCleanupBranches:
 
         Mock get_database_size to return a large value so the size branch fires.
         """
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         db, cleanup = _make_cleanup(
             tmp_path,
@@ -272,7 +272,7 @@ class TestAutoCleanupBranches:
 
     def test_auto_cleanup_disabled_returns_zeros(self, tmp_path: Path) -> None:
         """auto_cleanup_enabled=False → auto_cleanup returns early via should_cleanup."""
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         db, cleanup = _make_cleanup(
             tmp_path,
@@ -291,7 +291,7 @@ class TestAutoCleanupBranches:
 class TestCleanupMiscBranches:
     def test_cleanup_old_operations_uses_config_default(self, tmp_path: Path) -> None:
         """max_age_days=None uses config.max_age_days."""
-        from file_organizer.history.cleanup import HistoryCleanupConfig
+        from history.cleanup import HistoryCleanupConfig
 
         db, cleanup = _make_cleanup(tmp_path, config=HistoryCleanupConfig(max_age_days=9999))
         _insert_operations(db, 3)

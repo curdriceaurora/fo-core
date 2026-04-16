@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.version import (
+from version import (
     VersionInfo,
     __version__,
     bump_version,

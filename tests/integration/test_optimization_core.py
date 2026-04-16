@@ -29,7 +29,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 def _make_base_model(name: str = "test-model") -> MagicMock:
     """Return a MagicMock that satisfies BaseModel's interface."""
-    from file_organizer.models.base import BaseModel
+    from models.base import BaseModel
 
     mock = MagicMock(spec=BaseModel)
     mock.config = MagicMock()
@@ -38,7 +38,7 @@ def _make_base_model(name: str = "test-model") -> MagicMock:
 
 
 def _make_model_config(name: str = "test-model", framework: str = "ollama") -> Any:
-    from file_organizer.models.base import ModelConfig, ModelType
+    from models.base import ModelConfig, ModelType
 
     return ModelConfig(name=name, model_type=ModelType.TEXT, framework=framework)
 
@@ -52,7 +52,7 @@ class TestMemoryProfiler:
     """Tests for MemoryProfiler and its dataclasses."""
 
     def test_memory_snapshot_fields(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemorySnapshot
+        from optimization.memory_profiler import MemorySnapshot
 
         snap = MemorySnapshot(
             rss=1024,
@@ -66,7 +66,7 @@ class TestMemoryProfiler:
         assert snap.timestamp == 1.0
 
     def test_profile_result_fields(self) -> None:
-        from file_organizer.optimization.memory_profiler import ProfileResult
+        from optimization.memory_profiler import ProfileResult
 
         result = ProfileResult(
             peak_memory=8192,
@@ -82,14 +82,14 @@ class TestMemoryProfiler:
         assert result.func_name == "my_func"
 
     def test_memory_timeline_defaults(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryTimeline
+        from optimization.memory_profiler import MemoryTimeline
 
         tl = MemoryTimeline()
         assert tl.snapshots == []
         assert tl.interval_seconds == 0.0
 
     def test_get_snapshot_returns_memory_snapshot(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler, MemorySnapshot
+        from optimization.memory_profiler import MemoryProfiler, MemorySnapshot
 
         profiler = MemoryProfiler()
         snap = profiler.get_snapshot()
@@ -99,7 +99,7 @@ class TestMemoryProfiler:
         assert snap.timestamp > 0
 
     def test_get_snapshot_objects_by_type_is_tuple_of_pairs(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler
+        from optimization.memory_profiler import MemoryProfiler
 
         profiler = MemoryProfiler()
         snap = profiler.get_snapshot()
@@ -111,7 +111,7 @@ class TestMemoryProfiler:
             assert count >= 1
 
     def test_profile_decorator_records_result(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler
+        from optimization.memory_profiler import MemoryProfiler
 
         profiler = MemoryProfiler()
 
@@ -128,7 +128,7 @@ class TestMemoryProfiler:
         assert profiler.last_result.peak_memory >= 0
 
     def test_profile_decorator_preserves_function_return_value(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler
+        from optimization.memory_profiler import MemoryProfiler
 
         profiler = MemoryProfiler()
 
@@ -140,7 +140,7 @@ class TestMemoryProfiler:
         assert result == [1, 2, 3]
 
     def test_profile_decorator_records_allocated_and_freed(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler
+        from optimization.memory_profiler import MemoryProfiler
 
         profiler = MemoryProfiler()
 
@@ -155,7 +155,7 @@ class TestMemoryProfiler:
         assert r.freed >= 0
 
     def test_start_tracking_and_stop_tracking(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler, MemoryTimeline
+        from optimization.memory_profiler import MemoryProfiler, MemoryTimeline
 
         profiler = MemoryProfiler()
         profiler.start_tracking(interval_seconds=0.05)
@@ -168,7 +168,7 @@ class TestMemoryProfiler:
         assert profiler._tracking is False
 
     def test_add_snapshot_during_tracking(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler, MemorySnapshot
+        from optimization.memory_profiler import MemoryProfiler, MemorySnapshot
 
         profiler = MemoryProfiler()
         profiler.start_tracking()
@@ -179,14 +179,14 @@ class TestMemoryProfiler:
         assert len(timeline.snapshots) == 3
 
     def test_add_snapshot_without_tracking_raises(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler
+        from optimization.memory_profiler import MemoryProfiler
 
         profiler = MemoryProfiler()
         with pytest.raises(RuntimeError, match="Tracking not started"):
             profiler.add_snapshot()
 
     def test_stop_tracking_without_start_returns_empty_timeline(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler
+        from optimization.memory_profiler import MemoryProfiler
 
         profiler = MemoryProfiler()
         # _tracking is False; stop_tracking should still return a timeline
@@ -194,7 +194,7 @@ class TestMemoryProfiler:
         assert timeline.snapshots == []
 
     def test_get_top_objects_returns_sorted_list(self) -> None:
-        from file_organizer.optimization.memory_profiler import MemoryProfiler
+        from optimization.memory_profiler import MemoryProfiler
 
         result = MemoryProfiler._get_top_objects(limit=5)
         # Result has at most `limit` entries (may be fewer if fewer object types exist)
@@ -213,7 +213,7 @@ class TestResourceMonitor:
     """Tests for ResourceMonitor and its dataclasses."""
 
     def test_memory_info_fields(self) -> None:
-        from file_organizer.optimization.resource_monitor import MemoryInfo
+        from optimization.resource_monitor import MemoryInfo
 
         info = MemoryInfo(rss=1024 * 1024, vms=2 * 1024 * 1024, percent=1.5)
         assert info.rss == 1024 * 1024
@@ -221,7 +221,7 @@ class TestResourceMonitor:
         assert info.percent == 1.5
 
     def test_gpu_memory_info_fields(self) -> None:
-        from file_organizer.optimization.resource_monitor import GpuMemoryInfo
+        from optimization.resource_monitor import GpuMemoryInfo
 
         gpu = GpuMemoryInfo(
             total=8 * 1024 * 1024 * 1024,
@@ -238,7 +238,7 @@ class TestResourceMonitor:
 
     def test_get_memory_usage_psutil_path(self) -> None:
         """Mock psutil to verify get_memory_usage returns correct MemoryInfo."""
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         mock_mem_info = MagicMock()
         mock_mem_info.rss = 50 * 1024 * 1024
@@ -264,11 +264,11 @@ class TestResourceMonitor:
 
     def test_get_memory_usage_fallback_without_psutil(self) -> None:
         """When psutil import fails the fallback should still return MemoryInfo."""
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         monitor = ResourceMonitor()
         with patch(
-            "file_organizer.optimization.resource_monitor.ResourceMonitor._get_memory_psutil",
+            "optimization.resource_monitor.ResourceMonitor._get_memory_psutil",
             side_effect=ImportError("psutil not installed"),
         ):
             mem = monitor.get_memory_usage()
@@ -278,11 +278,11 @@ class TestResourceMonitor:
 
     def test_get_gpu_memory_no_gpu_returns_none(self) -> None:
         """When nvidia-smi is absent get_gpu_memory returns None."""
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         monitor = ResourceMonitor()
         with patch(
-            "file_organizer.optimization.resource_monitor.subprocess.run",
+            "optimization.resource_monitor.subprocess.run",
             side_effect=FileNotFoundError("nvidia-smi not found"),
         ):
             result = monitor.get_gpu_memory()
@@ -292,7 +292,7 @@ class TestResourceMonitor:
     def test_get_gpu_memory_parses_nvidia_smi_output(self) -> None:
         """Mock subprocess to return valid nvidia-smi CSV output."""
 
-        from file_organizer.optimization.resource_monitor import GpuMemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import GpuMemoryInfo, ResourceMonitor
 
         fake_output = "NVIDIA GeForce RTX 3080, 10240, 2048, 8192\n"
         mock_result = MagicMock()
@@ -312,7 +312,7 @@ class TestResourceMonitor:
         assert gpu.percent == pytest.approx(20.0, abs=0.1)
 
     def test_should_evict_below_threshold_returns_false(self) -> None:
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         monitor = ResourceMonitor()
         low_mem = MemoryInfo(rss=100, vms=200, percent=50.0)
@@ -320,7 +320,7 @@ class TestResourceMonitor:
             assert monitor.should_evict(threshold_percent=85.0) is False
 
     def test_should_evict_above_threshold_returns_true(self) -> None:
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         monitor = ResourceMonitor()
         high_mem = MemoryInfo(rss=100, vms=200, percent=90.0)
@@ -328,14 +328,14 @@ class TestResourceMonitor:
             assert monitor.should_evict(threshold_percent=85.0) is True
 
     def test_should_evict_invalid_threshold_raises(self) -> None:
-        from file_organizer.optimization.resource_monitor import ResourceMonitor
+        from optimization.resource_monitor import ResourceMonitor
 
         monitor = ResourceMonitor()
         with pytest.raises(ValueError, match="threshold_percent"):
             monitor.should_evict(threshold_percent=150.0)
 
     def test_should_evict_at_exact_threshold_returns_true(self) -> None:
-        from file_organizer.optimization.resource_monitor import MemoryInfo, ResourceMonitor
+        from optimization.resource_monitor import MemoryInfo, ResourceMonitor
 
         monitor = ResourceMonitor()
         exact_mem = MemoryInfo(rss=100, vms=200, percent=85.0)
@@ -353,7 +353,7 @@ class TestConnectionPool:
     """Tests for ConnectionPool."""
 
     def test_pool_creation_and_acquire_single(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         pool = ConnectionPool(db, pool_size=2, timeout=5.0)
@@ -365,7 +365,7 @@ class TestConnectionPool:
             pool.close()
 
     def test_acquire_returns_connection_to_pool(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         pool = ConnectionPool(db, pool_size=1, timeout=5.0)
@@ -380,7 +380,7 @@ class TestConnectionPool:
 
     def test_pool_size_one_second_acquire_waits_and_times_out(self, tmp_path: Path) -> None:
         """A pool of size=1 should raise TimeoutError when exhausted."""
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         pool = ConnectionPool(db, pool_size=1, timeout=0.1)
@@ -397,7 +397,7 @@ class TestConnectionPool:
             pool.close()
 
     def test_stats_reflects_pool_size(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         pool = ConnectionPool(db, pool_size=3, timeout=5.0)
@@ -409,7 +409,7 @@ class TestConnectionPool:
             pool.close()
 
     def test_close_prevents_further_acquire(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         pool = ConnectionPool(db, pool_size=2, timeout=5.0)
@@ -419,14 +419,14 @@ class TestConnectionPool:
                 pass
 
     def test_pool_size_zero_raises_value_error(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         with pytest.raises(ValueError, match="pool_size"):
             ConnectionPool(db, pool_size=0)
 
     def test_manual_release_returns_connection_to_pool(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         pool = ConnectionPool(db, pool_size=2, timeout=5.0)
@@ -441,7 +441,7 @@ class TestConnectionPool:
             pool.close()
 
     def test_context_manager_protocol_on_exception(self, tmp_path: Path) -> None:
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         pool = ConnectionPool(db, pool_size=2, timeout=5.0)
@@ -457,7 +457,7 @@ class TestConnectionPool:
     def test_pool_stats_wait_count_increments(self, tmp_path: Path) -> None:
         """Exhaust pool so wait_count increments (via timeout path)."""
 
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         db = tmp_path / "test.db"
         pool = ConnectionPool(db, pool_size=1, timeout=0.05)
@@ -478,7 +478,7 @@ class TestConnectionPool:
 
     def test_memory_db_pool(self) -> None:
         """In-memory SQLite pool (each connection is independent)."""
-        from file_organizer.optimization.connection_pool import ConnectionPool
+        from optimization.connection_pool import ConnectionPool
 
         pool = ConnectionPool(":memory:", pool_size=2, timeout=5.0)
         try:
@@ -501,7 +501,7 @@ class TestQueryCache:
     """Tests for QueryCache."""
 
     def test_put_and_get_returns_cached_result(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         cache.put("key1", [{"id": 1}], tables={"users"})
@@ -511,26 +511,24 @@ class TestQueryCache:
         assert entry.hit_count == 1
 
     def test_get_miss_returns_none(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         assert cache.get("nonexistent") is None
 
     def test_ttl_expiry_returns_none(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         # Place entry with a timestamp that is already expired
         cache.put("key_expired", "some_data")
         # Patch time.time to simulate expiry
-        with patch(
-            "file_organizer.optimization.query_cache.time.time", return_value=time.time() + 120
-        ):
+        with patch("optimization.query_cache.time.time", return_value=time.time() + 120):
             result = cache.get("key_expired")
         assert result is None
 
     def test_lru_eviction_on_max_size(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=2, ttl_seconds=60.0)
         cache.put("a", 1)
@@ -541,7 +539,7 @@ class TestQueryCache:
         assert cache.get("c") is not None
 
     def test_invalidate_by_table_removes_dependent_entries(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         cache.put("q1", "result1", tables={"orders"})
@@ -555,7 +553,7 @@ class TestQueryCache:
         assert cache.get("q3") is not None
 
     def test_invalidate_unknown_table_removes_zero(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         cache.put("q1", "result1", tables={"orders"})
@@ -563,7 +561,7 @@ class TestQueryCache:
         assert removed == 0
 
     def test_clear_removes_all_entries(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         cache.put("q1", 1)
@@ -573,7 +571,7 @@ class TestQueryCache:
         assert cache.hit_rate == 0.0
 
     def test_hit_rate_after_hits_and_misses(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         cache.put("k", "val")
@@ -583,13 +581,13 @@ class TestQueryCache:
         assert cache.hit_rate == pytest.approx(2 / 3, abs=0.01)
 
     def test_hit_rate_no_lookups_returns_zero(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         assert cache.hit_rate == 0.0
 
     def test_size_property(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         assert cache.size == 0
@@ -599,7 +597,7 @@ class TestQueryCache:
         assert cache.size == 2
 
     def test_make_hash_is_deterministic(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         h1 = QueryCache.make_hash("SELECT * FROM t", (1, 2))
         h2 = QueryCache.make_hash("SELECT * FROM t", (1, 2))
@@ -607,26 +605,26 @@ class TestQueryCache:
         assert len(h1) == 64  # SHA-256 hex digest length
 
     def test_make_hash_differs_for_different_queries(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         h1 = QueryCache.make_hash("SELECT 1")
         h2 = QueryCache.make_hash("SELECT 2")
         assert h1 != h2
 
     def test_invalid_max_size_raises(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         with pytest.raises(ValueError, match="max_size"):
             QueryCache(max_size=0)
 
     def test_invalid_ttl_raises(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         with pytest.raises(ValueError, match="ttl_seconds"):
             QueryCache(ttl_seconds=0)
 
     def test_put_overwrites_existing_key(self) -> None:
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=10, ttl_seconds=60.0)
         cache.put("key", "v1")
@@ -637,7 +635,7 @@ class TestQueryCache:
 
     def test_lru_access_promotes_entry(self) -> None:
         """Accessing 'a' after inserting 'b' should protect 'a' from eviction."""
-        from file_organizer.optimization.query_cache import QueryCache
+        from optimization.query_cache import QueryCache
 
         cache = QueryCache(max_size=2, ttl_seconds=60.0)
         cache.put("a", "va")
@@ -660,7 +658,7 @@ class TestModelCache:
     """Tests for ModelCache."""
 
     def test_get_or_load_calls_loader_on_miss(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         model = _make_base_model("m1")
         loader = MagicMock(return_value=model)
@@ -672,7 +670,7 @@ class TestModelCache:
         loader.assert_called_once()
 
     def test_get_or_load_returns_cached_on_second_call(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         model = _make_base_model("m1")
         loader = MagicMock(return_value=model)
@@ -685,7 +683,7 @@ class TestModelCache:
         assert loader.call_count == 1
 
     def test_stats_reflect_hits_and_misses(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         model = _make_base_model()
         loader = MagicMock(return_value=model)
@@ -700,7 +698,7 @@ class TestModelCache:
         assert stats.hits == 2
 
     def test_lru_eviction_when_cache_full(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         models = {name: _make_base_model(name) for name in ["m1", "m2", "m3"]}
         loaders = {name: MagicMock(return_value=m) for name, m in models.items()}
@@ -718,7 +716,7 @@ class TestModelCache:
         assert stats.evictions == 1
 
     def test_evict_specific_model(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         model = _make_base_model()
         cache = ModelCache(max_models=3, ttl_seconds=300.0)
@@ -731,13 +729,13 @@ class TestModelCache:
         model.cleanup.assert_called_once()
 
     def test_evict_nonexistent_returns_false(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         cache = ModelCache(max_models=3, ttl_seconds=300.0)
         assert cache.evict("does-not-exist") is False
 
     def test_clear_removes_all_models_and_calls_cleanup(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         m1 = _make_base_model("m1")
         m2 = _make_base_model("m2")
@@ -751,7 +749,7 @@ class TestModelCache:
         m2.cleanup.assert_called_once()
 
     def test_ttl_expiry_triggers_reload(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         model_v1 = _make_base_model("v1")
         model_v2 = _make_base_model("v2")
@@ -766,9 +764,7 @@ class TestModelCache:
 
         # Simulate TTL expiry by patching time.monotonic
         future_time = time.monotonic() + 200.0
-        with patch(
-            "file_organizer.optimization.model_cache.time.monotonic", return_value=future_time
-        ):
+        with patch("optimization.model_cache.time.monotonic", return_value=future_time):
             cache.get_or_load("model-a", loader)
 
         assert load_count[0] == 2
@@ -776,7 +772,7 @@ class TestModelCache:
         assert stats.evictions >= 1
 
     def test_stats_current_size_and_max_size(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         model = _make_base_model()
         cache = ModelCache(max_models=5, ttl_seconds=300.0)
@@ -786,13 +782,13 @@ class TestModelCache:
         assert stats.max_size == 5
 
     def test_invalid_max_models_raises(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         with pytest.raises(ValueError, match="max_models"):
             ModelCache(max_models=0)
 
     def test_invalid_ttl_raises(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         with pytest.raises(ValueError, match="ttl_seconds"):
             ModelCache(ttl_seconds=0)
@@ -808,20 +804,20 @@ class TestMemoryLimiter:
 
     def _make_limiter_over_limit(self, action: Any) -> Any:
         """Return a limiter whose _get_rss is patched to always exceed the limit."""
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=1, action=action)
         # Patch _get_rss so current RSS is always above the 1 MB limit
         return limiter
 
     def test_check_returns_true_when_under_limit(self) -> None:
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=999_999)
         assert limiter.check() is True
 
     def test_check_returns_false_when_over_limit(self) -> None:
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=1)
         # Force RSS above limit
@@ -833,7 +829,7 @@ class TestMemoryLimiter:
             assert limiter.check() is False
 
     def test_enforce_warn_increments_violation_count(self) -> None:
-        from file_organizer.optimization.memory_limiter import LimitAction, MemoryLimiter
+        from optimization.memory_limiter import LimitAction, MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=1, action=LimitAction.WARN)
         with patch.object(
@@ -847,7 +843,7 @@ class TestMemoryLimiter:
         assert limiter.violation_count == 2
 
     def test_enforce_raise_raises_memory_limit_error(self) -> None:
-        from file_organizer.optimization.memory_limiter import (
+        from optimization.memory_limiter import (
             LimitAction,
             MemoryLimiter,
             MemoryLimitError,
@@ -863,7 +859,7 @@ class TestMemoryLimiter:
                 limiter.enforce()
 
     def test_enforce_evict_cache_calls_callback(self) -> None:
-        from file_organizer.optimization.memory_limiter import LimitAction, MemoryLimiter
+        from optimization.memory_limiter import LimitAction, MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=1, action=LimitAction.EVICT_CACHE)
         callback = MagicMock()
@@ -879,7 +875,7 @@ class TestMemoryLimiter:
         callback.assert_called_once()
 
     def test_enforce_evict_cache_without_callback_does_not_raise(self) -> None:
-        from file_organizer.optimization.memory_limiter import LimitAction, MemoryLimiter
+        from optimization.memory_limiter import LimitAction, MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=1, action=LimitAction.EVICT_CACHE)
         with patch.object(
@@ -890,7 +886,7 @@ class TestMemoryLimiter:
             limiter.enforce()  # should not raise
 
     def test_enforce_block_increments_violation_count(self) -> None:
-        from file_organizer.optimization.memory_limiter import LimitAction, MemoryLimiter
+        from optimization.memory_limiter import LimitAction, MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=1, action=LimitAction.BLOCK)
         with patch.object(
@@ -903,7 +899,7 @@ class TestMemoryLimiter:
         assert limiter.violation_count == 1
 
     def test_guarded_context_manager_raises_on_entry(self) -> None:
-        from file_organizer.optimization.memory_limiter import (
+        from optimization.memory_limiter import (
             LimitAction,
             MemoryLimiter,
             MemoryLimitError,
@@ -920,46 +916,46 @@ class TestMemoryLimiter:
                     pass
 
     def test_guarded_context_manager_ok_under_limit(self) -> None:
-        from file_organizer.optimization.memory_limiter import LimitAction, MemoryLimiter
+        from optimization.memory_limiter import LimitAction, MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=999_999, action=LimitAction.RAISE)
         with limiter.guarded():
             pass  # no exception expected
 
     def test_get_current_memory_mb_returns_non_negative(self) -> None:
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=512)
         result = limiter.get_current_memory_mb()
         assert result >= 0.0
 
     def test_max_memory_mb_property(self) -> None:
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=256)
         assert limiter.max_memory_mb == 256
 
     def test_action_property(self) -> None:
-        from file_organizer.optimization.memory_limiter import LimitAction, MemoryLimiter
+        from optimization.memory_limiter import LimitAction, MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=256, action=LimitAction.BLOCK)
         assert limiter.action == LimitAction.BLOCK
 
     def test_invalid_max_memory_raises(self) -> None:
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         with pytest.raises(ValueError, match="max_memory_mb"):
             MemoryLimiter(max_memory_mb=0)
 
     def test_enforce_under_limit_does_not_increment_violation_count(self) -> None:
-        from file_organizer.optimization.memory_limiter import LimitAction, MemoryLimiter
+        from optimization.memory_limiter import LimitAction, MemoryLimiter
 
         limiter = MemoryLimiter(max_memory_mb=999_999, action=LimitAction.WARN)
         limiter.enforce()
         assert limiter.violation_count == 0
 
     def test_guarded_context_manager_raises_on_exit(self) -> None:
-        from file_organizer.optimization.memory_limiter import (
+        from optimization.memory_limiter import (
             LimitAction,
             MemoryLimiter,
             MemoryLimitError,
@@ -974,7 +970,7 @@ class TestMemoryLimiter:
                     pass
 
     def test_get_rss_reads_proc_status(self) -> None:
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         with patch("builtins.open", mock_open(read_data="VmRSS:\t2048 kB\n")):
             rss = MemoryLimiter._get_rss()
@@ -982,7 +978,7 @@ class TestMemoryLimiter:
         assert rss == 2048 * 1024
 
     def test_get_rss_uses_resource_module_on_darwin(self) -> None:
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         fake_usage = SimpleNamespace(ru_maxrss=4096)
         fake_resource = SimpleNamespace(RUSAGE_SELF=1, getrusage=MagicMock(return_value=fake_usage))
@@ -998,7 +994,7 @@ class TestMemoryLimiter:
         fake_resource.getrusage.assert_called_once_with(fake_resource.RUSAGE_SELF)
 
     def test_get_rss_returns_zero_when_proc_and_resource_unavailable(self) -> None:
-        from file_organizer.optimization.memory_limiter import MemoryLimiter
+        from optimization.memory_limiter import MemoryLimiter
 
         import_error = ImportError("no resource")
         original_import = __import__
@@ -1026,13 +1022,13 @@ class TestLeakDetector:
     """Tests for LeakDetector."""
 
     def test_is_tracking_false_before_start(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         detector = LeakDetector()
         assert detector.is_tracking is False
 
     def test_is_tracking_true_after_start(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         detector = LeakDetector()
         detector.start()
@@ -1040,14 +1036,14 @@ class TestLeakDetector:
         detector.stop()
 
     def test_check_before_start_raises(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         detector = LeakDetector()
         with pytest.raises(RuntimeError, match="not started"):
             detector.check()
 
     def test_check_after_start_returns_list(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         detector = LeakDetector(min_count_delta=100)
         detector.start()
@@ -1057,7 +1053,7 @@ class TestLeakDetector:
         detector.stop()
 
     def test_check_count_increments(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         detector = LeakDetector(min_count_delta=100)
         detector.start()
@@ -1069,7 +1065,7 @@ class TestLeakDetector:
         detector.stop()
 
     def test_stop_resets_state(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         detector = LeakDetector()
         detector.start()
@@ -1078,14 +1074,14 @@ class TestLeakDetector:
         assert detector.check_count == 0
 
     def test_reset_baseline_without_start_raises(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         detector = LeakDetector()
         with pytest.raises(RuntimeError, match="not started"):
             detector.reset_baseline()
 
     def test_reset_baseline_resets_check_count(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         detector = LeakDetector(min_count_delta=100)
         detector.start()
@@ -1097,7 +1093,7 @@ class TestLeakDetector:
         detector.stop()
 
     def test_suspects_sorted_by_count_delta_descending(self) -> None:
-        from file_organizer.optimization.leak_detector import (
+        from optimization.leak_detector import (
             LeakDetector,
             _TypeSnapshot,
         )
@@ -1128,7 +1124,7 @@ class TestLeakDetector:
         detector.stop()
 
     def test_ignore_types_filters_suspects(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector, _TypeSnapshot
+        from optimization.leak_detector import LeakDetector, _TypeSnapshot
 
         detector = LeakDetector(min_count_delta=1, ignore_types={"dict"})
         detector.start()
@@ -1152,13 +1148,13 @@ class TestLeakDetector:
         detector.stop()
 
     def test_invalid_min_count_delta_raises(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakDetector
+        from optimization.leak_detector import LeakDetector
 
         with pytest.raises(ValueError, match="min_count_delta"):
             LeakDetector(min_count_delta=0)
 
     def test_leak_suspect_fields(self) -> None:
-        from file_organizer.optimization.leak_detector import LeakSuspect
+        from optimization.leak_detector import LeakSuspect
 
         suspect = LeakSuspect(type_name="dict", count_delta=42, size_delta=1024)
         assert suspect.type_name == "dict"
@@ -1175,14 +1171,14 @@ class TestLazyModelLoader:
     """Tests for LazyModelLoader."""
 
     def test_is_loaded_false_before_access(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config()
         lazy = LazyModelLoader(config, loader=lambda c: _make_base_model())
         assert lazy.is_loaded is False
 
     def test_model_property_triggers_load(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         model = _make_base_model()
         loader = MagicMock(return_value=model)
@@ -1194,7 +1190,7 @@ class TestLazyModelLoader:
         loader.assert_called_once_with(config)
 
     def test_is_loaded_true_after_access(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         model = _make_base_model()
         config = _make_model_config()
@@ -1203,7 +1199,7 @@ class TestLazyModelLoader:
         assert lazy.is_loaded is True
 
     def test_second_access_does_not_call_loader_again(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         model = _make_base_model()
         loader = MagicMock(return_value=model)
@@ -1215,7 +1211,7 @@ class TestLazyModelLoader:
         assert loader.call_count == 1
 
     def test_loader_failure_wraps_as_runtime_error(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         def bad_loader(c: Any) -> Any:
             raise ValueError("load failed")
@@ -1227,7 +1223,7 @@ class TestLazyModelLoader:
             _ = lazy.model
 
     def test_unload_calls_cleanup_and_resets(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         model = _make_base_model()
         config = _make_model_config()
@@ -1240,7 +1236,7 @@ class TestLazyModelLoader:
         model.cleanup.assert_called_once()
 
     def test_unload_when_not_loaded_is_a_no_op(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config()
         lazy = LazyModelLoader(config, loader=lambda c: _make_base_model())
@@ -1248,14 +1244,14 @@ class TestLazyModelLoader:
         assert lazy.is_loaded is False
 
     def test_config_property(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(name="my-model")
         lazy = LazyModelLoader(config, loader=lambda c: _make_base_model())
         assert lazy.config is config
 
     def test_repr_shows_not_loaded_initially(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         config = _make_model_config(name="repr-model")
         lazy = LazyModelLoader(config, loader=lambda c: _make_base_model())
@@ -1264,7 +1260,7 @@ class TestLazyModelLoader:
         assert "repr-model" in r
 
     def test_repr_shows_loaded_after_access(self) -> None:
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         model = _make_base_model()
         config = _make_model_config(name="repr-model2")
@@ -1275,7 +1271,7 @@ class TestLazyModelLoader:
 
     def test_thread_safe_load_only_once(self) -> None:
         """Multiple threads accessing model simultaneously should load once."""
-        from file_organizer.optimization.lazy_loader import LazyModelLoader
+        from optimization.lazy_loader import LazyModelLoader
 
         call_count = [0]
         model = _make_base_model()
@@ -1306,7 +1302,7 @@ class TestAdaptiveBatchSizer:
     """Tests for AdaptiveBatchSizer."""
 
     def test_calculate_batch_size_empty_files(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=70.0)
         result = sizer.calculate_batch_size([])
@@ -1314,7 +1310,7 @@ class TestAdaptiveBatchSizer:
 
     def test_calculate_batch_size_positive_with_known_memory(self) -> None:
         """With mocked available memory, verify batch size formula."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=50.0)
         # Patch available memory to 100 MB
@@ -1330,7 +1326,7 @@ class TestAdaptiveBatchSizer:
         assert batch == 5
 
     def test_calculate_batch_size_capped_at_max(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=70.0)
         sizer.set_bounds(min_size=1, max_size=3)
@@ -1345,7 +1341,7 @@ class TestAdaptiveBatchSizer:
         assert batch <= 3
 
     def test_calculate_batch_size_min_bound_enforced(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=70.0)
         sizer.set_bounds(min_size=5, max_size=100)
@@ -1359,7 +1355,7 @@ class TestAdaptiveBatchSizer:
         assert batch == 5
 
     def test_adjust_from_feedback_returns_adjusted_size(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=50.0)
         available = 100 * 1024 * 1024
@@ -1376,7 +1372,7 @@ class TestAdaptiveBatchSizer:
         assert new_size == 5
 
     def test_adjust_from_feedback_stores_in_history(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer()
         available = 100 * 1024 * 1024
@@ -1394,7 +1390,7 @@ class TestAdaptiveBatchSizer:
         assert history[1] == (5 * 1024 * 1024, 3)
 
     def test_clear_history(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer()
         available = 100 * 1024 * 1024
@@ -1408,7 +1404,7 @@ class TestAdaptiveBatchSizer:
         assert sizer.get_history() == []
 
     def test_set_bounds_valid(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer()
         sizer.set_bounds(min_size=2, max_size=50)
@@ -1416,33 +1412,33 @@ class TestAdaptiveBatchSizer:
         assert sizer.max_batch_size == 50
 
     def test_set_bounds_invalid_min_raises(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer()
         with pytest.raises(ValueError, match="min_size"):
             sizer.set_bounds(min_size=0)
 
     def test_set_bounds_max_less_than_min_raises(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer()
         with pytest.raises(ValueError, match="max_size"):
             sizer.set_bounds(min_size=10, max_size=5)
 
     def test_invalid_target_memory_percent_raises(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         with pytest.raises(ValueError, match="target_memory_percent"):
             AdaptiveBatchSizer(target_memory_percent=0.0)
 
     def test_target_memory_percent_property(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=80.0)
         assert sizer.target_memory_percent == 80.0
 
     def test_adjust_batch_size_zero_batch_returns_min(self) -> None:
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer()
         result = sizer.adjust_from_feedback(actual_memory=1024, batch_size=0)
@@ -1450,7 +1446,7 @@ class TestAdaptiveBatchSizer:
 
     def test_calculate_batch_size_per_file_cost_zero(self) -> None:
         """When file sizes and overhead are 0, batch_size should be capped at max."""
-        from file_organizer.optimization.batch_sizer import AdaptiveBatchSizer
+        from optimization.batch_sizer import AdaptiveBatchSizer
 
         sizer = AdaptiveBatchSizer(target_memory_percent=70.0)
         sizer.set_bounds(min_size=1, max_size=10)
@@ -1474,7 +1470,7 @@ class TestModelWarmup:
     """Tests for ModelWarmup."""
 
     def _make_cache_with_model(self, model_name: str) -> Any:
-        from file_organizer.optimization.model_cache import ModelCache
+        from optimization.model_cache import ModelCache
 
         model = _make_base_model(model_name)
         cache = ModelCache(max_models=5, ttl_seconds=300.0)
@@ -1482,8 +1478,8 @@ class TestModelWarmup:
         return cache
 
     def test_warmup_empty_list_returns_zero_duration(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         cache = ModelCache(max_models=5, ttl_seconds=300.0)
         warmup = ModelWarmup(cache, loader_factory=lambda n: lambda: _make_base_model(n))
@@ -1493,8 +1489,8 @@ class TestModelWarmup:
         assert result.success_rate == 1.0
 
     def test_warmup_loads_models_into_cache(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         models = {"m1": _make_base_model("m1"), "m2": _make_base_model("m2")}
         cache = ModelCache(max_models=5, ttl_seconds=300.0)
@@ -1511,8 +1507,8 @@ class TestModelWarmup:
         assert cache.contains("m2")
 
     def test_warmup_skips_already_cached_models(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         model = _make_base_model("m1")
         cache = ModelCache(max_models=5, ttl_seconds=300.0)
@@ -1527,8 +1523,8 @@ class TestModelWarmup:
         assert "m1" in result.loaded
 
     def test_warmup_deduplicates_model_names(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         model = _make_base_model("m1")
         load_count = [0]
@@ -1548,8 +1544,8 @@ class TestModelWarmup:
         assert len(result.loaded) == 1
 
     def test_warmup_records_failed_models(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         def failing_loader() -> Any:
             raise RuntimeError("cannot load model")
@@ -1564,8 +1560,8 @@ class TestModelWarmup:
         assert result.success_rate == 0.0
 
     def test_warmup_result_total_requested(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         models_map = {
             "good": _make_base_model("good"),
@@ -1582,8 +1578,8 @@ class TestModelWarmup:
         assert result.total_requested == 2
 
     def test_warmup_duration_ms_is_positive(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         model = _make_base_model()
         cache = ModelCache(max_models=5, ttl_seconds=300.0)
@@ -1594,8 +1590,8 @@ class TestModelWarmup:
     def test_warmup_async_returns_future(self) -> None:
         from concurrent.futures import Future
 
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         model = _make_base_model()
         cache = ModelCache(max_models=5, ttl_seconds=300.0)
@@ -1606,15 +1602,15 @@ class TestModelWarmup:
         assert len(result.loaded) == 1
 
     def test_invalid_max_workers_raises(self) -> None:
-        from file_organizer.optimization.model_cache import ModelCache
-        from file_organizer.optimization.warmup import ModelWarmup
+        from optimization.model_cache import ModelCache
+        from optimization.warmup import ModelWarmup
 
         cache = ModelCache(max_models=5, ttl_seconds=300.0)
         with pytest.raises(ValueError, match="max_workers"):
             ModelWarmup(cache, loader_factory=lambda n: lambda: _make_base_model(), max_workers=0)
 
     def test_warmup_result_success_rate_partial(self) -> None:
-        from file_organizer.optimization.warmup import WarmupResult
+        from optimization.warmup import WarmupResult
 
         r = WarmupResult(loaded=["a", "b"], failed=[("c", "err")])
         assert r.total_requested == 3

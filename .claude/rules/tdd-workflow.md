@@ -12,7 +12,7 @@
 
 ```
 tests/subdir/test_<module>.py   ← write this first
-src/file_organizer/subdir/<module>.py  ← then this
+src/subdir/<module>.py  ← then this
 ```
 
 ---
@@ -23,8 +23,8 @@ Implemented in `.claude/hooks/tdd-gate.sh`, registered in `.claude/settings.json
 
 | Scenario | Hook Behaviour |
 |----------|----------------|
-| `Write` to new `src/file_organizer/**/*.py` with no test file | **DENY** — must write test first |
-| `Edit` to existing `src/file_organizer/**/*.py` with no test file | **ADVISORY** — warning on stderr, not blocked |
+| `Write` to new `src/**/*.py` with no test file | **DENY** — must write test first |
+| `Edit` to existing `src/**/*.py` with no test file | **ADVISORY** — warning on stderr, not blocked |
 | `__init__.py` | Exempt |
 | Docs, config, CI, tests themselves | Exempt |
 
@@ -82,4 +82,4 @@ Alternative from issue #850 Option A (JSON contract) duplicates information alre
 
 **Last Updated**: 2026-03-18
 **Status**: Active enforcement via PreToolUse hook
-**Scope**: New `src/file_organizer/**/*.py` files only
+**Scope**: New `src/**/*.py` files only

@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.setup import setup_app
+from cli.setup import setup_app
 
 pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
@@ -93,9 +93,9 @@ class TestSetupRunQuickStart:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.confirm_action", return_value=True),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -115,9 +115,9 @@ class TestSetupRunQuickStart:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.confirm_action", return_value=True),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -133,9 +133,9 @@ class TestSetupRunQuickStart:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.confirm_action", return_value=True),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -151,9 +151,9 @@ class TestSetupRunQuickStart:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.confirm_action", return_value=True),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -172,9 +172,9 @@ class TestSetupRunQuickStart:
         cfg = _make_config(text_model="llama3.2:1b")
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.confirm_action", return_value=True),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -194,8 +194,8 @@ class TestSetupRunQuickStart:
 class TestSetupRunInvalidMode:
     def test_invalid_mode_exits_1(self) -> None:
         with (
-            patch("file_organizer.cli.setup.SetupWizard"),
-            patch("file_organizer.cli.setup.console"),
+            patch("cli.setup.SetupWizard"),
+            patch("cli.setup.console"),
         ):
             result = runner.invoke(setup_app, ["run", "--mode", "unknown-mode"])
 
@@ -208,9 +208,9 @@ class TestSetupRunInvalidMode:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.confirm_action", return_value=True),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -234,9 +234,9 @@ class TestSetupRunDryRun:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.confirm_action", return_value=True),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -261,8 +261,8 @@ class TestSetupRunValidationFailure:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -289,9 +289,9 @@ class TestSetupRunSaveDeclined:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=False),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.confirm_action", return_value=False),
         ):
             mock_wiz = mock_wiz_cls.return_value
             mock_wiz.detect_capabilities.return_value = caps
@@ -316,10 +316,10 @@ class TestSetupRunPowerUser:
         cfg = _make_config(framework="ollama")
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.prompt_choice", return_value="ollama"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.prompt_choice", return_value="ollama"),
+            patch("cli.setup.confirm_action", return_value=True),
             patch("typer.prompt", return_value="0.7"),
         ):
             mock_wiz = mock_wiz_cls.return_value
@@ -338,10 +338,10 @@ class TestSetupRunPowerUser:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.prompt_choice", return_value="ollama"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.prompt_choice", return_value="ollama"),
+            patch("cli.setup.confirm_action", return_value=True),
             patch("typer.prompt", return_value="not-a-float"),
         ):
             mock_wiz = mock_wiz_cls.return_value
@@ -363,10 +363,10 @@ class TestSetupRunPowerUser:
         cfg = _make_config()
 
         with (
-            patch("file_organizer.cli.setup.SetupWizard") as mock_wiz_cls,
-            patch("file_organizer.cli.setup.console"),
-            patch("file_organizer.cli.setup.prompt_choice", return_value="none"),
-            patch("file_organizer.cli.setup.confirm_action", return_value=True),
+            patch("cli.setup.SetupWizard") as mock_wiz_cls,
+            patch("cli.setup.console"),
+            patch("cli.setup.prompt_choice", return_value="none"),
+            patch("cli.setup.confirm_action", return_value=True),
             patch("typer.prompt", return_value="0.5"),
         ):
             mock_wiz = mock_wiz_cls.return_value

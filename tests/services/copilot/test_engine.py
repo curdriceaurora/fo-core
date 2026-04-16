@@ -11,8 +11,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.services.copilot.engine import CopilotEngine
-from file_organizer.services.copilot.models import (
+from services.copilot.engine import CopilotEngine
+from services.copilot.models import (
     ExecutionResult,
     Intent,
     IntentType,
@@ -375,7 +375,7 @@ class TestErrorHandling:
 
     def test_chat_handles_intent_parsing_error(self):
         """Test handling of intent parsing errors."""
-        from file_organizer.services.copilot.models import IntentType
+        from services.copilot.models import IntentType
 
         engine = CopilotEngine()
         engine._intent_parser.parse = MagicMock(
@@ -564,7 +564,7 @@ class TestCopilotEngineRetriever:
 
     def test_find_intent_uses_retriever_when_initialized(self, tmp_path) -> None:
         """FIND intent routes to retriever.retrieve() when it is initialised."""
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.models import Intent, IntentType
 
         mock_path = tmp_path / "finance_report.txt"
         retriever = MagicMock()
@@ -589,7 +589,7 @@ class TestCopilotEngineRetriever:
 
     def test_find_intent_falls_back_when_retriever_not_initialized(self, tmp_path) -> None:
         """When retriever.is_initialized is False, executor falls back to filename scan."""
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.models import Intent, IntentType
 
         (tmp_path / "finance.txt").write_text("content")
 
@@ -615,7 +615,7 @@ class TestCopilotEngineRetriever:
 
     def test_find_intent_no_retriever_uses_filename_scan(self, tmp_path) -> None:
         """Without a retriever, FIND falls back to filename scan — existing behavior."""
-        from file_organizer.services.copilot.models import Intent, IntentType
+        from services.copilot.models import Intent, IntentType
 
         (tmp_path / "notes.txt").write_text("content")
 
@@ -639,7 +639,7 @@ class TestCopilotEngineRetrieverIntegration:
 
     def test_find_with_injected_real_retriever(self, tmp_path) -> None:
         """FIND intent returns scoped results using a real HybridRetriever."""
-        from file_organizer.services.search.hybrid_retriever import (
+        from services.search.hybrid_retriever import (
             HybridRetriever,
             read_text_safe,
         )

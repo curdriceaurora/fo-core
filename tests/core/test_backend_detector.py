@@ -15,8 +15,8 @@ _mock_ollama = MagicMock()
 _original_ollama = sys.modules.get("ollama")
 sys.modules["ollama"] = _mock_ollama
 
-import file_organizer.core.backend_detector as backend_detector  # noqa: E402
-from file_organizer.core.backend_detector import (  # noqa: E402
+import core.backend_detector as backend_detector  # noqa: E402
+from core.backend_detector import (  # noqa: E402
     InstalledModel,
     OllamaStatus,
     detect_ollama,
@@ -35,7 +35,7 @@ backend_detector.ollama = _mock_ollama
 class TestDetectOllama:
     """Tests for detect_ollama() function."""
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", False)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", False)
     def test_ollama_package_not_available(self):
         """When ollama package not installed, return not installed status."""
         result = detect_ollama()
@@ -44,9 +44,9 @@ class TestDetectOllama:
         assert result.version is None
         assert result.models_count == 0
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_ollama_cli_not_found(self, mock_run, mock_client):
         """When ollama CLI not in PATH and service also unreachable, return not installed."""
         mock_run.side_effect = FileNotFoundError("ollama command not found")
@@ -57,9 +57,9 @@ class TestDetectOllama:
         assert result.installed is False
         assert result.running is False
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_ollama_installed_but_not_running(self, mock_run, mock_client):
         """When Ollama CLI installed but service not running."""
         mock_run.return_value = Mock(returncode=0, stdout="ollama version 0.1.0\n")
@@ -71,9 +71,9 @@ class TestDetectOllama:
         assert result.running is False
         assert result.version == "ollama version 0.1.0"
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_ollama_installed_and_running(self, mock_run, mock_client):
         """When Ollama fully operational, return running status with model count."""
         mock_run.return_value = Mock(returncode=0, stdout="ollama version 0.1.29\n")
@@ -91,9 +91,9 @@ class TestDetectOllama:
         assert result.version == "ollama version 0.1.29"
         assert result.models_count == 2
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_subprocess_timeout(self, mock_run, mock_client):
         """When subprocess times out and service unreachable, return not installed."""
         import subprocess
@@ -106,9 +106,9 @@ class TestDetectOllama:
         assert result.installed is False
         assert result.running is False
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_ollama_cli_returns_error(self, mock_run, mock_client):
         """When Ollama CLI returns non-zero exit code and service unreachable."""
         mock_run.return_value = Mock(returncode=1, stdout="")
@@ -119,9 +119,9 @@ class TestDetectOllama:
         assert result.installed is False
         assert result.running is False
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_ollama_with_list_response_format(self, mock_run, mock_client):
         """When ollama client returns list instead of dict."""
         mock_run.return_value = Mock(returncode=0, stdout="ollama version 0.1.29\n")
@@ -137,9 +137,9 @@ class TestDetectOllama:
         assert result.running is True
         assert result.models_count == 2
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_ollama_with_list_response_object(self, mock_run, mock_client):
         """When ollama client returns a ListResponse object (new ollama client API)."""
         mock_run.return_value = Mock(returncode=0, stdout="ollama version 0.5.0\n")
@@ -157,9 +157,9 @@ class TestDetectOllama:
         assert result.running is True
         assert result.models_count == 3
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_cli_not_found_but_service_running(self, mock_run, mock_client):
         """CLI absent but Ollama service reachable — non-fatal CLI check."""
         # CLI not installed
@@ -176,9 +176,9 @@ class TestDetectOllama:
         # version stays None (no CLI); UI must handle None gracefully
         assert result.version is None
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.subprocess.run")
     def test_cli_error_code_but_service_running(self, mock_run, mock_client):
         """CLI returns non-zero but service still reachable (Docker remote scenario)."""
         mock_run.return_value = Mock(returncode=1, stdout="")
@@ -194,13 +194,13 @@ class TestDetectOllama:
 class TestListInstalledModels:
     """Tests for list_installed_models() function."""
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", False)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", False)
     def test_ollama_not_available(self):
         """When ollama package not available, return empty list."""
         result = list_installed_models()
         assert result == []
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
     def test_list_models_success(self, mock_client):
         """Successfully list installed models with metadata."""
@@ -222,7 +222,7 @@ class TestListInstalledModels:
         assert result[0].size == 3825819519
         assert result[1].name == "qwen2.5:3b-instruct"
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
     def test_list_models_empty(self, mock_client):
         """When no models installed, return empty list."""
@@ -232,8 +232,8 @@ class TestListInstalledModels:
 
         assert result == []
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.subprocess.run")
     @patch("ollama.Client")
     def test_list_models_connection_error(self, mock_client, mock_run):
         """When Ollama service not reachable, return empty list."""
@@ -247,7 +247,7 @@ class TestListInstalledModels:
 
         assert result == []
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
     def test_list_models_unexpected_format(self, mock_client):
         """When API returns unexpected format, handle gracefully."""
@@ -257,7 +257,7 @@ class TestListInstalledModels:
 
         assert result == []
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
     def test_list_models_as_list_format(self, mock_client):
         """When API returns list format instead of dict."""
@@ -271,7 +271,7 @@ class TestListInstalledModels:
         assert result[0].name == "llama2:7b"
         assert result[0].size == 3825819519
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
     def test_list_models_as_list_response_object(self, mock_client):
         """When ollama client returns a ListResponse object (new client API)."""
@@ -300,7 +300,7 @@ class TestListInstalledModels:
         assert result[1].size == 1974030336
         assert result[1].modified == "2024-01-20T14:45:00Z"
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
     @patch("ollama.Client")
     def test_list_models_dict_items_in_list_response(self, mock_client):
         """When ListResponse contains plain dict items (fallback dict path)."""
@@ -321,8 +321,8 @@ class TestListInstalledModels:
         assert result[0].size == 4109799670
         assert result[0].modified == "2024-02-01T09:00:00Z"
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.subprocess.run")
     @patch("ollama.Client")
     def test_list_models_fallback_to_cli_json(self, mock_client, mock_run):
         """When Python client fails, fallback to CLI JSON output."""
@@ -337,8 +337,8 @@ class TestListInstalledModels:
         assert len(result) == 1
         assert result[0].name == "llama2:7b"
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.subprocess.run")
     @patch("ollama.Client")
     def test_list_models_fallback_to_cli_text(self, mock_client, mock_run):
         """When JSON parsing fails, fallback to text output parser."""
@@ -360,8 +360,8 @@ class TestListInstalledModels:
         assert result[0].name == "llama2:7b"
         assert result[1].name == "qwen2.5:3b"
 
-    @patch("file_organizer.core.backend_detector.OLLAMA_AVAILABLE", True)
-    @patch("file_organizer.core.backend_detector.subprocess.run")
+    @patch("core.backend_detector.OLLAMA_AVAILABLE", True)
+    @patch("core.backend_detector.subprocess.run")
     @patch("ollama.Client")
     def test_list_models_cli_not_found(self, mock_client, mock_run):
         """When CLI not found, return empty list."""

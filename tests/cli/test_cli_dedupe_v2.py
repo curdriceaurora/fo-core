@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.main import app
+from cli.main import app
 
 pytestmark = [pytest.mark.unit]
 
@@ -46,7 +46,7 @@ def _make_group(files: list[MagicMock]) -> MagicMock:
 class TestDedupeScan:
     """Tests for ``dedupe scan``."""
 
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("cli.dedupe_v2._get_detector")
     def test_scan_no_duplicates(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -56,7 +56,7 @@ class TestDedupeScan:
         assert result.exit_code == 0
         assert "No duplicates" in result.output
 
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("cli.dedupe_v2._get_detector")
     def test_scan_with_duplicates(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -72,7 +72,7 @@ class TestDedupeScan:
         assert result.exit_code == 0
         assert "1" in result.output  # 1 duplicate group
 
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("cli.dedupe_v2._get_detector")
     def test_scan_json_output(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -88,7 +88,7 @@ class TestDedupeScan:
         assert result.exit_code == 0
         assert "abc123" in result.output
 
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("cli.dedupe_v2._get_detector")
     def test_scan_with_options(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -118,7 +118,7 @@ class TestDedupeScan:
 class TestDedupeResolve:
     """Tests for ``dedupe resolve``."""
 
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("cli.dedupe_v2._get_detector")
     def test_resolve_no_duplicates(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -128,7 +128,7 @@ class TestDedupeResolve:
         assert result.exit_code == 0
         assert "No duplicates" in result.output
 
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("cli.dedupe_v2._get_detector")
     def test_resolve_dry_run(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -154,7 +154,7 @@ class TestDedupeResolve:
         assert result.exit_code == 0
         assert "Dry run" in result.output or "dry run" in result.output.lower()
 
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("cli.dedupe_v2._get_detector")
     def test_resolve_manual_strategy(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -182,8 +182,8 @@ class TestDedupeResolve:
 class TestDedupeReport:
     """Tests for ``dedupe report``."""
 
-    @patch("file_organizer.services.deduplication.detector.ScanOptions")
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("services.deduplication.detector.ScanOptions")
+    @patch("cli.dedupe_v2._get_detector")
     def test_report_table(
         self,
         mock_get_det: MagicMock,
@@ -207,8 +207,8 @@ class TestDedupeReport:
         assert "Duplicate Report" in result.output
         assert "100" in result.output
 
-    @patch("file_organizer.services.deduplication.detector.ScanOptions")
-    @patch("file_organizer.cli.dedupe_v2._get_detector")
+    @patch("services.deduplication.detector.ScanOptions")
+    @patch("cli.dedupe_v2._get_detector")
     def test_report_json(
         self,
         mock_get_det: MagicMock,

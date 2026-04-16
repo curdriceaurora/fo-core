@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from file_organizer.services.analytics.metrics_calculator import MetricsCalculator
-from file_organizer.services.copilot.rules.models import (
+from services.analytics.metrics_calculator import MetricsCalculator
+from services.copilot.rules.models import (
     ActionType,
     ConditionType,
     Rule,
@@ -27,16 +27,16 @@ from file_organizer.services.copilot.rules.models import (
     RuleCondition,
     RuleSet,
 )
-from file_organizer.services.deduplication.reporter import StorageReporter
-from file_organizer.services.deduplication.viewer import (
+from services.deduplication.reporter import StorageReporter
+from services.deduplication.viewer import (
     DuplicateReview,
     ImageMetadata,
     UserAction,
 )
-from file_organizer.services.intelligence.directory_prefs import DirectoryPrefs
+from services.intelligence.directory_prefs import DirectoryPrefs
 
 if TYPE_CHECKING:
-    from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
+    from services.deduplication.document_dedup import DocumentDeduplicator
 
 pytestmark = pytest.mark.integration
 
@@ -266,7 +266,7 @@ class TestExportToCsv:
 @pytest.fixture()
 def deduplicator() -> DocumentDeduplicator:
     pytest.importorskip("sklearn.feature_extraction.text")
-    from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
+    from services.deduplication.document_dedup import DocumentDeduplicator
 
     return DocumentDeduplicator()
 
@@ -277,19 +277,19 @@ class TestDocumentDeduplicatorInit:
         pytest.importorskip("sklearn.feature_extraction.text")
 
     def test_default_threshold(self) -> None:
-        from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
+        from services.deduplication.document_dedup import DocumentDeduplicator
 
         d = DocumentDeduplicator()
         assert d is not None
 
     def test_custom_threshold(self) -> None:
-        from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
+        from services.deduplication.document_dedup import DocumentDeduplicator
 
         d = DocumentDeduplicator(similarity_threshold=0.7)
         assert d is not None
 
     def test_custom_max_features(self) -> None:
-        from file_organizer.services.deduplication.document_dedup import DocumentDeduplicator
+        from services.deduplication.document_dedup import DocumentDeduplicator
 
         d = DocumentDeduplicator(max_features=1000)
         assert d is not None

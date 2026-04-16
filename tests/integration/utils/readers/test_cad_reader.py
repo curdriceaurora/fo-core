@@ -81,7 +81,7 @@ def _make_iges(tmp_path: Path, name: str = "test.igs") -> Path:
 
 class TestReadStepFile:
     def test_valid_step_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path)
         result = read_step_file(path)
@@ -89,49 +89,49 @@ class TestReadStepFile:
         assert len(result) > 0
 
     def test_step_contains_filename(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path, "assembly.step")
         result = read_step_file(path)
         assert "assembly.step" in result
 
     def test_step_header_section_extracted(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path)
         result = read_step_file(path)
         assert "Header Information" in result
 
     def test_step_file_description_extracted(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path)
         result = read_step_file(path)
         assert "FILE_DESCRIPTION" in result
 
     def test_step_file_name_extracted(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path)
         result = read_step_file(path)
         assert "FILE_NAME" in result
 
     def test_step_file_schema_extracted(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path)
         result = read_step_file(path)
         assert "FILE_SCHEMA" in result
 
     def test_step_entity_count_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path)
         result = read_step_file(path)
         assert "entity count" in result.lower()
 
     def test_step_file_size_shown(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path)
         result = read_step_file(path)
@@ -139,7 +139,7 @@ class TestReadStepFile:
 
     def test_step_no_header_section(self, tmp_path: Path) -> None:
         """STEP file without a HEADER; block still returns basic info."""
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = tmp_path / "noheader.step"
         path.write_text("ISO-10303-21;\nDATA;\n#1=DUMMY();\nENDSEC;\nEND-ISO-10303-21;\n")
@@ -149,7 +149,7 @@ class TestReadStepFile:
 
     def test_step_no_data_section(self, tmp_path: Path) -> None:
         """STEP file with header only — no DATA section."""
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = tmp_path / "nodata.step"
         path.write_text(
@@ -159,15 +159,15 @@ class TestReadStepFile:
         assert "STEP File Information" in result
 
     def test_step_missing_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers._base import FileReadError
+        from utils.readers.cad import read_step_file
 
         with pytest.raises(FileReadError):
             read_step_file(tmp_path / "nonexistent.step")
 
     def test_step_accepts_stp_extension(self, tmp_path: Path) -> None:
         """Same content with .stp extension still works."""
-        from file_organizer.utils.readers.cad import read_step_file
+        from utils.readers.cad import read_step_file
 
         path = _make_step(tmp_path, "drawing.stp")
         result = read_step_file(path)
@@ -181,7 +181,7 @@ class TestReadStepFile:
 
 class TestReadIgesFile:
     def test_valid_iges_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = _make_iges(tmp_path)
         result = read_iges_file(path)
@@ -189,42 +189,42 @@ class TestReadIgesFile:
         assert len(result) > 0
 
     def test_iges_contains_filename(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = _make_iges(tmp_path, "part.iges")
         result = read_iges_file(path)
         assert "part.iges" in result
 
     def test_iges_header_information_present(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = _make_iges(tmp_path)
         result = read_iges_file(path)
         assert "IGES File Information" in result
 
     def test_iges_start_section_extracted(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = _make_iges(tmp_path)
         result = read_iges_file(path)
         assert "Start Section" in result
 
     def test_iges_global_parameters_extracted(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = _make_iges(tmp_path)
         result = read_iges_file(path)
         assert "Global Parameters" in result
 
     def test_iges_directory_entries_counted(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = _make_iges(tmp_path)
         result = read_iges_file(path)
         assert "Directory entries found" in result
 
     def test_iges_file_size_shown(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = _make_iges(tmp_path)
         result = read_iges_file(path)
@@ -232,7 +232,7 @@ class TestReadIgesFile:
 
     def test_iges_no_structured_sections(self, tmp_path: Path) -> None:
         """IGES file with lines shorter than 73 chars — no sections detected."""
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = tmp_path / "short.igs"
         path.write_text("Short line without section marker\n" * 5)
@@ -241,14 +241,14 @@ class TestReadIgesFile:
         assert "short.igs" in result
 
     def test_iges_missing_file_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers._base import FileReadError
+        from utils.readers.cad import read_iges_file
 
         with pytest.raises(FileReadError):
             read_iges_file(tmp_path / "ghost.iges")
 
     def test_iges_accepts_iges_extension(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_iges_file
+        from utils.readers.cad import read_iges_file
 
         path = _make_iges(tmp_path, "drawing.iges")
         result = read_iges_file(path)
@@ -262,7 +262,7 @@ class TestReadIgesFile:
 
 class TestReadDxfFile:
     def test_raises_import_error_when_ezdxf_unavailable(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import cad as cad_module
+        from utils.readers import cad as cad_module
 
         path = tmp_path / "test.dxf"
         path.write_text("placeholder")
@@ -275,7 +275,7 @@ class TestReadDxfFile:
             cad_module.EZDXF_AVAILABLE = original
 
     def test_valid_dxf_returns_string(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import cad as cad_module
+        from utils.readers import cad as cad_module
 
         if not cad_module.EZDXF_AVAILABLE:
             pytest.skip("ezdxf not installed")
@@ -293,7 +293,7 @@ class TestReadDxfFile:
         assert len(result) > 0
 
     def test_dxf_contains_version(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import cad as cad_module
+        from utils.readers import cad as cad_module
 
         if not cad_module.EZDXF_AVAILABLE:
             pytest.skip("ezdxf not installed")
@@ -308,8 +308,8 @@ class TestReadDxfFile:
         assert "DXF Version" in result
 
     def test_dxf_file_read_error_on_corrupt_file(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import cad as cad_module
-        from file_organizer.utils.readers._base import FileReadError
+        from utils.readers import cad as cad_module
+        from utils.readers._base import FileReadError
 
         if not cad_module.EZDXF_AVAILABLE:
             pytest.skip("ezdxf not installed")
@@ -321,7 +321,7 @@ class TestReadDxfFile:
 
     def test_dxf_mocked_ezdxf_success(self, tmp_path: Path) -> None:
         """Exercise read_dxf_file using a fully mocked ezdxf document."""
-        from file_organizer.utils.readers import cad as cad_module
+        from utils.readers import cad as cad_module
 
         path = tmp_path / "mocked.dxf"
         path.write_text("placeholder")
@@ -370,7 +370,7 @@ class TestReadDxfFile:
     def test_dxf_mocked_blocks_and_layer_truncation_without_ezdxf_dependency(
         self, tmp_path: Path
     ) -> None:
-        from file_organizer.utils.readers import cad as cad_module
+        from utils.readers import cad as cad_module
 
         path = tmp_path / "mocked_blocks.dxf"
         path.write_text("placeholder")
@@ -426,7 +426,7 @@ class TestReadDxfFile:
 
 class TestReadDwgFile:
     def test_raises_import_error_when_ezdxf_unavailable(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import cad as cad_module
+        from utils.readers import cad as cad_module
 
         path = tmp_path / "test.dwg"
         path.write_bytes(b"AC1015" + b"\x00" * 50)
@@ -440,7 +440,7 @@ class TestReadDwgFile:
 
     def test_dwg_fallback_when_parse_fails(self, tmp_path: Path) -> None:
         """When ezdxf cannot parse the DWG, fallback metadata is returned."""
-        from file_organizer.utils.readers import cad as cad_module
+        from utils.readers import cad as cad_module
 
         path = tmp_path / "unknown.dwg"
         path.write_bytes(b"NOT A REAL DWG FILE CONTENT")
@@ -467,8 +467,8 @@ class TestReadDwgFile:
 
     def test_dwg_fallback_missing_file_raises_file_read_error(self, tmp_path: Path) -> None:
         """Fallback path: file doesn't exist → FileReadError."""
-        from file_organizer.utils.readers import cad as cad_module
-        from file_organizer.utils.readers._base import FileReadError
+        from utils.readers import cad as cad_module
+        from utils.readers._base import FileReadError
 
         path = tmp_path / "ghost.dwg"
 
@@ -490,7 +490,7 @@ class TestReadDwgFile:
                 cad_module.ezdxf = original_ezdxf
 
     def test_dwg_mocked_ezdxf_success_without_dependency(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers import cad as cad_module
+        from utils.readers import cad as cad_module
 
         path = tmp_path / "mocked.dwg"
         path.write_bytes(b"dwg-placeholder")
@@ -543,36 +543,36 @@ class TestReadDwgFile:
 
 class TestReadCadFile:
     def test_dispatcher_routes_step(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_cad_file
+        from utils.readers.cad import read_cad_file
 
         path = _make_step(tmp_path, "dispatch.step")
         result = read_cad_file(path)
         assert "STEP File Information" in result
 
     def test_dispatcher_routes_stp(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_cad_file
+        from utils.readers.cad import read_cad_file
 
         path = _make_step(tmp_path, "dispatch.stp")
         result = read_cad_file(path)
         assert "STEP File Information" in result
 
     def test_dispatcher_routes_iges(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_cad_file
+        from utils.readers.cad import read_cad_file
 
         path = _make_iges(tmp_path, "dispatch.iges")
         result = read_cad_file(path)
         assert "IGES File Information" in result
 
     def test_dispatcher_routes_igs(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers.cad import read_cad_file
+        from utils.readers.cad import read_cad_file
 
         path = _make_iges(tmp_path, "dispatch.igs")
         result = read_cad_file(path)
         assert "IGES File Information" in result
 
     def test_dispatcher_unsupported_extension_raises_file_read_error(self, tmp_path: Path) -> None:
-        from file_organizer.utils.readers._base import FileReadError
-        from file_organizer.utils.readers.cad import read_cad_file
+        from utils.readers._base import FileReadError
+        from utils.readers.cad import read_cad_file
 
         path = tmp_path / "drawing.obj"
         path.write_text("v 0 0 0")

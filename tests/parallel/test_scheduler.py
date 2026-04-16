@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.parallel.scheduler import PriorityStrategy, TaskScheduler
+from parallel.scheduler import PriorityStrategy, TaskScheduler
 
 
 @pytest.mark.unit

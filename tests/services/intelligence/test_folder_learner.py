@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+from services.intelligence.folder_learner import FolderPreferenceLearner
 
 pytestmark = [pytest.mark.unit]
 

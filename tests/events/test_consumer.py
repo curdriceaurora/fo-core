@@ -13,10 +13,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.events.config import EventConfig
-from file_organizer.events.consumer import EventConsumer
-from file_organizer.events.stream import Event, RedisStreamManager
-from file_organizer.events.types import EventType
+from events.config import EventConfig
+from events.consumer import EventConsumer
+from events.stream import Event, RedisStreamManager
+from events.types import EventType
 
 
 @pytest.fixture
@@ -157,10 +157,10 @@ class TestEventConsumerDispatch:
             data={"event_type": "file.created", "file_path": "/a.txt"},
         )
 
-        consumer._dispatch_event(event, "file-events", "file-organizer")
+        consumer._dispatch_event(event, "file-events", "fo")
 
         handler.assert_called_once_with(event)
-        mock_manager.acknowledge.assert_called_once_with("file-events", "file-organizer", "1-0")
+        mock_manager.acknowledge.assert_called_once_with("file-events", "fo", "1-0")
         assert consumer.events_processed == 1
 
     def test_dispatch_calls_multiple_handlers(
@@ -178,7 +178,7 @@ class TestEventConsumerDispatch:
             data={"event_type": "file.created", "file_path": "/a.txt"},
         )
 
-        consumer._dispatch_event(event, "file-events", "file-organizer")
+        consumer._dispatch_event(event, "file-events", "fo")
 
         handler1.assert_called_once_with(event)
         handler2.assert_called_once_with(event)
@@ -193,9 +193,9 @@ class TestEventConsumerDispatch:
             data={"event_type": "file.created", "file_path": "/a.txt"},
         )
 
-        consumer._dispatch_event(event, "file-events", "file-organizer")
+        consumer._dispatch_event(event, "file-events", "fo")
 
-        mock_manager.acknowledge.assert_called_once_with("file-events", "file-organizer", "1-0")
+        mock_manager.acknowledge.assert_called_once_with("file-events", "fo", "1-0")
         assert consumer.events_processed == 0
 
     def test_dispatch_handler_failure_skips_ack(
@@ -211,7 +211,7 @@ class TestEventConsumerDispatch:
             data={"event_type": "file.created", "file_path": "/a.txt"},
         )
 
-        consumer._dispatch_event(event, "file-events", "file-organizer")
+        consumer._dispatch_event(event, "file-events", "fo")
 
         mock_manager.acknowledge.assert_not_called()
         assert consumer.events_processed == 0
@@ -231,7 +231,7 @@ class TestEventConsumerDispatch:
             data={"event_type": "file.created", "file_path": "/a.txt"},
         )
 
-        consumer._dispatch_event(event, "file-events", "file-organizer")
+        consumer._dispatch_event(event, "file-events", "fo")
 
         handler1.assert_called_once()
         handler2.assert_called_once()
@@ -244,8 +244,8 @@ class TestEventConsumerDispatch:
             stream="fileorg:file-events",
             data={"file_path": "/a.txt"},
         )
-        consumer._dispatch_event(event, "file-events", "file-organizer")
-        mock_manager.acknowledge.assert_called_once_with("file-events", "file-organizer", "2-0")
+        consumer._dispatch_event(event, "file-events", "fo")
+        mock_manager.acknowledge.assert_called_once_with("file-events", "fo", "2-0")
 
     def test_dispatch_unknown_event_type_acknowledges(
         self, consumer: EventConsumer, mock_manager: MagicMock
@@ -257,7 +257,7 @@ class TestEventConsumerDispatch:
             stream="fileorg:file-events",
             data={"event_type": "some.other.type"},
         )
-        consumer._dispatch_event(event, "file-events", "file-organizer")
+        consumer._dispatch_event(event, "file-events", "fo")
         mock_manager.acknowledge.assert_called_once()
         assert consumer.events_processed == 0
 

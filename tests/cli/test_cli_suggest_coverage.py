@@ -1,4 +1,4 @@
-"""Coverage tests for file_organizer.cli.suggest — uncovered lines 27-236."""
+"""Coverage tests for cli.suggest — uncovered lines 27-236."""
 
 from __future__ import annotations
 
@@ -52,13 +52,13 @@ class TestSuggestFiles:
     """Covers files command."""
 
     def test_no_files(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         result = runner.invoke(suggest_app, ["files", str(tmp_path)])
         assert "No files found" in result.output
 
     def test_with_suggestions_table(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "a.txt").write_text("hello")
 
@@ -70,15 +70,15 @@ class TestSuggestFiles:
         mock_analyzer.analyze_directory.return_value = _FakeAnalysis()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(tmp_path)])
 
         assert result.exit_code == 0
 
     def test_with_json_output(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "a.txt").write_text("hello")
 
@@ -90,15 +90,15 @@ class TestSuggestFiles:
         mock_analyzer.analyze_directory.return_value = _FakeAnalysis()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(tmp_path), "--json"])
 
         assert result.exit_code == 0
 
     def test_no_suggestions_above_threshold(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "a.txt").write_text("hello")
 
@@ -110,8 +110,8 @@ class TestSuggestFiles:
         mock_analyzer.analyze_directory.return_value = _FakeAnalysis()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["files", str(tmp_path)])
 
@@ -122,13 +122,13 @@ class TestSuggestApply:
     """Covers apply command."""
 
     def test_apply_no_files(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         result = runner.invoke(suggest_app, ["apply", str(tmp_path)])
         assert "No files found" in result.output
 
     def test_apply_dry_run(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "a.txt").write_text("hello")
 
@@ -142,15 +142,15 @@ class TestSuggestApply:
         mock_analyzer.analyze_directory.return_value = _FakeAnalysis()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["apply", str(tmp_path), "--dry-run"])
 
         assert "Dry run" in result.output
 
     def test_apply_no_suggestions(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         (tmp_path / "a.txt").write_text("hello")
 
@@ -160,8 +160,8 @@ class TestSuggestApply:
         mock_analyzer.analyze_directory.return_value = _FakeAnalysis()
 
         with (
-            patch("file_organizer.cli.suggest._get_engine", return_value=mock_engine),
-            patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer),
+            patch("cli.suggest._get_engine", return_value=mock_engine),
+            patch("cli.suggest._get_analyzer", return_value=mock_analyzer),
         ):
             result = runner.invoke(suggest_app, ["apply", str(tmp_path)])
 
@@ -172,7 +172,7 @@ class TestSuggestPatterns:
     """Covers patterns command."""
 
     def test_patterns_json(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         analysis = _FakeAnalysis(
             naming_patterns=[_FakeNamingPattern()],
@@ -181,13 +181,13 @@ class TestSuggestPatterns:
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = analysis
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(tmp_path), "--json"])
 
         assert result.exit_code == 0
 
     def test_patterns_table(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         analysis = _FakeAnalysis(
             naming_patterns=[_FakeNamingPattern()],
@@ -196,20 +196,20 @@ class TestSuggestPatterns:
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = analysis
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(tmp_path)])
 
         assert result.exit_code == 0
         assert "Pattern Analysis" in result.output
 
     def test_patterns_no_patterns(self, tmp_path: Path) -> None:
-        from file_organizer.cli.suggest import suggest_app
+        from cli.suggest import suggest_app
 
         analysis = _FakeAnalysis(naming_patterns=[], file_type_distribution={})
         mock_analyzer = MagicMock()
         mock_analyzer.analyze_directory.return_value = analysis
 
-        with patch("file_organizer.cli.suggest._get_analyzer", return_value=mock_analyzer):
+        with patch("cli.suggest._get_analyzer", return_value=mock_analyzer):
             result = runner.invoke(suggest_app, ["patterns", str(tmp_path)])
 
         assert result.exit_code == 0

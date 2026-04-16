@@ -12,14 +12,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.events.middleware import (
+from events.middleware import (
     LoggingMiddleware,
     MetricsMiddleware,
     MiddlewarePipeline,
 )
-from file_organizer.events.pubsub import PubSubManager, _serialize, _topic_to_stream
-from file_organizer.events.stream import RedisStreamManager
-from file_organizer.events.subscription import Subscription, SubscriptionRegistry
+from events.pubsub import PubSubManager, _serialize, _topic_to_stream
+from events.stream import RedisStreamManager
+from events.subscription import Subscription, SubscriptionRegistry
 
 # ------------------------------------------------------------------
 # Fixtures

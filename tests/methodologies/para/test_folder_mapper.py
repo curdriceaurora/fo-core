@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.methodologies.para.categories import PARACategory
-from file_organizer.methodologies.para.config import PARAConfig
-from file_organizer.methodologies.para.folder_mapper import (
+from methodologies.para.categories import PARACategory
+from methodologies.para.config import PARAConfig
+from methodologies.para.folder_mapper import (
     CategoryFolderMapper,
     MappingResult,
     MappingStrategy,
@@ -441,7 +441,7 @@ class TestCategoryFolderMapperEdgeCases:
 
     def test_mapper_with_provided_heuristic_engine(self, config, temp_source, temp_target):
         """Test mapper initialization with provided heuristic engine."""
-        from file_organizer.methodologies.para.detection.heuristics import HeuristicEngine
+        from methodologies.para.detection.heuristics import HeuristicEngine
 
         # Create custom heuristic engine
         heuristic_engine = HeuristicEngine()
@@ -457,7 +457,7 @@ class TestCategoryFolderMapperEdgeCases:
 
     def test_mapper_with_rule_engine(self, config, temp_source, temp_target, mocker):
         """Test mapper with rule engine that returns a match."""
-        from file_organizer.methodologies.para.rules.engine import (
+        from methodologies.para.rules.engine import (
             ActionType,
             Rule,
             RuleAction,
@@ -498,7 +498,7 @@ class TestCategoryFolderMapperEdgeCases:
 
     def test_mapper_with_rule_engine_exception(self, config, temp_source, temp_target, mocker):
         """Test mapper handles rule engine exceptions gracefully."""
-        from file_organizer.methodologies.para.rules.engine import RuleEngine
+        from methodologies.para.rules.engine import RuleEngine
 
         # Create a mock rule engine that raises an exception
         rule_engine = mocker.Mock(spec=RuleEngine)
@@ -721,7 +721,7 @@ class TestCategoryFolderMapperEdgeCases:
         self, config, temp_source, temp_target, mocker
     ):
         """Test extracting reasoning when category is in heuristic result scores."""
-        from file_organizer.methodologies.para.detection.heuristics import (
+        from methodologies.para.detection.heuristics import (
             CategoryScore,
             HeuristicResult,
         )
@@ -785,7 +785,7 @@ class TestCategoryFolderMapperEdgeCases:
         self, config, temp_source, temp_target, mocker
     ):
         """Test extracting reasoning when category is NOT in heuristic result scores."""
-        from file_organizer.methodologies.para.detection.heuristics import HeuristicResult
+        from methodologies.para.detection.heuristics import HeuristicResult
 
         mapper = CategoryFolderMapper(config)
 

@@ -28,7 +28,7 @@
 
 ```bash
 pytest                                             # Full test suite (local)
-pytest --cov=file_organizer --cov-report=html      # With coverage
+pytest --cov=src --cov-report=html      # With coverage
 pytest tests/services/ -v                          # Specific directory
 pytest -m smoke -x                                 # Fast smoke suite (~3.5s, pre-commit)
 pytest -m "ci and not benchmark"                   # Mirrors per-commit CI gate

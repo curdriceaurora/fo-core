@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from file_organizer.watcher.config import WatcherConfig
-from file_organizer.watcher.monitor import FileMonitor
-from file_organizer.watcher.queue import EventType
+from watcher.config import WatcherConfig
+from watcher.monitor import FileMonitor
+from watcher.queue import EventType
 
 
 @pytest.fixture
@@ -556,7 +556,7 @@ class TestFileMonitorObserverFallback:
 
         # Mock Observer to raise an exception (simulating FSEvents failure)
         with patch(
-            "file_organizer.watcher.monitor.Observer",
+            "watcher.monitor.Observer",
             side_effect=OSError("FSEvents unavailable"),
         ):
             mon.start()
@@ -585,7 +585,7 @@ class TestFileMonitorObserverFallback:
 
         # Force use of polling observer
         with patch(
-            "file_organizer.watcher.monitor.Observer",
+            "watcher.monitor.Observer",
             side_effect=OSError("FSEvents unavailable"),
         ):
             mon.start()

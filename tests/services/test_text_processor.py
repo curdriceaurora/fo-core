@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.models.base import ModelConfig, ModelType
-from file_organizer.services.text_processor import ProcessedFile, TextProcessor
-from file_organizer.utils.file_readers import FileReadError
+from models.base import ModelConfig, ModelType
+from services.text_processor import ProcessedFile, TextProcessor
+from utils.file_readers import FileReadError
 
 pytestmark = [pytest.mark.unit]
 
@@ -33,7 +33,7 @@ def mock_text_model() -> MagicMock:
 @pytest.fixture
 def text_processor(mock_text_model: MagicMock) -> TextProcessor:
     """TextProcessor instance with a mocked model."""
-    with patch("file_organizer.services.text_processor.ensure_nltk_data"):
+    with patch("services.text_processor.ensure_nltk_data"):
         processor = TextProcessor(text_model=mock_text_model)
         return processor
 
@@ -88,8 +88,8 @@ class TestProcessedFile:
 class TestTextProcessor:
     """Tests for TextProcessor class."""
 
-    @patch("file_organizer.services.text_processor.get_text_model")
-    @patch("file_organizer.services.text_processor.ensure_nltk_data")
+    @patch("services.text_processor.get_text_model")
+    @patch("services.text_processor.ensure_nltk_data")
     def test_init_creates_own_model(
         self, mock_nltk: MagicMock, mock_get_text_model: MagicMock
     ) -> None:
@@ -102,8 +102,8 @@ class TestTextProcessor:
         mock_get_text_model.assert_called_once_with(config)
         mock_nltk.assert_called_once()
 
-    @patch("file_organizer.services.text_processor.get_text_model")
-    @patch("file_organizer.services.text_processor.ensure_nltk_data")
+    @patch("services.text_processor.get_text_model")
+    @patch("services.text_processor.ensure_nltk_data")
     def test_init_default_config_when_none(
         self, mock_nltk: MagicMock, mock_get_text_model: MagicMock
     ) -> None:
@@ -113,7 +113,7 @@ class TestTextProcessor:
         assert processor._owns_model is True
         mock_get_text_model.assert_called_once()
 
-    @patch("file_organizer.services.text_processor.ensure_nltk_data")
+    @patch("services.text_processor.ensure_nltk_data")
     def test_init_uses_provided_model(
         self, mock_nltk: MagicMock, mock_text_model: MagicMock
     ) -> None:
@@ -143,10 +143,8 @@ class TestTextProcessor:
     def test_cleanup_owns_model(self) -> None:
         """Test cleanup delegates to model if owned."""
         mock_model = MagicMock()
-        with patch(
-            "file_organizer.services.text_processor.get_text_model", return_value=mock_model
-        ):
-            with patch("file_organizer.services.text_processor.ensure_nltk_data"):
+        with patch("services.text_processor.get_text_model", return_value=mock_model):
+            with patch("services.text_processor.ensure_nltk_data"):
                 processor = TextProcessor()
                 processor.cleanup()
                 mock_model.safe_cleanup.assert_called_once()
@@ -162,10 +160,8 @@ class TestTextProcessor:
         """Test entering and exiting context manager."""
         mock_model = MagicMock()
         mock_model.is_initialized = False
-        with patch(
-            "file_organizer.services.text_processor.get_text_model", return_value=mock_model
-        ):
-            with patch("file_organizer.services.text_processor.ensure_nltk_data"):
+        with patch("services.text_processor.get_text_model", return_value=mock_model):
+            with patch("services.text_processor.ensure_nltk_data"):
                 with TextProcessor() as processor:
                     assert processor.text_model == mock_model
                     mock_model.initialize.assert_called_once()
@@ -175,10 +171,8 @@ class TestTextProcessor:
         """Context manager calls cleanup even when an exception occurs."""
         mock_model = MagicMock()
         mock_model.is_initialized = False
-        with patch(
-            "file_organizer.services.text_processor.get_text_model", return_value=mock_model
-        ):
-            with patch("file_organizer.services.text_processor.ensure_nltk_data"):
+        with patch("services.text_processor.get_text_model", return_value=mock_model):
+            with patch("services.text_processor.ensure_nltk_data"):
                 with pytest.raises(RuntimeError, match="boom"):
                     with TextProcessor() as _processor:
                         raise RuntimeError("boom")
@@ -194,7 +188,7 @@ class TestTextProcessor:
 class TestTextProcessorFileProcessing:
     """Tests for file processing logic."""
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_success(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -216,7 +210,7 @@ class TestTextProcessorFileProcessing:
         assert result.filename == "python_script_test"
         assert "test file about python" in result.original_content
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_path_conversion(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -228,7 +222,7 @@ class TestTextProcessorFileProcessing:
 
         assert result.file_path == Path("/some/path/test.md")
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_unsupported(
         self, mock_read: MagicMock, text_processor: TextProcessor
     ) -> None:
@@ -241,7 +235,7 @@ class TestTextProcessorFileProcessing:
         assert result.folder_name == "unsupported"
         assert result.filename == "test"
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_read_error(
         self, mock_read: MagicMock, text_processor: TextProcessor
     ) -> None:
@@ -253,7 +247,7 @@ class TestTextProcessorFileProcessing:
         assert result.error == "Permission denied"
         assert result.folder_name == "errors"
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_general_exception(
         self, mock_read: MagicMock, text_processor: TextProcessor
     ) -> None:
@@ -265,7 +259,7 @@ class TestTextProcessorFileProcessing:
         assert result.error == "Unexpected failure"
         assert result.folder_name == "errors"
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_toggle_flags(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -284,7 +278,7 @@ class TestTextProcessorFileProcessing:
         assert result.filename == ""
         mock_text_model.generate.assert_not_called()
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_original_content_truncated(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -298,7 +292,7 @@ class TestTextProcessorFileProcessing:
         assert result.original_content is not None
         assert len(result.original_content) == 500
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_has_processing_time(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -310,7 +304,7 @@ class TestTextProcessorFileProcessing:
 
         assert result.processing_time >= 0.0
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_description_only(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -330,7 +324,7 @@ class TestTextProcessorFileProcessing:
         assert result.filename == ""
         mock_text_model.generate.assert_called_once()
 
-    @patch("file_organizer.services.text_processor.read_file")
+    @patch("services.text_processor.read_file")
     def test_process_file_folder_uses_content_when_no_description(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -529,7 +523,7 @@ class TestGenerateFolderName:
         folder = text_processor._generate_folder_name("Content about cooking")
         assert folder == "recipes"
 
-    @patch("file_organizer.services.text_processor.clean_text")
+    @patch("services.text_processor.clean_text")
     def test_empty_fallback(
         self, mock_clean: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -542,7 +536,7 @@ class TestGenerateFolderName:
         assert folder == "fallback_folder"
         mock_clean.assert_called_once()
 
-    @patch("file_organizer.services.text_processor.clean_text")
+    @patch("services.text_processor.clean_text")
     def test_short_name_fallback(
         self, mock_clean: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -593,7 +587,7 @@ class TestGenerateFolderName:
         assert call_kwargs.kwargs["temperature"] == 0.3
         assert call_kwargs.kwargs["max_tokens"] == 30
 
-    @patch("file_organizer.services.text_processor.clean_text")
+    @patch("services.text_processor.clean_text")
     def test_fallback_result_empty_returns_documents(
         self, mock_clean: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -717,7 +711,7 @@ class TestGenerateFilename:
         filename = text_processor._generate_filename("Content")
         assert filename == "research_paper"
 
-    @patch("file_organizer.services.text_processor.clean_text")
+    @patch("services.text_processor.clean_text")
     def test_empty_fallback(
         self, mock_clean: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -730,7 +724,7 @@ class TestGenerateFilename:
         assert filename == "fallback_file"
         mock_clean.assert_called_once()
 
-    @patch("file_organizer.services.text_processor.clean_text")
+    @patch("services.text_processor.clean_text")
     def test_short_name_fallback(
         self, mock_clean: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -781,7 +775,7 @@ class TestGenerateFilename:
         assert call_kwargs.kwargs["temperature"] == 0.3
         assert call_kwargs.kwargs["max_tokens"] == 30
 
-    @patch("file_organizer.services.text_processor.clean_text")
+    @patch("services.text_processor.clean_text")
     def test_fallback_result_empty_returns_document(
         self, mock_clean: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:

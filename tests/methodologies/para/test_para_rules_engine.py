@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from file_organizer.methodologies.para.rules.engine import (
+from methodologies.para.rules.engine import (
     ActionType,
     ConditionType,
     EvaluationContext,

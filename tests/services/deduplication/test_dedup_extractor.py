@@ -23,10 +23,8 @@ pytestmark = [pytest.mark.unit]
 @pytest.fixture
 def extractor():
     """Create a DocumentExtractor instance with mocked dependency checks."""
-    with patch(
-        "file_organizer.services.deduplication.extractor.DocumentExtractor._check_dependencies"
-    ):
-        from file_organizer.services.deduplication.extractor import DocumentExtractor
+    with patch("services.deduplication.extractor.DocumentExtractor._check_dependencies"):
+        from services.deduplication.extractor import DocumentExtractor
 
         return DocumentExtractor()
 
@@ -77,7 +75,7 @@ class TestDocumentExtractorInit:
             return original_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=selective_import):
-            from file_organizer.services.deduplication.extractor import DocumentExtractor
+            from services.deduplication.extractor import DocumentExtractor
 
             # Should not raise
             ext = DocumentExtractor()
@@ -85,10 +83,8 @@ class TestDocumentExtractorInit:
 
     def test_check_dependencies_present(self):
         """When deps are present, no warning is logged."""
-        with patch(
-            "file_organizer.services.deduplication.extractor.DocumentExtractor._check_dependencies"
-        ):
-            from file_organizer.services.deduplication.extractor import DocumentExtractor
+        with patch("services.deduplication.extractor.DocumentExtractor._check_dependencies"):
+            from services.deduplication.extractor import DocumentExtractor
 
             ext = DocumentExtractor()
             assert ext is not None
@@ -408,7 +404,7 @@ class TestEdgeCases:
         p.write_bytes(b"fake")
 
         with patch(
-            "file_organizer.services.deduplication.extractor.DocumentExtractor._extract_pdf",
+            "services.deduplication.extractor.DocumentExtractor._extract_pdf",
             side_effect=ValueError("boom"),
         ):
             result = extractor.extract_text(p)

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Welcome to the Johnny Decimal methodology in File Organizer v2.0. This guide will help you understand and implement the Johnny Decimal system for organizing your files and folders.
+Welcome to the Johnny Decimal methodology in fo-core. This guide will help you understand and implement the Johnny Decimal system for organizing your files and folders.
 
 ## What is Johnny Decimal?
 
@@ -107,7 +107,7 @@ For each area, identify subcategories:
 Create a new organized structure:
 
 ```python
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalSystem
+from methodologies.johnny_decimal import JohnnyDecimalSystem
 
 system = JohnnyDecimalSystem()
 
@@ -126,7 +126,7 @@ id_number = system.create_id(10, 1, 1, "Budget 2024")
 Use the migration tool to convert your current organization:
 
 ```python
-from file_organizer.methodologies.johnny_decimal import JohnnyDecimalMigrator
+from methodologies.johnny_decimal import JohnnyDecimalMigrator
 
 migrator = JohnnyDecimalMigrator()
 
@@ -279,7 +279,7 @@ Johnny Decimal can work alongside PARA methodology. See [PARA Compatibility Guid
 Define your own area and category mappings:
 
 ```python
-from file_organizer.methodologies.johnny_decimal import (
+from methodologies.johnny_decimal import (
     ConfigBuilder, AreaDefinition, CategoryDefinition
 )
 

@@ -27,7 +27,7 @@ def _make_processed_file(
     error: str | None = None,
     description: str = "Test description",
 ) -> Any:
-    from file_organizer.services import ProcessedFile
+    from services import ProcessedFile
 
     return ProcessedFile(
         file_path=file_path,
@@ -45,7 +45,7 @@ def _make_processed_image(
     error: str | None = None,
     description: str = "Test image",
 ) -> Any:
-    from file_organizer.services import ProcessedImage
+    from services import ProcessedImage
 
     return ProcessedImage(
         file_path=file_path,
@@ -59,7 +59,7 @@ def _make_processed_image(
 def _make_parallel_config(
     max_workers: int = 2, timeout_per_file: float = 30.0, retry_count: int = 0
 ) -> Any:
-    from file_organizer.parallel.config import ExecutorType, ParallelConfig
+    from parallel.config import ExecutorType, ParallelConfig
 
     return ParallelConfig(
         max_workers=max_workers,
@@ -76,10 +76,10 @@ def _make_parallel_config(
 
 
 class TestFileOps:
-    """Tests for file_organizer.core.file_ops module."""
+    """Tests for core.file_ops module."""
 
     def test_collect_files_from_directory(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         (tmp_path / "a.txt").write_text("content")
         (tmp_path / "b.pdf").write_text("content")
@@ -93,7 +93,7 @@ class TestFileOps:
         assert "b.pdf" in names
 
     def test_collect_files_skips_hidden_files(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         (tmp_path / "visible.txt").write_text("content")
         (tmp_path / ".hidden").write_text("hidden")
@@ -106,7 +106,7 @@ class TestFileOps:
         assert ".hidden" not in names
 
     def test_collect_files_skips_hidden_directories(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         hidden_dir = tmp_path / ".git"
         hidden_dir.mkdir()
@@ -121,7 +121,7 @@ class TestFileOps:
         assert "config" not in names
 
     def test_collect_files_single_file(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         single = tmp_path / "solo.txt"
         single.write_text("solo")
@@ -133,7 +133,7 @@ class TestFileOps:
         assert result[0] == single
 
     def test_collect_files_recursive(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         sub = tmp_path / "subdir"
         sub.mkdir()
@@ -146,7 +146,7 @@ class TestFileOps:
         assert len(result) == 2
 
     def test_collect_files_empty_directory(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         console = MagicMock()
 
@@ -155,7 +155,7 @@ class TestFileOps:
         assert result == []
 
     def test_fallback_by_extension_pdf(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "doc.pdf"
         f.write_text("content")
@@ -168,7 +168,7 @@ class TestFileOps:
         assert results[0].error is None
 
     def test_fallback_by_extension_docx(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "report.docx"
         f.write_text("content")
@@ -178,7 +178,7 @@ class TestFileOps:
         assert results[0].folder_name == "Documents"
 
     def test_fallback_by_extension_image(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "photo.jpg"
         f.write_bytes(b"\xff\xd8\xff")
@@ -188,7 +188,7 @@ class TestFileOps:
         assert results[0].folder_name.startswith("Images/")
 
     def test_fallback_by_extension_audio(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "song.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -198,7 +198,7 @@ class TestFileOps:
         assert results[0].folder_name == "Audio/Unsorted"
 
     def test_fallback_by_extension_video(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "movie.mp4"
         f.write_bytes(b"\x00\x00\x00\x00ftyp")
@@ -208,7 +208,7 @@ class TestFileOps:
         assert results[0].folder_name == "Videos/Unsorted"
 
     def test_fallback_by_extension_unknown(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "weird.xyz"
         f.write_text("??")
@@ -218,7 +218,7 @@ class TestFileOps:
         assert results[0].folder_name == "Other"
 
     def test_organize_files_copies_files(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         src = tmp_path / "source"
         src.mkdir()
@@ -242,7 +242,7 @@ class TestFileOps:
         assert (output / "Docs" / "doc.txt").exists()
 
     def test_organize_files_skips_errors(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "fail.txt"
         f.write_text("x")
@@ -262,7 +262,7 @@ class TestFileOps:
         assert result == {}
 
     def test_organize_files_skip_existing(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         src = tmp_path / "source"
         src.mkdir()
@@ -289,7 +289,7 @@ class TestFileOps:
         assert (dest_dir / "note.txt").read_text() == "existing"
 
     def test_organize_files_counter_when_not_skipping(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         src = tmp_path / "source"
         src.mkdir()
@@ -318,7 +318,7 @@ class TestFileOps:
         assert len(list(dest_dir.iterdir())) == 2
 
     def test_simulate_organization(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "x.pdf"
         f.write_text("content")
@@ -332,7 +332,7 @@ class TestFileOps:
         assert not (tmp_path / "output" / "PDFs" / "x.pdf").exists()
 
     def test_simulate_organization_skips_errors(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         f = tmp_path / "bad.pdf"
         f.write_text("x")
@@ -343,7 +343,7 @@ class TestFileOps:
         assert result == {}
 
     def test_cleanup_empty_dirs(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         root = tmp_path / "root"
         empty = root / "empty_subdir"
@@ -354,7 +354,7 @@ class TestFileOps:
         assert not empty.exists()
 
     def test_cleanup_empty_dirs_keeps_nonempty(self, tmp_path: Path) -> None:
-        from file_organizer.core import file_ops
+        from core import file_ops
 
         root = tmp_path / "root"
         nonempty = root / "data"
@@ -373,13 +373,13 @@ class TestFileOps:
 
 
 class TestDisplay:
-    """Tests for file_organizer.core.display module."""
+    """Tests for core.display module."""
 
     def test_create_progress_returns_progress_object(self) -> None:
         from rich.console import Console
         from rich.progress import Progress
 
-        from file_organizer.core.display import create_progress
+        from core.display import create_progress
 
         console = Console(quiet=True)
         progress = create_progress(console)
@@ -389,7 +389,7 @@ class TestDisplay:
     def test_show_file_breakdown_runs_without_error(self) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_file_breakdown
+        from core.display import show_file_breakdown
 
         console = Console(quiet=True)
         show_file_breakdown(
@@ -405,7 +405,7 @@ class TestDisplay:
     def test_show_file_breakdown_all_empty(self) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_file_breakdown
+        from core.display import show_file_breakdown
 
         console = Console(quiet=True)
         show_file_breakdown(
@@ -421,8 +421,8 @@ class TestDisplay:
     def test_show_summary_dry_run(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_summary
-        from file_organizer.core.types import OrganizationResult
+        from core.display import show_summary
+        from core.types import OrganizationResult
 
         console = Console(quiet=True)
         result = OrganizationResult(total_files=3, processed_files=2, failed_files=1)
@@ -432,8 +432,8 @@ class TestDisplay:
     def test_show_summary_not_dry_run(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_summary
-        from file_organizer.core.types import OrganizationResult
+        from core.display import show_summary
+        from core.types import OrganizationResult
 
         console = Console(quiet=True)
         result = OrganizationResult(
@@ -447,8 +447,8 @@ class TestDisplay:
     def test_show_summary_with_errors(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_summary
-        from file_organizer.core.types import OrganizationResult
+        from core.display import show_summary
+        from core.types import OrganizationResult
 
         console = Console(quiet=True)
         result = OrganizationResult(
@@ -462,8 +462,8 @@ class TestDisplay:
     def test_show_summary_with_many_errors(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_summary
-        from file_organizer.core.types import OrganizationResult
+        from core.display import show_summary
+        from core.types import OrganizationResult
 
         console = Console(quiet=True)
         result = OrganizationResult(
@@ -477,8 +477,8 @@ class TestDisplay:
     def test_show_summary_with_deduplicated_files(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_summary
-        from file_organizer.core.types import OrganizationResult
+        from core.display import show_summary
+        from core.types import OrganizationResult
 
         console = Console(quiet=True)
         result = OrganizationResult(
@@ -492,8 +492,8 @@ class TestDisplay:
     def test_show_summary_with_organized_structure_sorted(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_summary
-        from file_organizer.core.types import OrganizationResult
+        from core.display import show_summary
+        from core.types import OrganizationResult
 
         console = Console(quiet=True)
         result = OrganizationResult(
@@ -510,7 +510,7 @@ class TestDisplay:
     def test_progress_context_manager(self) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import create_progress
+        from core.display import create_progress
 
         console = Console(quiet=True)
         with create_progress(console) as progress:
@@ -520,7 +520,7 @@ class TestDisplay:
     def test_show_file_breakdown_with_cad_and_audio(self) -> None:
         from rich.console import Console
 
-        from file_organizer.core.display import show_file_breakdown
+        from core.display import show_file_breakdown
 
         console = Console(quiet=True)
         show_file_breakdown(
@@ -540,7 +540,7 @@ class TestDisplay:
 
 
 class TestDispatcher:
-    """Tests for file_organizer.core.dispatcher module."""
+    """Tests for core.dispatcher module."""
 
     def _make_mock_parallel_processor(self, return_results: list[Any]) -> Any:
         """Create a mock ParallelProcessor that yields given FileResults."""
@@ -549,20 +549,20 @@ class TestDispatcher:
         return mock_pp
 
     def _make_file_result_success(self, path: Path, result: Any) -> Any:
-        from file_organizer.parallel.result import FileResult
+        from parallel.result import FileResult
 
         return FileResult(path=path, success=True, result=result, duration_ms=1.0)
 
     def _make_file_result_failure(self, path: Path, error: str = "mock error") -> Any:
-        from file_organizer.parallel.result import FileResult
+        from parallel.result import FileResult
 
         return FileResult(path=path, success=False, error=error, duration_ms=1.0)
 
     def test_process_text_files_success(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core import dispatcher
-        from file_organizer.services import ProcessedFile
+        from core import dispatcher
+        from services import ProcessedFile
 
         f = tmp_path / "doc.txt"
         f.write_text("hello")
@@ -589,8 +589,8 @@ class TestDispatcher:
     def test_process_text_files_with_error_in_result(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core import dispatcher
-        from file_organizer.services import ProcessedFile
+        from core import dispatcher
+        from services import ProcessedFile
 
         f = tmp_path / "broken.txt"
         f.write_text("x")
@@ -616,7 +616,7 @@ class TestDispatcher:
     def test_process_text_files_failure_from_parallel(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         f = tmp_path / "fail.txt"
         f.write_text("x")
@@ -636,7 +636,7 @@ class TestDispatcher:
     def test_process_text_files_empty_list(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         mock_tp = MagicMock()
         mock_pp = self._make_mock_parallel_processor([])
@@ -649,8 +649,8 @@ class TestDispatcher:
     def test_process_image_files_success(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core import dispatcher
-        from file_organizer.services import ProcessedImage
+        from core import dispatcher
+        from services import ProcessedImage
 
         f = tmp_path / "photo.jpg"
         f.write_bytes(b"\xff\xd8\xff")
@@ -677,7 +677,7 @@ class TestDispatcher:
     def test_process_image_files_failure_from_parallel(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         f = tmp_path / "bad.jpg"
         f.write_bytes(b"\xff\xd8\xff")
@@ -697,8 +697,8 @@ class TestDispatcher:
     def test_process_image_files_with_error_in_result(self, tmp_path: Path) -> None:
         from rich.console import Console
 
-        from file_organizer.core import dispatcher
-        from file_organizer.services import ProcessedImage
+        from core import dispatcher
+        from services import ProcessedImage
 
         f = tmp_path / "blurry.jpg"
         f.write_bytes(b"\xff\xd8\xff")
@@ -722,7 +722,7 @@ class TestDispatcher:
         assert results[0].error == "Cannot identify"
 
     def test_process_audio_files_success(self, tmp_path: Path) -> None:
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         f = tmp_path / "track.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -754,11 +754,11 @@ class TestDispatcher:
         # local import sees the mock.
         with (
             patch(
-                "file_organizer.services.audio.classifier.AudioClassifier",
+                "services.audio.classifier.AudioClassifier",
                 mock_classifier_cls,
             ),
             patch(
-                "file_organizer.services.audio.organizer.AudioOrganizer",
+                "services.audio.organizer.AudioOrganizer",
                 mock_organizer_cls,
             ),
         ):
@@ -768,7 +768,7 @@ class TestDispatcher:
         assert results[0].error is None
 
     def test_process_audio_files_extraction_error(self, tmp_path: Path) -> None:
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         f = tmp_path / "corrupt.mp3"
         f.write_bytes(b"\x00")
@@ -784,14 +784,14 @@ class TestDispatcher:
         assert results[0].error is not None
 
     def test_process_audio_files_empty_list(self) -> None:
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         results = dispatcher.process_audio_files([])
 
         assert results == []
 
     def test_process_video_files_success(self, tmp_path: Path) -> None:
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         f = tmp_path / "video.mp4"
         f.write_bytes(b"\x00\x00\x00\x00ftyp")
@@ -804,10 +804,8 @@ class TestDispatcher:
         mock_organizer_cls.return_value.generate_path.return_value = ("Videos/Action", "video")
         mock_organizer_cls.return_value.generate_description.return_value = "An action video"
 
-        with patch("file_organizer.services.video.organizer.VideoOrganizer", mock_organizer_cls):
-            with patch(
-                "file_organizer.core.dispatcher.VideoOrganizer", mock_organizer_cls, create=True
-            ):
+        with patch("services.video.organizer.VideoOrganizer", mock_organizer_cls):
+            with patch("core.dispatcher.VideoOrganizer", mock_organizer_cls, create=True):
                 results = dispatcher.process_video_files([f], extractor_cls=mock_extractor_cls)
 
         assert len(results) == 1
@@ -816,7 +814,7 @@ class TestDispatcher:
         assert results[0].error is None
 
     def test_process_video_files_extraction_error(self, tmp_path: Path) -> None:
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         f = tmp_path / "bad.mp4"
         f.write_bytes(b"\x00")
@@ -832,7 +830,7 @@ class TestDispatcher:
         assert results[0].error is not None
 
     def test_process_video_files_file_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         f = tmp_path / "ghost.mp4"
         # File does not exist
@@ -848,14 +846,14 @@ class TestDispatcher:
         assert results[0].error is not None
 
     def test_process_video_files_empty_list(self) -> None:
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         results = dispatcher.process_video_files([])
 
         assert results == []
 
     def test_process_audio_files_runtime_error(self, tmp_path: Path) -> None:
-        from file_organizer.core import dispatcher
+        from core import dispatcher
 
         f = tmp_path / "audio.flac"
         f.write_bytes(b"\x66\x4c\x61\x43")
@@ -877,10 +875,10 @@ class TestDispatcher:
 
 
 class TestParallelProcessor:
-    """Tests for file_organizer.parallel.processor module."""
+    """Tests for parallel.processor module."""
 
     def test_process_batch_empty_files(self) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         pp = ParallelProcessor(_make_parallel_config())
         result = pp.process_batch([], lambda p: p.read_text())
@@ -890,7 +888,7 @@ class TestParallelProcessor:
         assert result.failed == 0
 
     def test_process_batch_success(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         f1 = tmp_path / "a.txt"
         f2 = tmp_path / "b.txt"
@@ -905,7 +903,7 @@ class TestParallelProcessor:
         assert result.failed == 0
 
     def test_process_batch_failure(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         f = tmp_path / "non_existent.txt"
         # File doesn't exist - reading it will fail
@@ -917,7 +915,7 @@ class TestParallelProcessor:
         assert result.failed == 1
 
     def test_process_batch_iter_yields_results(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         files = []
         for i in range(3):
@@ -933,7 +931,7 @@ class TestParallelProcessor:
         assert success_count == 3
 
     def test_process_batch_iter_empty_files(self) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         pp = ParallelProcessor(_make_parallel_config())
         results = list(pp.process_batch_iter([], lambda p: None))
@@ -941,7 +939,7 @@ class TestParallelProcessor:
         assert results == []
 
     def test_process_batch_iter_handles_exceptions(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         f = tmp_path / "test.txt"
         f.write_text("content")
@@ -957,7 +955,7 @@ class TestParallelProcessor:
         assert "Intentional failure" in results[0].error
 
     def test_config_property_returns_config(self) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         config = _make_parallel_config(max_workers=4)
         pp = ParallelProcessor(config)
@@ -966,20 +964,20 @@ class TestParallelProcessor:
         assert pp.config.max_workers == 4
 
     def test_default_config_when_none(self) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         pp = ParallelProcessor(None)
 
         assert pp.config is not None
 
     def test_shutdown_is_noop(self) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         pp = ParallelProcessor(_make_parallel_config())
         pp.shutdown()  # Should not raise
 
     def test_process_batch_result_summary_contains_counts(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         f = tmp_path / "data.txt"
         f.write_text("data")
@@ -992,8 +990,8 @@ class TestParallelProcessor:
         assert "0" in summary
 
     def test_process_batch_with_progress_callback(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.config import ExecutorType, ParallelConfig
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.config import ExecutorType, ParallelConfig
+        from parallel.processor import ParallelProcessor
 
         callback_calls: list[tuple[int, int]] = []
 
@@ -1019,7 +1017,7 @@ class TestParallelProcessor:
         assert callback_calls[0] == (1, 1)
 
     def test_batch_result_files_per_second_positive(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.processor import ParallelProcessor
+        from parallel.processor import ParallelProcessor
 
         f = tmp_path / "fps.txt"
         f.write_text("fps test")
@@ -1030,7 +1028,7 @@ class TestParallelProcessor:
         assert result.files_per_second > 0
 
     def test_file_result_str_success(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.result import FileResult
+        from parallel.result import FileResult
 
         f = tmp_path / "ok.txt"
         r = FileResult(path=f, success=True, result="data", duration_ms=5.0)
@@ -1040,7 +1038,7 @@ class TestParallelProcessor:
         assert "ok.txt" in s
 
     def test_file_result_str_failure(self, tmp_path: Path) -> None:
-        from file_organizer.parallel.result import FileResult
+        from parallel.result import FileResult
 
         f = tmp_path / "err.txt"
         r = FileResult(path=f, success=False, error="bad thing", duration_ms=2.0)
@@ -1056,10 +1054,10 @@ class TestParallelProcessor:
 
 
 class TestStorageAnalyzer:
-    """Tests for file_organizer.services.analytics.storage_analyzer module."""
+    """Tests for services.analytics.storage_analyzer module."""
 
     def test_analyze_directory_basic(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "a.txt").write_text("hello")
         (tmp_path / "b.pdf").write_bytes(b"x" * 100)
@@ -1071,7 +1069,7 @@ class TestStorageAnalyzer:
         assert stats.total_size > 0
 
     def test_analyze_directory_invalid_path_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         analyzer = StorageAnalyzer()
 
@@ -1079,7 +1077,7 @@ class TestStorageAnalyzer:
             analyzer.analyze_directory(tmp_path / "nonexistent")
 
     def test_analyze_directory_not_a_dir_raises(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         f = tmp_path / "file.txt"
         f.write_text("not a dir")
@@ -1089,7 +1087,7 @@ class TestStorageAnalyzer:
             analyzer.analyze_directory(f)
 
     def test_analyze_directory_size_by_type(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "a.txt").write_text("hello")
         (tmp_path / "b.txt").write_text("world")
@@ -1103,7 +1101,7 @@ class TestStorageAnalyzer:
         assert stats.size_by_type[".pdf"] == 200
 
     def test_analyze_directory_counts_subdirectories(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         subdir = tmp_path / "sub"
         subdir.mkdir()
@@ -1115,7 +1113,7 @@ class TestStorageAnalyzer:
         assert stats.directory_count >= 1
 
     def test_analyze_directory_caches_results(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "a.txt").write_text("initial")
 
@@ -1129,7 +1127,7 @@ class TestStorageAnalyzer:
         assert stats1.file_count == stats2.file_count
 
     def test_analyze_directory_bypasses_cache(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "a.txt").write_text("initial")
 
@@ -1142,7 +1140,7 @@ class TestStorageAnalyzer:
         assert stats2.file_count == stats1.file_count + 1
 
     def test_calculate_size_distribution(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "tiny.txt").write_bytes(b"x" * 100)  # < 1KB
         (tmp_path / "small.txt").write_bytes(b"x" * 2000)  # 1KB-1MB
@@ -1154,7 +1152,7 @@ class TestStorageAnalyzer:
         assert dist.by_size_range.get("tiny", 0) + dist.by_size_range.get("small", 0) == 2
 
     def test_identify_large_files_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "small.txt").write_bytes(b"x" * 100)
 
@@ -1164,7 +1162,7 @@ class TestStorageAnalyzer:
         assert large == []
 
     def test_identify_large_files_with_large_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         big_file = tmp_path / "big.bin"
         big_file.write_bytes(b"x" * 200)
@@ -1177,7 +1175,7 @@ class TestStorageAnalyzer:
         assert large[0].size == 200
 
     def test_identify_large_files_sorted_by_size(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "big.bin").write_bytes(b"x" * 500)
         (tmp_path / "bigger.bin").write_bytes(b"x" * 1000)
@@ -1189,7 +1187,7 @@ class TestStorageAnalyzer:
         assert large[0].size >= large[1].size >= large[2].size
 
     def test_identify_large_files_top_n_limit(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         for i in range(10):
             (tmp_path / f"file{i}.bin").write_bytes(b"x" * (i + 1) * 100)
@@ -1200,7 +1198,7 @@ class TestStorageAnalyzer:
         assert len(large) == 3
 
     def test_get_duplicate_space_calculates_correctly(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         f = tmp_path / "dup.bin"
         f.write_bytes(b"x" * 500)
@@ -1213,7 +1211,7 @@ class TestStorageAnalyzer:
         assert wasted == 1000  # 2 extra copies x 500 bytes
 
     def test_get_duplicate_space_single_file_group(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         f = tmp_path / "solo.bin"
         f.write_bytes(b"x" * 100)
@@ -1226,7 +1224,7 @@ class TestStorageAnalyzer:
         assert wasted == 0
 
     def test_get_duplicate_space_empty_groups(self) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         analyzer = StorageAnalyzer()
         wasted = analyzer.get_duplicate_space([])
@@ -1234,7 +1232,7 @@ class TestStorageAnalyzer:
         assert wasted == 0
 
     def test_clear_cache(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "f.txt").write_text("x")
         analyzer = StorageAnalyzer()
@@ -1247,7 +1245,7 @@ class TestStorageAnalyzer:
         assert len(analyzer._cache) == 0
 
     def test_walk_directory_public_api(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         subdir = tmp_path / "sub"
         subdir.mkdir()
@@ -1262,7 +1260,7 @@ class TestStorageAnalyzer:
         assert "a.txt" in paths
 
     def test_walk_directory_raises_for_nonexistent(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         analyzer = StorageAnalyzer()
 
@@ -1270,7 +1268,7 @@ class TestStorageAnalyzer:
             list(analyzer.walk_directory(tmp_path / "no_such_dir"))
 
     def test_walk_directory_raises_for_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         f = tmp_path / "not_dir.txt"
         f.write_text("x")
@@ -1280,7 +1278,7 @@ class TestStorageAnalyzer:
             list(analyzer.walk_directory(f))
 
     def test_walk_directory_with_max_depth(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         level1 = tmp_path / "level1"
         level2 = level1 / "level2"
@@ -1298,7 +1296,7 @@ class TestStorageAnalyzer:
         assert "deep.txt" not in item_names
 
     def test_formatted_total_size_property(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         (tmp_path / "data.bin").write_bytes(b"x" * 1024)
 
@@ -1310,7 +1308,7 @@ class TestStorageAnalyzer:
         assert any(unit in formatted for unit in ["B", "KB", "MB", "GB"])
 
     def test_analyze_directory_max_depth_limits_scan(self, tmp_path: Path) -> None:
-        from file_organizer.services.analytics.storage_analyzer import StorageAnalyzer
+        from services.analytics.storage_analyzer import StorageAnalyzer
 
         deep = tmp_path / "a" / "b" / "c"
         deep.mkdir(parents=True)
@@ -1330,10 +1328,10 @@ class TestStorageAnalyzer:
 
 
 class TestAudioUtils:
-    """Tests for file_organizer.services.audio.utils module."""
+    """Tests for services.audio.utils module."""
 
     def test_is_audio_file_mp3(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         f = tmp_path / "song.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1341,7 +1339,7 @@ class TestAudioUtils:
         assert is_audio_file(f) is True
 
     def test_is_audio_file_wav(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         f = tmp_path / "sound.wav"
         f.write_bytes(b"RIFF")
@@ -1349,7 +1347,7 @@ class TestAudioUtils:
         assert is_audio_file(f) is True
 
     def test_is_audio_file_flac(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         f = tmp_path / "track.flac"
         f.write_bytes(b"\x66\x4c\x61\x43")
@@ -1357,7 +1355,7 @@ class TestAudioUtils:
         assert is_audio_file(f) is True
 
     def test_is_audio_file_not_audio(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         f = tmp_path / "doc.pdf"
         f.write_text("not audio")
@@ -1365,7 +1363,7 @@ class TestAudioUtils:
         assert is_audio_file(f) is False
 
     def test_is_audio_file_txt(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         f = tmp_path / "readme.txt"
         f.write_text("readme")
@@ -1373,28 +1371,28 @@ class TestAudioUtils:
         assert is_audio_file(f) is False
 
     def test_is_audio_file_m4a(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         assert is_audio_file(Path("podcast.m4a")) is True
 
     def test_is_audio_file_ogg(self) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         assert is_audio_file(Path("music.ogg")) is True
 
     def test_is_audio_file_aac(self) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         assert is_audio_file(Path("audio.aac")) is True
 
     def test_is_audio_file_opus(self) -> None:
-        from file_organizer.services.audio.utils import is_audio_file
+        from services.audio.utils import is_audio_file
 
         # .opus is in the supported set
         assert is_audio_file(Path("voice.opus")) is True
 
     def test_get_audio_duration_file_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import get_audio_duration
+        from services.audio.utils import get_audio_duration
 
         with pytest.raises(FileNotFoundError):
             get_audio_duration(tmp_path / "nonexistent.mp3")
@@ -1402,7 +1400,7 @@ class TestAudioUtils:
     def test_get_audio_duration_returns_float_when_no_libs(self, tmp_path: Path) -> None:
         import builtins
 
-        from file_organizer.services.audio.utils import get_audio_duration
+        from services.audio.utils import get_audio_duration
 
         f = tmp_path / "dummy.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1420,7 +1418,7 @@ class TestAudioUtils:
         assert result == 0.0
 
     def test_validate_audio_file_nonexistent(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import validate_audio_file
+        from services.audio.utils import validate_audio_file
 
         valid, msg = validate_audio_file(tmp_path / "ghost.mp3")
 
@@ -1429,7 +1427,7 @@ class TestAudioUtils:
         assert "does not exist" in msg
 
     def test_validate_audio_file_directory(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import validate_audio_file
+        from services.audio.utils import validate_audio_file
 
         valid, msg = validate_audio_file(tmp_path)
 
@@ -1438,7 +1436,7 @@ class TestAudioUtils:
         assert "not a file" in msg
 
     def test_validate_audio_file_unsupported_extension(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import validate_audio_file
+        from services.audio.utils import validate_audio_file
 
         f = tmp_path / "document.pdf"
         f.write_text("not audio")
@@ -1450,7 +1448,7 @@ class TestAudioUtils:
         assert "Unsupported" in msg
 
     def test_calculate_audio_checksum_sha256(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import calculate_audio_checksum
+        from services.audio.utils import calculate_audio_checksum
 
         f = tmp_path / "audio.bin"
         f.write_bytes(b"test audio content")
@@ -1461,7 +1459,7 @@ class TestAudioUtils:
         assert checksum.isalnum()
 
     def test_calculate_audio_checksum_md5(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import calculate_audio_checksum
+        from services.audio.utils import calculate_audio_checksum
 
         f = tmp_path / "audio.bin"
         f.write_bytes(b"test audio content")
@@ -1471,7 +1469,7 @@ class TestAudioUtils:
         assert len(checksum) == 32
 
     def test_calculate_audio_checksum_deterministic(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import calculate_audio_checksum
+        from services.audio.utils import calculate_audio_checksum
 
         f = tmp_path / "audio.bin"
         f.write_bytes(b"deterministic content")
@@ -1482,7 +1480,7 @@ class TestAudioUtils:
         assert checksum1 == checksum2
 
     def test_calculate_audio_checksum_different_content(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import calculate_audio_checksum
+        from services.audio.utils import calculate_audio_checksum
 
         f1 = tmp_path / "a.bin"
         f2 = tmp_path / "b.bin"
@@ -1495,7 +1493,7 @@ class TestAudioUtils:
         assert checksum1 != checksum2
 
     def test_detect_silence_no_pydub(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import detect_silence_segments
+        from services.audio.utils import detect_silence_segments
 
         f = tmp_path / "audio.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1506,7 +1504,7 @@ class TestAudioUtils:
         assert result == []
 
     def test_split_audio_no_pydub_returns_original(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import split_audio
+        from services.audio.utils import split_audio
 
         f = tmp_path / "audio.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1517,7 +1515,7 @@ class TestAudioUtils:
         assert chunks == [f]
 
     def test_normalize_audio_no_pydub_returns_original(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import normalize_audio
+        from services.audio.utils import normalize_audio
 
         f = tmp_path / "audio.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1528,7 +1526,7 @@ class TestAudioUtils:
         assert result == f
 
     def test_convert_audio_format_no_pydub_returns_original(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import convert_audio_format
+        from services.audio.utils import convert_audio_format
 
         f = tmp_path / "audio.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1539,7 +1537,7 @@ class TestAudioUtils:
         assert result == f
 
     def test_get_audio_peak_amplitude_no_pydub(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import get_audio_peak_amplitude
+        from services.audio.utils import get_audio_peak_amplitude
 
         f = tmp_path / "audio.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1550,7 +1548,7 @@ class TestAudioUtils:
         assert result == 0.0
 
     def test_split_audio_creates_output_dir(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import split_audio
+        from services.audio.utils import split_audio
 
         f = tmp_path / "audio.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1562,7 +1560,7 @@ class TestAudioUtils:
         assert out_dir.exists()
 
     def test_trim_audio_no_pydub_returns_original(self, tmp_path: Path) -> None:
-        from file_organizer.services.audio.utils import trim_audio
+        from services.audio.utils import trim_audio
 
         f = tmp_path / "audio.mp3"
         f.write_bytes(b"\xff\xfb")
@@ -1579,11 +1577,11 @@ class TestAudioUtils:
 
 
 class TestFileOrganizer:
-    """Tests for file_organizer.core.organizer.FileOrganizer."""
+    """Tests for core.organizer.FileOrganizer."""
 
     def _make_organizer(self) -> Any:
-        from file_organizer.core.organizer import FileOrganizer
-        from file_organizer.models.base import ModelConfig, ModelType
+        from core.organizer import FileOrganizer
+        from models.base import ModelConfig, ModelType
 
         text_cfg = ModelConfig(name="mock-text", model_type=ModelType.TEXT)
         vision_cfg = ModelConfig(name="mock-vision", model_type=ModelType.VISION)
@@ -1619,8 +1617,8 @@ class TestFileOrganizer:
         assert result.processed_files == 0
 
     def test_organize_dry_run_does_not_copy(self, tmp_path: Path) -> None:
-        from file_organizer.core.organizer import FileOrganizer
-        from file_organizer.models.base import ModelConfig, ModelType
+        from core.organizer import FileOrganizer
+        from models.base import ModelConfig, ModelType
 
         text_cfg = ModelConfig(name="mock", model_type=ModelType.TEXT)
         vision_cfg = ModelConfig(name="mock", model_type=ModelType.VISION)
@@ -1650,7 +1648,7 @@ class TestFileOrganizer:
         assert result.organized_structure == {"PDFs": ["file.pdf"]}
 
     def test_organize_returns_organization_result(self, tmp_path: Path) -> None:
-        from file_organizer.core.types import OrganizationResult
+        from core.types import OrganizationResult
 
         fo = self._make_organizer()
         src = tmp_path / "src"
@@ -1759,8 +1757,8 @@ class TestFileOrganizer:
         assert len(fo.AUDIO_EXTENSIONS) >= 1
 
     def test_no_prefetch_overrides_prefetch_depth(self) -> None:
-        from file_organizer.core.organizer import FileOrganizer
-        from file_organizer.models.base import ModelConfig, ModelType
+        from core.organizer import FileOrganizer
+        from models.base import ModelConfig, ModelType
 
         text_cfg = ModelConfig(name="mock", model_type=ModelType.TEXT)
         vision_cfg = ModelConfig(name="mock", model_type=ModelType.VISION)
@@ -1827,8 +1825,8 @@ class TestFileOrganizer:
         assert result.deduplicated_files == 1
 
     def test_organize_enable_vision_false(self, tmp_path: Path) -> None:
-        from file_organizer.core.organizer import FileOrganizer
-        from file_organizer.models.base import ModelConfig, ModelType
+        from core.organizer import FileOrganizer
+        from models.base import ModelConfig, ModelType
 
         text_cfg = ModelConfig(name="mock", model_type=ModelType.TEXT)
         vision_cfg = ModelConfig(name="mock", model_type=ModelType.VISION)

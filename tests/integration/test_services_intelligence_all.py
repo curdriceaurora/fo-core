@@ -29,14 +29,14 @@ pytestmark = pytest.mark.integration
 
 class TestConfidenceEngine:
     def test_calculate_confidence_no_data_returns_min(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         score = engine.calculate_confidence("unknown_pattern")
         assert score == 0.0
 
     def test_calculate_confidence_with_usage_data(self) -> None:
-        from file_organizer.services.intelligence.confidence import (
+        from services.intelligence.confidence import (
             ConfidenceEngine,
             PatternUsageData,
         )
@@ -51,7 +51,7 @@ class TestConfidenceEngine:
         assert 0.0 < score <= 1.0
 
     def test_track_usage_and_calculate(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         now = datetime.now(UTC)
@@ -62,43 +62,43 @@ class TestConfidenceEngine:
         assert score > 0.0
 
     def test_get_confidence_level_high(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         assert engine.get_confidence_level(0.9) == "high"
 
     def test_get_confidence_level_medium(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         assert engine.get_confidence_level(0.6) == "medium"
 
     def test_get_confidence_level_low(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         assert engine.get_confidence_level(0.3) == "low"
 
     def test_get_confidence_level_very_low(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         assert engine.get_confidence_level(0.1) == "very_low"
 
     def test_validate_confidence_threshold_pass(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         assert engine.validate_confidence_threshold(0.8, 0.75) is True
 
     def test_validate_confidence_threshold_fail(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         assert engine.validate_confidence_threshold(0.5, 0.75) is False
 
     def test_decay_old_patterns(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine(decay_half_life_days=30, old_pattern_threshold_days=90)
         old_date = (datetime.now(UTC) - timedelta(days=200)).isoformat()
@@ -108,7 +108,7 @@ class TestConfidenceEngine:
         assert decayed[0].get("decayed") is True
 
     def test_decay_skips_pattern_without_last_used(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         patterns = [{"id": "no_date", "confidence": 0.7}]
@@ -116,7 +116,7 @@ class TestConfidenceEngine:
         assert result[0]["confidence"] == 0.7
 
     def test_boost_recent_patterns(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         now = datetime.now(UTC)
@@ -126,14 +126,14 @@ class TestConfidenceEngine:
         assert boosted[0]["confidence"] > 0.6
 
     def test_get_confidence_trend_unknown_for_missing_pattern(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         trend = engine.get_confidence_trend("no_such_pattern")
         assert trend["trend"] == "unknown"
 
     def test_get_confidence_trend_with_data(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         now = datetime.now(UTC)
@@ -146,20 +146,20 @@ class TestConfidenceEngine:
         assert "direction" in trend
 
     def test_get_usage_data_returns_none_for_missing(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         assert engine.get_usage_data("missing") is None
 
     def test_get_usage_data_returns_tracked(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         engine.track_usage("tracked", datetime.now(UTC), success=True)
         assert engine.get_usage_data("tracked") is not None
 
     def test_clear_usage_data_specific(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         engine.track_usage("pat1", datetime.now(UTC), success=True)
@@ -169,7 +169,7 @@ class TestConfidenceEngine:
         assert engine.get_usage_data("pat2") is not None
 
     def test_clear_usage_data_all(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         engine.track_usage("x", datetime.now(UTC), success=True)
@@ -177,7 +177,7 @@ class TestConfidenceEngine:
         assert engine.get_usage_data("x") is None
 
     def test_get_stats(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         engine.track_usage("s1", datetime.now(UTC), success=True)
@@ -188,7 +188,7 @@ class TestConfidenceEngine:
         assert stats["successful_uses"] == 1
 
     def test_clear_stale_patterns(self) -> None:
-        from file_organizer.services.intelligence.confidence import ConfidenceEngine
+        from services.intelligence.confidence import ConfidenceEngine
 
         engine = ConfidenceEngine()
         old_ts = datetime.now(UTC) - timedelta(days=200)
@@ -214,7 +214,7 @@ class TestPatternScorer:
         rec: float = 0.5,
         cons: float = 0.5,
     ):
-        from file_organizer.services.intelligence.scoring import ScoredPattern
+        from services.intelligence.scoring import ScoredPattern
 
         return ScoredPattern(
             pattern_id=pid,
@@ -226,14 +226,14 @@ class TestPatternScorer:
         )
 
     def test_normalize_score_clamps(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         assert PatternScorer.normalize_score(1.5) == 1.0
         assert PatternScorer.normalize_score(-0.5) == 0.0
         assert PatternScorer.normalize_score(0.6) == 0.6
 
     def test_rank_patterns_descending(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [
             self._make_pattern("a", 0.3),
@@ -245,14 +245,14 @@ class TestPatternScorer:
         assert ranked[-1].pattern_id == "a"
 
     def test_rank_patterns_ascending(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [self._make_pattern("a", 0.3), self._make_pattern("b", 0.9)]
         ranked = PatternScorer.rank_patterns(patterns, reverse=False)
         assert ranked[0].pattern_id == "a"
 
     def test_rank_patterns_by_frequency(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [
             self._make_pattern("a", 0.5, freq=0.2),
@@ -262,7 +262,7 @@ class TestPatternScorer:
         assert ranked[0].pattern_id == "b"
 
     def test_filter_by_confidence_min_only(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [
             self._make_pattern("a", 0.3),
@@ -275,7 +275,7 @@ class TestPatternScorer:
         assert "a" not in ids
 
     def test_filter_by_confidence_with_max(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [
             self._make_pattern("a", 0.3),
@@ -289,7 +289,7 @@ class TestPatternScorer:
         assert filtered[0].pattern_id == "b"
 
     def test_get_top_patterns(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [self._make_pattern(str(i), i * 0.1) for i in range(10)]
         top = PatternScorer.get_top_patterns(patterns, n=3)
@@ -297,7 +297,7 @@ class TestPatternScorer:
         assert top[0].confidence >= top[1].confidence
 
     def test_get_top_patterns_with_min_confidence(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [self._make_pattern("lo", 0.2), self._make_pattern("hi", 0.8)]
         top = PatternScorer.get_top_patterns(patterns, n=5, min_confidence=0.5)
@@ -305,7 +305,7 @@ class TestPatternScorer:
         assert top[0].pattern_id == "hi"
 
     def test_calculate_weighted_score(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         scores = {"freq": 0.8, "recency": 0.6, "consistency": 0.4}
         weights = {"freq": 0.4, "recency": 0.3, "consistency": 0.3}
@@ -313,12 +313,12 @@ class TestPatternScorer:
         assert 0.0 <= result <= 1.0
 
     def test_calculate_weighted_score_zero_weights(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         assert PatternScorer.calculate_weighted_score({"a": 0.5}, {"a": 0.0}) == 0.0
 
     def test_compare_patterns(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         p1 = self._make_pattern("a", 0.3)
         p2 = self._make_pattern("b", 0.7)
@@ -327,14 +327,14 @@ class TestPatternScorer:
         assert PatternScorer.compare_patterns(p1, p1) == 0
 
     def test_aggregate_scores_mean(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [self._make_pattern("a", 0.4), self._make_pattern("b", 0.8)]
         agg = PatternScorer.aggregate_scores(patterns, aggregation="mean")
         assert agg["confidence"] == pytest.approx(0.6)
 
     def test_aggregate_scores_median(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [
             self._make_pattern("a", 0.2),
@@ -345,7 +345,7 @@ class TestPatternScorer:
         assert agg["confidence"] == pytest.approx(0.6)
 
     def test_aggregate_scores_min_max(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         patterns = [self._make_pattern("a", 0.2), self._make_pattern("b", 0.9)]
         agg_min = PatternScorer.aggregate_scores(patterns, aggregation="min")
@@ -354,13 +354,13 @@ class TestPatternScorer:
         assert agg_max["confidence"] == pytest.approx(0.9)
 
     def test_aggregate_scores_empty(self) -> None:
-        from file_organizer.services.intelligence.scoring import PatternScorer
+        from services.intelligence.scoring import PatternScorer
 
         agg = PatternScorer.aggregate_scores([])
         assert agg["confidence"] == 0.0
 
     def test_scored_pattern_default_metadata(self) -> None:
-        from file_organizer.services.intelligence.scoring import ScoredPattern
+        from services.intelligence.scoring import ScoredPattern
 
         sp = ScoredPattern(
             pattern_id="x",
@@ -380,7 +380,7 @@ class TestPatternScorer:
 
 class TestPreferenceStore:
     def test_load_preferences_defaults_when_no_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         result = store.load_preferences()
@@ -389,7 +389,7 @@ class TestPreferenceStore:
         assert stats["total_directories"] == 0
 
     def test_save_and_reload_preferences(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -400,7 +400,7 @@ class TestPreferenceStore:
         assert result is True
 
     def test_add_and_get_preference(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -423,7 +423,7 @@ class TestPreferenceStore:
         assert pref["folder_mappings"]["pdf"] == "docs"
 
     def test_get_preference_parent_fallback(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -448,7 +448,7 @@ class TestPreferenceStore:
         assert pref.get("folder_mappings", {}).get("txt") == "notes"
 
     def test_get_preference_returns_global_when_not_found(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -458,7 +458,7 @@ class TestPreferenceStore:
         assert isinstance(pref, dict)
 
     def test_update_confidence_success(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -481,7 +481,7 @@ class TestPreferenceStore:
         assert pref["confidence"] > 0.5
 
     def test_update_confidence_failure(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -504,7 +504,7 @@ class TestPreferenceStore:
         assert pref["confidence"] < 0.5
 
     def test_resolve_conflicts_returns_highest_score(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -531,13 +531,13 @@ class TestPreferenceStore:
         assert resolved["folder_mappings"]["a"] == "high"
 
     def test_resolve_conflicts_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         assert store.resolve_conflicts([]) == {}
 
     def test_export_json(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -549,7 +549,7 @@ class TestPreferenceStore:
         assert "version" in data
 
     def test_import_json(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -563,14 +563,14 @@ class TestPreferenceStore:
         assert store2._preferences.get("version") == PreferenceStore.SCHEMA_VERSION
 
     def test_import_json_missing_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         result = store.import_json(tmp_path / "ghost.json")
         assert result is False
 
     def test_import_json_invalid_schema(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         bad_file = tmp_path / "bad.json"
         bad_file.write_text('{"not": "valid"}')
@@ -579,7 +579,7 @@ class TestPreferenceStore:
         assert result is False
 
     def test_clear_preferences(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -599,7 +599,7 @@ class TestPreferenceStore:
         assert stats["total_directories"] == 0
 
     def test_list_directory_preferences(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -618,7 +618,7 @@ class TestPreferenceStore:
         assert len(prefs) == 1
 
     def test_load_from_backup_when_primary_corrupt(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -630,7 +630,7 @@ class TestPreferenceStore:
         assert store2._loaded is True
 
     def test_get_statistics(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.preference_store import PreferenceStore
+        from services.intelligence.preference_store import PreferenceStore
 
         store = PreferenceStore(storage_path=tmp_path / "prefs")
         store.load_preferences()
@@ -646,7 +646,7 @@ class TestPreferenceStore:
 
 class TestProfileManager:
     def test_default_profile_created(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         profile = pm.get_profile("default")
@@ -654,7 +654,7 @@ class TestProfileManager:
         assert profile.profile_name == "default"
 
     def test_create_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         p = pm.create_profile("work", "Work profile")
@@ -662,7 +662,7 @@ class TestProfileManager:
         assert p.profile_name == "work"
 
     def test_create_duplicate_profile_returns_none(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         pm.create_profile("dup", "First")
@@ -670,7 +670,7 @@ class TestProfileManager:
         assert result is None
 
     def test_list_profiles(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         pm.create_profile("alpha", "Alpha profile")
@@ -682,14 +682,14 @@ class TestProfileManager:
         assert "beta" in names
 
     def test_get_active_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         active = pm.get_active_profile()
         assert active is not None
 
     def test_switch_active_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         pm.create_profile("second", "Second profile")
@@ -700,14 +700,14 @@ class TestProfileManager:
         assert active.profile_name == "second"
 
     def test_switch_to_nonexistent_profile_fails(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         result = pm.activate_profile("nonexistent")
         assert result is False
 
     def test_delete_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         pm.create_profile("to_delete", "Will be deleted")
@@ -716,14 +716,14 @@ class TestProfileManager:
         assert pm.get_profile("to_delete") is None
 
     def test_delete_active_profile_fails(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         result = pm.delete_profile("default")
         assert result is False
 
     def test_update_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         pm.create_profile("updatable", "Original description")
@@ -737,32 +737,32 @@ class TestProfileManager:
         assert p.description == "Updated description"
 
     def test_update_nonexistent_profile_fails(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         pm = ProfileManager(storage_path=tmp_path / "profiles")
         result = pm.update_profile("ghost", description="nope")
         assert result is False
 
     def test_profile_validate_valid(self) -> None:
-        from file_organizer.services.intelligence.profile_manager import Profile
+        from services.intelligence.profile_manager import Profile
 
         p = Profile(profile_name="valid", description="A valid profile")
         assert p.validate() is True
 
     def test_profile_validate_empty_name_fails(self) -> None:
-        from file_organizer.services.intelligence.profile_manager import Profile
+        from services.intelligence.profile_manager import Profile
 
         p = Profile(profile_name="", description="desc")
         assert p.validate() is False
 
     def test_profile_validate_empty_description_fails(self) -> None:
-        from file_organizer.services.intelligence.profile_manager import Profile
+        from services.intelligence.profile_manager import Profile
 
         p = Profile(profile_name="name", description="")
         assert p.validate() is False
 
     def test_profile_to_and_from_dict(self) -> None:
-        from file_organizer.services.intelligence.profile_manager import Profile
+        from services.intelligence.profile_manager import Profile
 
         original = Profile(profile_name="roundtrip", description="Test roundtrip")
         d = original.to_dict()
@@ -778,12 +778,12 @@ class TestProfileManager:
 
 class TestProfileMigrator:
     def _make_pm(self, tmp_path: Path):
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         return ProfileManager(storage_path=tmp_path / "profiles")
 
     def test_migrate_version_already_current(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -791,7 +791,7 @@ class TestProfileMigrator:
         assert result is True
 
     def test_migrate_version_unsupported_target(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -799,7 +799,7 @@ class TestProfileMigrator:
         assert result is False
 
     def test_migrate_version_nonexistent_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -807,7 +807,7 @@ class TestProfileMigrator:
         assert result is False
 
     def test_backup_before_migration(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -817,7 +817,7 @@ class TestProfileMigrator:
         assert backup_path.exists()
 
     def test_rollback_migration_success(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -827,7 +827,7 @@ class TestProfileMigrator:
         assert result is True
 
     def test_rollback_migration_missing_backup(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -835,7 +835,7 @@ class TestProfileMigrator:
         assert result is False
 
     def test_validate_migration_valid_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -843,7 +843,7 @@ class TestProfileMigrator:
         assert result is True
 
     def test_validate_migration_nonexistent_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -851,7 +851,7 @@ class TestProfileMigrator:
         assert result is False
 
     def test_get_migration_history_empty(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -859,14 +859,14 @@ class TestProfileMigrator:
         assert history == []
 
     def test_get_migration_history_nonexistent(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
         assert migrator.get_migration_history("ghost") is None
 
     def test_list_backups_empty_when_no_backups(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -874,7 +874,7 @@ class TestProfileMigrator:
         assert backups == []
 
     def test_list_backups_after_backup(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -884,7 +884,7 @@ class TestProfileMigrator:
         assert len(backups) >= 1
 
     def test_list_backups_filtered_by_name(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         pm.create_profile("other", "Other profile")
@@ -897,7 +897,7 @@ class TestProfileMigrator:
         assert all("default" in b.name for b in backups)
 
     def test_register_migration_function(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_migrator import ProfileMigrator
+        from services.intelligence.profile_migrator import ProfileMigrator
 
         pm = self._make_pm(tmp_path)
         migrator = ProfileMigrator(pm)
@@ -916,12 +916,12 @@ class TestProfileMigrator:
 
 class TestProfileMerger:
     def _make_pm(self, tmp_path: Path):
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         return ProfileManager(storage_path=tmp_path / "profiles")
 
     def test_merge_profiles_basic(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_merger import ProfileMerger
+        from services.intelligence.profile_merger import ProfileMerger
 
         pm = self._make_pm(tmp_path)
         pm.create_profile("p1", "Profile One")
@@ -931,7 +931,7 @@ class TestProfileMerger:
         assert merged is not None
 
     def test_merge_profiles_too_few_profiles(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_merger import ProfileMerger
+        from services.intelligence.profile_merger import ProfileMerger
 
         pm = self._make_pm(tmp_path)
         merger = ProfileMerger(pm)
@@ -939,7 +939,7 @@ class TestProfileMerger:
         assert result is None
 
     def test_merge_profiles_invalid_strategy(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_merger import ProfileMerger
+        from services.intelligence.profile_merger import ProfileMerger
 
         pm = self._make_pm(tmp_path)
         pm.create_profile("q1", "Q1")
@@ -949,7 +949,7 @@ class TestProfileMerger:
         assert result is None
 
     def test_merge_profiles_nonexistent_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_merger import ProfileMerger
+        from services.intelligence.profile_merger import ProfileMerger
 
         pm = self._make_pm(tmp_path)
         pm.create_profile("exists", "Exists")
@@ -958,7 +958,7 @@ class TestProfileMerger:
         assert result is None
 
     def test_merge_strategies(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_merger import ProfileMerger
+        from services.intelligence.profile_merger import ProfileMerger
 
         for strategy in ["recent", "frequent", "confident", "first", "last"]:
             pm = self._make_pm(tmp_path / strategy)
@@ -969,7 +969,7 @@ class TestProfileMerger:
             assert result is not None, f"Strategy {strategy} should succeed"
 
     def test_merge_with_custom_output_name(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_merger import ProfileMerger
+        from services.intelligence.profile_merger import ProfileMerger
 
         pm = self._make_pm(tmp_path)
         pm.create_profile("m1", "M1")
@@ -980,7 +980,7 @@ class TestProfileMerger:
         assert merged.profile_name == "custom_merged"
 
     def test_merge_profiles_with_preferences(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_merger import ProfileMerger
+        from services.intelligence.profile_merger import ProfileMerger
 
         pm = self._make_pm(tmp_path)
         pm.create_profile("pref1", "Pref 1")
@@ -1011,12 +1011,12 @@ class TestProfileMerger:
 
 class TestProfileExporter:
     def _make_pm(self, tmp_path: Path):
-        from file_organizer.services.intelligence.profile_manager import ProfileManager
+        from services.intelligence.profile_manager import ProfileManager
 
         return ProfileManager(storage_path=tmp_path / "profiles")
 
     def test_export_profile_success(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         exporter = ProfileExporter(pm)
@@ -1029,7 +1029,7 @@ class TestProfileExporter:
         assert "exported_at" in data
 
     def test_export_profile_nonexistent(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         exporter = ProfileExporter(pm)
@@ -1037,7 +1037,7 @@ class TestProfileExporter:
         assert result is False
 
     def test_export_selective_global(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         exporter = ProfileExporter(pm)
@@ -1049,7 +1049,7 @@ class TestProfileExporter:
         assert "global" in data["included_preferences"]
 
     def test_export_selective_nonexistent_profile(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         exporter = ProfileExporter(pm)
@@ -1057,7 +1057,7 @@ class TestProfileExporter:
         assert result is False
 
     def test_validate_export_valid(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         exporter = ProfileExporter(pm)
@@ -1066,14 +1066,14 @@ class TestProfileExporter:
         assert exporter.validate_export(out) is True
 
     def test_validate_export_missing_file(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         exporter = ProfileExporter(pm)
         assert exporter.validate_export(tmp_path / "ghost.json") is False
 
     def test_preview_export(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         exporter = ProfileExporter(pm)
@@ -1084,7 +1084,7 @@ class TestProfileExporter:
         assert "export_size_estimate" in preview
 
     def test_preview_export_nonexistent(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         exporter = ProfileExporter(pm)
@@ -1092,7 +1092,7 @@ class TestProfileExporter:
         assert result is None
 
     def test_export_multiple(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.profile_exporter import ProfileExporter
+        from services.intelligence.profile_exporter import ProfileExporter
 
         pm = self._make_pm(tmp_path)
         pm.create_profile("ex1", "Export 1")
@@ -1113,7 +1113,7 @@ class TestProfileExporter:
 
 class TestFolderPreferenceLearner:
     def test_track_folder_choice(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         learner = FolderPreferenceLearner(storage_path=tmp_path / "folder_prefs.json")
         folder = tmp_path / "Documents"
@@ -1122,7 +1122,7 @@ class TestFolderPreferenceLearner:
         assert learner.total_choices == 1
 
     def test_get_preferred_folder_with_confidence(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         learner = FolderPreferenceLearner(storage_path=tmp_path / "folder_prefs.json")
         folder = tmp_path / "PDFs"
@@ -1135,7 +1135,7 @@ class TestFolderPreferenceLearner:
         assert result == folder.resolve()
 
     def test_get_preferred_folder_below_threshold(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         learner = FolderPreferenceLearner(storage_path=tmp_path / "folder_prefs.json")
         f1 = tmp_path / "F1"
@@ -1148,13 +1148,13 @@ class TestFolderPreferenceLearner:
         assert result is None
 
     def test_get_preferred_folder_unknown_type(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         learner = FolderPreferenceLearner(storage_path=tmp_path / "folder_prefs.json")
         assert learner.get_preferred_folder("xyz") is None
 
     def test_get_folder_confidence(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         learner = FolderPreferenceLearner(storage_path=tmp_path / "folder_prefs.json")
         f = tmp_path / "Target"
@@ -1169,13 +1169,13 @@ class TestFolderPreferenceLearner:
         assert conf == pytest.approx(0.75)
 
     def test_get_folder_confidence_unknown(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         learner = FolderPreferenceLearner(storage_path=tmp_path / "folder_prefs.json")
         assert learner.get_folder_confidence("unknown", tmp_path) == 0.0
 
     def test_analyze_organization_patterns(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         learner = FolderPreferenceLearner(storage_path=tmp_path / "folder_prefs.json")
         f = tmp_path / "Sorted"
@@ -1189,7 +1189,7 @@ class TestFolderPreferenceLearner:
         assert analysis["file_types_tracked"] >= 1
 
     def test_track_folder_choice_with_context(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         learner = FolderPreferenceLearner(storage_path=tmp_path / "folder_prefs.json")
         folder = tmp_path / "Ctx"
@@ -1198,7 +1198,7 @@ class TestFolderPreferenceLearner:
         assert learner.total_choices == 1
 
     def test_persistence_across_instances(self, tmp_path: Path) -> None:
-        from file_organizer.services.intelligence.folder_learner import FolderPreferenceLearner
+        from services.intelligence.folder_learner import FolderPreferenceLearner
 
         storage = tmp_path / "folder_prefs.json"
         learner = FolderPreferenceLearner(storage_path=storage)

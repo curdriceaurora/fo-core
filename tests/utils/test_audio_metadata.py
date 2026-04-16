@@ -14,7 +14,7 @@ class TestAudioMetadataPlaceholder:
     def test_audio_metadata_module_exists(self):
         """Test that audio metadata module exists."""
         try:
-            from file_organizer.services.audio import metadata_extractor
+            from services.audio import metadata_extractor
 
             assert metadata_extractor is not None
         except ImportError:
@@ -23,7 +23,7 @@ class TestAudioMetadataPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Audio metadata not yet implemented")
     def test_extract_mp3_metadata(self, tmp_path):
         """Test extracting metadata from MP3 file."""
-        from file_organizer.services.audio.metadata_extractor import (
+        from services.audio.metadata_extractor import (
             AudioMetadataExtractor,
         )
 
@@ -39,7 +39,7 @@ class TestAudioMetadataPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Audio metadata not yet implemented")
     def test_extract_wav_metadata(self, tmp_path):
         """Test extracting metadata from WAV file."""
-        from file_organizer.services.audio.metadata_extractor import (
+        from services.audio.metadata_extractor import (
             AudioMetadataExtractor,
         )
 
@@ -54,7 +54,7 @@ class TestAudioMetadataPlaceholder:
     @pytest.mark.skip(reason="Phase 3 - Music metadata not yet implemented")
     def test_extract_music_tags(self, tmp_path):
         """Test extracting music tags (artist, album, etc.)."""
-        from file_organizer.services.audio.metadata_extractor import (
+        from services.audio.metadata_extractor import (
             AudioMetadataExtractor,
         )
 

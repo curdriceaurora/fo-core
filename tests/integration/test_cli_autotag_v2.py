@@ -6,7 +6,7 @@ All AutoTaggingService calls are mocked — zero real file I/O outside tmp_path.
 
 Note: autotag_v2.py uses local imports (inside each command function), so the
 correct patch target is the module where the class lives:
-  file_organizer.services.auto_tagging.AutoTaggingService
+  services.auto_tagging.AutoTaggingService
 """
 
 from __future__ import annotations
@@ -17,14 +17,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from file_organizer.cli.autotag_v2 import autotag_app
+from cli.autotag_v2 import autotag_app
 
 pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 runner = CliRunner()
 
 # Patch target — the class lives in the service module, imported locally per command.
-_PATCH_TARGET = "file_organizer.services.auto_tagging.AutoTaggingService"
+_PATCH_TARGET = "services.auto_tagging.AutoTaggingService"
 
 
 # ---------------------------------------------------------------------------

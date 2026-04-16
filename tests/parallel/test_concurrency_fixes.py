@@ -7,10 +7,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from file_organizer.parallel.checkpoint import Checkpoint
-from file_organizer.parallel.config import ParallelConfig
-from file_organizer.parallel.processor import FileResult, ParallelProcessor
-from file_organizer.parallel.resume import ResumableProcessor
+from parallel.checkpoint import Checkpoint
+from parallel.config import ParallelConfig
+from parallel.processor import FileResult, ParallelProcessor
+from parallel.resume import ResumableProcessor
 
 
 @pytest.mark.ci
@@ -38,7 +38,7 @@ class TestConcurrencyFixes(unittest.TestCase):
         # No, ResumableProcessor instantiates ParallelProcessor.
         # We can mock ParallelProcessor's process_batch_iter method.
 
-        with patch("file_organizer.parallel.resume.ParallelProcessor") as MockProcessorCls:
+        with patch("parallel.resume.ParallelProcessor") as MockProcessorCls:
             mock_proc_instance = MockProcessorCls.return_value
 
             # Make process_batch_iter yield 20 successes
@@ -96,7 +96,7 @@ class TestConcurrencyFixes(unittest.TestCase):
             threading.Event().wait(timeout=0.01)
             return "ok"
 
-        with patch("file_organizer.parallel.processor.wait", side_effect=tracked_wait):
+        with patch("parallel.processor.wait", side_effect=tracked_wait):
             results = list(processor.process_batch_iter(paths, slow_task))
 
         self.assertEqual(len(results), len(paths))
@@ -294,7 +294,7 @@ class TestConcurrencyFixes(unittest.TestCase):
             threading.Event().wait(timeout=0.02)
             return "ok"
 
-        with patch("file_organizer.parallel.processor.wait", side_effect=tracked_wait):
+        with patch("parallel.processor.wait", side_effect=tracked_wait):
             results = list(processor.process_batch_iter(paths, short_task))
 
         self.assertEqual(len(results), 1)

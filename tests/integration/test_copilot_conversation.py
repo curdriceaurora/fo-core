@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from file_organizer.services.copilot.conversation import ConversationManager
-from file_organizer.services.copilot.models import (
+from services.copilot.conversation import ConversationManager
+from services.copilot.models import (
     CopilotMessage,
     IntentType,
     MessageRole,

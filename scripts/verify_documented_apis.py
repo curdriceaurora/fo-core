@@ -233,7 +233,7 @@ def verify_plugin_class() -> bool:
     """Verify Plugin base class exists with correct methods."""
     print_section("1. Plugin Base Class")
 
-    base_file = PROJECT_ROOT / "src/file_organizer/plugins/base.py"
+    base_file = PROJECT_ROOT / "src/plugins/base.py"
     if not base_file.exists():
         print_error(f"Source file not found: {base_file}")
         return False
@@ -295,7 +295,7 @@ def verify_hook_decorator() -> bool:
     """Verify @hook decorator exists with correct signature."""
     print_section("2. Hook Decorator")
 
-    decorators_file = PROJECT_ROOT / "src/file_organizer/plugins/sdk/decorators.py"
+    decorators_file = PROJECT_ROOT / "src/plugins/sdk/decorators.py"
     if not decorators_file.exists():
         print_error(f"Source file not found: {decorators_file}")
         return False
@@ -349,7 +349,7 @@ def verify_hook_event_enum() -> bool:
     """Verify HookEvent enum exists with correct values."""
     print_section("3. HookEvent Enum")
 
-    hooks_file = PROJECT_ROOT / "src/file_organizer/plugins/api/hooks.py"
+    hooks_file = PROJECT_ROOT / "src/plugins/api/hooks.py"
     if not hooks_file.exists():
         print_error(f"Source file not found: {hooks_file}")
         return False
@@ -378,7 +378,7 @@ def verify_plugin_metadata() -> bool:
     """Verify PluginMetadata dataclass fields."""
     print_section("4. PluginMetadata Dataclass")
 
-    base_file = PROJECT_ROOT / "src/file_organizer/plugins/base.py"
+    base_file = PROJECT_ROOT / "src/plugins/base.py"
     if not base_file.exists():
         print_error(f"Source file not found: {base_file}")
         return False
@@ -426,7 +426,7 @@ def verify_manifest_schema() -> bool:
     """Verify plugin.json manifest schema constants."""
     print_section("5. Manifest Schema Constants")
 
-    base_file = PROJECT_ROOT / "src/file_organizer/plugins/base.py"
+    base_file = PROJECT_ROOT / "src/plugins/base.py"
     if not base_file.exists():
         print_error(f"Source file not found: {base_file}")
         return False
