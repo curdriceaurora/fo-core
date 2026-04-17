@@ -435,6 +435,7 @@ class TestGetStatistics:
         assert stats["min_similarity"] >= 0.0
         assert stats["above_threshold_count"] >= 0
 
+    @pytest.mark.ci
     def test_single_document_corpus(self, analyzer):
         """get_statistics on a 1×1 matrix returns zeros without raising (issue #100)."""
         matrix = np.array([[1.0]])
@@ -444,6 +445,7 @@ class TestGetStatistics:
         assert stats["min_similarity"] == 0.0
         assert stats["above_threshold_count"] == 0
 
+    @pytest.mark.ci
     def test_zero_document_corpus(self, analyzer):
         """get_statistics on a 0×0 matrix returns zeros without raising (issue #100)."""
         matrix = np.empty((0, 0))
