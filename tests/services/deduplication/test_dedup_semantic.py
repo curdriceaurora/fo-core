@@ -434,3 +434,35 @@ class TestGetStatistics:
         assert 0.0 <= stats["max_similarity"] <= 1.0
         assert stats["min_similarity"] >= 0.0
         assert stats["above_threshold_count"] >= 0
+
+    def test_single_document_corpus(self, analyzer):
+        """get_statistics on a 1×1 matrix returns zeros without raising (issue #100)."""
+        matrix = np.array([[1.0]])
+        stats = analyzer.get_statistics(matrix)
+        assert stats["mean_similarity"] == 0.0
+        assert stats["max_similarity"] == 0.0
+        assert stats["min_similarity"] == 0.0
+        assert stats["above_threshold_count"] == 0
+
+    def test_zero_document_corpus(self, analyzer):
+        """get_statistics on a 0×0 matrix returns zeros without raising (issue #100)."""
+        matrix = np.empty((0, 0))
+        stats = analyzer.get_statistics(matrix)
+        assert stats["mean_similarity"] == 0.0
+        assert stats["max_similarity"] == 0.0
+        assert stats["min_similarity"] == 0.0
+        assert stats["above_threshold_count"] == 0
+
+    def test_small_corpus_has_all_keys(self, analyzer):
+        """Zero-filled stats dict has all required keys for n ≤ 1 inputs."""
+        required = {
+            "mean_similarity",
+            "median_similarity",
+            "std_similarity",
+            "max_similarity",
+            "min_similarity",
+            "above_threshold_count",
+        }
+        for matrix in [np.array([[1.0]]), np.empty((0, 0))]:
+            stats = analyzer.get_statistics(matrix)
+            assert required <= set(stats.keys())

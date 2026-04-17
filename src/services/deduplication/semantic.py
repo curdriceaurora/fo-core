@@ -294,6 +294,16 @@ class SemanticAnalyzer:
         mask = ~np.eye(n, dtype=bool)
         similarities = similarity_matrix[mask]
 
+        if similarities.size == 0:
+            return {
+                "mean_similarity": 0.0,
+                "median_similarity": 0.0,
+                "std_similarity": 0.0,
+                "max_similarity": 0.0,
+                "min_similarity": 0.0,
+                "above_threshold_count": 0,
+            }
+
         stats = {
             "mean_similarity": float(np.mean(similarities)),
             "median_similarity": float(np.median(similarities)),

@@ -126,6 +126,17 @@ class TestFitTransform:
         result = embedder.fit_transform([])
         assert len(result) == 0
 
+    def test_empty_documents_returns_2d(self, embedder):
+        """fit_transform([]) returns a 2D array, not 1D (issue #101)."""
+        result = embedder.fit_transform([])
+        assert result.ndim == 2, f"Expected 2D array, got shape {result.shape}"
+
+    def test_empty_documents_shape(self, embedder):
+        """fit_transform([]) shape is (0, max_features) — safe for axis=1 ops."""
+        result = embedder.fit_transform([])
+        assert result.shape[0] == 0
+        assert result.shape[1] == embedder.max_features
+
     def test_returns_dense_array(self, embedder):
         """fit_transform returns a dense numpy ndarray with shape (n_docs, n_features)."""
         result = embedder.fit_transform(["hello world", "python code"])
