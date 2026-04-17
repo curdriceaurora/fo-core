@@ -4,11 +4,13 @@ name: Dependabot auto-merge (GitHub Actions bumps only)
 # github-actions ecosystem bumps — pip and docker bumps are left for manual review.
 #
 # Requires allow_auto_merge: true on the repo (already enabled).
-# GITHUB_TOKEN is granted write permissions explicitly so it can approve
-# and set auto-merge on dependabot PRs (dependabot PRs default to read-only
-# without an explicit permissions block).
+# pull_request_target is required (not pull_request): dependabot PRs triggered
+# on pull_request get a read-only GITHUB_TOKEN regardless of the permissions
+# block, causing approve and merge calls to fail silently. pull_request_target
+# runs in the base branch context and receives a writable token. No code is
+# checked out from the PR head, so this is safe against supply-chain attacks.
 
-on: pull_request
+on: pull_request_target
 
 permissions:
   contents: write
