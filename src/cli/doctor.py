@@ -17,8 +17,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-import cli._globals as _g
 from cli.interactive import confirm_action
+from cli.state import _get_state
 from utils import is_hidden
 
 logger = logging.getLogger(__name__)
@@ -290,7 +290,7 @@ def install_groups(groups: set[str]) -> None:
     """Interactively install optional dependency groups using pip.
 
     Prompts the user for confirmation before installing.
-    Respects the global ``_g.dry_run`` flag to skip actual installation.
+    Respects the global dry-run flag (via ``_get_state().dry_run``) to skip actual installation.
     Handles subprocess failures and timeouts gracefully and continues with
     remaining groups.  Each install has a timeout (see ``_INSTALL_TIMEOUT_SECONDS``).
 
@@ -327,7 +327,7 @@ def install_groups(groups: set[str]) -> None:
         return
 
     # Dry-run mode: skip actual installation
-    if _g.dry_run:
+    if _get_state().dry_run:
         console.print("[yellow]Dry-run mode: skipping actual installation.[/yellow]")
         for group in groups_list:
             console.print(f"  [dim]Would install: fo-core[{group}][/dim]")
@@ -379,7 +379,7 @@ def doctor(
     dependency groups should be installed to support those file types.
     """
     # Respect global --json flag if command-level --json not given
-    if not json_output and _g.json_output:
+    if not json_output and _get_state().json_output:
         json_output = True
 
     # Scan the directory
