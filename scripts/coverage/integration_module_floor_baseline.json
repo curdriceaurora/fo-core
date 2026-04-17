@@ -31,7 +31,7 @@
     "src/cli/dedupe_v2.py": 91.0,
     "src/cli/doctor.py": 84.0,
     "src/cli/interactive.py": 100.0,
-    "src/cli/main.py": 89.0,
+    "src/cli/main.py": 92.0,
     "src/cli/models_cli.py": 100.0,
     "src/cli/organize.py": 80.0,
     "src/cli/profile.py": 95.0,
