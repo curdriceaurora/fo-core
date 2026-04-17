@@ -135,7 +135,7 @@ class TestCLIStateIsolation:
         @test_app.callback()
         def cb(
             ctx: typer.Context,
-            verbose: bool = typer.Option(False, "--verbose"),  # noqa: FBT001
+            verbose: bool = typer.Option(False, "--verbose"),
         ) -> None:
             ctx.obj = CLIState(verbose=verbose)
 
