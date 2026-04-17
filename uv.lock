@@ -1372,7 +1372,7 @@ requires-dist = [
     { name = "scipy", marker = "extra == 'scientific'", specifier = "~=1.11" },
     { name = "sqlalchemy", specifier = "~=2.0" },
     { name = "striprtf", marker = "extra == 'dedup'", specifier = ">=0.0.26" },
-    { name = "tinytag", marker = "extra == 'audio'", specifier = "~=1.10" },
+    { name = "tinytag", marker = "extra == 'audio'", specifier = "~=2.2" },
     { name = "torch", marker = "extra == 'audio'", specifier = "~=2.1" },
     { name = "tqdm", specifier = "~=4.66" },
     { name = "typer", extras = ["all"], specifier = "~=0.12" },
@@ -4569,11 +4569,11 @@ wheels = [
 
 [[package]]
 name = "tinytag"
-version = "1.10.1"
+version = "2.2.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/59/b5/ff5e5f9ca9677be7272260f67c87f7e8e885babc7ce94604e837dcfd8d76/tinytag-1.10.1.tar.gz", hash = "sha256:122a63b836f85094aacca43fc807aaee3290be3de17d134f5f4a08b509ae268f", size = 40906, upload-time = "2023-10-26T19:30:38.791Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/59/8a8cb2331e2602b53e4dc06960f57d1387a2b18e7efd24e5f9cb60ea4925/tinytag-2.2.1.tar.gz", hash = "sha256:e6d06610ebe7cd66fd07be2d3b9495914ab32654a5e47657bb8cd44c2484523c", size = 38214, upload-time = "2026-03-15T18:48:01.11Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/04/ef783cbc4aa3a5ed75969e300b3e3929daf3d1b52fe80e950c63e0d66d95/tinytag-1.10.1-py3-none-any.whl", hash = "sha256:e437654d04c966fbbbdbf807af61eb9759f1d80e4173a7d26202506b37cfdaf0", size = 37900, upload-time = "2023-10-26T19:30:36.724Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/34/d50e338631baaf65ec5396e70085e5de0b52b24b28db1ffbc1c6e82190dc/tinytag-2.2.1-py3-none-any.whl", hash = "sha256:ed8b1e6d25367937e3321e054f4974f9abfde1a3e0a538824c87da377130c2b6", size = 32927, upload-time = "2026-03-15T18:47:59.613Z" },
 ]
 
 [[package]]
