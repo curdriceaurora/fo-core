@@ -112,6 +112,27 @@ class TestAIHeuristicUnavailable:
         assert result.overall_confidence == 0.0
         assert result.abstained is True
 
+    @pytest.mark.ci
+    def test_parse_response_raises_returns_parse_error(self, tmp_path: Path) -> None:
+        """When _parse_response raises (not returns None), result is parse_error not ollama_error."""
+        h, mock_client = _make_heuristic()
+        mock_client.generate.return_value = {"response": "{}"}
+        test_file = tmp_path / "notes.txt"
+        test_file.write_text("content")
+
+        with (
+            patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", True),
+            patch.object(h, "_parse_response", side_effect=TypeError("unexpected type")),
+        ):
+            result = h.evaluate(test_file)
+
+        assert result.metadata["ai_analysis"] == "parse_error", (
+            f"Expected parse_error, got {result.metadata['ai_analysis']!r} — "
+            "_parse_response exceptions must not be conflated with ollama_error"
+        )
+        assert result.overall_confidence == 0.0
+        assert result.abstained is True
+
 
 # ---------------------------------------------------------------------------
 # Tests: successful classification
