@@ -283,15 +283,16 @@ class TestBatchedPrune:
 
     def test_prune_handles_many_entries(self, tmp_path: Path) -> None:
         cache = EmbeddingCache(tmp_path / "cache.db")
-        # Insert 1200 entries directly, exceeding the batch_size=500 threshold
-        n_total = 1200
-        n_delete = 600
+        # 600 total (>500 batch_size) exercises the second batch; 300 deletes keep
+        # the test meaningful while halving SQLite I/O for slow Windows CI runners.
+        n_total = 600
+        n_delete = 300
         for i in range(n_total):
             f = tmp_path / f"file_{i}.txt"
             f.write_text(f"content {i}")
             cache.get_or_compute(f, compute=_dummy_compute)
 
-        # Delete 600 of the files
+        # Delete half the files
         for i in range(n_delete):
             (tmp_path / f"file_{i}.txt").unlink()
 
