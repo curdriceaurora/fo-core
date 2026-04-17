@@ -134,9 +134,13 @@ class TestCreateProgress:
 class TestMainCallbackFlags:
     """Test that global flags are wired into main.py."""
 
-    def test_main_module_has_yes_flag(self) -> None:
-        import importlib
+    def test_cli_state_has_yes_and_no_interactive_flags(self) -> None:
+        from cli.state import CLIState
 
-        g = importlib.import_module("cli._globals")
-        assert hasattr(g, "yes")
-        assert hasattr(g, "no_interactive")
+        state = CLIState()
+        assert state.yes is False
+        assert state.no_interactive is False
+
+        state = CLIState(yes=True, no_interactive=True)
+        assert state.yes is True
+        assert state.no_interactive is True

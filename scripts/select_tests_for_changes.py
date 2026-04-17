@@ -121,7 +121,7 @@ def select_test_paths(changed_files: list[str], repo_root: Path) -> list[str]:
         # --- Test files: include directly if they exist on disk -----------
         if parts[0] == "tests" and path.suffix == ".py":
             if (repo_root / path).exists():
-                selected.add(str(path))
+                selected.add(path.as_posix())
             continue
 
         # --- Source files: look up PACKAGE_TEST_MAP ----------------------

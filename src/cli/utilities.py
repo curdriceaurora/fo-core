@@ -11,7 +11,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-import cli._globals as _g
+from cli.state import _get_state
 from utils import is_hidden
 
 console = Console()
@@ -437,7 +437,7 @@ def analyze(
     elapsed = time.monotonic() - start
 
     # Output
-    if json_output or _g.json_output:
+    if json_output or _get_state().json_output:
         typer.echo(
             json_mod.dumps(
                 {
@@ -453,7 +453,7 @@ def analyze(
         console.print(f"[bold]Description:[/bold] {description}")
         console.print(f"[bold]Confidence:[/bold] {confidence:.0%}")
 
-        if verbose or _g.verbose:
+        if verbose or _get_state().verbose:
             console.print(f"[bold]Model:[/bold] {config.name}")
             console.print(f"[bold]Processing time:[/bold] {elapsed:.2f}s")
             console.print(f"[bold]Content length:[/bold] {content_length} chars")
