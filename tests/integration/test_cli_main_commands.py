@@ -294,9 +294,10 @@ class TestEntryPoint:
 
         from cli.main import main
 
-        with patch("cli.main._register_profile_command") as mock_reg, patch(
-            "cli.main.app"
-        ) as mock_app:
+        with (
+            patch("cli.main._register_profile_command") as mock_reg,
+            patch("cli.main.app") as mock_app,
+        ):
             main()
         mock_reg.assert_called_once()
         mock_app.assert_called_once()
