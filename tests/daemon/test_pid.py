@@ -14,7 +14,7 @@ import pytest
 
 from daemon.pid import PidFileManager
 
-pytestmark = [pytest.mark.unit, pytest.mark.smoke]
+pytestmark = [pytest.mark.unit, pytest.mark.smoke, pytest.mark.ci]
 
 
 @pytest.fixture
@@ -133,9 +133,15 @@ class TestIsRunning:
         assert pid_manager.is_running(pid_file) is False
 
     def test_dead_pid_not_running(self, pid_manager: PidFileManager, pid_file: Path) -> None:
-        """is_running returns False for a PID that no longer exists."""
-        # Use a very high PID that is almost certainly not running
-        pid_file.write_text("4000000")
+        """is_running returns False for a PID that can never be valid.
+
+        Uses PID -1, which psutil.pid_exists() treats as False on all
+        platforms (psutil returns False for any negative PID before making
+        any OS call). Previously os.kill(pid, 0) was used which maps to
+        CTRL_C_EVENT=0 on Windows and would fire a real KeyboardInterrupt
+        into the pytest process.
+        """
+        pid_file.write_text("-1")
         assert pid_manager.is_running(pid_file) is False
 
     def test_empty_file_not_running(self, pid_manager: PidFileManager, pid_file: Path) -> None:
