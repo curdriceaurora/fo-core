@@ -6,12 +6,11 @@ Provides the unified entry point with all commands and sub-apps.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
 import typer
 from rich.console import Console
 
-import cli._globals as _g
 from cli.autotag_v2 import autotag_app
 from cli.benchmark import benchmark_app
 from cli.config_cli import config_app
@@ -23,22 +22,13 @@ from cli.models_cli import model_app
 from cli.organize import organize, preview
 from cli.rules import rules_app
 from cli.setup import setup_app
+from cli.state import CLIState, _get_state
 from cli.suggest import suggest_app
 from cli.update import update_app
 from cli.utilities import analyze, search
 
 console = Console()
 
-
-class _CliGlobals(Protocol):
-    verbose: bool
-    dry_run: bool
-    json_output: bool
-    yes: bool
-    no_interactive: bool
-
-
-CLI_GLOBALS = cast(_CliGlobals, _g)
 
 # ---------------------------------------------------------------------------
 # Main app
@@ -68,6 +58,7 @@ def _version_callback(value: bool) -> None:
 
 @app.callback()
 def main_callback(
+    ctx: typer.Context,
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without executing."),
     json_output: bool = typer.Option(False, "--json", help="Output results as JSON."),
@@ -85,11 +76,13 @@ def main_callback(
 ) -> None:
     """Global options applied to all commands."""
     _ = version_flag
-    CLI_GLOBALS.verbose = verbose
-    CLI_GLOBALS.dry_run = dry_run
-    CLI_GLOBALS.json_output = json_output
-    CLI_GLOBALS.yes = yes
-    CLI_GLOBALS.no_interactive = no_interactive
+    ctx.obj = CLIState(
+        verbose=verbose,
+        dry_run=dry_run,
+        json_output=json_output,
+        yes=yes,
+        no_interactive=no_interactive,
+    )
 
     from cli.interactive import set_flags
 
@@ -124,7 +117,7 @@ def hardware_info(
 
     profile = detect_hardware()
 
-    if json_out or _g.json_output:
+    if json_out or _get_state().json_output:
         import json
 
         console.print_json(json.dumps(profile.to_dict()))
@@ -178,8 +171,8 @@ def undo(
     code = _undo(
         operation_id=operation_id,
         transaction_id=transaction_id,
-        dry_run=dry_run or _g.dry_run,
-        verbose=verbose or _g.verbose,
+        dry_run=dry_run or _get_state().dry_run,
+        verbose=verbose or _get_state().verbose,
     )
     raise typer.Exit(code=code)
 
@@ -195,8 +188,8 @@ def redo(
 
     code = _redo(
         operation_id=operation_id,
-        dry_run=dry_run or _g.dry_run,
-        verbose=verbose or _g.verbose,
+        dry_run=dry_run or _get_state().dry_run,
+        verbose=verbose or _get_state().verbose,
     )
     raise typer.Exit(code=code)
 
@@ -217,7 +210,7 @@ def history(
         operation_type=operation_type,
         status=status,
         stats=stats,
-        verbose=verbose or _g.verbose,
+        verbose=verbose or _get_state().verbose,
     )
     raise typer.Exit(code=code)
 
@@ -233,7 +226,7 @@ def analytics(
     args: list[str] = []
     if directory is not None:
         args.append(str(directory))
-    if verbose or _g.verbose:
+    if verbose or _get_state().verbose:
         args.append("--verbose")
 
     code = analytics_command(args)

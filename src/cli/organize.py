@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
-import cli._globals as _g
+from cli.state import _get_state
 
 console = Console()
 
@@ -114,7 +114,7 @@ def organize(
     _check_setup_completed()
 
     console.print(f"[bold]Organizing[/bold] {input_dir} -> {output_dir}")
-    if dry_run or _g.dry_run:
+    if dry_run or _get_state().dry_run:
         console.print("[yellow]Dry run mode — no files will be moved.[/yellow]")
     resolved_workers, resolved_prefetch_depth = _resolve_parallel_settings(
         sequential, max_workers, prefetch_depth, no_prefetch
@@ -124,7 +124,7 @@ def organize(
         from core.organizer import FileOrganizer
 
         organizer = FileOrganizer(
-            dry_run=dry_run or _g.dry_run,
+            dry_run=dry_run or _get_state().dry_run,
             parallel_workers=resolved_workers,
             prefetch_depth=resolved_prefetch_depth,
             enable_vision=not no_vision,
