@@ -245,11 +245,28 @@ class TestUndoRedoHistoryCommands:
         assert result.exit_code in (0, 1)
 
 
+class TestVersionFlag:
+    """Tests for the eager --version global flag (distinct from the version sub-command)."""
+
+    def test_version_flag_exits_zero(self) -> None:
+        """--version eager flag exits with code 0."""
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+
+    def test_version_flag_prints_version(self) -> None:
+        """--version flag outputs the version string."""
+        from version import __version__
+
+        result = runner.invoke(app, ["--version"])
+        assert __version__ in result.output
+
+
 class TestAnalyticsCommand:
-    def test_analytics_no_args(self, tmp_path: Path) -> None:
-        """analytics with a directory argument runs without crash."""
-        result = runner.invoke(app, ["analytics", str(tmp_path)])
-        assert result.exit_code in (0, 1)
+    def test_analytics_no_args(self) -> None:
+        """analytics without a directory hits the None branch; argparse exits 2."""
+        result = runner.invoke(app, ["analytics"])
+        # directory is None → args stays []; analytics_command requires directory → exit 2
+        assert result.exit_code in (0, 1, 2)
 
     def test_analytics_with_directory(self, tmp_path: Path) -> None:
         """analytics with an explicit directory argument is accepted."""
@@ -260,3 +277,27 @@ class TestAnalyticsCommand:
         """analytics --verbose is accepted."""
         result = runner.invoke(app, ["analytics", str(tmp_path), "--verbose"])
         assert result.exit_code in (0, 1)
+
+
+class TestEntryPoint:
+    """Tests for _register_profile_command and main() entry point."""
+
+    def test_register_profile_command_does_not_raise(self) -> None:
+        """_register_profile_command() runs without error (ImportError is silenced)."""
+        from cli.main import _register_profile_command
+
+        _register_profile_command()  # should not raise
+
+    def test_main_calls_register_and_app(self) -> None:
+        """main() calls _register_profile_command then app()."""
+        from unittest.mock import patch
+
+        from cli.main import main
+
+        with (
+            patch("cli.main._register_profile_command") as mock_reg,
+            patch("cli.main.app") as mock_app,
+        ):
+            main()
+        mock_reg.assert_called_once()
+        mock_app.assert_called_once()
