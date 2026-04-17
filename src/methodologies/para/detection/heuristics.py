@@ -700,11 +700,11 @@ class AIHeuristic(Heuristic):
                 stream=False,
             )
             response_text: str = response.get("response", "") or ""
+            parsed = self._parse_response(response_text)
         except Exception:
             logger.warning("Ollama generate failed", exc_info=True)
             return self._zero_result("ollama_error")
 
-        parsed = self._parse_response(response_text)
         if parsed is None:
             logger.warning(
                 "Failed to parse AI heuristic response from model %s (response length: %d)",
