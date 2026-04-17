@@ -142,5 +142,7 @@ jobs:
         # CI Full's cross-platform contract: validate the portable ci/smoke subset on Windows.
         # -n=auto intentionally omitted: xdist worker shutdown on Windows propagates
         # CTRL_C_EVENT as KeyboardInterrupt, causing exit code 1 when all tests pass.
-        # The ci/smoke subset (~61 tests) is small enough that parallelism adds no benefit.
-        run: pytest tests/ --strict-markers --timeout=30 --override-ini="addopts=" -m "ci or smoke"
+        # --timeout omitted: pytest-timeout thread-mode fires during teardown on Windows,
+        # producing a spurious KeyboardInterrupt after all tests pass (exit code 1).
+        # The 20-minute job timeout provides a sufficient hard cap.
+        run: pytest tests/ --strict-markers --override-ini="addopts=" -m "ci or smoke"
