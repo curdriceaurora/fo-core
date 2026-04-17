@@ -14,7 +14,7 @@ import pytest
 
 from daemon.pid import PidFileManager
 
-pytestmark = [pytest.mark.unit, pytest.mark.smoke]
+pytestmark = [pytest.mark.unit, pytest.mark.smoke, pytest.mark.ci]
 
 
 @pytest.fixture
