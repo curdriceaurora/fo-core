@@ -56,7 +56,7 @@ jobs:
             --override-ini="addopts="
           mv .coverage .coverage.py${{ matrix.python-version }}
       - name: Upload coverage data
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7
         with:
           name: daily-coverage-${{ matrix.python-version }}
           path: .coverage.py${{ matrix.python-version }}
