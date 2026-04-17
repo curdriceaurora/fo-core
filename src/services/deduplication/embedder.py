@@ -103,7 +103,7 @@ class DocumentEmbedder:
         """
         if not documents:
             logger.warning("Empty document list provided")
-            return np.empty((0, self.max_features), dtype=np.float32)
+            return np.empty((0, self.max_features), dtype=np.float64)
 
         logger.info(f"Fitting vectorizer on {len(documents)} documents")
 

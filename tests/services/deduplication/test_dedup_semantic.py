@@ -437,20 +437,24 @@ class TestGetStatistics:
 
     @pytest.mark.ci
     def test_single_document_corpus(self, analyzer):
-        """get_statistics on a 1×1 matrix returns zeros without raising (issue #100)."""
+        """get_statistics on a 1x1 matrix returns zeros without raising (issue #100)."""
         matrix = np.array([[1.0]])
         stats = analyzer.get_statistics(matrix)
         assert stats["mean_similarity"] == 0.0
+        assert stats["median_similarity"] == 0.0
+        assert stats["std_similarity"] == 0.0
         assert stats["max_similarity"] == 0.0
         assert stats["min_similarity"] == 0.0
         assert stats["above_threshold_count"] == 0
 
     @pytest.mark.ci
     def test_zero_document_corpus(self, analyzer):
-        """get_statistics on a 0×0 matrix returns zeros without raising (issue #100)."""
+        """get_statistics on a 0x0 matrix returns zeros without raising (issue #100)."""
         matrix = np.empty((0, 0))
         stats = analyzer.get_statistics(matrix)
         assert stats["mean_similarity"] == 0.0
+        assert stats["median_similarity"] == 0.0
+        assert stats["std_similarity"] == 0.0
         assert stats["max_similarity"] == 0.0
         assert stats["min_similarity"] == 0.0
         assert stats["above_threshold_count"] == 0
