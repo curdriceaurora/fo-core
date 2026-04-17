@@ -83,7 +83,15 @@ def ensure_default_event_loop(request: pytest.FixtureRequest) -> None:
         yield
         return
 
-    created_loop = asyncio.new_event_loop()
+    # On Windows, asyncio.new_event_loop() returns a ProactorEventLoop backed by
+    # IOCP.  Its cleanup thread races with pytest's session teardown and generates
+    # CTRL_C_EVENT → KeyboardInterrupt at _pytest/stash.py during finalization,
+    # causing exit code 1 even when all tests pass.  SelectorEventLoop avoids
+    # IOCP entirely and is safe for the only thing sync tests need: asyncio.Lock.
+    if sys.platform == "win32":
+        created_loop: asyncio.AbstractEventLoop = asyncio.SelectorEventLoop()
+    else:
+        created_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(created_loop)
 
     yield

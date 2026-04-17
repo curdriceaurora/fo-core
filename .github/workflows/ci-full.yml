@@ -144,5 +144,7 @@ jobs:
         # CTRL_C_EVENT as KeyboardInterrupt, causing exit code 1 when all tests pass.
         # --timeout omitted: pytest-timeout thread-mode fires during teardown on Windows,
         # producing a spurious KeyboardInterrupt after all tests pass (exit code 1).
+        # ProactorEventLoop IOCP teardown race: fixed in tests/conftest.py via
+        # SelectorEventLoop on win32 (see ensure_default_event_loop fixture).
         # The 20-minute job timeout provides a sufficient hard cap.
         run: pytest tests/ --strict-markers --override-ini="addopts=" -m "ci or smoke"
