@@ -10,6 +10,8 @@ import logging
 import os
 from pathlib import Path
 
+import psutil
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,9 +100,12 @@ class PidFileManager:
     def is_running(self, pid_file: Path) -> bool:
         """Check whether the process recorded in a PID file is alive.
 
-        Reads the PID from the file and sends signal 0 to test
-        whether the process exists. This does not actually send a
-        signal to the process.
+        Reads the PID from the file and uses psutil to test whether
+        the process exists. psutil.pid_exists() uses OS-native handle
+        checking (OpenProcess on Windows, /proc on Linux) and is safe
+        on all platforms. os.kill(pid, 0) is not used because on Windows
+        signal 0 maps to CTRL_C_EVENT and can send a real interrupt to
+        the current console process group.
 
         Args:
             pid_file: Path to the PID file.
@@ -114,16 +119,4 @@ class PidFileManager:
         if pid is None:
             return False
 
-        try:
-            # Signal 0 checks process existence without sending a signal
-            os.kill(pid, 0)
-            return True
-        except ProcessLookupError:
-            # Process does not exist
-            logger.debug("PID %d is not running (stale PID file)", pid)
-            return False
-        except PermissionError:
-            # Process exists but we cannot signal it (still running)
-            return True
-        except OSError:
-            return False
+        return bool(psutil.pid_exists(pid))
