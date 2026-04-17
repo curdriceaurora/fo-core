@@ -210,7 +210,10 @@ class TestRollback:
 
     def test_rollback_success(self, tmp_path):
         inst = UpdateInstaller(install_dir=tmp_path)
-        backup = tmp_path / "test-app.bak"
+        # Derive backup path the same way _resolve_target does — on Windows the
+        # target gets a .exe suffix, so the backup is "test-app.exe.bak" not "test-app.bak".
+        target = inst._resolve_target("test-app")
+        backup = target.with_name(f"{target.name}.bak")
         backup.write_bytes(b"old binary")
 
         assert inst.rollback("test-app") is True
@@ -221,7 +224,8 @@ class TestRollback:
 
     def test_rollback_failure(self, tmp_path):
         inst = UpdateInstaller(install_dir=tmp_path)
-        backup = tmp_path / "test-app.bak"
+        target = inst._resolve_target("test-app")
+        backup = target.with_name(f"{target.name}.bak")
         backup.write_bytes(b"old binary")
 
         with patch("shutil.move", side_effect=OSError("fail")):

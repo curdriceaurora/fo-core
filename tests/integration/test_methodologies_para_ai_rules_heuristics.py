@@ -1313,13 +1313,15 @@ class TestAIHeuristicHelpers:
         from methodologies.para.detection.heuristics import AIHeuristic
 
         f = _make_file(tmp_path, "doc.txt")
-        h = AIHeuristic()
-        # Patch both OLLAMA_AVAILABLE and ollama to prevent any real or leaked
-        # mock client from reaching _parse_response (xdist isolation defence).
+        # Create the instance INSIDE the patch context so that _available is never
+        # seeded by a leaked MagicMock client from another xdist worker that
+        # set sys.modules["ollama"] = MagicMock() (e.g. test_backend_detector.py).
+        # Patch both OLLAMA_AVAILABLE and ollama for defence-in-depth.
         with (
             patch.object(_mod, "OLLAMA_AVAILABLE", new=False),
             patch.object(_mod, "ollama", new=None),
         ):
+            h = AIHeuristic()
             result = h.evaluate(f)
         assert result.abstained is True
 
