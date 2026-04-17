@@ -86,7 +86,8 @@ class TestGetState:
         def cmd() -> None:
             captured.append(_get_state())
 
-        CliRunner().invoke(test_app, ["cmd"])
+        result = CliRunner().invoke(test_app, ["cmd"])
+        assert result.exit_code == 0, result.output
         assert len(captured) == 1
         assert captured[0].verbose is True
         assert captured[0].dry_run is True
@@ -107,7 +108,8 @@ class TestGetState:
         def cmd() -> None:
             captured.append(_get_state())
 
-        CliRunner().invoke(test_app, ["cmd"])
+        result = CliRunner().invoke(test_app, ["cmd"])
+        assert result.exit_code == 0, result.output
         assert len(captured) == 1
         assert isinstance(captured[0], CLIState)
         assert captured[0].verbose is False
@@ -124,9 +126,6 @@ class TestCLIStateIsolation:
 
     def test_state_not_shared_across_invocations(self) -> None:
         """Flag set in invocation 1 must not appear in invocation 2."""
-        import typer
-        from typer.testing import CliRunner
-
         from cli.state import CLIState, _get_state
 
         results: list[bool] = []
@@ -136,7 +135,7 @@ class TestCLIStateIsolation:
         @test_app.callback()
         def cb(
             ctx: typer.Context,
-            verbose: bool = typer.Option(False, "--verbose"),
+            verbose: bool = typer.Option(False, "--verbose"),  # noqa: FBT001
         ) -> None:
             ctx.obj = CLIState(verbose=verbose)
 
@@ -145,8 +144,10 @@ class TestCLIStateIsolation:
             results.append(_get_state().verbose)
 
         runner = CliRunner()
-        runner.invoke(test_app, ["--verbose", "cmd"])  # invocation 1: verbose=True
-        runner.invoke(test_app, ["cmd"])  # invocation 2: verbose=False (must not inherit)
+        r1 = runner.invoke(test_app, ["--verbose", "cmd"])
+        r2 = runner.invoke(test_app, ["cmd"])
+        assert r1.exit_code == 0, r1.output
+        assert r2.exit_code == 0, r2.output
 
         assert results == [True, False], (
             f"State leaked between invocations: {results}. "

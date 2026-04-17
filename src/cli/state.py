@@ -27,12 +27,9 @@ def _get_state() -> CLIState:
     Falls back to a default CLIState() when called outside a typer
     invocation (e.g. direct function calls in unit tests).
     """
-    try:
-        import click
+    import click
 
-        ctx = click.get_current_context()
-        if isinstance(ctx.obj, CLIState):
-            return ctx.obj
-    except RuntimeError:
-        pass
+    ctx = click.get_current_context(silent=True)
+    if ctx is not None and isinstance(ctx.obj, CLIState):
+        return ctx.obj
     return CLIState()

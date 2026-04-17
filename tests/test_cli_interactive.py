@@ -138,5 +138,9 @@ class TestMainCallbackFlags:
         from cli.state import CLIState
 
         state = CLIState()
-        assert hasattr(state, "yes")
-        assert hasattr(state, "no_interactive")
+        assert state.yes is False
+        assert state.no_interactive is False
+
+        state = CLIState(yes=True, no_interactive=True)
+        assert state.yes is True
+        assert state.no_interactive is True
