@@ -659,6 +659,30 @@ class TestSemanticAnalyzer:
         # so above_threshold_count should be 0
         assert stats["above_threshold_count"] == 0
 
+    def test_get_statistics_single_document_returns_zeros(self) -> None:
+        """get_statistics on a 1x1 matrix must return zeros, not raise (issue #100)."""
+        analyzer = self._make_analyzer()
+        matrix = np.array([[1.0]])
+        stats = analyzer.get_statistics(matrix)
+        assert stats["mean_similarity"] == 0.0
+        assert stats["median_similarity"] == 0.0
+        assert stats["std_similarity"] == 0.0
+        assert stats["max_similarity"] == 0.0
+        assert stats["min_similarity"] == 0.0
+        assert stats["above_threshold_count"] == 0
+
+    def test_get_statistics_empty_corpus_returns_zeros(self) -> None:
+        """get_statistics on a 0x0 matrix must return zeros, not raise (issue #100)."""
+        analyzer = self._make_analyzer()
+        matrix = np.empty((0, 0))
+        stats = analyzer.get_statistics(matrix)
+        assert stats["mean_similarity"] == 0.0
+        assert stats["median_similarity"] == 0.0
+        assert stats["std_similarity"] == 0.0
+        assert stats["max_similarity"] == 0.0
+        assert stats["min_similarity"] == 0.0
+        assert stats["above_threshold_count"] == 0
+
 
 # ---------------------------------------------------------------------------
 # TestBackupManager

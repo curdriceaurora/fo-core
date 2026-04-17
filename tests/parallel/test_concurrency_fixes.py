@@ -273,9 +273,13 @@ class TestConcurrencyFixes(unittest.TestCase):
 
     def test_timeout_poll_interval_scales_with_timeout(self) -> None:
         """Test polling interval scales with timeout to reduce timeout drift."""
+        # timeout_per_file=0.4 → poll_interval = min(0.05, max(0.005, 0.4/10))
+        # = min(0.05, 0.04) = 0.04 — stays within the uncapped range [0.005, 0.05],
+        # so this exercises the proportional branch of the formula.
+        # Generous enough (20x the 20ms task) to complete reliably on slow CI runners.
         config = ParallelConfig(
             max_workers=1,
-            timeout_per_file=0.1,
+            timeout_per_file=0.4,
             retry_count=0,
         )
         processor = ParallelProcessor(config=config)
@@ -302,6 +306,6 @@ class TestConcurrencyFixes(unittest.TestCase):
         self.assertTrue(observed_timeouts)
         self.assertLessEqual(
             max(observed_timeouts),
-            0.011,
-            "Expected timeout polling interval to scale down for short timeouts",
+            0.041,
+            "Expected poll interval ≈ timeout/10 = 0.04s (uncapped) for timeout_per_file=0.4",
         )

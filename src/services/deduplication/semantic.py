@@ -283,16 +283,30 @@ class SemanticAnalyzer:
     def get_statistics(self, similarity_matrix: NDArray[Any]) -> dict[str, Any]:
         """Compute statistics from similarity matrix.
 
+        For corpora with zero or one document the off-diagonal similarity array
+        is empty; all statistics are returned as 0.0 / 0 rather than raising.
+
         Args:
             similarity_matrix: Pairwise similarity matrix
 
         Returns:
-            Statistics dictionary
+            Statistics dictionary with keys: mean_similarity, median_similarity,
+            std_similarity, max_similarity, min_similarity, above_threshold_count.
         """
         # Exclude diagonal (self-similarity)
         n = similarity_matrix.shape[0]
         mask = ~np.eye(n, dtype=bool)
         similarities = similarity_matrix[mask]
+
+        if similarities.size == 0:
+            return {
+                "mean_similarity": 0.0,
+                "median_similarity": 0.0,
+                "std_similarity": 0.0,
+                "max_similarity": 0.0,
+                "min_similarity": 0.0,
+                "above_threshold_count": 0,
+            }
 
         stats = {
             "mean_similarity": float(np.mean(similarities)),

@@ -13,7 +13,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-import cli._globals as _cli_globals
 from cli.main import app
 
 pytestmark = [pytest.mark.integration]
@@ -343,7 +342,6 @@ class TestDoctorInstallation:
         """--install flag triggers installation flow."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        monkeypatch.setattr(_cli_globals, "dry_run", False)
 
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.confirm_action", return_value=True):
@@ -359,7 +357,6 @@ class TestDoctorInstallation:
         """Global --yes flag auto-confirms installation."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        monkeypatch.setattr(_cli_globals, "dry_run", False)
 
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("subprocess.run", return_value=mock_result) as mock_run:
@@ -401,7 +398,6 @@ class TestDoctorInstallation:
         """Installation handles subprocess failures gracefully."""
         mock_result = MagicMock()
         mock_result.returncode = 1  # Failure
-        monkeypatch.setattr(_cli_globals, "dry_run", False)
 
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.confirm_action", return_value=True):
@@ -417,7 +413,6 @@ class TestDoctorInstallation:
         """Installation processes multiple groups sequentially."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        monkeypatch.setattr(_cli_globals, "dry_run", False)
 
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.confirm_action", return_value=True):
@@ -523,7 +518,6 @@ class TestDoctorGlobalFlags:
         """Global --no-interactive flag is handled properly."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        monkeypatch.setattr(_cli_globals, "dry_run", False)
 
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("subprocess.run", return_value=mock_result):
@@ -669,7 +663,6 @@ class TestDoctorEndToEndWorkflows:
         """Simulate first-time user discovering and installing dependencies."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        monkeypatch.setattr(_cli_globals, "dry_run", False)
 
         # Step 1: Run doctor without install to see recommendations
         with patch("cli.doctor.is_group_installed", return_value=False):
