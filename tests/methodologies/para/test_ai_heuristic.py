@@ -112,7 +112,6 @@ class TestAIHeuristicUnavailable:
         assert result.overall_confidence == 0.0
         assert result.abstained is True
 
-    @pytest.mark.ci
     def test_parse_response_raises_returns_parse_error(self, tmp_path: Path) -> None:
         """When _parse_response raises (not returns None), result is parse_error not ollama_error."""
         h, mock_client = _make_heuristic()
