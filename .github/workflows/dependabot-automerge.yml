@@ -1,0 +1,35 @@
+name: Dependabot auto-merge (GitHub Actions bumps only)
+
+# Runs for every dependabot PR. Approves and enables auto-merge only for
+# github-actions ecosystem bumps — pip and docker bumps are left for manual review.
+#
+# Requires allow_auto_merge: true on the repo (already enabled).
+# GITHUB_TOKEN is granted write permissions explicitly so it can approve
+# and set auto-merge on dependabot PRs (dependabot PRs default to read-only
+# without an explicit permissions block).
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve and enable auto-merge for GitHub Actions bumps
+        if: steps.meta.outputs.package-ecosystem == 'github_actions'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
