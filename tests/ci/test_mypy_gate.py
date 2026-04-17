@@ -78,9 +78,7 @@ class TestFullSrcMypyGate:
         assert regex.startswith("^src/"), (
             f"pre-commit hook files regex does not cover src/: {regex!r}"
         )
-        assert _LEGACY_NS not in regex, (
-            f"pre-commit hook still references old namespace: {regex!r}"
-        )
+        assert _LEGACY_NS not in regex, f"pre-commit hook still references old namespace: {regex!r}"
 
     def test_precommit_hook_not_per_package(self) -> None:
         """Pre-commit hook must not use per-package alternation (regression guard)."""
