@@ -230,7 +230,7 @@
     "src/services/deduplication/index.py": 85.0,
     "src/services/deduplication/quality.py": 85.0,
     "src/services/deduplication/reporter.py": 91.0,
-    "src/services/deduplication/semantic.py": 96.0,
+    "src/services/deduplication/semantic.py": 97.0,
     "src/services/deduplication/viewer.py": 100.0,
     "src/services/intelligence/__init__.py": 100.0,
     "src/services/intelligence/confidence.py": 90.0,
