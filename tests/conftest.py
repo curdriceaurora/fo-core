@@ -85,7 +85,7 @@ def event_loop_policy() -> asyncio.AbstractEventLoopPolicy:
     """
     if sys.platform == "win32":
         return asyncio.WindowsSelectorEventLoopPolicy()
-    return asyncio.DefaultEventLoopPolicy()
+    return asyncio.get_event_loop_policy()
 
 
 @pytest.fixture(autouse=True)
