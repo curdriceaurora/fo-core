@@ -69,6 +69,25 @@ skip_below_py312 = pytest.mark.skipif(
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(scope="session")
+def event_loop_policy() -> asyncio.AbstractEventLoopPolicy:
+    """Override pytest-asyncio's default policy to use SelectorEventLoop on Windows.
+
+    pytest-asyncio's ``event_loop_policy`` fixture (session-scoped, autouse) returns
+    ``WindowsProactorEventLoopPolicy`` by default on Windows.  Its session-level runner
+    creates a ProactorEventLoop; when ``Runner.__exit__`` fires at session teardown,
+    IOCP cleanup races with pytest finalization and delivers ``CTRL_C_EVENT`` →
+    ``KeyboardInterrupt`` at ``socket.py``, causing exit code 1 even when all tests
+    pass.
+
+    Returning ``WindowsSelectorEventLoopPolicy`` propagates to *all* pytest-asyncio
+    runners (function-, module-, and session-scoped), eliminating IOCP entirely.
+    """
+    if sys.platform == "win32":
+        return asyncio.WindowsSelectorEventLoopPolicy()
+    return asyncio.DefaultEventLoopPolicy()
+
+
 @pytest.fixture(autouse=True)
 def ensure_default_event_loop(request: pytest.FixtureRequest) -> None:
     """Ensure sync tests can instantiate asyncio-bound widgets across Python versions.
