@@ -1,7 +1,7 @@
 # Install Size Reduction Epic — Design Spec
 
 **Date**: 2026-04-19
-**Status**: Approved (rev 3 — reviewer corrections applied 2026-04-19)
+**Status**: Approved (rev 4 — reviewer corrections applied 2026-04-19)
 **Target**: Reduce default install from 206 MB → 181 MB while maximising out-of-the-box
 format coverage.
 
@@ -244,10 +244,13 @@ This list is exhaustive (verified by `grep -r nltk tests/ docs/ CONTRIBUTING.md`
 Before updating docs, run an audit to find all remaining references to removed/renamed extras:
 
 ```bash
-rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' docs/ README.md CONTRIBUTING.md
+rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' \
+  --glob '!docs/superpowers/specs/**' \
+  docs/ README.md CONTRIBUTING.md
 ```
 
-Every hit must be updated in this PR.
+Every hit must be updated in this PR. The spec file itself is excluded because it
+intentionally contains these names in the migration table.
 
 ---
 
@@ -327,14 +330,18 @@ The gate must install from the **local checkout** (not from PyPI) so the measure
 artifact matches the branch under test:
 
 ```bash
-pip install --target /tmp/fo_size_check . -q
+# Run in a clean environment so dev/search extras installed by earlier CI
+# steps do not undercount the real default install surface.
+python -m venv /tmp/fo_size_venv
+/tmp/fo_size_venv/bin/pip install --target /tmp/fo_size_check . -q
 SIZE_MB=$(du -sm /tmp/fo_size_check | cut -f1)
 echo "Default install: ${SIZE_MB} MB"
 [ "$SIZE_MB" -le 185 ] || (echo "Install size ${SIZE_MB} MB exceeds 185 MB cap" && exit 1)
 ```
 
 The workflow step must run after `actions/checkout` so `.` resolves to the checked-out
-branch, not a published release.
+branch, not a published release. The dedicated venv prevents earlier CI pip installs
+(dev extras, test deps) from satisfying transitive deps and masking the true size.
 
 ### Coverage
 
@@ -367,4 +374,4 @@ floor after measuring on CI.
 - [ ] No remaining unconditional `import numpy` reachable from a default install
 - [ ] `.rtf` files routed through `utils/readers` dispatch table
 - [ ] All updated doc files verified against source (D1 rule)
-- [ ] `rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' docs/ README.md CONTRIBUTING.md` returns zero hits
+- [ ] `rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' --glob '!docs/superpowers/specs/**' docs/ README.md CONTRIBUTING.md` returns zero hits
