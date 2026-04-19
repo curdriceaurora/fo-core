@@ -1,7 +1,7 @@
 # Install Size Reduction Epic — Design Spec
 
 **Date**: 2026-04-19
-**Status**: Approved (rev 6 — reviewer corrections applied 2026-04-19)
+**Status**: Approved
 **Target**: Reduce default install from 206 MB → 181 MB while maximising out-of-the-box
 format coverage.
 
