@@ -1,7 +1,7 @@
 # Install Size Reduction Epic — Design Spec
 
 **Date**: 2026-04-19
-**Status**: Approved (rev 5 — reviewer corrections applied 2026-04-19)
+**Status**: Approved (rev 6 — reviewer corrections applied 2026-04-19)
 **Target**: Reduce default install from 206 MB → 181 MB while maximising out-of-the-box
 format coverage.
 
@@ -38,7 +38,10 @@ pypdf reader dispatch remains out of scope (see Section 5).
 ## Decision: Option B
 
 All **lightweight** non-scientific, non-CAD formats included in the default: document
-formats (RTF, PDF fallback), archives (7Z, RAR), and audio metadata (mutagen, tinytag).
+formats (RTF via striprtf), archives (7Z, RAR), and audio metadata (mutagen, tinytag).
+`pypdf` is also moved to default but only improves the dedup extractor path — the
+organize reader still routes PDFs through PyMuPDF and full pypdf reader dispatch is
+out of scope (see Section 5).
 CAD stays optional because `ezdxf` hard-requires numpy (+74 MB total), which would negate
 the numpy removal gain. Scientific stays optional (h5py + netCDF4 + scipy = 201 MB, niche
 use case). Audio/video **transcription and processing** (faster-whisper, torch, pydub,
@@ -389,13 +392,14 @@ floor after measuring on CI.
 ## Exit Gates
 
 - [ ] `pytest tests/ -m "ci or smoke"` passes on Linux, macOS, Windows
-- [ ] `pip install . --target /tmp/check` (local checkout) installs in ≤185 MB (enforced by CI size gate)
+- [ ] CI install-size gate passes (hermetic venv install from local checkout ≤185 MB; see Section 4)
 - [ ] `tests/smoke/test_default_import_boundary.py` passes with numpy blocked
 - [ ] `pip install "fo-core[media]"` installs and canary imports pass
 - [ ] `pip install "fo-core[dedup-text]"` installs and canary imports pass
 - [ ] `pip install "fo-core[dedup-image]"` installs and canary imports pass
 - [ ] `pymarkdown scan docs/` passes (zero violations)
 - [ ] No remaining `nltk` or `ensure_nltk_data` references in `src/`
+- [ ] `rg 'nltk|ensure_nltk_data|stub_nltk|mock_nltk|NLTK_AVAILABLE' --glob '!docs/superpowers/specs/**' .github/ tests/ docs/ README.md CONTRIBUTING.md` returns zero hits
 - [ ] No remaining unconditional `import numpy` reachable from a default install
 - [ ] `.rtf` files routed through `utils/readers` dispatch table
 - [ ] All updated doc files verified against source (D1 rule)
