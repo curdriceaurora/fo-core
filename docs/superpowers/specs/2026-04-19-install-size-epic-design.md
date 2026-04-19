@@ -1,7 +1,7 @@
 # Install Size Reduction Epic — Design Spec
 
 **Date**: 2026-04-19
-**Status**: Approved (rev 2 — reviewer corrections applied 2026-04-19)
+**Status**: Approved (rev 3 — reviewer corrections applied 2026-04-19)
 **Target**: Reduce default install from 206 MB → 181 MB while maximising out-of-the-box
 format coverage.
 
@@ -160,9 +160,22 @@ except ImportError:
     pass  # numpy not available; hash-based dedup still works
 ```
 
-The same pattern applies to `services/search/` and `services/video/` if their
-`__init__.py` files have unconditional numpy imports — audit and guard all of them
-before dropping numpy from `pyproject.toml`.
+The same guard is **required** for `services/search/` before dropping numpy from
+`pyproject.toml`. The current import chain is unconditional:
+`services/search/__init__.py` → `HybridRetriever` → `VectorIndex` →
+`from numpy.typing import NDArray`. Apply the same `try/except ImportError` pattern
+to `services/search/__init__.py`:
+
+```python
+# Heavy optional exports — only available when search extra is installed
+try:
+    from .hybrid_retriever import HybridRetriever, read_text_safe
+except ImportError:
+    pass  # numpy/sklearn not available; search subsystem disabled
+```
+
+Apply the same audit to `services/video/` if its `__init__.py` has unconditional
+numpy imports — guard before dropping numpy from `pyproject.toml`.
 
 ### 2d. RTF reader wiring in `utils/readers`
 
@@ -242,16 +255,25 @@ Every hit must be updated in this PR.
 
 ### Behavioral regression fixtures (prerequisite)
 
-Before removing NLTK, capture golden output for the three affected public functions in
-`utils/text_processing.py` under the **current** NLTK implementation:
+Before removing NLTK, run the three affected public functions under the **current**
+NLTK implementation and record both the old (NLTK) output and the expected new
+(Snowball) output:
 
-- `get_unwanted_words()` → frozen expected set (stopwords list)
-- `clean_text("Studies in running and analysis")` → frozen expected string
-- `extract_keywords("The quick brown fox jumps over the lazy dog")` → frozen expected list
+- `get_unwanted_words()` — record the NLTK stopwords set as `OLD_STOPWORDS`; the
+  new output is the inline `frozenset` defined in Section 2a (deterministic, no
+  NLTK needed).
+- `clean_text("Studies in running and analysis")` — record both the NLTK output
+  (`OLD_CLEAN`) and the expected Snowball output (`NEW_CLEAN`).
+- `extract_keywords("The quick brown fox jumps over the lazy dog")` — record both
+  `OLD_KEYWORDS` and `NEW_KEYWORDS`.
 
-These fixtures define the accepted behavioral difference between NLTK and the
-snowballstemmer replacement. Tests pass if the new output matches the new fixture,
-not the old NLTK output.
+The test suite then contains **two** fixtures per function:
+1. A snapshot test asserting the post-replacement output equals `NEW_*` (regression
+   guard for the Snowball path).
+2. A comment or removed test showing `OLD_*` as an acknowledgement artifact, so the
+   behavioral difference is explicit and reviewable.
+
+Tests pass when the new implementation matches `NEW_*`, not `OLD_*`.
 
 ### Import-boundary smoke test (new exit gate)
 
@@ -276,6 +298,7 @@ sys.modules["numpy"] = None  # block numpy
 import core.organizer        # must not raise
 import cli.dedupe_hash       # must not raise (hash-based dedup path)
 from services.deduplication.detector import DuplicateDetector  # must not raise
+import services.search        # must not raise (HybridRetriever guard required)
 """
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -334,7 +357,7 @@ floor after measuring on CI.
 ## Exit Gates
 
 - [ ] `pytest tests/ -m "ci or smoke"` passes on Linux, macOS, Windows
-- [ ] `pip install fo-core` installs in ≤185 MB (enforced by CI size gate)
+- [ ] `pip install . --target /tmp/check` (local checkout) installs in ≤185 MB (enforced by CI size gate)
 - [ ] `tests/smoke/test_default_import_boundary.py` passes with numpy blocked
 - [ ] `pip install "fo-core[media]"` installs and canary imports pass
 - [ ] `pip install "fo-core[dedup-text]"` installs and canary imports pass
