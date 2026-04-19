@@ -425,30 +425,49 @@ def extract_keywords(text: str, top_n: int = 5) -> list[str]:
         return []
 ```
 
-- [ ] **Step 8: Run the golden fixture tests (should now PASS)**
+- [ ] **Step 8: Capture real Snowball output and finalize golden fixtures**
+
+Run the three functions and record their output:
+
+```bash
+python - <<'EOF'
+import sys; sys.path.insert(0, 'src')
+from utils.text_processing import clean_text, extract_keywords, get_unwanted_words
+print("NEW_CLEAN_TEXT   =", repr(clean_text("Studies in running and analysis")))
+print("NEW_EXTRACT_KEYWORDS =", repr(extract_keywords("The quick brown fox jumps over the lazy dog")))
+print("NEW_STOPWORDS    =", repr(get_unwanted_words()))
+EOF
+```
+
+Copy the three printed values into `tests/unit/utils/test_text_processing.py`:
+- Replace `"FILL_AFTER_TASK_4"` with the actual `clean_text` output
+- Replace `[]` on `_NEW_EXTRACT_KEYWORDS` with the actual list
+- Replace `set()` on `_NEW_STOPWORDS` with the actual set
+
+Remove all three `@pytest.mark.xfail(...)` decorators from `test_clean_text_golden_snowball`,
+`test_extract_keywords_golden_snowball`, and `test_get_unwanted_words_golden_snowball`.
+
+- [ ] **Step 9: Run all three golden tests (should now PASS)**
 
 ```bash
 pytest tests/unit/utils/test_text_processing.py::test_clean_text_golden_snowball \
-       tests/unit/utils/test_text_processing.py::test_extract_keywords_golden_snowball -v
+       tests/unit/utils/test_text_processing.py::test_extract_keywords_golden_snowball \
+       tests/unit/utils/test_text_processing.py::test_get_unwanted_words_golden_snowball -v
 ```
 
-Expected: PASS
+Expected: all three PASS (no xfail).
 
-- [ ] **Step 9: Run the full text_processing test suite**
-
-```bash
-pytest tests/unit/utils/test_text_processing.py tests/utils/test_text_processing.py -x -v
-```
-
-Some existing mock-based tests will fail — that's expected. They are fixed in Task 9.
-The golden fixture tests must pass.
-
-- [ ] **Step 10: Commit**
+- [ ] **Step 10: Stage both src and test changes — commit deferred to Task 11**
 
 ```bash
 git add src/utils/text_processing.py
-git commit -m "feat(text): replace NLTK with snowballstemmer + re + Counter"
+git add tests/unit/utils/test_text_processing.py
 ```
+
+> **Note:** Do NOT commit yet. Tasks 5, 9, 10, and 11 also modify source and test files
+> for NLTK removal. All these changes are committed together in Task 11 so the commit
+> tree stays green (no intermediate state where src is changed but tests still mock the
+> deleted function).
 
 ---
 
@@ -474,21 +493,15 @@ Find line 110:
 ```
 Delete both lines.
 
-- [ ] **Step 3: Run text_processor tests**
-
-```bash
-pytest tests/services/test_text_processor.py tests/services/test_text_processor_logging.py -x -q
-```
-
-These tests patch `ensure_nltk_data` — they will fail until Task 9 removes those patches.
-If they fail only on `ensure_nltk_data` patches, that is expected. Fix is in Task 9.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Stage the change — commit deferred to Task 11**
 
 ```bash
 git add src/services/text_processor.py
-git commit -m "fix(text_processor): remove ensure_nltk_data call — NLTK no longer required"
 ```
+
+> **Note:** Do NOT run the text_processor tests yet and do NOT commit. Tests that patch
+> `ensure_nltk_data` will fail until Task 11 removes those patches. All staged src changes
+> (Tasks 4+5) plus test cleanup (Tasks 9–11) are committed together in Task 11.
 
 ---
 
@@ -748,12 +761,15 @@ python -c "import tests.conftest" 2>&1 || python -m pytest tests/conftest.py --c
 
 Expected: no import errors.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Stage the change — commit deferred to Task 11**
 
 ```bash
 git add tests/conftest.py
-git commit -m "test: remove NLTK mock fixtures from root conftest"
 ```
+
+> **Note:** Do NOT commit. Consumers of `mock_nltk_*` still exist in the test suite;
+> committing here leaves the tree broken. All accumulated changes are committed once at
+> the end of Task 11.
 
 ---
 
@@ -772,16 +788,15 @@ Open `tests/integration/conftest.py`. Delete:
 
 If `nltk` is imported at the top of this file, delete that import.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Stage the change — commit deferred to Task 11**
 
 ```bash
 git add tests/integration/conftest.py
-git commit -m "test: remove stub_nltk and ensure_nltk_available from integration conftest"
 ```
 
-> **Note:** Do NOT run `pytest --collect-only` here. Consumers of `stub_nltk` still exist
-> in the test suite and will error at collection until Task 11 removes them. The collection
-> check is done at the end of Task 11.
+> **Note:** Do NOT commit. Consumers of `stub_nltk` still exist and will error at
+> collection until Task 11 removes them. The collection check and the single atomic
+> commit happen at the end of Task 11.
 
 ---
 
@@ -856,11 +871,23 @@ pytest tests/ -x -q --ignore=tests/extras --ignore=tests/smoke
 Expected: all passing. Fix any remaining `fixture not found` errors by repeating
 Steps 2–6 for any files the rg in Step 1 may have missed.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 9: Atomic commit — all NLTK removal changes (Tasks 4, 5, 9, 10, 11)**
+
+This is the first green commit since the NLTK removal started. It captures all changes
+staged in Tasks 4, 5, 9, 10, and the work just completed in this task:
 
 ```bash
-git add -u tests/
-git commit -m "test: remove all NLTK fixture consumers and patches from test suite"
+git add -u
+git commit -m "feat: replace NLTK with snowballstemmer and remove NLTK from defaults
+
+- utils/text_processing.py: replace word_tokenize/WordNetLemmatizer/FreqDist
+  with re.findall + snowballstemmer.Stemmer + collections.Counter
+- services/text_processor.py: remove ensure_nltk_data call
+- tests/conftest.py: remove 6 mock_nltk_* fixtures
+- tests/integration/conftest.py: remove stub_nltk and ensure_nltk_available
+- tests/unit/utils/test_text_processing.py: finalize Snowball golden fixtures
+- Remove all stub_nltk / ensure_nltk_data / NLTK_AVAILABLE consumers
+"
 ```
 
 ---
@@ -936,11 +963,15 @@ import cli.dedupe_hash       # must not raise (hash-based dedup path)
 from services.deduplication.detector import DuplicateDetector  # must not raise
 import services.search        # must not raise (HybridRetriever guard required)
 """
+    env = os.environ.copy()
+    # Prepend src/ so imports work from a clean checkout before `pip install -e .`
+    # On CI the editable install covers this, but local runs may not have it.
+    env["PYTHONPATH"] = "src" + ((":" + env["PYTHONPATH"]) if env.get("PYTHONPATH") else "")
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
         text=True,
-        env=os.environ.copy(),  # preserve full environment; editable install provides path
+        env=env,
     )
     assert result.returncode == 0, (
         f"Default import triggered numpy dependency:\n{result.stderr}"
@@ -992,11 +1023,13 @@ pytestmark = pytest.mark.smoke
 
 
 @pytest.fixture(autouse=True)
-def _require_media(tmp_path: Path) -> None:
-    pytest.importorskip("faster_whisper")
-    pytest.importorskip("cv2")
-    pytest.importorskip("pydub")
-    pytest.importorskip("scenedetect")
+def _require_media() -> None:
+    # Hard imports — any missing package means the extra is broken, not just skippable.
+    # These are all declared in [media]; if any are absent the canary must FAIL, not skip.
+    import cv2  # noqa: F401
+    import faster_whisper  # noqa: F401
+    import pydub  # noqa: F401
+    import scenedetect  # noqa: F401
 
 
 def _make_wav(path: Path) -> None:
