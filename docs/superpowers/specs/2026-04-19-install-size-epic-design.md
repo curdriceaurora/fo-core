@@ -1,7 +1,7 @@
 # Install Size Reduction Epic — Design Spec
 
 **Date**: 2026-04-19
-**Status**: Approved (rev 4 — reviewer corrections applied 2026-04-19)
+**Status**: Approved (rev 5 — reviewer corrections applied 2026-04-19)
 **Target**: Reduce default install from 206 MB → 181 MB while maximising out-of-the-box
 format coverage.
 
@@ -37,10 +37,13 @@ pypdf reader dispatch remains out of scope (see Section 5).
 
 ## Decision: Option B
 
-All non-scientific, non-CAD formats included in the default (with reader-dispatch wiring
-tasks included). CAD stays optional because `ezdxf` hard-requires numpy (+74 MB total),
-which would negate the numpy removal gain. Scientific stays optional (h5py + netCDF4 +
-scipy = 201 MB, niche use case).
+All **lightweight** non-scientific, non-CAD formats included in the default: document
+formats (RTF, PDF fallback), archives (7Z, RAR), and audio metadata (mutagen, tinytag).
+CAD stays optional because `ezdxf` hard-requires numpy (+74 MB total), which would negate
+the numpy removal gain. Scientific stays optional (h5py + netCDF4 + scipy = 201 MB, niche
+use case). Audio/video **transcription and processing** (faster-whisper, torch, pydub,
+opencv, scenedetect) remain under the `media` extra — these are explicitly not in the
+default despite "audio" metadata being default.
 
 ---
 
@@ -210,22 +213,31 @@ All documentation changes ship in the same PR as the code changes. No deferred d
 
 ### NLTK reference audit
 
-The following files contain NLTK references outside `src/` and must all be updated.
-This list is exhaustive (verified by `grep -r nltk tests/ docs/ CONTRIBUTING.md`):
+Use `rg` to find every NLTK reference outside `src/` — do not rely on a static list,
+as new fixture consumers are regularly added:
 
-**Test files** (remove fixtures, update or delete NLTK-specific tests):
+**Step 1 — find all NLTK test consumers (must all be updated):**
 
-- `tests/conftest.py` — remove `mock_nltk_tokenizer`, `mock_nltk_stopwords`, `mock_nltk_lemmatizer`, `mock_nltk_freqdist`, `mock_nltk_ensure_data_no_op`, `isolated_nltk_environment`
-- `tests/integration/conftest.py` — remove `stub_nltk`, `ensure_nltk_available` fixtures
-- `tests/utils/test_text_processing.py` — migrate from mock-based to real snowballstemmer
-- `tests/utils/test_text_processing_hermeticity.py` — remove or rewrite
-- `tests/unit/utils/test_text_processing.py` — migrate from mock-based to real snowballstemmer
-- `tests/services/test_text_processor.py` — remove `ensure_nltk_data` patches
-- `tests/services/test_text_processor_logging.py` — remove `ensure_nltk_data` patches
-- `tests/integration/test_coverage_gap_supplements.py` — remove NLTK-specific coverage gaps
-- All other integration tests patching `services.text_processor.ensure_nltk_data` — remove patches
+```bash
+rg 'stub_nltk|ensure_nltk_available|ensure_nltk_data|NLTK_AVAILABLE|mock_nltk' tests/
+```
 
-**Documentation files**:
+For each hit:
+- Fixture definitions (`conftest.py`) → remove the fixture
+- Fixture parameters (`stub_nltk: None`, `mock_nltk_tokenizer`) → remove the parameter and any mock-dependent assertions
+- Direct patches (`patch("...ensure_nltk_data")`) → remove the patch and rewrite the test against real snowballstemmer output
+
+**Step 2 — find all NLTK CI workflow steps (must all be removed):**
+
+```bash
+rg 'nltk' .github/workflows/
+```
+
+Remove every `cache: nltk_data` step and every `python -c "import nltk; nltk.download(...)"` step from
+`ci.yml`, `ci-full.yml`, and `pr-integration.yml`. These steps fail once `nltk` is no
+longer in the default dependencies.
+
+**Step 3 — documentation files:**
 
 | File | Required change |
 |------|----------------|
@@ -239,9 +251,9 @@ This list is exhaustive (verified by `grep -r nltk tests/ docs/ CONTRIBUTING.md`
 | `docs/reference/` | Update dependencies/extras reference page if present |
 | `CONTRIBUTING.md` | Remove NLTK download step from dev setup (line 341+); update extras names |
 | `pyproject.toml` | Update inline comments on moved/removed deps; update `deptry` package map if needed |
-| `.github/workflows/ci-extras.yml` | Remove `audio`, `video`, `archive`, `dedup` matrix entries; add `media`, `dedup-text`, `dedup-image` entries |
+| `.github/workflows/ci-extras.yml` | Remove `audio`, `video`, `archive`, `dedup` matrix entries; add `media`, `dedup-text`, `dedup-image` entries (see canary file note below) |
 
-Before updating docs, run an audit to find all remaining references to removed/renamed extras:
+**Step 4 — stale extra-name audit across user-facing docs:**
 
 ```bash
 rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' \
@@ -322,6 +334,19 @@ not exist):
 
 - Remove `audio`, `video`, `archive`, `dedup` matrix entries
 - Add `media`, `dedup-text`, `dedup-image` entries with smoke canaries
+
+**Canary file renaming is required.** The workflow resolves test files via
+`tests/extras/test_extras_${{ matrix.extra }}.py`. Hyphenated extra names
+(`dedup-text`, `dedup-image`) do not map to valid Python filenames. Rename as follows
+and update the workflow's `test_file` field (or add an explicit mapping) accordingly:
+
+| Old canary file | Old extra | New canary file | New extra |
+|----------------|-----------|----------------|-----------|
+| `tests/extras/test_extras_audio.py` | `audio` | `tests/extras/test_extras_media.py` | `media` |
+| `tests/extras/test_extras_video.py` | `video` | *(merged into test_extras_media.py)* | `media` |
+| `tests/extras/test_extras_dedup.py` | `dedup` | `tests/extras/test_extras_dedup_text.py` | `dedup-text` |
+| *(new)* | — | `tests/extras/test_extras_dedup_image.py` | `dedup-image` |
+| `tests/extras/test_extras_archive.py` | `archive` | *(delete — py7zr/rarfile now default)* | — |
 
 ### Install-size CI gate
 
