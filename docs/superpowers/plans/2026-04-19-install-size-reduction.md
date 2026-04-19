@@ -53,47 +53,56 @@ _OLD_CLEAN_TEXT = "<paste actual output from Step 1>"
 _OLD_EXTRACT_KEYWORDS = <paste actual output from Step 1>
 ```
 
-- [ ] **Step 3: Write failing test stubs with placeholder values**
+- [ ] **Step 3: Write xfail test stubs with placeholder values**
 
 In `tests/unit/utils/test_text_processing.py` add:
 
 ```python
+import pytest
+
 # OLD_* captured under NLTK — acknowledgement artifact only.
 _OLD_CLEAN_TEXT = "<captured in Step 1>"
 _OLD_EXTRACT_KEYWORDS = "<captured in Step 1>"
+_OLD_STOPWORDS: set[str] = set()  # captured in Step 1
 
-# NEW_* = expected Snowball output. Fill in after Task 4 is implemented:
-# run the two functions and paste the repr() output here.
+# NEW_* = expected Snowball output. Filled in Task 4 Step 8 by running the
+# functions after the Snowball implementation is in place.
 _NEW_CLEAN_TEXT = "FILL_AFTER_TASK_4"
 _NEW_EXTRACT_KEYWORDS: list[str] = []
+_NEW_STOPWORDS: set[str] = set()  # filled in Task 4 Step 8
 
 
+@pytest.mark.xfail(strict=False, reason="Snowball values filled in Task 4")
 def test_clean_text_golden_snowball() -> None:
     assert clean_text("Studies in running and analysis") == _NEW_CLEAN_TEXT
 
 
+@pytest.mark.xfail(strict=False, reason="Snowball values filled in Task 4")
 def test_extract_keywords_golden_snowball() -> None:
     assert extract_keywords("The quick brown fox jumps over the lazy dog") == _NEW_EXTRACT_KEYWORDS
+
+
+@pytest.mark.xfail(strict=False, reason="Snowball values filled in Task 4")
+def test_get_unwanted_words_golden_snowball() -> None:
+    assert get_unwanted_words() == _NEW_STOPWORDS
 ```
 
-- [ ] **Step 4: Run the new tests (should FAIL — NLTK still active)**
+- [ ] **Step 4: Run the new tests (should XFAIL — NLTK still active)**
 
 ```bash
 pytest tests/unit/utils/test_text_processing.py::test_clean_text_golden_snowball \
-       tests/unit/utils/test_text_processing.py::test_extract_keywords_golden_snowball -v
+       tests/unit/utils/test_text_processing.py::test_extract_keywords_golden_snowball \
+       tests/unit/utils/test_text_processing.py::test_get_unwanted_words_golden_snowball -v
 ```
 
-Expected: FAIL
-
-> **Note:** `_NEW_CLEAN_TEXT` and `_NEW_EXTRACT_KEYWORDS` are filled in during Task 4
-> Step 8 (after the Snowball implementation is in place). The test stubs are written
-> now so git tracks the intent; actual values are captured from the working implementation.
+Expected: XFAIL (all three show `xfail` — CI stays green). The `xfail` markers are
+removed and `_NEW_*` values filled in during Task 4 Step 8.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add tests/unit/utils/test_text_processing.py
-git commit -m "test(text): add Snowball golden fixture stubs (values filled in Task 4)"
+git commit -m "test(text): add Snowball golden fixture stubs as xfail (values filled in Task 4)"
 ```
 
 ---
@@ -763,21 +772,16 @@ Open `tests/integration/conftest.py`. Delete:
 
 If `nltk` is imported at the top of this file, delete that import.
 
-- [ ] **Step 3: Verify collection succeeds**
-
-```bash
-pytest tests/integration/ --collect-only -q 2>&1 | tail -5
-```
-
-Expected: no `fixture 'stub_nltk' not found` or similar errors. (Tests that requested
-`stub_nltk` as a parameter are fixed in Task 11.)
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add tests/integration/conftest.py
 git commit -m "test: remove stub_nltk and ensure_nltk_available from integration conftest"
 ```
+
+> **Note:** Do NOT run `pytest --collect-only` here. Consumers of `stub_nltk` still exist
+> in the test suite and will error at collection until Task 11 removes them. The collection
+> check is done at the end of Task 11.
 
 ---
 
@@ -835,7 +839,15 @@ Snowball output (use `_NEW_CLEAN_TEXT` / `_NEW_EXTRACT_KEYWORDS` from Task 1).
 Remove the NLTK-specific coverage gap tests (any test that imports or patches
 `ensure_nltk_data` or `NLTK_AVAILABLE`).
 
-- [ ] **Step 7: Run the full test suite**
+- [ ] **Step 7: Verify collection succeeds**
+
+```bash
+pytest tests/integration/ --collect-only -q 2>&1 | tail -5
+```
+
+Expected: no `fixture 'stub_nltk' not found` errors.
+
+- [ ] **Step 8: Run the full test suite**
 
 ```bash
 pytest tests/ -x -q --ignore=tests/extras --ignore=tests/smoke
@@ -844,7 +856,7 @@ pytest tests/ -x -q --ignore=tests/extras --ignore=tests/smoke
 Expected: all passing. Fix any remaining `fixture not found` errors by repeating
 Steps 2–6 for any files the rg in Step 1 may have missed.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add -u tests/
@@ -904,6 +916,7 @@ other tests in the same worker.
 """Verify that default-install imports do not require numpy."""
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
@@ -927,7 +940,7 @@ import services.search        # must not raise (HybridRetriever guard required)
         [sys.executable, "-c", code],
         capture_output=True,
         text=True,
-        env={"PYTHONPATH": "src"},  # adjust if project uses a different path
+        env=os.environ.copy(),  # preserve full environment; editable install provides path
     )
     assert result.returncode == 0, (
         f"Default import triggered numpy dependency:\n{result.stderr}"
@@ -1156,9 +1169,9 @@ must run on both `pull_request` and `push` to main:
     name: Default install size (≤185 MB)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
 
@@ -1200,6 +1213,7 @@ git commit -m "ci: add hermetic install-size gate (≤185 MB) on pull_request an
 ```bash
 rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' \
   --glob '!docs/superpowers/specs/**' \
+  --glob '!docs/superpowers/plans/**' \
   docs/ README.md CONTRIBUTING.md
 ```
 
@@ -1269,6 +1283,7 @@ Expected: PASS
 ```bash
 rg -i 'nltk|ensure_nltk_data|stub_nltk|mock_nltk' \
   --glob '!docs/superpowers/specs/**' \
+  --glob '!docs/superpowers/plans/**' \
   src/ .github/ tests/ docs/ README.md CONTRIBUTING.md pyproject.toml
 ```
 
@@ -1277,23 +1292,27 @@ Expected: zero hits.
 - [ ] **Step 4: Old extra name audit**
 
 ```bash
-# Docs
+# Docs (exclude plan/spec files which intentionally list old names in migration tables)
 rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' \
   --glob '!docs/superpowers/specs/**' \
+  --glob '!docs/superpowers/plans/**' \
   docs/ README.md CONTRIBUTING.md
 
 # pyproject.toml extra definitions
 rg '^\s*(audio|video|archive|dedup)\s*=' pyproject.toml
 
-# CI matrix
-rg '"audio"|"video"|"archive"|"dedup"' .github/workflows/ci-extras.yml
+# CI matrix — YAML uses `extra: audio`, not quoted strings
+rg 'extra:\s*(audio|video|archive|dedup)\b' .github/workflows/ci-extras.yml
 
-# Old canary files
-ls tests/extras/test_extras_audio.py tests/extras/test_extras_video.py \
-   tests/extras/test_extras_archive.py tests/extras/test_extras_dedup.py 2>&1
+# Old canary files — test ! -e exits 0 when files are correctly absent
+test ! -e tests/extras/test_extras_audio.py   && echo "audio canary: absent (OK)"
+test ! -e tests/extras/test_extras_video.py   && echo "video canary: absent (OK)"
+test ! -e tests/extras/test_extras_archive.py && echo "archive canary: absent (OK)"
+test ! -e tests/extras/test_extras_dedup.py   && echo "dedup canary: absent (OK)"
 ```
 
-Expected: all four commands return zero hits / "No such file or directory".
+Expected: zero hits in docs and pyproject.toml; zero hits in ci-extras.yml; all four
+"absent (OK)" lines printed.
 
 - [ ] **Step 5: RTF dispatch check**
 
@@ -1313,14 +1332,16 @@ print('RTF dispatch: PASS')
 "
 ```
 
-- [ ] **Step 6: Unconditional numpy import check**
+- [ ] **Step 6: Numpy import survey (manual review aid)**
 
 ```bash
-rg 'import numpy|from numpy' src/ --glob '!*.pyc' | rg -v 'try:|except ImportError'
+rg 'import numpy|from numpy' src/ --glob '!*.pyc'
 ```
 
-Expected: any remaining hits should be inside `try:` blocks (optional extras code).
-Inspect any hits outside try blocks.
+Inspect the output. Lines inside `try:` / `except ImportError:` blocks are fine.
+Any import outside such a block needs a guard added. This is a manual review aid only —
+it cannot determine whether a line is reachable from the default install. The
+subprocess smoke test from Task 13 is the authoritative reachability gate.
 
 - [ ] **Step 7: pymarkdown**
 
