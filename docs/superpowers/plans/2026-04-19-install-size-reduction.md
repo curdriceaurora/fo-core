@@ -273,6 +273,18 @@ git commit -m "fix(search): guard numpy-dependent HybridRetriever import behind 
 **Files:**
 - Modify: `src/utils/text_processing.py`
 
+- [ ] **Step 0: Install snowballstemmer into the working environment**
+
+`snowballstemmer` is added to `pyproject.toml` in Task 6, but Task 4 uses it now.
+Install it directly so the implementation and tests can run before the full dependency
+restructure is committed:
+
+```bash
+pip install "snowballstemmer>=2.2.0"
+```
+
+Expected: `Successfully installed snowballstemmer-...` (or "already satisfied").
+
 - [ ] **Step 1: Replace the import block and module-level flags**
 
 Open `src/utils/text_processing.py`. Lines 1–20 currently contain:
@@ -580,11 +592,13 @@ pip install --dry-run . 2>&1 | head -20
 
 Expected: no errors about missing packages.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit pyproject.toml only**
+
+Tasks 4, 5, 9, and 10 have staged changes that are intentionally held until Task 11.
+Use a path-limited commit so those staged files are not swept up here:
 
 ```bash
-git add pyproject.toml
-git commit -m "feat(deps): remove nltk+numpy from default; add snowballstemmer, striprtf, pypdf, py7zr, rarfile, mutagen, tinytag; restructure extras"
+git commit -- pyproject.toml -m "feat(deps): remove nltk+numpy from default; add snowballstemmer, striprtf, pypdf, py7zr, rarfile, mutagen, tinytag; restructure extras"
 ```
 
 ---
@@ -946,6 +960,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -966,7 +981,10 @@ import services.search        # must not raise (HybridRetriever guard required)
     env = os.environ.copy()
     # Prepend src/ so imports work from a clean checkout before `pip install -e .`
     # On CI the editable install covers this, but local runs may not have it.
-    env["PYTHONPATH"] = "src" + ((":" + env["PYTHONPATH"]) if env.get("PYTHONPATH") else "")
+    # Use os.pathsep (';' on Windows, ':' on POSIX) for cross-platform portability.
+    src_path = str(Path(__file__).resolve().parents[2] / "src")
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = src_path + (os.pathsep + existing if existing else "")
     result = subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
