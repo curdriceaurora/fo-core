@@ -30,8 +30,8 @@ Moving them to the default extends format coverage at minimal cost.
 **Scope clarification**: RTF (`striprtf`) and `pypdf` are also moved to the default dep
 list, but this does **not** automatically extend the `utils.readers` dispatch table —
 those libs are currently only consumed by `services/deduplication/extractor.py`. Wiring
-RTF and pypdf into the reader dispatcher is an explicit sub-task of this epic (see
-Section 2c).
+RTF into the reader dispatcher is an explicit sub-task of this epic (see Section 2d).
+pypdf reader dispatch remains out of scope (see Section 5).
 
 ---
 
@@ -218,6 +218,8 @@ This list is exhaustive (verified by `grep -r nltk tests/ docs/ CONTRIBUTING.md`
 |------|----------------|
 | `README.md` | Update extras table: add `media`, rename `dedup`→`dedup-text`/`dedup-image`, remove `archive`, remove NLTK first-run download callout |
 | `docs/getting-started.md` | Update quick install commands and extras reference |
+| `docs/USER_GUIDE.md` | Update `[audio]`, `[video]`, `[dedup]`, `[archive]` references to new extra names |
+| `docs/troubleshooting.md` | Update stale install commands that reference removed/renamed extras |
 | `docs/developer/testing.md` | Remove `stub_nltk` fixture reference (line 166+) |
 | `docs/CONFIGURATION.md` | Remove any NLTK corpus path or `ensure_nltk_data` references |
 | `docs/setup/` | Remove `nltk.download(...)` setup step if present |
@@ -226,17 +228,26 @@ This list is exhaustive (verified by `grep -r nltk tests/ docs/ CONTRIBUTING.md`
 | `pyproject.toml` | Update inline comments on moved/removed deps; update `deptry` package map if needed |
 | `.github/workflows/ci-extras.yml` | Remove `audio`, `video`, `archive`, `dedup` matrix entries; add `media`, `dedup-text`, `dedup-image` entries |
 
+Before updating docs, run an audit to find all remaining references to removed/renamed extras:
+
+```bash
+rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' docs/ README.md CONTRIBUTING.md
+```
+
+Every hit must be updated in this PR.
+
 ---
 
 ## Section 4: Testing Strategy
 
 ### Behavioral regression fixtures (prerequisite)
 
-Before removing NLTK, capture golden output for the three affected functions in
+Before removing NLTK, capture golden output for the three affected public functions in
 `utils/text_processing.py` under the **current** NLTK implementation:
 
-- `clean_text_for_name("Studies in running and analysis")` → frozen expected string
-- `extract_keywords("The quick brown fox jumps...")` → frozen expected list
+- `get_unwanted_words()` → frozen expected set (stopwords list)
+- `clean_text("Studies in running and analysis")` → frozen expected string
+- `extract_keywords("The quick brown fox jumps over the lazy dog")` → frozen expected list
 
 These fixtures define the accepted behavioral difference between NLTK and the
 snowballstemmer replacement. Tests pass if the new output matches the new fixture,
@@ -244,20 +255,33 @@ not the old NLTK output.
 
 ### Import-boundary smoke test (new exit gate)
 
-Add a test (or CI step) that verifies the default install does not accidentally pull
-in numpy-dependent code at import time:
+Add a test that verifies the default install does not accidentally pull in
+numpy-dependent code at import time. The numpy block must run in a **subprocess**
+so it does not poison `sys.modules` for other tests in the same pytest worker:
 
 ```python
 # tests/smoke/test_default_import_boundary.py
+import subprocess
+import sys
+import pytest
+
+pytestmark = [pytest.mark.ci, pytest.mark.smoke]
+
+
+def test_default_imports_without_numpy() -> None:
+    code = """
 import sys
 sys.modules["numpy"] = None  # block numpy
 
 import core.organizer        # must not raise
 import cli.dedupe_hash       # must not raise (hash-based dedup path)
 from services.deduplication.detector import DuplicateDetector  # must not raise
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 ```
 
-This test must run in the `ci` marker set.
+Running in a child process isolates the `sys.modules` mutation completely.
 
 ### Format libs now guaranteed present
 
@@ -275,14 +299,19 @@ not exist):
 
 ### Install-size CI gate
 
-Add a step to `ci.yml` on main-push that measures and enforces the install size floor:
+Add a step to `ci.yml` on main-push that measures and enforces the install size floor.
+The gate must install from the **local checkout** (not from PyPI) so the measured
+artifact matches the branch under test:
 
 ```bash
-pip install --target /tmp/fo_size_check "fo-core" -q
+pip install --target /tmp/fo_size_check . -q
 SIZE_MB=$(du -sm /tmp/fo_size_check | cut -f1)
 echo "Default install: ${SIZE_MB} MB"
 [ "$SIZE_MB" -le 185 ] || (echo "Install size ${SIZE_MB} MB exceeds 185 MB cap" && exit 1)
 ```
+
+The workflow step must run after `actions/checkout` so `.` resolves to the checked-out
+branch, not a published release.
 
 ### Coverage
 
@@ -315,3 +344,4 @@ floor after measuring on CI.
 - [ ] No remaining unconditional `import numpy` reachable from a default install
 - [ ] `.rtf` files routed through `utils/readers` dispatch table
 - [ ] All updated doc files verified against source (D1 rule)
+- [ ] `rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' docs/ README.md CONTRIBUTING.md` returns zero hits
