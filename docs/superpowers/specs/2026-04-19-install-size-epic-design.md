@@ -396,12 +396,16 @@ floor after measuring on CI.
 - [ ] `pytest tests/ -m "ci or smoke"` passes on Linux, macOS, Windows
 - [ ] CI install-size gate passes (hermetic venv install from local checkout ≤185 MB; see Section 4)
 - [ ] `tests/smoke/test_default_import_boundary.py` passes with numpy blocked
-- [ ] `pip install "fo-core[media]"` installs and canary imports pass
-- [ ] `pip install "fo-core[dedup-text]"` installs and canary imports pass
-- [ ] `pip install "fo-core[dedup-image]"` installs and canary imports pass
+- [ ] `pip install '.[media]'` (local checkout) installs and canary imports pass
+- [ ] `pip install '.[dedup-text]'` (local checkout) installs and canary imports pass
+- [ ] `pip install '.[dedup-image]'` (local checkout) installs and canary imports pass
 - [ ] `pymarkdown scan docs/` passes (zero violations)
 - [ ] `rg -i 'nltk|ensure_nltk_data|stub_nltk|mock_nltk' --glob '!docs/superpowers/specs/**' src/ .github/ tests/ docs/ README.md CONTRIBUTING.md pyproject.toml` returns zero hits
 - [ ] No remaining unconditional `import numpy` reachable from a default install
 - [ ] `.rtf` files routed through `utils/readers` dispatch table
 - [ ] All updated doc files verified against source (D1 rule)
-- [ ] `rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' --glob '!docs/superpowers/specs/**' docs/ README.md CONTRIBUTING.md` returns zero hits
+- [ ] Old extras removed from all surfaces — all of the following return zero hits:
+  - Docs: `rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' --glob '!docs/superpowers/specs/**' docs/ README.md CONTRIBUTING.md`
+  - pyproject.toml: `rg '^\s*(audio|video|archive|dedup)\s*=' pyproject.toml` (no old extra definitions)
+  - CI matrix: `rg '"audio"|"video"|"archive"|"dedup"' .github/workflows/ci-extras.yml` (no old matrix entries)
+  - Test canaries: `ls tests/extras/test_extras_audio.py tests/extras/test_extras_video.py tests/extras/test_extras_archive.py tests/extras/test_extras_dedup.py 2>&1 | grep -v 'No such'` returns nothing
