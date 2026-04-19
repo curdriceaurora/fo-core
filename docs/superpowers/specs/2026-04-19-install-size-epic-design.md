@@ -353,9 +353,11 @@ and update the workflow's `test_file` field (or add an explicit mapping) accordi
 
 ### Install-size CI gate
 
-Add a step to `ci.yml` on main-push that measures and enforces the install size floor.
-The gate must install from the **local checkout** (not from PyPI) so the measured
-artifact matches the branch under test:
+Add a step to `ci.yml` on **both `pull_request` and `push` to main** that measures and
+enforces the install size floor. Running on PRs is required — a main-push-only gate
+would allow a size regression to merge and discover the failure after the fact. The gate
+must install from the **local checkout** (not from PyPI) so the measured artifact
+matches the branch under test:
 
 ```bash
 # Run in a clean environment so dev/search extras installed by earlier CI
@@ -398,8 +400,7 @@ floor after measuring on CI.
 - [ ] `pip install "fo-core[dedup-text]"` installs and canary imports pass
 - [ ] `pip install "fo-core[dedup-image]"` installs and canary imports pass
 - [ ] `pymarkdown scan docs/` passes (zero violations)
-- [ ] No remaining `nltk` or `ensure_nltk_data` references in `src/`
-- [ ] `rg 'nltk|ensure_nltk_data|stub_nltk|mock_nltk|NLTK_AVAILABLE' --glob '!docs/superpowers/specs/**' .github/ tests/ docs/ README.md CONTRIBUTING.md` returns zero hits
+- [ ] `rg -i 'nltk|ensure_nltk_data|stub_nltk|mock_nltk' --glob '!docs/superpowers/specs/**' src/ .github/ tests/ docs/ README.md CONTRIBUTING.md pyproject.toml` returns zero hits
 - [ ] No remaining unconditional `import numpy` reachable from a default install
 - [ ] `.rtf` files routed through `utils/readers` dispatch table
 - [ ] All updated doc files verified against source (D1 rule)
