@@ -633,7 +633,7 @@ and call `ensure_nltk_data`. To keep every commit green, split the pyproject.tom
 **Commit now** (additions only — removes nothing):
 
 ```bash
-git commit -- pyproject.toml -m "feat(deps): add snowballstemmer, striprtf, pypdf, py7zr, rarfile, mutagen, tinytag; restructure extras to media/dedup-text/dedup-image"
+git commit -m "feat(deps): add snowballstemmer, striprtf, pypdf, py7zr, rarfile, mutagen, tinytag; restructure extras to media/dedup-text/dedup-image" -- pyproject.toml
 ```
 
 > **Note:** Leave the `"nltk~=3.8"` and `"numpy~=1.24"` deletion lines **unstaged** for
