@@ -556,5 +556,6 @@ class TestReadRarFileMocked:
             patch.object(archives, "rarfile", create=True) as mock_rarfile_mod,
         ):
             mock_rarfile_mod.RarFile.return_value = mock_rf
+            mock_rarfile_mod.RarCannotExec = type("RarCannotExec", (Exception,), {})
             with pytest.raises(FileReadError):
                 read_rar_file(dummy)
