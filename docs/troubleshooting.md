@@ -54,11 +54,10 @@ Install the appropriate optional dependency group based on the feature you're us
 
 | Feature | Error Pattern | Install Command |
 |---------|---------------|-----------------|
-| Audio transcription | `faster_whisper`, `torch` | `pip install "fo-core[audio]"` |
-| Video processing | `cv2`, `scenedetect` | `pip install "fo-core[video]"` |
-| Image deduplication | `imagededup` | `pip install "fo-core[dedup]"` |
+| Audio/video | `faster_whisper`, `cv2`, `torch` | `pip install "fo-core[media]"` |
+| Image deduplication | `imagededup` | `pip install "fo-core[dedup-image]"` |
+| Text deduplication | `sklearn` | `pip install "fo-core[dedup-text]"` |
 | Semantic search | `rank_bm25`, `sklearn` | `pip install "fo-core[search]"` |
-| Archive support | `py7zr` | `pip install "fo-core[archive]"` |
 | Scientific formats | `h5py`, `netCDF4` | `pip install "fo-core[scientific]"` |
 | CAD file support | `ezdxf` | `pip install "fo-core[cad]"` |
 | Claude API provider | `anthropic` | `pip install "fo-core[claude]"` |
@@ -527,7 +526,7 @@ fo marketplace install <plugin-name>
 
 ```bash
 # Install archive support
-pip install "fo-core[archive]"
+pip install "fo-core"  # py7zr and rarfile are included in the default install
 
 # Supported formats: ZIP, TAR, GZ, BZ2, XZ, 7Z, RAR (read-only)
 
@@ -569,9 +568,9 @@ Archive bomb detection is a built-in safety feature. If you trust the archive so
 
 ```bash
 # Install video dependencies
-pip install "fo-core[video]"
+pip install "fo-core[media]"
 
-# This includes: opencv-python, scenedetect, and related libraries
+# This includes: opencv-python, scenedetect, faster-whisper, and related libraries
 
 # Verify installation
 python -c "import cv2; from scenedetect import detect, ContentDetector; print('OK')"
@@ -631,7 +630,8 @@ fo analyze large-video.mp4 --verbose
 
 ```bash
 # Install deduplication dependencies
-pip install "fo-core[dedup]"
+pip install "fo-core[dedup-image]"  # for image deduplication
+# pip install "fo-core[dedup-text]"  # for text-similarity deduplication
 
 # Scan for duplicates
 fo dedupe scan /path/to/images

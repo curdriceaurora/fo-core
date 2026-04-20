@@ -1632,8 +1632,7 @@ class TestTextProcessor:
         from services.text_processor import TextProcessor
 
         mock_model = self._make_mock_text_model()
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         assert processor.text_model is mock_model
         assert processor._owns_model is False
 
@@ -1644,9 +1643,8 @@ class TestTextProcessor:
         mock_model = MagicMock()
         mock_model.config.model_type = ModelType.VISION
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with pytest.raises(ValueError, match="TEXT model"):
-                TextProcessor(text_model=mock_model)
+        with pytest.raises(ValueError, match="TEXT model"):
+            TextProcessor(text_model=mock_model)
 
     def test_process_file_returns_processed_file(self, tmp_path: Path) -> None:
         from services.text_processor import ProcessedFile, TextProcessor
@@ -1657,21 +1655,15 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="programming")
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch(
-                "services.text_processor.read_file",
-                return_value="Python programming content",
-            ):
-                with patch(
-                    "services.text_processor.truncate_text",
-                    return_value="Python programming content",
-                ):
-                    with patch(
-                        "services.text_processor.clean_text",
-                        return_value="programming",
-                    ):
-                        processor = TextProcessor(text_model=mock_model)
-                        result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value="Python programming content"),
+            patch(
+                "services.text_processor.truncate_text", return_value="Python programming content"
+            ),
+            patch("services.text_processor.clean_text", return_value="programming"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert isinstance(result, ProcessedFile)
         assert result.file_path == fp
@@ -1685,10 +1677,9 @@ class TestTextProcessor:
 
         mock_model = self._make_mock_text_model()
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch("services.text_processor.read_file", return_value=None):
-                processor = TextProcessor(text_model=mock_model)
-                result = processor.process_file(fp)
+        with patch("services.text_processor.read_file", return_value=None):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert result.error == "Unsupported file type"
         assert result.folder_name == "unsupported"
@@ -1702,13 +1693,12 @@ class TestTextProcessor:
 
         mock_model = self._make_mock_text_model()
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch(
-                "services.text_processor.read_file",
-                side_effect=FileReadError("cannot read file"),
-            ):
-                processor = TextProcessor(text_model=mock_model)
-                result = processor.process_file(fp)
+        with patch(
+            "services.text_processor.read_file",
+            side_effect=FileReadError("cannot read file"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert result.error == "cannot read file"
         assert result.folder_name == "errors"
@@ -1730,18 +1720,13 @@ class TestTextProcessor:
 
         mock_model.generate = MagicMock(side_effect=gen_side_effect)
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch("services.text_processor.read_file", return_value="python content"):
-                with patch(
-                    "services.text_processor.truncate_text",
-                    return_value="python content",
-                ):
-                    with patch(
-                        "services.text_processor.clean_text",
-                        return_value="programming",
-                    ):
-                        processor = TextProcessor(text_model=mock_model)
-                        result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value="python content"),
+            patch("services.text_processor.truncate_text", return_value="python content"),
+            patch("services.text_processor.clean_text", return_value="programming"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert len(result.description) > 0
 
@@ -1754,20 +1739,13 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="programming")
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch("services.text_processor.read_file", return_value="hello world"):
-                with patch(
-                    "services.text_processor.truncate_text",
-                    return_value="hello world",
-                ):
-                    with patch(
-                        "services.text_processor.clean_text",
-                        return_value="programming",
-                    ):
-                        processor = TextProcessor(text_model=mock_model)
-                        result = processor.process_file(
-                            fp, generate_description=False, generate_folder=True
-                        )
+        with (
+            patch("services.text_processor.read_file", return_value="hello world"),
+            patch("services.text_processor.truncate_text", return_value="hello world"),
+            patch("services.text_processor.clean_text", return_value="programming"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp, generate_description=False, generate_folder=True)
 
         assert result.description == ""
 
@@ -1780,12 +1758,13 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="notes")
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch("services.text_processor.read_file", return_value="some text"):
-                with patch("services.text_processor.truncate_text", return_value="some text"):
-                    with patch("services.text_processor.clean_text", return_value="notes"):
-                        processor = TextProcessor(text_model=mock_model)
-                        result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value="some text"),
+            patch("services.text_processor.truncate_text", return_value="some text"),
+            patch("services.text_processor.clean_text", return_value="notes"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert result.file_path == fp
 
@@ -1793,8 +1772,7 @@ class TestTextProcessor:
         from services.text_processor import TextProcessor
 
         mock_model = self._make_mock_text_model()
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         result = processor._clean_ai_generated_name("the document about programming")
         assert "the" not in result.split("_")
         assert "document" not in result.split("_")
@@ -1803,8 +1781,7 @@ class TestTextProcessor:
         from services.text_processor import TextProcessor
 
         mock_model = self._make_mock_text_model()
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         result = processor._clean_ai_generated_name("alpha beta gamma delta epsilon", max_words=2)
         assert len(result.split("_")) == 2
 
@@ -1812,8 +1789,7 @@ class TestTextProcessor:
         from services.text_processor import TextProcessor
 
         mock_model = self._make_mock_text_model()
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         result = processor._clean_ai_generated_name("the a an and or")
         assert result == ""
 
@@ -1821,8 +1797,7 @@ class TestTextProcessor:
         from services.text_processor import TextProcessor
 
         mock_model = self._make_mock_text_model()
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         result = processor._clean_ai_generated_name("machine_learning")
         assert "machine" in result
         assert "learning" in result
@@ -1831,8 +1806,7 @@ class TestTextProcessor:
         from services.text_processor import TextProcessor
 
         mock_model = self._make_mock_text_model()
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         processor._owns_model = True
         processor.cleanup()
         mock_model.safe_cleanup.assert_called_once()
@@ -1841,8 +1815,7 @@ class TestTextProcessor:
         from services.text_processor import TextProcessor
 
         mock_model = self._make_mock_text_model()
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         processor._owns_model = False
         processor.cleanup()
         mock_model.safe_cleanup.assert_not_called()
@@ -1852,8 +1825,7 @@ class TestTextProcessor:
 
         mock_model = self._make_mock_text_model()
         mock_model.is_initialized = False
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         processor.initialize()
         mock_model.initialize.assert_called_once()
 
@@ -1869,13 +1841,12 @@ class TestTextProcessor:
             # text_processor catches RuntimeError/ValueError/OSError/AttributeError
             raise OSError("unexpected error")
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch(
-                "services.text_processor.read_file",
-                side_effect=raise_unexpected,
-            ):
-                processor = TextProcessor(text_model=mock_model)
-                result = processor.process_file(fp)
+        with patch(
+            "services.text_processor.read_file",
+            side_effect=raise_unexpected,
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert result.error == "unexpected error"
         assert result.folder_name == "errors"
@@ -1889,15 +1860,13 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="sample")
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch("services.text_processor.read_file", return_value="sample text"):
-                with patch(
-                    "services.text_processor.truncate_text",
-                    return_value="sample text",
-                ):
-                    with patch("services.text_processor.clean_text", return_value="sample"):
-                        processor = TextProcessor(text_model=mock_model)
-                        result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value="sample text"),
+            patch("services.text_processor.truncate_text", return_value="sample text"),
+            patch("services.text_processor.clean_text", return_value="sample"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert result.processing_time >= 0.0
 
@@ -1911,15 +1880,13 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="words")
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch("services.text_processor.read_file", return_value=long_content):
-                with patch(
-                    "services.text_processor.truncate_text",
-                    return_value=long_content[:5000],
-                ):
-                    with patch("services.text_processor.clean_text", return_value="words"):
-                        processor = TextProcessor(text_model=mock_model)
-                        result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value=long_content),
+            patch("services.text_processor.truncate_text", return_value=long_content[:5000]),
+            patch("services.text_processor.clean_text", return_value="words"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         # original_content is first 500 chars (exact cap applied in process_file)
         if result.original_content is not None:
@@ -1931,8 +1898,7 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.is_initialized = False
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         processor._owns_model = True
 
         with processor:
@@ -1946,8 +1912,7 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="summary: This text is about Python")
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         result = processor._generate_description("some long content here about Python")
         # prefix stripped
         assert not result.lower().startswith("summary:")
@@ -1958,10 +1923,9 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="the a an")  # all stop words
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            with patch("services.text_processor.clean_text", return_value="programming"):
-                processor = TextProcessor(text_model=mock_model)
-        result = processor._generate_folder_name("Python programming tutorials and guides")
+        with patch("services.text_processor.clean_text", return_value="programming"):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor._generate_folder_name("Python programming tutorials and guides")
         # Should be non-empty even with stop-word-only AI response
         assert len(result) >= 1
 
@@ -1971,8 +1935,7 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(side_effect=RuntimeError)
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         result = processor._generate_folder_name("some content")
         assert result == "documents"
 
@@ -1982,7 +1945,6 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(side_effect=RuntimeError)
 
-        with patch("services.text_processor.ensure_nltk_data"):
-            processor = TextProcessor(text_model=mock_model)
+        processor = TextProcessor(text_model=mock_model)
         result = processor._generate_filename("some content")
         assert result == "document"

@@ -9,10 +9,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-import numpy as np
 import pytest
 
-from services.deduplication.semantic import SemanticAnalyzer
+np = pytest.importorskip("numpy")
+
+from services.deduplication.semantic import SemanticAnalyzer  # noqa: E402
 
 pytestmark = [pytest.mark.unit]
 

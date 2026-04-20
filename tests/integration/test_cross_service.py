@@ -31,7 +31,6 @@ class TestTextProcessorEndToEnd:
         self,
         stub_text_model_init: None,
         stub_text_model_generate: MagicMock,
-        stub_nltk: None,
         integration_source_dir: Path,
     ) -> None:
         """TextProcessor reads a real .txt file and returns metadata."""
@@ -52,7 +51,6 @@ class TestTextProcessorEndToEnd:
         self,
         stub_text_model_init: None,
         stub_text_model_generate: MagicMock,
-        stub_nltk: None,
         integration_source_dir: Path,
     ) -> None:
         """TextProcessor reads a real .csv file and returns metadata."""
@@ -71,7 +69,6 @@ class TestTextProcessorEndToEnd:
         self,
         stub_text_model_init: None,
         stub_text_model_generate: MagicMock,
-        stub_nltk: None,
         integration_source_dir: Path,
     ) -> None:
         """TextProcessor reads a real .md file and returns metadata."""
@@ -93,7 +90,6 @@ class TestVisionProcessorEndToEnd:
         self,
         stub_vision_model_init: None,
         stub_vision_model_generate: MagicMock,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """VisionProcessor processes a real image file and returns metadata."""
@@ -115,7 +111,6 @@ class TestVisionProcessorEndToEnd:
         self,
         stub_vision_model_init: None,
         stub_vision_model_generate: MagicMock,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """VisionProcessor returns error for missing file, does not raise."""
@@ -134,7 +129,6 @@ class TestOrganizerChainsProcessors:
     def test_organizer_chains_text_to_output(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -166,7 +160,6 @@ class TestFallbackChain:
 
     def test_ollama_unavailable_falls_back_to_extension(
         self,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:

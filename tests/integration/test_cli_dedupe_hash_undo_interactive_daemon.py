@@ -808,7 +808,6 @@ class TestDaemonProcessErrorTruncation:
     def test_more_than_10_errors_truncated(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -847,7 +846,6 @@ class TestDaemonProcessErrorTruncation:
     def test_exactly_10_errors_no_truncation(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:

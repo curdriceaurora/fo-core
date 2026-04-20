@@ -179,15 +179,6 @@ jobs:
           print(f'pytest-asyncio {pytest_asyncio.__version__} registered as plugin')
           print(f'faker {importlib.metadata.version(\"faker\")} importable')
           "
-      - name: Cache NLTK data
-        uses: actions/cache@v5
-        with:
-          path: ~/nltk_data
-          key: nltk-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: nltk-${{ runner.os }}-
-      - name: Download NLTK data
-        # punkt_tab required by NLTK 3.9+ — word_tokenize() loads it internally
-        run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
       - name: Run tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -222,14 +213,6 @@ jobs:
         run: |
           pip install -e ".[dev,search]"
           pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
-      - name: Cache NLTK data
-        uses: actions/cache@v5
-        with:
-          path: ~/nltk_data
-          key: nltk-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: nltk-${{ runner.os }}-
-      - name: Download NLTK data
-        run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
       - name: Run full test suite
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -300,14 +283,6 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -e ".[dev]"
-      - name: Cache NLTK data
-        uses: actions/cache@v5
-        with:
-          path: ~/nltk_data
-          key: nltk-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: nltk-${{ runner.os }}-
-      - name: Download NLTK data
-        run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
       - name: Download benchmark baseline (PR only)
         # Finds the latest successful main CI run that stored a benchmark-baseline
         # artifact and downloads it for comparison.  Skipped silently if none exists.
@@ -420,14 +395,6 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -e ".[dev,search]"
-      - name: Cache NLTK data
-        uses: actions/cache@v5
-        with:
-          path: ~/nltk_data
-          key: nltk-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: nltk-${{ runner.os }}-
-      - name: Download NLTK data
-        run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('punkt', quiet=True); nltk.download('punkt_tab', quiet=True); nltk.download('wordnet', quiet=True)"
       - name: Run integration tests and capture coverage report
         id: integration_tests
         continue-on-error: true
@@ -473,3 +440,23 @@ jobs:
             echo "FAIL: global integration coverage floor failed"
             exit 1
           fi
+
+  install-size-check:
+    name: Install size gate (≤215 MB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Measure default install size
+        run: |
+          python -m pip install --target /tmp/fo_size_check . -q
+          SIZE_MB=$(du -sm /tmp/fo_size_check | awk '{print $1}')
+          echo "Install size: ${SIZE_MB} MB"
+          if [ "$SIZE_MB" -gt 215 ]; then
+            echo "FAIL: default install is ${SIZE_MB} MB, limit is 215 MB"
+            exit 1
+          fi
+          echo "PASS: default install is ${SIZE_MB} MB (≤215 MB)"

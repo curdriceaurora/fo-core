@@ -55,7 +55,8 @@ def _make_7z(tmp_path: Path, name: str, files: dict[str, bytes]) -> Path:
     size for every entry (writestr() produces solid archives where only the
     first entry carries a non-None compressed size).
     """
-    py7zr = pytest.importorskip("py7zr")
+    import py7zr
+
     archive_path = tmp_path / name
     # Stage files under a sub-directory so names don't collide with archive_path
     staging = tmp_path / ("_stage_" + name)
@@ -555,5 +556,6 @@ class TestReadRarFileMocked:
             patch.object(archives, "rarfile", create=True) as mock_rarfile_mod,
         ):
             mock_rarfile_mod.RarFile.return_value = mock_rf
+            mock_rarfile_mod.RarCannotExec = type("RarCannotExec", (Exception,), {})
             with pytest.raises(FileReadError):
                 read_rar_file(dummy)

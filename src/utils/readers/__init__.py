@@ -48,6 +48,7 @@ from utils.readers.documents import (
     read_docx_file,
     read_pdf_file,
     read_presentation_file,
+    read_rtf_file,
     read_spreadsheet_file,
     read_text_file,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "read_text_file",
     "read_docx_file",
     "read_pdf_file",
+    "read_rtf_file",
     "read_spreadsheet_file",
     "read_presentation_file",
     # eBook readers
@@ -129,6 +131,7 @@ def read_file(file_path: str | Path, **kwargs: object) -> str | None:
         (".txt", ".md"): read_text_file,
         (".docx",): read_docx_file,  # Note: .doc (old binary format) is NOT supported
         (".pdf",): read_pdf_file,
+        (".rtf",): read_rtf_file,
         (".csv", ".xlsx", ".xls"): read_spreadsheet_file,
         (".ppt", ".pptx"): read_presentation_file,
         (".epub",): read_ebook_file,

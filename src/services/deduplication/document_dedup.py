@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class DocumentDeduplicator:
+    # DocumentDeduplicator: requires dedup-text extra; CLI integration tracked separately
     """Orchestrates document deduplication using semantic similarity.
 
     Workflow:

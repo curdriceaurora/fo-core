@@ -13,8 +13,9 @@ import unittest.mock
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy")
 
 pytestmark = [pytest.mark.unit]
 

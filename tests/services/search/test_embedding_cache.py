@@ -5,11 +5,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import numpy as np
 import pytest
 
-from interfaces.search import EmbeddingCacheProtocol
-from services.search.embedding_cache import EmbeddingCache
+np = pytest.importorskip("numpy")
+
+from interfaces.search import EmbeddingCacheProtocol  # noqa: E402
+from services.search.embedding_cache import EmbeddingCache  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -130,7 +130,6 @@ class TestConfigDryRun:
     def test_dry_run_prevents_file_moves(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -164,7 +163,6 @@ class TestConfigTemperature:
     def test_temperature_propagates_to_text_model(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
     ) -> None:
         """Temperature set in ModelConfig reaches the generate() call."""
         custom_temp = 0.9
@@ -178,7 +176,6 @@ class TestConfigTemperature:
     def test_default_temperature_is_half(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
     ) -> None:
         """Default temperature is 0.5."""
         text_cfg = make_text_config()

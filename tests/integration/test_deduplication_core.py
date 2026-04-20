@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy")
 
 pytestmark = [pytest.mark.integration, pytest.mark.ci]
 

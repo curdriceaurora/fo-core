@@ -27,7 +27,6 @@ class TestCLIOrganize:
     def test_cli_organize_dry_run(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -52,7 +51,6 @@ class TestCLIOrganize:
     def test_cli_organize_creates_output(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -75,7 +73,6 @@ class TestCLIOrganize:
     def test_cli_verbose_increases_output(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:

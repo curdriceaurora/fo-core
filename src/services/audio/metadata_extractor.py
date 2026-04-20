@@ -129,7 +129,11 @@ class AudioMetadataExtractor:
 
         # Duration and bitrate
         duration = audio.info.length if hasattr(audio.info, "length") else 0.0
-        bitrate = audio.info.bitrate if hasattr(audio.info, "bitrate") else 0
+        bitrate = (
+            int(audio.info.bitrate)
+            if hasattr(audio.info, "bitrate") and audio.info.bitrate is not None
+            else 0
+        )
 
         # Sample rate and channels
         sample_rate = audio.info.sample_rate if hasattr(audio.info, "sample_rate") else 0
@@ -327,7 +331,7 @@ class AudioMetadataExtractor:
             file_size=audio_path.stat().st_size,
             format=audio_path.suffix[1:].upper(),
             duration=tag.duration or 0.0,
-            bitrate=tag.bitrate or 0,
+            bitrate=int(tag.bitrate or 0),
             sample_rate=tag.samplerate or 0,
             channels=tag.channels or 0,
             title=tag.title,

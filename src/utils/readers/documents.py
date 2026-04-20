@@ -20,6 +20,13 @@ except ImportError:
     DOCX_AVAILABLE = False
 
 try:
+    from striprtf.striprtf import rtf_to_text as _rtf_to_text
+
+    STRIPRTF_AVAILABLE = True
+except ImportError:
+    STRIPRTF_AVAILABLE = False
+
+try:
     OPENPYXL_AVAILABLE = True
 except ImportError:
     OPENPYXL_AVAILABLE = False
@@ -122,6 +129,20 @@ def read_pdf_file(file_path: str | Path, max_pages: int = 5) -> str:
         return text
     except Exception as e:  # Intentional catch-all: PyMuPDF raises library-specific errors
         raise FileReadError(f"Failed to read PDF file {file_path}: {e}") from e
+
+
+def read_rtf_file(file_path: str | Path, max_chars: int = 50_000) -> str:
+    """Extract plain text from an RTF file using striprtf."""
+    if not STRIPRTF_AVAILABLE:
+        raise ImportError("striprtf is required for RTF support: pip install striprtf")
+    file_path = Path(file_path)
+    _check_file_size(file_path)
+    try:
+        raw = file_path.read_text(encoding="latin-1")
+        text: str = str(_rtf_to_text(raw))
+        return text[:max_chars] if len(text) > max_chars else text
+    except Exception as exc:
+        raise FileReadError(f"Failed to read RTF {file_path.name}: {exc}") from exc
 
 
 def read_spreadsheet_file(file_path: str | Path, max_rows: int = 100) -> str:

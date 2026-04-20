@@ -34,7 +34,6 @@ class TestConcurrentTextProcessing:
     def test_parallel_processes_multiple_files(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """ParallelProcessor handles multiple files concurrently."""
@@ -66,7 +65,6 @@ class TestConcurrentTextProcessing:
     def test_pool_exhaustion_many_files_few_workers(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """50 files with 2 workers completes without deadlock or resource exhaustion."""
@@ -99,7 +97,6 @@ class TestTimeoutHandling:
     def test_slow_model_does_not_deadlock(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """A model that takes too long is handled gracefully.
@@ -147,7 +144,6 @@ class TestProcessorCleanup:
     def test_processors_cleaned_up_after_organize(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -174,7 +170,6 @@ class TestProcessorCleanup:
     def test_cleanup_after_partial_failure(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -209,7 +204,6 @@ class TestMidOperationFailure:
     def test_intermittent_errors_use_fallback_values(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """Intermittent model errors degrade to fallback values, not batch failure.
@@ -259,7 +253,6 @@ class TestRepeatedOrganize:
     def test_organize_twice_no_resource_leak(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """Calling organize() twice on the same organizer works cleanly."""

@@ -15,7 +15,6 @@ from models.provider_factory import get_text_model
 from utils.file_readers import FileReadError, read_file
 from utils.text_processing import (
     clean_text,
-    ensure_nltk_data,
     truncate_text,
 )
 
@@ -105,9 +104,6 @@ class TextProcessor:
             config = config or TextModel.get_default_config()
             self.text_model = get_text_model(config)
             self._owns_model = True
-
-        # Ensure NLTK data is available
-        ensure_nltk_data()
 
         logger.info("TextProcessor initialized")
 

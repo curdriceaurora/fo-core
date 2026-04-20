@@ -25,7 +25,6 @@ from services import ProcessedFile
 from services.intelligence.naming_analyzer import NamingAnalyzer
 from utils.text_processing import (
     clean_text,
-    ensure_nltk_data,
     extract_keywords,
     get_unwanted_words,
     sanitize_filename,
@@ -574,11 +573,6 @@ class TestExtractKeywords:
     def test_empty_text(self) -> None:
         result = extract_keywords("")
         assert result == []
-
-
-class TestEnsureNltkData:
-    def test_runs_without_error(self) -> None:
-        ensure_nltk_data()
 
 
 class TestGetUnwantedWords:
