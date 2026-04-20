@@ -18,6 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import py7zr
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -55,7 +56,6 @@ def _make_7z(tmp_path: Path, name: str, files: dict[str, bytes]) -> Path:
     size for every entry (writestr() produces solid archives where only the
     first entry carries a non-None compressed size).
     """
-    py7zr = pytest.importorskip("py7zr")
     archive_path = tmp_path / name
     # Stage files under a sub-directory so names don't collide with archive_path
     staging = tmp_path / ("_stage_" + name)
@@ -78,10 +78,6 @@ def _make_7z(tmp_path: Path, name: str, files: dict[str, bytes]) -> Path:
 
 
 class TestRead7zFileHappyPath:
-    @pytest.fixture(autouse=True)
-    def _require_py7zr(self) -> None:
-        pytest.importorskip("py7zr")
-
     def test_7z_returns_string(self, tmp_path: Path) -> None:
         from utils.readers.archives import read_7z_file
 
