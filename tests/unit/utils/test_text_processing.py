@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock, patch
 
 from utils.text_processing import (
@@ -8,6 +9,32 @@ from utils.text_processing import (
     sanitize_filename,
     truncate_text,
 )
+
+# Golden outputs captured under NLTK implementation — acknowledgement artifact
+# showing the behavioral difference vs Snowball replacement.
+_OLD_CLEAN_TEXT = "study_running_analysis"
+_OLD_EXTRACT_KEYWORDS = ['quick', 'brown', 'jumps', 'lazy']
+_OLD_STOPWORDS: set[str] = set(['a', 'about', 'above', 'after', 'again', 'against', 'ain', 'all', 'am', 'an', 'and', 'any', 'are', 'aren', "aren't", 'as', 'at', 'based', 'be', 'because', 'been', 'before', 'being', 'below', 'between', 'bmp', 'both', 'but', 'by', 'can', 'category', 'concepts', 'couldn', "couldn't", 'covers', 'csv', 'd', 'demonstrates', 'depicts', 'describes', 'details', 'did', 'didn', "didn't", 'discusses', 'display', 'do', 'document', 'docx', 'does', 'doesn', "doesn't", 'doing', 'don', "don't", 'down', 'during', 'each', 'features', 'few', 'file', 'filename', 'for', 'from', 'further', 'generated', 'gif', 'had', 'hadn', "hadn't", 'has', 'hasn', "hasn't", 'have', 'haven', "haven't", 'having', 'he', "he'd", "he'll", "he's", 'her', 'here', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'i', "i'd", "i'll", "i'm", "i've", 'ideas', 'if', 'illustrates', 'image', 'in', 'includes', 'information', 'into', 'is', 'isn', "isn't", 'it', "it'd", "it'll", "it's", 'its', 'itself', 'jpeg', 'jpg', 'just', 'key', 'll', 'm', 'ma', 'main', 'md', 'me', 'mightn', "mightn't", 'more', 'most', 'mustn', "mustn't", 'my', 'myself', 'needn', "needn't", 'new', 'no', 'nor', 'not', 'note', 'notes', 'now', 'o', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'our', 'ours', 'ourselves', 'out', 'output', 'over', 'own', 'pdf', 'photo', 'picture', 'png', 'pptx', 'presents', 'provides', 're', 's', 'same', 'shan', "shan't", 'she', "she'd", "she'll", "she's", 'should', "should've", 'shouldn', "shouldn't", 'show', 'shows', 'so', 'some', 'such', 'summary', 't', 'text', 'than', 'that', "that'll", 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there', 'these', 'they', "they'd", "they'll", "they're", "they've", 'this', 'those', 'through', 'to', 'too', 'txt', 'under', 'unknown', 'until', 'untitled', 'up', 've', 'very', 'was', 'wasn', "wasn't", 'we', "we'd", "we'll", "we're", "we've", 'were', 'weren', "weren't", 'what', 'when', 'where', 'which', 'while', 'who', 'whom', 'why', 'will', 'with', 'won', "won't", 'wouldn', "wouldn't", 'xlsx', 'y', 'you', "you'd", "you'll", "you're", "you've", 'your', 'yours', 'yourself', 'yourselves'])  # noqa: E501
+
+# NEW_* = expected Snowball output. Filled in Task 4 Step 8 after Snowball is implemented.
+_NEW_CLEAN_TEXT = "FILL_AFTER_TASK_4"
+_NEW_EXTRACT_KEYWORDS: list[str] = []
+_NEW_STOPWORDS: set[str] = set()  # filled in Task 4 Step 8
+
+
+@pytest.mark.xfail(strict=False, reason="Snowball values filled in Task 4")
+def test_clean_text_golden_snowball() -> None:
+    assert clean_text("Studies in running and analysis") == _NEW_CLEAN_TEXT
+
+
+@pytest.mark.xfail(strict=False, reason="Snowball values filled in Task 4")
+def test_extract_keywords_golden_snowball() -> None:
+    assert extract_keywords("The quick brown fox jumps over the lazy dog") == _NEW_EXTRACT_KEYWORDS
+
+
+@pytest.mark.xfail(strict=False, reason="Snowball values filled in Task 4")
+def test_get_unwanted_words_golden_snowball() -> None:
+    assert get_unwanted_words() == _NEW_STOPWORDS
 
 
 class TestTextProcessing:
