@@ -1,3 +1,5 @@
+import pytest
+
 from utils.text_processing import (
     clean_text,
     extract_keywords,
@@ -456,3 +458,15 @@ class TestTextProcessing:
     def test_truncate_text(self) -> None:
         assert truncate_text("short test", 100) == "short test"
         assert truncate_text("a" * 10, 5) == "aaaaa..."
+
+
+@pytest.mark.ci
+def test_extract_keywords_ci_success() -> None:
+    result = extract_keywords("apple banana apple cherry banana")
+    assert "apple" in result
+    assert "banana" in result
+
+
+@pytest.mark.ci
+def test_extract_keywords_ci_error_path() -> None:
+    assert extract_keywords(None) == []  # type: ignore[arg-type]
