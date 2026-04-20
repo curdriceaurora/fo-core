@@ -440,3 +440,23 @@ jobs:
             echo "FAIL: global integration coverage floor failed"
             exit 1
           fi
+
+  install-size-check:
+    name: Install size gate (≤185 MB)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Measure default install size
+        run: |
+          python -m venv /tmp/fo_size_venv
+          pip install --target /tmp/fo_size_check . -q
+          SIZE_MB=$(du -sm /tmp/fo_size_check | awk '{print $1}')
+          echo "Install size: ${SIZE_MB} MB"
+          if [ "$SIZE_MB" -gt 185 ]; then
+            echo "FAIL: default install is ${SIZE_MB} MB, limit is 185 MB"
+            exit 1
+          fi
+          echo "PASS: default install is ${SIZE_MB} MB (≤185 MB)"
