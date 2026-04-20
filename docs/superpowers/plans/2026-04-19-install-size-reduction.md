@@ -23,6 +23,18 @@ difference between NLTK and Snowball is explicit and reviewable.
 
 - [ ] **Step 1: Run the capture script**
 
+NLTK data must be present for this step. By default, `nltk.download()` saves to
+`~/nltk_data`. Run the download from the repo root so the script finds the data:
+
+```bash
+python -c "import nltk; nltk.download('stopwords'); nltk.download('punkt'); nltk.download('wordnet')"
+```
+
+If the default location is not suitable, set `NLTK_DATA` before running (e.g.
+`NLTK_DATA=/tmp/nltk_data python -c "import nltk; nltk.download(..., download_dir='/tmp/nltk_data')"`).
+
+Then run the capture script from the repo root:
+
 ```bash
 cd /path/to/fo-core
 python - <<'EOF'
@@ -30,7 +42,6 @@ import sys
 sys.path.insert(0, "src")
 from utils.text_processing import get_unwanted_words, clean_text, extract_keywords
 
-# Must have NLTK data available; if not, run: python -c "import nltk; nltk.download('stopwords'); nltk.download('punkt'); nltk.download('wordnet')"
 print("=== get_unwanted_words() ===")
 print(repr(sorted(get_unwanted_words())))
 
@@ -134,21 +145,30 @@ Run from repo root with `PYTHONPATH=src`. Expected: FAIL (numpy import triggered
 
 - [ ] **Step 2: Apply the guard**
 
-Open `src/services/deduplication/__init__.py`. The three unconditional numpy-dependent
-imports are at lines 20–21 and 35:
+Open `src/services/deduplication/__init__.py`. The three numpy-dependent imports
+appear at two separate locations:
+
+- **Lines 20–21** (top-level import area):
+
+  ```python
+  from .document_dedup import DocumentDeduplicator
+  from .embedder import DocumentEmbedder
+  ```
+
+- **Line 35** (further down, after the `ImageDeduplicator` guard):
+
+  ```python
+  from .semantic import SemanticAnalyzer
+  ```
+
+Delete all three individual import lines. At the position of the original lines 20–21
+(top-level import area), insert the single consolidated guard so the hash-based dedup
+path remains importable on a default install:
 
 ```python
-from .document_dedup import DocumentDeduplicator   # line 20
-from .embedder import DocumentEmbedder             # line 21
-from .semantic import SemanticAnalyzer             # line 35
-```
-
-Replace those three lines (keeping all other imports unchanged) with:
-
-```python
-# DocumentEmbedder, SemanticAnalyzer, DocumentDeduplicator require numpy
-# (via sklearn/sentence-transformers). Guard so a default install without
-# the dedup-text extra can still import the hash-based dedup path.
+# DocumentDeduplicator, DocumentEmbedder, SemanticAnalyzer require numpy.
+# Guard so a default install (no dedup-text extra) can still reach the
+# hash-based dedup path without a ModuleNotFoundError.
 try:
     from .document_dedup import DocumentDeduplicator
     from .embedder import DocumentEmbedder
@@ -156,6 +176,9 @@ try:
 except ImportError:
     pass  # numpy not available; hash-based dedup still works
 ```
+
+Do not leave the standalone `from .semantic import SemanticAnalyzer` at line 35 — it
+must be deleted; only the try/except block remains.
 
 - [ ] **Step 3: Add a scope comment to document_dedup.py**
 

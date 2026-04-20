@@ -9,7 +9,7 @@ format coverage.
 
 ## Problem
 
-The default install is 206 MB for a privacy-first CLI file organiser. The two largest
+The default install is 206 MB for a privacy-first CLI file organizer. The two largest
 avoidable costs are:
 
 1. **NLTK** (18 MB package + ~50 MB runtime corpus download on first run) — used only
@@ -192,7 +192,7 @@ numpy imports — guard before dropping numpy from `pyproject.toml`.
 2. A `.rtf` entry in the dispatch table in `utils/readers/__init__.py`
 
 This is the specific surface where "RTF in the default install" becomes real for
-the organise pass.
+the organize pass.
 
 ### 2e. `DocumentDeduplicator` — scope boundary
 
@@ -408,4 +408,4 @@ floor after measuring on CI.
   - Docs: `rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' --glob '!docs/superpowers/specs/**' docs/ README.md CONTRIBUTING.md`
   - pyproject.toml: `rg '^\s*(audio|video|archive|dedup)\s*=' pyproject.toml` (no old extra definitions)
   - CI matrix: `rg '"audio"|"video"|"archive"|"dedup"' .github/workflows/ci-extras.yml` (no old matrix entries)
-  - Test canaries: `ls tests/extras/test_extras_audio.py tests/extras/test_extras_video.py tests/extras/test_extras_archive.py tests/extras/test_extras_dedup.py 2>&1 | grep -v 'No such'` returns nothing
+  - Test canaries: all four old files absent (`test ! -e tests/extras/test_extras_audio.py && echo "audio: absent (OK)"`, same for video, archive, dedup)
