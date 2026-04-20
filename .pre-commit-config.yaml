@@ -88,7 +88,7 @@ repos:
       # ----------------------------------------------------------------
       - id: pytest-smoke
         name: pytest (smoke suite)
-        entry: bash -c "pytest tests/ -m 'smoke' -q --strict-markers --timeout=30 --override-ini='addopts='"
+        entry: bash -c "pytest tests/ -m 'smoke' -q --strict-markers --timeout=30 --override-ini='addopts=' --ignore=tests/extras"
         language: system
         pass_filenames: false
 

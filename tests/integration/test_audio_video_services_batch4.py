@@ -1925,7 +1925,7 @@ class TestTextProcessor:
 
         with patch("services.text_processor.clean_text", return_value="programming"):
             processor = TextProcessor(text_model=mock_model)
-        result = processor._generate_folder_name("Python programming tutorials and guides")
+            result = processor._generate_folder_name("Python programming tutorials and guides")
         # Should be non-empty even with stop-word-only AI response
         assert len(result) >= 1
 

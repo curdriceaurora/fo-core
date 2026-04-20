@@ -129,7 +129,7 @@ class AudioMetadataExtractor:
 
         # Duration and bitrate
         duration = audio.info.length if hasattr(audio.info, "length") else 0.0
-        bitrate = audio.info.bitrate if hasattr(audio.info, "bitrate") else 0
+        bitrate = int(audio.info.bitrate) if hasattr(audio.info, "bitrate") else 0
 
         # Sample rate and channels
         sample_rate = audio.info.sample_rate if hasattr(audio.info, "sample_rate") else 0

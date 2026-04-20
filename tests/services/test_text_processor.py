@@ -162,7 +162,7 @@ class TestTextProcessor:
         ):
             with TextProcessor() as _processor:
                 raise RuntimeError("boom")
-            mock_model.safe_cleanup.assert_called_once()
+        mock_model.safe_cleanup.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

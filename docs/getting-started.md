@@ -100,7 +100,7 @@ File Organizer supports modular installation through optional dependency groups.
 pip install fo-core[cloud]
 
 # Install from source with features
-pip install -e .[media]
+pip install -e ".[media]"
 
 # Install everything
 pip install fo-core[all]
@@ -390,7 +390,7 @@ CPU-only inference works out of the box. Apple Silicon users get hardware accele
 pip install -e ".[media]"
 ```
 
-This installs: `faster-whisper`, `torch`, `opencv-python`, `scenedetect`, `pydub`, `ffmpeg-python`.
+This installs: `faster-whisper`, `torch`, `opencv-python`, `scenedetect`, `pydub`.
 
 The `torch` package is approximately 2 GB. For CPU-only environments, install the CPU-only variant first:
 

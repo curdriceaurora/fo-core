@@ -591,9 +591,11 @@ class TestReadRtfFileCi:
         rtf_path = tmp_path / "test.rtf"
         rtf_path.write_text("{\\rtf1 hello}", encoding="latin-1")
 
-        with patch("utils.readers.documents.STRIPRTF_AVAILABLE", False):
-            with pytest.raises(ImportError, match="striprtf is required"):
-                read_rtf_file(rtf_path)
+        with (
+            patch("utils.readers.documents.STRIPRTF_AVAILABLE", False),
+            pytest.raises(ImportError, match="striprtf is required"),
+        ):
+            read_rtf_file(rtf_path)
 
     def test_rtf_success_path(self, tmp_path: Path) -> None:
         from utils.readers.documents import read_rtf_file
@@ -603,8 +605,7 @@ class TestReadRtfFileCi:
 
         result = read_rtf_file(rtf_path)
 
-        assert isinstance(result, str)
-        assert len(result) > 0
+        assert "hello world" in result
 
     def test_rtf_exception_raises_file_read_error(self, tmp_path: Path) -> None:
         from utils.readers._base import FileReadError
@@ -613,6 +614,8 @@ class TestReadRtfFileCi:
         rtf_path = tmp_path / "bad.rtf"
         rtf_path.write_text("{\\rtf1 content}", encoding="latin-1")
 
-        with patch("utils.readers.documents._rtf_to_text", side_effect=RuntimeError("boom")):
-            with pytest.raises(FileReadError, match="Failed to read RTF"):
-                read_rtf_file(rtf_path)
+        with (
+            patch("utils.readers.documents._rtf_to_text", side_effect=RuntimeError("boom")),
+            pytest.raises(FileReadError, match="Failed to read RTF"),
+        ):
+            read_rtf_file(rtf_path)

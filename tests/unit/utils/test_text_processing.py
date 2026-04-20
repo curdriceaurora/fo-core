@@ -463,8 +463,7 @@ class TestTextProcessing:
 @pytest.mark.ci
 def test_extract_keywords_ci_success() -> None:
     result = extract_keywords("apple banana apple cherry banana")
-    assert "apple" in result
-    assert "banana" in result
+    assert result == ["apple", "banana", "cherry"]
 
 
 @pytest.mark.ci

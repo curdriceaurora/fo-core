@@ -24,4 +24,6 @@ def test_image_deduplicator_importable() -> None:
 
 def test_dedup_text_stack_available() -> None:
     """dedup-image declares fo-core[dedup-text]; verify sklearn came in."""
-    from services.deduplication.embedder import DocumentEmbedder  # noqa: F401
+    from services.deduplication.embedder import DocumentEmbedder
+
+    DocumentEmbedder()  # instantiate to verify sklearn integration is functional

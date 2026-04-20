@@ -9,7 +9,9 @@ pytestmark = pytest.mark.smoke
 
 @pytest.fixture(autouse=True)
 def _require_dedup_text() -> None:
-    pytest.importorskip("sklearn")
+    # Hard imports — missing packages mean the extra is broken, not just skippable.
+    import numpy  # noqa: F401
+    import sklearn  # noqa: F401
 
 
 def test_sklearn_importable() -> None:

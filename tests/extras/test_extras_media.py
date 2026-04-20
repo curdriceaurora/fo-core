@@ -45,6 +45,7 @@ def test_opencv_read_write_cycle(tmp_path: Path) -> None:
 
     video_path = str(tmp_path / "clip.mp4")
     out = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 10, (64, 64))
+    assert out.isOpened(), "VideoWriter failed to open — mp4v codec unavailable"
     for _ in range(5):
         out.write(np.zeros((64, 64, 3), dtype=np.uint8))
     out.release()

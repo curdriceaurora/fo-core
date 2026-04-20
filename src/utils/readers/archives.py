@@ -282,5 +282,10 @@ def read_rar_file(file_path: str | Path, max_files: int = 50) -> str:
             )
             return text
 
+    except rarfile.RarCannotExec as e:
+        raise FileReadError(
+            f"Failed to read RAR file {file_path}: unrar tool not found. "
+            "Install the unrar command-line tool to extract RAR archives."
+        ) from e
     except Exception as e:  # Intentional catch-all: rarfile raises library-specific errors
         raise FileReadError(f"Failed to read RAR file {file_path}: {e}") from e

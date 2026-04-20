@@ -18,8 +18,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-np = pytest.importorskip("numpy")
-
 if TYPE_CHECKING:
     from services.deduplication.embedder import DocumentEmbedder
 
@@ -94,6 +92,11 @@ def _make_embedder_with_fake_sklearn(**kw: Any) -> DocumentEmbedder:
 @pytest.mark.integration
 class TestDocumentEmbedderWithFakeSklearn:
     """Cover lines 56-322 in embedder.py via a fake TfidfVectorizer."""
+
+    @pytest.fixture(autouse=True)
+    def _require_numpy(self) -> None:
+        global np
+        np = pytest.importorskip("numpy")
 
     def test_fit_transform_returns_array(self) -> None:
         emb = _make_embedder_with_fake_sklearn()
