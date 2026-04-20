@@ -129,6 +129,7 @@ except Exception as e:
     print(f"FAIL: {e}")
 EOF
 ```
+
 Run from repo root with `PYTHONPATH=src`. Expected: FAIL (numpy import triggered).
 
 - [ ] **Step 2: Apply the guard**
@@ -491,18 +492,22 @@ git add tests/unit/utils/test_text_processing.py
 - [ ] **Step 1: Remove the import**
 
 Find line 18:
+
 ```python
     ensure_nltk_data,
 ```
+
 Delete it. Verify `ensure_nltk_data` does not appear anywhere else in the import block.
 
 - [ ] **Step 2: Remove the call**
 
 Find line 110:
+
 ```python
         # Ensure NLTK data is available
         ensure_nltk_data()
 ```
+
 Delete both lines.
 
 - [ ] **Step 3: Stage the change — commit deferred to Task 11**
@@ -525,6 +530,7 @@ git add src/services/text_processor.py
 - [ ] **Step 1: Remove from [project.dependencies]**
 
 Find and delete these two lines from the `[project.dependencies]` list:
+
 ```toml
 "nltk~=3.8",
 "numpy~=1.24",
@@ -533,6 +539,7 @@ Find and delete these two lines from the `[project.dependencies]` list:
 - [ ] **Step 2: Add new default dependencies**
 
 Add to `[project.dependencies]` (alphabetical order within the list):
+
 ```toml
 "mutagen~=1.47",
 "py7zr>=0.20.0",
@@ -570,6 +577,7 @@ dedup-image = [
 ```
 
 **Update** the `all` meta-extra to reference new names:
+
 ```toml
 all = [
     "fo-core[dev,cloud,llama,mlx,claude,media,dedup-text,dedup-image,scientific,cad,build,search]",
@@ -1280,9 +1288,11 @@ Update the extras table to show `media`, `dedup-text`, `dedup-image` instead of 
 - [ ] **Step 3: Update CONTRIBUTING.md dev setup**
 
 Find the NLTK download step (around line 341). Delete:
+
 ```
 python -c "import nltk; nltk.download('stopwords')..." 
 ```
+
 or similar. Update any extras names in the dev setup instructions.
 
 - [ ] **Step 4: Remove stub_nltk reference from docs/developer/testing.md**
