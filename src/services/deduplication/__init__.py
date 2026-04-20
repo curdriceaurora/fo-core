@@ -17,8 +17,15 @@ try:
     from .image_dedup import ImageDeduplicator
 except ImportError:
     ImageDeduplicator = None  # type: ignore[assignment,misc]
-from .document_dedup import DocumentDeduplicator
-from .embedder import DocumentEmbedder
+# DocumentDeduplicator, DocumentEmbedder, SemanticAnalyzer require numpy.
+# Guard so a default install (no dedup-text extra) can still reach the
+# hash-based dedup path without a ModuleNotFoundError.
+try:
+    from .document_dedup import DocumentDeduplicator
+    from .embedder import DocumentEmbedder
+    from .semantic import SemanticAnalyzer
+except ImportError:
+    pass  # numpy not available; hash-based dedup still works
 from .extractor import DocumentExtractor
 from .image_utils import (
     ImageMetadata,
@@ -32,7 +39,6 @@ from .image_utils import (
 )
 from .index import DuplicateIndex
 from .reporter import StorageReporter
-from .semantic import SemanticAnalyzer
 
 __all__ = [
     # Hash-based deduplication
