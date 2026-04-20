@@ -4,11 +4,11 @@ name: Extras Validation
 # file-capability extras) passes a minimal smoke canary test.
 #
 # Extras classification:
-#   file-capability (install + import + smoke): audio, video, dedup, archive, scientific, cad
+#   file-capability (install + import + smoke): media, dedup-text, dedup-image, scientific, cad
 #   platform/API    (install + import only):    cloud, llama, claude, mlx
 #
 # mlx is Darwin-only and runs on macos-latest.
-# llama/audio may take 5-10 min to install due to large binary wheels (llama-cpp, torch).
+# media/dedup-image may take 20-40 min to install due to large binary wheels (torch, cv2).
 
 on:
   pull_request:
@@ -37,11 +37,24 @@ jobs:
       matrix:
         include:
           # --- File capability extras (install + import + smoke canary) ---
-          - extra: archive
+          - extra: media
             os: ubuntu-latest
-            timeout_minutes: 10
-            key_import: "import py7zr; import rarfile; print('OK')"
+            timeout_minutes: 30
+            key_import: "import faster_whisper; import cv2; print('OK')"
             smoke: "true"
+            test_file: tests/extras/test_extras_media.py
+          - extra: dedup-text
+            os: ubuntu-latest
+            timeout_minutes: 20
+            key_import: "import sklearn; print('OK')"
+            smoke: "true"
+            test_file: tests/extras/test_extras_dedup_text.py
+          - extra: dedup-image
+            os: ubuntu-latest
+            timeout_minutes: 40
+            key_import: "import imagededup; import torch; print('OK')"
+            smoke: "true"
+            test_file: tests/extras/test_extras_dedup_image.py
           - extra: scientific
             os: ubuntu-latest
             timeout_minutes: 10
@@ -51,21 +64,6 @@ jobs:
             os: ubuntu-latest
             timeout_minutes: 10
             key_import: "import ezdxf; print('OK')"
-            smoke: "true"
-          - extra: dedup
-            os: ubuntu-latest
-            timeout_minutes: 15
-            key_import: "import imagededup; import sklearn; import pypdf; import striprtf; print('OK')"
-            smoke: "true"
-          - extra: video
-            os: ubuntu-latest
-            timeout_minutes: 15
-            key_import: "import cv2; import scenedetect; print('OK')"
-            smoke: "true"
-          - extra: audio
-            os: ubuntu-latest
-            timeout_minutes: 20  # torch download is large
-            key_import: "import faster_whisper; import mutagen; import tinytag; import pydub; import torch; print('OK')"
             smoke: "true"
           # --- Platform/API extras (install + import only) ---
           - extra: cloud
@@ -106,7 +104,8 @@ jobs:
       - name: Run smoke canary
         if: matrix.smoke == 'true'
         run: |
-          pytest tests/extras/test_extras_${{ matrix.extra }}.py \
+          TEST_FILE="${{ matrix.test_file || format('tests/extras/test_extras_{0}.py', matrix.extra) }}"
+          pytest "$TEST_FILE" \
             -m "smoke" \
             -x \
             -v \
