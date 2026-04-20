@@ -62,7 +62,7 @@ Install the audio processing dependencies:
 
 ```bash
 # From your File Organizer directory
-pip install -e ".[audio]"
+pip install -e ".[media]"
 ```
 
 This installs:
@@ -485,7 +485,7 @@ Install the video processing dependencies:
 
 ```bash
 # From your File Organizer directory
-pip install -e ".[video]"
+pip install -e ".[media]"
 ```
 
 This installs:
@@ -1320,7 +1320,7 @@ except ImportError as e:
 
 If any verification step fails, refer to the troubleshooting sections in the Audio Transcription and Video Analysis sections above, or check:
 
-1. **Import errors**: Reinstall dependencies with `pip install -e ".[audio]"` or `pip install -e ".[video]"`
+1. **Import errors**: Reinstall dependencies with `pip install -e ".[media]"`
 2. **FFmpeg not found**: Install FFmpeg following instructions in the respective sections
 3. **CUDA errors**: Update GPU drivers or use CPU mode
 4. **File not found**: Ensure file paths are correct and files exist

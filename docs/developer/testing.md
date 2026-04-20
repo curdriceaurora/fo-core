@@ -163,7 +163,6 @@ pytest tests/integration/test_error_propagation.py -v
 | `stub_text_model_generate` | Patches `TextModel._do_generate()` with deterministic responses |
 | `stub_vision_model_init` | Patches `VisionModel.initialize()` to skip Ollama client setup |
 | `stub_vision_model_generate` | Patches `VisionModel._do_generate()` with deterministic responses |
-| `stub_nltk` | No-ops `ensure_nltk_data()` |
 | `integration_source_dir` | Temp directory with `.txt`, `.csv`, `.md` files |
 | `integration_output_dir` | Clean temp output directory |
 | `isolated_config_dir` | Temp config directory (no user config interference) |
@@ -187,7 +186,6 @@ class TestModelErrors:
     def test_model_exception_uses_fallback_values(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
         integration_source_dir: Path,
     ) -> None:
         """When model.generate() raises, TextProcessor uses fallback values."""

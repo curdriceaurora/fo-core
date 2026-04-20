@@ -84,10 +84,9 @@ File Organizer supports modular installation through optional dependency groups.
 | **llama** | `pip install fo-core[llama]` | Direct GGUF inference via llama.cpp (no Ollama server needed) | All platforms |
 | **mlx** | `pip install fo-core[mlx]` | Apple Silicon MLX acceleration for faster local inference | **macOS only** |
 | **claude** | `pip install fo-core[claude]` | Anthropic Claude API provider (text and vision) | Requires `ANTHROPIC_API_KEY` |
-| **audio** | `pip install fo-core[audio]` | Audio transcription (Faster Whisper), metadata extraction | GPU recommended |
-| **video** | `pip install fo-core[video]` | Video frame processing, scene detection | All platforms |
-| **dedup** | `pip install fo-core[dedup]` | Image and text similarity-based duplicate detection | All platforms |
-| **archive** | `pip install fo-core[archive]` | 7Z and RAR archive extraction | RAR requires `unrar` tool |
+| **media** | `pip install fo-core[media]` | Audio transcription (Faster Whisper) + video scene detection (OpenCV) | GPU recommended for audio |
+| **dedup-text** | `pip install fo-core[dedup-text]` | TF-IDF/cosine text similarity deduplication | All platforms |
+| **dedup-image** | `pip install fo-core[dedup-image]` | Image perceptual-hash duplicate detection | All platforms |
 | **scientific** | `pip install fo-core[scientific]` | HDF5, NetCDF, MATLAB file format support | All platforms |
 | **cad** | `pip install fo-core[cad]` | DXF/DWG CAD file parsing | All platforms |
 | **build** | `pip install fo-core[build]` | PyInstaller-based executable packaging | All platforms |
@@ -101,7 +100,7 @@ File Organizer supports modular installation through optional dependency groups.
 pip install fo-core[cloud]
 
 # Install from source with features
-pip install -e .[audio]
+pip install -e .[media]
 
 # Install everything
 pip install fo-core[all]
@@ -385,19 +384,19 @@ python3 -c "import torch; print('CUDA:', torch.cuda.is_available()); print('cuDN
 
 CPU-only inference works out of the box. Apple Silicon users get hardware acceleration via MPS automatically.
 
-### Installing the Audio Pack
+### Installing the Media Pack
 
 ```bash
-pip install -e ".[audio]"
+pip install -e ".[media]"
 ```
 
-This installs: `faster-whisper`, `torch`, `mutagen`, `tinytag`, `pydub`, `ffmpeg-python`.
+This installs: `faster-whisper`, `torch`, `opencv-python`, `scenedetect`, `pydub`, `ffmpeg-python`.
 
 The `torch` package is approximately 2 GB. For CPU-only environments, install the CPU-only variant first:
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -e ".[audio]"
+pip install -e ".[media]"
 ```
 
 If the audio pack is not installed, audio files (`.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg`) are still detected and moved by the organizer but will not be transcribed or analyzed for content.

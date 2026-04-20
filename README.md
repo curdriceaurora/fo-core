@@ -64,10 +64,9 @@ Optional cloud providers via extras:
 
 | Pack | Install | What it adds |
 |------|---------|-------------|
-| Audio | `pip install -e ".[audio]"` | Speech-to-text via faster-whisper |
-| Video | `pip install -e ".[video]"` | Scene detection, keyframe extraction |
-| Dedup | `pip install -e ".[dedup]"` | Image similarity, semantic dedup |
-| Archive | `pip install -e ".[archive]"` | 7z and RAR support |
+| Media | `pip install -e ".[media]"` | Audio transcription + video scene detection |
+| Dedup text | `pip install -e ".[dedup-text]"` | TF-IDF/cosine text deduplication |
+| Dedup image | `pip install -e ".[dedup-image]"` | Image similarity deduplication |
 | Scientific | `pip install -e ".[scientific]"` | HDF5, NetCDF, MATLAB formats |
 | CAD | `pip install -e ".[cad]"` | DXF/DWG support |
 | Search | `pip install -e ".[search]"` | BM25 + vector search |

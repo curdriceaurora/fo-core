@@ -49,10 +49,9 @@ Extend functionality by installing optional dependency groups:
 | Claude | `pip install -e ".[claude]"` | Anthropic Claude API provider (text + vision) |
 | LLaMA | `pip install -e ".[llama]"` | Local llama.cpp inference (GGUF models, no Ollama needed) |
 | MLX | `pip install -e ".[mlx]"` | Apple Silicon MLX acceleration for faster local inference |
-| Audio | `pip install -e ".[audio]"` | Speech-to-text transcription (faster-whisper, torch) |
-| Video | `pip install -e ".[video]"` | Scene detection, keyframe extraction (OpenCV) |
-| Dedup | `pip install -e ".[dedup]"` | Image deduplication (perceptual hashing) |
-| Archive | `pip install -e ".[archive]"` | 7z and RAR archive support |
+| Media | `pip install -e ".[media]"` | Audio transcription + video scene detection (faster-whisper, OpenCV) |
+| Dedup text | `pip install -e ".[dedup-text]"` | TF-IDF/cosine text deduplication (scikit-learn) |
+| Dedup image | `pip install -e ".[dedup-image]"` | Image deduplication (perceptual hashing) |
 | Scientific | `pip install -e ".[scientific]"` | HDF5, NetCDF, MATLAB file support |
 | CAD | `pip install -e ".[cad]"` | DXF and other CAD format support |
 | Build | `pip install -e ".[build]"` | Executable packaging (PyInstaller) |
@@ -230,7 +229,7 @@ fo dedupe report ~/Documents
 ```
 
 !!! note
-    Image deduplication requires the dedup optional pack: `pip install -e ".[dedup]"`
+    Image deduplication requires the dedup-image optional pack: `pip install -e ".[dedup-image]"`
 
 ## Auto-Tagging
 
