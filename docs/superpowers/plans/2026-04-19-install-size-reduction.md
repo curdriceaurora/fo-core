@@ -623,14 +623,24 @@ pip install --dry-run . 2>&1 | head -20
 
 Expected: no errors about missing packages.
 
-- [ ] **Step 6: Commit pyproject.toml only**
+- [ ] **Step 6: Commit only the new additions — defer nltk/numpy removal to Task 11**
 
-Tasks 4, 5, 9, and 10 have staged changes that are intentionally held until Task 11.
-Use a path-limited commit so those staged files are not swept up here:
+Removing `nltk` and `numpy` from `[project.dependencies]` before the source and test
+cleanup is committed (Task 11) leaves the tree in a state where the installed package
+no longer provides `nltk`, but committed tests still patch `utils.text_processing.nltk`
+and call `ensure_nltk_data`. To keep every commit green, split the pyproject.toml work:
+
+**Commit now** (additions only — removes nothing):
 
 ```bash
-git commit -- pyproject.toml -m "feat(deps): remove nltk+numpy from default; add snowballstemmer, striprtf, pypdf, py7zr, rarfile, mutagen, tinytag; restructure extras"
+git commit -- pyproject.toml -m "feat(deps): add snowballstemmer, striprtf, pypdf, py7zr, rarfile, mutagen, tinytag; restructure extras to media/dedup-text/dedup-image"
 ```
+
+> **Note:** Leave the `"nltk~=3.8"` and `"numpy~=1.24"` deletion lines **unstaged** for
+> now. They will be included in the Task 11 atomic commit together with the source and
+> test cleanup, so no committed state has nltk removed while tests still import it.
+> In your editor, commit only the additions (new deps + extras restructure) and revert
+> the two deletion lines until Task 11.
 
 ---
 
@@ -643,7 +653,7 @@ git commit -- pyproject.toml -m "feat(deps): remove nltk+numpy from default; add
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# In tests/utils/test_readers.py (or appropriate existing test file)
+# Add to tests/utils/test_file_readers.py (the existing reader test file)
 def test_read_rtf_file_returns_text(tmp_path: Path) -> None:
     rtf_file = tmp_path / "sample.rtf"
     rtf_file.write_bytes(
@@ -657,7 +667,7 @@ def test_read_rtf_file_returns_text(tmp_path: Path) -> None:
 - [ ] **Step 2: Run to confirm it fails**
 
 ```bash
-pytest tests/utils/test_readers.py::test_read_rtf_file_returns_text -v
+pytest tests/utils/test_file_readers.py::test_read_rtf_file_returns_text -v
 ```
 
 Expected: FAIL (`.rtf` not in dispatch table)
@@ -714,7 +724,7 @@ Expected: PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/utils/readers/documents.py src/utils/readers/__init__.py tests/utils/test_readers.py
+git add src/utils/readers/documents.py src/utils/readers/__init__.py tests/utils/test_file_readers.py
 git commit -m "feat(readers): add RTF reader using striprtf; wire .rtf into dispatch table"
 ```
 
@@ -923,8 +933,9 @@ staged in Tasks 4, 5, 9, 10, and the work just completed in this task:
 
 ```bash
 git add -u
-git commit -m "feat: replace NLTK with snowballstemmer and remove NLTK from defaults
+git commit -m "feat: replace NLTK with snowballstemmer and remove nltk/numpy from default deps
 
+- pyproject.toml: remove nltk~=3.8 and numpy~=1.24 from [project.dependencies]
 - utils/text_processing.py: replace word_tokenize/WordNetLemmatizer/FreqDist
   with re.findall + snowballstemmer.Stemmer + collections.Counter
 - services/text_processor.py: remove ensure_nltk_data call
@@ -1164,8 +1175,10 @@ pytestmark = pytest.mark.smoke
 
 @pytest.fixture(autouse=True)
 def _require_dedup_image() -> None:
-    pytest.importorskip("imagededup")
-    pytest.importorskip("torch")
+    # Hard imports — missing package means the extra is broken, not skippable.
+    import imagededup  # noqa: F401
+    import sklearn     # noqa: F401  verifies fo-core[dedup-text] self-dep resolved
+    import torch       # noqa: F401
 
 
 def test_imagededup_importable() -> None:
@@ -1174,6 +1187,11 @@ def test_imagededup_importable() -> None:
 
 def test_image_deduplicator_importable() -> None:
     from services.deduplication.image_dedup import ImageDeduplicator  # noqa: F401
+
+
+def test_dedup_text_stack_available() -> None:
+    """dedup-image declares fo-core[dedup-text]; verify sklearn came in."""
+    from services.deduplication.embedder import DocumentEmbedder  # noqa: F401
 ```
 
 - [ ] **Step 4: Delete old canary files**

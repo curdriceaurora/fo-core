@@ -204,7 +204,19 @@ After the `__init__.py` guard is added (Section 2c), add a comment:
 # DocumentDeduplicator: requires dedup-text extra; CLI integration tracked separately
 ```
 
-### 2f. `tqdm` — no change
+### 2f. `src/cli/doctor.py` — extra recommendation registry
+
+`doctor.py` contains a file-extension → extra name mapping (e.g. `.mp3` → `"audio"`,
+`.7z` → `"archive"`, `.zip`/`.rar` → `"archive"`). This registry drives the
+`fo doctor` command's install suggestions. It must be updated alongside the extras:
+
+- `.mp3`, `.wav`, `.flac`, `.ogg`, `.m4a`, `.wma`, `.aac`, `.opus` → `"media"` (was `"audio"`)
+- `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv`, `.webm` → `"media"` (was `"video"`)
+- `.7z`, `.rar`, `.tar.gz` → remove entry (py7zr + rarfile now in default, no extra needed)
+
+Update `tests/unit/test_doctor_registry.py` to assert the new mapping.
+
+### 2g. `tqdm` — no change
 
 Used only in `cli/dedupe_hash.py`. At 200 KB it is not worth conditionalising.
 
@@ -400,12 +412,14 @@ floor after measuring on CI.
 - [ ] `pip install '.[dedup-text]'` (local checkout) installs and canary imports pass
 - [ ] `pip install '.[dedup-image]'` (local checkout) installs and canary imports pass
 - [ ] `pymarkdown scan docs/` passes (zero violations)
-- [ ] `rg -i 'nltk|ensure_nltk_data|stub_nltk|mock_nltk' --glob '!docs/superpowers/specs/**' src/ .github/ tests/ docs/ README.md CONTRIBUTING.md pyproject.toml` returns zero hits
+- [ ] `rg -i 'nltk|ensure_nltk_data|stub_nltk|mock_nltk' --glob '!docs/superpowers/specs/**' --glob '!docs/superpowers/plans/**' src/ .github/ tests/ docs/ README.md CONTRIBUTING.md pyproject.toml` returns zero hits
 - [ ] No remaining unconditional `import numpy` reachable from a default install
 - [ ] `.rtf` files routed through `utils/readers` dispatch table
+- [ ] `src/cli/doctor.py` extra recommendations updated: `audio`/`video` → `media`, `archive` removed, `dedup` → `dedup-text`/`dedup-image`
 - [ ] All updated doc files verified against source (D1 rule)
 - [ ] Old extras removed from all surfaces — all of the following return zero hits:
-  - Docs: `rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' --glob '!docs/superpowers/specs/**' docs/ README.md CONTRIBUTING.md`
+  - Docs: `rg '\[audio\]|\[video\]|\[archive\]|\[dedup\]' --glob '!docs/superpowers/specs/**' --glob '!docs/superpowers/plans/**' docs/ README.md CONTRIBUTING.md`
   - pyproject.toml: `rg '^\s*(audio|video|archive|dedup)\s*=' pyproject.toml` (no old extra definitions)
-  - CI matrix: `rg '"audio"|"video"|"archive"|"dedup"' .github/workflows/ci-extras.yml` (no old matrix entries)
+  - CI matrix: `rg 'extra:\s*(audio|video|archive|dedup)\b' .github/workflows/ci-extras.yml` (no old YAML matrix entries)
+  - Source + tests: `rg '"audio"|"video"|"archive"|"dedup"' src/cli/doctor.py tests/unit/test_doctor_registry.py` returns zero hits
   - Test canaries: all four old files absent (`test ! -e tests/extras/test_extras_audio.py && echo "audio: absent (OK)"`, same for video, archive, dedup)
