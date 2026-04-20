@@ -65,7 +65,8 @@ def _make_7z(tmp_path: Path, name: str, files: dict[str, bytes]) -> Path:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(content)
         staged.append((dest, filename))
-    py7zr = pytest.importorskip("py7zr")
+    import py7zr
+
     with py7zr.SevenZipFile(archive_path, "w") as archive:
         for dest, arcname in staged:
             archive.write(dest, arcname)
@@ -78,10 +79,6 @@ def _make_7z(tmp_path: Path, name: str, files: dict[str, bytes]) -> Path:
 
 
 class TestRead7zFileHappyPath:
-    @pytest.fixture(autouse=True)
-    def _require_py7zr(self) -> None:
-        pytest.importorskip("py7zr")
-
     def test_7z_returns_string(self, tmp_path: Path) -> None:
         from utils.readers.archives import read_7z_file
 

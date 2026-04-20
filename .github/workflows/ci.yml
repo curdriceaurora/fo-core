@@ -442,7 +442,7 @@ jobs:
           fi
 
   install-size-check:
-    name: Install size gate (≤205 MB)
+    name: Install size gate (≤215 MB)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -454,8 +454,8 @@ jobs:
           python -m pip install --target /tmp/fo_size_check . -q
           SIZE_MB=$(du -sm /tmp/fo_size_check | awk '{print $1}')
           echo "Install size: ${SIZE_MB} MB"
-          if [ "$SIZE_MB" -gt 205 ]; then
-            echo "FAIL: default install is ${SIZE_MB} MB, limit is 205 MB"
+          if [ "$SIZE_MB" -gt 215 ]; then
+            echo "FAIL: default install is ${SIZE_MB} MB, limit is 215 MB"
             exit 1
           fi
-          echo "PASS: default install is ${SIZE_MB} MB (≤205 MB)"
+          echo "PASS: default install is ${SIZE_MB} MB (≤215 MB)"

@@ -44,6 +44,9 @@ dependencies = [
     "snowballstemmer>=2.2.0",   # Lightweight stemming (no NLTK data download required)
     "striprtf>=0.0.26",         # RTF file text extraction
     "tinytag~=2.2",             # Lightweight audio metadata fallback
+    "py7zr>=0.20.0",            # 7Z archive support
+    "pypdf~=6.10",              # PDF text extraction fallback
+    "rarfile~=4.1",             # RAR archive support (requires unrar tool)
 
     # NLP and data science
     "tqdm~=4.66",
@@ -151,12 +154,6 @@ cad = [
     "ezdxf~=1.1",  # DXF/DWG CAD file format support
 ]
 
-archive = [
-    "py7zr>=0.20.0",    # 7Z archive support
-    "pypdf~=6.10",       # PDF text extraction fallback
-    "rarfile~=4.1",      # RAR archive support (requires unrar tool)
-]
-
 build = [
     "pyinstaller~=6.0",  # Cross-platform executable packaging
 ]
@@ -176,7 +173,7 @@ search = [
 ]
 
 all = [
-    "fo-core[dev,cloud,llama,mlx,claude,media,dedup-text,dedup-image,archive,scientific,cad,build,search]",
+    "fo-core[dev,cloud,llama,mlx,claude,media,dedup-text,dedup-image,scientific,cad,build,search]",
 ]
 
 [project.scripts]

@@ -278,13 +278,12 @@ corresponding extra is present):
 | `faster_whisper` | `audio` | Speech-to-text |
 | `cv2` | `video` | OpenCV |
 | `imagededup` | `dedup` | Image deduplication |
-| `py7zr` | `archive` | 7-zip support |
-| `rarfile` | `archive` | RAR support |
 | `h5py` | `scientific` | HDF5 |
 | `ezdxf` | `cad` | DXF/DWG |
 
 **Core deps — no guard needed**: `fitz` (PyMuPDF), `docx` (python-docx), `openpyxl`,
-`pptx` (python-pptx), `ebooklib`, `bs4` (beautifulsoup4) are in the base install.
+`pptx` (python-pptx), `ebooklib`, `bs4` (beautifulsoup4), `py7zr`, `pypdf`, `rarfile`
+are in the base install.
 
 **Pre-generation check**: Before writing any test that imports from the optional list,
 add a class-level `@pytest.fixture(autouse=True)` that calls
