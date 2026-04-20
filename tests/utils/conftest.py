@@ -23,10 +23,7 @@ def mock_nltk_globally(
     This fixture patches NLTK imports at module level to ensure tests work
     in clean containers without host NLTK corpus data.
     """
-    with (
-        patch("utils.text_processing.word_tokenize", mock_nltk_tokenizer),
-        patch("utils.text_processing.stopwords", mock_nltk_stopwords),
-        patch("utils.text_processing.WordNetLemmatizer", mock_nltk_lemmatizer),
-        patch("utils.text_processing.nltk.probability.FreqDist", mock_nltk_freqdist),
-    ):
-        yield
+    # NLTK was removed from utils.text_processing (replaced by snowballstemmer).
+    # These patches are kept as no-ops to preserve fixture signatures used by
+    # other test files that still declare these fixtures.
+    yield

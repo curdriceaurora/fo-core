@@ -3,96 +3,20 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 
-try:
-    import nltk
-    from nltk.corpus import stopwords
-    from nltk.stem import WordNetLemmatizer
-    from nltk.tokenize import word_tokenize
-
-    NLTK_AVAILABLE = True
-except ImportError:
-    NLTK_AVAILABLE = False
+from snowballstemmer import stemmer as Stemmer
 
 from loguru import logger
 
-# Module-level flag to track one-time NLTK initialization (idempotent)
-_nltk_ready: bool = False
-
-
-def ensure_nltk_data() -> None:  # noqa: C901
-    """Ensure required NLTK datasets are present for text processing.
-
-    Idempotent function that initializes NLTK resources once per session. Returns immediately
-    on subsequent calls. If NLTK is not installed this function logs a warning and returns.
-    For each required dataset ('stopwords', 'punkt', 'wordnet') it verifies availability and
-    attempts download when missing, logging informational and debug messages for download
-    attempts and warnings on failure. This function does not raise; failures are reported via logs.
-    """
-    global _nltk_ready
-
-    if _nltk_ready:
-        return
-
-    if not NLTK_AVAILABLE:
-        logger.warning("NLTK not available, text processing will be limited")
-        return
-
-    datasets = ["stopwords", "punkt", "wordnet"]
-    for dataset in datasets:
-        try:
-            # Try to load the dataset
-            if dataset == "stopwords":
-                stopwords.words("english")
-            elif dataset == "punkt":
-                # Check if punkt or punkt_tab is available (3.8+ uses punkt_tab)
-                try:
-                    word_tokenize("test")
-                except LookupError:
-                    # If punkt fails, it might be because punkt_tab is needed (NLTK 3.8+)
-                    logger.debug("punkt not available, trying punkt_tab")
-                    try:
-                        if nltk.download("punkt_tab", quiet=True):
-                            word_tokenize("test")
-                        else:
-                            raise LookupError("punkt_tab download failed")
-                    except LookupError:
-                        # If punkt_tab also fails, fall back to punkt (older NLTK versions)
-                        logger.debug("punkt_tab failed, falling back to punkt")
-                        try:
-                            if nltk.download("punkt", quiet=True):
-                                word_tokenize("test")
-                            else:
-                                raise LookupError("punkt download failed")
-                        except LookupError as e:
-                            logger.debug(f"Failed to load punkt: {e}")
-            elif dataset == "wordnet":
-                from nltk.corpus import wordnet
-
-                wordnet.synsets("test")
-        except LookupError:
-            # Dataset not found, download it
-            try:
-                logger.info(f"Downloading NLTK dataset: {dataset}")
-                if not nltk.download(dataset, quiet=True):
-                    logger.warning(f"Failed to download NLTK dataset: {dataset}")
-                    continue
-                # Verify download succeeded by attempting to load the dataset
-                if dataset == "stopwords":
-                    stopwords.words("english")
-                elif dataset == "wordnet":
-                    from nltk.corpus import wordnet
-
-                    wordnet.synsets("test")
-                logger.debug(f"NLTK dataset {dataset} downloaded and verified successfully")
-            except (OSError, LookupError, ValueError, RuntimeError) as e:
-                logger.warning(f"Failed to download NLTK {dataset}: {e}")
-        except (OSError, ValueError, RuntimeError) as e:
-            # Dataset exists but failed to load
-            logger.debug(f"NLTK dataset check failed for {dataset}: {e}")
-
-    _nltk_ready = True
-    logger.debug("NLTK data verified and ready")
+_ENGLISH_STOPWORDS: frozenset[str] = frozenset({
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
+    "from", "has", "he", "in", "is", "it", "its", "of", "on", "or",
+    "that", "the", "to", "was", "will", "with", "i", "you", "we",
+    "they", "she", "him", "her", "me", "us", "can", "could", "would",
+    "should", "do", "does", "did", "have", "having", "not", "no",
+    "nor", "so", "than", "too", "very", "just", "own", "same",
+})
 
 
 def get_unwanted_words() -> set[str]:
@@ -234,12 +158,7 @@ def get_unwanted_words() -> set[str]:
         "md",
     }
 
-    # Add NLTK stopwords if available
-    if NLTK_AVAILABLE:
-        try:
-            unwanted.update(stopwords.words("english"))
-        except LookupError:
-            logger.warning("NLTK stopwords not available")
+    unwanted.update(_ENGLISH_STOPWORDS)
 
     return unwanted
 
@@ -256,7 +175,7 @@ def clean_text(
         text: Input text to clean
         max_words: Maximum number of words to keep
         remove_unwanted: Whether to remove unwanted words
-        lemmatize: Whether to lemmatize words
+        lemmatize: Whether to stem words (Snowball stemmer)
 
     Returns:
         Cleaned text with words joined by underscores
@@ -272,26 +191,13 @@ def clean_text(
     # Split concatenated words (camelCase, PascalCase)
     text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
 
-    # Tokenize
-    if NLTK_AVAILABLE:
-        try:
-            words = word_tokenize(text.lower())
-        except LookupError:
-            # Fallback if NLTK data not available
-            words = text.lower().split()
-    else:
-        words = text.lower().split()
+    # Tokenize — ASCII words only; unicode letters are excluded (accepted trade-off
+    # vs NLTK's unicode-aware word_tokenize; fo-core filenames are ASCII-dominated)
+    words = re.findall(r'\b[a-z]+\b', text.lower())
 
-    # Filter alpha-only words
-    words = [word for word in words if word.isalpha()]
-
-    # Lemmatize if available
-    if lemmatize and NLTK_AVAILABLE:
-        try:
-            lemmatizer = WordNetLemmatizer()
-            words = [lemmatizer.lemmatize(word) for word in words]
-        except (LookupError, ValueError, OSError) as e:
-            logger.debug(f"Lemmatization failed: {e}")
+    if lemmatize:
+        _stemmer = Stemmer("english")
+        words = [_stemmer.stemWord(word) for word in words]
 
     # Remove unwanted words and duplicates
     if remove_unwanted:
@@ -359,34 +265,16 @@ def extract_keywords(text: str, top_n: int = 5) -> list[str]:
         top_n (int): Number of top keywords to return.
 
     Returns:
-        list[str]: Top `top_n` keywords ordered by frequency; returns an empty list if extraction fails or no keywords are found.
+        list[str]: Top `top_n` keywords ordered by frequency; returns an empty
+        list if extraction fails or no keywords are found.
     """
-    if not NLTK_AVAILABLE:
-        # Fallback: simple word frequency
-        words = text.lower().split()
-        from collections import Counter
-
-        word_freq = Counter(words)
-        return [word for word, _ in word_freq.most_common(top_n)]
-
     try:
-        from nltk.probability import FreqDist
-
-        # Tokenize and clean
-        words = word_tokenize(text.lower())
-        words = [w for w in words if w.isalpha() and len(w) > 3]
-
-        # Remove stopwords
+        words = re.findall(r'\b[a-z]+\b', text.lower())
+        words = [w for w in words if len(w) > 3]
         unwanted = get_unwanted_words()
         words = [w for w in words if w not in unwanted]
-
-        # Get frequency distribution
-        freq_dist = FreqDist(words)
-
-        # Return top N
-        return [word for word, _ in freq_dist.most_common(top_n)]
-
-    except (LookupError, ValueError, OSError, RuntimeError) as e:
+        return [word for word, _ in Counter(words).most_common(top_n)]
+    except Exception as e:
         logger.debug(f"Keyword extraction failed: {e}")
         return []
 
