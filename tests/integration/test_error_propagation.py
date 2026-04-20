@@ -32,7 +32,6 @@ class TestFileReadErrors:
         self,
         stub_text_model_init: None,
         stub_text_model_generate: MagicMock,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """A file that can't be read returns ProcessedFile with error set."""
@@ -56,7 +55,6 @@ class TestFileReadErrors:
         self,
         stub_text_model_init: None,
         stub_text_model_generate: MagicMock,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """Processing a missing file returns error, does not raise."""
@@ -75,7 +73,6 @@ class TestModelErrors:
     def test_model_exception_uses_fallback_values(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
         integration_source_dir: Path,
     ) -> None:
         """When model.generate() raises, TextProcessor uses fallback values.
@@ -124,7 +121,6 @@ class TestOrganizerErrorHandling:
     def test_mixed_good_and_bad_files_in_batch(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         tmp_path: Path,
     ) -> None:
         """Batch with one bad file still processes the good files."""
@@ -168,7 +164,6 @@ class TestOrganizerErrorHandling:
     def test_model_timeout_degrades_gracefully(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -199,7 +194,6 @@ class TestOrganizerErrorHandling:
     def test_deep_exception_in_parallel_does_not_crash(
         self,
         stub_text_model_init: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:

@@ -49,7 +49,7 @@ def output_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
-def organizer(stub_nltk: None) -> FileOrganizer:
+def organizer() -> FileOrganizer:
     """FileOrganizer in dry-run mode."""
     return FileOrganizer(dry_run=True)
 

@@ -33,10 +33,9 @@ fo --version
 ## Optional Dependencies
 
 ```bash
-pip install -e ".[audio]"       # Audio transcription (faster-whisper, torch)
-pip install -e ".[video]"       # Video processing (opencv, scenedetect)
-pip install -e ".[dedup]"       # Image deduplication (imagededup)
-pip install -e ".[archive]"     # Archive support (7z, RAR)
+pip install -e ".[media]"       # Audio/video transcription (faster-whisper, opencv, torch)
+pip install -e ".[dedup-text]"  # Text deduplication with TF-IDF/cosine (scikit-learn)
+pip install -e ".[dedup-image]" # Image deduplication (imagededup)
 pip install -e ".[scientific]"  # Scientific formats (HDF5, NetCDF, MATLAB)
 pip install -e ".[cloud]"       # OpenAI-compatible API providers (openai)
 pip install -e ".[cad]"         # CAD formats (ezdxf)

@@ -168,12 +168,7 @@ def _isolate_user_env(tmp_path: Path) -> Iterator[None]:
     Sets HOME and XDG_* dirs to per-test temp directories so that
     OperationHistory, ConfigManager, and resolve_legacy_path never
     touch real user data.  Also clears FO_* env vars.
-
-    Preserves NLTK_DATA to point to the real user's .nltk_data directory
-    so that NLTK can find downloaded datasets even with isolated HOME.
     """
-    import os
-
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     fake_config = tmp_path / "xdg_config"
@@ -183,23 +178,11 @@ def _isolate_user_env(tmp_path: Path) -> Iterator[None]:
     fake_state = tmp_path / "xdg_state"
     fake_state.mkdir()
 
-    # Get real user's home directory for NLTK data
-    # Use cross-platform approach: pwd/getuid are Unix-only
-    try:
-        import pwd
-
-        real_uid = os.getuid()
-        real_user_home = pwd.getpwuid(real_uid).pw_dir
-    except (ImportError, AttributeError, KeyError):
-        # Windows or other platforms without pwd/getuid
-        real_user_home = os.path.expanduser("~")
-
     env_overrides = {
         "HOME": str(fake_home),
         "XDG_CONFIG_HOME": str(fake_config),
         "XDG_DATA_HOME": str(fake_data),
         "XDG_STATE_HOME": str(fake_state),
-        "NLTK_DATA": str(Path(real_user_home) / "nltk_data"),
     }
     # Clear FO_* vars that might leak from the real environment
     env_clears = {

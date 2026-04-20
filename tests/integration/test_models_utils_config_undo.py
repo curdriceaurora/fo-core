@@ -886,11 +886,10 @@ class TestGetUnwantedWordsAdditional:
 
 
 class TestExtractKeywordsAdditional:
-    def test_fallback_without_nltk(self) -> None:
-        with patch("utils.text_processing.NLTK_AVAILABLE", False):
-            from utils.text_processing import extract_keywords
+    def test_extract_top_n(self) -> None:
+        from utils.text_processing import extract_keywords
 
-            result = extract_keywords("alpha beta alpha gamma alpha beta", top_n=2)
+        result = extract_keywords("alpha beta alpha gamma alpha beta", top_n=2)
 
         assert len(result) == 2
 

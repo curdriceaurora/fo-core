@@ -5,18 +5,67 @@ from __future__ import annotations
 import re
 from collections import Counter
 
+from loguru import logger
 from snowballstemmer import stemmer as Stemmer
 
-from loguru import logger
-
-_ENGLISH_STOPWORDS: frozenset[str] = frozenset({
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for",
-    "from", "has", "he", "in", "is", "it", "its", "of", "on", "or",
-    "that", "the", "to", "was", "will", "with", "i", "you", "we",
-    "they", "she", "him", "her", "me", "us", "can", "could", "would",
-    "should", "do", "does", "did", "have", "having", "not", "no",
-    "nor", "so", "than", "too", "very", "just", "own", "same",
-})
+_ENGLISH_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "but",
+        "by",
+        "for",
+        "from",
+        "has",
+        "he",
+        "in",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "or",
+        "that",
+        "the",
+        "to",
+        "was",
+        "will",
+        "with",
+        "i",
+        "you",
+        "we",
+        "they",
+        "she",
+        "him",
+        "her",
+        "me",
+        "us",
+        "can",
+        "could",
+        "would",
+        "should",
+        "do",
+        "does",
+        "did",
+        "have",
+        "having",
+        "not",
+        "no",
+        "nor",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "own",
+        "same",
+    }
+)
 
 
 def get_unwanted_words() -> set[str]:
@@ -193,7 +242,7 @@ def clean_text(
 
     # Tokenize — ASCII words only; unicode letters are excluded (accepted trade-off
     # vs NLTK's unicode-aware word_tokenize; fo-core filenames are ASCII-dominated)
-    words = re.findall(r'\b[a-z]+\b', text.lower())
+    words = re.findall(r"\b[a-z]+\b", text.lower())
 
     if lemmatize:
         _stemmer = Stemmer("english")
@@ -269,7 +318,7 @@ def extract_keywords(text: str, top_n: int = 5) -> list[str]:
         list if extraction fails or no keywords are found.
     """
     try:
-        words = re.findall(r'\b[a-z]+\b', text.lower())
+        words = re.findall(r"\b[a-z]+\b", text.lower())
         words = [w for w in words if len(w) > 3]
         unwanted = get_unwanted_words()
         words = [w for w in words if w not in unwanted]

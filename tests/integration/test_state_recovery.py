@@ -26,7 +26,6 @@ class TestUndoRedo:
     def test_undo_reverses_organized_files(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:
@@ -121,7 +120,6 @@ class TestInterruptedTransaction:
     def test_dry_run_undo_returns_false(
         self,
         stub_all_models: None,
-        stub_nltk: None,
         integration_source_dir: Path,
         integration_output_dir: Path,
     ) -> None:

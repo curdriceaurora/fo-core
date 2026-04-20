@@ -10,8 +10,8 @@ pytestmark = pytest.mark.smoke
 def _require_dedup_image() -> None:
     # Hard imports — missing package means the extra is broken, not skippable.
     import imagededup  # noqa: F401
-    import sklearn     # noqa: F401  verifies fo-core[dedup-text] self-dep resolved
-    import torch       # noqa: F401
+    import sklearn  # noqa: F401  verifies fo-core[dedup-text] self-dep resolved
+    import torch  # noqa: F401
 
 
 def test_imagededup_importable() -> None:

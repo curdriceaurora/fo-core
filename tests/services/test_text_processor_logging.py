@@ -35,9 +35,8 @@ def mock_text_model():
 
 @pytest.fixture
 def processor(mock_text_model):
-    """Create TextProcessor with a mock model, skipping NLTK init."""
-    with patch("services.text_processor.ensure_nltk_data"):
-        tp = TextProcessor(text_model=mock_text_model)
+    """Create TextProcessor with a mock model."""
+    tp = TextProcessor(text_model=mock_text_model)
     return tp
 
 
