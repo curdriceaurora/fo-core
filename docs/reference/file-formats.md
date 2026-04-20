@@ -20,19 +20,17 @@ Each format group maps to an install extra:
 |----------|---------|----------------------|---------------|
 | Documents | `.txt`, `.md`, `.pdf`, `.docx`, `.csv`, `.xlsx`, `.pptx` | PyMuPDF, python-docx, openpyxl, python-pptx | Core / none |
 | Ebooks | `.epub` | ebooklib | Core |
-| Archives | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`, `.rar` | py7zr, rarfile | `[archive]` |
+| Archives | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`, `.rar` | py7zr, rarfile | Core (default) |
 | Scientific | `.hdf5`, `.h5`, `.hdf`, `.nc`, `.nc4`, `.netcdf`, `.mat` | h5py, netCDF4, scipy | `[scientific]` |
 | CAD | `.dxf`, `.dwg`, `.step`, `.stp`, `.iges`, `.igs` | ezdxf | `[cad]` |
 | Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif` | None (VisionProcessor) | Core |
-| Audio | `.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg` | faster-whisper, torch | `[audio]` |
-| Video | `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv` | opencv-python, scenedetect | `[video]` |
+| Audio | `.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg` | faster-whisper, torch | `[media]` |
+| Video | `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv` | opencv-python, scenedetect | `[media]` |
 
 ```bash
-pip install -e ".[archive]"
+pip install -e ".[media]"
 pip install -e ".[scientific]"
 pip install -e ".[cad]"
-pip install -e ".[audio]"
-pip install -e ".[video]"
 pip install -e ".[all]"
 ```
 
@@ -126,7 +124,7 @@ Archive readers extract **metadata and file listings**, not file contents.
 |-----------|---------|-------------|
 | `max_files` | 50 | Maximum number of entries to list |
 
-- Requires: `py7zr` (`[archive]`)
+- Requires: `py7zr` (default dependency — no extra needed)
 
 ### TAR Archives (`.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`)
 
@@ -142,7 +140,7 @@ Archive readers extract **metadata and file listings**, not file contents.
 |-----------|---------|-------------|
 | `max_files` | 50 | Maximum number of entries to list |
 
-- Requires: `rarfile` (`[archive]`) and the `unrar` system command
+- Requires: `rarfile` (default dependency — no extra needed) and the `unrar` system command
 
 ## Scientific Data
 
