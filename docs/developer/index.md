@@ -108,7 +108,7 @@ class CustomMethod(BaseMethodology):
 
 ### Add File Type Support
 
-1. Create reader in `utils/file_readers.py`
+1. Create reader in `utils/readers/` (e.g. `utils/readers/documents.py`; `utils/file_readers.py` is a compatibility shim only)
 1. Register in processor
 1. Add tests
 1. Update documentation

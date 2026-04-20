@@ -55,7 +55,7 @@ Extend functionality by installing optional dependency groups:
 | Scientific | `pip install -e ".[scientific]"` | HDF5, NetCDF, MATLAB file support |
 | CAD | `pip install -e ".[cad]"` | DXF and other CAD format support |
 | Build | `pip install -e ".[build]"` | Executable packaging (PyInstaller) |
-| All | `pip install -e ".[all]"` | All packs above, plus development tools and PyQt6 GUI dependencies |
+| All | `pip install -e ".[all]"` | All optional extras above |
 
 !!! note
     The audio and video packs require FFmpeg and optionally a CUDA-capable GPU. See the [Audio & Video Setup Guide](setup/audio-video.md) for detailed installation instructions, model selection, and configuration.

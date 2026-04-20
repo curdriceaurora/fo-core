@@ -61,11 +61,9 @@ Install the appropriate optional dependency group based on the feature you're us
 | Scientific formats | `h5py`, `netCDF4` | `pip install "fo-core[scientific]"` |
 | CAD file support | `ezdxf` | `pip install "fo-core[cad]"` |
 | Claude API provider | `anthropic` | `pip install "fo-core[claude]"` |
-| Document parsers | `fitz`, `docx`, `openpyxl`, `pptx`, `ebooklib`, `bs4` | `pip install "fo-core[parsers]"` |
 | OpenAI-compatible API | `openai` | `pip install "fo-core[cloud]"` |
 | llama.cpp inference | `llama_cpp` | `pip install "fo-core[llama]"` |
 | MLX inference (macOS) | `mlx_lm` | `pip install "fo-core[mlx]"` |
-| GUI interface | `PyQt6` | `pip install "fo-core[gui]"` |
 | All features | Any of the above | `pip install "fo-core[all]"` |
 
 For more details, see [Dependencies & Setup](setup/dependencies.md).
@@ -436,8 +434,7 @@ fo analyze problematic.pdf --verbose
 # Repair corrupt PDF with Ghostscript
 gs -o repaired.pdf -sDEVICE=pdfwrite -dPDFSETTINGS=/prepress input.pdf
 
-# Install parsers group for better PDF support
-pip install "fo-core[parsers]"
+# PDF parsing is included in the base install (PyMuPDF/fitz)
 ```
 
 ### Video Metadata Extraction Error

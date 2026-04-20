@@ -294,7 +294,7 @@ fo-core/
 │   ├── optimization/                 # Performance optimization
 │   ├── history/                      # Operation history (6 modules)
 │   ├── undo/                         # Undo/redo system (5 modules)
-│   ├── utils/                        # Utilities (file_readers.py, text_processing.py)
+│   ├── utils/                        # Utilities (readers/, text_processing.py; file_readers.py is a compat shim)
 │   └── config/                       # Configuration management
 │
 ├── tests/                            # Test suite
