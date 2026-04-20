@@ -39,6 +39,15 @@ dependencies = [
     "beautifulsoup4~=4.12",    # HTML/XML parsing
     "lxml~=6.0",               # XML backend for BS4
 
+    # File format support (default)
+    "mutagen~=1.47",            # Audio metadata extraction
+    "py7zr>=0.20.0",            # 7Z archive support
+    "pypdf~=6.10",              # PDF text extraction fallback
+    "rarfile~=4.1",             # RAR archive support (requires unrar tool)
+    "snowballstemmer>=2.2.0",   # Lightweight stemming (no NLTK data download required)
+    "striprtf>=0.0.26",         # RTF file text extraction
+    "tinytag~=2.2",             # Lightweight audio metadata fallback
+
     # NLP and data science
     "nltk~=3.8",
     "numpy~=1.24",
@@ -118,29 +127,22 @@ claude = [
     "anthropic>=0.20.0",  # 0.x — unstable API, keep >=; Anthropic Claude API provider
 ]
 
-audio = [
+media = [
     "faster-whisper~=1.0",
-    "torch~=2.1",  # GPU acceleration for audio transcription
-    "mutagen~=1.47",  # Audio metadata extraction
-    "tinytag~=2.2",  # Lightweight audio metadata fallback
-    "pydub>=0.25.0",  # 0.x — unstable API, keep >=; Audio manipulation
+    "torch~=2.1",
+    "pydub>=0.25.0",
+    "opencv-python~=4.8",
+    "scenedetect[opencv]>=0.6.0",
 ]
 
-video = [
-    "opencv-python~=4.8",  # Video frame processing
-    "scenedetect[opencv]>=0.6.0",  # 0.x — unstable API, keep >=; Scene detection algorithms
+dedup-text = [
+    "scikit-learn>=1.4,<1.9",
 ]
 
-dedup = [
-    "imagededup>=0.3.0",  # 0.x — unstable API, keep >=; Image similarity and duplicate detection
-    "scikit-learn>=1.4,<1.9",  # ML-based text similarity for deduplication
-    "pypdf~=6.10",  # PDF text extraction fallback in dedup extractor
-    "striprtf>=0.0.26",  # 0.x — unstable API, keep >=; RTF file text extraction in dedup extractor
-]
-
-archive = [
-    "py7zr>=0.20.0",  # 0.x — unstable API, keep >=; 7Z archive support
-    "rarfile~=4.1",  # RAR archive support (requires unrar tool)
+dedup-image = [
+    "fo-core[dedup-text]",
+    "imagededup>=0.3.0",
+    "torch~=2.1",
 ]
 
 scientific = [
@@ -171,7 +173,7 @@ search = [
 ]
 
 all = [
-    "fo-core[dev,cloud,llama,mlx,claude,audio,video,dedup,archive,scientific,cad,build,search]",
+    "fo-core[dev,cloud,llama,mlx,claude,media,dedup-text,dedup-image,scientific,cad,build,search]",
 ]
 
 [project.scripts]
