@@ -25,7 +25,9 @@ try:
     from .embedder import DocumentEmbedder
     from .semantic import SemanticAnalyzer
 except ImportError:
-    pass  # numpy not available; hash-based dedup still works
+    DocumentDeduplicator = None  # type: ignore[assignment,misc]
+    DocumentEmbedder = None  # type: ignore[assignment,misc]
+    SemanticAnalyzer = None  # type: ignore[assignment,misc]
 from .extractor import DocumentExtractor
 from .image_utils import (
     ImageMetadata,

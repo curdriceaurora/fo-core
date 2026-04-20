@@ -1,4 +1,5 @@
 """Smoke canary for the dedup-image extra (torch + imagededup)."""
+
 from __future__ import annotations
 
 import pytest

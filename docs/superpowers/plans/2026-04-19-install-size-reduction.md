@@ -1331,7 +1331,7 @@ Update the extras table to show `media`, `dedup-text`, `dedup-image` instead of 
 Find the NLTK download step (around line 341). Delete:
 
 ```
-python -c "import nltk; nltk.download('stopwords')..." 
+python -c "import nltk; nltk.download('stopwords')..."
 ```
 
 or similar. Update any extras names in the dev setup instructions.

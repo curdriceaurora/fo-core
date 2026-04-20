@@ -451,8 +451,7 @@ jobs:
           python-version: "3.11"
       - name: Measure default install size
         run: |
-          python -m venv /tmp/fo_size_venv
-          pip install --target /tmp/fo_size_check . -q
+          python -m pip install --target /tmp/fo_size_check . -q
           SIZE_MB=$(du -sm /tmp/fo_size_check | awk '{print $1}')
           echo "Install size: ${SIZE_MB} MB"
           if [ "$SIZE_MB" -gt 185 ]; then

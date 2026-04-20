@@ -583,9 +583,9 @@ class TestReadFileExpanded:
 
 def test_read_rtf_file_returns_text(tmp_path: Path) -> None:
     rtf_file = tmp_path / "sample.rtf"
-    rtf_file.write_bytes(
-        rb"{\rtf1\ansi{\fonttbl\f0\fswiss Helvetica;}\f0\pard Hello RTF\par}"
-    )
+    rtf_file.write_bytes(rb"{\rtf1\ansi{\fonttbl\f0\fswiss Helvetica;}\f0\pard Hello RTF\par}")
     from utils.readers import read_file
+
     result = read_file(rtf_file)
+    assert result is not None
     assert "Hello RTF" in result

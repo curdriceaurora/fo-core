@@ -1,4 +1,5 @@
 """Verify that default-install imports do not require numpy."""
+
 from __future__ import annotations
 
 import os
@@ -34,7 +35,6 @@ import services.search        # must not raise (HybridRetriever guard required)
         capture_output=True,
         text=True,
         env=env,
+        check=False,
     )
-    assert result.returncode == 0, (
-        f"Default import triggered numpy dependency:\n{result.stderr}"
-    )
+    assert result.returncode == 0, f"Default import triggered numpy dependency:\n{result.stderr}"

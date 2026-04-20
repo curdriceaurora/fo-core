@@ -327,7 +327,7 @@ class AudioMetadataExtractor:
             file_size=audio_path.stat().st_size,
             format=audio_path.suffix[1:].upper(),
             duration=tag.duration or 0.0,
-            bitrate=tag.bitrate or 0,
+            bitrate=int(tag.bitrate or 0),
             sample_rate=tag.samplerate or 0,
             channels=tag.channels or 0,
             title=tag.title,

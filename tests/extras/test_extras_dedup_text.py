@@ -1,4 +1,5 @@
 """Smoke canary for the dedup-text extra (scikit-learn)."""
+
 from __future__ import annotations
 
 import pytest

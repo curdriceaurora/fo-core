@@ -323,7 +323,7 @@ def extract_keywords(text: str, top_n: int = 5) -> list[str]:
         unwanted = get_unwanted_words()
         words = [w for w in words if w not in unwanted]
         return [word for word, _ in Counter(words).most_common(top_n)]
-    except Exception as e:
+    except (AttributeError, TypeError, ValueError) as e:
         logger.debug(f"Keyword extraction failed: {e}")
         return []
 

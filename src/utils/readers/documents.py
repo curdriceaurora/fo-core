@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 try:
     import fitz  # PyMuPDF
@@ -19,6 +18,13 @@ try:
     DOCX_AVAILABLE = True
 except ImportError:
     DOCX_AVAILABLE = False
+
+try:
+    from striprtf.striprtf import rtf_to_text as _rtf_to_text
+
+    STRIPRTF_AVAILABLE = True
+except ImportError:
+    STRIPRTF_AVAILABLE = False
 
 try:
     OPENPYXL_AVAILABLE = True
@@ -125,15 +131,15 @@ def read_pdf_file(file_path: str | Path, max_pages: int = 5) -> str:
         raise FileReadError(f"Failed to read PDF file {file_path}: {e}") from e
 
 
-def read_rtf_file(file_path: str | Path, max_chars: int = 50_000, **kwargs: Any) -> str:
+def read_rtf_file(file_path: str | Path, max_chars: int = 50_000) -> str:
     """Extract plain text from an RTF file using striprtf."""
-    from striprtf.striprtf import rtf_to_text
-
+    if not STRIPRTF_AVAILABLE:
+        raise ImportError("striprtf is required for RTF support: pip install striprtf")
     file_path = Path(file_path)
     _check_file_size(file_path)
     try:
-        raw = file_path.read_text(encoding="utf-8", errors="replace")
-        text = rtf_to_text(raw)
+        raw = file_path.read_text(encoding="latin-1")
+        text: str = str(_rtf_to_text(raw))
         return text[:max_chars] if len(text) > max_chars else text
     except Exception as exc:
         raise FileReadError(f"Failed to read RTF {file_path.name}: {exc}") from exc

@@ -1655,20 +1655,15 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="programming")
 
-        with patch(
-            "services.text_processor.read_file",
-            return_value="Python programming content",
+        with (
+            patch("services.text_processor.read_file", return_value="Python programming content"),
+            patch(
+                "services.text_processor.truncate_text", return_value="Python programming content"
+            ),
+            patch("services.text_processor.clean_text", return_value="programming"),
         ):
-            with patch(
-                "services.text_processor.truncate_text",
-                return_value="Python programming content",
-            ):
-                with patch(
-                    "services.text_processor.clean_text",
-                    return_value="programming",
-                ):
-                    processor = TextProcessor(text_model=mock_model)
-                    result = processor.process_file(fp)
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert isinstance(result, ProcessedFile)
         assert result.file_path == fp
@@ -1725,17 +1720,13 @@ class TestTextProcessor:
 
         mock_model.generate = MagicMock(side_effect=gen_side_effect)
 
-        with patch("services.text_processor.read_file", return_value="python content"):
-            with patch(
-                "services.text_processor.truncate_text",
-                return_value="python content",
-            ):
-                with patch(
-                    "services.text_processor.clean_text",
-                    return_value="programming",
-                ):
-                    processor = TextProcessor(text_model=mock_model)
-                    result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value="python content"),
+            patch("services.text_processor.truncate_text", return_value="python content"),
+            patch("services.text_processor.clean_text", return_value="programming"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert len(result.description) > 0
 
@@ -1748,19 +1739,13 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="programming")
 
-        with patch("services.text_processor.read_file", return_value="hello world"):
-            with patch(
-                "services.text_processor.truncate_text",
-                return_value="hello world",
-            ):
-                with patch(
-                    "services.text_processor.clean_text",
-                    return_value="programming",
-                ):
-                    processor = TextProcessor(text_model=mock_model)
-                    result = processor.process_file(
-                        fp, generate_description=False, generate_folder=True
-                    )
+        with (
+            patch("services.text_processor.read_file", return_value="hello world"),
+            patch("services.text_processor.truncate_text", return_value="hello world"),
+            patch("services.text_processor.clean_text", return_value="programming"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp, generate_description=False, generate_folder=True)
 
         assert result.description == ""
 
@@ -1773,11 +1758,13 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="notes")
 
-        with patch("services.text_processor.read_file", return_value="some text"):
-            with patch("services.text_processor.truncate_text", return_value="some text"):
-                with patch("services.text_processor.clean_text", return_value="notes"):
-                    processor = TextProcessor(text_model=mock_model)
-                    result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value="some text"),
+            patch("services.text_processor.truncate_text", return_value="some text"),
+            patch("services.text_processor.clean_text", return_value="notes"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert result.file_path == fp
 
@@ -1873,14 +1860,13 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="sample")
 
-        with patch("services.text_processor.read_file", return_value="sample text"):
-            with patch(
-                "services.text_processor.truncate_text",
-                return_value="sample text",
-            ):
-                with patch("services.text_processor.clean_text", return_value="sample"):
-                    processor = TextProcessor(text_model=mock_model)
-                    result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value="sample text"),
+            patch("services.text_processor.truncate_text", return_value="sample text"),
+            patch("services.text_processor.clean_text", return_value="sample"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         assert result.processing_time >= 0.0
 
@@ -1894,14 +1880,13 @@ class TestTextProcessor:
         mock_model = self._make_mock_text_model()
         mock_model.generate = MagicMock(return_value="words")
 
-        with patch("services.text_processor.read_file", return_value=long_content):
-            with patch(
-                "services.text_processor.truncate_text",
-                return_value=long_content[:5000],
-            ):
-                with patch("services.text_processor.clean_text", return_value="words"):
-                    processor = TextProcessor(text_model=mock_model)
-                    result = processor.process_file(fp)
+        with (
+            patch("services.text_processor.read_file", return_value=long_content),
+            patch("services.text_processor.truncate_text", return_value=long_content[:5000]),
+            patch("services.text_processor.clean_text", return_value="words"),
+        ):
+            processor = TextProcessor(text_model=mock_model)
+            result = processor.process_file(fp)
 
         # original_content is first 500 chars (exact cap applied in process_file)
         if result.original_content is not None:

@@ -16,8 +16,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
+
+np = pytest.importorskip("numpy")
 
 if TYPE_CHECKING:
     from services.deduplication.embedder import DocumentEmbedder

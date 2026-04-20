@@ -5,6 +5,7 @@
 try:
     from services.search.hybrid_retriever import HybridRetriever, read_text_safe
 except ImportError:
-    pass  # numpy not available; search subsystem disabled
+    HybridRetriever = None  # type: ignore[assignment,misc]
+    read_text_safe = None  # type: ignore[assignment]
 
 __all__ = ["HybridRetriever", "read_text_safe"]

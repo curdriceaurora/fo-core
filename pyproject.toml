@@ -134,6 +134,7 @@ media = [
 ]
 
 dedup-text = [
+    "numpy>=1.24,<3",
     "scikit-learn>=1.4,<1.9",
 ]
 
@@ -166,6 +167,7 @@ docs = [
 ]
 
 search = [
+    "numpy>=1.24,<3",
     "rank-bm25>=0.2.0",  # 0.x — unstable API, keep >=
     "scikit-learn>=1.4,<1.9",
 ]

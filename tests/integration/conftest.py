@@ -154,8 +154,6 @@ def stub_all_models(
     """Convenience fixture: stubs init + generate for both text and vision models."""
 
 
-
-
 # ---------------------------------------------------------------------------
 # Environment isolation
 # ---------------------------------------------------------------------------

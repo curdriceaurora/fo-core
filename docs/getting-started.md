@@ -399,7 +399,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -e ".[media]"
 ```
 
-If the audio pack is not installed, audio files (`.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg`) are still detected and moved by the organizer but will not be transcribed or analyzed for content.
+If the media pack is not installed, audio files (`.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg`) are still detected and moved by the organizer but will not be transcribed or analyzed for content.
 
 ### Verifying Audio Support
 

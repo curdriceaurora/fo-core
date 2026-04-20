@@ -1,4 +1,5 @@
 """Smoke canary for the media extra (faster-whisper, torch, pydub, opencv, scenedetect)."""
+
 from __future__ import annotations
 
 import struct
@@ -18,6 +19,7 @@ def _require_media() -> None:
     import faster_whisper  # noqa: F401
     import pydub  # noqa: F401
     import scenedetect  # noqa: F401
+    import torch  # noqa: F401
 
 
 def _make_wav(path: Path) -> None:
