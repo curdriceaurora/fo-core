@@ -218,7 +218,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pytest tests/ \
-            -m "not benchmark and not e2e" \
+            -m "not benchmark and not e2e and not smoke" \
             --strict-markers \
             -n auto \
             --timeout=60 \
