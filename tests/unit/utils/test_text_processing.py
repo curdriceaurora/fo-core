@@ -444,7 +444,7 @@ class TestTextProcessing:
 
     def test_extract_keywords_basic(self) -> None:
         result = extract_keywords("apple banana apple cherry")
-        assert "apple" in result
+        assert result == ["apple", "banana", "cherry"]
 
     def test_extract_keywords_short_words_excluded(self) -> None:
         # words <= 3 chars are excluded by extract_keywords

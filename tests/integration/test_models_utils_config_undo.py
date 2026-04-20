@@ -891,9 +891,7 @@ class TestExtractKeywordsAdditional:
 
         result = extract_keywords("alpha beta alpha gamma alpha beta", top_n=2)
 
-        assert len(result) == 2
-        assert all(isinstance(kw, str) for kw in result)
-        assert "alpha" in result
+        assert result == ["alpha", "beta"]
 
     def test_keywords_are_strings(self) -> None:
         from utils.text_processing import extract_keywords

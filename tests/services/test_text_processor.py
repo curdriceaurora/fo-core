@@ -159,9 +159,9 @@ class TestTextProcessor:
         with (
             patch("services.text_processor.get_text_model", return_value=mock_model),
             pytest.raises(RuntimeError, match="boom"),
+            TextProcessor() as _processor,
         ):
-            with TextProcessor() as _processor:
-                raise RuntimeError("boom")
+            raise RuntimeError("boom")
         mock_model.safe_cleanup.assert_called_once()
 
 

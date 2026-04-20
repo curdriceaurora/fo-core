@@ -24,7 +24,9 @@ try:
     from .document_dedup import DocumentDeduplicator
     from .embedder import DocumentEmbedder
     from .semantic import SemanticAnalyzer
-except ImportError:
+except ImportError as e:
+    if "numpy" not in str(e) and "sklearn" not in str(e) and "scikit" not in str(e):
+        raise
     DocumentDeduplicator = None  # type: ignore[assignment,misc]
     DocumentEmbedder = None  # type: ignore[assignment,misc]
     SemanticAnalyzer = None  # type: ignore[assignment,misc]

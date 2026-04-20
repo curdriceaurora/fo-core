@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 try:
     from services.search.hybrid_retriever import HybridRetriever, read_text_safe
 except ImportError as e:
+    if "numpy" not in str(e) and "rank_bm25" not in str(e):
+        raise
     logger.debug("services.search disabled (missing optional dep): %s", e)
     HybridRetriever = None  # type: ignore[assignment,misc]
     read_text_safe = None  # type: ignore[assignment]
