@@ -484,9 +484,15 @@ class TestMigratorGaps:
         (root / "Projects").mkdir()
         return root
 
-    def test_execute_migration_with_backup(self, tmp_path: Path) -> None:
+    def test_execute_migration_with_backup(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from methodologies.johnny_decimal.migrator import JohnnyDecimalMigrator
 
+        monkeypatch.setattr(
+            "methodologies.johnny_decimal.migrator._get_data_dir",
+            lambda: tmp_path / "data",
+        )
         root = self._setup_directory(tmp_path)
         migrator = JohnnyDecimalMigrator()
         plan, _ = migrator.create_migration_plan(root)
@@ -494,9 +500,15 @@ class TestMigratorGaps:
         assert result is not None
         assert result.backup_path is not None or result.migration_id is not None
 
-    def test_rollback_after_migration(self, tmp_path: Path) -> None:
+    def test_rollback_after_migration(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from methodologies.johnny_decimal.migrator import JohnnyDecimalMigrator
 
+        monkeypatch.setattr(
+            "methodologies.johnny_decimal.migrator._get_data_dir",
+            lambda: tmp_path / "data",
+        )
         root = self._setup_directory(tmp_path)
         migrator = JohnnyDecimalMigrator()
         plan, _ = migrator.create_migration_plan(root)
