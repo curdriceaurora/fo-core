@@ -414,3 +414,9 @@ class TestAdvancedScenarios:
         # Should get different category
         assert new_number.category != 5
         assert new_number.area == 10
+
+    def test_get_next_available_area_no_areas(self) -> None:
+        empty_scheme = NumberingScheme(name="Empty", description="No areas")
+        gen = JohnnyDecimalGenerator(empty_scheme)
+        with pytest.raises(InvalidNumberError, match="No areas defined in scheme"):
+            gen.get_next_available_area()

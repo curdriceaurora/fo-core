@@ -566,3 +566,8 @@ class TestCategoriesCoverage:
             reasons=["test"],
         )
         assert isinstance(result.file_path, Path)
+
+    # Line 337: NumberingScheme.__post_init__ — empty name
+    def test_numbering_scheme_empty_name(self) -> None:
+        with pytest.raises(ValueError, match="Scheme name cannot be empty"):
+            NumberingScheme(name="", description="Test")
