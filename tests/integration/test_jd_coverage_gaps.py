@@ -71,7 +71,7 @@ class TestCategoriesGaps:
             confidence=0.8,
             reasons=["test reason"],
         )
-        assert isinstance(result.file_path, Path)
+        assert result.file_path == tmp_path / "report.pdf"
 
 
 # ---------------------------------------------------------------------------
@@ -498,7 +498,7 @@ class TestMigratorGaps:
         plan, _ = migrator.create_migration_plan(root)
         result = migrator.execute_migration(plan, dry_run=False, create_backup=True)
         assert result is not None
-        assert result.backup_path is not None or result.migration_id is not None
+        assert result.backup_path is not None  # create_backup=True must produce a backup
 
     def test_rollback_after_migration(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -597,7 +597,11 @@ class TestCompatibilityGaps:
         config = PARAIntegrationConfig()
         bridge = PARAJohnnyDecimalBridge(config)
         bridge.create_para_structure(tmp_path)
-        assert (tmp_path / "Projects").exists() or any(tmp_path.iterdir())
+        # create_para_structure names folders "<area_num> <Category>"
+        assert (tmp_path / "10 Projects").exists()
+        assert (tmp_path / "20 Areas").exists()
+        assert (tmp_path / "30 Resources").exists()
+        assert (tmp_path / "40 Archive").exists()
 
     def test_hybrid_organizer_get_item_path_all_levels(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
@@ -668,7 +672,7 @@ class TestScannerGaps:
     def test_scan_deep_hierarchy_warning(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.scanner import FolderScanner
 
-        # Create 7 levels of nesting (depth 0–6) to trigger max_depth > 5 warning
+        # Create 7 levels of nesting (depth 0-6) to trigger max_depth > 5 warning
         deep = tmp_path
         for i in range(7):
             deep = deep / f"level{i}"
