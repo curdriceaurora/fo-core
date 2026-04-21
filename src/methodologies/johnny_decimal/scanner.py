@@ -142,7 +142,7 @@ class FolderScanner:
         try:
             items = sorted(path.iterdir())
         except PermissionError:
-            logger.warning(f"Permission denied: {path}")
+            logger.warning("Permission denied: %s", path)
             return folders
 
         for item in items:

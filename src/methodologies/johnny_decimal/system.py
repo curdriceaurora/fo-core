@@ -78,11 +78,11 @@ class JohnnyDecimalSystem:
                     try:
                         self.generator.register_existing_number(number, item)
                         detected_numbers += 1
-                        logger.debug(f"Detected number {number.formatted_number} in {item.name}")
+                        logger.debug("Detected number %s in %s", number.formatted_number, item.name)
                     except NumberConflictError as e:
-                        logger.warning(f"Conflict detected: {e}")
+                        logger.warning("Conflict detected: %s", e, exc_info=True)
 
-        logger.info(f"Initialized with {detected_numbers} existing numbers")
+        logger.info("Initialized with %d existing numbers", detected_numbers)
         self._initialized = True
 
     def _extract_number_from_path(self, path: Path) -> JohnnyDecimalNumber | None:

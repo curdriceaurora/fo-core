@@ -192,6 +192,7 @@ class TestScannerCoverage:
         assert result.folder_tree[0].children == []
 
     # Lines 158->148: _scan_folder PermissionError in iterdir (branch)
+    @pytest.mark.ci
     def test_scan_folder_permission_denied(self, scanner: FolderScanner, tmp_path: Path) -> None:
         restricted = tmp_path / "restricted"
         restricted.mkdir()

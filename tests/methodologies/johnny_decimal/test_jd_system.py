@@ -54,6 +54,7 @@ class TestInitializeFromDirectory:
         stats = system.generator.get_usage_statistics()
         assert stats["total_numbers"] >= 1
 
+    @pytest.mark.ci
     def test_handles_conflict_during_scan(
         self, system: JohnnyDecimalSystem, tmp_path: Path
     ) -> None:
