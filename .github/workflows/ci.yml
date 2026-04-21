@@ -68,6 +68,7 @@ jobs:
           max_attempts: 3
           retry_on: error
           command: |
+            set -euo pipefail
             pip install pre-commit
             pip install -e ".[dev]"
       - run: pre-commit run --all-files
@@ -90,6 +91,7 @@ jobs:
           max_attempts: 3
           retry_on: error
           command: |
+            set -euo pipefail
             pip install "deptry>=0.16.0"
             pip install -e .
       - run: deptry src/
@@ -192,6 +194,7 @@ jobs:
           max_attempts: 3
           retry_on: error
           command: |
+            set -euo pipefail
             pip install -e ".[dev,search]"
             # Explicitly install pytest-asyncio and faker to ensure they're available.
             # This fixes installation order issues on Python 3.11 where pytest might load before pytest-asyncio.
@@ -254,6 +257,7 @@ jobs:
           max_attempts: 3
           retry_on: error
           command: |
+            set -euo pipefail
             pip install -e ".[dev,search]"
             pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
       - name: Run full test suite

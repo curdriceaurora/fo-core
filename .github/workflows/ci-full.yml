@@ -38,6 +38,7 @@ jobs:
           max_attempts: 3
           retry_on: error
           command: |
+            set -euo pipefail
             pip install -e ".[dev,search]"
             pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
       - name: Run full test suite
