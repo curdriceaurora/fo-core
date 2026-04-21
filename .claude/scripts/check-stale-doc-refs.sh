@@ -143,36 +143,55 @@ for entry in "${REMOVED_TERMS[@]}"; do
     [[ -f "$full_path" ]] || continue
 
     if $STAGED_ONLY; then
-      # Only flag newly ADDED lines.  Pre-existing violations in files being
-      # edited for unrelated reasons must not block the commit.
+      # Fence- and line-identity-aware staged-only scan.
       #
-      # Fenced code blocks are exempt (docs often show the old term as a
-      # historical example, e.g. `ollama ls` inside a ```bash fence).  We
-      # compute the intersection of (a) lines added by the staged diff and
-      # (b) the post-staged file's non-fenced content.  Only lines in both
-      # sets — i.e. added to prose, not inside a fence — proceed to the
-      # pattern match.
-      # CommonMark allows 0–3 spaces of indentation before a fence marker.
-      # Matching only column-0 fences would treat indented fenced blocks
-      # (common inside lists and blockquotes) as prose and flag their content.
-      non_fenced=$(git show ":$md_file" 2>/dev/null \
-        | awk '/^ ? ? ?```/ { in_fence = !in_fence; next } !in_fence' || true)
-      # Match every added line (prefix `+`) and strip the `+++ b/path` file
-      # header separately.  A previous `^\+[^+]` filter dropped any added line
-      # whose content itself started with `+` (appears as `++content` in the
-      # diff), producing a false negative when an author added e.g. bullet
-      # lines like `+ marketplace`.
-      added=$(git diff --cached --unified=0 -- "$md_file" 2>/dev/null \
-        | grep -E '^\+' \
-        | grep -v -E '^\+\+\+ ' \
-        | sed 's/^+//' || true)
-      if [[ -z "$added" || -z "$non_fenced" ]]; then
+      # 1. Compute line numbers in the post-staged file that are NOT inside a
+      #    fenced block.  Fence openers per CommonMark: 0-3 spaces of indent,
+      #    then 3+ backticks or 3+ tildes.  Previous regex matched only
+      #    exactly three backticks at column 0, missing indented fences,
+      #    tilde fences (`~~~`), and longer-backtick fences (` ```` `).
+      # 2. Parse the `@@ -L,N +M,P @@` hunk headers to get the set of added
+      #    line numbers in the post-staged file.
+      # 3. Intersect the two sets to get "added prose lines".  Previous
+      #    approach intersected by raw text (`grep -Fxf`), which lost line
+      #    identity: an added fenced line whose content happened to match
+      #    unchanged prose was wrongly flagged.  (Codex PR #144 threads.)
+      non_fenced_linenos=$(git show ":$md_file" 2>/dev/null | awk '
+        /^[[:space:]]{0,3}(`{3,}|~{3,})/ { in_fence = !in_fence; next }
+        !in_fence { print NR }
+      ' || true)
+      added_linenos=$(git diff --cached --unified=0 -- "$md_file" 2>/dev/null | awk '
+        /^@@/ {
+          if (match($0, /\+[0-9]+(,[0-9]+)?/)) {
+            spec = substr($0, RSTART + 1, RLENGTH - 1)
+            split(spec, parts, ",")
+            start = parts[1] + 0
+            count = (length(parts) > 1) ? (parts[2] + 0) : 1
+            for (i = 0; i < count; i++) print start + i
+          }
+        }
+      ' || true)
+      if [[ -z "$non_fenced_linenos" || -z "$added_linenos" ]]; then
         hits=""
       else
-        prose_added=$(echo "$added" | grep -Fxf <(echo "$non_fenced") 2>/dev/null || true)
-        hits=$(echo "$prose_added" \
-          | grep -v -E "$HISTORY_EXEMPT_REGEX" \
-          | grep -E "$pattern" || true)
+        # Hashmap-based set intersection — order-independent, avoids the
+        # numeric-vs-lexical sort pitfall that `comm` would hit.
+        prose_added_linenos=$(awk 'NR==FNR { seen[$0]=1; next } $0 in seen' \
+          <(echo "$non_fenced_linenos") <(echo "$added_linenos"))
+        if [[ -z "$prose_added_linenos" ]]; then
+          hits=""
+        else
+          # Space-separate line numbers before passing via `-v`: BSD awk warns
+          # on embedded newlines in `-v` values.
+          prose_added_linenos_str=$(echo "$prose_added_linenos" | tr '\n' ' ')
+          prose_added=$(git show ":$md_file" 2>/dev/null | awk -v LINES="$prose_added_linenos_str" '
+            BEGIN { n = split(LINES, arr, " "); for (i = 1; i <= n; i++) if (arr[i] != "") want[arr[i]+0] = 1 }
+            want[NR] { print }
+          ' || true)
+          hits=$(echo "$prose_added" \
+            | grep -v -E "$HISTORY_EXEMPT_REGEX" \
+            | grep -E "$pattern" || true)
+        fi
       fi
       if [[ -n "$hits" ]]; then
         echo "  ⚠️  $md_file → newly added line matches stale pattern '$pattern' ($reason)"
@@ -180,10 +199,10 @@ for entry in "${REMOVED_TERMS[@]}"; do
       fi
     else
       # Full-scan mode: line-numbered output across the whole file.
-      # After `cat -n`, content starts after the tab; allow 0–3 spaces of
-      # indentation before the fence marker (CommonMark rule).
+      # After `cat -n`, content starts after the tab; accept 0-3 spaces of
+      # indent and 3+ backticks or 3+ tildes as a fence marker.
       hits=$(cat -n "$full_path" 2>/dev/null \
-        | awk '/^[[:space:]]*[0-9]+\t ? ? ?```/ { in_fence = !in_fence; next } !in_fence' \
+        | awk '/^[[:space:]]*[0-9]+\t[[:space:]]{0,3}(`{3,}|~{3,})/ { in_fence = !in_fence; next } !in_fence' \
         | grep -v -E "$HISTORY_EXEMPT_REGEX" \
         | grep -E "$pattern" || true)
       if [[ -n "$hits" ]]; then

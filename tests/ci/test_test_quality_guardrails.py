@@ -105,13 +105,18 @@ def _git_changed_test_files() -> list[Path]:
                 capture_output=True,
                 text=True,
                 cwd=FO_ROOT,
+                check=False,
             )
-            changed.update(line.strip() for line in result.stdout.splitlines() if line.strip())
-        except Exception:
-            # Best-effort: any git failure leaves `changed` unchanged; if all
-            # three diffs fail we yield an empty set, which each caller treats
-            # as "no changed files" (diff-scoped guardrails then no-op).
+        except (OSError, subprocess.SubprocessError):
+            # Launching git failed (binary missing, permissions, etc.).  Try
+            # the next diff variant.  If all three fail we yield an empty
+            # set — diff-scoped guardrails then no-op.
             continue
+        if result.returncode != 0:
+            # git exited non-zero (e.g. origin/main unknown on a shallow clone);
+            # skip this variant without treating stdout as authoritative.
+            continue
+        changed.update(line.strip() for line in result.stdout.splitlines() if line.strip())
 
     return sorted(
         p
@@ -566,6 +571,21 @@ def test_changed_tests_have_no_sole_isinstance_assertions() -> None:
 # -------------------------------------------------------------------------
 
 
+def _is_pure_operand(node: ast.AST) -> bool:
+    """Return True if *node* is a simple name or attribute chain (no calls/subscripts).
+
+    Restricting the tautology detector to pure operands keeps assertions like
+    ``f() is not None or f() is None`` out of scope — ``f()`` is evaluated twice
+    and may legitimately return different values or have side effects, so the
+    disjunction is not actually tautological.
+    """
+    if isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.Attribute):
+        return _is_pure_operand(node.value)
+    return False
+
+
 def _find_is_not_none_or_is_none_tautology(source: str, path: str = "<string>") -> list[str]:
     """Return assertions of the form ``assert X is not None or X is None``.
 
@@ -575,6 +595,11 @@ def _find_is_not_none_or_is_none_tautology(source: str, path: str = "<string>") 
     or leaks state.
 
     Also flags the symmetric ``X is None or X is not None``.
+
+    Only fires when ``X`` is a simple name or attribute chain; expressions
+    containing calls, subscripts, or other side-effect-capable nodes are
+    intentionally skipped (``f() is not None or f() is None`` evaluates
+    ``f`` twice and is not a tautology in general).
     """
     try:
         tree = ast.parse(source, filename=path)
@@ -586,6 +611,8 @@ def _find_is_not_none_or_is_none_tautology(source: str, path: str = "<string>") 
             return None
         comp = n.comparators[0]
         if not (isinstance(comp, ast.Constant) and comp.value is None):
+            return None
+        if not _is_pure_operand(n.left):
             return None
         op = n.ops[0]
         if negated and isinstance(op, ast.IsNot):
@@ -619,9 +646,10 @@ def _find_is_not_none_or_is_none_tautology(source: str, path: str = "<string>") 
 @pytest.mark.parametrize(
     ("source", "expected_count"),
     [
-        # Tautologies — flag
+        # Tautologies — flag (simple name or attribute operand)
         ("assert result is not None or result is None\n", 1),
         ("assert result is None or result is not None\n", 1),
+        ("assert obj.field is not None or obj.field is None\n", 1),
         # Different operands — NOT a tautology
         ("assert a is not None or b is None\n", 0),
         # Single comparisons — NOT a tautology
@@ -629,6 +657,12 @@ def _find_is_not_none_or_is_none_tautology(source: str, path: str = "<string>") 
         ("assert result is None\n", 0),
         # Meaningful disjunction — NOT a tautology
         ("assert result is None or isinstance(result, str)\n", 0),
+        # Call-expression operands — NOT flagged (f() may return different
+        # values on each call or have side effects; not a true tautology)
+        ("assert f() is not None or f() is None\n", 0),
+        ("assert obj.method() is not None or obj.method() is None\n", 0),
+        # Subscript operand — NOT flagged for the same reason
+        ("assert data[0] is not None or data[0] is None\n", 0),
     ],
 )
 def test_detector_flags_is_none_tautology(source: str, expected_count: int) -> None:
