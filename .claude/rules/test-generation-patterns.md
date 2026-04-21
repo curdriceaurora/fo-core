@@ -16,10 +16,16 @@ Before writing any test:
 - [ ] Does each assertion verify a *specific value*, not just a type or non-None? (T1 — use Fix-by-type table)
 - [ ] After calling a mutating method, does the test verify the mutation persisted? (T2)
 - [ ] Are mocks asserted with exact call args, not just `call_count >= 1`? (T3)
+- [ ] Is any assertion an `X or isinstance(X, T)` or `X is not None or X is None` tautology? (T4 / T9)
 - [ ] Is `pytest.importorskip` scoped to only the classes that use the optional dep? (T5)
+- [ ] Does any `try/except` guard an exception the production code never raises? (T7)
 - [ ] Does this file import an optional dep at module level without `pytest.importorskip`? (T8)
 - [ ] Does any assertion use `>= 0` on a length, count, or duration? Replace with a meaningful bound. (T9)
 - [ ] For every `_is_X()` / `_has_X()` predicate in detector/guardrail code — is there a negative test case that passes the same surface shape with the wrong context and asserts `False`? (T10)
+- [ ] About to add `# pragma: no cover`? Grep `tests/` for the enclosing function first. (T11)
+- [ ] Snapshotting singleton or `sys.modules` state? Confirm teardown actually restores it (including sub-module keys). (T12)
+- [ ] Any hardcoded `/tmp/` or `/dev/null` path literals in test data? Use `tmp_path`. (T13)
+- [ ] Any `(_ for _ in ()).throw(...)` mock side-effect? Use a named function or `MagicMock(side_effect=...)`. (T14)
 
 ---
 
