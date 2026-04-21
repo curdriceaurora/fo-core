@@ -80,24 +80,39 @@ def _git_changed_test_files() -> list[Path]:
     Used for guardrails that have known pre-existing violations in the full
     suite.  Only files touched in the current branch are checked, preventing
     failures on historical code while blocking new violations.
+
+    The set is the *union* of three diffs so a new violation is caught at
+    every stage of the local workflow:
+
+    - ``origin/main...HEAD`` — commits landed on the branch
+    - ``--cached`` — changes already ``git add``-staged for the next commit
+    - ``HEAD`` — unstaged worktree changes
+
+    Without the staged/worktree diffs, a pre-commit invocation sitting on
+    top of an existing branch with prior commits would see a non-empty
+    commit-range diff, take that branch as the answer, and silently skip
+    the file the author is about to commit.
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", "origin/main...HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=FO_ROOT,
-        )
-        if not result.stdout.strip():
+    changed: set[str] = set()
+    for diff_args in (
+        ["origin/main...HEAD"],
+        ["--cached"],
+        ["HEAD"],
+    ):
+        try:
             result = subprocess.run(
-                ["git", "diff", "--name-only", "HEAD"],
+                ["git", "diff", "--name-only", *diff_args],
                 capture_output=True,
                 text=True,
                 cwd=FO_ROOT,
             )
-        changed = {line.strip() for line in result.stdout.splitlines() if line.strip()}
-    except Exception:
-        changed = set()
+            changed.update(line.strip() for line in result.stdout.splitlines() if line.strip())
+        except Exception:
+            # Best-effort: any git failure leaves `changed` unchanged; if all
+            # three diffs fail we yield an empty set, which each caller treats
+            # as "no changed files" (diff-scoped guardrails then no-op).
+            continue
+
     return sorted(
         p
         for p in TESTS_ROOT.rglob("*.py")
@@ -561,7 +576,7 @@ def _find_is_not_none_or_is_none_tautology(source: str, path: str = "<string>") 
     except SyntaxError:
         return []
 
-    def _is_is_none(n: ast.AST, negated: bool) -> str | None:
+    def _is_is_none(n: ast.AST, *, negated: bool) -> str | None:
         if not isinstance(n, ast.Compare) or len(n.ops) != 1 or len(n.comparators) != 1:
             return None
         comp = n.comparators[0]
@@ -641,21 +656,33 @@ def test_changed_tests_have_no_is_none_tautology() -> None:
 def _find_generator_throw_false_raise(source: str, path: str = "<string>") -> list[str]:
     """Return locations of ``(_ for _ in ()).throw(...)`` expressions.
 
-    This expression is often used as a mock side-effect intending to raise an
-    exception when the mocked callable is invoked.  It does NOT raise — it
-    returns a generator object.  The production code receives the generator
-    (which is truthy and can even be ``__enter__``-compatible in some paths)
-    and the error-handling branch is never exercised.  The test passes green
-    while the exception path is silently untested.
+    The idiom DOES raise — ``generator.throw(exc)`` on a fresh generator-expression
+    starts it and propagates ``exc`` back to the caller.  It is banned anyway, for
+    clarity and policy reasons: a five-token obfuscation of ``raise exc`` is
+    easy to misread (historically assumed to be a no-op that returns a generator),
+    and ``MagicMock(side_effect=exc)`` or a named ``def _raise(): raise exc``
+    helper is both clearer and more conventional.
 
-    Detection is textual because the AST shape varies (lambda, direct call,
-    assignment to ``obj.method``) but the literal ``(_ for _ in ())`` is
-    the telltale marker.
+    Detection is AST-based so that occurrences in comments, string literals, and
+    docstrings are not flagged.  Matches any ``<genexp>.throw(...)`` where
+    ``<genexp>`` is a generator expression — not just the literal
+    ``(_ for _ in ())`` shape — because variations like ``(_ for _ in [])`` or
+    ``(x for x in ())`` fall under the same anti-pattern.
     """
+    try:
+        tree = ast.parse(source, filename=path)
+    except SyntaxError:
+        return []
+
     violations: list[str] = []
-    for lineno, line in enumerate(source.splitlines(), start=1):
-        if "(_ for _ in ())" in line and ".throw" in line:
-            violations.append(f"{path}:{lineno}")
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and func.attr == "throw"):
+            continue
+        if isinstance(func.value, ast.GeneratorExp):
+            violations.append(f"{path}:{node.lineno}")
     return violations
 
 
@@ -669,10 +696,22 @@ def _find_generator_throw_false_raise(source: str, path: str = "<string>") -> li
         ),
         # Standalone expression — flag
         ("(_ for _ in ()).throw(ValueError('x'))\n", 1),
+        # Variant generator shapes — also flag (same anti-pattern)
+        ("(_ for _ in []).throw(OSError('x'))\n", 1),
+        ("(x for x in ()).throw(RuntimeError('y'))\n", 1),
+        # Comment mentioning the pattern — NOT flagged (AST ignores comments)
+        ("# (_ for _ in ()).throw(ValueError('x'))\nx = 1\n", 0),
+        # String literal containing the pattern — NOT flagged
+        ("text = \"(_ for _ in ()).throw(ValueError('x'))\"\n", 0),
+        # Docstring mentioning the pattern — NOT flagged
+        ('def f():\n    """(_ for _ in ()).throw(X())"""\n    pass\n', 0),
         # Named function that raises — NOT flagged (correct pattern)
         ("def raise_oserror(*a, **k):\n    raise OSError('boom')\n", 0),
-        # Plain generator — NOT flagged
+        # Plain generator without .throw — NOT flagged
         ("gen = (x for x in [1, 2, 3])\n", 0),
+        # .throw on a named variable (not a generator expression) — NOT flagged
+        # (style is fine when the generator is the intended object under test)
+        ("gen = some_generator()\ngen.throw(ValueError('x'))\n", 0),
     ],
 )
 def test_detector_flags_generator_throw_false_raise(source: str, expected_count: int) -> None:
@@ -680,12 +719,12 @@ def test_detector_flags_generator_throw_false_raise(source: str, expected_count:
 
 
 def test_changed_tests_have_no_generator_throw_false_raise() -> None:
-    """Changed test files must not use ``(_ for _ in ()).throw(...)`` mocks.
+    """Changed test files must not use ``<genexp>.throw(...)`` mocks.
 
-    The expression returns a generator instead of raising.  Use a named
-    function (``def _raise_x(): raise X(...)``) or
-    ``MagicMock(side_effect=X(...))`` instead.  See test-generation-patterns.md
-    T14 for details.
+    The idiom raises the exception (contrary to intuition) but is banned for
+    clarity: use a named ``def _raise(): raise X(...)`` helper or
+    ``MagicMock(side_effect=X(...))`` instead.  See T14 in
+    ``.claude/rules/test-generation-patterns.md``.
 
     Diff-scoped for now — 9 pre-existing violations exist across the suite
     (daemon, events, integration, pipeline).  TODO: broaden to the full suite
@@ -697,6 +736,6 @@ def test_changed_tests_have_no_generator_throw_false_raise() -> None:
         violations.extend(_find_generator_throw_false_raise(source, str(path)))
 
     assert not violations, (
-        "Generator-throw false-raise found — use a named function or "
+        "`<genexp>.throw(...)` found — use a named function or "
         "MagicMock(side_effect=...) instead:\n" + "\n".join(violations)
     )

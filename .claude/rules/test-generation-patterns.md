@@ -584,20 +584,26 @@ hardcoded paths in tests are:
 ## Pattern T14: GENERATOR_THROW_FALSE_RAISE
 
 **What it is**: `(_ for _ in ()).throw(SomeError(...))` used as a mock side-effect.
-The expression _returns a generator object_; it does not raise. When the production
-code invokes it — e.g. `netCDF4.Dataset(path)` — it receives the generator (truthy,
-and `__enter__`-capable in some codepaths) and the error branch is never exercised.
-The test still passes green, but the exception-handling path is untested.
+
+Technically the expression _does_ raise — `generator.throw(exc)` on a fresh
+generator-expression starts it and propagates the exception back to the caller.
+The pattern is banned anyway because:
+
+1. **It reads as a no-op.** The five-token idiom is easily misread as "create a
+   generator and configure it to throw later" — which is exactly why reviewers
+   repeatedly flag it as a bug (and why the original PR-review comment for this
+   pattern was itself wrong about the runtime behavior).
+2. **Clearer alternatives exist.** `MagicMock(side_effect=exc)` or a named
+   `def _raise(): raise exc` helper conveys intent in one read.
+3. **It silently couples test correctness to a Python-implementation detail** —
+   `generator.throw` on an unstarted generator is "raises into the first yield
+   point, which is the start of the body"; if that ever changes, every use of
+   this idiom breaks at once.
 
 **Bad** (from PR #82, scientific reader tests):
 
 ```python
 sci_module.netCDF4.Dataset = lambda *a, **k: (_ for _ in ()).throw(OSError("boom"))
-
-# Production code:
-with netCDF4.Dataset(path) as ds:   # receives a generator, not an OSError
-    ...
-# Test passes, but the OSError-handling branch never ran.
 ```
 
 **Good**:

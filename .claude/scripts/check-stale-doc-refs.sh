@@ -145,11 +145,25 @@ for entry in "${REMOVED_TERMS[@]}"; do
     if $STAGED_ONLY; then
       # Only flag newly ADDED lines.  Pre-existing violations in files being
       # edited for unrelated reasons must not block the commit.
-      hits=$(git diff --cached --unified=0 -- "$md_file" 2>/dev/null \
-        | grep -E '^\+' \
-        | grep -v '^+++' \
-        | grep -v -E "$HISTORY_EXEMPT_REGEX" \
-        | grep -E "$pattern" || true)
+      #
+      # Fenced code blocks are exempt (docs often show the old term as a
+      # historical example, e.g. `ollama ls` inside a ```bash fence).  We
+      # compute the intersection of (a) lines added by the staged diff and
+      # (b) the post-staged file's non-fenced content.  Only lines in both
+      # sets — i.e. added to prose, not inside a fence — proceed to the
+      # pattern match.
+      non_fenced=$(git show ":$md_file" 2>/dev/null \
+        | awk '/^```/ { in_fence = !in_fence; next } !in_fence' || true)
+      added=$(git diff --cached --unified=0 -- "$md_file" 2>/dev/null \
+        | grep -E '^\+[^+]' | sed 's/^+//' || true)
+      if [[ -z "$added" || -z "$non_fenced" ]]; then
+        hits=""
+      else
+        prose_added=$(echo "$added" | grep -Fxf <(echo "$non_fenced") 2>/dev/null || true)
+        hits=$(echo "$prose_added" \
+          | grep -v -E "$HISTORY_EXEMPT_REGEX" \
+          | grep -E "$pattern" || true)
+      fi
       if [[ -n "$hits" ]]; then
         echo "  ⚠️  $md_file → newly added line matches stale pattern '$pattern' ($reason)"
         ERRORS=$((ERRORS + 1))
