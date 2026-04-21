@@ -157,8 +157,15 @@ for entry in "${REMOVED_TERMS[@]}"; do
       # (common inside lists and blockquotes) as prose and flag their content.
       non_fenced=$(git show ":$md_file" 2>/dev/null \
         | awk '/^ ? ? ?```/ { in_fence = !in_fence; next } !in_fence' || true)
+      # Match every added line (prefix `+`) and strip the `+++ b/path` file
+      # header separately.  A previous `^\+[^+]` filter dropped any added line
+      # whose content itself started with `+` (appears as `++content` in the
+      # diff), producing a false negative when an author added e.g. bullet
+      # lines like `+ marketplace`.
       added=$(git diff --cached --unified=0 -- "$md_file" 2>/dev/null \
-        | grep -E '^\+[^+]' | sed 's/^+//' || true)
+        | grep -E '^\+' \
+        | grep -v -E '^\+\+\+ ' \
+        | sed 's/^+//' || true)
       if [[ -z "$added" || -z "$non_fenced" ]]; then
         hits=""
       else

@@ -337,8 +337,13 @@ def _find_vacuous_len_gte_zero_assertions(source: str, path: str = "<string>") -
        ``len()`` always returns a non-negative integer, so ``>= 0`` is tautological.
 
     2. ``assert x.attr >= 0``  (forward) and ``assert 0 <= x.attr``  (reverse)
-       where ``attr`` is one of the known non-negative attribute names
-       (``count``, ``duration``, ``total_size``, ``size``, ``length``).
+       where ``attr`` is one of the known non-negative attribute names.  The
+       authoritative set is ``_GTE_ZERO_NON_NEGATIVE_ATTRS``; at the time of
+       writing it covers sizes/lengths (``count``, ``length``, ``size``,
+       ``total_size``), durations (``duration``, ``elapsed``, ``elapsed_ms``,
+       ``elapsed_seconds``), and counts/depths flagged in 2026-03..04 PR
+       reviews (``depth``, ``files_per_second``, ``keyword_count``,
+       ``topic_count``).
 
     These pass even when the code under test is completely broken.  Use a
     meaningful bound (``>= 1``, ``== N``, ``< max_val``) instead.
