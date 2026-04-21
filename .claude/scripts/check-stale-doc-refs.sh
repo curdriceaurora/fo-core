@@ -152,8 +152,11 @@ for entry in "${REMOVED_TERMS[@]}"; do
       # (b) the post-staged file's non-fenced content.  Only lines in both
       # sets — i.e. added to prose, not inside a fence — proceed to the
       # pattern match.
+      # CommonMark allows 0–3 spaces of indentation before a fence marker.
+      # Matching only column-0 fences would treat indented fenced blocks
+      # (common inside lists and blockquotes) as prose and flag their content.
       non_fenced=$(git show ":$md_file" 2>/dev/null \
-        | awk '/^```/ { in_fence = !in_fence; next } !in_fence' || true)
+        | awk '/^ ? ? ?```/ { in_fence = !in_fence; next } !in_fence' || true)
       added=$(git diff --cached --unified=0 -- "$md_file" 2>/dev/null \
         | grep -E '^\+[^+]' | sed 's/^+//' || true)
       if [[ -z "$added" || -z "$non_fenced" ]]; then
@@ -170,8 +173,10 @@ for entry in "${REMOVED_TERMS[@]}"; do
       fi
     else
       # Full-scan mode: line-numbered output across the whole file.
+      # After `cat -n`, content starts after the tab; allow 0–3 spaces of
+      # indentation before the fence marker (CommonMark rule).
       hits=$(cat -n "$full_path" 2>/dev/null \
-        | awk '/^[[:space:]]*[0-9]+\t```/ { in_fence = !in_fence; next } !in_fence' \
+        | awk '/^[[:space:]]*[0-9]+\t ? ? ?```/ { in_fence = !in_fence; next } !in_fence' \
         | grep -v -E "$HISTORY_EXEMPT_REGEX" \
         | grep -E "$pattern" || true)
       if [[ -n "$hits" ]]; then
