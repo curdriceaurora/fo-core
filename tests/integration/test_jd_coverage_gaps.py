@@ -7,8 +7,16 @@ are reachable in integration scenarios but were absent from prior test suites.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from methodologies.johnny_decimal.categories import NumberingScheme
+    from methodologies.johnny_decimal.compatibility import JohnnyDecimalConfig
+    from methodologies.johnny_decimal.numbering import JohnnyDecimalGenerator
+    from methodologies.johnny_decimal.system import JohnnyDecimalSystem
+    from methodologies.johnny_decimal.transformer import TransformationPlan, TransformationRule
 
 pytestmark = pytest.mark.integration
 
@@ -19,6 +27,8 @@ pytestmark = pytest.mark.integration
 
 
 class TestCategoriesGaps:
+    """Integration tests for categories.py data model branches."""
+
     def test_number_level_str(self) -> None:
         from methodologies.johnny_decimal.categories import NumberLevel
 
@@ -70,7 +80,9 @@ class TestCategoriesGaps:
 
 
 class TestNumberingGaps:
-    def _make_scheme_and_generator(self):
+    """Integration tests for numbering.py conflict and availability branches."""
+
+    def _make_scheme_and_generator(self) -> tuple[NumberingScheme, JohnnyDecimalGenerator]:
         from methodologies.johnny_decimal.categories import (
             AreaDefinition,
             CategoryDefinition,
@@ -119,12 +131,14 @@ class TestNumberingGaps:
 
 
 # ---------------------------------------------------------------------------
-# system.py — lines 161-170, 190-192, 289, 323-327, 487-497
+# system.py — lines 83, 161-170, 190-192, 289, 323-327, 487-497
 # ---------------------------------------------------------------------------
 
 
 class TestSystemGaps:
-    def _make_system(self):
+    """Integration tests for system.py orchestration and conflict branches."""
+
+    def _make_system(self) -> JohnnyDecimalSystem:
         from methodologies.johnny_decimal.categories import AreaDefinition, NumberingScheme
         from methodologies.johnny_decimal.system import JohnnyDecimalSystem
 
@@ -136,65 +150,79 @@ class TestSystemGaps:
     def test_assign_number_with_conflicting_preferred(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
 
-        sys = self._make_system()
+        jd_sys = self._make_system()
         preferred = JohnnyDecimalNumber(area=10, category=1)
         # Register the preferred number first to create a conflict
         f1 = tmp_path / "file1.txt"
         f1.write_text("content")
-        sys.assign_number_to_file(f1, preferred_number=preferred)
+        jd_sys.assign_number_to_file(f1, preferred_number=preferred)
         # Assign a second file with same preferred → triggers conflict resolution
         f2 = tmp_path / "file2.txt"
         f2.write_text("content")
-        result = sys.assign_number_to_file(f2, preferred_number=preferred)
-        assert result.number is not None
+        result = jd_sys.assign_number_to_file(f2, preferred_number=preferred)
+        # Conflict resolution must produce a different number than the preferred
+        assert result.number.formatted_number != preferred.formatted_number
 
     def test_assign_number_with_content(self, tmp_path: Path) -> None:
-        sys = self._make_system()
+        jd_sys = self._make_system()
         f = tmp_path / "budget_report.txt"
         f.write_text("annual budget")
-        result = sys.assign_number_to_file(f, content="annual budget finance")
+        result = jd_sys.assign_number_to_file(f, content="annual budget finance")
         assert result.number is not None
         assert result.confidence > 0
 
     def test_get_area_summary(self) -> None:
-        sys = self._make_system()
-        summary = sys.get_area_summary(10)
-        assert "area" in summary or isinstance(summary, dict)
+        jd_sys = self._make_system()
+        summary = jd_sys.get_area_summary(10)
+        assert summary["area"] == 10
+        assert summary["name"] == "Finance"
 
     def test_get_all_areas_summary(self) -> None:
-        sys = self._make_system()
-        summaries = sys.get_all_areas_summary()
-        assert isinstance(summaries, list)
+        jd_sys = self._make_system()
+        summaries = jd_sys.get_all_areas_summary()
+        # _make_system registers area 10-19: 10 individual area numbers
+        assert len(summaries) == 10
+        area_numbers = [s["area"] for s in summaries]
+        assert 10 in area_numbers
+        assert 19 in area_numbers
+
+    def test_initialize_from_directory_skips_conflict(self, tmp_path: Path) -> None:
+        # Two folders that both parse to area 10 — second triggers NumberConflictError
+        (tmp_path / "10 Finance").mkdir()
+        (tmp_path / "10 Duplicate").mkdir()
+        jd_sys = self._make_system()
+        jd_sys.initialize_from_directory(tmp_path)
+        assert jd_sys._initialized is True
 
     def test_renumber_file(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
 
-        sys = self._make_system()
+        jd_sys = self._make_system()
         f = tmp_path / "doc.txt"
         f.write_text("content")
         old = JohnnyDecimalNumber(area=10, category=1)
         new = JohnnyDecimalNumber(area=10, category=2)
-        sys.assign_number_to_file(f, preferred_number=old)
-        result = sys.renumber_file(old, new, f)
+        jd_sys.assign_number_to_file(f, preferred_number=old)
+        result = jd_sys.renumber_file(old, new, f)
         assert result.number.category == 2
 
     def test_reserve_number_range_category_level(self) -> None:
         from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
 
-        sys = self._make_system()
+        jd_sys = self._make_system()
         start = JohnnyDecimalNumber(area=10, category=5)
         end = JohnnyDecimalNumber(area=10, category=7)
-        sys.reserve_number_range(start, end)
-        assert not sys.generator.is_number_available(JohnnyDecimalNumber(area=10, category=6))
+        jd_sys.reserve_number_range(start, end)
+        assert not jd_sys.generator.is_number_available(JohnnyDecimalNumber(area=10, category=6))
 
     def test_reserve_number_range_id_level(self) -> None:
         from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
 
-        sys = self._make_system()
+        jd_sys = self._make_system()
         start = JohnnyDecimalNumber(area=10, category=1, item_id=1)
         end = JohnnyDecimalNumber(area=10, category=1, item_id=3)
-        sys.reserve_number_range(start, end)
-        assert not sys.generator.is_number_available(
+        jd_sys.reserve_number_range(start, end)
+        assert not jd_sys.generator.is_number_available(
             JohnnyDecimalNumber(area=10, category=1, item_id=2)
         )
 
@@ -205,7 +233,9 @@ class TestSystemGaps:
 
 
 class TestValidatorGaps:
-    def _make_generator(self):
+    """Integration tests for validator.py validation rule branches."""
+
+    def _make_generator(self) -> JohnnyDecimalGenerator:
         from methodologies.johnny_decimal.categories import AreaDefinition, NumberingScheme
         from methodologies.johnny_decimal.numbering import JohnnyDecimalGenerator
 
@@ -213,7 +243,7 @@ class TestValidatorGaps:
         scheme.add_area(AreaDefinition(10, 19, "Finance", "Finance"))
         return JohnnyDecimalGenerator(scheme)
 
-    def _make_plan(self, tmp_path: Path, rules):
+    def _make_plan(self, tmp_path: Path, rules: list[TransformationRule]) -> TransformationPlan:
         from methodologies.johnny_decimal.transformer import TransformationPlan
 
         return TransformationPlan(
@@ -222,7 +252,9 @@ class TestValidatorGaps:
             estimated_changes=len(rules),
         )
 
-    def _make_rule(self, source: Path, target: str, area: int, category: int | None = None):
+    def _make_rule(
+        self, source: Path, target: str, area: int, category: int | None = None
+    ) -> TransformationRule:
         from methodologies.johnny_decimal.categories import JohnnyDecimalNumber
         from methodologies.johnny_decimal.transformer import TransformationRule
 
@@ -354,7 +386,9 @@ class TestValidatorGaps:
 
 
 class TestTransformerGaps:
-    def _make_scheme_and_generator(self):
+    """Integration tests for transformer.py plan generation branches."""
+
+    def _make_scheme_and_generator(self) -> tuple[NumberingScheme, JohnnyDecimalGenerator]:
         from methodologies.johnny_decimal.categories import (
             AreaDefinition,
             CategoryDefinition,
@@ -439,7 +473,10 @@ class TestTransformerGaps:
 
 
 class TestMigratorGaps:
+    """Integration tests for migrator.py execution and rollback branches."""
+
     def _setup_directory(self, tmp_path: Path) -> Path:
+        """Create a minimal directory structure for migration tests."""
         root = tmp_path / "root"
         root.mkdir()
         (root / "Finance").mkdir()
@@ -464,9 +501,10 @@ class TestMigratorGaps:
         migrator = JohnnyDecimalMigrator()
         plan, _ = migrator.create_migration_plan(root)
         migrator.execute_migration(plan, dry_run=False, create_backup=True)
-        # rollback(None) targets the most recent migration
         success = migrator.rollback()
-        assert isinstance(success, bool)
+        assert success is True
+        # Original folder names should be restored after rollback
+        assert (root / "Finance").exists()
 
     def test_generate_report(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.migrator import JohnnyDecimalMigrator
@@ -487,7 +525,8 @@ class TestMigratorGaps:
         plan, scan = migrator.create_migration_plan(root)
         validation = migrator.validate_plan(plan)
         preview = migrator.generate_preview(plan, scan, validation)
-        assert isinstance(preview, str)
+        assert "# Johnny Decimal Migration Preview" in preview
+        assert "## Migration Plan" in preview
 
 
 # ---------------------------------------------------------------------------
@@ -496,7 +535,9 @@ class TestMigratorGaps:
 
 
 class TestCompatibilityGaps:
-    def _make_config(self):
+    """Integration tests for compatibility.py PARA detection and hybrid branches."""
+
+    def _make_config(self) -> JohnnyDecimalConfig:
         from methodologies.johnny_decimal.categories import NumberingScheme
         from methodologies.johnny_decimal.compatibility import JohnnyDecimalConfig
 
@@ -504,7 +545,7 @@ class TestCompatibilityGaps:
         return JohnnyDecimalConfig(scheme=scheme)
 
     def test_detect_para_structure(self, tmp_path: Path) -> None:
-        from methodologies.johnny_decimal.compatibility import CompatibilityAnalyzer
+        from methodologies.johnny_decimal.compatibility import CompatibilityAnalyzer, PARACategory
 
         (tmp_path / "Projects").mkdir()
         (tmp_path / "Areas").mkdir()
@@ -512,7 +553,8 @@ class TestCompatibilityGaps:
         (tmp_path / "Archive").mkdir()
         analyzer = CompatibilityAnalyzer(self._make_config())
         result = analyzer.detect_para_structure(tmp_path)
-        assert isinstance(result, dict)
+        assert PARACategory.PROJECTS in result
+        assert result[PARACategory.PROJECTS] is not None
 
     def test_is_mixed_structure(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.compatibility import CompatibilityAnalyzer
@@ -521,7 +563,7 @@ class TestCompatibilityGaps:
         (tmp_path / "10 Finance").mkdir()
         analyzer = CompatibilityAnalyzer(self._make_config())
         result = analyzer.is_mixed_structure(tmp_path)
-        assert isinstance(result, bool)
+        assert result is True
 
     def test_suggest_migration_strategy(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.compatibility import CompatibilityAnalyzer
@@ -530,7 +572,9 @@ class TestCompatibilityGaps:
         (tmp_path / "Areas").mkdir()
         analyzer = CompatibilityAnalyzer(self._make_config())
         strategy = analyzer.suggest_migration_strategy(tmp_path)
-        assert isinstance(strategy, dict)
+        assert "recommendations" in strategy
+        assert "detected_para" in strategy
+        assert "is_mixed_structure" in strategy
 
     def test_create_para_structure(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.compatibility import (
@@ -553,18 +597,18 @@ class TestCompatibilityGaps:
         config = self._make_config()
         para_cfg = config.compatibility.para_integration
         organizer = HybridOrganizer(config)
-        # Area-level
+        # Area-level: path ends with zero-padded area number
         area_num = JohnnyDecimalNumber(area=para_cfg.projects_area)
         p1 = organizer.get_item_path(tmp_path, PARACategory.PROJECTS, area_num)
-        assert p1 is not None
-        # Category-level
+        assert str(p1).endswith(f"{para_cfg.projects_area:02d}")
+        # Category-level: path contains "area.category" segment
         cat_num = JohnnyDecimalNumber(area=para_cfg.projects_area, category=1)
         p2 = organizer.get_item_path(tmp_path, PARACategory.PROJECTS, cat_num)
-        assert p2 is not None
-        # ID-level
+        assert f"{para_cfg.projects_area:02d}.01" in str(p2)
+        # ID-level: path contains full ID and item name
         id_num = JohnnyDecimalNumber(area=para_cfg.projects_area, category=1, item_id=1)
         p3 = organizer.get_item_path(tmp_path, PARACategory.PROJECTS, id_num, item_name="MyDoc")
-        assert p3 is not None
+        assert "MyDoc" in str(p3)
 
 
 # ---------------------------------------------------------------------------
@@ -573,6 +617,8 @@ class TestCompatibilityGaps:
 
 
 class TestScannerGaps:
+    """Integration tests for scanner.py directory traversal branches."""
+
     def test_scan_skips_hidden_files(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.scanner import FolderScanner
 
@@ -589,34 +635,36 @@ class TestScannerGaps:
 
         folder = tmp_path / "Finance"
         folder.mkdir()
-        (folder / "a.txt").write_text("hello")
-        (folder / "b.txt").write_text("world")
+        (folder / "a.txt").write_text("hello")  # 5 bytes
+        (folder / "b.txt").write_text("world")  # 5 bytes
         scanner = FolderScanner(skip_hidden=False)
         result = scanner.scan_directory(tmp_path)
         finance = next((f for f in result.folder_tree if f.name == "Finance"), None)
         assert finance is not None
-        assert finance.file_count >= 2
-        assert finance.total_size >= 0
+        assert finance.file_count == 2
+        assert finance.total_size >= 10  # both files are 5 bytes each
 
-    def test_scan_detects_duplicate_numbers(self, tmp_path: Path) -> None:
+    def test_scan_detects_jd_pattern(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.scanner import FolderScanner
 
         (tmp_path / "10 Finance").mkdir()
         (tmp_path / "10 Duplicate").mkdir()
         scanner = FolderScanner()
         result = scanner.scan_directory(tmp_path)
-        assert result is not None
+        assert "Existing Johnny Decimal numbers detected" in result.detected_patterns
 
     def test_scan_deep_hierarchy_warning(self, tmp_path: Path) -> None:
         from methodologies.johnny_decimal.scanner import FolderScanner
 
+        # Create 7 levels of nesting (depth 0–6) to trigger max_depth > 5 warning
         deep = tmp_path
-        for i in range(6):
+        for i in range(7):
             deep = deep / f"level{i}"
             deep.mkdir()
         scanner = FolderScanner(max_depth=10)
         result = scanner.scan_directory(tmp_path)
-        assert result is not None
+        assert result.max_depth >= 6
+        assert any("Deep hierarchy" in w for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +673,8 @@ class TestScannerGaps:
 
 
 class TestConfigGaps:
+    """Integration tests for config.py builder and persistence branches."""
+
     def test_config_builder_with_categories(self) -> None:
         from methodologies.johnny_decimal.config import ConfigBuilder
 
@@ -644,13 +694,25 @@ class TestConfigGaps:
         assert config.custom_mappings.get("finance") == 10
 
     def test_save_and_load_configuration(self, tmp_path: Path) -> None:
-        from methodologies.johnny_decimal.categories import AreaDefinition, NumberingScheme
+        from methodologies.johnny_decimal.categories import (
+            AreaDefinition,
+            JohnnyDecimalNumber,
+            NumberingScheme,
+        )
         from methodologies.johnny_decimal.system import JohnnyDecimalSystem
 
         scheme = NumberingScheme(name="Persist", description="Persistence test")
         scheme.add_area(AreaDefinition(10, 19, "Finance", "Finance"))
-        sys = JohnnyDecimalSystem(scheme=scheme, config_path=tmp_path / "config.json")
-        sys.save_configuration()
-        assert (tmp_path / "config.json").exists()
-        sys2 = JohnnyDecimalSystem(scheme=scheme, config_path=tmp_path / "config.json")
+        config_file = tmp_path / "config.json"
+        jd_sys = JohnnyDecimalSystem(scheme=scheme, config_path=config_file)
+        # Register a number so we can verify round-trip persistence
+        registered_num = JohnnyDecimalNumber(area=10, category=1)
+        jd_sys.generator.register_existing_number(registered_num, tmp_path / "budget.txt")
+        jd_sys.save_configuration()
+        assert config_file.exists()
+
+        sys2 = JohnnyDecimalSystem(scheme=scheme, config_path=config_file)
         sys2.load_configuration()
+        assert sys2._initialized is True
+        assert sys2.scheme.get_area(10) is not None
+        assert "10.01" in sys2.generator._number_mappings

@@ -79,8 +79,8 @@ class JohnnyDecimalSystem:
                         self.generator.register_existing_number(number, item)
                         detected_numbers += 1
                         logger.debug(f"Detected number {number.formatted_number} in {item.name}")
-                    except NumberConflictError as e:  # pragma: no cover
-                        logger.warning(f"Conflict detected: {e}")
+                    except NumberConflictError as e:
+                        logger.warning("Conflict detected: %s", e)
 
         logger.info(f"Initialized with {detected_numbers} existing numbers")
         self._initialized = True
