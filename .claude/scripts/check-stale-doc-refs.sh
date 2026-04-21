@@ -109,10 +109,68 @@ for method in "${FALSE_METHODS[@]}"; do
   done <<< "$MD_FILES"
 done
 
+# --- Check 4: Removed features / terminology drift ---
+# Each entry: "grep-E-pattern:reason". Patterns use POSIX-extended regex
+# (as accepted by `grep -E`).  Lines inside fenced code blocks and lines
+# containing explicit "removed", "deprecated", "was ", "formerly",
+# "no longer", or "previously" are exempt so we can still document history.
+REMOVED_TERMS=(
+  '\[parsers\]:the "parsers" extra was removed; valid extras are dev cloud llama mlx claude audio video dedup archive scientific cad build search all'
+  '\[gui\]:fo-core is CLI-only; no [gui] extra exists'
+  '/plugins/:the plugin system was removed; fo-core has no plugin layer'
+  '\bFastAPI\b:fo-core is CLI-only; no FastAPI/uvicorn web server exists'
+  '\buvicorn\b:fo-core is CLI-only; no FastAPI/uvicorn web server exists'
+  '\bollama ls\b:correct command is "ollama list" (not "ollama ls")'
+  '\bmarketplace\b:the marketplace CLI command was removed'
+)
+
+# Strip fenced-code-block content from a file so we only search prose.
+_strip_fences() {
+  awk '/^```/ { in_fence = !in_fence; next } !in_fence' "$1"
+}
+
+for entry in "${REMOVED_TERMS[@]}"; do
+  pattern="${entry%%:*}"
+  reason="${entry#*:}"
+
+  while IFS= read -r md_file; do
+    [[ -z "$md_file" ]] && continue
+    full_path="$REPO_ROOT/$md_file"
+    [[ -f "$full_path" ]] || continue
+
+    if $STAGED_ONLY; then
+      # Only flag newly ADDED lines.  Pre-existing violations in files being
+      # edited for unrelated reasons must not block the commit.
+      hits=$(git diff --cached --unified=0 -- "$md_file" 2>/dev/null \
+        | grep -E '^\+' \
+        | grep -v '^+++' \
+        | grep -v -E 'removed|deprecated|formerly|previously|no longer|was\b' \
+        | grep -E "$pattern" || true)
+      if [[ -n "$hits" ]]; then
+        echo "  ⚠️  $md_file → newly added line matches stale pattern '$pattern' ($reason)"
+        ERRORS=$((ERRORS + 1))
+      fi
+    else
+      # Full-scan mode: line-numbered output across the whole file.
+      hits=$(cat -n "$full_path" 2>/dev/null \
+        | awk '/^[[:space:]]*[0-9]+\t```/ { in_fence = !in_fence; next } !in_fence' \
+        | grep -v -E 'removed|deprecated|formerly|previously|no longer|was\b' \
+        | grep -E "$pattern" || true)
+      if [[ -n "$hits" ]]; then
+        while IFS= read -r hit; do
+          line_num=$(echo "$hit" | awk '{print $1}')
+          echo "  ⚠️  $md_file:$line_num → stale reference matching '$pattern' ($reason)"
+          ERRORS=$((ERRORS + 1))
+        done <<< "$hits"
+      fi
+    fi
+  done <<< "$MD_FILES"
+done
+
 echo ""
 if [[ $ERRORS -gt 0 ]]; then
   echo "❌ Found $ERRORS stale reference(s) in documentation"
-  echo "   Fix these before committing, or add to DELETED_SYMBOLS/FALSE_METHODS if intentional."
+  echo "   Fix these before committing, or add to DELETED_SYMBOLS/FALSE_METHODS/REMOVED_TERMS if intentional."
   exit 1
 else
   echo "✓ No stale documentation references found"

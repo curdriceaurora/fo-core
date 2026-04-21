@@ -405,6 +405,215 @@ def test_is_resolve_path_call_does_not_match_arbitrary_receiver():
 
 ---
 
+## Pattern T11: PRAGMA_ON_TESTED_BRANCH
+
+**What it is**: `# pragma: no cover` added to a branch that is already exercised by a
+dedicated test. The branch still executes (and counts toward runtime coverage), but the
+pragma hides it from the coverage report — which means a future refactor can drop the
+test without the coverage metric noticing.
+
+**Bad** (from PR #140 `src/methodologies/johnny_decimal/categories.py`):
+
+```python
+def __eq__(self, other: object) -> bool:
+    if not isinstance(other, JohnnyDecimalNumber):  # pragma: no cover
+        return NotImplemented
+    return self.area == other.area and ...
+```
+
+But `test_categories.py::test_jd_number_eq_not_implemented` explicitly calls
+`num.__eq__("not a jd number")` and asserts `NotImplemented`. The pragma is wrong:
+the branch is tested.
+
+**Good**:
+
+```python
+def __eq__(self, other: object) -> bool:
+    if not isinstance(other, JohnnyDecimalNumber):
+        return NotImplemented   # no pragma — this branch is exercised by tests
+    return self.area == other.area and ...
+```
+
+**Pre-generation check**: Before adding `# pragma: no cover`, search test files for the
+enclosing function/method name. If any test references it, the pragma is wrong — either
+the branch is tested, or the test is broken (fix the test, don't hide the branch).
+
+```bash
+# Quick check for the enclosing function
+rg "def <function_name>\(" tests/
+```
+
+Legitimate uses of `# pragma: no cover`: truly unreachable defensive branches
+(e.g. `if TYPE_CHECKING:`), platform-specific code blocks not exercised in CI, and
+`@overload` stubs. When in doubt, write the test instead of adding the pragma.
+
+---
+
+## Pattern T12: FIXTURE_STATE_LEAK
+
+**What it is**: A test snapshots shared singleton/module state with the intent to
+restore it, but either (a) never uses the snapshot in teardown, (b) restores only the
+top-level key leaving sub-modules patched, or (c) silently swallows setup failures
+and still yields. Leaks cross-test state under xdist and produces order-dependent
+failures.
+
+This is distinct from xdist-safe-patterns Pattern 2 (which covers _missing_ restoration
+of `sys.modules` sub-modules) — T12 adds the "snapshot-but-never-used" and "restoration
+that partially succeeds" variants.
+
+**Bad — snapshot never used** (from PR #61):
+
+```python
+@pytest.fixture
+def clean_registry():
+    original_providers = _registry.registered_providers  # snapshotted
+    yield
+    _registry._reset_for_testing()
+    _registry._register_builtins()
+    # original_providers never restored — any custom registrations at import time
+    # are silently lost for the rest of the session
+```
+
+**Bad — partial restoration** (from PR #76):
+
+```python
+saved_sklearn = sys.modules.get("sklearn")
+# ... mutate sys.modules["sklearn"] and sklearn.feature_extraction ...
+if saved_sklearn is not None:
+    sys.modules["sklearn"] = saved_sklearn
+    # sys.modules["sklearn.feature_extraction"] still points at the mock —
+    # later tests in this worker will load the stale mock
+```
+
+**Bad — swallow-and-yield** (from PR #76):
+
+```python
+@pytest.fixture
+def ensure_nltk():
+    try:
+        nltk.download("punkt_tab", quiet=True)
+    except Exception:
+        pass  # silent failure — test still yields, assertion later fails opaquely
+    yield
+```
+
+**Good**:
+
+```python
+# Use patch.dict for sys.modules — atomic restore on exit, including sub-modules
+with patch.dict(sys.modules, {
+    "sklearn": mock_sklearn,
+    "sklearn.feature_extraction": mock_sklearn.feature_extraction,
+    "sklearn.feature_extraction.text": mock_sklearn.feature_extraction.text,
+}):
+    yield mock_sklearn
+
+# For singletons: restore the actual snapshot, not just reset
+@pytest.fixture
+def clean_registry():
+    original = dict(_registry.registered_providers)
+    try:
+        yield
+    finally:
+        _registry._reset_for_testing()
+        for name, provider in original.items():
+            _registry.register(name, provider)
+```
+
+**Pre-generation check**: For every `<var> = sys.modules.get(...)` or
+`<var> = <singleton>.<field>` in a test, ensure `<var>` is actually referenced in the
+teardown. If it isn't, the snapshot is a no-op.
+
+**Cross-reference**: `xdist-safe-patterns.md` Pattern 2 (sys.modules restoration) and
+Pattern 3 (shared singletons).
+
+---
+
+## Pattern T13: HARDCODED_TEST_DATA_PATHS
+
+**What it is**: Hardcoded `/tmp/`, `/dev/null`, or other absolute path literals inside
+test _data_ (dataclass fields, fixture dicts, parametrize values). Ruff `S108` catches
+`tempfile.mktemp` and direct `open()` on hardcoded temp paths, but misses string
+literals passed to constructors. The G1 pre-commit hook greps diff for
+`/tmp/|/Users/|/home/` but only scans _added_ lines — older pre-existing literals in a
+file being edited are not re-checked.
+
+Impact: Windows-unportable tests, xdist file collisions, and tests that pass locally
+then fail in clean CI containers.
+
+**Bad** (from PR #61):
+
+```python
+def test_update_patterns(self, tmp_path: Path) -> None:
+    entry = FeedbackEntry(file_path="/tmp/f.txt")   # S108 misses this
+    tracker.add(entry)
+
+def test_null_output(self):
+    with open("/dev/null", "w") as f:               # not portable to Windows CI
+        process_file(f)
+```
+
+**Good**:
+
+```python
+def test_update_patterns(self, tmp_path: Path) -> None:
+    entry = FeedbackEntry(file_path=str(tmp_path / "f.txt"))
+    tracker.add(entry)
+
+def test_null_output(self, tmp_path: Path):
+    sink = tmp_path / "sink.txt"
+    with sink.open("w") as f:
+        process_file(f)
+```
+
+**Pre-generation check**: Any time you write a path string in a test, ask: *"Could
+this be `tmp_path / 'X'` instead?"* If yes — use `tmp_path`. The only acceptable
+hardcoded paths in tests are:
+- `/` root-based fixtures that are explicitly path-traversal test inputs
+  (e.g. `"/etc/passwd"` as an _input_ to a validator, never as an output target)
+- Path-validation test constants clearly marked as adversarial inputs
+
+---
+
+## Pattern T14: GENERATOR_THROW_FALSE_RAISE
+
+**What it is**: `(_ for _ in ()).throw(SomeError(...))` used as a mock side-effect.
+The expression _returns a generator object_; it does not raise. When the production
+code invokes it — e.g. `netCDF4.Dataset(path)` — it receives the generator (truthy,
+and `__enter__`-capable in some codepaths) and the error branch is never exercised.
+The test still passes green, but the exception-handling path is untested.
+
+**Bad** (from PR #82, scientific reader tests):
+
+```python
+sci_module.netCDF4.Dataset = lambda *a, **k: (_ for _ in ()).throw(OSError("boom"))
+
+# Production code:
+with netCDF4.Dataset(path) as ds:   # receives a generator, not an OSError
+    ...
+# Test passes, but the OSError-handling branch never ran.
+```
+
+**Good**:
+
+```python
+def _raise_oserror(*a, **k):
+    raise OSError("boom")
+sci_module.netCDF4.Dataset = _raise_oserror
+
+# Or with Mock:
+from unittest.mock import MagicMock
+sci_module.netCDF4.Dataset = MagicMock(side_effect=OSError("boom"))
+```
+
+**Pre-generation check**: The literal pattern `(_ for _ in ()).throw` is always wrong
+in a test mock. If you want a callable that raises, write a named function or use
+`MagicMock(side_effect=...)`.
+
+Automatable: a grep guardrail bans this pattern outright (see `tests/ci/test_test_quality_guardrails.py`).
+
+---
+
 ## Rule of Thumb
 
 For every assertion, ask:
@@ -417,5 +626,9 @@ For every assertion, ask:
 7. **T8**: "Does this test file import an optional dep at module level without a guard?"
 8. **T9**: "Is `assert X >= 0` where X is a length/count/duration? Replace with a meaningful bound."
 9. **T10**: "Is this a predicate in detector code? Add a negative case with the same surface shape but wrong context."
+10. **T11**: "About to add `# pragma: no cover`? Grep tests for the enclosing function — if any hits, the pragma is wrong."
+11. **T12**: "Snapshotted shared state? Make sure teardown actually restores the snapshot (including sub-module keys)."
+12. **T13**: "Hardcoded path string in test data? Use `tmp_path` instead."
+13. **T14**: "`(_ for _ in ()).throw(...)` — never. Use a named function or `MagicMock(side_effect=...)`."
 
-**Last audited PR**: #929
+**Last audited PR**: #140 (PR review cycle 2026-03-21 to 2026-04-21)

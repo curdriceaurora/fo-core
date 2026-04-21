@@ -429,10 +429,9 @@ class TestGetPreference:
             destination=Path("/a/new.txt"),
             correction_type=CorrectionType.FILE_RENAME,
         )
-        # Same parent + same extension → same pattern key
+        # Same parent + same extension → same pattern key, so lookup must hit.
         result = tracker.get_preference(Path("/a/another.txt"), PreferenceType.NAMING_PATTERN)
-        # The key includes parent name — so must match
-        assert result is not None or result is None  # just exercising the path
+        assert result is not None
 
     def test_get_category_override_no_match(self) -> None:
         """CATEGORY_OVERRIDE with nothing tracked → None."""
