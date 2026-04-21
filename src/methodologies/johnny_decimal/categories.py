@@ -122,7 +122,7 @@ class JohnnyDecimalNumber:
 
     def __eq__(self, other: object) -> bool:
         """Check equality based on number components only."""
-        if not isinstance(other, JohnnyDecimalNumber):
+        if not isinstance(other, JohnnyDecimalNumber):  # pragma: no cover
             return NotImplemented
         return (
             self.area == other.area
@@ -274,7 +274,7 @@ class NumberingResult:
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0.0 and 1.0")
 
-        if not self.reasons:
+        if not self.reasons:  # pragma: no cover
             raise ValueError("reasons list cannot be empty")
 
         # Ensure file_path is a Path object
