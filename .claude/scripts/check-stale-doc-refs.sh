@@ -111,9 +111,15 @@ done
 
 # --- Check 4: Removed features / terminology drift ---
 # Each entry: "grep-E-pattern:reason". Patterns use POSIX-extended regex
-# (as accepted by `grep -E`).  Lines inside fenced code blocks and lines
-# containing explicit "removed", "deprecated", "was ", "formerly",
-# "no longer", or "previously" are exempt so we can still document history.
+# (as accepted by `grep -E`).
+#
+# NOTE: `reason` must not contain a literal ':' — the split is
+# ${entry%%:*} / ${entry#*:}, so a colon in the reason truncates it.
+#
+# Exempt lines: fenced code blocks, and lines explicitly documenting the
+# change in history (e.g. "was removed", "renamed to X", "deprecated").
+# The exemption regex below is deliberately narrow — using bare "was\b"
+# would exempt almost any prose paragraph.
 REMOVED_TERMS=(
   '\[parsers\]:the "parsers" extra was removed; valid extras are dev cloud llama mlx claude audio video dedup archive scientific cad build search all'
   '\[gui\]:fo-core is CLI-only; no [gui] extra exists'
@@ -124,10 +130,8 @@ REMOVED_TERMS=(
   '\bmarketplace\b:the marketplace CLI command was removed'
 )
 
-# Strip fenced-code-block content from a file so we only search prose.
-_strip_fences() {
-  awk '/^```/ { in_fence = !in_fence; next } !in_fence' "$1"
-}
+# Matches history-context phrases only — not every sentence that uses "was".
+HISTORY_EXEMPT_REGEX='\b(was|were|is|are) (removed|deprecated|renamed|replaced|deleted|dropped|retired)\b|\bno longer\b|\bformerly\b|\bpreviously\b'
 
 for entry in "${REMOVED_TERMS[@]}"; do
   pattern="${entry%%:*}"
@@ -144,7 +148,7 @@ for entry in "${REMOVED_TERMS[@]}"; do
       hits=$(git diff --cached --unified=0 -- "$md_file" 2>/dev/null \
         | grep -E '^\+' \
         | grep -v '^+++' \
-        | grep -v -E 'removed|deprecated|formerly|previously|no longer|was\b' \
+        | grep -v -E "$HISTORY_EXEMPT_REGEX" \
         | grep -E "$pattern" || true)
       if [[ -n "$hits" ]]; then
         echo "  ⚠️  $md_file → newly added line matches stale pattern '$pattern' ($reason)"
@@ -154,7 +158,7 @@ for entry in "${REMOVED_TERMS[@]}"; do
       # Full-scan mode: line-numbered output across the whole file.
       hits=$(cat -n "$full_path" 2>/dev/null \
         | awk '/^[[:space:]]*[0-9]+\t```/ { in_fence = !in_fence; next } !in_fence' \
-        | grep -v -E 'removed|deprecated|formerly|previously|no longer|was\b' \
+        | grep -v -E "$HISTORY_EXEMPT_REGEX" \
         | grep -E "$pattern" || true)
       if [[ -n "$hits" ]]; then
         while IFS= read -r hit; do
