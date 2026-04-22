@@ -204,6 +204,38 @@ class TestMoveFile:
         assert src.exists()
         assert not (dst_dir / "src.txt").exists()
 
+    def test_max_collision_attempts_seam_raises_at_limit(self, tmp_path: Path) -> None:
+        """max_collision_attempts=1 raises OSError after the first collision."""
+        src = tmp_path / "src.txt"
+        src.write_text("source")
+        dst_dir = tmp_path / "Projects"
+        dst_dir.mkdir()
+        # Both destination and the first fallback name exist, so counter hits limit
+        (dst_dir / "src.txt").write_text("existing")
+        (dst_dir / "src_1.txt").write_text("also existing")
+
+        config = PARAConfig()
+        engine = MagicMock()
+        mover = PARAFileMover(
+            config,
+            suggestion_engine=engine,
+            root_dir=tmp_path,
+            max_collision_attempts=1,
+        )
+        suggestion = MoveSuggestion(
+            file_path=src,
+            target_category=PARACategory.PROJECT,
+            target_path=dst_dir / "src.txt",
+            confidence=0.8,
+        )
+        result = mover.move_file(suggestion, dry_run=False)
+        assert result.success is False
+        assert result.error is not None
+        assert "too many existing files" in result.error
+        assert src.exists()
+        assert (dst_dir / "src.txt").read_text() == "existing"
+        assert (dst_dir / "src_1.txt").read_text() == "also existing"
+
 
 class TestBulkOrganize:
     """Cover bulk_organize branches — lines 258, 276-277, 289-293."""

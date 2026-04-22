@@ -112,6 +112,8 @@ class PARAFileMover:
         config: PARAConfig | None = None,
         suggestion_engine: PARASuggestionEngine | None = None,
         root_dir: Path | None = None,
+        *,
+        max_collision_attempts: int = 1000,
     ) -> None:
         """Initialize the PARA file mover.
 
@@ -121,10 +123,12 @@ class PARAFileMover:
                 from config if not provided.
             root_dir: Root directory for PARA organization. Defaults to
                 config.default_root or current working directory.
+            max_collision_attempts: Maximum rename attempts before raising OSError.
         """
         self._config = config or PARAConfig()
         self._engine = suggestion_engine or PARASuggestionEngine(config=self._config)
         self._root_dir = root_dir or self._config.default_root or Path.cwd()
+        self._max_collision_attempts = max_collision_attempts
 
     @property
     def root_dir(self) -> Path:
@@ -448,7 +452,7 @@ class PARAFileMover:
             if not candidate.exists():
                 return candidate
             counter += 1
-            if counter > 1000:
+            if counter > self._max_collision_attempts:
                 raise OSError(
                     f"Cannot resolve collision for {destination}: "
                     f"too many existing files with same name"

@@ -221,6 +221,79 @@ class TestExtractMetadataFeatures:
         features = extractor.extract_metadata_features(md_file)
         assert features.file_type == ".md"
 
+    def test_default_stat_provider_delegates_to_path_stat(self, tmp_path: Path) -> None:
+        """Default stat_provider must delegate to Path.stat — seam shape test."""
+        f = tmp_path / "shape.txt"
+        f.write_text("x")
+        extractor = FeatureExtractor()
+        real_stat = f.stat()
+        injected_stat = extractor._stat_provider(f)
+        assert injected_stat.st_size == real_stat.st_size
+
+    def test_custom_stat_provider_is_called(self, tmp_path: Path) -> None:
+        """Injected stat_provider must be used instead of Path.stat."""
+        f = tmp_path / "seam.txt"
+        f.write_text("hello")
+
+        calls: list[object] = []
+
+        def fake_stat(path: object) -> object:
+            calls.append(path)
+            return f.stat()
+
+        extractor = FeatureExtractor(stat_provider=fake_stat)
+        extractor.extract_metadata_features(f)
+        assert calls == [f]
+
+    def test_custom_clock_is_called(self, tmp_path: Path) -> None:
+        """Injected clock must be used instead of time.time."""
+        f = tmp_path / "seam.txt"
+        f.write_text("hello")
+        future_time = f.stat().st_mtime + 86400.0  # exactly 1 day after mtime
+        extractor = FeatureExtractor(clock=lambda: future_time)
+        features = extractor.extract_metadata_features(f)
+        assert features.days_since_modified == pytest.approx(1.0)
+
+    def test_custom_os_name_windows(self, tmp_path: Path) -> None:
+        """Injected os_name='nt' must use st_ctime as creation reference."""
+        f = tmp_path / "seam.txt"
+        f.write_text("hello")
+        now = 2_000_000_000.0
+
+        class MockStat:
+            st_size = 5
+            st_atime = now - (2 * 86400)
+            st_ctime = now - 86400  # Windows creation time: 1 day ago
+            st_mtime = now - (10 * 86400)
+
+        extractor = FeatureExtractor(
+            clock=lambda: now,
+            os_name="nt",
+            stat_provider=lambda _: MockStat(),
+        )
+        features = extractor.extract_metadata_features(f)
+        assert features.days_since_created == pytest.approx(1.0)
+
+    def test_custom_os_name_posix(self, tmp_path: Path) -> None:
+        """Injected os_name='posix' must use st_mtime as creation reference."""
+        f = tmp_path / "seam.txt"
+        f.write_text("hello")
+        now = 2_000_000_000.0
+
+        class MockStat:
+            st_size = 5
+            st_atime = now - (2 * 86400)
+            st_ctime = now - 86400
+            st_mtime = now - (10 * 86400)  # POSIX creation fallback: 10 days ago
+
+        extractor = FeatureExtractor(
+            clock=lambda: now,
+            os_name="posix",
+            stat_provider=lambda _: MockStat(),
+        )
+        features = extractor.extract_metadata_features(f)
+        assert features.days_since_created == pytest.approx(10.0)
+
 
 # =========================================================================
 # StructuralFeatures extraction tests
@@ -387,7 +460,6 @@ class TestEdgeCasesAndErrorHandling:
 
     def test_metadata_extraction_with_stat_error(
         self,
-        extractor: FeatureExtractor,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -398,11 +470,10 @@ class TestEdgeCasesAndErrorHandling:
         # Mock exists() to return True so we pass the initial check
         monkeypatch.setattr(Path, "exists", lambda self: True)
 
-        # Mock stat() to raise OSError for the explicit stat() call
-        def mock_stat(_self: Path) -> None:
+        def mock_stat(_path: Path) -> None:
             raise OSError("Permission denied")
 
-        monkeypatch.setattr(Path, "stat", mock_stat)
+        extractor = FeatureExtractor(stat_provider=mock_stat)
         features = extractor.extract_metadata_features(test_file)
         # Should return defaults with just the file type
         assert features.file_type == ".txt"
@@ -411,21 +482,15 @@ class TestEdgeCasesAndErrorHandling:
 
     def test_metadata_extraction_fresh_file_zero_days_modified(
         self,
-        extractor: FeatureExtractor,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should handle edge case when file was just created/modified."""
         test_file = tmp_path / "fresh.txt"
         test_file.write_text("new content")
 
-        # Mock time.time() to return exactly the file's mtime
+        # Inject clock returning exactly the file's mtime so days_since_modified → 0
         original_stat = test_file.stat()
-
-        def mock_time() -> float:
-            return original_stat.st_mtime
-
-        monkeypatch.setattr("time.time", mock_time)
+        extractor = FeatureExtractor(clock=lambda: original_stat.st_mtime)
         features = extractor.extract_metadata_features(test_file)
         # days_since_modified should be 0 or very close to 0
         assert features.days_since_modified < 0.001
@@ -560,12 +625,9 @@ class TestEdgeCasesAndErrorHandling:
     @pytest.mark.ci
     def test_metadata_macos_platform_creation_time(
         self,
-        extractor: FeatureExtractor,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should use st_birthtime on macOS platform (try/except AttributeError path)."""
-        import methodologies.para.ai.feature_extractor as fe_module
 
         class MockStat:
             def __init__(self, *, now: float) -> None:
@@ -580,9 +642,10 @@ class TestEdgeCasesAndErrorHandling:
         test_file.write_text("content")
         now = 2_000_000_000.0
 
-        monkeypatch.setattr(fe_module.time, "time", lambda: now)
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
-
+        extractor = FeatureExtractor(
+            clock=lambda: now,
+            stat_provider=lambda _: MockStat(now=now),
+        )
         features = extractor.extract_metadata_features(test_file)
         # st_birthtime is 5 days ago → days_since_created ≈ 5.0
         assert features.days_since_created == pytest.approx(5.0)
@@ -591,12 +654,9 @@ class TestEdgeCasesAndErrorHandling:
     @pytest.mark.ci
     def test_metadata_windows_platform_creation_time(
         self,
-        extractor: FeatureExtractor,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should use st_ctime on Windows platform (no st_birthtime → AttributeError)."""
-        import methodologies.para.ai.feature_extractor as fe_module
 
         class MockStat:
             def __init__(self, *, now: float) -> None:
@@ -611,10 +671,11 @@ class TestEdgeCasesAndErrorHandling:
         test_file.write_text("content")
         now = 2_000_000_000.0
 
-        monkeypatch.setattr(fe_module.os, "name", "nt")
-        monkeypatch.setattr(fe_module.time, "time", lambda: now)
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
-
+        extractor = FeatureExtractor(
+            clock=lambda: now,
+            os_name="nt",
+            stat_provider=lambda _: MockStat(now=now),
+        )
         features = extractor.extract_metadata_features(test_file)
         assert features.days_since_created == pytest.approx(1.0)
         assert features.file_size == 7
@@ -622,12 +683,9 @@ class TestEdgeCasesAndErrorHandling:
     @pytest.mark.ci
     def test_metadata_linux_platform_creation_time(
         self,
-        extractor: FeatureExtractor,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should use st_mtime on Linux platform (no st_birthtime → AttributeError)."""
-        import methodologies.para.ai.feature_extractor as fe_module
 
         class MockStat:
             def __init__(self, *, now: float) -> None:
@@ -642,10 +700,11 @@ class TestEdgeCasesAndErrorHandling:
         test_file.write_text("content")
         now = 2_000_000_000.0
 
-        monkeypatch.setattr(fe_module.os, "name", "posix")
-        monkeypatch.setattr(fe_module.time, "time", lambda: now)
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
-
+        extractor = FeatureExtractor(
+            clock=lambda: now,
+            os_name="posix",
+            stat_provider=lambda _: MockStat(now=now),
+        )
         features = extractor.extract_metadata_features(test_file)
         assert features.days_since_created == pytest.approx(10.0)
         assert features.file_size == 7
