@@ -287,25 +287,33 @@ class TestFileValidator:      # unaffected; runs even without rank_bm25
     def test_validates_pdf(self): ...
 ```
 
-**Optional dependencies in this project** (require guards — not installed unless the
-corresponding extra is present):
+**Optional dependencies in this project** (require guards — not installed unless
+the corresponding extra is present). Matrix regenerated against `pyproject.toml`
+on 2026-04-22 as part of E5:
 
-| Import name | Extra | Notes |
-|-------------|-------|-------|
+| Import name | Extra(s) | Notes |
+|-------------|----------|-------|
 | `rank_bm25` | `search` | BM25 index |
-| `sklearn` | `search` or `dedup` | Scikit-learn |
+| `sklearn` | `search`, `dedup-text` | Scikit-learn; transitively pulled by both extras |
 | `llama_cpp` | `llama` | llama.cpp bindings |
 | `mlx_lm` | `mlx` | Apple Silicon MLX |
 | `anthropic` | `claude` | Anthropic SDK |
-| `faster_whisper` | `audio` | Speech-to-text |
-| `cv2` | `video` | OpenCV |
-| `imagededup` | `dedup` | Image deduplication |
+| `faster_whisper` | `media` | Speech-to-text; transitively pulls `torch` |
+| `torch` | `media` (transitive), `dedup-image` | Guard even when not imported directly — collection fails when absent |
+| `cv2` | `media` (via `opencv-python`) | OpenCV (video scene detection) |
+| `scenedetect` | `media` | PySceneDetect |
+| `imagededup` | `dedup-image` | Image deduplication |
 | `h5py` | `scientific` | HDF5 |
+| `netCDF4` | `scientific` | NetCDF |
 | `ezdxf` | `cad` | DXF/DWG |
 
-**Core deps — no guard needed**: `fitz` (PyMuPDF), `docx` (python-docx), `openpyxl`,
-`pptx` (python-pptx), `ebooklib`, `bs4` (beautifulsoup4), `py7zr`, `pypdf`, `rarfile`
-are in the base install.
+**Core deps — no guard needed**: `fitz` (PyMuPDF), `docx` (python-docx),
+`openpyxl`, `pptx` (python-pptx), `ebooklib`, `bs4` (beautifulsoup4), `py7zr`,
+`pypdf`, `rarfile` are in the base install.
+
+**CI enforcement**: `tests/ci/test_optional_dep_guards.py` scans changed test
+files for optional-dep imports that lack a `pytest.importorskip` guard. The
+guardrail is diff-scoped; full-suite promotion is tracked in G4.
 
 **Pre-generation check**: Before writing any test that imports from the optional list,
 add a class-level `@pytest.fixture(autouse=True)` that calls

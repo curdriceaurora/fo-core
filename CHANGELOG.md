@@ -18,6 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   addition to the existing CLI binary.
 - **CI** — `build.yml` no longer requires the Rust toolchain or `cargo test`; the `test-rust`
   job has been removed and `release` now depends only on `build`.
+- **Dependency hygiene (epic-e-deps, hardening roadmap #158, #161)** —
+  - Bumped `psutil` from `~=5.9` to `>=6.2,<7`. Conservative 6.x-only bump; 7.x exists
+    but hasn't been validated against the Windows matrix that PR #127 certified on 6.x.
+  - Capped nine pre-1.0 dependency pins at `<1`
+    (`python-pptx`, `ebooklib`, `striprtf`, `py7zr`, `loguru`, `mlx-lm`, `pydub`,
+    `scenedetect[opencv]`, `imagededup`); preserved the nine `# 0.x — unstable API, keep >=`
+    exceptions.
+  - Extended `.claude/scripts/check_pypi_versions.py` to fail CI on any new pre-1.0 pin
+    lacking either an upper-bound cap or the exact keep-as-is marker comment.
+
+### Added
+
+- `docs/developer/coverage-gates.md` — single source of truth for the five CI
+  coverage gates (unit 95%, PR diff 80%, main push 93%, docstring 95%, integration
+  71.9%) with the change protocol. Linked from `CONTRIBUTING.md`.
 
 ### Removed
 
@@ -29,8 +44,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Accepted risk for `ecdsa` (GHSA-wj6h-64fc-37mp, HIGH): transitive via `python-jose`; JWT algorithm is HS256 so `ecdsa` is never invoked
-- Accepted risk for `diskcache` (GHSA-w8v5-vhqr-4h9v, MODERATE): transitive via `llama-cpp-python`; never imported by application code
+- **pip-audit is now enforcing (epic-e-deps)** — `.github/workflows/security.yml`
+  no longer runs with `continue-on-error: true`. A new wrapper,
+  `scripts/pip_audit_gate.py`, feeds pip-audit JSON through
+  `.github/accepted-risks.yml` and fails the build on any unknown vulnerability,
+  any expired/mismatched allowlist entry, or any allowlist entry whose package
+  is no longer installed.
+- **Allowlist ships empty.** The two previously-accepted risks were removed
+  during epic-e-deps because both fall outside the base `pip install -e .`
+  audit scope:
+  - `ecdsa` (GHSA-wj6h-64fc-37mp): was transitive via `python-jose`, which
+    is no longer a dependency of fo-core in any scope.
+  - `diskcache` (GHSA-w8v5-vhqr-4h9v): only transitive via `llama-cpp-python`
+    in the optional `[llama]` extra; tracked via the `[llama]`-specific audit
+    path (future follow-up), not seeded in the base allowlist.
 
 ## [2.0.0-alpha.3] - 2026-03-26
 
