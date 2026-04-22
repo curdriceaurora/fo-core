@@ -128,12 +128,12 @@ class StorageAnalyzer:
             "huge": (1024 * 1024 * 1024, float("inf")),  # > 1GB
         }
 
-        # `include_hidden=True` keeps the distribution consistent with
-        # `analyze_directory`, which uses `_walk_directory` (iterdir) and
-        # counts hidden entries. Mismatched filters would surface as
-        # `storage_stats.file_count != distribution.total_files` in the
-        # same dashboard.
-        for file_path in safe_walk(path, include_hidden=True):
+        # Match `analyze_directory`'s `_walk_directory` semantics exactly:
+        # it includes hidden entries AND counts symlinked files (iterdir
+        # yields symlinks; `item.is_file()` follows them to check the
+        # target). Mismatched filters would surface as `file_count !=
+        # distribution.total_files` in the same dashboard.
+        for file_path in safe_walk(path, include_hidden=True, follow_symlinks=True):
             try:
                 stat_result = file_path.stat()
             except OSError:
@@ -183,10 +183,10 @@ class StorageAnalyzer:
         """
         large_files = []
 
-        # Match `calculate_size_distribution` / `analyze_directory`'s
-        # hidden-file handling so the "large files" view agrees with
-        # total counts.
-        for file_path in safe_walk(path, include_hidden=True):
+        # Match `calculate_size_distribution` / `analyze_directory`
+        # semantics (hidden + symlinks included) so the "large files"
+        # view agrees with total counts.
+        for file_path in safe_walk(path, include_hidden=True, follow_symlinks=True):
             try:
                 stat_result = file_path.stat()
             except OSError:
