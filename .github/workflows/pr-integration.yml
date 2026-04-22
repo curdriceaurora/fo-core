@@ -47,9 +47,16 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install dependencies
-        run: |
-          pip install -e ".[dev,search]"
-          pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: |
+            set -euo pipefail
+            pip install -e ".[dev,search]"
+            pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
       - name: Run integration tests
         # --cov adds ~15-20% overhead to the 3-5 min run; bounded by cancel-in-progress.
         # Output teed to RUNNER_TEMP so the per-module floor script can parse it.

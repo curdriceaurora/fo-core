@@ -60,8 +60,17 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install pre-commit
-      - run: pip install -e ".[dev]"
+      - name: Install lint deps (pre-commit + dev extras)
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: |
+            set -euo pipefail
+            pip install pre-commit
+            pip install -e ".[dev]"
       - run: pre-commit run --all-files
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -74,8 +83,17 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install "deptry>=0.16.0"
-      - run: pip install -e .
+      - name: Install deptry + package
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: |
+            set -euo pipefail
+            pip install "deptry>=0.16.0"
+            pip install -e .
       - run: deptry src/
 
   type-check:
@@ -86,7 +104,14 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e ".[dev]"
+      - name: Install dev extras
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev]"
       - name: Run mypy on all source modules
         run: python -m mypy --config-file pyproject.toml src/
 
@@ -159,15 +184,21 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install dependencies
-        run: |
-          # Install core package with dev dependencies + search (rank-bm25, scikit-learn)
-          # search is required for TestBM25Index, TestVectorIndexRecall, TestHybridRetriever,
-          # and related CLI/API/copilot tests — not in dev because it is an optional runtime extra.
-          pip install -e ".[dev,search]"
-
-          # Explicitly install pytest-asyncio and faker to ensure they're available
-          # This fixes installation order issues on Python 3.11 where pytest might load before pytest-asyncio
-          pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
+        # Install core package with dev dependencies + search (rank-bm25, scikit-learn).
+        # search is required for TestBM25Index, TestVectorIndexRecall, TestHybridRetriever,
+        # and related CLI/API/copilot tests — not in dev because it is an optional runtime extra.
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: |
+            set -euo pipefail
+            pip install -e ".[dev,search]"
+            # Explicitly install pytest-asyncio and faker to ensure they're available.
+            # This fixes installation order issues on Python 3.11 where pytest might load before pytest-asyncio.
+            pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
       - name: Verify test dependencies
         run: |
           # Fast plugin registration check — replaces the former pytest --collect-only
@@ -183,6 +214,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pytest tests/ --strict-markers -m "ci and not benchmark" --cov=src --cov-report=xml --timeout=30 -n=auto --override-ini="addopts="
+      - name: Install diff-cover
+        if: ${{ github.event.pull_request.changed_files <= 75 }}
+        # Split out of the diff-coverage-gate step so the retry wrapper only re-runs
+        # pip install, not the gate itself.  Retry wrapper guards against transient
+        # TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 3
+          max_attempts: 3
+          retry_on: error
+          command: pip install diff-cover --quiet
       - name: Diff coverage gate
         if: ${{ github.event.pull_request.changed_files <= 75 }}
         # Checks that lines added/changed in this PR are ≥80% covered.
@@ -190,9 +232,7 @@ jobs:
         # Ratchet: bump --fail-under as coverage improves. Target: 90% per issue #855.
         # Broad refactors and type-cleanup sweeps exceed the signal-to-noise ratio
         # where diff coverage is useful, so we skip the gate for very large PRs.
-        run: |
-          pip install diff-cover --quiet
-          diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
+        run: diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
 
   test-full:
     name: "Test full suite (py${{ matrix.python-version }})"
@@ -210,9 +250,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install dependencies
-        run: |
-          pip install -e ".[dev,search]"
-          pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: |
+            set -euo pipefail
+            pip install -e ".[dev,search]"
+            pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
       - name: Run full test suite
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -246,7 +293,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -e ".[dev]"
+      - name: Install dev extras
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev]"
       - name: Download coverage data (py3.11)
         uses: actions/download-artifact@v8
         with:
@@ -282,7 +336,13 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev]"
       - name: Download benchmark baseline (PR only)
         # Finds the latest successful main CI run that stored a benchmark-baseline
         # artifact and downloads it for comparison.  Skipped silently if none exists.
@@ -394,7 +454,15 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install dependencies
-        run: pip install -e ".[dev,search]"
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145) —
+        # the 2026-04-21 integration coverage-gate failure was exactly this
+        # case (mid-stream DECRYPTION_FAILED_OR_BAD_RECORD_MAC on a numpy wheel).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev,search]"
       - name: Run integration tests and capture coverage report
         id: integration_tests
         continue-on-error: true
@@ -450,9 +518,18 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+      - name: Install package into size-check target
+        # Split out of the size-check step so the retry wrapper only re-runs
+        # pip install, not the size measurement.  Retry wrapper guards against
+        # transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: python -m pip install --target /tmp/fo_size_check . -q
       - name: Measure default install size
         run: |
-          python -m pip install --target /tmp/fo_size_check . -q
           SIZE_MB=$(du -sm /tmp/fo_size_check | awk '{print $1}')
           echo "Install size: ${SIZE_MB} MB"
           if [ "$SIZE_MB" -gt 215 ]; then
