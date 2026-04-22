@@ -118,8 +118,12 @@ def safe_walk(
         only_files: If True (default), yield files only — directories are
             filtered out. Pass False to yield directories and other
             non-file entries too (used by e.g. empty-directory cleanup).
-        follow_symlinks: If True, include symlinked files and descend into
-            symlinked directories. Default False (secure).
+        follow_symlinks: If True, include symlinked *files* in the output.
+            **Does not descend into symlinked directories** on Python
+            3.11–3.12 because `Path.rglob()` / `Path.glob()` never
+            recurse through directory symlinks on those versions (the
+            `recurse_symlinks` parameter only exists in 3.13+). Default
+            False (secure — skip symlink entries entirely).
         include_hidden: If True, include dot-prefixed files and descendants
             of dot-prefixed directories. Default False (secure).
 
@@ -129,7 +133,6 @@ def safe_walk(
     """
     if not root.exists():
         return
-    resolved_root = root.resolve()
     glob_iter = root.rglob(pattern) if recursive else root.glob(pattern)
     for entry in glob_iter:
         # Per-entry OSError (PermissionError, stale NFS handle, etc.) skips
@@ -140,14 +143,18 @@ def safe_walk(
                 continue
             # Hidden filter is relative to root so an explicit scan of a
             # hidden directory doesn't get vetoed by the root component.
+            # Lexical `relative_to` (no `resolve()`) avoids a per-entry
+            # `realpath` syscall — safe because rglob/glob on Python
+            # 3.11–3.13 doesn't descend into directory symlinks, so every
+            # yielded entry lives lexically under root.
             if not include_hidden:
                 try:
-                    rel = entry.resolve().relative_to(resolved_root)
+                    rel_parts = entry.relative_to(root).parts
                 except ValueError:
-                    # rglob yielded something outside root (can happen if a
-                    # parent symlink was followed); skip it defensively.
+                    # Defensive: rglob yielded something outside root
+                    # (race with a concurrent rename/delete). Skip.
                     continue
-                if any(part.startswith(".") for part in rel.parts):
+                if any(part.startswith(".") for part in rel_parts):
                     continue
             if only_files and not entry.is_file():
                 continue

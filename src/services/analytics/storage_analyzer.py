@@ -129,6 +129,15 @@ class StorageAnalyzer:
         }
 
         for file_path in safe_walk(path):
+            try:
+                stat_result = file_path.stat()
+            except OSError:
+                # File vanished / became unreadable between yield and stat
+                # (concurrent rename, permissions flipped, stale NFS handle).
+                # Skip instead of aborting the whole distribution pass.
+                logger.debug("Skipping during distribution scan: %s", file_path, exc_info=True)
+                continue
+
             distribution.total_files += 1
 
             # By type
@@ -136,7 +145,7 @@ class StorageAnalyzer:
             distribution.by_type[file_type] = distribution.by_type.get(file_type, 0) + 1
 
             # By size range
-            size = file_path.stat().st_size
+            size = stat_result.st_size
             for range_name, (min_size, max_size) in size_ranges.items():
                 if min_size <= size < max_size:
                     distribution.by_size_range[range_name] = (
@@ -170,14 +179,20 @@ class StorageAnalyzer:
         large_files = []
 
         for file_path in safe_walk(path):
-            size = file_path.stat().st_size
+            try:
+                stat_result = file_path.stat()
+            except OSError:
+                logger.debug("Skipping during large-file scan: %s", file_path, exc_info=True)
+                continue
+
+            size = stat_result.st_size
             if size >= threshold:
                 large_files.append(
                     FileInfo(
                         path=file_path,
                         size=size,
                         type=file_path.suffix.lower(),
-                        modified=datetime.fromtimestamp(file_path.stat().st_mtime, tz=UTC),
+                        modified=datetime.fromtimestamp(stat_result.st_mtime, tz=UTC),
                     )
                 )
 

@@ -130,7 +130,9 @@ class PARAFileMover:
         rglob_provider: Callable[[Path, str], Iterator[Path]] = lambda p, pat: safe_walk(
             p, pattern=pat
         ),
-        iterdir_provider: Callable[[Path], Iterator[Path]] = lambda p: p.iterdir(),
+        iterdir_provider: Callable[[Path], Iterator[Path]] = lambda p: safe_walk(
+            p, recursive=False
+        ),
         stat_provider: Callable[[Path], _StatLike] = lambda p: p.stat(),
         resolve_provider: Callable[[Path], Path] = Path.resolve,
     ) -> None:
