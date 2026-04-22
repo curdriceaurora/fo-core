@@ -224,7 +224,9 @@ The `.actrc` file in the project root pins the Docker image and architecture aut
 ### Workflow ownership
 
 CI uses a **three-tier strategy** — see [Testing Strategy](docs/testing/testing-strategy.md)
-for the full table and marker guidance.
+for the full table and marker guidance. For the five coverage gates (unit 95%,
+PR diff 80%, main push 93%, docstring 95%, integration 71.9%) and the
+change protocol, see [docs/developer/coverage-gates.md](docs/developer/coverage-gates.md).
 
 | Workflow | File | Triggers | What it runs |
 |----------|------|----------|-------------|
