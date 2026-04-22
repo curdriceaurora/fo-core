@@ -16,13 +16,7 @@ def _resolve_console(console: Console | None) -> Console:
     """Resolve the console used for prompts and feedback."""
     if console is not None:
         return console
-
-    try:
-        from cli import dedupe as dedupe_module
-    except ImportError:
-        return Console()
-    else:
-        return dedupe_module.console
+    return Console()
 
 
 def select_files_to_keep(files: list[dict[str, Any]], strategy: str) -> list[dict[str, Any]]:

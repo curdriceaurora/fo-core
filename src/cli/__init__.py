@@ -17,14 +17,11 @@ __all__ = [
     "confirm_action",
     "create_progress",
     "dedupe_app",
-    "dedupe_command",
     "history_command",
     "prompt_choice",
     "prompt_directory",
     "redo_command",
     "rules_app",
-    "setup_autotag_parser",
-    "handle_autotag_command",
     "suggest_app",
     "profile_command",
     "undo_command",
@@ -39,7 +36,6 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "complete_file": ("cli.completion", "complete_file"),
     "copilot_app": ("cli.copilot", "copilot_app"),
     "daemon_app": ("cli.daemon", "daemon_app"),
-    "dedupe_command": ("cli.dedupe", "dedupe_command"),
     "dedupe_app": ("cli.dedupe_v2", "dedupe_app"),
     "confirm_action": ("cli.interactive", "confirm_action"),
     "create_progress": ("cli.interactive", "create_progress"),
@@ -52,8 +48,6 @@ _LAZY_IMPORTS: dict[str, tuple[str, str]] = {
     "redo_command": ("cli.undo_redo", "redo_command"),
     "undo_command": ("cli.undo_redo", "undo_command"),
     "update_app": ("cli.update", "update_app"),
-    "setup_autotag_parser": ("cli.autotag", "setup_autotag_parser"),
-    "handle_autotag_command": ("cli.autotag", "handle_autotag_command"),
 }
 
 
