@@ -37,7 +37,7 @@ dependencies = [
     "python-pptx>=0.6.0",      # PPTX parsing
     "ebooklib>=0.18",           # EPUB parsing
     "beautifulsoup4~=4.12",    # HTML/XML parsing
-    "lxml~=6.0",               # XML backend for BS4
+    "lxml~=6.1",               # XML backend for BS4
 
     # File format support (default)
     "mutagen~=1.47",            # Audio metadata extraction
