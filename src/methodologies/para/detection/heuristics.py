@@ -18,7 +18,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 try:
     import ollama
@@ -92,6 +92,20 @@ class Heuristic(ABC):
         pass
 
 
+class _StatLike(Protocol):
+    """Structural subtyping interface for the attributes TemporalHeuristic.evaluate() reads."""
+
+    st_mtime: float
+    st_atime: float
+    st_ctime: float
+    st_mode: int
+
+
+def _path_stat(path: Path) -> _StatLike:
+    # os.stat_result is a C namedtuple; mypy can't verify Protocol conformance without this bridge.
+    return path.stat()  # type: ignore[return-value]
+
+
 class TemporalHeuristic(Heuristic):
     """Temporal heuristic using file timestamps and patterns.
 
@@ -110,7 +124,7 @@ class TemporalHeuristic(Heuristic):
         clock: Callable[[], float] | None = None,
         current_year_provider: Callable[[], int] | None = None,
         os_name: str | None = None,
-        stat_provider: Callable[[Path], Any] | None = None,
+        stat_provider: Callable[[Path], _StatLike] | None = None,
     ) -> None:
         """Initialize the temporal heuristic.
 
@@ -129,8 +143,8 @@ class TemporalHeuristic(Heuristic):
             else lambda: datetime.now(UTC).year
         )
         self._os_name: str = os_name if os_name is not None else os.name
-        self._stat_provider: Callable[[Path], Any] = (
-            stat_provider if stat_provider is not None else Path.stat
+        self._stat_provider: Callable[[Path], _StatLike] = (
+            stat_provider if stat_provider is not None else _path_stat
         )
 
     @staticmethod
