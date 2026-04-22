@@ -7,8 +7,11 @@ assert_html_contains, assert_html_contains_any, assert_html_tag_present.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 
 import pytest
+
+from tests.conftest import _KNOWN_PROVIDER_VARS
 
 from .test_helpers import (
     assert_file_order_in_html,
@@ -171,45 +174,47 @@ class TestAssertHtmlTagPresent:
 class TestProviderEnvFixture:
     """Contract tests for the provider_env fixture."""
 
-    def test_empty_string_stays_as_env_value(self, provider_env) -> None:
+    def test_empty_string_stays_as_env_value(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="")
         assert os.environ["FO_PROVIDER"] == ""
 
-    def test_none_unsets_var(self, monkeypatch: pytest.MonkeyPatch, provider_env) -> None:
+    def test_none_unsets_var(
+        self, monkeypatch: pytest.MonkeyPatch, provider_env: Callable[..., None]
+    ) -> None:
         monkeypatch.setenv("FO_PROVIDER", "openai")
         provider_env(FO_PROVIDER=None)
         assert "FO_PROVIDER" not in os.environ
 
     def test_clears_all_known_vars_when_called_with_no_args(
-        self, monkeypatch: pytest.MonkeyPatch, provider_env
+        self, monkeypatch: pytest.MonkeyPatch, provider_env: Callable[..., None]
     ) -> None:
         monkeypatch.setenv("FO_PROVIDER", "openai")
         monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-test")
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
         monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/llama.gguf")
         provider_env()
-        from tests.conftest import _KNOWN_PROVIDER_VARS
-
         for var in _KNOWN_PROVIDER_VARS:
             assert var not in os.environ, f"{var} should have been cleared by provider_env()"
 
-    def test_unknown_var_raises_key_error(self, provider_env) -> None:
+    def test_unknown_var_raises_key_error(self, provider_env: Callable[..., None]) -> None:
         with pytest.raises(KeyError, match="UNKNOWN_VAR"):
             provider_env(UNKNOWN_VAR="value")
 
-    def test_sets_multiple_vars(self, provider_env) -> None:
+    def test_sets_multiple_vars(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
         assert os.environ["FO_PROVIDER"] == "openai"
         assert os.environ["FO_OPENAI_API_KEY"] == "sk-test"
 
     def test_clears_unmentioned_known_vars(
-        self, monkeypatch: pytest.MonkeyPatch, provider_env
+        self, monkeypatch: pytest.MonkeyPatch, provider_env: Callable[..., None]
     ) -> None:
         monkeypatch.setenv("FO_OPENAI_BASE_URL", "http://localhost:1234/v1")
         provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
         assert "FO_OPENAI_BASE_URL" not in os.environ
 
-    def test_second_call_clears_vars_from_first_call(self, provider_env) -> None:
+    def test_second_call_clears_vars_from_first_call(
+        self, provider_env: Callable[..., None]
+    ) -> None:
         provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
         provider_env(FO_PROVIDER="claude")
         assert os.environ["FO_PROVIDER"] == "claude"
