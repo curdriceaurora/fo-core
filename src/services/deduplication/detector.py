@@ -105,10 +105,15 @@ class DuplicateDetector:
         """
         files = []
 
+        # Dedupe operates on the user's own directory; finding duplicates
+        # under `.cache/`, `.config/`, etc. is the whole point. Skipping
+        # symlinks (S1) is still a hard requirement; hidden-file filtering
+        # is not — `rglob()` included them pre-migration.
         walker = safe_walk(
             directory,
             recursive=options.recursive,
             follow_symlinks=options.follow_symlinks,
+            include_hidden=True,
         )
         for path in walker:
             # Check file size constraints
