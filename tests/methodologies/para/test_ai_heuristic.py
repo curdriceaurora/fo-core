@@ -1288,55 +1288,40 @@ class TestRemainingCoverage:
 class TestPlatformSpecificPaths:
     """Tests for platform-specific code paths in TemporalHeuristic."""
 
-    def test_windows_platform_uses_ctime_for_creation(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_windows_platform_uses_ctime_for_creation(self, tmp_path: Path) -> None:
         """On Windows, st_ctime is used for file creation time."""
         from methodologies.para.detection.heuristics import TemporalHeuristic
 
-        class MockStat:
-            def __init__(self, *, now: float) -> None:
-                self.st_mtime = now - (120 * 86400)
-                self.st_atime = now - (120 * 86400)
-                self.st_ctime = now - 86400
-                self.st_mode = 0o100644  # regular file — required by Path.is_dir()
-
-        # Simulate Windows platform
-        monkeypatch.setattr(os, "name", "nt")
         now = time.time()
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
-        h = TemporalHeuristic(weight=0.25)
+        class MockStat:
+            st_mtime = now - (120 * 86400)
+            st_atime = now - (120 * 86400)
+            st_ctime = now - 86400
+            st_mode = 0o100644  # regular file — required by Path.is_dir()
+
         f = tmp_path / "test.txt"
         f.write_text("test")
-
+        h = TemporalHeuristic(weight=0.25, os_name="nt", stat_provider=lambda _: MockStat())
         result = h.evaluate(f)
 
         assert "stable_reference" in result.scores[PARACategory.RESOURCE].signals
 
-    def test_linux_platform_uses_mtime_for_creation(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_linux_platform_uses_mtime_for_creation(self, tmp_path: Path) -> None:
         """On Linux (without birthtime), st_mtime is used as creation proxy."""
-
         from methodologies.para.detection.heuristics import TemporalHeuristic
 
-        class MockStat:
-            def __init__(self, *, now: float) -> None:
-                self.st_mtime = now - (120 * 86400)
-                self.st_atime = now - (120 * 86400)
-                self.st_ctime = now - 86400
-                self.st_mode = 0o100644  # regular file — required by Path.is_dir()
-
-        # Simulate Linux platform
-        monkeypatch.setattr(os, "name", "posix")
         now = time.time()
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat(now=now))
 
-        h = TemporalHeuristic(weight=0.25)
+        class MockStat:
+            st_mtime = now - (120 * 86400)
+            st_atime = now - (120 * 86400)
+            st_ctime = now - 86400
+            st_mode = 0o100644  # regular file — required by Path.is_dir()
+
         f = tmp_path / "test.txt"
         f.write_text("test")
-
+        h = TemporalHeuristic(weight=0.25, os_name="posix", stat_provider=lambda _: MockStat())
         result = h.evaluate(f)
 
         assert "stable_reference" not in result.scores[PARACategory.RESOURCE].signals
@@ -1389,17 +1374,9 @@ class TestAIHeuristicEnsureClientEdgeCases:
 class TestPlatformSpecificBranches:
     """Tests to cover platform-specific code branches."""
 
-    def test_macos_platform_stat_birthtime(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_macos_platform_stat_birthtime(self, tmp_path: Path) -> None:
         """macOS branch uses st_birthtime (try succeeds — no AttributeError)."""
-        import time
-
         from methodologies.para.detection.heuristics import TemporalHeuristic
-
-        f = tmp_path / "test.txt"
-        f.write_text("test")
-        real_mode = f.stat().st_mode
 
         now = time.time()
 
@@ -1408,30 +1385,24 @@ class TestPlatformSpecificBranches:
             st_atime = now - (2 * 86400)
             st_ctime = now - (5 * 86400)
             st_birthtime = now - (5 * 86400)  # macOS — true birth time present
-            st_mode = real_mode
+            st_mode = 0o100644
 
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
-
-        h = TemporalHeuristic(weight=0.25)
+        f = tmp_path / "test.txt"
+        f.write_text("test")
+        h = TemporalHeuristic(weight=0.25, stat_provider=lambda _: MockStat())
         result = h.evaluate(f)
 
         # File was modified 5 days ago — recently_modified signal expected
         assert "recently_modified" in result.scores[PARACategory.PROJECT].signals
 
-    def test_windows_platform_stat_ctime(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_windows_platform_stat_ctime(self, tmp_path: Path) -> None:
         """Windows branch uses st_ctime when no st_birthtime (AttributeError → Windows branch)."""
-
         from methodologies.para.detection.heuristics import TemporalHeuristic
 
         f = tmp_path / "test.txt"
         f.write_text("test")
-
-        # Get real stat
         real_stat = f.stat()
 
-        # Create a mock stat object without st_birthtime
         class MockStat:
             st_mtime = real_stat.st_mtime
             st_atime = real_stat.st_atime
@@ -1439,30 +1410,20 @@ class TestPlatformSpecificBranches:
             st_mode = real_stat.st_mode  # required by Path.is_dir() via pathlib internals
             # Explicitly no st_birthtime attribute
 
-        # Monkeypatch both os.name and Path.stat
-        monkeypatch.setattr(os, "name", "nt")
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
-
-        h = TemporalHeuristic(weight=0.25)
+        h = TemporalHeuristic(weight=0.25, os_name="nt", stat_provider=lambda _: MockStat())
         result = h.evaluate(f)
 
         # Windows branch used st_ctime as creation proxy; file just created → recently_modified
         assert "recently_modified" in result.scores[PARACategory.PROJECT].signals
 
-    def test_linux_platform_stat_mtime_fallback(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_linux_platform_stat_mtime_fallback(self, tmp_path: Path) -> None:
         """Linux branch uses st_mtime as creation time proxy (no st_birthtime → AttributeError)."""
-
         from methodologies.para.detection.heuristics import TemporalHeuristic
 
         f = tmp_path / "test.txt"
         f.write_text("test")
-
-        # Get real stat
         real_stat = f.stat()
 
-        # Create a mock stat object without st_birthtime
         class MockStat:
             st_mtime = real_stat.st_mtime
             st_atime = real_stat.st_atime
@@ -1470,33 +1431,21 @@ class TestPlatformSpecificBranches:
             st_mode = real_stat.st_mode  # required by Path.is_dir() via pathlib internals
             # Explicitly no st_birthtime attribute
 
-        # Monkeypatch both os.name and Path.stat
-        monkeypatch.setattr(os, "name", "posix")
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
-
-        h = TemporalHeuristic(weight=0.25)
+        h = TemporalHeuristic(weight=0.25, os_name="posix", stat_provider=lambda _: MockStat())
         result = h.evaluate(f)
 
         # Linux branch used st_mtime as creation proxy; file just created → recently_modified
         assert "recently_modified" in result.scores[PARACategory.PROJECT].signals
 
-    def test_resource_stable_reference_signal(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_resource_stable_reference_signal(self, tmp_path: Path) -> None:
         """RESOURCE stable_reference signal when create/modify gap > 30 days."""
-        import time
-
         from methodologies.para.detection.heuristics import TemporalHeuristic
 
         f = tmp_path / "reference.pdf"
         f.write_text("reference")
-        real_mode = f.stat().st_mode  # capture before monkeypatching
 
-        # Create a mock stat where:
-        # - File was created 120 days ago (birthtime)
-        # - File was last modified 70 days ago (mtime)
-        # - Gap = 50 days > 30 days threshold
-        # - mtime age = 70 days > 60 days threshold
+        # File was created 120 days ago (birthtime), modified 70 days ago (mtime)
+        # Gap = 50 days > 30 days threshold; mtime age = 70 days > 60 days threshold
         now = time.time()
         mtime_70_days_ago = now - (70 * 86400)
         birthtime_120_days_ago = now - (120 * 86400)
@@ -1507,11 +1456,9 @@ class TestPlatformSpecificBranches:
             st_atime = atime_100_days_ago
             st_ctime = birthtime_120_days_ago
             st_birthtime = birthtime_120_days_ago
-            st_mode = real_mode  # required by Path.is_dir() via pathlib internals
+            st_mode = 0o100644  # required by Path.is_dir() via pathlib internals
 
-        monkeypatch.setattr(Path, "stat", lambda _self, *_args, **_kwargs: MockStat())
-
-        h = TemporalHeuristic(weight=0.25)
+        h = TemporalHeuristic(weight=0.25, stat_provider=lambda _: MockStat())
         result = h.evaluate(f)
 
         # stable_reference signal should be present

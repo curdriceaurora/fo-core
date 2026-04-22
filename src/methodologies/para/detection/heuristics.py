@@ -11,9 +11,12 @@ import logging
 import os
 import re
 import threading
+import time
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -100,6 +103,36 @@ class TemporalHeuristic(Heuristic):
     - Old year patterns in path (e.g., "2020") → ARCHIVE
     """
 
+    def __init__(
+        self,
+        weight: float = 1.0,
+        *,
+        clock: Callable[[], float] | None = None,
+        current_year_provider: Callable[[], int] | None = None,
+        os_name: str | None = None,
+        stat_provider: Callable[[Path], Any] | None = None,
+    ) -> None:
+        """Initialize the temporal heuristic.
+
+        Args:
+            weight: Scoring weight for this heuristic.
+            clock: Override for time.time — used in tests to freeze time.
+            current_year_provider: Override for current year — used in tests.
+            os_name: Override for os.name — used in tests to simulate platform.
+            stat_provider: Override for Path.stat — used in tests to inject stat results.
+        """
+        super().__init__(weight)
+        self._clock: Callable[[], float] = clock if clock is not None else time.time
+        self._current_year_provider: Callable[[], int] = (
+            current_year_provider
+            if current_year_provider is not None
+            else lambda: datetime.now(UTC).year
+        )
+        self._os_name: str = os_name if os_name is not None else os.name
+        self._stat_provider: Callable[[Path], Any] = (
+            stat_provider if stat_provider is not None else Path.stat
+        )
+
     @staticmethod
     def _contains_old_year(path_str: str, current_year: int, threshold_years: int = 3) -> bool:
         """Check if path contains old year patterns (folders named like "2020").
@@ -112,8 +145,6 @@ class TemporalHeuristic(Heuristic):
         Returns:
             True if path contains year older than threshold
         """
-        import re
-
         # Match standalone 4-digit years (word boundaries)
         year_pattern = r"\b(19\d{2}|20\d{2})\b"
         matches = re.findall(year_pattern, path_str)
@@ -127,17 +158,14 @@ class TemporalHeuristic(Heuristic):
 
     def evaluate(self, file_path: Path, metadata: dict[str, Any] | None = None) -> HeuristicResult:
         """Evaluate based on temporal patterns."""
-        import time
-        from datetime import UTC, datetime
-
         scores = {cat: CategoryScore(cat, 0.0, 0.0) for cat in PARACategory}
 
         if not file_path.exists():
             return HeuristicResult(scores, 0.0, None, True)
 
-        stat = file_path.stat()
-        now = time.time()
-        current_year = datetime.now(UTC).year
+        stat = self._stat_provider(file_path)
+        now = self._clock()
+        current_year = self._current_year_provider()
 
         # Calculate time differences
         days_since_modified = (now - stat.st_mtime) / 86400
@@ -146,7 +174,7 @@ class TemporalHeuristic(Heuristic):
         # fall back to modification time on Linux (st_ctime is inode change time, not creation).
         # macOS: st_birthtime (true birth time); Linux: not present (use mtime); Windows: st_ctime
         ref_time = getattr(stat, "st_birthtime", stat.st_mtime)
-        if os.name == "nt" and not hasattr(stat, "st_birthtime"):  # Windows fallback
+        if self._os_name == "nt" and not hasattr(stat, "st_birthtime"):  # Windows fallback
             ref_time = getattr(stat, "st_ctime", stat.st_mtime)
         days_since_created = (now - ref_time) / 86400
 

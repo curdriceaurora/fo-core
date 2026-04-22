@@ -11,9 +11,11 @@ import logging
 import os
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -220,13 +222,28 @@ class FeatureExtractor:
         structural_features = extractor.extract_structural_features(Path("/path/to/file.md"))
     """
 
-    def __init__(self, max_content_length: int = 50_000) -> None:
+    def __init__(
+        self,
+        max_content_length: int = 50_000,
+        *,
+        clock: Callable[[], float] | None = None,
+        os_name: str | None = None,
+        stat_provider: Callable[[Path], Any] | None = None,
+    ) -> None:
         """Initialize the feature extractor.
 
         Args:
             max_content_length: Maximum content length to analyze (truncates beyond).
+            clock: Override for time.time — used in tests to freeze time.
+            os_name: Override for os.name — used in tests to simulate platform.
+            stat_provider: Override for Path.stat — used in tests to inject stat results.
         """
         self._max_content_length = max_content_length
+        self._clock: Callable[[], float] = clock if clock is not None else time.time
+        self._os_name: str = os_name if os_name is not None else os.name
+        self._stat_provider: Callable[[Path], Any] = (
+            stat_provider if stat_provider is not None else Path.stat
+        )
 
     def extract_text_features(self, content: str) -> TextFeatures:
         """Extract features from text content.
@@ -307,12 +324,12 @@ class FeatureExtractor:
             return MetadataFeatures(file_type=file_path.suffix.lower())
 
         try:
-            stat = file_path.stat()
+            stat = self._stat_provider(file_path)
         except OSError as e:
             logger.error("Cannot stat file %s: %s", file_path, e, exc_info=True)
             return MetadataFeatures(file_type=file_path.suffix.lower())
 
-        now = time.time()
+        now = self._clock()
 
         # Cross-platform file creation time:
         #   macOS  → st_birthtime (true birth time)
@@ -320,7 +337,7 @@ class FeatureExtractor:
         #   Linux  → st_mtime     (st_ctime is inode-change time, not creation)
         # macOS: st_birthtime (true birth time); Linux: not present (use mtime); Windows: st_ctime
         creation_ref = getattr(stat, "st_birthtime", stat.st_mtime)
-        if os.name == "nt" and not hasattr(stat, "st_birthtime"):  # Windows fallback
+        if self._os_name == "nt" and not hasattr(stat, "st_birthtime"):  # Windows fallback
             creation_ref = getattr(stat, "st_ctime", stat.st_mtime)
 
         # Convert timestamps to datetime
