@@ -17,9 +17,9 @@ Checks changed code against the project's documented anti-pattern rules. Catches
 
 /simplify uses generic software engineering judgment. The pre-commit script uses regex/lint rules. Neither reads the project's anti-pattern documentation:
 
-- `.claude/rules/feature-generation-patterns.md` (F1-F9)
-- `memory/test-generation-patterns.md`
-- `.claude/rules/ci-generation-patterns.md` (C1-C6)
+- `.claude/rules/feature-generation-patterns.md` (F1-F10)
+- `.claude/rules/test-generation-patterns.md` (T1-T14)
+- `.claude/rules/ci-generation-patterns.md` (C1-C8)
 
 This skill bridges that gap by checking new code against documented patterns that caused past PR review churn.
 
@@ -65,16 +65,29 @@ For each finding, cite the exact file, line number, and which pattern it violate
 
 #### Agent 2: Test Generation Audit
 
-Read `memory/test-generation-patterns.md` in full, then audit ALL test code changes against each anti-pattern:
+Read `.claude/rules/test-generation-patterns.md` in full, then audit ALL test code changes against each anti-pattern (T1-T14):
 
-- **Weak assertions**: `assert result is not None` instead of `assert result is mock_obj`. `assert X.call_count > 0` without verifying args/payload.
-- **Missing mock verification**: Mock declared in `@patch` decorator but never asserted (no `assert_called_once_with`, no `assert_not_called`).
-- **Missing negative assertions**: Test verifies the happy path but doesn't assert the unhappy path was NOT taken (e.g., verifies AI processing was called but doesn't check fallback was NOT called).
-- **Permissive filters**: Looping through results and checking `if X` instead of asserting exact count or using `mock.assert_not_called()`.
+- **T1 SOLE_ISINSTANCE**: `assert isinstance(x, T)` as the only assertion — verifies the type but not the value.
+- **T2 MISSING_STATE_VERIFICATION**: Mutating method called but only return value checked — state change not verified.
+- **T3 MOCK_CALL_COUNT_WITHOUT_PAYLOAD**: `mock.assert_called_once()` without `_with(...)`, or `call_count >= 1` without payload verification.
+- **T4 TAUTOLOGICAL_DISJUNCTION**: `assert X or isinstance(X, T)` always passes for None + type combinations.
+- **T5 IMPORTSKIP_SCOPE**: `pytest.importorskip` at module level in a file with classes that don't need the optional dep.
+- **T7 UNVERIFIED_EXCEPTION_GUARD**: `try/except SomeError: pass` guarding an exception production code never raises.
+- **T8 MISSING_IMPORT_GUARD**: Test file imports an optional dep at module level without `pytest.importorskip`.
+- **T9 VACUOUS_TAUTOLOGY**: `assert X >= 0` on lengths/counts/durations; `assert X is not None or X is None`.
+- **T10 PREDICATE_MISSING_NEGATIVE_CASE**: `_is_X()` predicate tested only with positive inputs; no test asserts False for same-shape-wrong-context.
+- **T11 PRAGMA_ON_TESTED_BRANCH**: `# pragma: no cover` added to a branch that already has a dedicated test.
+- **T12 FIXTURE_STATE_LEAK**: Singleton/sys.modules snapshot captured but never restored; partial sub-module restoration.
+- **T13 HARDCODED_TEST_DATA_PATHS**: `/tmp/`, `/dev/null` literals in test dataclass fields or fixture dicts (use `tmp_path`).
+- **T14 GENERATOR_THROW_FALSE_RAISE**: `(_ for _ in ()).throw(X(...))` as a mock side-effect — returns generator, never raises.
+
+Also check generic test-quality concerns beyond the numbered patterns:
+- **Missing mock verification**: Mock declared in `@patch` decorator but never asserted.
+- **Missing negative assertions**: Happy path verified but unhappy path not asserted as *not* taken.
 - **Private attribute access**: `assert obj._private_attr == val` instead of testing via public API.
-- **Resource leaks in tests**: File-backed SQLAlchemy engines without `engine.dispose()`, temp files without cleanup.
+- **Resource leaks**: File-backed engines without `.dispose()`, temp files without cleanup.
 - **Dead test helpers**: Unused helper methods left in test files.
-- **Missing direct unit tests**: New methods only exercised indirectly through integration tests, not tested directly.
+- **Missing direct unit tests**: New methods only exercised indirectly through integration tests.
 
 For each finding, cite the exact test file, test method, line number, and which anti-pattern it matches.
 
@@ -100,7 +113,7 @@ After fixes, re-run affected tests to confirm nothing broke.
 |------|----------------|---------------|
 | Pre-commit script | Syntax, formatting, lint, test pass/fail | Semantic correctness, assertion quality, exception scope |
 | /simplify | Generic reuse, copy-paste, efficiency | Project-specific anti-patterns, test assertion quality |
-| **/audit** | **F1-F9 feature patterns, test anti-patterns, CI patterns** | Generic code quality (that's /simplify's job) |
+| **/audit** | **F1-F10 feature patterns, T1-T14 test patterns, C1-C8 CI patterns** | Generic code quality (that's /simplify's job) |
 
 ## Integration with /pr-prep
 

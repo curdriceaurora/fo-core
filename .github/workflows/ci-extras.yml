@@ -95,8 +95,14 @@ jobs:
           cache: pip
 
       - name: Install extra with dev dependencies
-        # .[dev,extra] ensures pytest and repo test toolchain are present for canary runs
-        run: pip install -e ".[dev,${{ matrix.extra }}]"
+        # .[dev,extra] ensures pytest and repo test toolchain are present for canary runs.
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev,${{ matrix.extra }}]"
 
       - name: Verify key imports
         run: python -c "${{ matrix.key_import }}"

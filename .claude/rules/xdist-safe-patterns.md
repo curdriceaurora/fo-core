@@ -64,6 +64,11 @@ def mock_sklearn() -> Generator[MagicMock, None, None]:
 **Rule**: When mocking a package with sub-modules, list ALL sub-module keys that the
 code under test imports, not just the top-level key.
 
+**Watch for**: _partial_ restoration — code that saves the top-level key and restores
+it in teardown, but mutated sub-module keys during the test body. The top-level
+restore looks correct at a glance; the sub-module stays patched for the rest of the
+xdist worker. See also `test-generation-patterns.md` T12 FIXTURE_STATE_LEAK.
+
 ---
 
 ## Pattern 3: Shared Singletons
@@ -90,6 +95,32 @@ Run with: `pytest ... --dist=loadgroup -n auto`
 def reset_registry() -> Generator[None, None, None]:
     yield
     _registry._reset_for_testing()
+```
+
+**Watch for**: _snapshot-but-never-used_ teardown — capturing the singleton's initial
+state into a local variable and then never restoring from it. Pattern looks like
+cleanup but is a no-op. See `test-generation-patterns.md` T12 FIXTURE_STATE_LEAK.
+
+```python
+# BAD — snapshot ignored
+@pytest.fixture
+def clean_registry():
+    original = _registry.registered_providers  # captured, never used
+    yield
+    _registry._reset_for_testing()
+    _registry._register_builtins()             # re-registers defaults only;
+                                                # any pre-existing custom provider is lost
+
+# GOOD — snapshot actually restored
+@pytest.fixture
+def clean_registry():
+    original = dict(_registry.registered_providers)
+    try:
+        yield
+    finally:
+        _registry._reset_for_testing()
+        for name, provider in original.items():
+            _registry.register(name, provider)
 ```
 
 ---

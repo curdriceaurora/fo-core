@@ -78,9 +78,6 @@ output/
 coverage.xml
 htmlcov/
 
-# MkDocs build output
-site/
-
 # Backup files and directories
 *.bak
 .fo_backups/
@@ -117,8 +114,6 @@ __snapshots__/
 # Node modules (if not already there)
 node_modules/
 
-# MkDocs build output
-site/
 .claude/worktrees/
 /.worktrees/
 
@@ -140,4 +135,3 @@ coverage.json
 # Superpowers scaffolding (implementation artifacts, not permanent docs)
 docs/superpowers/plans/
 docs/superpowers/specs/
-.worktrees/

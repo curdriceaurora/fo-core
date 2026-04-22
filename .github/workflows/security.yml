@@ -26,9 +26,23 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install pip-audit
-        run: pip install pip-audit
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: pip install pip-audit
       - name: Audit dependencies
-        run: pip-audit -r <(pip install -e . && pip freeze)
+        # The inner `pip install -e . && pip freeze` also downloads wheels; wrap
+        # the whole step in retry so a transient flake on any of the pip calls
+        # is recoverable (issue #145).  continue-on-error stays on the step.
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: pip-audit -r <(pip install -e . && pip freeze)
         continue-on-error: true
 
   bandit-scan:
@@ -39,7 +53,13 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install bandit
-        run: pip install bandit[toml]
+        # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: pip install bandit[toml]
       - name: Run bandit
         run: bandit -r src/ -c pyproject.toml || true
 

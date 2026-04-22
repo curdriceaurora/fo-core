@@ -1,6 +1,6 @@
 """CI guardrails for test quality anti-patterns.
 
-Covers four regression classes:
+Covers six regression classes:
 
 1. ``time.sleep()`` in tests — wall-clock sleeps make tests flaky under
    load and mask real timing bugs.  Use ``os.utime()`` for mtime bumps or
@@ -11,10 +11,13 @@ Covers four regression classes:
    the upper-bound assertion is vacuous: it passes even when the index
    returns zero matches.  Use ``assert len(results) == N`` instead.
 
-3. ``assert len(results) >= 0`` / ``assert 0 <= len(results)`` patterns —
-   ``len()`` is always non-negative by definition, so these assertions always
+3. ``assert len(results) >= 0`` / ``assert 0 <= len(results)`` patterns and
+   ``assert x.attr >= 0`` for non-negative attrs (count, size, duration,
+   elapsed, depth, files_per_second, topic_count, keyword_count, …) —
+   these are always non-negative by definition, so the assertions always
    pass even when the tested code is completely broken.  Use a meaningful
-   lower bound (``>= 1``) or exact count (``== N``) instead.
+   lower bound (``>= 1``) or exact count (``== N``) instead.  See T9 in
+   ``.claude/rules/test-generation-patterns.md``.
 
 4. Sole ``assert isinstance(x, T)`` in a test function — verifies the return
    type but not the value.  For ``bool`` this is especially weak (only two
@@ -23,10 +26,19 @@ Covers four regression classes:
    Applies to changed files only.  TODO: broaden to full suite after a
    clean-up sweep analogous to issue #900.
 
-Guardrails 1, 2, and 3 apply to ALL test files under ``tests/``.  Streams
-1-4 of issue #900 eliminated every pre-existing violation, so the scope can
-be expanded from diff-based (changed files only) to the full test suite.
-Guardrail 4 is diff-based until a full-suite clean-up is done.
+5. ``assert X is not None or X is None`` tautology — the disjunction is
+   always true for every value of X, so the assertion detects nothing.
+   Pick the specific branch the test is exercising and assert it directly.
+
+6. ``(_ for _ in ()).throw(SomeError(...))`` mock side-effects — the
+   expression returns a generator object instead of raising.  Use a named
+   function or ``MagicMock(side_effect=...)`` instead.  See T14 in
+   ``.claude/rules/test-generation-patterns.md``.
+
+Guardrails 1, 2, 3, and 5 apply to ALL test files under ``tests/``.  Streams
+1-4 of issue #900 eliminated every pre-existing violation in 3, and the 2026-04
+pattern-tightening cleanup eliminated the sole violation in 5.  Guardrails 4
+and 6 are diff-based pending full-suite cleanups.
 """
 
 from __future__ import annotations
@@ -68,24 +80,44 @@ def _git_changed_test_files() -> list[Path]:
     Used for guardrails that have known pre-existing violations in the full
     suite.  Only files touched in the current branch are checked, preventing
     failures on historical code while blocking new violations.
+
+    The set is the *union* of three diffs so a new violation is caught at
+    every stage of the local workflow:
+
+    - ``origin/main...HEAD`` — commits landed on the branch
+    - ``--cached`` — changes already ``git add``-staged for the next commit
+    - ``HEAD`` — unstaged worktree changes
+
+    Without the staged/worktree diffs, a pre-commit invocation sitting on
+    top of an existing branch with prior commits would see a non-empty
+    commit-range diff, take that branch as the answer, and silently skip
+    the file the author is about to commit.
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", "origin/main...HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=FO_ROOT,
-        )
-        if not result.stdout.strip():
+    changed: set[str] = set()
+    for diff_args in (
+        ["origin/main...HEAD"],
+        ["--cached"],
+        ["HEAD"],
+    ):
+        try:
             result = subprocess.run(
-                ["git", "diff", "--name-only", "HEAD"],
+                ["git", "diff", "--name-only", *diff_args],
                 capture_output=True,
                 text=True,
                 cwd=FO_ROOT,
+                check=False,
             )
-        changed = {line.strip() for line in result.stdout.splitlines() if line.strip()}
-    except Exception:
-        changed = set()
+        except (OSError, subprocess.SubprocessError):
+            # Launching git failed (binary missing, permissions, etc.).  Try
+            # the next diff variant.  If all three fail we yield an empty
+            # set — diff-scoped guardrails then no-op.
+            continue
+        if result.returncode != 0:
+            # git exited non-zero (e.g. origin/main unknown on a shallow clone);
+            # skip this variant without treating stdout as authoritative.
+            continue
+        changed.update(line.strip() for line in result.stdout.splitlines() if line.strip())
+
     return sorted(
         p
         for p in TESTS_ROOT.rglob("*.py")
@@ -278,7 +310,27 @@ def test_changed_tests_have_no_vacuous_len_lte_assertions() -> None:
 # Fix 5b: vacuous >= 0 assertions (always-true lower bounds)
 # -------------------------------------------------------------------------
 
-_GTE_ZERO_NON_NEGATIVE_ATTRS = frozenset({"count", "duration", "total_size", "size", "length"})
+_GTE_ZERO_NON_NEGATIVE_ATTRS = frozenset(
+    {
+        # Sizes and lengths
+        "count",
+        "length",
+        "size",
+        "total_size",
+        # Durations / elapsed times (>=0 by construction)
+        "duration",
+        "elapsed",
+        "elapsed_ms",
+        "elapsed_seconds",
+        # Counts flagged in 2026-03..04 PR reviews (files_per_second is a rate
+        # but always non-negative in our tests; topic_count / keyword_count
+        # are counts)
+        "depth",
+        "files_per_second",
+        "keyword_count",
+        "topic_count",
+    }
+)
 
 
 def _find_vacuous_len_gte_zero_assertions(source: str, path: str = "<string>") -> list[str]:
@@ -290,8 +342,13 @@ def _find_vacuous_len_gte_zero_assertions(source: str, path: str = "<string>") -
        ``len()`` always returns a non-negative integer, so ``>= 0`` is tautological.
 
     2. ``assert x.attr >= 0``  (forward) and ``assert 0 <= x.attr``  (reverse)
-       where ``attr`` is one of the known non-negative attribute names
-       (``count``, ``duration``, ``total_size``, ``size``, ``length``).
+       where ``attr`` is one of the known non-negative attribute names.  The
+       authoritative set is ``_GTE_ZERO_NON_NEGATIVE_ATTRS``; at the time of
+       writing it covers sizes/lengths (``count``, ``length``, ``size``,
+       ``total_size``), durations (``duration``, ``elapsed``, ``elapsed_ms``,
+       ``elapsed_seconds``), and counts/depths flagged in 2026-03..04 PR
+       reviews (``depth``, ``files_per_second``, ``keyword_count``,
+       ``topic_count``).
 
     These pass even when the code under test is completely broken.  Use a
     meaningful bound (``>= 1``, ``== N``, ``< max_val``) instead.
@@ -350,6 +407,12 @@ def _find_vacuous_len_gte_zero_assertions(source: str, path: str = "<string>") -
         ("assert x.total_size >= 0\n", 1),
         ("assert x.size >= 0\n", 1),
         ("assert x.length >= 0\n", 1),
+        ("assert x.elapsed >= 0\n", 1),
+        ("assert x.elapsed_ms >= 0\n", 1),
+        ("assert x.files_per_second >= 0\n", 1),
+        ("assert x.topic_count >= 0\n", 1),
+        ("assert x.keyword_count >= 0\n", 1),
+        ("assert x.depth >= 0\n", 1),
         ("assert 0 <= x.count\n", 1),
         # Meaningful bounds — should NOT flag
         ("assert len(results) >= 1\n", 0),
@@ -500,4 +563,218 @@ def test_changed_tests_have_no_sole_isinstance_assertions() -> None:
     assert not violations, (
         "Sole ``assert isinstance(x, T)`` found — add a specific value assertion:\n"
         + "\n".join(violations)
+    )
+
+
+# -------------------------------------------------------------------------
+# Fix 7: X is not None or X is None tautology (T9 extension)
+# -------------------------------------------------------------------------
+
+
+def _is_pure_operand(node: ast.AST) -> bool:
+    """Return True if *node* is a simple name or attribute chain (no calls/subscripts).
+
+    Restricting the tautology detector to pure operands keeps assertions like
+    ``f() is not None or f() is None`` out of scope — ``f()`` is evaluated twice
+    and may legitimately return different values or have side effects, so the
+    disjunction is not actually tautological.
+    """
+    if isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.Attribute):
+        return _is_pure_operand(node.value)
+    return False
+
+
+def _find_is_not_none_or_is_none_tautology(source: str, path: str = "<string>") -> list[str]:
+    """Return assertions of the form ``assert X is not None or X is None``.
+
+    The disjunction is always true for any value of X.  Seen in PR review #61
+    as a rationalized "covers both branches" — but it covers nothing: it
+    passes even when the function raises, returns a truthy-but-wrong value,
+    or leaks state.
+
+    Also flags the symmetric ``X is None or X is not None``.
+
+    Only fires when ``X`` is a simple name or attribute chain; expressions
+    containing calls, subscripts, or other side-effect-capable nodes are
+    intentionally skipped (``f() is not None or f() is None`` evaluates
+    ``f`` twice and is not a tautology in general).
+    """
+    try:
+        tree = ast.parse(source, filename=path)
+    except SyntaxError:
+        return []
+
+    def _is_is_none(n: ast.AST, *, negated: bool) -> str | None:
+        if not isinstance(n, ast.Compare) or len(n.ops) != 1 or len(n.comparators) != 1:
+            return None
+        comp = n.comparators[0]
+        if not (isinstance(comp, ast.Constant) and comp.value is None):
+            return None
+        if not _is_pure_operand(n.left):
+            return None
+        op = n.ops[0]
+        if negated and isinstance(op, ast.IsNot):
+            return ast.unparse(n.left)
+        if not negated and isinstance(op, ast.Is):
+            return ast.unparse(n.left)
+        return None
+
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assert):
+            continue
+        test = node.test
+        if not isinstance(test, ast.BoolOp) or not isinstance(test.op, ast.Or):
+            continue
+        if len(test.values) != 2:
+            continue
+        left_not_none = _is_is_none(test.values[0], negated=True)
+        right_is_none = _is_is_none(test.values[1], negated=False)
+        if left_not_none and right_is_none and left_not_none == right_is_none:
+            violations.append(f"{path}:{node.lineno}")
+            continue
+        left_is_none = _is_is_none(test.values[0], negated=False)
+        right_not_none = _is_is_none(test.values[1], negated=True)
+        if left_is_none and right_not_none and left_is_none == right_not_none:
+            violations.append(f"{path}:{node.lineno}")
+
+    return violations
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_count"),
+    [
+        # Tautologies — flag (simple name or attribute operand)
+        ("assert result is not None or result is None\n", 1),
+        ("assert result is None or result is not None\n", 1),
+        ("assert obj.field is not None or obj.field is None\n", 1),
+        # Different operands — NOT a tautology
+        ("assert a is not None or b is None\n", 0),
+        # Single comparisons — NOT a tautology
+        ("assert result is not None\n", 0),
+        ("assert result is None\n", 0),
+        # Meaningful disjunction — NOT a tautology
+        ("assert result is None or isinstance(result, str)\n", 0),
+        # Call-expression operands — NOT flagged (f() may return different
+        # values on each call or have side effects; not a true tautology)
+        ("assert f() is not None or f() is None\n", 0),
+        ("assert obj.method() is not None or obj.method() is None\n", 0),
+        # Subscript operand — NOT flagged for the same reason
+        ("assert data[0] is not None or data[0] is None\n", 0),
+    ],
+)
+def test_detector_flags_is_none_tautology(source: str, expected_count: int) -> None:
+    assert len(_find_is_not_none_or_is_none_tautology(source)) == expected_count
+
+
+def test_changed_tests_have_no_is_none_tautology() -> None:
+    """Changed test files must not use ``assert X is not None or X is None``.
+
+    The disjunction covers every possible value of X, so the assertion passes
+    even when the code is broken.  Pick the specific branch the test is
+    exercising and assert it directly.
+    """
+    violations: list[str] = []
+    for path in _changed_test_files():
+        source = path.read_text(encoding="utf-8")
+        violations.extend(_find_is_not_none_or_is_none_tautology(source, str(path)))
+
+    assert not violations, (
+        "Tautological ``X is not None or X is None`` found — pick one branch:\n"
+        + "\n".join(violations)
+    )
+
+
+# -------------------------------------------------------------------------
+# Fix 8: Generator-throw false-raise pattern (T14)
+# -------------------------------------------------------------------------
+
+
+def _find_generator_throw_false_raise(source: str, path: str = "<string>") -> list[str]:
+    """Return locations of ``(_ for _ in ()).throw(...)`` expressions.
+
+    The idiom DOES raise — ``generator.throw(exc)`` on a fresh generator-expression
+    starts it and propagates ``exc`` back to the caller.  It is banned anyway, for
+    clarity and policy reasons: a five-token obfuscation of ``raise exc`` is
+    easy to misread (historically assumed to be a no-op that returns a generator),
+    and ``MagicMock(side_effect=exc)`` or a named ``def _raise(): raise exc``
+    helper is both clearer and more conventional.
+
+    Detection is AST-based so that occurrences in comments, string literals, and
+    docstrings are not flagged.  Matches any ``<genexp>.throw(...)`` where
+    ``<genexp>`` is a generator expression — not just the literal
+    ``(_ for _ in ())`` shape — because variations like ``(_ for _ in [])`` or
+    ``(x for x in ())`` fall under the same anti-pattern.
+    """
+    try:
+        tree = ast.parse(source, filename=path)
+    except SyntaxError:
+        return []
+
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and func.attr == "throw"):
+            continue
+        if isinstance(func.value, ast.GeneratorExp):
+            violations.append(f"{path}:{node.lineno}")
+    return violations
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_count"),
+    [
+        # Direct lambda form — flag
+        (
+            "mock.Dataset = lambda *a, **k: (_ for _ in ()).throw(OSError('boom'))\n",
+            1,
+        ),
+        # Standalone expression — flag
+        ("(_ for _ in ()).throw(ValueError('x'))\n", 1),
+        # Variant generator shapes — also flag (same anti-pattern)
+        ("(_ for _ in []).throw(OSError('x'))\n", 1),
+        ("(x for x in ()).throw(RuntimeError('y'))\n", 1),
+        # Comment mentioning the pattern — NOT flagged (AST ignores comments)
+        ("# (_ for _ in ()).throw(ValueError('x'))\nx = 1\n", 0),
+        # String literal containing the pattern — NOT flagged
+        ("text = \"(_ for _ in ()).throw(ValueError('x'))\"\n", 0),
+        # Docstring mentioning the pattern — NOT flagged
+        ('def f():\n    """(_ for _ in ()).throw(X())"""\n    pass\n', 0),
+        # Named function that raises — NOT flagged (correct pattern)
+        ("def raise_oserror(*a, **k):\n    raise OSError('boom')\n", 0),
+        # Plain generator without .throw — NOT flagged
+        ("gen = (x for x in [1, 2, 3])\n", 0),
+        # .throw on a named variable (not a generator expression) — NOT flagged
+        # (style is fine when the generator is the intended object under test)
+        ("gen = some_generator()\ngen.throw(ValueError('x'))\n", 0),
+    ],
+)
+def test_detector_flags_generator_throw_false_raise(source: str, expected_count: int) -> None:
+    assert len(_find_generator_throw_false_raise(source)) == expected_count
+
+
+def test_changed_tests_have_no_generator_throw_false_raise() -> None:
+    """Changed test files must not use ``<genexp>.throw(...)`` mocks.
+
+    The idiom raises the exception (contrary to intuition) but is banned for
+    clarity: use a named ``def _raise(): raise X(...)`` helper or
+    ``MagicMock(side_effect=X(...))`` instead.  See T14 in
+    ``.claude/rules/test-generation-patterns.md``.
+
+    Diff-scoped for now — 9 pre-existing violations exist across the suite
+    (daemon, events, integration, pipeline).  TODO: broaden to the full suite
+    after a cleanup sweep analogous to the T1 cleanup.
+    """
+    violations: list[str] = []
+    for path in _git_changed_test_files():
+        source = path.read_text(encoding="utf-8")
+        violations.extend(_find_generator_throw_false_raise(source, str(path)))
+
+    assert not violations, (
+        "`<genexp>.throw(...)` found — use a named function or "
+        "MagicMock(side_effect=...) instead:\n" + "\n".join(violations)
     )
