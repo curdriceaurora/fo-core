@@ -13,7 +13,7 @@ import pytest
 
 
 @pytest.mark.ci
-def test_lazy_import_of_file_organizer() -> None:
+def test_lazy_import_of_organizer_class() -> None:
     """``from core import FileOrganizer`` resolves via ``__getattr__`` and
     returns the class. Verifies the lazy re-export is wired correctly.
     """
