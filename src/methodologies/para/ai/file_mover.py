@@ -124,7 +124,9 @@ class PARAFileMover:
         *,
         max_collision_attempts: int = 1000,
         exists_provider: Callable[[Path], bool] = Path.exists,
+        is_dir_provider: Callable[[Path], bool] = Path.is_dir,
         rglob_provider: Callable[[Path, str], Iterator[Path]] = lambda p, pat: p.rglob(pat),
+        iterdir_provider: Callable[[Path], Iterator[Path]] = lambda p: p.iterdir(),
         stat_provider: Callable[[Path], _StatLike] = lambda p: p.stat(),
         resolve_provider: Callable[[Path], Path] = Path.resolve,
     ) -> None:
@@ -138,7 +140,9 @@ class PARAFileMover:
                 config.default_root or current working directory.
             max_collision_attempts: Maximum rename attempts before raising OSError.
             exists_provider: Injectable callable for Path.exists (seam for testing).
+            is_dir_provider: Injectable callable for Path.is_dir (seam for testing).
             rglob_provider: Injectable callable for Path.rglob (seam for testing).
+            iterdir_provider: Injectable callable for Path.iterdir (seam for testing).
             stat_provider: Injectable callable for Path.stat (seam for testing).
             resolve_provider: Injectable callable for Path.resolve (seam for testing).
         """
@@ -147,7 +151,9 @@ class PARAFileMover:
         self._root_dir = root_dir or self._config.default_root or Path.cwd()
         self._max_collision_attempts = max_collision_attempts
         self._exists_provider = exists_provider
+        self._is_dir_provider = is_dir_provider
         self._rglob_provider = rglob_provider
+        self._iterdir_provider = iterdir_provider
         self._stat_provider = stat_provider
         self._resolve_provider = resolve_provider
 
@@ -274,7 +280,7 @@ class PARAFileMover:
         """
         report = OrganizationReport()
 
-        if not self._exists_provider(directory) or not directory.is_dir():
+        if not self._exists_provider(directory) or not self._is_dir_provider(directory):
             logger.error("Directory does not exist: %s", directory)
             return report
 
@@ -282,7 +288,7 @@ class PARAFileMover:
         if recursive:
             files = [f for f in self._rglob_provider(directory, "*") if f.is_file()]
         else:
-            files = [f for f in directory.iterdir() if f.is_file()]
+            files = [f for f in self._iterdir_provider(directory) if f.is_file()]
 
         report.total_files = len(files)
 
@@ -339,7 +345,7 @@ class PARAFileMover:
         """
         suggestions: list[MoveSuggestion] = []
 
-        if not self._exists_provider(directory) or not directory.is_dir():
+        if not self._exists_provider(directory) or not self._is_dir_provider(directory):
             return suggestions
 
         now = time.time()
