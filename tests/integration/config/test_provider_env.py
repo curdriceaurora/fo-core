@@ -33,9 +33,7 @@ pytestmark = [pytest.mark.integration]
 
 
 class TestGetCurrentProviderUnknownValue:
-    def test_unknown_provider_falls_back_to_ollama(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_unknown_provider_falls_back_to_ollama(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="unknown_provider_xyz")
 
         result = get_current_provider()
@@ -60,9 +58,7 @@ class TestGetCurrentProviderUnknownValue:
 
 
 class TestGetLlamaCppConfigs:
-    def test_model_path_propagated_to_both_configs(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_model_path_propagated_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_LLAMA_CPP_MODEL_PATH="/models/llama3.gguf")
 
         text_cfg, vision_cfg = _get_llama_cpp_configs()
@@ -130,9 +126,7 @@ class TestGetLlamaCppConfigs:
 
 
 class TestGetMlxConfigs:
-    def test_model_path_propagated_to_both_configs(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_model_path_propagated_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_MLX_MODEL_PATH="mlx-community/Qwen2.5-3B-Instruct-4bit")
 
         text_cfg, vision_cfg = _get_mlx_configs()
@@ -331,9 +325,7 @@ class TestGetModelConfigsFromEnvOpenAIWarningBranch:
 
 
 class TestGetModelConfigsPriorityCascade:
-    def test_fo_provider_set_uses_env_over_profile(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_fo_provider_set_uses_env_over_profile(self, provider_env: Callable[..., None]) -> None:
         """When FO_PROVIDER is set, env config wins over profile config."""
         provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
 

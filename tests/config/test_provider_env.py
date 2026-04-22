@@ -41,9 +41,7 @@ class TestGetCurrentProvider:
 
         assert get_current_provider() == "mlx"
 
-    def test_falls_back_to_ollama_on_unknown_value(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_falls_back_to_ollama_on_unknown_value(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="anthropic")
 
         # Should not raise — returns safe default
@@ -97,9 +95,7 @@ class TestGetModelConfigsFromEnvOllama:
 
 
 class TestGetModelConfigsFromEnvOpenAI:
-    def test_openai_provider_sets_provider_field(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_openai_provider_sets_provider_field(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-abc")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
@@ -107,9 +103,7 @@ class TestGetModelConfigsFromEnvOpenAI:
         assert text_cfg.provider == "openai"
         assert vision_cfg.provider == "openai"
 
-    def test_api_key_propagated_to_both_configs(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_api_key_propagated_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-secret")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
@@ -117,9 +111,7 @@ class TestGetModelConfigsFromEnvOpenAI:
         assert text_cfg.api_key == "sk-secret"
         assert vision_cfg.api_key == "sk-secret"
 
-    def test_base_url_propagated_to_both_configs(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_base_url_propagated_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="openai", FO_OPENAI_BASE_URL="http://localhost:1234/v1")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
@@ -190,9 +182,7 @@ class TestGetModelConfigsFromEnvMLX:
         assert text_cfg.model_path == "/models/mlx"
         assert vision_cfg.model_path == "/models/mlx"
 
-    def test_missing_mlx_model_path_does_not_crash(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_missing_mlx_model_path_does_not_crash(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="mlx")
 
         with patch("config.provider_env.logger.warning") as mock_warning:
@@ -205,9 +195,7 @@ class TestGetModelConfigsFromEnvMLX:
         warning_messages = " ".join(str(call.args[0]) for call in mock_warning.call_args_list)
         assert "FO_MLX_MODEL_PATH" in warning_messages
 
-    def test_model_types_correct_for_mlx_configs(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_model_types_correct_for_mlx_configs(self, provider_env: Callable[..., None]) -> None:
         provider_env(FO_PROVIDER="mlx", FO_MLX_MODEL_PATH="mlx-community/Qwen2.5-3B-Instruct-4bit")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
