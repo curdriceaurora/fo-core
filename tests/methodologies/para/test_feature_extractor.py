@@ -7,6 +7,7 @@ and structural feature extraction without any external dependencies.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 
@@ -461,20 +462,16 @@ class TestEdgeCasesAndErrorHandling:
     def test_metadata_extraction_with_stat_error(
         self,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should handle OSError gracefully when stat() fails."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("content")
 
-        # Mock exists() to return True so we pass the initial check
-        monkeypatch.setattr(Path, "exists", lambda self: True)
-
-        def mock_stat(_path: Path) -> None:
+        def _raise_stat(_p: Path) -> NoReturn:
             raise OSError("Permission denied")
 
-        extractor = FeatureExtractor(stat_provider=mock_stat)
-        features = extractor.extract_metadata_features(test_file)
+        ext = FeatureExtractor(stat_provider=_raise_stat)
+        features = ext.extract_metadata_features(test_file)
         # Should return defaults with just the file type
         assert features.file_type == ".txt"
         assert features.file_size == 0
@@ -499,9 +496,7 @@ class TestEdgeCasesAndErrorHandling:
 
     def test_structural_features_with_inaccessible_parent_dir(
         self,
-        extractor: FeatureExtractor,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should handle OSError when reading parent directory fails."""
         test_dir = tmp_path / "testdir"
@@ -509,11 +504,11 @@ class TestEdgeCasesAndErrorHandling:
         test_file = test_dir / "file.txt"
         test_file.write_text("content")
 
-        def mock_iterdir(_self: Path) -> None:
+        def _raise_iterdir(_p: Path) -> NoReturn:
             raise OSError("Permission denied")
 
-        monkeypatch.setattr(Path, "iterdir", mock_iterdir)
-        features = extractor.extract_structural_features(test_file)
+        ext = FeatureExtractor(iterdir_provider=_raise_iterdir)
+        features = ext.extract_structural_features(test_file)
         # Should handle error gracefully and return 0 siblings
         assert features.sibling_count == 0
 
@@ -538,19 +533,17 @@ class TestEdgeCasesAndErrorHandling:
 
     def test_has_project_structure_with_iterdir_error(
         self,
-        extractor: FeatureExtractor,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should handle OSError gracefully in _has_project_structure."""
         test_dir = tmp_path / "proj"
         test_dir.mkdir()
 
-        def mock_iterdir(_self: Path) -> None:
+        def _raise_iterdir(_p: Path) -> NoReturn:
             raise OSError("Permission denied")
 
-        monkeypatch.setattr(Path, "iterdir", mock_iterdir)
-        result = extractor._has_project_structure(test_dir)
+        ext = FeatureExtractor(iterdir_provider=_raise_iterdir)
+        result = ext._has_project_structure(test_dir)
         # Should handle error and return False
         assert result is False
 

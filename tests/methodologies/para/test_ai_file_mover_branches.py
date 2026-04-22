@@ -528,11 +528,13 @@ class TestResolveCollision:
         """Collision counter overflow raises OSError (lines 451-455)."""
         config = PARAConfig()
         engine = MagicMock()
-        mover = PARAFileMover(config, suggestion_engine=engine, root_dir=tmp_path)
+        mover = PARAFileMover(
+            config,
+            suggestion_engine=engine,
+            root_dir=tmp_path,
+            exists_provider=lambda _: True,
+        )
         dest = tmp_path / "file.txt"
-        dest.write_text("original")
 
-        # Mock exists to always return True, simulating infinite collision
-        with patch.object(Path, "exists", return_value=True):
-            with pytest.raises(OSError, match="too many existing files"):
-                mover._resolve_collision(dest)
+        with pytest.raises(OSError, match="too many existing files"):
+            mover._resolve_collision(dest)

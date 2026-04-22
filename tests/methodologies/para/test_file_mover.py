@@ -6,8 +6,10 @@ bulk organization, archive suggestions, and collision handling.
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
+from typing import NoReturn
 from unittest.mock import MagicMock
 
 import pytest
@@ -533,18 +535,30 @@ class TestMoveFileErrors:
 
     def test_collision_counter_overflow(
         self,
-        mover: PARAFileMover,
+        config: PARAConfig,
+        mock_suggestion_engine: MagicMock,
+        para_root: Path,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should raise error if collision counter exceeds limit."""
         f = tmp_path / "file.txt"
         f.write_text("content")
-        target_dir = mover.root_dir / "Projects"
+
+        def mock_exists(path: Path) -> bool:
+            if "_" in str(path):
+                return True
+            return path.exists()
+
+        seam_mover = PARAFileMover(
+            config=config,
+            suggestion_engine=mock_suggestion_engine,
+            root_dir=para_root,
+            exists_provider=mock_exists,
+        )
+
+        target_dir = seam_mover.root_dir / "Projects"
         target_dir.mkdir(parents=True)
         target = target_dir / "file.txt"
-
-        # Create the target file
         target.write_text("existing")
 
         suggestion = MoveSuggestion(
@@ -554,20 +568,7 @@ class TestMoveFileErrors:
             confidence=0.8,
         )
 
-        # Mock Path.exists to always return True to trigger overflow
-        from pathlib import Path as PathClass
-
-        original_exists = PathClass.exists
-
-        def mock_exists(self: PathClass) -> bool:
-            # Only mock for the collision resolution paths
-            if "_" in str(self):
-                return True
-            return original_exists(self)
-
-        monkeypatch.setattr(PathClass, "exists", mock_exists)
-
-        result = mover.move_file(suggestion, dry_run=False)
+        result = seam_mover.move_file(suggestion, dry_run=False)
         assert result.success is False
         assert result.error is not None
         assert "too many existing files" in result.error
@@ -663,30 +664,34 @@ class TestSuggestArchiveErrors:
 
     def test_directory_scan_error(
         self,
-        mover: PARAFileMover,
+        config: PARAConfig,
+        mock_suggestion_engine: MagicMock,
+        para_root: Path,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should handle OSError when scanning directory."""
         src = tmp_path / "source"
         src.mkdir()
 
-        # Mock rglob to raise OSError
-        from pathlib import Path as PathClass
-
-        def mock_rglob(*args: object, **kwargs: object) -> list[Path]:
+        def mock_rglob(_p: Path, _pattern: str) -> NoReturn:
             raise OSError("Cannot access directory")
 
-        monkeypatch.setattr(PathClass, "rglob", mock_rglob)
+        seam_mover = PARAFileMover(
+            config=config,
+            suggestion_engine=mock_suggestion_engine,
+            root_dir=para_root,
+            rglob_provider=mock_rglob,
+        )
 
-        suggestions = mover.suggest_archive(src)
+        suggestions = seam_mover.suggest_archive(src)
         assert suggestions == []
 
     def test_file_stat_error(
         self,
-        mover: PARAFileMover,
+        config: PARAConfig,
+        mock_suggestion_engine: MagicMock,
+        para_root: Path,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should skip files that cannot be stat'd."""
         src = tmp_path / "source"
@@ -694,22 +699,20 @@ class TestSuggestArchiveErrors:
         f = src / "problematic.txt"
         f.write_text("content")
 
-        # Mock stat to raise OSError
-        from pathlib import Path as PathClass
-
-        original_stat = PathClass.stat
-
-        def mock_stat(self: PathClass, *args: object, **kwargs: object) -> object:
-            if "problematic" in str(self):
+        def mock_stat(path: Path) -> os.stat_result:
+            if "problematic" in str(path):
                 raise OSError("Cannot stat file")
-            return original_stat(self, *args, **kwargs)
+            return path.stat()
 
-        monkeypatch.setattr(PathClass, "stat", mock_stat)
+        seam_mover = PARAFileMover(
+            config=config,
+            suggestion_engine=mock_suggestion_engine,
+            root_dir=para_root,
+            stat_provider=mock_stat,
+        )
 
-        suggestions = mover.suggest_archive(src, inactive_days=0)
-        # Should return empty or skip the problematic file
-        assert isinstance(suggestions, list)
-        assert suggestions == []  # File should be skipped due to stat error
+        suggestions = seam_mover.suggest_archive(src, inactive_days=0)
+        assert suggestions == []  # file skipped due to stat error
 
 
 @pytest.mark.unit
@@ -718,21 +721,24 @@ class TestIsAlreadyOrganized:
 
     def test_handles_path_resolution_errors(
         self,
-        mover: PARAFileMover,
+        config: PARAConfig,
+        mock_suggestion_engine: MagicMock,
+        para_root: Path,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Should handle errors during path resolution."""
         f = tmp_path / "file.txt"
         f.write_text("content")
 
-        # Mock resolve to raise OSError
-        from pathlib import Path as PathClass
-
-        def mock_resolve(self: PathClass) -> Path:
+        def mock_resolve(_p: Path) -> NoReturn:
             raise OSError("Cannot resolve path")
 
-        monkeypatch.setattr(PathClass, "resolve", mock_resolve)
+        seam_mover = PARAFileMover(
+            config=config,
+            suggestion_engine=mock_suggestion_engine,
+            root_dir=para_root,
+            resolve_provider=mock_resolve,
+        )
 
-        result = mover._is_already_organized(f, PARACategory.PROJECT)
+        result = seam_mover._is_already_organized(f, PARACategory.PROJECT)
         assert result is False

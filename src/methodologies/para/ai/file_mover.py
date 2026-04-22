@@ -10,14 +10,23 @@ from __future__ import annotations
 import logging
 import shutil
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 from ..categories import PARACategory
 from ..config import PARAConfig
 from .suggestion_engine import PARASuggestion, PARASuggestionEngine
 
 logger = logging.getLogger(__name__)
+
+
+class _StatLike(Protocol):
+    """Minimal stat-result interface used by PARAFileMover."""
+
+    @property
+    def st_mtime(self) -> float: ...
 
 
 @dataclass
@@ -114,6 +123,10 @@ class PARAFileMover:
         root_dir: Path | None = None,
         *,
         max_collision_attempts: int = 1000,
+        exists_provider: Callable[[Path], bool] = Path.exists,
+        rglob_provider: Callable[[Path, str], Iterator[Path]] = lambda p, pat: p.rglob(pat),
+        stat_provider: Callable[[Path], _StatLike] = lambda p: p.stat(),
+        resolve_provider: Callable[[Path], Path] = Path.resolve,
     ) -> None:
         """Initialize the PARA file mover.
 
@@ -124,11 +137,19 @@ class PARAFileMover:
             root_dir: Root directory for PARA organization. Defaults to
                 config.default_root or current working directory.
             max_collision_attempts: Maximum rename attempts before raising OSError.
+            exists_provider: Injectable callable for Path.exists (seam for testing).
+            rglob_provider: Injectable callable for Path.rglob (seam for testing).
+            stat_provider: Injectable callable for Path.stat (seam for testing).
+            resolve_provider: Injectable callable for Path.resolve (seam for testing).
         """
         self._config = config or PARAConfig()
         self._engine = suggestion_engine or PARASuggestionEngine(config=self._config)
         self._root_dir = root_dir or self._config.default_root or Path.cwd()
         self._max_collision_attempts = max_collision_attempts
+        self._exists_provider = exists_provider
+        self._rglob_provider = rglob_provider
+        self._stat_provider = stat_provider
+        self._resolve_provider = resolve_provider
 
     @property
     def root_dir(self) -> Path:
@@ -179,7 +200,7 @@ class PARAFileMover:
         destination = suggestion.target_path
 
         # Validate source exists
-        if not source.exists():
+        if not self._exists_provider(source):
             return MoveResult(
                 success=False,
                 source=source,
@@ -189,7 +210,7 @@ class PARAFileMover:
             )
 
         # Check if already at destination
-        if source.resolve() == destination.resolve():
+        if self._resolve_provider(source) == self._resolve_provider(destination):
             return MoveResult(
                 success=True,
                 source=source,
@@ -253,13 +274,13 @@ class PARAFileMover:
         """
         report = OrganizationReport()
 
-        if not directory.exists() or not directory.is_dir():
+        if not self._exists_provider(directory) or not directory.is_dir():
             logger.error("Directory does not exist: %s", directory)
             return report
 
         # Collect files
         if recursive:
-            files = [f for f in directory.rglob("*") if f.is_file()]
+            files = [f for f in self._rglob_provider(directory, "*") if f.is_file()]
         else:
             files = [f for f in directory.iterdir() if f.is_file()]
 
@@ -318,20 +339,20 @@ class PARAFileMover:
         """
         suggestions: list[MoveSuggestion] = []
 
-        if not directory.exists() or not directory.is_dir():
+        if not self._exists_provider(directory) or not directory.is_dir():
             return suggestions
 
         now = time.time()
 
         try:
-            files = [f for f in directory.rglob("*") if f.is_file()]
+            files = [f for f in self._rglob_provider(directory, "*") if f.is_file()]
         except OSError as e:
             logger.error("Cannot scan directory %s: %s", directory, e, exc_info=True)
             return suggestions
 
         for file_path in files:
             try:
-                stat = file_path.stat()
+                stat = self._stat_provider(file_path)
                 days_inactive = (now - stat.st_mtime) / 86400.0
 
                 if days_inactive >= inactive_days:
@@ -421,8 +442,8 @@ class PARAFileMover:
         expected_parent = self._root_dir / category_dir
 
         try:
-            file_resolved = file_path.resolve()
-            expected_resolved = expected_parent.resolve()
+            file_resolved = self._resolve_provider(file_path)
+            expected_resolved = self._resolve_provider(expected_parent)
             return file_resolved == expected_resolved or file_resolved.is_relative_to(
                 expected_resolved
             )
@@ -438,7 +459,7 @@ class PARAFileMover:
         Returns:
             A non-colliding path (original or with counter appended).
         """
-        if not destination.exists():
+        if not self._exists_provider(destination):
             return destination
 
         stem = destination.stem
@@ -449,7 +470,7 @@ class PARAFileMover:
         while True:
             new_name = f"{stem}_{counter}{suffix}"
             candidate = parent / new_name
-            if not candidate.exists():
+            if not self._exists_provider(candidate):
                 return candidate
             counter += 1
             if counter > self._max_collision_attempts:
