@@ -1298,7 +1298,7 @@ class TestPlatformSpecificPaths:
             st_mtime = now - (120 * 86400)
             st_atime = now - (120 * 86400)
             st_ctime = now - 86400
-            st_mode = 0o100644  # regular file — required by Path.is_dir()
+            st_mode = 0o100644
 
         f = tmp_path / "test.txt"
         f.write_text("test")
@@ -1317,7 +1317,7 @@ class TestPlatformSpecificPaths:
             st_mtime = now - (120 * 86400)
             st_atime = now - (120 * 86400)
             st_ctime = now - 86400
-            st_mode = 0o100644  # regular file — required by Path.is_dir()
+            st_mode = 0o100644
 
         f = tmp_path / "test.txt"
         f.write_text("test")
@@ -1407,7 +1407,7 @@ class TestPlatformSpecificBranches:
             st_mtime = real_stat.st_mtime
             st_atime = real_stat.st_atime
             st_ctime = real_stat.st_ctime
-            st_mode = real_stat.st_mode  # required by Path.is_dir() via pathlib internals
+            st_mode = real_stat.st_mode
             # Explicitly no st_birthtime attribute
 
         h = TemporalHeuristic(weight=0.25, os_name="nt", stat_provider=lambda _: MockStat())
@@ -1428,7 +1428,7 @@ class TestPlatformSpecificBranches:
             st_mtime = real_stat.st_mtime
             st_atime = real_stat.st_atime
             st_ctime = real_stat.st_ctime
-            st_mode = real_stat.st_mode  # required by Path.is_dir() via pathlib internals
+            st_mode = real_stat.st_mode
             # Explicitly no st_birthtime attribute
 
         h = TemporalHeuristic(weight=0.25, os_name="posix", stat_provider=lambda _: MockStat())
@@ -1456,7 +1456,7 @@ class TestPlatformSpecificBranches:
             st_atime = atime_100_days_ago
             st_ctime = birthtime_120_days_ago
             st_birthtime = birthtime_120_days_ago
-            st_mode = 0o100644  # required by Path.is_dir() via pathlib internals
+            st_mode = 0o100644
 
         h = TemporalHeuristic(weight=0.25, stat_provider=lambda _: MockStat())
         result = h.evaluate(f)
@@ -1481,3 +1481,4 @@ class TestPlatformSpecificBranches:
         assert result.needs_manual_review is True
         assert result.overall_confidence == 0.0
         assert result.recommended_category is None
+        assert all(s.score == 0.0 for s in result.scores.values())
