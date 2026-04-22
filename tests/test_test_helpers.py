@@ -185,9 +185,13 @@ class TestProviderEnvFixture:
     ) -> None:
         monkeypatch.setenv("FO_PROVIDER", "openai")
         monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-test")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
+        monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/llama.gguf")
         provider_env()
-        assert "FO_PROVIDER" not in os.environ
-        assert "FO_OPENAI_API_KEY" not in os.environ
+        from tests.conftest import _KNOWN_PROVIDER_VARS
+
+        for var in _KNOWN_PROVIDER_VARS:
+            assert var not in os.environ, f"{var} should have been cleared by provider_env()"
 
     def test_unknown_var_raises_key_error(self, provider_env) -> None:
         with pytest.raises(KeyError, match="UNKNOWN_VAR"):
@@ -204,3 +208,9 @@ class TestProviderEnvFixture:
         monkeypatch.setenv("FO_OPENAI_BASE_URL", "http://localhost:1234/v1")
         provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
         assert "FO_OPENAI_BASE_URL" not in os.environ
+
+    def test_second_call_clears_vars_from_first_call(self, provider_env) -> None:
+        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
+        provider_env(FO_PROVIDER="claude")
+        assert os.environ["FO_PROVIDER"] == "claude"
+        assert "FO_OPENAI_API_KEY" not in os.environ
