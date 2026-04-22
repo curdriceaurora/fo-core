@@ -1530,6 +1530,26 @@ class TestDedupeDisplaySummary:
     integration coverage.
     """
 
+    @staticmethod
+    def _panel_texts(mock_console: MagicMock) -> list[str]:
+        """Flatten everything printed to the console into plain strings.
+
+        `display_summary` passes a `rich.panel.Panel` to `console.print`;
+        the banner text lives in `Panel.renderable`, which `str(call.args)`
+        doesn't expose. Pull it out explicitly so the assertion can match
+        the panel copy.
+        """
+        from rich.panel import Panel
+
+        texts: list[str] = []
+        for call in mock_console.print.call_args_list:
+            for arg in call.args:
+                if isinstance(arg, Panel):
+                    texts.append(str(arg.renderable))
+                else:
+                    texts.append(str(arg))
+        return texts
+
     def test_summary_dry_run_branch_renders_dry_run_panel(self) -> None:
         from cli.dedupe_display import display_summary
 
@@ -1542,7 +1562,7 @@ class TestDedupeDisplaySummary:
             space_saved=1024 * 1024,
             dry_run=True,
         )
-        printed = [str(call.args) for call in mock_console.print.call_args_list]
+        printed = self._panel_texts(mock_console)
         assert any("DRY RUN SUMMARY" in text for text in printed)
         assert not any("DEDUPLICATION COMPLETE" in text for text in printed)
 
@@ -1558,7 +1578,7 @@ class TestDedupeDisplaySummary:
             space_saved=2048,
             dry_run=False,
         )
-        printed = [str(call.args) for call in mock_console.print.call_args_list]
+        printed = self._panel_texts(mock_console)
         assert any("DEDUPLICATION COMPLETE" in text for text in printed)
         assert not any("DRY RUN SUMMARY" in text for text in printed)
 
