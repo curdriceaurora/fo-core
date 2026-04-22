@@ -194,10 +194,13 @@ class TestFullPipeline:
         classification = classifier.classify(metadata, transcription)
         assert classification.audio_type == AudioType.PODCAST
 
-        # Analyze
+        # Analyze — podcast content has non-empty topic and keyword extraction.
+        # Both paths must populate (sum-based bound lets one path regress
+        # silently); assert each independently.
         analysis = analyzer.analyze(metadata, transcription)
         assert analysis.language == "en"
-        assert analysis.topic_count >= 0  # May detect Technology
+        assert analysis.topic_count >= 1
+        assert analysis.keyword_count >= 1
 
         # Organize
         path = organizer.generate_path(classification.audio_type, metadata)
@@ -256,7 +259,8 @@ class TestFullPipeline:
         assert classification.audio_type == AudioType.RECORDING
 
         analysis = analyzer.analyze(metadata, transcription)
-        assert analysis.keyword_count >= 0
+        # Recording transcription is substantive — analyzer should extract at least one keyword
+        assert analysis.keyword_count >= 1
 
         path = organizer.generate_path(classification.audio_type, metadata)
         assert "Recordings" in path.parts

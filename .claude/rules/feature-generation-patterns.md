@@ -119,7 +119,11 @@ with self._lock:
 **Pre-generation checklist for shared state**:
 - [ ] Multiple threads access this variable? → Lock required
 - [ ] Read-modify-write sequence? → Must be atomic (lock or atomic op)
-- [ ] File write? → Use temp file + `os.replace()` pattern
+- [ ] File write? → Use temp file + `os.replace()` pattern. **This applies to
+      every persistent file you write: cache files, embedding indexes, coverage
+      baselines, module-floor snapshots, history databases, and one-off scripts
+      that produce a file another tool consumes.** A mid-write crash or a
+      concurrent CI job truncates the file; downstream tooling then reads garbage.
 - [ ] `@lru_cache` on a function reading env vars? → Remove cache
 
 ---
@@ -263,12 +267,15 @@ class FileOrganizer:
 
 ---
 
-## Pattern F9: DYNAMIC_IMPORT_ANTIPATTERN — 11 findings
+## Pattern F9: DYNAMIC_IMPORT_ANTIPATTERN — 14 findings
 
-**What it is**: `__import__()` used inline (e.g., in `default_factory` lambdas)
-instead of top-level `import` statements. Breaks static analysis and mypy.
+**What it is**: Imports placed somewhere other than the top of the module — either
+`__import__()` used inline in factory lambdas, or `from X import Y` / `import X`
+statements deferred inside a function/method body. Breaks static analysis (mypy can't
+see the binding), hides dependency graphs from tools like `deptry`, and forces the
+import to re-execute on every call.
 
-**Bad**:
+**Bad — `__import__()` inline**:
 
 ```python
 @dataclass
@@ -276,18 +283,57 @@ class Config:
     dirs: Any = field(default_factory=lambda: __import__("platformdirs").user_data_dir("app"))
 ```
 
+**Bad — function-scoped import** (from PR #48 transcriber/embedder/bm25):
+
+```python
+class Transcriber:
+    def _load_model(self) -> None:
+        from faster_whisper import WhisperModel   # deferred — mypy loses the type,
+        self._model = WhisperModel(...)           # deptry can't see the dep
+
+class BM25Index:
+    def build(self, files: list[Path]) -> None:
+        from rank_bm25 import BM25Okapi           # re-imports on every build call
+        self._index = BM25Okapi(...)
+```
+
 **Good**:
 
 ```python
-import platformdirs
+# Top-level import with an explicit optional-dependency guard
+try:
+    import platformdirs
+    HAS_PLATFORMDIRS = True
+except ImportError:
+    platformdirs = None  # type: ignore[assignment]
+    HAS_PLATFORMDIRS = False
 
 @dataclass
 class Config:
     dirs: str = field(default_factory=lambda: platformdirs.user_data_dir("app"))
+
+# For optional deps that genuinely require lazy loading (large models, CLI startup
+# time), wrap the import in a module-level helper so it executes at most once and the
+# rationale is documented:
+_WhisperModel = None  # type: ignore[assignment]
+
+def _get_whisper_model_class():
+    """Lazy import: faster_whisper pulls in torch (~1 GB) and delays CLI startup."""
+    global _WhisperModel
+    if _WhisperModel is None:
+        from faster_whisper import WhisperModel  # documented lazy loader
+        _WhisperModel = WhisperModel
+    return _WhisperModel
 ```
 
-**Pre-generation check**: Never use `__import__()` inline. Use `try/except ImportError`
-for optional deps instead.
+**Pre-generation check**:
+- Never use `__import__()` inline.
+- Never write `from X import Y` or `import X` inside a function body unless you are
+  implementing a _documented_ lazy loader (expensive import, CLI startup cost, or
+  unavoidable circular dependency). If you do, wrap it in a module-level helper with
+  a one-line comment explaining why the top-level import was rejected.
+- For optional deps, the correct pattern is a top-level `try/except ImportError` with
+  an `HAS_X` flag — not a deferred in-function import.
 
 ---
 
@@ -328,12 +374,12 @@ flow, re-read the docstring and update it to match.
 For every new feature:
 
 1. **F4**: Path from user input? Config bypassed? API key near a logger? → Security checklist
-2. **F3**: Shared state? → Lock required; file write? → temp + `os.replace()`
-3. **F1**: Every external call → what exception, is it handled?
+2. **F3**: Shared state? → Lock required; file write (cache/index/baseline/script output)? → temp + `os.replace()`
+3. **F1**: Every external call → what exception, is it handled? Does the `except` leave any symbol undefined for downstream use?
 4. **F2**: Every function signature → concrete `->` return type
 5. **F5**: `ConfigManager` / `AppConfig` already own this value?
-6. **F9**: `__import__()` inline? → Move to top-level import
+6. **F9**: `__import__()` inline OR `from X import Y` inside a function body? → Top-level import (or documented lazy-loader helper)
 7. **F10**: Changed `except` / return type / control flow? → Update docstring
 8. **F4+**: Writing search/index code? → Apply `search-generation-patterns.md`
 
-**Last audited PR**: #23
+**Last audited PR**: #140 (PR review cycle 2026-03-21 to 2026-04-21)

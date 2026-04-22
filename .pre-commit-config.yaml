@@ -66,6 +66,22 @@ repos:
         pass_filenames: false
 
       # ----------------------------------------------------------------
+      # G3: No duplicate entries in .gitignore
+      # Detected repeatedly in PR review (e.g. PR #99 and #102 both had
+      # a duplicated `.worktrees/` line).  Normalizes each entry before
+      # comparison: strips inline comments (`pattern  # note`) and trims
+      # trailing whitespace so `foo` vs `foo ` are treated as identical.
+      # Blank lines and full-line comments are skipped.
+      # ----------------------------------------------------------------
+      - id: no-duplicate-gitignore
+        name: no duplicate .gitignore entries (G3)
+        entry: >
+          bash -c "DUPES=$(sed -E 's/[[:space:]]+#.*$//; s/[[:space:]]+$//' .gitignore | awk 'NF && !/^[[:space:]]*#/' | sort | uniq -d); if [ -n \"$DUPES\" ]; then printf 'ERROR: duplicate .gitignore entries:\n%s\n' \"$DUPES\"; exit 1; fi"
+        language: system
+        pass_filenames: false
+        files: ^\.gitignore$
+
+      # ----------------------------------------------------------------
       # No build artifacts committed
       # Covers: .coverage, *.bak, *.pyc, *.pyo, coverage.xml, htmlcov/,
       #         __pycache__/, build/, dist/
