@@ -63,13 +63,24 @@ def validate_within_roots(path: Path, allowed_roots: Iterable[Path]) -> Path:
         The resolved absolute form of `path`.
 
     Raises:
-        PathTraversalError: If `allowed_roots` is empty, or if `path`
-            resolves outside every root.
+        PathTraversalError: If `allowed_roots` is empty, if `path`
+            resolves outside every root, or if `path.resolve()` itself
+            fails (cyclic symlink, stale handle). Callers expecting
+            `PathTraversalError` / `ValueError` shouldn't have to also
+            handle `RuntimeError` from the resolver.
     """
-    roots = [r.resolve() for r in allowed_roots]
+    try:
+        roots = [r.resolve() for r in allowed_roots]
+    except (RuntimeError, OSError) as exc:
+        raise PathTraversalError(f"Failed to resolve allowed roots: {exc}") from exc
     if not roots:
         raise PathTraversalError(f"No allowed roots declared; cannot validate {path!r}")
-    resolved = path.resolve()
+    try:
+        resolved = path.resolve()
+    except (RuntimeError, OSError) as exc:
+        raise PathTraversalError(
+            f"Failed to resolve {path!r} (likely a symlink cycle or stale handle): {exc}"
+        ) from exc
     for root in roots:
         try:
             resolved.relative_to(root)
@@ -131,7 +142,17 @@ def safe_walk(
         `Path` objects for each entry under `root` that matches `pattern`
         and passes the filters.
     """
-    if not root.exists():
+    try:
+        if not root.exists():
+            return
+        # Reject a symlinked root when follow_symlinks=False. Without this,
+        # `rglob()` on a directory symlink enumerates the target tree —
+        # including paths outside the caller's allowed root — before the
+        # per-entry symlink filter ever runs (the first yielded entries
+        # are descendants, not the symlink itself).
+        if not follow_symlinks and root.is_symlink():
+            return
+    except OSError:
         return
     glob_iter = root.rglob(pattern) if recursive else root.glob(pattern)
     for entry in glob_iter:

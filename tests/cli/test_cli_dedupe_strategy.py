@@ -68,11 +68,13 @@ class TestSelectFilesToKeep:
     def test_largest_marks_file_with_biggest_size(self) -> None:
         result = select_files_to_keep(_sample_files(), "largest")
         kept = [f for f in result if f.get("keep")]
+        assert len(kept) == 1
         assert kept[0]["path"] == "/b.txt"
 
     def test_smallest_marks_file_with_smallest_size(self) -> None:
         result = select_files_to_keep(_sample_files(), "smallest")
         kept = [f for f in result if f.get("keep")]
+        assert len(kept) == 1
         assert kept[0]["path"] == "/a.txt"
 
     def test_manual_leaves_keep_flag_unset(self) -> None:

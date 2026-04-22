@@ -103,6 +103,43 @@ class TestValidateWithinRoots:
         with pytest.raises(PathTraversalError):
             validate_within_roots(link, [inside])
 
+    def test_resolve_runtime_error_is_wrapped_as_path_traversal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Cyclic symlinks make `Path.resolve()` raise `RuntimeError`, not
+        `ValueError`. Callers expect `PathTraversalError` / `ValueError`
+        uniformly, so the helper must wrap resolver failures.
+        """
+        path = tmp_path / "cyclic"
+        original_resolve = Path.resolve
+
+        def raise_cycle(self: Path, *args, **kwargs):
+            if self == path:
+                raise RuntimeError("symlink loop")
+            return original_resolve(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "resolve", raise_cycle)
+        with pytest.raises(PathTraversalError, match="symlink cycle or stale handle"):
+            validate_within_roots(path, [tmp_path])
+
+    def test_allowed_root_resolve_failure_raises_path_traversal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A broken allowed root (cyclic symlink, OS error) must also be
+        surfaced as `PathTraversalError` — not a raw `RuntimeError`.
+        """
+        bad_root = tmp_path / "bad_root"
+        original_resolve = Path.resolve
+
+        def raise_for_bad(self: Path, *args, **kwargs):
+            if self == bad_root:
+                raise OSError("device offline")
+            return original_resolve(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "resolve", raise_for_bad)
+        with pytest.raises(PathTraversalError, match="resolve allowed roots"):
+            validate_within_roots(tmp_path / "x.txt", [bad_root])
+
 
 # --------------------------------------------------------------------------
 # safe_walk
@@ -177,11 +214,12 @@ class TestSafeWalk:
         # The link itself is a symlink — rglob may or may not descend
         # depending on follow_symlinks default. Our helper skips any path
         # that has a symlink component.
-        names = {p.name for p in safe_walk(tmp_path)}
+        walked = list(safe_walk(tmp_path))
+        names = {p.name for p in walked}
         assert "inside.txt" in names  # real subtree reachable directly
         # link/inside.txt would be a dup via the symlink — must be absent.
-        paths = {str(p.relative_to(tmp_path)) for p in safe_walk(tmp_path)}
-        assert "link/inside.txt" not in paths
+        rel_paths = {str(p.relative_to(tmp_path)) for p in walked}
+        assert "link/inside.txt" not in rel_paths
 
     def test_follow_symlinks_flag_includes_linked_files(self, tmp_path: Path) -> None:
         if sys.platform == "win32":
@@ -250,6 +288,47 @@ class TestSafeWalk:
         yielded = {p.name for p in safe_walk(tmp_path, pattern="*.py")}
         assert yielded == {"real.py"}
 
+    def test_symlinked_root_rejected_when_follow_symlinks_false(self, tmp_path: Path) -> None:
+        """Security: a directory symlink passed as `root` must not enumerate
+        its target. The per-entry symlink filter only catches descendants —
+        `rglob()` on a symlink root yields paths from the target first, and
+        the root itself is never checked unless we guard it upfront.
+        """
+        if sys.platform == "win32":
+            pytest.skip("POSIX-only symlink semantics")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("secret")
+        inside = tmp_path / "inside"
+        inside.mkdir()
+        linked_root = inside / "link_root"
+        linked_root.symlink_to(outside, target_is_directory=True)
+
+        # Default follow_symlinks=False → walking a symlinked root yields
+        # nothing (rather than leaking `outside/secret.txt`).
+        assert list(safe_walk(linked_root)) == []
+
+        # With follow_symlinks=True the caller opts into traversal.
+        walked = list(safe_walk(linked_root, follow_symlinks=True))
+        assert any(p.name == "secret.txt" for p in walked)
+
+    def test_nonexistent_root_after_stat_error_returns_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`root.exists()` / `root.is_symlink()` can themselves raise OSError
+        (e.g. stale NFS handle). The helper must yield nothing instead of
+        propagating.
+        """
+        ghost = tmp_path / "ghost"
+
+        def raise_exists(self: Path) -> bool:
+            if self == ghost:
+                raise OSError("stale handle")
+            return True
+
+        monkeypatch.setattr(Path, "exists", raise_exists)
+        assert list(safe_walk(ghost)) == []
+
     def test_per_entry_permission_error_is_skipped(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -294,7 +373,7 @@ class TestPathTraversalError:
 
 @pytest.mark.ci
 @pytest.mark.integration
-def test_helpers_work_regardless_of_cwd(tmp_path: Path, monkeypatch) -> None:
+def test_helpers_work_regardless_of_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The helpers resolve absolute paths internally, so changing cwd
     shouldn't change the outcome.
     """
