@@ -13,6 +13,7 @@ Modules targeted:
 from __future__ import annotations
 
 import base64
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -908,106 +909,98 @@ class TestExtractKeywordsAdditional:
 
 
 class TestGetCurrentProviderAdditional:
-    def test_default_is_ollama(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_default_is_ollama(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_current_provider
 
-        monkeypatch.delenv("FO_PROVIDER", raising=False)
+        provider_env()
 
         assert get_current_provider() == "ollama"
 
-    def test_openai_recognised(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_openai_recognised(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_current_provider
 
-        monkeypatch.setenv("FO_PROVIDER", "openai")
+        provider_env(FO_PROVIDER="openai")
 
         assert get_current_provider() == "openai"
 
-    def test_mlx_recognised(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_mlx_recognised(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_current_provider
 
-        monkeypatch.setenv("FO_PROVIDER", "mlx")
+        provider_env(FO_PROVIDER="mlx")
 
         assert get_current_provider() == "mlx"
 
-    def test_whitespace_stripped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_whitespace_stripped(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_current_provider
 
-        monkeypatch.setenv("FO_PROVIDER", "  openai  ")
+        provider_env(FO_PROVIDER="  openai  ")
 
         assert get_current_provider() == "openai"
 
-    def test_case_insensitive(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_case_insensitive(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_current_provider
 
-        monkeypatch.setenv("FO_PROVIDER", "OLLAMA")
+        provider_env(FO_PROVIDER="OLLAMA")
 
         assert get_current_provider() == "ollama"
 
-    def test_invalid_value_falls_back_to_ollama(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_invalid_value_falls_back_to_ollama(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_current_provider
 
-        monkeypatch.setenv("FO_PROVIDER", "notreal")
+        provider_env(FO_PROVIDER="notreal")
 
         assert get_current_provider() == "ollama"
 
 
 class TestGetModelConfigsFromEnvAdditional:
-    def test_openai_custom_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_openai_custom_model_name(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_model_configs_from_env
 
-        monkeypatch.setenv("FO_PROVIDER", "openai")
-        monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-test")
-        monkeypatch.setenv("FO_OPENAI_MODEL", "gpt-4-turbo")
-        monkeypatch.delenv("FO_OPENAI_VISION_MODEL", raising=False)
+        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test", FO_OPENAI_MODEL="gpt-4-turbo")
 
         text_cfg, _ = get_model_configs_from_env()
 
         assert text_cfg.name == "gpt-4-turbo"
 
     def test_openai_vision_model_falls_back_to_text_model(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         from config.provider_env import get_model_configs_from_env
 
-        monkeypatch.setenv("FO_PROVIDER", "openai")
-        monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-test")
-        monkeypatch.setenv("FO_OPENAI_MODEL", "gpt-4o-mini")
-        monkeypatch.delenv("FO_OPENAI_VISION_MODEL", raising=False)
+        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test", FO_OPENAI_MODEL="gpt-4o-mini")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
 
         assert vision_cfg.name == text_cfg.name
 
-    def test_openai_separate_vision_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_openai_separate_vision_model(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_model_configs_from_env
 
-        monkeypatch.setenv("FO_PROVIDER", "openai")
-        monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-test")
-        monkeypatch.setenv("FO_OPENAI_MODEL", "gpt-4o-mini")
-        monkeypatch.setenv("FO_OPENAI_VISION_MODEL", "gpt-4o")
+        provider_env(
+            FO_PROVIDER="openai",
+            FO_OPENAI_API_KEY="sk-test",
+            FO_OPENAI_MODEL="gpt-4o-mini",
+            FO_OPENAI_VISION_MODEL="gpt-4o",
+        )
 
         text_cfg, vision_cfg = get_model_configs_from_env()
 
         assert text_cfg.name == "gpt-4o-mini"
         assert vision_cfg.name == "gpt-4o"
 
-    def test_openai_base_url_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_openai_base_url_set(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_model_configs_from_env
 
-        monkeypatch.setenv("FO_PROVIDER", "openai")
-        monkeypatch.setenv("FO_OPENAI_BASE_URL", "http://localhost:1234/v1")
-        monkeypatch.delenv("FO_OPENAI_API_KEY", raising=False)
+        provider_env(FO_PROVIDER="openai", FO_OPENAI_BASE_URL="http://localhost:1234/v1")
 
         text_cfg, _ = get_model_configs_from_env()
 
         assert text_cfg.api_base_url == "http://localhost:1234/v1"
 
-    def test_openai_empty_api_key_becomes_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_openai_empty_api_key_becomes_none(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_model_configs_from_env
 
-        monkeypatch.setenv("FO_PROVIDER", "openai")
-        monkeypatch.setenv("FO_OPENAI_API_KEY", "   ")
-        monkeypatch.setenv("OPENAI_API_KEY", "sdk-key")  # suppress warning
+        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="   ", OPENAI_API_KEY="sdk-key")
 
         text_cfg, _ = get_model_configs_from_env()
 
