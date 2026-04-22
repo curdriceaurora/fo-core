@@ -547,16 +547,11 @@ class TestEdgeCasesAndErrorHandling:
             re.compile(r"\bTODO\b", re.I),
         ]
 
-        # Temporarily replace the module-level patterns
-        original_patterns = fe_module._ACTION_PATTERNS
         monkeypatch.setattr(fe_module, "_ACTION_PATTERNS", custom_patterns)
 
         # Test with text that triggers both edge cases
         text = "      \nLONGTEXT:" + ("x" * 250) + "\nTODO: normal task"
         features = extractor.extract_text_features(text)
-
-        # Restore original patterns
-        monkeypatch.setattr(fe_module, "_ACTION_PATTERNS", original_patterns)
 
         # Should only have the normal TODO task
         assert len(features.action_items) >= 1

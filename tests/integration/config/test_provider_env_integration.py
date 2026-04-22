@@ -22,6 +22,7 @@ Coverage targets (missing lines before this file was added):
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from unittest.mock import patch
 
 import pytest
@@ -49,24 +50,24 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 class TestGetCurrentProviderIntegration:
     def test_unknown_provider_emits_warning_and_returns_ollama(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """Unrecognised FO_PROVIDER logs a warning and returns 'ollama'."""
-        monkeypatch.setenv("FO_PROVIDER", "gemini")
+        provider_env(FO_PROVIDER="gemini")
 
         result = get_current_provider()
 
         assert result == "ollama"
 
-    def test_claude_provider_is_recognised(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_claude_provider_is_recognised(self, provider_env: Callable[..., None]) -> None:
         """'claude' is in the known-providers set and must not trigger the warning."""
-        monkeypatch.setenv("FO_PROVIDER", "claude")
+        provider_env(FO_PROVIDER="claude")
 
         assert get_current_provider() == "claude"
 
-    def test_llama_cpp_provider_is_recognised(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_llama_cpp_provider_is_recognised(self, provider_env: Callable[..., None]) -> None:
         """'llama_cpp' is a valid provider."""
-        monkeypatch.setenv("FO_PROVIDER", "llama_cpp")
+        provider_env(FO_PROVIDER="llama_cpp")
 
         assert get_current_provider() == "llama_cpp"
 
@@ -78,10 +79,10 @@ class TestGetCurrentProviderIntegration:
 
 class TestGetModelConfigsFromEnvOllamaIntegration:
     def test_unset_provider_returns_ollama_text_defaults(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """When FO_PROVIDER is absent the function returns Ollama TextModel defaults."""
-        monkeypatch.delenv("FO_PROVIDER", raising=False)
+        provider_env()
         expected = TextModel.get_default_config()
 
         text_cfg, _ = get_model_configs_from_env()
@@ -90,10 +91,10 @@ class TestGetModelConfigsFromEnvOllamaIntegration:
         assert text_cfg.provider == "ollama"
 
     def test_unset_provider_returns_ollama_vision_defaults(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """When FO_PROVIDER is absent the function returns Ollama VisionModel defaults."""
-        monkeypatch.delenv("FO_PROVIDER", raising=False)
+        provider_env()
         expected = VisionModel.get_default_config()
 
         _, vision_cfg = get_model_configs_from_env()
@@ -102,10 +103,10 @@ class TestGetModelConfigsFromEnvOllamaIntegration:
         assert vision_cfg.provider == "ollama"
 
     def test_explicit_ollama_provider_returns_defaults(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """Explicitly setting FO_PROVIDER=ollama also returns the default configs."""
-        monkeypatch.setenv("FO_PROVIDER", "ollama")
+        provider_env(FO_PROVIDER="ollama")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
 
@@ -121,11 +122,9 @@ class TestGetModelConfigsFromEnvOllamaIntegration:
 
 
 class TestGetLlamaCppConfigsIntegration:
-    def test_model_path_propagates_to_both_configs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_model_path_propagates_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         """FO_LLAMA_CPP_MODEL_PATH is reflected in both text and vision configs."""
-        monkeypatch.setenv("FO_PROVIDER", "llama_cpp")
-        monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/llama.gguf")
-        monkeypatch.delenv("FO_LLAMA_CPP_N_GPU_LAYERS", raising=False)
+        provider_env(FO_PROVIDER="llama_cpp", FO_LLAMA_CPP_MODEL_PATH="/models/llama.gguf")
 
         text_cfg, vision_cfg = _get_llama_cpp_configs()
 
@@ -134,38 +133,40 @@ class TestGetLlamaCppConfigsIntegration:
         assert text_cfg.model_path == "/models/llama.gguf"
         assert vision_cfg.model_path == "/models/llama.gguf"
 
-    def test_model_types_are_correct(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_model_types_are_correct(self, provider_env: Callable[..., None]) -> None:
         """Text config has ModelType.TEXT; vision config has ModelType.VISION."""
-        monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/llama.gguf")
-        monkeypatch.delenv("FO_LLAMA_CPP_N_GPU_LAYERS", raising=False)
+        provider_env(FO_LLAMA_CPP_MODEL_PATH="/models/llama.gguf")
 
         text_cfg, vision_cfg = _get_llama_cpp_configs()
 
         assert text_cfg.model_type == ModelType.TEXT
         assert vision_cfg.model_type == ModelType.VISION
 
-    def test_n_gpu_layers_added_to_extra_params(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_n_gpu_layers_added_to_extra_params(self, provider_env: Callable[..., None]) -> None:
         """Valid FO_LLAMA_CPP_N_GPU_LAYERS is parsed into extra_params."""
-        monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/llama.gguf")
-        monkeypatch.setenv("FO_LLAMA_CPP_N_GPU_LAYERS", "32")
+        provider_env(
+            FO_LLAMA_CPP_MODEL_PATH="/models/llama.gguf",
+            FO_LLAMA_CPP_N_GPU_LAYERS="32",
+        )
 
         text_cfg, _ = _get_llama_cpp_configs()
 
         assert text_cfg.extra_params.get("n_gpu_layers") == 32
 
-    def test_invalid_n_gpu_layers_is_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_invalid_n_gpu_layers_is_ignored(self, provider_env: Callable[..., None]) -> None:
         """Non-integer FO_LLAMA_CPP_N_GPU_LAYERS does not crash — it is silently ignored."""
-        monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/llama.gguf")
-        monkeypatch.setenv("FO_LLAMA_CPP_N_GPU_LAYERS", "not-a-number")
+        provider_env(
+            FO_LLAMA_CPP_MODEL_PATH="/models/llama.gguf",
+            FO_LLAMA_CPP_N_GPU_LAYERS="not-a-number",
+        )
 
         text_cfg, _ = _get_llama_cpp_configs()
 
         assert "n_gpu_layers" not in text_cfg.extra_params
 
-    def test_missing_model_path_does_not_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_missing_model_path_does_not_crash(self, provider_env: Callable[..., None]) -> None:
         """Absent FO_LLAMA_CPP_MODEL_PATH emits a warning but does not raise."""
-        monkeypatch.delenv("FO_LLAMA_CPP_MODEL_PATH", raising=False)
-        monkeypatch.delenv("FO_LLAMA_CPP_N_GPU_LAYERS", raising=False)
+        provider_env()
 
         text_cfg, vision_cfg = _get_llama_cpp_configs()
 
@@ -173,12 +174,10 @@ class TestGetLlamaCppConfigsIntegration:
         assert vision_cfg.model_path == ""
 
     def test_get_model_configs_from_env_routes_to_llama_cpp(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """FO_PROVIDER=llama_cpp routes through get_model_configs_from_env correctly."""
-        monkeypatch.setenv("FO_PROVIDER", "llama_cpp")
-        monkeypatch.setenv("FO_LLAMA_CPP_MODEL_PATH", "/models/q4.gguf")
-        monkeypatch.delenv("FO_LLAMA_CPP_N_GPU_LAYERS", raising=False)
+        provider_env(FO_PROVIDER="llama_cpp", FO_LLAMA_CPP_MODEL_PATH="/models/q4.gguf")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
 
@@ -192,9 +191,9 @@ class TestGetLlamaCppConfigsIntegration:
 
 
 class TestGetMlxConfigsIntegration:
-    def test_model_path_propagates_to_both_configs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_model_path_propagates_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         """FO_MLX_MODEL_PATH appears in both text and vision configs."""
-        monkeypatch.setenv("FO_MLX_MODEL_PATH", "mlx-community/Qwen2.5-3B-4bit")
+        provider_env(FO_MLX_MODEL_PATH="mlx-community/Qwen2.5-3B-4bit")
 
         text_cfg, vision_cfg = _get_mlx_configs()
 
@@ -203,18 +202,18 @@ class TestGetMlxConfigsIntegration:
         assert text_cfg.model_path == "mlx-community/Qwen2.5-3B-4bit"
         assert vision_cfg.model_path == "mlx-community/Qwen2.5-3B-4bit"
 
-    def test_model_types_are_correct(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_model_types_are_correct(self, provider_env: Callable[..., None]) -> None:
         """MLX configs carry the correct ModelType values."""
-        monkeypatch.setenv("FO_MLX_MODEL_PATH", "mlx-community/Qwen2.5-3B-4bit")
+        provider_env(FO_MLX_MODEL_PATH="mlx-community/Qwen2.5-3B-4bit")
 
         text_cfg, vision_cfg = _get_mlx_configs()
 
         assert text_cfg.model_type == ModelType.TEXT
         assert vision_cfg.model_type == ModelType.VISION
 
-    def test_missing_model_path_does_not_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_missing_model_path_does_not_crash(self, provider_env: Callable[..., None]) -> None:
         """Absent FO_MLX_MODEL_PATH emits a warning but does not raise."""
-        monkeypatch.delenv("FO_MLX_MODEL_PATH", raising=False)
+        provider_env()
 
         text_cfg, vision_cfg = _get_mlx_configs()
 
@@ -222,11 +221,10 @@ class TestGetMlxConfigsIntegration:
         assert vision_cfg.model_path == ""
 
     def test_get_model_configs_from_env_routes_to_mlx(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """FO_PROVIDER=mlx routes through get_model_configs_from_env correctly."""
-        monkeypatch.setenv("FO_PROVIDER", "mlx")
-        monkeypatch.setenv("FO_MLX_MODEL_PATH", "mlx-community/Qwen2.5-3B-4bit")
+        provider_env(FO_PROVIDER="mlx", FO_MLX_MODEL_PATH="mlx-community/Qwen2.5-3B-4bit")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
 
@@ -240,12 +238,9 @@ class TestGetMlxConfigsIntegration:
 
 
 class TestGetClaudeConfigsIntegration:
-    def test_api_key_propagates_to_both_configs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_api_key_propagates_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         """FO_CLAUDE_API_KEY is set on both text and vision configs."""
-        monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test123")
-        monkeypatch.delenv("FO_CLAUDE_MODEL", raising=False)
-        monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        provider_env(FO_CLAUDE_API_KEY="sk-ant-test123")
 
         text_cfg, vision_cfg = _get_claude_configs()
 
@@ -254,58 +249,53 @@ class TestGetClaudeConfigsIntegration:
         assert text_cfg.api_key == "sk-ant-test123"
         assert vision_cfg.api_key == "sk-ant-test123"
 
-    def test_model_types_are_correct(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_model_types_are_correct(self, provider_env: Callable[..., None]) -> None:
         """Claude configs carry correct ModelType values."""
-        monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test")
-        monkeypatch.delenv("FO_CLAUDE_MODEL", raising=False)
-        monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        provider_env(FO_CLAUDE_API_KEY="sk-ant-test")
 
         text_cfg, vision_cfg = _get_claude_configs()
 
         assert text_cfg.model_type == ModelType.TEXT
         assert vision_cfg.model_type == ModelType.VISION
 
-    def test_custom_text_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_custom_text_model_name(self, provider_env: Callable[..., None]) -> None:
         """FO_CLAUDE_MODEL sets the text model name."""
-        monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test")
-        monkeypatch.setenv("FO_CLAUDE_MODEL", "claude-3-haiku-20240307")
-        monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        provider_env(
+            FO_CLAUDE_API_KEY="sk-ant-test",
+            FO_CLAUDE_MODEL="claude-3-haiku-20240307",
+        )
 
         text_cfg, _ = _get_claude_configs()
 
         assert text_cfg.name == "claude-3-haiku-20240307"
 
-    def test_vision_model_falls_back_to_text_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_vision_model_falls_back_to_text_model(self, provider_env: Callable[..., None]) -> None:
         """When FO_CLAUDE_VISION_MODEL is unset, vision model name matches text model."""
-        monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test")
-        monkeypatch.setenv("FO_CLAUDE_MODEL", "claude-3-haiku-20240307")
-        monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        provider_env(
+            FO_CLAUDE_API_KEY="sk-ant-test",
+            FO_CLAUDE_MODEL="claude-3-haiku-20240307",
+        )
 
         text_cfg, vision_cfg = _get_claude_configs()
 
         assert vision_cfg.name == text_cfg.name
 
-    def test_separate_vision_model_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_separate_vision_model_name(self, provider_env: Callable[..., None]) -> None:
         """FO_CLAUDE_VISION_MODEL overrides the vision model name independently."""
-        monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test")
-        monkeypatch.setenv("FO_CLAUDE_MODEL", "claude-3-haiku-20240307")
-        monkeypatch.setenv("FO_CLAUDE_VISION_MODEL", "claude-3-5-sonnet-20241022")
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        provider_env(
+            FO_CLAUDE_API_KEY="sk-ant-test",
+            FO_CLAUDE_MODEL="claude-3-haiku-20240307",
+            FO_CLAUDE_VISION_MODEL="claude-3-5-sonnet-20241022",
+        )
 
         text_cfg, vision_cfg = _get_claude_configs()
 
         assert text_cfg.name == "claude-3-haiku-20240307"
         assert vision_cfg.name == "claude-3-5-sonnet-20241022"
 
-    def test_no_api_key_emits_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_api_key_emits_warning(self, provider_env: Callable[..., None]) -> None:
         """When neither FO_CLAUDE_API_KEY nor ANTHROPIC_API_KEY is set a warning is logged."""
-        monkeypatch.delenv("FO_CLAUDE_API_KEY", raising=False)
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        monkeypatch.delenv("FO_CLAUDE_MODEL", raising=False)
-        monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
+        provider_env()
 
         # Must not raise — function should complete and return configs.
         text_cfg, vision_cfg = _get_claude_configs()
@@ -313,26 +303,19 @@ class TestGetClaudeConfigsIntegration:
         assert text_cfg.provider == "claude"
         assert vision_cfg.provider == "claude"
 
-    def test_anthropic_sdk_key_suppresses_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_anthropic_sdk_key_suppresses_warning(self, provider_env: Callable[..., None]) -> None:
         """ANTHROPIC_API_KEY present means the SDK will pick it up — no warning needed."""
-        monkeypatch.delenv("FO_CLAUDE_API_KEY", raising=False)
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-sdk-key")
-        monkeypatch.delenv("FO_CLAUDE_MODEL", raising=False)
-        monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
+        provider_env(ANTHROPIC_API_KEY="sk-ant-sdk-key")
 
         text_cfg, _ = _get_claude_configs()
 
         assert text_cfg.provider == "claude"
 
     def test_get_model_configs_from_env_routes_to_claude(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """FO_PROVIDER=claude routes through get_model_configs_from_env correctly."""
-        monkeypatch.setenv("FO_PROVIDER", "claude")
-        monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test")
-        monkeypatch.delenv("FO_CLAUDE_MODEL", raising=False)
-        monkeypatch.delenv("FO_CLAUDE_VISION_MODEL", raising=False)
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        provider_env(FO_PROVIDER="claude", FO_CLAUDE_API_KEY="sk-ant-test")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
 
@@ -347,15 +330,10 @@ class TestGetClaudeConfigsIntegration:
 
 class TestOpenAINoKeyWarningIntegration:
     def test_openai_without_key_or_url_does_not_crash(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """FO_PROVIDER=openai with no credentials set logs a warning but returns configs."""
-        monkeypatch.setenv("FO_PROVIDER", "openai")
-        monkeypatch.delenv("FO_OPENAI_API_KEY", raising=False)
-        monkeypatch.delenv("FO_OPENAI_BASE_URL", raising=False)
-        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-        monkeypatch.delenv("FO_OPENAI_MODEL", raising=False)
-        monkeypatch.delenv("FO_OPENAI_VISION_MODEL", raising=False)
+        provider_env(FO_PROVIDER="openai")
 
         text_cfg, vision_cfg = get_model_configs_from_env()
 
@@ -364,12 +342,9 @@ class TestOpenAINoKeyWarningIntegration:
         assert text_cfg.api_key is None
         assert text_cfg.api_base_url is None
 
-    def test_openai_sdk_key_suppresses_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_openai_sdk_key_suppresses_warning(self, provider_env: Callable[..., None]) -> None:
         """OPENAI_API_KEY suppresses the missing-credentials warning."""
-        monkeypatch.setenv("FO_PROVIDER", "openai")
-        monkeypatch.delenv("FO_OPENAI_API_KEY", raising=False)
-        monkeypatch.delenv("FO_OPENAI_BASE_URL", raising=False)
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-sdk-key")
+        provider_env(FO_PROVIDER="openai", OPENAI_API_KEY="sk-sdk-key")
 
         text_cfg, _ = get_model_configs_from_env()
 
@@ -455,11 +430,10 @@ class TestGetModelConfigsFromProfileIntegration:
 
 class TestGetModelConfigsFallbackIntegration:
     def test_falls_back_to_ollama_when_no_env_or_profile(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """When FO_PROVIDER is unset and no profile exists, Ollama defaults are used."""
-        monkeypatch.delenv("FO_PROVIDER", raising=False)
-        monkeypatch.delenv("FO_PROFILE", raising=False)
+        provider_env()
 
         with patch(
             "config.provider_env._get_model_configs_from_profile",
@@ -471,11 +445,10 @@ class TestGetModelConfigsFallbackIntegration:
         assert vision_cfg.provider == "ollama"
 
     def test_env_provider_takes_priority_over_profile(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, provider_env: Callable[..., None]
     ) -> None:
         """FO_PROVIDER set means profile lookup is skipped entirely."""
-        monkeypatch.setenv("FO_PROVIDER", "openai")
-        monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-priority-test")
+        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-priority-test")
 
         text_cfg, _ = get_model_configs()
 
