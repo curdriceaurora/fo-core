@@ -11,13 +11,27 @@ import logging
 import os
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Protocol
 
 logger = logging.getLogger(__name__)
+
+
+class _StatLike(Protocol):
+    """Minimal stat-result interface used by FeatureExtractor."""
+
+    @property
+    def st_size(self) -> int: ...
+
+    @property
+    def st_mtime(self) -> float: ...
+
+    @property
+    def st_atime(self) -> float: ...
+
 
 # Temporal indicator patterns that suggest time-bound work (PROJECT signals)
 _TEMPORAL_PATTERNS: list[re.Pattern[str]] = [
@@ -228,7 +242,10 @@ class FeatureExtractor:
         *,
         clock: Callable[[], float] | None = None,
         os_name: str | None = None,
-        stat_provider: Callable[[Path], Any] | None = None,
+        exists_provider: Callable[[Path], bool] = Path.exists,
+        stat_provider: Callable[[Path], _StatLike] = lambda p: p.stat(),
+        is_dir_provider: Callable[[Path], bool] = Path.is_dir,
+        iterdir_provider: Callable[[Path], Iterator[Path]] = lambda p: p.iterdir(),
     ) -> None:
         """Initialize the feature extractor.
 
@@ -236,14 +253,18 @@ class FeatureExtractor:
             max_content_length: Maximum content length to analyze (truncates beyond).
             clock: Override for time.time — used in tests to freeze time.
             os_name: Override for os.name — used in tests to simulate platform.
-            stat_provider: Override for Path.stat — used in tests to inject stat results.
+            exists_provider: Injectable callable for Path.exists (seam for testing).
+            stat_provider: Injectable callable for Path.stat (seam for testing).
+            is_dir_provider: Injectable callable for Path.is_dir (seam for testing).
+            iterdir_provider: Injectable callable for Path.iterdir (seam for testing).
         """
         self._max_content_length = max_content_length
         self._clock: Callable[[], float] = clock if clock is not None else time.time
         self._os_name: str = os_name if os_name is not None else os.name
-        self._stat_provider: Callable[[Path], Any] = (
-            stat_provider if stat_provider is not None else Path.stat
-        )
+        self._exists_provider = exists_provider
+        self._stat_provider = stat_provider
+        self._is_dir_provider = is_dir_provider
+        self._iterdir_provider = iterdir_provider
 
     def extract_text_features(self, content: str) -> TextFeatures:
         """Extract features from text content.
@@ -319,7 +340,7 @@ class FeatureExtractor:
         Returns:
             MetadataFeatures with extracted information.
         """
-        if not file_path.exists():
+        if not self._exists_provider(file_path):
             logger.warning("File does not exist: %s", file_path)
             return MetadataFeatures(file_type=file_path.suffix.lower())
 
@@ -387,9 +408,11 @@ class FeatureExtractor:
         # Count siblings
         sibling_count = 0
         parent_dir = file_path.parent
-        if parent_dir.exists() and parent_dir.is_dir():
+        if self._exists_provider(parent_dir) and self._is_dir_provider(parent_dir):
             try:
-                sibling_count = sum(1 for f in parent_dir.iterdir() if f.is_file()) - 1
+                sibling_count = (
+                    sum(1 for f in self._iterdir_provider(parent_dir) if f.is_file()) - 1
+                )
             except OSError:
                 sibling_count = 0
 
@@ -486,7 +509,7 @@ class FeatureExtractor:
         Returns:
             True if the directory appears to be a project.
         """
-        if not directory.exists() or not directory.is_dir():
+        if not self._exists_provider(directory) or not self._is_dir_provider(directory):
             return False
 
         project_indicators = {
@@ -511,7 +534,7 @@ class FeatureExtractor:
         }
 
         try:
-            entries = {entry.name.lower() for entry in directory.iterdir()}
+            entries = {entry.name.lower() for entry in self._iterdir_provider(directory)}
             return bool(entries & project_indicators)
         except OSError:
             return False

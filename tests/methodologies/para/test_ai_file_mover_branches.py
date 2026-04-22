@@ -401,14 +401,21 @@ class TestSuggestArchive:
         """OSError during directory scan returns empty list (lines 324-326)."""
         config = PARAConfig()
         engine = MagicMock()
-        mover = PARAFileMover(config, suggestion_engine=engine, root_dir=tmp_path)
+
+        def _raise_oserror(p: Path, pat: str) -> None:
+            raise OSError("Permission denied")
+
+        mover = PARAFileMover(
+            config,
+            suggestion_engine=engine,
+            root_dir=tmp_path,
+            rglob_provider=_raise_oserror,
+        )
 
         src_dir = tmp_path / "src"
         src_dir.mkdir()
 
-        # Mock rglob to raise OSError
-        with patch.object(Path, "rglob", side_effect=OSError("Permission denied")):
-            suggestions = mover.suggest_archive(src_dir)
+        suggestions = mover.suggest_archive(src_dir)
 
         assert suggestions == []
 
@@ -416,7 +423,6 @@ class TestSuggestArchive:
         """OSError during file.stat() is caught and file skipped."""
         config = PARAConfig()
         engine = MagicMock()
-        mover = PARAFileMover(config, suggestion_engine=engine, root_dir=tmp_path)
 
         src_dir = tmp_path / "src"
         src_dir.mkdir()
@@ -425,18 +431,21 @@ class TestSuggestArchive:
         file2 = src_dir / "file2.txt"
         file2.write_text("content2")
 
-        original_stat = Path.stat
-
-        def mock_stat(self: Path, **kwargs: object) -> object:
-            if self.name == "file1.txt":
+        def _stat_with_error(p: Path) -> object:
+            if p.name == "file1.txt":
                 raise OSError("Cannot stat file")
-            return original_stat(self, **kwargs)
+            return p.stat()
 
-        with patch.object(Path, "is_file", return_value=True):
-            with patch.object(Path, "stat", mock_stat):
-                with patch("methodologies.para.ai.file_mover.time") as mock_time:
-                    mock_time.time.return_value = time.time() + (200 * 86400)
-                    suggestions = mover.suggest_archive(src_dir, inactive_days=180)
+        mover = PARAFileMover(
+            config,
+            suggestion_engine=engine,
+            root_dir=tmp_path,
+            stat_provider=_stat_with_error,
+        )
+
+        with patch("methodologies.para.ai.file_mover.time") as mock_time:
+            mock_time.time.return_value = time.time() + (200 * 86400)
+            suggestions = mover.suggest_archive(src_dir, inactive_days=180)
 
         # Should have suggestion for file2 only, file1 was skipped
         assert len(suggestions) == 1
@@ -467,41 +476,48 @@ class TestIsAlreadyOrganized:
         """OSError/ValueError during path resolution returns False (lines 422-426)."""
         config = PARAConfig()
         engine = MagicMock()
-        mover = PARAFileMover(config, suggestion_engine=engine, root_dir=tmp_path)
+
+        def _raise_oserror(p: Path) -> Path:
+            raise OSError("Path resolution error")
+
+        mover = PARAFileMover(
+            config,
+            suggestion_engine=engine,
+            root_dir=tmp_path,
+            resolve_provider=_raise_oserror,
+        )
 
         file_path = tmp_path / "test.txt"
         file_path.write_text("content")
 
-        # Mock resolve to raise OSError
-        with patch.object(Path, "resolve", side_effect=OSError("Path resolution error")):
-            result = mover._is_already_organized(file_path, PARACategory.PROJECT)
-            assert result is False
+        result = mover._is_already_organized(file_path, PARACategory.PROJECT)
+        assert result is False
 
     def test_is_already_organized_with_value_error(self, tmp_path: Path) -> None:
         """ValueError during is_relative_to check returns False (lines 422-426)."""
         config = PARAConfig()
         engine = MagicMock()
-        mover = PARAFileMover(config, suggestion_engine=engine, root_dir=tmp_path)
 
         file_path = tmp_path / "test.txt"
         file_path.write_text("content")
 
-        # Mock is_relative_to to raise ValueError
-        original_resolve = Path.resolve
-
-        def mock_resolve(self):
-            result = original_resolve(self)
-            if self == file_path:
-                # Create a mock that raises ValueError on is_relative_to
+        def _mock_resolve(p: Path) -> Path:
+            if p == file_path:
                 mock_path = MagicMock(spec=Path)
                 mock_path.is_relative_to.side_effect = ValueError("Invalid path comparison")
                 mock_path.__eq__ = lambda s, o: False
-                return mock_path
-            return result
+                return mock_path  # type: ignore[return-value]
+            return p.resolve()
 
-        with patch.object(Path, "resolve", mock_resolve):
-            result = mover._is_already_organized(file_path, PARACategory.PROJECT)
-            assert result is False
+        mover = PARAFileMover(
+            config,
+            suggestion_engine=engine,
+            root_dir=tmp_path,
+            resolve_provider=_mock_resolve,
+        )
+
+        result = mover._is_already_organized(file_path, PARACategory.PROJECT)
+        assert result is False
 
 
 class TestResolveCollision:
@@ -528,11 +544,13 @@ class TestResolveCollision:
         """Collision counter overflow raises OSError (lines 451-455)."""
         config = PARAConfig()
         engine = MagicMock()
-        mover = PARAFileMover(config, suggestion_engine=engine, root_dir=tmp_path)
+        mover = PARAFileMover(
+            config,
+            suggestion_engine=engine,
+            root_dir=tmp_path,
+            exists_provider=lambda _: True,
+        )
         dest = tmp_path / "file.txt"
-        dest.write_text("original")
 
-        # Mock exists to always return True, simulating infinite collision
-        with patch.object(Path, "exists", return_value=True):
-            with pytest.raises(OSError, match="too many existing files"):
-                mover._resolve_collision(dest)
+        with pytest.raises(OSError, match="too many existing files"):
+            mover._resolve_collision(dest)
