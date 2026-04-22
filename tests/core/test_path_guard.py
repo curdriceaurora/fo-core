@@ -32,6 +32,7 @@ from core.path_guard import PathTraversalError, safe_walk, validate_within_roots
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 class TestValidateWithinRoots:
     def test_path_equal_to_root_is_allowed(self, tmp_path: Path) -> None:
         """A command invoked with its root as the path arg is legitimate."""
@@ -109,6 +110,7 @@ class TestValidateWithinRoots:
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 class TestSafeWalk:
     def test_yields_plain_files(self, tmp_path: Path) -> None:
         (tmp_path / "a.txt").write_text("a")
@@ -275,6 +277,7 @@ class TestSafeWalk:
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 class TestPathTraversalError:
     def test_is_value_error_subclass(self) -> None:
         """Downstream code that catches ValueError continues to work —
@@ -290,6 +293,7 @@ class TestPathTraversalError:
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 def test_helpers_work_regardless_of_cwd(tmp_path: Path, monkeypatch) -> None:
     """The helpers resolve absolute paths internally, so changing cwd
     shouldn't change the outcome.

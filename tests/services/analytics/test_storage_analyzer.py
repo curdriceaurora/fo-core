@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -191,3 +192,66 @@ class TestStorageAnalyzer:
         assert "tiny" in distribution.by_size_range
         assert "small" in distribution.by_size_range
         assert distribution.total_files >= 3
+
+
+@pytest.mark.unit
+@pytest.mark.integration
+class TestStorageAnalyzerStatFailureRecovery:
+    """The storage analyzer must tolerate per-entry stat() failures.
+
+    `safe_walk()` tolerates traversal-level errors, but `file_path.stat()`
+    inside the loop can still raise OSError (race with a concurrent rename,
+    stale NFS handle, permission flip). The analyzer skips that one file
+    instead of aborting the whole distribution / large-file scan.
+
+    Patching `Path.stat` globally would also break `safe_walk`'s own
+    internal stat calls (is_file / is_symlink go through stat), so
+    short-circuit the walker and feed mock Paths whose `stat()` raises.
+    """
+
+    @staticmethod
+    def _stub_path(name: str, *, raise_stat: bool, size: int = 1024) -> MagicMock:
+        """Return a MagicMock impersonating Path for storage_analyzer's loop."""
+        mock_stat = MagicMock()
+        mock_stat.st_size = size
+        mock_stat.st_mtime = 0.0
+        stub = MagicMock(spec=Path)
+        stub.name = name
+        stub.suffix = "." + name.rsplit(".", 1)[-1] if "." in name else ""
+        if raise_stat:
+            stub.stat.side_effect = PermissionError(f"stat denied: {name}")
+        else:
+            stub.stat.return_value = mock_stat
+        return stub
+
+    def test_distribution_skips_files_with_stat_errors(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        good = self._stub_path("good.txt", raise_stat=False, size=100)
+        bad = self._stub_path("bad.txt", raise_stat=True)
+        monkeypatch.setattr(
+            "services.analytics.storage_analyzer.safe_walk",
+            lambda *args, **kwargs: iter([good, bad]),
+        )
+
+        analyzer = StorageAnalyzer()
+        distribution = analyzer.calculate_size_distribution(tmp_path)
+
+        # bad.txt's stat raised → skipped; good.txt counted.
+        assert distribution.total_files == 1
+
+    def test_large_file_scan_skips_files_with_stat_errors(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        big_good = self._stub_path("big_good.bin", raise_stat=False, size=2048)
+        big_bad = self._stub_path("big_bad.bin", raise_stat=True)
+        monkeypatch.setattr(
+            "services.analytics.storage_analyzer.safe_walk",
+            lambda *args, **kwargs: iter([big_good, big_bad]),
+        )
+
+        analyzer = StorageAnalyzer()
+        large_files = analyzer.identify_large_files(tmp_path, threshold=0)
+
+        names = {f.path.name for f in large_files}
+        assert names == {"big_good.bin"}

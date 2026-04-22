@@ -14,6 +14,7 @@ runner = CliRunner()
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestDaemonStart:
     """Tests for 'daemon start' command."""
 
@@ -62,6 +63,7 @@ class TestDaemonStart:
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestDaemonStop:
     """Tests for 'daemon stop' command."""
 
@@ -90,6 +92,7 @@ class TestDaemonStop:
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestDaemonStatus:
     """Tests for 'daemon status' command."""
 
@@ -120,6 +123,7 @@ class TestDaemonStatus:
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestDaemonProcess:
     """Tests for 'daemon process' command."""
 
@@ -161,6 +165,7 @@ class TestDaemonProcess:
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestDaemonHelp:
     """Verify help text renders."""
 

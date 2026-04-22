@@ -1523,6 +1523,46 @@ class TestDedupeDisplayBackupInfo:
         assert mock_console.print.call_count == 2
 
 
+class TestDedupeDisplaySummary:
+    """Pin both branches of `display_summary` — dry-run and live. D#167
+    removed the legacy `fo dedupe` CLI that previously exercised these
+    paths; without this class the `dry_run=True/False` arms fall out of
+    integration coverage.
+    """
+
+    def test_summary_dry_run_branch_renders_dry_run_panel(self) -> None:
+        from cli.dedupe_display import display_summary
+
+        mock_console = MagicMock()
+        display_summary(
+            mock_console,
+            total_groups=3,
+            total_duplicates=5,
+            total_removed=2,
+            space_saved=1024 * 1024,
+            dry_run=True,
+        )
+        printed = [str(call.args) for call in mock_console.print.call_args_list]
+        assert any("DRY RUN SUMMARY" in text for text in printed)
+        assert not any("DEDUPLICATION COMPLETE" in text for text in printed)
+
+    def test_summary_live_branch_renders_complete_panel(self) -> None:
+        from cli.dedupe_display import display_summary
+
+        mock_console = MagicMock()
+        display_summary(
+            mock_console,
+            total_groups=1,
+            total_duplicates=2,
+            total_removed=1,
+            space_saved=2048,
+            dry_run=False,
+        )
+        printed = [str(call.args) for call in mock_console.print.call_args_list]
+        assert any("DEDUPLICATION COMPLETE" in text for text in printed)
+        assert not any("DRY RUN SUMMARY" in text for text in printed)
+
+
 # ===========================================================================
 # utilities.py — analyze verbose, _build_json_record, _format_file_size
 # ===========================================================================

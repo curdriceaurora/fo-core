@@ -9,7 +9,7 @@ import pytest
 
 from cli import undo_history
 
-pytestmark = [pytest.mark.ci, pytest.mark.unit]
+pytestmark = [pytest.mark.ci, pytest.mark.unit, pytest.mark.integration]
 
 
 def _make_operation(op_id: int = 1, op_type: str = "move", dst: str | None = "/dst/file.txt"):

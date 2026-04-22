@@ -13,6 +13,7 @@ import pytest
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 def test_lazy_import_of_organizer_class() -> None:
     """``from core import FileOrganizer`` resolves via ``__getattr__`` and
     returns the class. Verifies the lazy re-export is wired correctly.
@@ -26,6 +27,7 @@ def test_lazy_import_of_organizer_class() -> None:
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 def test_unknown_attribute_raises_attribute_error() -> None:
     """Unknown attributes raise ``AttributeError`` instead of silently
     returning ``None`` or triggering unrelated imports.
@@ -37,6 +39,7 @@ def test_unknown_attribute_raises_attribute_error() -> None:
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 def test_core_package_does_not_eager_load_services() -> None:
     """Importing ``core.path_guard`` alone must not transitively load
     ``core.organizer``. That was the cycle that motivated the lazy loader.
