@@ -1,26 +1,41 @@
 #!/usr/bin/env python3
-"""Verify that >=version constraints in pyproject.toml are satisfiable on PyPI.
+"""Verify `>=` pins in pyproject.toml are satisfiable and bounded.
 
-A constraint ``package>=X.Y.Z`` is satisfiable when at least one published
-version of *package* is >= X.Y.Z.  This catches cases like
-``rank-bm25>=0.7.2`` where the latest published version is 0.2.2 — no
-installation is possible, so the requirement is effectively broken.
+Two independent checks are bundled into one script (both run by default):
 
-Only pre-1.0 packages are checked (version < 1.0.0) because those have the
-highest risk of invented or nonexistent version constraints.
+1. **PyPI satisfiability** (the original check):
+   A constraint ``package>=X.Y.Z`` is satisfiable when at least one published
+   version of *package* is >= X.Y.Z.  This catches cases like
+   ``rank-bm25>=0.7.2`` where the latest published version is 0.2.2 — no
+   installation is possible, so the requirement is effectively broken.
+   Only pre-1.0 packages are checked (version < 1.0.0).
+
+2. **Pre-1.0 cap-or-marker** (E3 of the hardening roadmap, #158):
+   Any pre-1.0 ``>=`` pin must have either an upper bound (e.g. ``<1``) or
+   the exact marker comment ``# 0.x — unstable API, keep >=`` on the same
+   line. Without one of the two, a minor-version bump can break consumers
+   without warning. The marker is the explicit opt-out; the cap is the
+   default. This check reads the file as text so it sees inline comments.
+
+Flags:
+  --pyproject PATH           — path to pyproject.toml (default: ./pyproject.toml)
+  --check-pre-1-0-only       — skip the PyPI network check (for offline tests)
+  --skip-pre-1-0-check       — skip the cap-or-marker check (rarely needed)
 
 Exit codes:
-  0 — all checked constraints are satisfiable (or network is unavailable)
-  1 — one or more constraints cannot be satisfied by any PyPI release
+  0 — all checks pass (or network unavailable for the PyPI check)
+  1 — at least one check failed
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
 import tomllib
 from pathlib import Path
+from typing import Any
 from urllib import error, parse, request
 
 
@@ -65,7 +80,7 @@ def _constraint_is_satisfiable(minimum: str, available: list[str]) -> bool:
     return False
 
 
-def _collect_deps(data: dict) -> list[str]:
+def _collect_deps(data: dict[str, Any]) -> list[str]:
     deps: list[str] = []
     deps.extend(data.get("project", {}).get("dependencies", []))
     for group in data.get("project", {}).get("optional-dependencies", {}).values():
@@ -75,14 +90,118 @@ def _collect_deps(data: dict) -> list[str]:
 
 _CONSTRAINT_RE = re.compile(
     r"^([A-Za-z0-9_.-]+)"  # package name
-    r"[^;]*"               # extras / markers prefix (skip semicolons)
+    r"[^;]*"  # extras / markers prefix (skip semicolons)
     r">=\s*([0-9][0-9a-zA-Z._-]*)"  # >= version
 )
 
 
-def main() -> int:
-    pyproject = Path("pyproject.toml")
+_KEEP_MARKER = "# 0.x — unstable API, keep >="
+# Extracts a quoted dependency string from a TOML list plus any trailing comment.
+# Matches lines like `    "name[extra]>=0.x.y,<1; marker",  # comment` — accepts
+# both TOML basic (double-quoted) and literal (single-quoted) strings so the rule
+# can't be bypassed by swapping quote style.
+_DEP_LINE_RE = re.compile(r'^\s*(?:"([^"]+)"|\'([^\']+)\')(.*)$')
+
+
+def _check_caps_or_marker(pyproject_path: Path) -> list[str]:
+    """Enforce E3: every pre-1.0 `>=` pin needs a `<` cap OR the keep marker.
+
+    Reads the file as text so inline comments are visible (tomllib strips them),
+    then delegates specifier parsing to `packaging.requirements.Requirement` so
+    we correctly distinguish version specifiers from environment markers — a
+    `"pkg>=0.2; python_version < '3.12'"` string has no version cap even though
+    `<` appears in the marker.
+    """
+    try:
+        from packaging.requirements import InvalidRequirement, Requirement
+    except ImportError:  # pragma: no cover — packaging is pinned in pyproject.toml
+        return []
+
+    failures: list[str] = []
+    for lineno, raw_line in enumerate(pyproject_path.read_text().splitlines(), start=1):
+        match = _DEP_LINE_RE.match(raw_line)
+        if not match:
+            continue
+        # group(1) is the double-quoted body, group(2) the single-quoted body;
+        # exactly one will be non-None. group(3) is everything after the closing
+        # quote (inline comment, comma, etc.).
+        dep_str = match.group(1) or match.group(2)
+        trailing = match.group(3)
+        try:
+            req = Requirement(dep_str)
+        except InvalidRequirement:
+            continue  # not a PEP 508 requirement — skip silently
+
+        # Only audit bare `>=0.X` pins. `~=0.X` is already bounded by PEP 440
+        # semantics (`~=0.18` means `>=0.18,<0.19`), and `==0.X` is pinned exactly.
+        # Those forms are safe; this rule targets unbounded `>=`.
+        has_pre_1_lower = any(
+            s.operator == ">=" and s.version.startswith("0.") for s in req.specifier
+        )
+        if not has_pre_1_lower:
+            continue
+
+        # A cap is a true upper bound. `<`, `<=` are strict upper bounds.
+        # `==` pins exactly (no versions above are allowed). `~=X.Y` is a
+        # compatible-release cap (`>=X.Y,<X.(Y+1)`). `!=` is NOT a cap — it
+        # only excludes one specific version and leaves higher versions
+        # unbounded (`foo>=0.2,!=0.3` still allows 0.4, 1.0, etc.).
+        has_cap = any(s.operator in ("<", "<=", "==", "~=") for s in req.specifier)
+        has_marker = _KEEP_MARKER in trailing
+        if has_cap or has_marker:
+            continue
+
+        failures.append(
+            f"  pyproject.toml:{lineno}: {req.name} is a pre-1.0 pin without "
+            f"an upper-bound cap; either add `<1` (or a tighter bound) or add "
+            f"the comment marker `{_KEEP_MARKER}` on the same line."
+        )
+    return failures
+
+
+def main(argv: list[str] | None = None) -> int:  # noqa: C901
+    """Entry point. Dispatches the two checks based on CLI flags.
+
+    Complexity noqa: this is a linear CLI dispatcher — splitting into helpers
+    would add indirection without reducing conceptual complexity.
+    """
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--pyproject",
+        type=Path,
+        default=Path("pyproject.toml"),
+        help="Path to pyproject.toml",
+    )
+    ap.add_argument(
+        "--check-pre-1-0-only",
+        action="store_true",
+        help="Run only the cap-or-marker check (skip PyPI network calls).",
+    )
+    ap.add_argument(
+        "--skip-pre-1-0-check",
+        action="store_true",
+        help="Run only the PyPI satisfiability check.",
+    )
+    args = ap.parse_args(argv)
+
+    pyproject = args.pyproject
     if not pyproject.exists():
+        return 0
+
+    # Cap-or-marker check (E3) — offline, purely textual.
+    if not args.skip_pre_1_0_check:
+        caps_failures = _check_caps_or_marker(pyproject)
+        if caps_failures:
+            print(
+                "pypi-version-check: pre-1.0 pins missing an upper-bound "
+                "cap or the keep-as-is marker:"
+            )
+            for line in caps_failures:
+                print(line, file=sys.stderr)
+            return 1
+
+    # Early exit when only the E3 check was requested.
+    if args.check_pre_1_0_only:
         return 0
 
     with open(pyproject, "rb") as fh:
@@ -123,8 +242,7 @@ def main() -> int:
         elif not _constraint_is_satisfiable(version, available):
             latest = max(available, key=_version_tuple, default="?")
             failures.append(
-                f"  {package}>={version} — no published version >= {version} "
-                f"(latest is {latest})"
+                f"  {package}>={version} — no published version >= {version} (latest is {latest})"
             )
 
     if not network_ok:
