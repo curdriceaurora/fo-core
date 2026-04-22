@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -161,3 +162,58 @@ def sample_files_dir(tmp_path: Path) -> Path:
     (d / "notes.md").write_text("# Notes\n\n- Item 1\n- Item 2\n")
     (d / "data.csv").write_text("col1,col2\nval1,val2\n")
     return d
+
+
+# ---------------------------------------------------------------------------
+# Provider environment fixture
+# ---------------------------------------------------------------------------
+
+_KNOWN_PROVIDER_VARS: frozenset[str] = frozenset(
+    {
+        "FO_PROVIDER",
+        "FO_PROFILE",
+        "FO_OPENAI_API_KEY",
+        "FO_OPENAI_BASE_URL",
+        "FO_OPENAI_MODEL",
+        "FO_OPENAI_VISION_MODEL",
+        "OPENAI_API_KEY",
+        "FO_LLAMA_CPP_MODEL_PATH",
+        "FO_LLAMA_CPP_N_GPU_LAYERS",
+        "FO_MLX_MODEL_PATH",
+        "FO_CLAUDE_API_KEY",
+        "FO_CLAUDE_MODEL",
+        "FO_CLAUDE_VISION_MODEL",
+        "ANTHROPIC_API_KEY",
+    }
+)
+
+
+@pytest.fixture
+def provider_env(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
+    """Return a callable that clears all known provider env vars then sets the given ones.
+
+    Usage::
+
+        def test_openai(provider_env):
+            provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
+            ...
+
+    Rules:
+
+    - Calling with no arguments clears all known vars.
+    - A value of ``None`` keeps the var unset (same as not providing it).
+    - An empty string ``""`` sets the var to an empty string.
+    - Passing an unknown var name raises ``KeyError``.
+    """
+
+    def _set(**values: str | None) -> None:
+        unknown = set(values) - _KNOWN_PROVIDER_VARS
+        if unknown:
+            raise KeyError(f"Unknown provider env var(s): {unknown!r}")
+        for var in _KNOWN_PROVIDER_VARS:
+            monkeypatch.delenv(var, raising=False)
+        for name, value in values.items():
+            if value is not None:
+                monkeypatch.setenv(name, value)
+
+    return _set

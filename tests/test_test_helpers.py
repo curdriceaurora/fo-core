@@ -6,6 +6,8 @@ assert_html_contains, assert_html_contains_any, assert_html_tag_present.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from .test_helpers import (
@@ -159,3 +161,46 @@ class TestAssertHtmlTagPresent:
         """A tag absent from the HTML must raise AssertionError."""
         with pytest.raises(AssertionError, match="<table"):
             assert_html_tag_present("<html></html>", "<table")
+
+
+# ---------------------------------------------------------------------------
+# provider_env fixture contract tests
+# ---------------------------------------------------------------------------
+
+
+class TestProviderEnvFixture:
+    """Contract tests for the provider_env fixture."""
+
+    def test_empty_string_stays_as_env_value(self, provider_env) -> None:
+        provider_env(FO_PROVIDER="")
+        assert os.environ["FO_PROVIDER"] == ""
+
+    def test_none_unsets_var(self, monkeypatch: pytest.MonkeyPatch, provider_env) -> None:
+        monkeypatch.setenv("FO_PROVIDER", "openai")
+        provider_env(FO_PROVIDER=None)
+        assert "FO_PROVIDER" not in os.environ
+
+    def test_clears_all_known_vars_when_called_with_no_args(
+        self, monkeypatch: pytest.MonkeyPatch, provider_env
+    ) -> None:
+        monkeypatch.setenv("FO_PROVIDER", "openai")
+        monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-test")
+        provider_env()
+        assert "FO_PROVIDER" not in os.environ
+        assert "FO_OPENAI_API_KEY" not in os.environ
+
+    def test_unknown_var_raises_key_error(self, provider_env) -> None:
+        with pytest.raises(KeyError, match="UNKNOWN_VAR"):
+            provider_env(UNKNOWN_VAR="value")
+
+    def test_sets_multiple_vars(self, provider_env) -> None:
+        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
+        assert os.environ["FO_PROVIDER"] == "openai"
+        assert os.environ["FO_OPENAI_API_KEY"] == "sk-test"
+
+    def test_clears_unmentioned_known_vars(
+        self, monkeypatch: pytest.MonkeyPatch, provider_env
+    ) -> None:
+        monkeypatch.setenv("FO_OPENAI_BASE_URL", "http://localhost:1234/v1")
+        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test")
+        assert "FO_OPENAI_BASE_URL" not in os.environ
