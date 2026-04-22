@@ -956,7 +956,9 @@ class TestGetModelConfigsFromEnvAdditional:
     def test_openai_custom_model_name(self, provider_env: Callable[..., None]) -> None:
         from config.provider_env import get_model_configs_from_env
 
-        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test", FO_OPENAI_MODEL="gpt-4-turbo")
+        provider_env(
+            FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test", FO_OPENAI_MODEL="gpt-4-turbo"
+        )
 
         text_cfg, _ = get_model_configs_from_env()
 
@@ -967,7 +969,9 @@ class TestGetModelConfigsFromEnvAdditional:
     ) -> None:
         from config.provider_env import get_model_configs_from_env
 
-        provider_env(FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test", FO_OPENAI_MODEL="gpt-4o-mini")
+        provider_env(
+            FO_PROVIDER="openai", FO_OPENAI_API_KEY="sk-test", FO_OPENAI_MODEL="gpt-4o-mini"
+        )
 
         text_cfg, vision_cfg = get_model_configs_from_env()
 

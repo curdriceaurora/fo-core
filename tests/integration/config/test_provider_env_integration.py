@@ -122,9 +122,7 @@ class TestGetModelConfigsFromEnvOllamaIntegration:
 
 
 class TestGetLlamaCppConfigsIntegration:
-    def test_model_path_propagates_to_both_configs(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_model_path_propagates_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         """FO_LLAMA_CPP_MODEL_PATH is reflected in both text and vision configs."""
         provider_env(FO_PROVIDER="llama_cpp", FO_LLAMA_CPP_MODEL_PATH="/models/llama.gguf")
 
@@ -193,9 +191,7 @@ class TestGetLlamaCppConfigsIntegration:
 
 
 class TestGetMlxConfigsIntegration:
-    def test_model_path_propagates_to_both_configs(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_model_path_propagates_to_both_configs(self, provider_env: Callable[..., None]) -> None:
         """FO_MLX_MODEL_PATH appears in both text and vision configs."""
         provider_env(FO_MLX_MODEL_PATH="mlx-community/Qwen2.5-3B-4bit")
 
@@ -273,9 +269,7 @@ class TestGetClaudeConfigsIntegration:
 
         assert text_cfg.name == "claude-3-haiku-20240307"
 
-    def test_vision_model_falls_back_to_text_model(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_vision_model_falls_back_to_text_model(self, provider_env: Callable[..., None]) -> None:
         """When FO_CLAUDE_VISION_MODEL is unset, vision model name matches text model."""
         provider_env(
             FO_CLAUDE_API_KEY="sk-ant-test",
@@ -309,9 +303,7 @@ class TestGetClaudeConfigsIntegration:
         assert text_cfg.provider == "claude"
         assert vision_cfg.provider == "claude"
 
-    def test_anthropic_sdk_key_suppresses_warning(
-        self, provider_env: Callable[..., None]
-    ) -> None:
+    def test_anthropic_sdk_key_suppresses_warning(self, provider_env: Callable[..., None]) -> None:
         """ANTHROPIC_API_KEY present means the SDK will pick it up — no warning needed."""
         provider_env(ANTHROPIC_API_KEY="sk-ant-sdk-key")
 
