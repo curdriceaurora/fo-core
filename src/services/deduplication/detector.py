@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.path_guard import safe_walk
+
 from .hasher import FileHasher, HashAlgorithm
 from .index import DuplicateIndex, FileMetadata
 
@@ -103,21 +105,12 @@ class DuplicateDetector:
         """
         files = []
 
-        # Use rglob for recursive, glob for non-recursive
-        if options.recursive:
-            pattern = "**/*"
-        else:
-            pattern = "*"
-
-        for path in directory.rglob(pattern) if options.recursive else directory.glob(pattern):
-            # Skip if not a file
-            if not path.is_file():
-                continue
-
-            # Skip symlinks if requested
-            if path.is_symlink() and not options.follow_symlinks:
-                continue
-
+        walker = safe_walk(
+            directory,
+            recursive=options.recursive,
+            follow_symlinks=options.follow_symlinks,
+        )
+        for path in walker:
             # Check file size constraints
             try:
                 size = path.stat().st_size

@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import typer
 
+from core.path_guard import safe_walk
 from models.base import ModelType
 
 if TYPE_CHECKING:
@@ -975,7 +976,7 @@ def run(
 
     # Collect files
     try:
-        files = [f for f in input_path.rglob("*") if f.is_file()]
+        files = list(safe_walk(input_path))
     except Exception as e:
         console.print(f"[red]Error reading files: {e}[/red]")
         raise typer.Exit(code=1) from e

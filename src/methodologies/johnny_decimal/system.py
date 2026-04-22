@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from core.path_guard import safe_walk
+
 from .categories import (
     AreaDefinition,
     CategoryDefinition,
@@ -70,8 +72,8 @@ class JohnnyDecimalSystem:
         logger.info(f"Initializing from directory: {directory}")
         detected_numbers = 0
 
-        # Scan all items in directory
-        for item in directory.rglob("*"):
+        # Scan all items in directory (security filters: skip symlinks/hidden)
+        for item in safe_walk(directory, only_files=False):
             if item.is_file() or item.is_dir():
                 number = self._extract_number_from_path(item)
                 if number:

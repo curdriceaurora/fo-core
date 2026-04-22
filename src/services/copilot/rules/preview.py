@@ -14,6 +14,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from core.path_guard import safe_walk
 from services.copilot.rules.models import (
     ConditionType,
     Rule,
@@ -105,15 +106,13 @@ class PreviewEngine:
             logger.debug("No enabled rules in set '{}'", rule_set.name)
             return result
 
-        # Collect files
+        # Collect files (security filters: skip symlinks and hidden entries)
         files: list[Path] = []
         try:
-            pattern = target.rglob("*") if recursive else target.iterdir()
-            for entry in pattern:
-                if entry.is_file():
-                    files.append(entry)
-                    if len(files) >= max_files:
-                        break
+            for entry in safe_walk(target, recursive=recursive):
+                files.append(entry)
+                if len(files) >= max_files:
+                    break
         except PermissionError as exc:
             result.errors.append((str(target), f"Permission denied: {exc}"))
 

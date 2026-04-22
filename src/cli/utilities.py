@@ -12,7 +12,7 @@ import typer
 from rich.console import Console
 
 from cli.state import _get_state
-from utils import is_hidden
+from core.path_guard import safe_walk
 
 console = Console()
 
@@ -259,13 +259,11 @@ def _do_semantic_search(
     max_docs = max(limit * 10, 200)
     type_exts = TYPE_EXTENSIONS.get(type_filter) if type_filter is not None else None
 
-    gen = search_dir.rglob("*") if recursive else search_dir.glob("*")
+    gen = safe_walk(search_dir, recursive=recursive)
     for entry in gen:
         if len(documents) >= max_docs:
             break
         rel_entry = entry.relative_to(search_dir)
-        if entry.is_symlink() or not entry.is_file() or is_hidden(rel_entry):
-            continue
         if type_exts is not None and _normalized_extension(entry) not in type_exts:
             continue
         text = read_text_safe(entry)
@@ -308,9 +306,9 @@ def _do_default_search(
     is_glob = any(c in query for c in ("*", "?", "["))
 
     if is_glob:
-        candidates = search_dir.rglob(query) if recursive else search_dir.glob(query)
+        candidates = safe_walk(search_dir, pattern=query, recursive=recursive)
     else:
-        candidates = search_dir.rglob("*") if recursive else search_dir.glob("*")
+        candidates = safe_walk(search_dir, recursive=recursive)
 
     query_lower = query.lower()
     matches: list[Path] = []

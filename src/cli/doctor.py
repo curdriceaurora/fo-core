@@ -19,7 +19,7 @@ from rich.table import Table
 
 from cli.interactive import confirm_action
 from cli.state import _get_state
-from utils import is_hidden
+from core.path_guard import safe_walk
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -170,17 +170,13 @@ def scan_directory(directory: Path) -> dict[str, int]:
     skipped = 0
 
     try:
-        entries = directory.rglob("*")
+        entries = safe_walk(directory)
     except (OSError, PermissionError) as exc:
         logger.error("Cannot scan directory %s: %s", directory, exc, exc_info=True)
         return extension_counts
 
     for item in entries:
         try:
-            if item.is_symlink():
-                continue
-            if is_hidden(item):
-                continue
             if not item.is_file():
                 continue
         except (OSError, PermissionError) as exc:
