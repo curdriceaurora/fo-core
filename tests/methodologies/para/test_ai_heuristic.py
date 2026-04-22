@@ -1465,3 +1465,19 @@ class TestPlatformSpecificBranches:
         resource_signals = result.scores[PARACategory.RESOURCE].signals
         assert "stable_reference" in resource_signals
         assert result.scores[PARACategory.RESOURCE].score > 0
+
+    def test_stat_provider_oserror_returns_neutral_result(self, tmp_path: Path) -> None:
+        """stat_provider raising OSError must return needs_manual_review, not propagate."""
+        from methodologies.para.detection.heuristics import TemporalHeuristic
+
+        def _raising_stat(path: object) -> object:
+            raise OSError("permission denied")
+
+        f = tmp_path / "locked.txt"
+        f.write_text("x")
+        h = TemporalHeuristic(weight=0.25, stat_provider=_raising_stat)
+        result = h.evaluate(f)
+
+        assert result.needs_manual_review is True
+        assert result.overall_confidence == 0.0
+        assert result.recommended_category is None

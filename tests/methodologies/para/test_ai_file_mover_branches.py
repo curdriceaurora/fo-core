@@ -230,6 +230,11 @@ class TestMoveFile:
         )
         result = mover.move_file(suggestion, dry_run=False)
         assert result.success is False
+        assert result.error is not None
+        assert "too many existing files" in result.error
+        assert src.exists()
+        assert (dst_dir / "src.txt").read_text() == "existing"
+        assert (dst_dir / "src_1.txt").read_text() == "also existing"
 
 
 class TestBulkOrganize:

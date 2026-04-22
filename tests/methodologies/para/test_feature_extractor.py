@@ -243,35 +243,56 @@ class TestExtractMetadataFeatures:
 
         extractor = FeatureExtractor(stat_provider=fake_stat)
         extractor.extract_metadata_features(f)
-        assert len(calls) == 1
+        assert calls == [f]
 
     def test_custom_clock_is_called(self, tmp_path: Path) -> None:
         """Injected clock must be used instead of time.time."""
-        import time as _time
-
         f = tmp_path / "seam.txt"
         f.write_text("hello")
-        future_time = _time.time() + 86400.0  # 1 day in the future
+        future_time = f.stat().st_mtime + 86400.0  # exactly 1 day after mtime
         extractor = FeatureExtractor(clock=lambda: future_time)
         features = extractor.extract_metadata_features(f)
-        assert features.days_since_modified is not None
-        assert features.days_since_modified >= 0
+        assert features.days_since_modified == pytest.approx(1.0)
 
     def test_custom_os_name_windows(self, tmp_path: Path) -> None:
-        """Injected os_name='nt' must trigger Windows path logic."""
+        """Injected os_name='nt' must use st_ctime as creation reference."""
         f = tmp_path / "seam.txt"
         f.write_text("hello")
-        extractor = FeatureExtractor(os_name="nt")
+        now = 2_000_000_000.0
+
+        class MockStat:
+            st_size = 5
+            st_atime = now - (2 * 86400)
+            st_ctime = now - 86400  # Windows creation time: 1 day ago
+            st_mtime = now - (10 * 86400)
+
+        extractor = FeatureExtractor(
+            clock=lambda: now,
+            os_name="nt",
+            stat_provider=lambda _: MockStat(),
+        )
         features = extractor.extract_metadata_features(f)
-        assert features is not None
+        assert features.days_since_created == pytest.approx(1.0)
 
     def test_custom_os_name_posix(self, tmp_path: Path) -> None:
-        """Injected os_name='posix' must trigger POSIX path logic."""
+        """Injected os_name='posix' must use st_mtime as creation reference."""
         f = tmp_path / "seam.txt"
         f.write_text("hello")
-        extractor = FeatureExtractor(os_name="posix")
+        now = 2_000_000_000.0
+
+        class MockStat:
+            st_size = 5
+            st_atime = now - (2 * 86400)
+            st_ctime = now - 86400
+            st_mtime = now - (10 * 86400)  # POSIX creation fallback: 10 days ago
+
+        extractor = FeatureExtractor(
+            clock=lambda: now,
+            os_name="posix",
+            stat_provider=lambda _: MockStat(),
+        )
         features = extractor.extract_metadata_features(f)
-        assert features is not None
+        assert features.days_since_created == pytest.approx(10.0)
 
 
 # =========================================================================

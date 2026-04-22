@@ -161,9 +161,13 @@ class TemporalHeuristic(Heuristic):
         scores = {cat: CategoryScore(cat, 0.0, 0.0) for cat in PARACategory}
 
         if not file_path.exists():
-            return HeuristicResult(scores, 0.0, None, True)
+            return HeuristicResult(scores, 0.0, needs_manual_review=True)
 
-        stat = self._stat_provider(file_path)
+        try:
+            stat = self._stat_provider(file_path)
+        except OSError as e:
+            logger.warning("Cannot stat file %s: %s", file_path, e, exc_info=True)
+            return HeuristicResult(scores, 0.0, needs_manual_review=True)
         now = self._clock()
         current_year = self._current_year_provider()
 
