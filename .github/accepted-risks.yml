@@ -1,0 +1,33 @@
+# Accepted-risk allowlist for pip-audit.
+#
+# Each entry is a transitive-dependency CVE that cannot be fixed by bumping a
+# direct dependency (either because no patched version exists yet or because
+# the vulnerable code path is never invoked by fo-core). Every entry MUST have
+# an `expires_on` date ≤ 6 months from when it was added; on expiry the gate
+# script fails the build until the entry is either removed (fix available) or
+# re-justified (new expiry).
+#
+# Schema enforced by scripts/pip_audit_gate.py:
+#   - advisory_id : string, GHSA-/PYSEC-/CVE- prefix
+#   - package     : string, PyPI distribution name
+#   - version_spec: string, PEP 440 specifier that the installed version must satisfy
+#   - reason      : string, why this is accepted (must cite why the code path is unreachable)
+#   - expires_on  : YYYY-MM-DD
+#
+# IMPORTANT — audit scope:
+# The `audit-dependencies` job in .github/workflows/security.yml installs
+# `pip install -e .` (base project only, no optional extras). Entries in this
+# allowlist must correspond to packages installed by the base project. If a
+# risk applies only to an optional extra (e.g. `[llama]`, `[media]`), it must
+# not be seeded here — the gate's "allowlist entry for uninstalled package"
+# rule will fail the base audit. A separate extras-audit job (future work)
+# will own those entries.
+#
+# Historically seeded entries (both removed in epic-e-deps because they fall
+# outside the base audit scope):
+#   - GHSA-wj6h-64fc-37mp (ecdsa): was transitive via `python-jose`, which
+#     is no longer a dependency of fo-core in any scope.
+#   - GHSA-w8v5-vhqr-4h9v (diskcache): transitive via `llama-cpp-python`,
+#     which lives in the `[llama]` optional extra — out of base audit scope.
+
+allowlist: []
