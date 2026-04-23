@@ -43,6 +43,10 @@ _CRED_KEYS = (
     "access[_-]?token",
     "auth[_-]?token",
     "bearer[_-]?token",
+    # Bare ``auth`` is a common shorthand (``logger.info("auth=%s", secret)``).
+    # Won't false-positive on ``author=`` etc. because the pattern requires
+    # the key to be immediately followed by ``=``/``:`` (optional quote).
+    "auth",
     "token",
     "secret",
     "password",
@@ -78,6 +82,21 @@ def _redact_text(text: str) -> str:
     text = _KV_PATTERN.sub(lambda m: f"{m.group('key')}{REDACTED}", text)
     text = _BEARER_PATTERN.sub(lambda m: f"{m.group('prefix')}{REDACTED}", text)
     return text
+
+
+def _sanitize_args(args: object) -> object:
+    """Replace every arg with ``REDACTED`` (fail-closed fallback).
+
+    Used on exception paths where we couldn't format the template safely —
+    logging's own error handler would otherwise print the raw ``record.args``
+    tuple to stderr on format failure, which could leak a secret. Return a
+    same-shape (tuple / dict / scalar) value with sentinels.
+    """
+    if isinstance(args, tuple):
+        return tuple(REDACTED for _ in args)
+    if isinstance(args, dict):
+        return dict.fromkeys(args, REDACTED)
+    return REDACTED
 
 
 class CredentialRedactingFilter(logging.Filter):
@@ -122,16 +141,29 @@ class CredentialRedactingFilter(logging.Filter):
         # the filter — we're attached via ``setLogRecordFactory`` so this
         # runs on EVERY ``logger.*()`` call, and escalating here would
         # break the caller's normal execution including records that
-        # would otherwise be dropped later by level filtering. Every
-        # blind catch below leaves the record untouched and returns
-        # ``True`` so ``logging`` surfaces the error via its own handler.
+        # would otherwise be dropped later by level filtering.
+        #
+        # Fail-CLOSED posture: on exception paths, clear ``record.args``
+        # to sentinel REDACTED entries so logging's own error handler
+        # (which prints the raw args tuple to stderr on format failure)
+        # can't leak the secret. Preserving the original args ("fail
+        # open") is wrong for a credential safety net — the whole point
+        # is that unknown-shape inputs get masked, not passed through.
         if record.args:
             try:
                 formatted = record.getMessage()
             except Exception:
-                return True
-            record.msg = _redact_text(formatted)
-            record.args = None
+                try:
+                    record.msg = _redact_text(str(record.msg))
+                except Exception:
+                    record.msg = REDACTED
+                # ``record.args`` is typed as ``tuple | Mapping | None``;
+                # ``_sanitize_args`` preserves the shape (tuple→tuple,
+                # dict→dict, scalar→str). Cast covers the fallback scalar.
+                record.args = _sanitize_args(record.args)  # type: ignore[assignment]
+            else:
+                record.msg = _redact_text(formatted)
+                record.args = None
         else:
             # No-args branch. Always stringify ``record.msg`` before
             # redacting — callers can pass non-string objects
@@ -140,8 +172,9 @@ class CredentialRedactingFilter(logging.Filter):
             try:
                 rendered = str(record.msg)
             except Exception:
-                return True
-            record.msg = _redact_text(rendered)
+                record.msg = REDACTED
+            else:
+                record.msg = _redact_text(rendered)
 
         # --- Traceback redaction (applies to BOTH branches) ---
         # ``logger.exception()`` / ``logger.*(..., exc_info=True)``

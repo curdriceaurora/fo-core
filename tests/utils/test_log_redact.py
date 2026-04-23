@@ -28,8 +28,10 @@ from utils.log_redact import REDACTED, CredentialRedactingFilter
 pytestmark = [pytest.mark.ci, pytest.mark.unit]
 
 
-def _make_record(msg: str, *args: object) -> logging.LogRecord:
-    """Build a minimal ``LogRecord`` for filter tests."""
+def _make_record(msg: object, *args: object) -> logging.LogRecord:
+    """Build a minimal ``LogRecord`` for filter tests. ``msg`` is typed as
+    ``object`` because several tests intentionally pass dict / custom-object
+    messages through the no-args stringify path."""
     return logging.LogRecord(
         name="test",
         level=logging.INFO,
@@ -103,9 +105,7 @@ class TestRedactsBearerHeader:
         dict-repr form, not just the bare HTTP header shape.
         """
         f = CredentialRedactingFilter()
-        record = _make_record(  # type: ignore[arg-type]
-            {"Authorization": "Bearer abc123.xyz_def"}
-        )
+        record = _make_record({"Authorization": "Bearer abc123.xyz_def"})
         assert f.filter(record) is True
         rendered = record.getMessage()
         assert "abc123.xyz_def" not in rendered
@@ -127,6 +127,20 @@ class TestRedactsArgs:
     def test_redacts_single_string_arg(self) -> None:
         f = CredentialRedactingFilter()
         record = _make_record("auth=%s", "api_key=sk-super-secret-xyz123")
+        assert f.filter(record) is True
+        assert "sk-super-secret-xyz123" not in record.getMessage()
+        assert REDACTED in record.getMessage()
+
+    def test_redacts_raw_secret_arg_when_template_key_is_auth(self) -> None:
+        """coderabbit Major (PRRT_kwDOR_Rkws59II7L): ``logger.info("auth=%s",
+        secret)`` — after formatting, the rendered message is
+        ``"auth=<raw-secret>"``. The bare ``auth`` key must be in
+        ``_CRED_KEYS`` so redaction catches this shape — the raw secret
+        arg doesn't itself contain a credential key, only the template
+        does.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("auth=%s", "sk-super-secret-xyz123")
         assert f.filter(record) is True
         assert "sk-super-secret-xyz123" not in record.getMessage()
         assert REDACTED in record.getMessage()
@@ -191,21 +205,27 @@ class TestContract:
         assert "alice" in rendered
         assert "abc" not in rendered
 
-    def test_malformed_template_is_passed_through_unchanged(self) -> None:
-        """A record whose ``msg % args`` raises (wrong arg count, etc.) must
-        be left as-is so Python's logging error handler can surface the
-        original formatting error. The filter must still return ``True``
-        (never drops) and must not mutate ``record.msg`` or ``record.args``.
+    def test_malformed_template_sanitizes_args_fail_closed(self) -> None:
+        """coderabbit Major (PRRT_kwDOR_Rkws59II7Q): on a malformed template
+        (wrong arg count, etc.) the filter must NOT preserve the raw args —
+        logging's own error handler prints them to stderr when
+        ``getMessage()`` later raises. Fail-CLOSED posture: args are
+        replaced with REDACTED sentinels so the safety net holds even on
+        unknown-shape inputs. ``filter()`` still returns ``True`` (never
+        drops) and never raises.
         """
         f = CredentialRedactingFilter()
-        # Template expects 2 %s, only 1 arg provided → getMessage() raises
-        # TypeError when invoked.
-        record = _make_record("need=%s and=%s", "one-arg-only")
-        original_msg = record.msg
-        original_args = record.args
+        # Template expects 2 %s, only 1 arg provided → getMessage() raises.
+        # The one arg is a credential-shaped secret — must be scrubbed.
+        record = _make_record("need=%s and=%s", "api_key=sk-super-secret-xyz123")
         assert f.filter(record) is True
-        assert record.msg == original_msg
-        assert record.args == original_args
+        # args sanitized to REDACTED sentinels.
+        assert record.args == (REDACTED,)
+        # msg was at least stringified + run through the redacter.
+        assert "sk-super-secret-xyz123" not in str(record.msg)
+        # None of the raw secret leaks anywhere on the record.
+        for field in (record.msg, record.args):
+            assert "sk-super-secret-xyz123" not in repr(field)
 
     def test_non_string_msg_dict_is_redacted(self) -> None:
         """codex P1: ``logger.info({"api_key": "sk-xxx"})`` — ``record.msg``
@@ -216,7 +236,7 @@ class TestContract:
         redact.
         """
         f = CredentialRedactingFilter()
-        record = _make_record({"api_key": "sk-super-secret-xyz123"})  # type: ignore[arg-type]
+        record = _make_record({"api_key": "sk-super-secret-xyz123"})
         assert f.filter(record) is True
         rendered = record.getMessage()
         assert "sk-super-secret-xyz123" not in rendered
@@ -232,7 +252,7 @@ class TestContract:
                 return "token=sk-leaked-secret"
 
         f = CredentialRedactingFilter()
-        record = _make_record(_LeakyObj())  # type: ignore[arg-type]
+        record = _make_record(_LeakyObj())
         assert f.filter(record) is True
         rendered = record.getMessage()
         assert "sk-leaked-secret" not in rendered
@@ -285,8 +305,10 @@ class TestContract:
     def test_buggy_msg_str_does_not_escape_filter(self) -> None:
         """If ``str(record.msg)`` itself raises (buggy custom ``__str__``
         with no args present), the filter must swallow and return True.
-        Same contract as ``test_buggy_arg_str_does_not_escape_filter`` but
-        for the no-args branch.
+        Fail-CLOSED: replace ``record.msg`` with REDACTED sentinel rather
+        than leaving the original object in place — a later ``str(msg)``
+        in a handler could still raise (and emit the original via
+        Python's logging error path). coderabbit PRRT_kwDOR_Rkws59II7Q.
         """
 
         class _PoisonObj:
@@ -294,19 +316,18 @@ class TestContract:
                 raise RuntimeError("buggy __str__")
 
         f = CredentialRedactingFilter()
-        original = _PoisonObj()
-        record = _make_record(original)  # type: ignore[arg-type]
+        record = _make_record(_PoisonObj())
         assert f.filter(record) is True
-        assert record.msg is original  # untouched
+        # msg replaced with the sanitized sentinel so downstream handlers
+        # can't trigger the buggy __str__.
+        assert record.msg == REDACTED
 
     def test_buggy_arg_str_does_not_escape_filter(self) -> None:
-        """codex P2: the filter is attached via ``setLogRecordFactory`` so it
-        runs on every ``logger.*()`` call. If a ``%s`` arg's ``__str__`` /
-        ``__repr__`` raises an exception unrelated to format errors
-        (``RuntimeError``, ``AttributeError``, custom ``Exception``
-        subclass), that exception must NOT propagate out of the filter —
-        otherwise the caller's normal code path breaks, including for
-        records that would later be dropped by handler level.
+        """codex P2 + coderabbit PRRT_kwDOR_Rkws59II7Q: if a ``%s`` arg's
+        ``__str__`` / ``__repr__`` raises, the filter must NOT propagate
+        (runs on every ``logger.*()`` via ``setLogRecordFactory``) AND
+        must sanitize args fail-closed so a later logging error-handler
+        print of the args tuple can't leak the value.
         """
 
         class _PoisonArg:
@@ -318,14 +339,11 @@ class TestContract:
 
         f = CredentialRedactingFilter()
         record = _make_record("auth=%s", _PoisonArg())
-        original_msg = record.msg
-        original_args = record.args
-        # Must return True (never drops) and must not let RuntimeError escape.
         assert f.filter(record) is True
-        # Record left untouched so logging's own emit() path can surface the
-        # error via its own handler chain.
-        assert record.msg == original_msg
-        assert record.args == original_args
+        # Args sanitized even though we couldn't format them — the poison
+        # arg is replaced by the REDACTED sentinel so downstream handlers
+        # can't trigger its buggy methods.
+        assert record.args == (REDACTED,)
 
     def test_filter_is_idempotent_on_repeated_invocation(self) -> None:
         """codex P2 (PRRT_kwDOR_Rkws59H2ZK): ``install_on_root`` attaches
