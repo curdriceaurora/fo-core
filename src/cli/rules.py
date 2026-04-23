@@ -13,6 +13,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from cli.path_validation import resolve_cli_path
+
 rules_app = typer.Typer(
     name="rules",
     help="Manage copilot organisation rules.",
@@ -169,6 +171,7 @@ def rules_preview(
     """Preview what rules would do (dry-run)."""
     from services.copilot.rules import PreviewEngine, RuleManager
 
+    directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
     mgr = RuleManager()
     rs = mgr.load_rule_set(rule_set)
 
@@ -217,6 +220,11 @@ def rules_export(
     content = yaml.dump(rs.to_dict(), default_flow_style=False, sort_keys=False)
 
     if output:
+        # A.cli: output file may not exist (we're creating it). The parent
+        # directory must exist though — resolve + sanity-check the parent.
+        output = resolve_cli_path(output, must_exist=False, must_be_dir=False)
+        if not output.parent.exists():
+            raise typer.BadParameter(f"Output directory does not exist: {output.parent}")
         output.write_text(content, encoding="utf-8")
         console.print(f"[green]Exported '{rule_set}' to {output}[/green]")
     else:
@@ -231,11 +239,13 @@ def rules_import(
     """Import a rule set from a YAML file."""
     import yaml
 
-    from services.copilot.rules import RuleManager, RuleSet
+    # A.cli: YAML file must exist and be a file, not a directory.
+    # `resolve_cli_path` raises typer.BadParameter (exit 2) if the file
+    # is missing, so the subsequent inline `if not file.exists()` check
+    # became dead code and was removed.
+    file = resolve_cli_path(file, must_exist=True, must_be_dir=False)
 
-    if not file.exists():
-        console.print(f"[red]File not found: {file}[/red]")
-        raise typer.Exit(code=1)
+    from services.copilot.rules import RuleManager, RuleSet
 
     try:
         raw = yaml.safe_load(file.read_text(encoding="utf-8"))

@@ -374,9 +374,13 @@ class TestRulesImport:
         assert "Imported" in result.output
 
     def test_import_file_not_found(self, runner, tmp_path):
+        """A.cli: missing file surfaces as ``typer.BadParameter`` (exit 2,
+        POSIX usage-error convention) with 'does not exist' in the usage
+        message — replacing the previous custom exit-1 'not found' path.
+        """
         result = runner.invoke(rules_app, ["import", str(tmp_path / "nonexistent.yaml")])
-        assert result.exit_code == 1
-        assert "not found" in result.output
+        assert result.exit_code == 2
+        assert "does not exist" in result.output.lower()
 
     def test_import_invalid_yaml(self, runner, tmp_path):
         bad_yaml = tmp_path / "bad.yaml"

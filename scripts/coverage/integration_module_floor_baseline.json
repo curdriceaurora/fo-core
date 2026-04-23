@@ -37,6 +37,7 @@
     "src/cli/setup.py": 94.0,
     "src/cli/suggest.py": 81.0,
     "src/cli/undo_history.py": 98.0,
+    "src/cli/path_validation.py": 100.0,
     "src/cli/undo_redo.py": 100.0,
     "src/cli/update.py": 100.0,
     "src/cli/utilities.py": 82.0,

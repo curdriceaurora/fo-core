@@ -233,17 +233,25 @@ class TestDaemonStatus:
 class TestDaemonProcess:
     """Covers lines 177-208."""
 
+    # A.cli: daemon process now rejects output-inside-input at the CLI
+    # boundary (same rule as `fo organize`). Tests use sibling dirs.
+    def _setup_dirs(self, tmp_path: Path) -> tuple[Path, Path]:
+        in_dir = tmp_path / "in"
+        in_dir.mkdir()
+        out_dir = tmp_path / "out"
+        return in_dir, out_dir
+
     def test_process_success(self, tmp_path: Path) -> None:
         from cli.daemon import daemon_app
 
-        (tmp_path / "file.txt").write_text("hello")
-        output_dir = tmp_path / "output"
+        in_dir, out_dir = self._setup_dirs(tmp_path)
+        (in_dir / "file.txt").write_text("hello")
 
         mock_organizer = MagicMock()
         mock_organizer.organize.return_value = _FakeOrganizeResult()
 
         with patch("core.organizer.FileOrganizer", return_value=mock_organizer):
-            result = runner.invoke(daemon_app, ["process", str(tmp_path), str(output_dir)])
+            result = runner.invoke(daemon_app, ["process", str(in_dir), str(out_dir)])
 
         assert result.exit_code == 0
         assert "Processing Summary" in result.output
@@ -251,14 +259,14 @@ class TestDaemonProcess:
     def test_process_dry_run(self, tmp_path: Path) -> None:
         from cli.daemon import daemon_app
 
-        output_dir = tmp_path / "output"
+        in_dir, out_dir = self._setup_dirs(tmp_path)
         mock_organizer = MagicMock()
         mock_organizer.organize.return_value = _FakeOrganizeResult()
 
         with patch("core.organizer.FileOrganizer", return_value=mock_organizer):
             result = runner.invoke(
                 daemon_app,
-                ["process", str(tmp_path), str(output_dir), "--dry-run"],
+                ["process", str(in_dir), str(out_dir), "--dry-run"],
             )
 
         assert result.exit_code == 0
@@ -267,7 +275,7 @@ class TestDaemonProcess:
     def test_process_with_errors(self, tmp_path: Path) -> None:
         from cli.daemon import daemon_app
 
-        output_dir = tmp_path / "output"
+        in_dir, out_dir = self._setup_dirs(tmp_path)
         fake_result = _FakeOrganizeResult(
             errors=[("file1.txt", "permission denied"), ("file2.pdf", "corrupt")]
         )
@@ -275,7 +283,7 @@ class TestDaemonProcess:
         mock_organizer.organize.return_value = fake_result
 
         with patch("core.organizer.FileOrganizer", return_value=mock_organizer):
-            result = runner.invoke(daemon_app, ["process", str(tmp_path), str(output_dir)])
+            result = runner.invoke(daemon_app, ["process", str(in_dir), str(out_dir)])
 
         assert result.exit_code == 0
         assert "Errors" in result.output
@@ -283,26 +291,26 @@ class TestDaemonProcess:
     def test_process_exception(self, tmp_path: Path) -> None:
         from cli.daemon import daemon_app
 
-        output_dir = tmp_path / "output"
+        in_dir, out_dir = self._setup_dirs(tmp_path)
         mock_organizer = MagicMock()
         mock_organizer.organize.side_effect = RuntimeError("boom")
 
         with patch("core.organizer.FileOrganizer", return_value=mock_organizer):
-            result = runner.invoke(daemon_app, ["process", str(tmp_path), str(output_dir)])
+            result = runner.invoke(daemon_app, ["process", str(in_dir), str(out_dir)])
 
         assert result.exit_code == 1
 
     def test_process_many_errors_truncated(self, tmp_path: Path) -> None:
         from cli.daemon import daemon_app
 
-        output_dir = tmp_path / "output"
+        in_dir, out_dir = self._setup_dirs(tmp_path)
         errors = [(f"file{i}.txt", "err") for i in range(15)]
         fake_result = _FakeOrganizeResult(errors=errors)
         mock_organizer = MagicMock()
         mock_organizer.organize.return_value = fake_result
 
         with patch("core.organizer.FileOrganizer", return_value=mock_organizer):
-            result = runner.invoke(daemon_app, ["process", str(tmp_path), str(output_dir)])
+            result = runner.invoke(daemon_app, ["process", str(in_dir), str(out_dir)])
 
         assert result.exit_code == 0
         assert "5 more" in result.output

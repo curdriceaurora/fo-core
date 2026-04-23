@@ -41,18 +41,29 @@ class TestDaemonStart:
 
     @patch("daemon.service.DaemonService")
     @patch("daemon.config.DaemonConfig")
-    def test_start_with_dry_run(self, mock_config_cls: MagicMock, mock_svc_cls: MagicMock) -> None:
+    def test_start_with_dry_run(
+        self,
+        mock_config_cls: MagicMock,
+        mock_svc_cls: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """A.cli: watch_dir must exist; use real tmp_path dirs (T13
+        HARDCODED_TEST_DATA_PATHS — now rejected by resolve_cli_path).
+        """
         mock_svc = MagicMock()
         mock_svc_cls.return_value = mock_svc
+        watch = tmp_path / "watch"
+        watch.mkdir()
+        out = tmp_path / "out"
 
         result = runner.invoke(
             daemon_app,
             [
                 "start",
                 "--watch-dir",
-                "/tmp/watch",
+                str(watch),
                 "--output-dir",
-                "/tmp/out",
+                str(out),
                 "--poll-interval",
                 "2.0",
                 "--dry-run",
@@ -128,7 +139,8 @@ class TestDaemonProcess:
     """Tests for 'daemon process' command."""
 
     @patch("core.organizer.FileOrganizer")
-    def test_process_success(self, mock_org_cls: MagicMock) -> None:
+    def test_process_success(self, mock_org_cls: MagicMock, tmp_path: Path) -> None:
+        """A.cli: use real tmp_path dirs (T13 HARDCODED_TEST_DATA_PATHS)."""
         mock_org = MagicMock()
         mock_org_cls.return_value = mock_org
 
@@ -141,12 +153,16 @@ class TestDaemonProcess:
         mock_result.errors = [("bad.txt", "Cannot read")]
         mock_org.organize.return_value = mock_result
 
-        result = runner.invoke(daemon_app, ["process", "/tmp/in", "/tmp/out"])
+        in_dir = tmp_path / "in"
+        in_dir.mkdir()
+        out_dir = tmp_path / "out"
+        result = runner.invoke(daemon_app, ["process", str(in_dir), str(out_dir)])
         assert result.exit_code == 0
         assert "10" in result.output
 
     @patch("core.organizer.FileOrganizer")
-    def test_process_dry_run(self, mock_org_cls: MagicMock) -> None:
+    def test_process_dry_run(self, mock_org_cls: MagicMock, tmp_path: Path) -> None:
+        """A.cli: use real tmp_path dirs (T13)."""
         mock_org = MagicMock()
         mock_org_cls.return_value = mock_org
 
@@ -159,7 +175,10 @@ class TestDaemonProcess:
         mock_result.errors = []
         mock_org.organize.return_value = mock_result
 
-        result = runner.invoke(daemon_app, ["process", "/tmp/in", "/tmp/out", "--dry-run"])
+        in_dir = tmp_path / "in"
+        in_dir.mkdir()
+        out_dir = tmp_path / "out"
+        result = runner.invoke(daemon_app, ["process", str(in_dir), str(out_dir), "--dry-run"])
         assert result.exit_code == 0
         assert "Dry-run" in result.output
 

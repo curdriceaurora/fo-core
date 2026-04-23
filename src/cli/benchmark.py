@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import typer
 
+from cli.path_validation import resolve_cli_path
 from core.path_guard import safe_walk
 from models.base import ModelType
 
@@ -973,11 +974,12 @@ def run(
     from rich.console import Console
 
     console = Console()
-    input_path = input_path.resolve()
-
-    if not input_path.exists():
-        console.print(f"[red]Error: Path does not exist: {input_path}[/red]")
-        raise typer.Exit(code=1)
+    # A.cli: resolve + validate the input tree. `--compare` points at a
+    # JSON baseline (a file, not a dir); validate it separately with
+    # must_be_dir=False when provided.
+    input_path = resolve_cli_path(input_path, must_exist=True, must_be_dir=True)
+    if compare_path is not None:
+        compare_path = resolve_cli_path(compare_path, must_exist=True, must_be_dir=False)
 
     # Collect files (capped to prevent OOM on pathologically large trees)
     try:

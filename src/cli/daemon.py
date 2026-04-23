@@ -16,6 +16,7 @@ import typer
 from rich.console import Console
 from rich.table import Table  # pyre-ignore[21]
 
+from cli.path_validation import resolve_cli_path, validate_pair
 from config.path_manager import get_state_dir
 
 console = Console()
@@ -51,6 +52,14 @@ def start(
     from daemon.config import DaemonConfig
     from daemon.service import DaemonService
 
+    # A.cli: resolve + validate both paths when provided. watch_dir must
+    # exist; output_dir is created on demand.
+    if watch_dir is not None:
+        watch_dir = resolve_cli_path(watch_dir, must_exist=True, must_be_dir=True)
+    if output_dir is not None:
+        output_dir = resolve_cli_path(output_dir, must_exist=False, must_be_dir=True)
+    if watch_dir is not None and output_dir is not None:
+        validate_pair(watch_dir, output_dir)
     watch_dirs = [watch_dir] if watch_dir else []
     out = output_dir or Path("organized_output")
 
@@ -145,6 +154,8 @@ def watch(
     from watcher.config import WatcherConfig
     from watcher.monitor import FileMonitor
 
+    # A.cli: must exist + must be a dir — watcher would fail later otherwise.
+    watch_dir = resolve_cli_path(watch_dir, must_exist=True, must_be_dir=True)
     console.print(f"[bold]Watching[/bold] {watch_dir}  (Ctrl+C to stop)")
 
     config = WatcherConfig(
@@ -176,6 +187,10 @@ def process(
     """One-shot: organize files and display a summary."""
     from core.organizer import FileOrganizer
 
+    # A.cli: same input/output contract as `fo organize`.
+    input_dir = resolve_cli_path(input_dir, must_exist=True, must_be_dir=True)
+    output_dir = resolve_cli_path(output_dir, must_exist=False, must_be_dir=True)
+    validate_pair(input_dir, output_dir)
     console.print(f"[bold]Processing[/bold] {input_dir} -> {output_dir}")
     if dry_run:
         console.print("[yellow]Dry-run mode — no files will be moved.[/yellow]")
