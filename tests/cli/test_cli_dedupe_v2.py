@@ -365,9 +365,7 @@ class TestDedupeIncludeHidden:
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
 
-        result = runner.invoke(
-            app, ["dedupe", "resolve", str(hidden_root), "--strategy", "oldest"]
-        )
+        result = runner.invoke(app, ["dedupe", "resolve", str(hidden_root), "--strategy", "oldest"])
 
         mock_confirm.assert_called_once()
         mock_det.scan_directory.assert_not_called()
