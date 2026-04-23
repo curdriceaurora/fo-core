@@ -1133,15 +1133,18 @@ class TestCreateBackupEdgeCases:
             created_at=datetime.now(UTC),
         )
 
-        # Inject failure in manifest writing by mocking open
-        original_open = open
-
-        def _failing_open(file_arg: object, *args: object, **kwargs: object) -> object:
-            if isinstance(file_arg, Path) and file_arg.name == "manifest.json":
+        # Inject failure in manifest write (now goes through
+        # ``atomic_write_with`` — temp-file + os.replace; patch the
+        # wrapper directly).
+        def _failing_atomic_write(path: Path, _writer: object, *, mode: str = "wb") -> None:
+            if path.name == "manifest.json":
                 raise OSError("injected manifest write failure")
-            return original_open(file_arg, *args, **kwargs)
+            raise AssertionError(f"unexpected atomic_write_with target: {path}")
 
-        monkeypatch.setattr("builtins.open", _failing_open)
+        monkeypatch.setattr(
+            "methodologies.para.migration_manager.atomic_write_with",
+            _failing_atomic_write,
+        )
 
         with pytest.raises(IOError, match="injected manifest write failure"):
             manager._create_backup(plan)
@@ -1172,18 +1175,20 @@ class TestCreateBackupEdgeCases:
             created_at=datetime.now(UTC),
         )
 
-        # Inject failure in both manifest writing and cleanup
-        original_open = open
-
-        def _failing_open(file_arg: object, *args: object, **kwargs: object) -> object:
-            if isinstance(file_arg, Path) and file_arg.name == "manifest.json":
+        # Inject failure in both manifest writing (via the
+        # ``atomic_write_with`` wrapper) and cleanup.
+        def _failing_atomic_write(path: Path, _writer: object, *, mode: str = "wb") -> None:
+            if path.name == "manifest.json":
                 raise OSError("injected manifest write failure")
-            return original_open(file_arg, *args, **kwargs)
+            raise AssertionError(f"unexpected atomic_write_with target: {path}")
 
         def _failing_rmtree(*args: object, **kwargs: object) -> None:
             raise PermissionError("injected cleanup failure")
 
-        monkeypatch.setattr("builtins.open", _failing_open)
+        monkeypatch.setattr(
+            "methodologies.para.migration_manager.atomic_write_with",
+            _failing_atomic_write,
+        )
         monkeypatch.setattr(shutil, "rmtree", _failing_rmtree)
 
         # When cleanup fails, the cleanup exception is raised (lines 428-430)
@@ -1212,11 +1217,12 @@ class TestCreateBackupEdgeCases:
             created_at=datetime.now(UTC),
         )
 
-        # Inject failure in manifest writing and delete backup_dir before cleanup
-        original_open = open
+        # Inject failure at the ``atomic_write_with`` wrapper layer and
+        # delete backup_dir just before the manifest write raises — so the
+        # subsequent cleanup branch sees a missing directory (covers the
+        # line 428->430 path).
         original_mkdir = Path.mkdir
-
-        backup_dir_ref = [None]
+        backup_dir_ref: list[Path | None] = [None]
 
         def _track_mkdir(self: Path, *args: object, **kwargs: object) -> None:
             result = original_mkdir(self, *args, **kwargs)
@@ -1224,16 +1230,18 @@ class TestCreateBackupEdgeCases:
                 backup_dir_ref[0] = self
             return result
 
-        def _failing_open(file_arg: object, *args: object, **kwargs: object) -> object:
-            if isinstance(file_arg, Path) and file_arg.name == "manifest.json":
-                # Delete backup_dir before raising exception
+        def _failing_atomic_write(path: Path, _writer: object, *, mode: str = "wb") -> None:
+            if path.name == "manifest.json":
                 if backup_dir_ref[0] and backup_dir_ref[0].exists():
                     shutil.rmtree(backup_dir_ref[0])
                 raise OSError("injected manifest write failure")
-            return original_open(file_arg, *args, **kwargs)
+            raise AssertionError(f"unexpected atomic_write_with target: {path}")
 
         monkeypatch.setattr(Path, "mkdir", _track_mkdir)
-        monkeypatch.setattr("builtins.open", _failing_open)
+        monkeypatch.setattr(
+            "methodologies.para.migration_manager.atomic_write_with",
+            _failing_atomic_write,
+        )
 
         # Should raise original exception without trying to cleanup non-existent dir
         with pytest.raises(IOError, match="injected manifest write failure"):

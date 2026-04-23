@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from utils.atomic_write import atomic_write_with
+
 from .categories import AreaDefinition, CategoryDefinition, NumberingScheme
 
 logger = logging.getLogger(__name__)
@@ -191,8 +193,12 @@ class JohnnyDecimalConfig:
         """
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, "w") as f:
-            json.dump(self.to_dict(), f, indent=2)
+        data = self.to_dict()
+        atomic_write_with(
+            path,
+            lambda fh: json.dump(data, fh, indent=2),
+            mode="w",
+        )
 
         logger.info(f"Configuration saved to {path}")
 

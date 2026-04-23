@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from core.path_guard import safe_walk
+from utils.atomic_write import atomic_write_with
 
 from .categories import (
     AreaDefinition,
@@ -409,8 +410,11 @@ class JohnnyDecimalSystem:
 
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(save_path, "w") as f:
-            json.dump(config, f, indent=2)
+        atomic_write_with(
+            save_path,
+            lambda fh: json.dump(config, fh, indent=2),
+            mode="w",
+        )
 
         logger.info(f"Saved configuration to {save_path}")
 

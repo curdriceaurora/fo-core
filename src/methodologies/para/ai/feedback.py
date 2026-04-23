@@ -16,6 +16,7 @@ from typing import Any
 
 from config.path_manager import get_config_dir
 from config.path_migration import resolve_legacy_path
+from utils.atomic_write import atomic_write_with
 
 from ..categories import PARACategory
 from ..config import HeuristicWeights
@@ -304,8 +305,18 @@ class FeedbackCollector:
         try:
             self._storage_dir.mkdir(parents=True, exist_ok=True)
             data = [event.to_dict() for event in self._events]
-            with open(self._feedback_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            # Explicit UTF-8: ``json.dump(..., ensure_ascii=False)``
+            # can emit raw non-ASCII characters; on non-UTF-8 locales
+            # (common on Windows), a locale-default open would raise
+            # ``UnicodeEncodeError`` or write bytes that later fail to
+            # decode as UTF-8 in ``_load_events`` (codex P1
+            # PRRT_kwDOR_Rkws59ML8K).
+            atomic_write_with(
+                self._feedback_file,
+                lambda fh: json.dump(data, fh, indent=2, ensure_ascii=False),
+                mode="w",
+                encoding="utf-8",
+            )
         except OSError as e:
             logger.error("Failed to save feedback events: %s", e, exc_info=True)
 

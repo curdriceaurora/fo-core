@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from config.path_manager import PathManager
+from utils.atomic_write import atomic_write_with
 
 from .categories import PARACategory
 from .config import PARAConfig
@@ -390,25 +391,28 @@ class PARAMigrationManager:
             manifest_checksum = self._calculate_manifest_checksum(file_entries)
             manifest.checksum = manifest_checksum
 
-            # Save manifest
+            # Save manifest (atomic — temp + os.replace so a crash can't
+            # leave the backup referencing a truncated manifest).
             manifest_file = backup_dir / "manifest.json"
-            with open(manifest_file, "w") as f:
-                # Serialize with custom JSON encoder for datetime and Path
-                manifest_data = {
-                    "backup_id": manifest.backup_id,
-                    "migration_id": manifest.migration_id,
-                    "created_at": manifest.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    "files_backed_up": manifest.files_backed_up,
-                    "total_size": manifest.total_size,
-                    "checksum": manifest.checksum,
-                    "source_root": str(manifest.source_root),
-                    "status": manifest.status,
-                    "restored_at": manifest.restored_at.strftime("%Y-%m-%dT%H:%M:%SZ")
-                    if manifest.restored_at
-                    else None,
-                    "file_entries": manifest.file_entries,
-                }
-                json.dump(manifest_data, f, indent=2)
+            manifest_data = {
+                "backup_id": manifest.backup_id,
+                "migration_id": manifest.migration_id,
+                "created_at": manifest.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "files_backed_up": manifest.files_backed_up,
+                "total_size": manifest.total_size,
+                "checksum": manifest.checksum,
+                "source_root": str(manifest.source_root),
+                "status": manifest.status,
+                "restored_at": manifest.restored_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+                if manifest.restored_at
+                else None,
+                "file_entries": manifest.file_entries,
+            }
+            atomic_write_with(
+                manifest_file,
+                lambda fh: json.dump(manifest_data, fh, indent=2),
+                mode="w",
+            )
 
             # Verify backup integrity (only check files that were actually backed up)
             if file_entries:
@@ -511,8 +515,11 @@ class PARAMigrationManager:
             manifest_data["status"] = "restored"
             manifest_data["restored_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            with open(manifest_file, "w") as f:
-                json.dump(manifest_data, f, indent=2)
+            atomic_write_with(
+                manifest_file,
+                lambda fh: json.dump(manifest_data, fh, indent=2),
+                mode="w",
+            )
 
             logger.info(f"Rollback completed successfully: {restored_count} files restored")
             return True

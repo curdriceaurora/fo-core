@@ -27,6 +27,7 @@ import yaml
 from config.path_manager import get_config_dir
 from config.schema import AppConfig, ModelPreset, UpdateSettings
 from models.base import DeviceType, ModelConfig, ModelType
+from utils.atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -141,9 +142,9 @@ class ConfigManager:
         profiles = existing.setdefault("profiles", {})
         profiles[profile] = self.config_to_dict(config)
 
-        config_path.write_text(
+        atomic_write_text(
+            config_path,
             yaml.dump(existing, default_flow_style=False, sort_keys=False),
-            encoding="utf-8",
         )
         logger.info("Saved profile '%s' to %s", profile, config_path)
 
@@ -202,9 +203,9 @@ class ConfigManager:
             return False
 
         del profiles[profile]
-        config_path.write_text(
+        atomic_write_text(
+            config_path,
             yaml.dump(raw, default_flow_style=False, sort_keys=False),
-            encoding="utf-8",
         )
         return True
 

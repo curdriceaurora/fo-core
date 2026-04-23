@@ -13,6 +13,7 @@ from integrations.base import (
     IntegrationStatus,
     IntegrationType,
 )
+from utils.atomic_write import append_durable
 
 
 class VSCodeIntegration(Integration):
@@ -73,8 +74,9 @@ class VSCodeIntegration(Integration):
             "metadata": metadata or {},
             "created_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
-        with output.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        # B1b: durable append — fsync the record so the VS Code
+        # command stream survives a crash between write and fsync.
+        append_durable(output, json.dumps(payload, sort_keys=True))
         return True
 
     async def get_status(self) -> IntegrationStatus:
