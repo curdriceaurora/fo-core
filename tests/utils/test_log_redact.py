@@ -214,6 +214,28 @@ class TestContract:
         assert "sk-leaked-secret" not in rendered
         assert REDACTED in rendered
 
+    def test_redacts_exc_info_when_args_also_present(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59HjtQ): ``logger.error("msg: %s",
+        value, exc_info=True)`` and ``logger.exception("msg: %s", value)``
+        take the args branch. Before the fix, the args branch returned
+        before ``exc_info`` scrubbing ran, leaving the traceback
+        unredacted even though the main message was sanitized. Both
+        branches must now redact the traceback.
+        """
+        import sys
+
+        f = CredentialRedactingFilter()
+        try:
+            raise RuntimeError("api_key=sk-super-secret-xyz123 inside error")
+        except RuntimeError:
+            exc_info = sys.exc_info()
+        record = _make_record("failed to %s", "process")
+        record.exc_info = exc_info
+        assert f.filter(record) is True
+        assert record.exc_text is not None
+        assert "sk-super-secret-xyz123" not in record.exc_text
+        assert REDACTED in record.exc_text
+
     def test_redacts_exception_traceback_text(self) -> None:
         """codex P1: ``logger.exception(...)`` / ``exc_info=True`` attaches
         a ``(type, value, traceback)`` tuple. The default formatter caches
@@ -280,6 +302,44 @@ class TestContract:
         # error via its own handler chain.
         assert record.msg == original_msg
         assert record.args == original_args
+
+    def test_loguru_patcher_replaces_exception_with_sanitized_version(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59HjtX): the loguru patcher must
+        overwrite ``record["exception"]`` with a sanitized
+        ``RecordException`` — loguru renders ``{exception}`` from that
+        field, never from ``record["extra"][...]``. Before the fix the
+        redacted text was stashed in an unused extra and the original
+        exception still leaked.
+        """
+        from utils.log_redact import _install_on_loguru
+
+        instance = CredentialRedactingFilter()
+        _install_on_loguru(instance)
+        patcher = getattr(instance, "_loguru_patcher", None)
+        assert patcher is not None, "loguru patcher was not installed"
+
+        try:
+            raise RuntimeError("api_key=sk-super-secret-xyz123 inside error")
+        except RuntimeError as exc:
+            from loguru._recattrs import RecordException  # type: ignore[import-untyped]
+
+            orig_exc = RecordException(type(exc), exc, exc.__traceback__)
+
+        record = {
+            "message": "an error occurred",
+            "exception": orig_exc,
+            "extra": {},
+        }
+        patcher(record)
+
+        # The exception payload must be REPLACED, not left in extra.
+        new_exc = record["exception"]
+        assert new_exc is not orig_exc, (
+            "patcher left original exception in record['exception'] — leak"
+        )
+        rendered = str(new_exc.value)
+        assert "sk-super-secret-xyz123" not in rendered
+        assert REDACTED in rendered
 
     def test_install_on_root_installs_loguru_patcher(self) -> None:
         """codex P1: ``install_on_root`` must also install a patcher on the

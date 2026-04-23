@@ -98,46 +98,47 @@ class CredentialRedactingFilter(logging.Filter):
         so the formatted-and-redacted string is what ``getMessage()``
         returns.
         """
+        # --- Message redaction (args-present and no-args paths) ---
+        # ``getMessage()`` runs ``record.msg % record.args`` which invokes
+        # each arg's ``__str__`` / ``__repr__``. A bug in any of those
+        # (custom ``Exception`` subclass, buggy ``__str__`` raising
+        # ``RuntimeError`` / ``AttributeError``, etc.) must NOT escape
+        # the filter — we're attached via ``setLogRecordFactory`` so this
+        # runs on EVERY ``logger.*()`` call, and escalating here would
+        # break the caller's normal execution including records that
+        # would otherwise be dropped later by level filtering. Every
+        # blind catch below leaves the record untouched and returns
+        # ``True`` so ``logging`` surfaces the error via its own handler.
         if record.args:
             try:
                 formatted = record.getMessage()
             except Exception:
-                # ``getMessage()`` runs ``record.msg % record.args`` which
-                # invokes each arg's ``__str__`` / ``__repr__``. A bug in
-                # either (custom ``Exception`` subclass, buggy ``__str__``
-                # that raises ``RuntimeError`` / ``AttributeError``, etc.)
-                # must NOT escape the filter. We're attached via
-                # ``setLogRecordFactory`` so this runs on EVERY
-                # ``logger.*()`` call — escalating here would break the
-                # caller's normal execution, including records that would
-                # otherwise be dropped later by level filtering. Swallow
-                # any exception, leave the record untouched, and let
-                # ``logging`` surface the error via its own handler path
-                # when the downstream ``emit()`` re-attempts the format.
                 return True
             record.msg = _redact_text(formatted)
             record.args = None
-            return True
-        # No-args branch. Always stringify ``record.msg`` before redacting —
-        # callers can pass non-string objects (``logger.info({"api_key":
-        # "..."})`` or any custom object whose ``__str__`` returns
-        # ``"token=..."``). ``LogRecord.getMessage()`` would ``str()`` them
-        # at emission time and leak the credential; we must redact that
-        # same string representation here. Same blind-catch rationale as
-        # above — a buggy ``__str__`` must not escape.
-        try:
-            rendered = str(record.msg)
-        except Exception:
-            return True
-        record.msg = _redact_text(rendered)
-        # codex P1: ``logger.exception()`` / ``logger.*(..., exc_info=True)``
-        # attaches a ``(type, value, traceback)`` tuple at ``record.exc_info``.
-        # The default formatter later calls ``formatException`` and caches
-        # the result in ``record.exc_text`` — at which point the raw
-        # exception message (e.g. ``RuntimeError("api_key=sk-xxx")``) is
-        # rendered verbatim into the log output. Pre-format and redact the
-        # traceback now so the formatter's "use cached exc_text if already
-        # set" branch picks up our scrubbed version instead.
+        else:
+            # No-args branch. Always stringify ``record.msg`` before
+            # redacting — callers can pass non-string objects
+            # (``logger.info({"api_key": "..."})`` or any custom object
+            # whose ``__str__`` returns ``"token=..."``).
+            try:
+                rendered = str(record.msg)
+            except Exception:
+                return True
+            record.msg = _redact_text(rendered)
+
+        # --- Traceback redaction (applies to BOTH branches) ---
+        # ``logger.exception()`` / ``logger.*(..., exc_info=True)``
+        # attaches a ``(type, value, traceback)`` tuple at
+        # ``record.exc_info``. The default formatter later calls
+        # ``formatException`` and caches the result in ``record.exc_text``
+        # — at which point the raw exception message (e.g.
+        # ``RuntimeError("api_key=sk-xxx")``) is rendered verbatim into
+        # the log output. Pre-format and redact the traceback now so the
+        # formatter's "use cached exc_text if already set" branch picks
+        # up our scrubbed version instead. Critical: this must run even
+        # in the args branch (codex P1:
+        # ``logger.error("msg: %s", value, exc_info=True)``).
         if record.exc_info:
             try:
                 exc_text = "".join(traceback.format_exception(*record.exc_info))
@@ -187,17 +188,32 @@ def _install_on_loguru(instance: CredentialRedactingFilter) -> bool:
             try:
                 exc_text = "".join(traceback.format_exception(exc.type, exc.value, exc.traceback))
             except Exception:
-                # Buggy ``__str__``/``__repr__`` on the exception itself.
-                # Surface the redacted sentinel so consumers know the
-                # exception was suppressed for safety rather than silently
-                # dropped (the silent-broad-except CI guardrail requires a
-                # non-silent statement in the handler body).
-                record["extra"]["redacted_exception"] = REDACTED
+                # Buggy ``__str__`` / ``__repr__`` on the exception itself.
+                # Can't safely format, so drop the exception payload
+                # entirely rather than let loguru render the original via
+                # the same buggy call path. Non-silent statement satisfies
+                # the silent-broad-except CI guardrail.
+                record["exception"] = None
                 return
-            # Loguru emits the exception block separately from the message;
-            # stash the scrubbed text on the record under a dedicated key
-            # that the default formatter appends via ``{exception}``.
-            record["extra"]["redacted_exception"] = _redact_text(exc_text)
+            redacted = _redact_text(exc_text)
+            # codex P1 (PRRT_kwDOR_Rkws59HjtX): the default loguru
+            # formatter renders the exception block from
+            # ``record["exception"]`` via ``traceback.format_exception`` —
+            # a stashed ``record["extra"][...]`` is never consumed.
+            # Replace the entire exception payload with a sanitized
+            # ``RecordException`` whose value is a plain
+            # ``Exception(redacted)`` and whose traceback is stripped (we
+            # already formatted+scrubbed it into the exception's message).
+            try:
+                from loguru._recattrs import RecordException  # type: ignore[import-untyped]
+            except ImportError:
+                # Internal API moved — fall back to dropping the exception
+                # block entirely. Still prevents the leak while degrading
+                # gracefully. Non-silent statement.
+                record["exception"] = None
+                return
+            sanitized = Exception(redacted)
+            record["exception"] = RecordException(type(sanitized), sanitized, None)
 
     # ``patcher`` runs on every record; installing twice would stack, so
     # configure with a single canonical patcher. ``logger.configure``
