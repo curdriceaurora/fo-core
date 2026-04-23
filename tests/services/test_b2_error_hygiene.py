@@ -55,13 +55,33 @@ class TestTextProcessorErrorLogsIncludeType:
         return model
 
     def _log_strings(self, mock_logger: MagicMock) -> str:
-        """Join every ``logger.error`` / ``.exception`` call (template + args)."""
+        """Join every ``logger.error`` / ``.exception`` call (template + args).
+
+        Renders both positional args AND kwargs values so a future
+        refactor from positional ``logger.error("t=%s", type(e).__name__)``
+        to keyword ``logger.error("t=%s", exc_type=type(e).__name__)``
+        doesn't silently make the regression guard vacuous (coderabbit
+        PRRT_kwDOR_Rkws59NYZ9).
+        """
         calls = list(mock_logger.error.call_args_list) + list(mock_logger.exception.call_args_list)
         rendered: list[str] = []
         for call in calls:
-            args, _kwargs = call
+            args, kwargs = call
             rendered.append(" ".join(str(a) for a in args))
+            rendered.extend(f"{k}={v}" for k, v in kwargs.items())
         return "\n".join(rendered)
+
+    def _assert_template_has_type_tag(self, mock_logger: MagicMock) -> None:
+        """Verify at least one log call's template contains the literal
+        ``type=`` tag, so a regression that drops the categorisation
+        token (even while keeping the type in an arg) would fail
+        (coderabbit PRRT_kwDOR_Rkws59NYZ9).
+        """
+        calls = list(mock_logger.error.call_args_list) + list(mock_logger.exception.call_args_list)
+        templates = [str(c.args[0]) for c in calls if c.args]
+        assert any("type=" in t for t in templates), (
+            f"no log template carries the 'type=' categorisation tag; got: {templates!r}"
+        )
 
     def test_generate_description_logs_exception_type(self, mock_model: MagicMock) -> None:
         mock_model.generate.side_effect = RuntimeError("llama server unreachable")
@@ -77,6 +97,7 @@ class TestTextProcessorErrorLogsIncludeType:
             f"expected log to include exception type 'RuntimeError', got: {joined!r}"
         )
         assert "llama server unreachable" in joined
+        self._assert_template_has_type_tag(mock_logger)
 
     def test_generate_folder_name_logs_exception_type(self, mock_model: MagicMock) -> None:
         mock_model.generate.side_effect = OSError("model pipe broken")
@@ -90,6 +111,7 @@ class TestTextProcessorErrorLogsIncludeType:
         assert "OSError" in joined, (
             f"expected log to include exception type 'OSError', got: {joined!r}"
         )
+        self._assert_template_has_type_tag(mock_logger)
 
     def test_generate_filename_logs_exception_type(self, mock_model: MagicMock) -> None:
         mock_model.generate.side_effect = AttributeError("model not initialized")
@@ -105,6 +127,7 @@ class TestTextProcessorErrorLogsIncludeType:
         assert "AttributeError" in joined, (
             f"expected log to include exception type 'AttributeError', got: {joined!r}"
         )
+        self._assert_template_has_type_tag(mock_logger)
 
 
 # ---------------------------------------------------------------------------
@@ -200,10 +223,15 @@ class TestVisionProcessorErrorLogsIncludeType:
         mock_model.is_initialized = True
 
         processor = VisionProcessor(vision_model=mock_model)
-        # Force-close the circuit in case the short-circuit path is
-        # hit (sub-PIPE_BUF failures in another test could have
-        # tripped it via a module-level state leak).
-        processor._consecutive_failures = 0  # type: ignore[attr-defined]
+        # Defensively close the circuit under its real lock (the
+        # constructor already leaves it closed; this only matters if
+        # future fixture/module-state leaks trip it). Attribute names
+        # match ``VisionProcessor.__init__`` — ``_circuit_opened_at``
+        # is the gating field (see ``_is_circuit_open``) (coderabbit
+        # PRRT_kwDOR_Rkws59NYaB).
+        with processor._circuit_lock:
+            processor._circuit_opened_at = None
+            processor._circuit_reason = None
 
         with (
             patch.object(

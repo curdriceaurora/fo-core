@@ -177,11 +177,14 @@ class ModelManager:
             # so aggregated logs show the failure with its exception
             # class — pre-B2 only the console print existed, making
             # failed pulls invisible in log-only monitoring.
-            logger.error("Ollama pull failed (type=%s): %s", type(e).__name__, e)
+            # ``logger.exception`` auto-attaches ``exc_info`` (satisfies
+            # ``tests/ci/test_traceback_logging_guard.py``) and still
+            # carries the type in the message.
+            logger.exception("Ollama pull failed (type=%s): %s", type(e).__name__, e)
             self._console.print("[red]Ollama CLI not found. Install from https://ollama.ai[/red]")
             return False
         except subprocess.TimeoutExpired as e:
-            logger.error("Ollama pull failed (type=%s): %s", type(e).__name__, e)
+            logger.exception("Ollama pull failed (type=%s): %s", type(e).__name__, e)
             self._console.print("[red]Pull timed out.[/red]")
             return False
 
