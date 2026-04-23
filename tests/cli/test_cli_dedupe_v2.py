@@ -233,6 +233,7 @@ class TestDedupeReport:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.ci
 class TestDedupeIncludeHidden:
     """#170: ``--include-hidden`` opts into dotfile / hidden-dir traversal.
 
@@ -260,9 +261,7 @@ class TestDedupeIncludeHidden:
         assert options.include_hidden is False
 
     @patch("cli.dedupe_v2._get_detector")
-    def test_scan_with_include_hidden_flag(
-        self, mock_get_det: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_scan_with_include_hidden_flag(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         """``scan --include-hidden`` → ``ScanOptions.include_hidden=True``."""
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -274,18 +273,14 @@ class TestDedupeIncludeHidden:
         assert options.include_hidden is True
 
     @patch("cli.dedupe_v2._get_detector")
-    def test_report_with_include_hidden_flag(
-        self, mock_get_det: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_report_with_include_hidden_flag(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
         """``report --include-hidden`` plumbs through ScanOptions."""
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
         mock_det.get_statistics.return_value = {"total_files": 0, "duplicate_files": 0}
         mock_det.get_duplicate_groups.return_value = {}
 
-        result = runner.invoke(
-            app, ["dedupe", "report", str(tmp_path), "--include-hidden"]
-        )
+        result = runner.invoke(app, ["dedupe", "report", str(tmp_path), "--include-hidden"])
         assert result.exit_code == 0
         options = mock_det.scan_directory.call_args[0][1]
         assert options.include_hidden is True
