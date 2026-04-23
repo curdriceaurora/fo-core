@@ -302,7 +302,8 @@ class TestContract:
         finally:
             logging.setLogRecordFactory(original_factory)
             for f in [
-                filt for filt in logging.getLogger().filters
+                filt
+                for filt in logging.getLogger().filters
                 if isinstance(filt, CredentialRedactingFilter)
             ]:
                 logging.getLogger().removeFilter(f)

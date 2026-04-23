@@ -185,10 +185,14 @@ def _install_on_loguru(instance: CredentialRedactingFilter) -> bool:
         # scrubbed message + exception message caught at emission.
         if exc is not None:
             try:
-                exc_text = "".join(
-                    traceback.format_exception(exc.type, exc.value, exc.traceback)
-                )
+                exc_text = "".join(traceback.format_exception(exc.type, exc.value, exc.traceback))
             except Exception:
+                # Buggy ``__str__``/``__repr__`` on the exception itself.
+                # Surface the redacted sentinel so consumers know the
+                # exception was suppressed for safety rather than silently
+                # dropped (the silent-broad-except CI guardrail requires a
+                # non-silent statement in the handler body).
+                record["extra"]["redacted_exception"] = REDACTED
                 return
             # Loguru emits the exception block separately from the message;
             # stash the scrubbed text on the record under a dedicated key
