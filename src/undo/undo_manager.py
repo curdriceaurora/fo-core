@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 class _RedoAborted(Exception):
-    """Internal sentinel: a redo operation failed, so the enclosing
-    ``db.transaction()`` context manager should roll back the in-flight
-    DB writes before ``redo_transaction`` returns ``False``.
+    """Internal sentinel raised when a per-operation redo fails.
 
-    Not part of the public surface — never leaks out of
-    :meth:`UndoManager.redo_transaction`.
+    The enclosing ``db.transaction()`` context manager catches the
+    raise, rolls back the in-flight DB writes, and re-raises; the
+    outer ``except _RedoAborted:`` in :meth:`UndoManager.redo_transaction`
+    then returns ``False``. Never leaks out of that method.
     """
 
     def __init__(self, operation_id: int | None) -> None:
@@ -245,17 +245,22 @@ class UndoManager:
                 for operation in forward_ops:
                     success = self.executor.redo_operation(operation)
                     if not success:
-                        logger.error(
-                            f"Failed to redo operation {operation.id} "
-                            f"in transaction {transaction_id}"
-                        )
+                        # Defer the error log to the ``_RedoAborted``
+                        # handler below so the failure is reported
+                        # exactly once — ``db.transaction()`` also
+                        # logs ``Transaction failed: ...`` on rollback
+                        # (copilot PRRT_kwDOR_Rkws59M7U6).
                         raise _RedoAborted(operation.id)
                     conn.execute(
                         "UPDATE operations SET status = ? WHERE id = ?",
                         (OperationStatus.COMPLETED.value, operation.id),
                     )
                     logger.info(f"Successfully redid operation {operation.id}")
-        except _RedoAborted:
+        except _RedoAborted as aborted:
+            logger.error(
+                f"Failed to redo operation {aborted.operation_id} "
+                f"in transaction {transaction_id}; transaction rolled back"
+            )
             return False
         except Exception:
             logger.exception(f"Unexpected error while redoing transaction {transaction_id}")

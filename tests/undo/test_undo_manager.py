@@ -22,9 +22,19 @@ from undo.undo_manager import UndoManager
 from undo.validator import OperationValidator
 
 
+@pytest.mark.ci
 @pytest.mark.unit
+@pytest.mark.integration
 class TestUndoManager(unittest.TestCase):
-    """Test cases for UndoManager."""
+    """Test cases for UndoManager.
+
+    Marked with ``ci``/``unit``/``integration`` so the transaction
+    wrap's new code paths (``undo_operation`` / ``redo_operation`` /
+    batch undo/redo) show up in the per-module integration coverage
+    that the PR CI gate tracks for ``src/undo/undo_manager.py``. The
+    existing happy-path assertions here exercise the single-row
+    ``with self.history.db.transaction()`` wrappers end-to-end.
+    """
 
     def setUp(self):
         """Set up test fixtures."""
@@ -286,7 +296,9 @@ class TestUndoManager(unittest.TestCase):
         self.assertFalse(success)
 
 
+@pytest.mark.ci
 @pytest.mark.unit
+@pytest.mark.integration
 class TestUndoManagerTransactionWrap(unittest.TestCase):
     """Tests for the B3 transaction-wrap invariants.
 
@@ -388,6 +400,15 @@ class TestUndoManagerTransactionWrap(unittest.TestCase):
         in this batch must be rolled back — the DB must not show some
         operations as COMPLETED while others stay ROLLED_BACK just
         because they happened to land before the failing row.
+
+        Also asserts ``DatabaseManager.transaction()`` was entered
+        exactly once for the whole batch (copilot
+        PRRT_kwDOR_Rkws59M7UW). Without this, the test would still
+        pass against a pre-B3 implementation that did per-op
+        ``execute_query`` + manual ``conn.rollback()`` on failure —
+        the rollback path happens to produce the same end state in
+        this particular scenario, but doesn't hold the db lock
+        across the loop, which is the regression this PR is about.
         """
         # Build two MOVE operations in a transaction, undo both so
         # they're in ROLLED_BACK state ready for a redo.
@@ -418,21 +439,43 @@ class TestUndoManagerTransactionWrap(unittest.TestCase):
 
         # Force the SECOND per-operation redo to fail.
         real_redo = self.executor.redo_operation
-        call_count = {"n": 0}
+        redo_calls = {"n": 0}
 
         def _redo_second_fails(operation: Operation) -> bool:
-            call_count["n"] += 1
-            if call_count["n"] == 2:
+            redo_calls["n"] += 1
+            if redo_calls["n"] == 2:
                 return False
             return real_redo(operation)
 
         self.executor.redo_operation = _redo_second_fails  # type: ignore[method-assign]
+
+        # Wrap ``db.transaction`` to count entries — asserting it was
+        # entered exactly once proves the batch went through a single
+        # context-manager scope, not a per-op ``execute_query`` loop.
+        from contextlib import contextmanager
+
+        real_transaction = self.history.db.transaction
+        transaction_entries = {"n": 0}
+
+        @contextmanager
+        def _counting_transaction() -> Generator[sqlite3.Connection, None, None]:
+            transaction_entries["n"] += 1
+            with real_transaction() as conn:
+                yield conn
+
+        self.history.db.transaction = _counting_transaction  # type: ignore[method-assign]
+
         try:
             success = self.manager.redo_transaction(txn_id)
         finally:
             self.executor.redo_operation = real_redo  # type: ignore[method-assign]
+            self.history.db.transaction = real_transaction  # type: ignore[method-assign]
 
         assert success is False
+        assert transaction_entries["n"] == 1, (
+            f"expected redo_transaction to enter db.transaction() exactly once, "
+            f"got {transaction_entries['n']}"
+        )
         # Neither operation's status should have flipped — the
         # transaction was rolled back by the context manager when the
         # _RedoAborted sentinel propagated.
