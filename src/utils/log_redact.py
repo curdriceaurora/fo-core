@@ -116,8 +116,19 @@ class CredentialRedactingFilter(logging.Filter):
                 return True
             record.msg = _redact_text(formatted)
             record.args = None
-        elif isinstance(record.msg, str):
-            record.msg = _redact_text(record.msg)
+            return True
+        # No-args branch. Always stringify ``record.msg`` before redacting —
+        # callers can pass non-string objects (``logger.info({"api_key":
+        # "..."})`` or any custom object whose ``__str__`` returns
+        # ``"token=..."``). ``LogRecord.getMessage()`` would ``str()`` them
+        # at emission time and leak the credential; we must redact that
+        # same string representation here. Same blind-catch rationale as
+        # above — a buggy ``__str__`` must not escape.
+        try:
+            rendered = str(record.msg)
+        except Exception:
+            return True
+        record.msg = _redact_text(rendered)
         return True
 
 

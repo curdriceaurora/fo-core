@@ -183,6 +183,54 @@ class TestContract:
         assert record.msg == original_msg
         assert record.args == original_args
 
+    def test_non_string_msg_dict_is_redacted(self) -> None:
+        """codex P1: ``logger.info({"api_key": "sk-xxx"})`` — ``record.msg``
+        is a ``dict``, ``record.args`` is empty. Previously the filter
+        skipped redaction because ``isinstance(record.msg, str)`` was
+        False; ``LogRecord.getMessage()`` would later ``str()`` the dict
+        and leak the credential. The filter must always stringify and
+        redact.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record({"api_key": "sk-super-secret-xyz123"})  # type: ignore[arg-type]
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "sk-super-secret-xyz123" not in rendered
+        assert REDACTED in rendered
+
+    def test_non_string_msg_with_leaking_custom_str(self) -> None:
+        """Custom object whose ``__str__`` returns a credential-shaped
+        string. Same leak shape as the dict case but via an object.
+        """
+
+        class _LeakyObj:
+            def __str__(self) -> str:
+                return "token=sk-leaked-secret"
+
+        f = CredentialRedactingFilter()
+        record = _make_record(_LeakyObj())  # type: ignore[arg-type]
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "sk-leaked-secret" not in rendered
+        assert REDACTED in rendered
+
+    def test_buggy_msg_str_does_not_escape_filter(self) -> None:
+        """If ``str(record.msg)`` itself raises (buggy custom ``__str__``
+        with no args present), the filter must swallow and return True.
+        Same contract as ``test_buggy_arg_str_does_not_escape_filter`` but
+        for the no-args branch.
+        """
+
+        class _PoisonObj:
+            def __str__(self) -> str:
+                raise RuntimeError("buggy __str__")
+
+        f = CredentialRedactingFilter()
+        original = _PoisonObj()
+        record = _make_record(original)  # type: ignore[arg-type]
+        assert f.filter(record) is True
+        assert record.msg is original  # untouched
+
     def test_buggy_arg_str_does_not_escape_filter(self) -> None:
         """codex P2: the filter is attached via ``setLogRecordFactory`` so it
         runs on every ``logger.*()`` call. If a ``%s`` arg's ``__str__`` /
