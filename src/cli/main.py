@@ -85,6 +85,15 @@ def main_callback(
     )
 
     from cli.interactive import set_flags
+    from utils.log_redact import install_on_root
+
+    # A.creds: attach the credential-redacting log filter to the root logger
+    # so every ``logging.getLogger(__name__)`` in ``src/`` inherits protection
+    # against api_key / token / secret / password / bearer leaks — even when
+    # a future code path accidentally stuffs a secret into a log message or
+    # exception args. Installed at the CLI entry point so the filter exists
+    # before any command runs.
+    install_on_root()
 
     set_flags(yes=yes, no_interactive=no_interactive)
 
