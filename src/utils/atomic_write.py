@@ -77,8 +77,29 @@ def _fsync_and_replace(tmp_path: Path, target: Path) -> None:
     # if it raises (cross-device EXDEV, permission denied, etc.) we
     # unlink the temp file so operators don't find orphan ``*.tmp``
     # files next to real state.
+    #
+    # Permission preservation: ``tempfile.NamedTemporaryFile`` creates
+    # the temp file with mode 0o600 (via ``mkstemp``). After
+    # ``os.replace`` the destination inherits the temp inode's mode,
+    # which would silently drop any non-default bits a user had on the
+    # pre-existing target (e.g. group-readable config). Mirror the
+    # pre-existing target's mode onto the temp file before the rename
+    # so ``chmod`` settings survive the save (coderabbit Minor
+    # PRRT_kwDOR_Rkws59MONs). First-time writes keep the safer 0o600
+    # default because there's no pre-existing mode to inherit.
     try:
-        os.replace(str(tmp_path), str(target))
+        existing_mode: int | None = target.stat().st_mode & 0o7777
+    except FileNotFoundError:
+        existing_mode = None
+    if existing_mode is not None:
+        try:
+            os.chmod(tmp_path, existing_mode)
+        except OSError:
+            # chmod failure is non-fatal — proceed with the save and
+            # accept the 0o600 fallback rather than lose the write.
+            pass
+    try:
+        os.replace(tmp_path, target)
     except OSError:
         # Best-effort cleanup. ``missing_ok=True`` swallows the race
         # where another process already removed the temp file.
@@ -197,6 +218,7 @@ def atomic_write_with(
     writer: _WriterCallback,
     *,
     mode: Literal["w", "wb"] = "wb",
+    encoding: str | None = None,
 ) -> None:
     """Atomically write via a caller-supplied streaming ``writer`` callback.
 
@@ -218,9 +240,16 @@ def atomic_write_with(
         mode: ``"wb"`` (default, binary) or ``"w"`` (text). Any other
             value raises :class:`ValueError` — append / read modes do
             not fit the atomic-replace contract.
+        encoding: Text encoding for ``mode="w"``. When omitted, text
+            mode defaults to ``"utf-8"`` (NOT the process locale — a
+            locale-default open on Windows can produce bytes that
+            later fail to decode under UTF-8, breaking cross-platform
+            persistence). Must be ``None`` for binary mode; supplying
+            a value with ``mode="wb"`` raises :class:`ValueError`.
 
     Raises:
-        ValueError: ``mode`` is not ``"w"`` or ``"wb"``.
+        ValueError: ``mode`` is not ``"w"`` or ``"wb"``, or
+            ``encoding`` was supplied with ``mode="wb"``.
         FileNotFoundError: Parent directory does not exist.
         OSError: Underlying filesystem error. Target is unchanged on
             failure; temp file is cleaned up.
@@ -233,7 +262,19 @@ def atomic_write_with(
             f"atomic_write_with mode must be 'w' or 'wb', got {mode!r}. "
             "Append / read modes are incompatible with the atomic-replace contract."
         )
-    _write_via_temp(path, mode, writer)
+    if mode == "wb" and encoding is not None:
+        raise ValueError(
+            f"encoding={encoding!r} is invalid for binary mode 'wb'; "
+            "pass encoding only with mode='w'."
+        )
+    # Text mode without explicit encoding defaults to UTF-8 to match
+    # the project-wide default and avoid Windows/locale pitfalls that
+    # break ``json.dump(..., ensure_ascii=False)`` and similar
+    # non-ASCII writers (codex P1 PRRT_kwDOR_Rkws59ML8K).
+    resolved_encoding = encoding
+    if mode == "w" and resolved_encoding is None:
+        resolved_encoding = "utf-8"
+    _write_via_temp(path, mode, writer, encoding=resolved_encoding)
 
 
 def append_durable(path: Path, line: str, *, encoding: str = "utf-8") -> None:

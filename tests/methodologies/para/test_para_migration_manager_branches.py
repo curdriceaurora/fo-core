@@ -1136,9 +1136,7 @@ class TestCreateBackupEdgeCases:
         # Inject failure in manifest write (now goes through
         # ``atomic_write_with`` — temp-file + os.replace; patch the
         # wrapper directly).
-        def _failing_atomic_write(
-            path: Path, _writer: object, *, mode: str = "wb"
-        ) -> None:
+        def _failing_atomic_write(path: Path, _writer: object, *, mode: str = "wb") -> None:
             if path.name == "manifest.json":
                 raise OSError("injected manifest write failure")
             raise AssertionError(f"unexpected atomic_write_with target: {path}")
@@ -1179,9 +1177,7 @@ class TestCreateBackupEdgeCases:
 
         # Inject failure in both manifest writing (via the
         # ``atomic_write_with`` wrapper) and cleanup.
-        def _failing_atomic_write(
-            path: Path, _writer: object, *, mode: str = "wb"
-        ) -> None:
+        def _failing_atomic_write(path: Path, _writer: object, *, mode: str = "wb") -> None:
             if path.name == "manifest.json":
                 raise OSError("injected manifest write failure")
             raise AssertionError(f"unexpected atomic_write_with target: {path}")
@@ -1234,9 +1230,7 @@ class TestCreateBackupEdgeCases:
                 backup_dir_ref[0] = self
             return result
 
-        def _failing_atomic_write(
-            path: Path, _writer: object, *, mode: str = "wb"
-        ) -> None:
+        def _failing_atomic_write(path: Path, _writer: object, *, mode: str = "wb") -> None:
             if path.name == "manifest.json":
                 if backup_dir_ref[0] and backup_dir_ref[0].exists():
                     shutil.rmtree(backup_dir_ref[0])

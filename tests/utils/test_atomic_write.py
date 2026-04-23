@@ -183,6 +183,51 @@ class TestAtomicWriteWith:
         with pytest.raises(ValueError):
             atomic_write_with(target, _writer, mode="r")  # type: ignore[arg-type]
 
+    def test_text_mode_defaults_to_utf8(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59ML8K): ``atomic_write_with(mode="w")``
+        must default to UTF-8, not the process locale. On non-UTF-8
+        locales (common on Windows), a locale-default open would emit
+        bytes that later fail to decode as UTF-8. Simulate a non-UTF-8
+        locale by forcing ``locale.getpreferredencoding`` and confirm
+        the written bytes are valid UTF-8 regardless.
+        """
+        import locale as _locale
+
+        monkeypatch.setattr(_locale, "getpreferredencoding", lambda _do_setlocale=True: "cp1252")
+
+        target = tmp_path / "unicode.json"
+
+        def _writer(fh: io.TextIOBase) -> None:
+            fh.write('{"key": "café ñ 你好"}')
+
+        atomic_write_with(target, _writer, mode="w")
+        # Round-trip through UTF-8 — must not raise and must match.
+        assert target.read_text(encoding="utf-8") == '{"key": "café ñ 你好"}'
+
+    def test_text_mode_respects_explicit_encoding(self, tmp_path: Path) -> None:
+        """Caller-supplied ``encoding`` overrides the UTF-8 default."""
+        target = tmp_path / "latin.txt"
+
+        def _writer(fh: io.TextIOBase) -> None:
+            fh.write("café")
+
+        atomic_write_with(target, _writer, mode="w", encoding="latin-1")
+        assert target.read_bytes() == "café".encode("latin-1")
+
+    def test_binary_mode_rejects_encoding(self, tmp_path: Path) -> None:
+        """Passing ``encoding`` with binary mode is a caller bug —
+        surface it as ``ValueError`` rather than silently ignoring.
+        """
+        target = tmp_path / "x.bin"
+
+        def _writer(_fh: io.BufferedWriter) -> None:
+            pass  # pragma: no cover — should not be called
+
+        with pytest.raises(ValueError, match="invalid for binary mode"):
+            atomic_write_with(target, _writer, mode="wb", encoding="utf-8")
+
 
 # ---------------------------------------------------------------------------
 # append_durable
@@ -250,6 +295,9 @@ class TestAtomicityInvariants:
         # no interleaving, no truncation.
         final = target.read_text()
         assert final in payloads
+        # And no racing-writer ``*.tmp`` artifact survives the storm
+        # (coderabbit PRRT_kwDOR_Rkws59MONu).
+        assert list(tmp_path.iterdir()) == [target]
 
     def test_temp_file_removed_when_replace_fails(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -260,10 +308,7 @@ class TestAtomicityInvariants:
         """
         target = tmp_path / "s.yaml"
 
-        real_replace = os.replace
-
-        def _broken_replace(src: str, dst: str) -> None:
-            _ = real_replace  # keep reference
+        def _broken_replace(_src: object, _dst: object) -> None:
             raise OSError("simulated cross-device replace failure")
 
         monkeypatch.setattr(os, "replace", _broken_replace)
@@ -273,6 +318,42 @@ class TestAtomicityInvariants:
 
         # Nothing left behind — no target, no temp file.
         assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX file-mode bits not meaningful on Windows",
+    )
+    def test_preserves_existing_target_permissions(self, tmp_path: Path) -> None:
+        """coderabbit Minor (PRRT_kwDOR_Rkws59MONs): ``tempfile.NamedTemporaryFile``
+        creates the temp file with 0o600, and ``os.replace`` inherits
+        the temp inode's mode. Without explicit preservation, a user
+        who chmodded their config file to 0o644 would silently lose
+        that on every save. Pre-existing target mode must survive the
+        atomic replace.
+        """
+        target = tmp_path / "config.yaml"
+        target.write_text("initial")
+        # User customised to group-readable.
+        target.chmod(0o640)
+
+        atomic_write_text(target, "updated")
+        new_mode = target.stat().st_mode & 0o7777
+        assert new_mode == 0o640, f"mode drifted: expected 0o640, got {oct(new_mode)}"
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX file-mode bits not meaningful on Windows",
+    )
+    def test_new_target_gets_default_safe_mode(self, tmp_path: Path) -> None:
+        """First-time writes have no pre-existing mode to inherit, so
+        they retain the tempfile default of 0o600 — safer than the
+        locale-default umask-derived mode and acceptable for the state
+        files this module is used for.
+        """
+        target = tmp_path / "new.yaml"
+        atomic_write_text(target, "first write")
+        new_mode = target.stat().st_mode & 0o7777
+        assert new_mode == 0o600
 
     @pytest.mark.skipif(
         sys.platform == "win32",
@@ -297,4 +378,6 @@ class TestAtomicityInvariants:
 
         target = tmp_path / "s.yaml"
         atomic_write_text(target, "payload")
-        assert target in called or any(p == target for p in called)
+        # ``atomic_io.fsync_directory`` is called with the target path
+        # (it internally opens ``target.parent`` for the fsync).
+        assert called == [target]
