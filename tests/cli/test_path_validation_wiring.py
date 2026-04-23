@@ -70,9 +70,7 @@ def test_cli_command_rejects_missing_path(
 ) -> None:
     target = daemon_app if app_key == "daemon" else app
     bogus = _bogus(tmp_path)
-    argv = [
-        a.replace("{p}", bogus).replace("{p2}", bogus + "_other") for a in argv_template
-    ]
+    argv = [a.replace("{p}", bogus).replace("{p2}", bogus + "_other") for a in argv_template]
     result = runner.invoke(target, argv)
     # typer.BadParameter → exit code 2 (POSIX usage-error convention).
     assert result.exit_code == 2, (
