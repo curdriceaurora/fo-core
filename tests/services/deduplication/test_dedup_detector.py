@@ -32,6 +32,10 @@ class TestScanOptions(unittest.TestCase):
         self.assertEqual(opts.algorithm, "sha256")
         self.assertTrue(opts.recursive)
         self.assertFalse(opts.follow_symlinks)
+        # #170: default `include_hidden=False` keeps `.ssh/*` / `.env` out of
+        # the dedupe hash index; `dedupe resolve` can DELETE files, so this
+        # default is load-bearing.
+        self.assertFalse(opts.include_hidden)
         self.assertEqual(opts.min_file_size, 0)
         self.assertIsNone(opts.max_file_size)
         self.assertIsNone(opts.file_patterns)
@@ -199,6 +203,41 @@ class TestDuplicateDetector(unittest.TestCase):
         names = [f.name for f in files]
         self.assertIn("a.txt", names)
         self.assertNotIn("b.log", names)
+
+    def test_find_files_excludes_hidden_by_default(self):
+        """#170: default (``include_hidden=False``) skips dotfiles and files
+        under hidden directories. Hashes of ``.env`` / ``.ssh/id_rsa`` never
+        enter the index so ``dedupe resolve`` can't accidentally delete them.
+        """
+        (self.test_dir / "visible.txt").write_text("v")
+        (self.test_dir / ".env").write_text("SECRET=x")
+        hidden_dir = self.test_dir / ".ssh"
+        hidden_dir.mkdir()
+        (hidden_dir / "id_rsa").write_text("PRIVATE KEY")
+
+        detector = DuplicateDetector()
+        files = detector._find_files(self.test_dir, ScanOptions())
+        names = [f.name for f in files]
+        self.assertIn("visible.txt", names)
+        self.assertNotIn(".env", names)
+        self.assertNotIn("id_rsa", names)
+
+    def test_find_files_includes_hidden_when_opted_in(self):
+        """#170: ``ScanOptions(include_hidden=True)`` plumbs through to
+        ``safe_walk(include_hidden=True)`` — dotfiles and files under hidden
+        directories are indexed."""
+        (self.test_dir / "visible.txt").write_text("v")
+        (self.test_dir / ".env").write_text("k=v")
+        hidden_dir = self.test_dir / ".cache"
+        hidden_dir.mkdir()
+        (hidden_dir / "blob").write_text("cached")
+
+        detector = DuplicateDetector()
+        files = detector._find_files(self.test_dir, ScanOptions(include_hidden=True))
+        names = [f.name for f in files]
+        self.assertIn("visible.txt", names)
+        self.assertIn(".env", names)
+        self.assertIn("blob", names)
 
     def test_group_by_size(self):
         """Test _group_by_size groups correctly."""

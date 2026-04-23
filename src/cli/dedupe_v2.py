@@ -15,6 +15,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from cli.interactive import confirm_action
 from cli.path_validation import resolve_cli_path
 
 console = Console()
@@ -41,6 +42,7 @@ def _build_scan_options(
     max_size: int | None,
     include: str | None,
     exclude: str | None,
+    include_hidden: bool = False,
 ) -> Any:
     """Build ``ScanOptions`` from CLI flags."""
     from services.deduplication.detector import ScanOptions
@@ -51,11 +53,42 @@ def _build_scan_options(
     return ScanOptions(
         algorithm=cast("HashAlgorithm", algorithm),
         recursive=recursive,
+        include_hidden=include_hidden,
         min_file_size=min_size,
         max_file_size=max_size,
         file_patterns=include_patterns,
         exclude_patterns=exclude_patterns,
     )
+
+
+# #170: shown to the user when they pass ``--include-hidden`` to
+# ``fo dedupe resolve``. The resolve path can DELETE files; opting into
+# hidden-file inclusion means dotfiles like ``.env`` / ``.ssh/id_rsa`` enter
+# the hash index, so a backup-directory duplicate could cascade into a
+# credential deletion. The prompt forces a conscious second-click.
+_HIDDEN_RESOLVE_WARNING = (
+    "You are about to [bold]dedupe resolve[/bold] a scan that includes hidden "
+    "files ([yellow].env[/yellow], [yellow].ssh/*[/yellow], "
+    "[yellow].config/*[/yellow], etc.). These will be hashed and may be "
+    "deleted as duplicates — including potentially sensitive credentials. "
+    "Continue?"
+)
+
+
+def _hidden_files_will_be_scanned(directory: Path, *, include_hidden: bool) -> bool:
+    """Return True when the scan is likely to touch hidden files.
+
+    The `resolve` confirmation gate must fire not only when ``--include-hidden``
+    is set, but also when the scan *root itself* is a hidden directory
+    (`fo dedupe resolve ~/.ssh --strategy oldest`). ``safe_walk``'s hidden
+    filter is relative to `root`: a root of `~/.ssh` means `id_rsa` has no
+    hidden component *under* the root, and would be scanned even with
+    `include_hidden=False`. Either condition is enough to warrant the prompt.
+    """
+    if include_hidden:
+        return True
+    resolved = directory.resolve()
+    return any(part.startswith(".") and part not in (".", "..") for part in resolved.parts)
 
 
 def _display_groups_table(
@@ -126,13 +159,29 @@ def scan(
     max_size: int | None = typer.Option(None, help="Maximum file size in bytes."),
     include: str | None = typer.Option(None, help="Comma-separated glob include patterns."),
     exclude: str | None = typer.Option(None, help="Comma-separated glob exclude patterns."),
+    include_hidden: bool = typer.Option(
+        False,
+        "--include-hidden",
+        help=(
+            "Include dotfiles and files under hidden directories "
+            "(.env, .ssh, .config). Off by default — hidden paths often "
+            "contain credentials."
+        ),
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Scan a directory and display duplicate file groups."""
     directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
     detector = _get_detector()
     options = _build_scan_options(
-        directory, algorithm, recursive, min_size, max_size, include, exclude
+        directory,
+        algorithm,
+        recursive,
+        min_size,
+        max_size,
+        include,
+        exclude,
+        include_hidden=include_hidden,
     )
 
     with console.status("Scanning for duplicates…"):
@@ -161,12 +210,38 @@ def resolve(
     max_size: int | None = typer.Option(None, help="Maximum file size in bytes."),
     include: str | None = typer.Option(None, help="Comma-separated include patterns."),
     exclude: str | None = typer.Option(None, help="Comma-separated exclude patterns."),
+    include_hidden: bool = typer.Option(
+        False,
+        "--include-hidden",
+        help=(
+            "Include dotfiles / hidden directories. Off by default; when "
+            "on, a confirmation prompt appears before any deletion."
+        ),
+    ),
 ) -> None:
     """Scan and resolve duplicates using a strategy."""
     directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
+    # #170: any `resolve` that will actually traverse hidden files (either via
+    # ``--include-hidden`` OR because the scan root itself is a hidden dir
+    # like ``~/.ssh``) requires an explicit credential-risk confirmation.
+    # ``--yes`` / ``--no-interactive`` still honour their usual semantics via
+    # ``confirm_action``. User-cancellation exits with code 1 so shell scripts
+    # and ``&&`` chains can distinguish "aborted" from "no duplicates found".
+    if _hidden_files_will_be_scanned(
+        directory, include_hidden=include_hidden
+    ) and not confirm_action(_HIDDEN_RESOLVE_WARNING, default=False):
+        console.print("[yellow]Aborted.[/yellow]")
+        raise typer.Exit(code=1)
     detector = _get_detector()
     options = _build_scan_options(
-        directory, algorithm, recursive, min_size, max_size, include, exclude
+        directory,
+        algorithm,
+        recursive,
+        min_size,
+        max_size,
+        include,
+        exclude,
+        include_hidden=include_hidden,
     )
 
     with console.status("Scanning for duplicates…"):
@@ -217,6 +292,11 @@ def report(
     directory: Path = typer.Argument(..., help="Directory to scan."),
     algorithm: str = typer.Option("sha256", help="Hash algorithm."),
     recursive: bool = typer.Option(True, help="Scan subdirectories."),
+    include_hidden: bool = typer.Option(
+        False,
+        "--include-hidden",
+        help="Include dotfiles and files under hidden directories in the report.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Scan and display a summary report of duplicates."""
@@ -225,7 +305,11 @@ def report(
     from services.deduplication.detector import ScanOptions
     from services.deduplication.hasher import HashAlgorithm
 
-    options = ScanOptions(algorithm=cast("HashAlgorithm", algorithm), recursive=recursive)
+    options = ScanOptions(
+        algorithm=cast("HashAlgorithm", algorithm),
+        recursive=recursive,
+        include_hidden=include_hidden,
+    )
 
     with console.status("Scanning…"):
         detector.scan_directory(directory, options)
