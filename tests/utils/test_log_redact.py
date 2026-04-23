@@ -214,6 +214,28 @@ class TestContract:
         assert "sk-leaked-secret" not in rendered
         assert REDACTED in rendered
 
+    def test_redacts_exception_traceback_text(self) -> None:
+        """codex P1: ``logger.exception(...)`` / ``exc_info=True`` attaches
+        a ``(type, value, traceback)`` tuple. The default formatter caches
+        ``formatException`` output in ``record.exc_text``. If the exception
+        message itself contains a credential (``RuntimeError("api_key=
+        sk-xxx")``), it leaks into the log output verbatim unless
+        ``exc_text`` is also redacted.
+        """
+        f = CredentialRedactingFilter()
+        try:
+            raise RuntimeError("api_key=sk-super-secret-xyz123 inside error")
+        except RuntimeError:
+            import sys
+
+            exc_info = sys.exc_info()
+        record = _make_record("caught an error")
+        record.exc_info = exc_info
+        assert f.filter(record) is True
+        assert record.exc_text is not None
+        assert "sk-super-secret-xyz123" not in record.exc_text
+        assert REDACTED in record.exc_text
+
     def test_buggy_msg_str_does_not_escape_filter(self) -> None:
         """If ``str(record.msg)`` itself raises (buggy custom ``__str__``
         with no args present), the filter must swallow and return True.
@@ -258,6 +280,32 @@ class TestContract:
         # error via its own handler chain.
         assert record.msg == original_msg
         assert record.args == original_args
+
+    def test_install_on_root_installs_loguru_patcher(self) -> None:
+        """codex P1: ``install_on_root`` must also install a patcher on the
+        Loguru logger (``src/models/_openai_client.py`` + ``_claude_client.py``
+        use loguru). Records emitted through loguru bypass
+        ``setLogRecordFactory``, so a stdlib-only install leaves loguru
+        paths unprotected. Installing via ``logger.configure(patcher=...)``
+        covers them.
+        """
+        from utils.log_redact import install_on_root
+
+        original_factory = logging.getLogRecordFactory()
+        try:
+            installed = install_on_root()
+            # The filter instance stashes the loguru patcher when the
+            # loguru integration succeeded.
+            assert getattr(installed, "_loguru_patcher", None) is not None, (
+                "install_on_root did not install the loguru patcher"
+            )
+        finally:
+            logging.setLogRecordFactory(original_factory)
+            for f in [
+                filt for filt in logging.getLogger().filters
+                if isinstance(filt, CredentialRedactingFilter)
+            ]:
+                logging.getLogger().removeFilter(f)
 
     def test_install_on_root_honours_extra_loggers(self) -> None:
         """``install_on_root(extra_loggers=["foo"])`` attaches the filter to

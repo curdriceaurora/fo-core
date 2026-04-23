@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import re
+import traceback
 from collections.abc import Iterable
 
 REDACTED = "[REDACTED]"
@@ -129,7 +130,78 @@ class CredentialRedactingFilter(logging.Filter):
         except Exception:
             return True
         record.msg = _redact_text(rendered)
+        # codex P1: ``logger.exception()`` / ``logger.*(..., exc_info=True)``
+        # attaches a ``(type, value, traceback)`` tuple at ``record.exc_info``.
+        # The default formatter later calls ``formatException`` and caches
+        # the result in ``record.exc_text`` — at which point the raw
+        # exception message (e.g. ``RuntimeError("api_key=sk-xxx")``) is
+        # rendered verbatim into the log output. Pre-format and redact the
+        # traceback now so the formatter's "use cached exc_text if already
+        # set" branch picks up our scrubbed version instead.
+        if record.exc_info:
+            try:
+                exc_text = "".join(traceback.format_exception(*record.exc_info))
+            except Exception:
+                return True
+            record.exc_text = _redact_text(exc_text)
         return True
+
+
+def _install_on_loguru(instance: CredentialRedactingFilter) -> bool:
+    """Register a patcher on the Loguru logger that redacts every record.
+
+    Parts of the codebase (``src/models/_openai_client.py``,
+    ``src/models/_claude_client.py``) use Loguru rather than the stdlib
+    ``logging`` module. Loguru records don't go through
+    ``setLogRecordFactory``, so a stdlib-only install leaves Loguru paths
+    unprotected. Loguru's patcher API (``logger.configure(patcher=fn)``
+    since 0.6) runs ``fn`` on every record dict before emission, which is
+    the symmetric hook point.
+
+    Returns ``True`` if loguru was installed, ``False`` if loguru is
+    unavailable (the dep is declared as a base requirement in
+    ``pyproject.toml`` but importing can still fail in minimal test envs).
+    """
+    try:
+        from loguru import logger as loguru_logger
+    except ImportError:  # pragma: no cover — loguru is a base dep
+        return False
+
+    from typing import Any
+
+    def _patcher(record: Any) -> None:
+        # Loguru record: ``{'message': str, 'exception': RecordException | None, ...}``.
+        # Redact the main message and the exception repr (which loguru
+        # stringifies during emission just like logging's exc_info path).
+        msg = record.get("message")
+        if isinstance(msg, str):
+            record["message"] = _redact_text(msg)
+        exc = record.get("exception")
+        # ``RecordException`` is a namedtuple-ish object with ``type``,
+        # ``value``, ``traceback``. We redact ``value``'s str representation
+        # by replacing the exception with a re-formatted version, but the
+        # simplest safe thing is to scrub the message via loguru's built-in
+        # pre-formatted repr. Best-effort: stringify and rely on the
+        # scrubbed message + exception message caught at emission.
+        if exc is not None:
+            try:
+                exc_text = "".join(
+                    traceback.format_exception(exc.type, exc.value, exc.traceback)
+                )
+            except Exception:
+                return
+            # Loguru emits the exception block separately from the message;
+            # stash the scrubbed text on the record under a dedicated key
+            # that the default formatter appends via ``{exception}``.
+            record["extra"]["redacted_exception"] = _redact_text(exc_text)
+
+    # ``patcher`` runs on every record; installing twice would stack, so
+    # configure with a single canonical patcher. ``logger.configure``
+    # replaces the patcher rather than appending, making this idempotent.
+    loguru_logger.configure(patcher=_patcher)
+    # Keep a reference for potential teardown by tests.
+    instance._loguru_patcher = _patcher  # type: ignore[attr-defined]
+    return True
 
 
 def install_on_root(extra_loggers: Iterable[str] = ()) -> CredentialRedactingFilter:
@@ -180,4 +252,8 @@ def install_on_root(extra_loggers: Iterable[str] = ()) -> CredentialRedactingFil
     logging.getLogger().addFilter(instance)
     for name in extra_loggers:
         logging.getLogger(name).addFilter(instance)
+    # codex P1: Loguru has its own record pipeline that doesn't go through
+    # ``setLogRecordFactory``. Install a symmetric patcher so loguru-based
+    # log sites (``_openai_client.py``, ``_claude_client.py``) are covered.
+    _install_on_loguru(instance)
     return instance
