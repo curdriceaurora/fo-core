@@ -321,7 +321,7 @@ class TestContract:
         try:
             raise RuntimeError("api_key=sk-super-secret-xyz123 inside error")
         except RuntimeError as exc:
-            from loguru._recattrs import RecordException  # type: ignore[import-untyped]
+            from loguru._recattrs import RecordException
 
             orig_exc = RecordException(type(exc), exc, exc.__traceback__)
 

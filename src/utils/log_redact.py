@@ -205,7 +205,7 @@ def _install_on_loguru(instance: CredentialRedactingFilter) -> bool:
             # ``Exception(redacted)`` and whose traceback is stripped (we
             # already formatted+scrubbed it into the exception's message).
             try:
-                from loguru._recattrs import RecordException  # type: ignore[import-untyped]
+                from loguru._recattrs import RecordException
             except ImportError:
                 # Internal API moved — fall back to dropping the exception
                 # block entirely. Still prevents the leak while degrading
