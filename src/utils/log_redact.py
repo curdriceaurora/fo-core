@@ -60,7 +60,13 @@ _KV_PATTERN = re.compile(
 
 # ``Authorization: Bearer <token>`` HTTP header shape. Distinct from the
 # ``key=value`` pattern because the separator is whitespace rather than ``=``.
-_BEARER_PATTERN = re.compile(r"(?i)(?P<prefix>authorization:\s*bearer\s+)(?P<value>[^\s,;}]+)")
+# Allows optional quotes around both the key and the separator so dict-repr
+# (``{'Authorization': 'Bearer abc'}``) and JSON (``"Authorization":
+# "Bearer abc"``) forms also match — logger calls that pass header dicts
+# are a real leak path (codex P1 PRRT_kwDOR_Rkws59IB5U).
+_BEARER_PATTERN = re.compile(
+    r"(?i)(?P<prefix>authorization[\"']?\s*:\s*[\"']?bearer\s+)(?P<value>[^\"'\s,;}]+)"
+)
 
 
 def _redact_text(text: str) -> str:

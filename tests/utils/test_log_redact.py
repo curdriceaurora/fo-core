@@ -96,6 +96,30 @@ class TestRedactsBearerHeader:
         assert "abc123" not in record.getMessage()
         assert REDACTED in record.getMessage()
 
+    def test_bearer_in_dict_repr_shape(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59IB5U): ``logger.info({'Authorization':
+        'Bearer abc'})`` renders as ``{'Authorization': 'Bearer abc'}`` after
+        str(). The bearer pattern must match the quoted-key / quoted-value
+        dict-repr form, not just the bare HTTP header shape.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record(  # type: ignore[arg-type]
+            {"Authorization": "Bearer abc123.xyz_def"}
+        )
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "abc123.xyz_def" not in rendered
+        assert REDACTED in rendered
+
+    def test_bearer_in_json_shape(self) -> None:
+        """JSON-style ``{"Authorization": "Bearer ..."}`` leak shape."""
+        f = CredentialRedactingFilter()
+        record = _make_record('{"Authorization": "Bearer xyz.token.here"}')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "xyz.token.here" not in rendered
+        assert REDACTED in rendered
+
 
 class TestRedactsArgs:
     """Credentials passed as ``%s`` arguments, not inline in the message."""
