@@ -57,9 +57,20 @@ class TestConfigList:
     def test_list_shows_profiles_or_empty_message(self) -> None:
         result = runner.invoke(app, ["config", "list"])
         assert result.exit_code == 0
-        # Either shows profile names or an empty-state message
+        # Either shows profile names or an empty-state message.
+        #
+        # T9 fix (roadmap §3 C4): the pre-existing trailing
+        # ``or len(result.output.strip()) >= 0`` clause was always
+        # ``True`` (``len`` is non-negative by definition), making
+        # the whole disjunction vacuous — the test passed regardless
+        # of what the CLI printed, including an empty string. Removed
+        # so the assertion actually verifies one of the two allowed
+        # outputs was produced.
         output = result.output.lower()
-        assert ("default" in output) or ("no profiles" in output) or len(result.output.strip()) >= 0
+        assert ("default" in output) or ("no profiles" in output), (
+            f"`fo config list` produced neither a profile name nor an "
+            f"empty-state message; got: {result.output!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
