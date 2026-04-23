@@ -8,6 +8,7 @@ All Redis operations are mocked.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -133,42 +134,46 @@ class TestPubSubPublish:
     """Tests for publish and dispatch."""
 
     def test_publish_returns_message_id(
-        self, pubsub: PubSubManager, mock_manager: MagicMock
+        self, pubsub: PubSubManager, mock_manager: MagicMock, tmp_path: Path
     ) -> None:
         """publish() returns the Redis message ID."""
-        msg_id = pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        msg_id = pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         assert msg_id == "1234567890-0"
         assert pubsub.publish_count == 1
 
     def test_publish_calls_stream_manager(
-        self, pubsub: PubSubManager, mock_manager: MagicMock
+        self, pubsub: PubSubManager, mock_manager: MagicMock, tmp_path: Path
     ) -> None:
         """publish() writes to the correct Redis stream."""
-        pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         mock_manager.publish.assert_called_once()
         call_args = mock_manager.publish.call_args
         # publish is called with positional args: (stream_name, event_data)
         assert call_args[0][0] == "pubsub:file:created"
 
-    def test_publish_dispatches_to_handler(self, pubsub: PubSubManager) -> None:
+    def test_publish_dispatches_to_handler(self, pubsub: PubSubManager, tmp_path: Path) -> None:
         """publish() invokes matching handlers synchronously."""
         handler = MagicMock()
         pubsub.subscribe("file.created", handler)
-        pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         handler.assert_called_once()
 
-    def test_publish_dispatches_to_wildcard_handler(self, pubsub: PubSubManager) -> None:
+    def test_publish_dispatches_to_wildcard_handler(
+        self, pubsub: PubSubManager, tmp_path: Path
+    ) -> None:
         """Wildcard subscribers receive matching events."""
         handler = MagicMock()
         pubsub.subscribe("file.*", handler)
-        pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         handler.assert_called_once()
 
-    def test_publish_does_not_dispatch_to_non_matching(self, pubsub: PubSubManager) -> None:
+    def test_publish_does_not_dispatch_to_non_matching(
+        self, pubsub: PubSubManager, tmp_path: Path
+    ) -> None:
         """Non-matching handlers are not invoked."""
         handler = MagicMock()
         pubsub.subscribe("scan.*", handler)
-        pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         handler.assert_not_called()
 
     def test_publish_with_filter_passes(self, pubsub: PubSubManager) -> None:
@@ -193,31 +198,35 @@ class TestPubSubPublish:
         pubsub.publish("file.created", {"size": 50})
         handler.assert_not_called()
 
-    def test_publish_multiple_handlers_all_called(self, pubsub: PubSubManager) -> None:
+    def test_publish_multiple_handlers_all_called(
+        self, pubsub: PubSubManager, tmp_path: Path
+    ) -> None:
         """All matching handlers are called for a single publish."""
         h1, h2 = MagicMock(), MagicMock()
         pubsub.subscribe("file.created", h1)
         pubsub.subscribe("file.*", h2)
-        pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         h1.assert_called_once()
         h2.assert_called_once()
 
-    def test_publish_handler_error_does_not_stop_others(self, pubsub: PubSubManager) -> None:
+    def test_publish_handler_error_does_not_stop_others(
+        self, pubsub: PubSubManager, tmp_path: Path
+    ) -> None:
         """A handler error does not prevent other handlers from running."""
         h1 = MagicMock(side_effect=RuntimeError("boom"))
         h2 = MagicMock()
         pubsub.subscribe("file.created", h1)
         pubsub.subscribe("file.created", h2)
-        pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         h1.assert_called_once()
         h2.assert_called_once()
 
     def test_publish_redis_failure_returns_none(
-        self, pubsub: PubSubManager, mock_manager: MagicMock
+        self, pubsub: PubSubManager, mock_manager: MagicMock, tmp_path: Path
     ) -> None:
         """When Redis publish fails, returns None."""
         mock_manager.publish.return_value = None
-        msg_id = pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        msg_id = pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         assert msg_id is None
         assert pubsub.publish_count == 0
 
@@ -234,12 +243,12 @@ class TestPubSubPublish:
         assert msg_id == "1234567890-0"
         mock_manager.publish.assert_called_once()
 
-    def test_publish_after_unsubscribe(self, pubsub: PubSubManager) -> None:
+    def test_publish_after_unsubscribe(self, pubsub: PubSubManager, tmp_path: Path) -> None:
         """After unsubscribe, handler is no longer invoked."""
         handler = MagicMock()
         pubsub.subscribe("file.created", handler)
         pubsub.unsubscribe("file.created", handler)
-        pubsub.publish("file.created", {"path": "/tmp/f.txt"})
+        pubsub.publish("file.created", {"path": str(tmp_path / "f.txt")})
         handler.assert_not_called()
 
 
@@ -252,7 +261,9 @@ class TestPubSubPublish:
 class TestPubSubMiddleware:
     """Tests for middleware integration in PubSubManager."""
 
-    def test_middleware_before_publish_cancel(self, mock_manager: MagicMock) -> None:
+    def test_middleware_before_publish_cancel(
+        self, mock_manager: MagicMock, tmp_path: Path
+    ) -> None:
         """Middleware can cancel publish by returning None."""
 
         class CancelMiddleware:
@@ -262,7 +273,7 @@ class TestPubSubMiddleware:
         pipeline = MiddlewarePipeline()
         pipeline.add(CancelMiddleware())
         ps = PubSubManager(stream_manager=mock_manager, pipeline=pipeline)
-        result = ps.publish("file.created", {"path": "/tmp/f.txt"})
+        result = ps.publish("file.created", {"path": str(tmp_path / "f.txt")})
         assert result is None
         mock_manager.publish.assert_not_called()
 

@@ -98,48 +98,48 @@ class TestWatcherConfigInit:
 class TestWatcherConfigShouldIncludeFile:
     """Test WatcherConfig.should_include_file method."""
 
-    def test_includes_normal_file_by_default(self):
+    def test_includes_normal_file_by_default(self, tmp_path):
         config = WatcherConfig()
-        path = Path("/home/user/document.txt")
+        path = tmp_path / "document.txt"
         assert config.should_include_file(path) is True
 
-    def test_excludes_tmp_files(self):
+    def test_excludes_tmp_files(self, tmp_path):
         config = WatcherConfig()
-        path = Path("/home/user/file.tmp")
+        path = tmp_path / "file.tmp"
         assert config.should_include_file(path) is False
 
-    def test_excludes_temp_files(self):
+    def test_excludes_temp_files(self, tmp_path):
         config = WatcherConfig()
-        path = Path("/tmp/file.temp")
+        path = tmp_path / "file.temp"
         assert config.should_include_file(path) is False
 
-    def test_excludes_git_directory(self):
+    def test_excludes_git_directory(self, tmp_path):
         config = WatcherConfig()
-        path = Path("/project/.git/config")
+        path = tmp_path / ".git" / "config"
         assert config.should_include_file(path) is False
 
-    def test_excludes_pycache(self):
+    def test_excludes_pycache(self, tmp_path):
         config = WatcherConfig()
-        path = Path("/project/__pycache__/module.pyc")
+        path = tmp_path / "__pycache__" / "module.pyc"
         assert config.should_include_file(path) is False
 
-    def test_excludes_ds_store(self):
+    def test_excludes_ds_store(self, tmp_path):
         config = WatcherConfig()
-        path = Path("/home/user/.DS_Store")
+        path = tmp_path / ".DS_Store"
         assert config.should_include_file(path) is False
 
-    def test_excludes_node_modules(self):
+    def test_excludes_node_modules(self, tmp_path):
         config = WatcherConfig()
         # "node_modules/*" pattern in defaults doesn't match this path due to pattern matching logic
-        path = Path("/project/node_modules/package/index.js")
+        path = tmp_path / "node_modules" / "package" / "index.js"
         # The pattern "node_modules/*" doesn't match individual path components
         result = config.should_include_file(path)
         # This path is included because no exclude pattern matches it
         assert result is True
 
-    def test_excludes_by_suffix(self):
+    def test_excludes_by_suffix(self, tmp_path):
         config = WatcherConfig()
-        path = Path("/home/user/file.pyc")
+        path = tmp_path / "file.pyc"
         assert config.should_include_file(path) is False
 
     def test_with_custom_exclude_patterns(self):
@@ -191,68 +191,83 @@ class TestWatcherConfigShouldIncludeFile:
 class TestMatchesPattern:
     """Test _matches_pattern function."""
 
-    def test_simple_extension_pattern(self):
-        assert _matches_pattern("/home/user/file.tmp", "*.tmp") is True
-        assert _matches_pattern("/home/user/file.txt", "*.tmp") is False
+    def test_simple_extension_pattern(self, tmp_path):
+        assert _matches_pattern(str(tmp_path / "file.tmp"), "*.tmp") is True
+        assert _matches_pattern(str(tmp_path / "file.txt"), "*.tmp") is False
 
-    def test_exact_filename_pattern(self):
-        assert _matches_pattern("/home/.DS_Store", ".DS_Store") is True
-        assert _matches_pattern("/home/user/.DS_Store", ".DS_Store") is True
+    def test_exact_filename_pattern(self, tmp_path):
+        assert _matches_pattern(str(tmp_path / ".DS_Store"), ".DS_Store") is True
+        assert _matches_pattern(str(tmp_path / "user" / ".DS_Store"), ".DS_Store") is True
 
-    def test_directory_pattern(self):
-        assert _matches_pattern("/project/.git/config", ".git") is True
+    def test_directory_pattern(self, tmp_path):
+        assert _matches_pattern(str(tmp_path / ".git" / "config"), ".git") is True
         # Pattern ".git/*" doesn't match full paths, only components
-        assert _matches_pattern("/project/.git/config", ".git/*") is False
+        assert _matches_pattern(str(tmp_path / ".git" / "config"), ".git/*") is False
 
-    def test_nested_directory_pattern(self):
+    def test_nested_directory_pattern(self, tmp_path):
         # Pattern matching works on components, not wildcard expansion
-        assert _matches_pattern("/project/__pycache__/module.pyc", "__pycache__/*") is False
-        assert _matches_pattern("/project/__pycache__/module.pyc", "__pycache__") is True
+        assert (
+            _matches_pattern(str(tmp_path / "__pycache__" / "module.pyc"), "__pycache__/*")
+            is False
+        )
+        assert (
+            _matches_pattern(str(tmp_path / "__pycache__" / "module.pyc"), "__pycache__") is True
+        )
 
-    def test_wildcard_prefix(self):
+    def test_wildcard_prefix(self, tmp_path):
         # ".venv/*" pattern doesn't match because matching is on components
-        assert _matches_pattern("/project/.venv/bin/python", ".venv") is True
-        assert _matches_pattern("/project/.venv/bin/python", ".venv/*") is False
+        assert _matches_pattern(str(tmp_path / ".venv" / "bin" / "python"), ".venv") is True
+        assert _matches_pattern(str(tmp_path / ".venv" / "bin" / "python"), ".venv/*") is False
 
-    def test_multiple_levels(self):
+    def test_multiple_levels(self, tmp_path):
         # "node_modules/*" doesn't match full paths
-        assert _matches_pattern("/project/node_modules/package/index.js", "node_modules") is True
-        assert _matches_pattern("/project/node_modules/package/index.js", "node_modules/*") is False
+        assert (
+            _matches_pattern(
+                str(tmp_path / "node_modules" / "package" / "index.js"), "node_modules"
+            )
+            is True
+        )
+        assert (
+            _matches_pattern(
+                str(tmp_path / "node_modules" / "package" / "index.js"), "node_modules/*"
+            )
+            is False
+        )
 
-    def test_no_match(self):
-        assert _matches_pattern("/home/user/document.txt", "*.tmp") is False
-        assert _matches_pattern("/home/user/.git/config", "*.log") is False
+    def test_no_match(self, tmp_path):
+        assert _matches_pattern(str(tmp_path / "document.txt"), "*.tmp") is False
+        assert _matches_pattern(str(tmp_path / ".git" / "config"), "*.log") is False
 
-    def test_pattern_with_path(self):
+    def test_pattern_with_path(self, tmp_path):
         # Component matching means ".git" component matches
-        assert _matches_pattern("/home/.git/config", ".git") is True
-        assert _matches_pattern("/home/.git/config", ".git/*") is False
+        assert _matches_pattern(str(tmp_path / ".git" / "config"), ".git") is True
+        assert _matches_pattern(str(tmp_path / ".git" / "config"), ".git/*") is False
 
-    def test_matching_filename_component(self):
+    def test_matching_filename_component(self, tmp_path):
         """Tests that individual path components are matched."""
-        assert _matches_pattern("/home/user/file.tmp", "*.tmp") is True
+        assert _matches_pattern(str(tmp_path / "file.tmp"), "*.tmp") is True
 
-    def test_hidden_files(self):
+    def test_hidden_files(self, tmp_path):
         # ".env" component is matched, but not as a wildcard pattern
-        assert _matches_pattern("/home/.env/config", ".env/*") is False
-        assert _matches_pattern("/home/.env/config", ".env") is True
+        assert _matches_pattern(str(tmp_path / ".env" / "config"), ".env/*") is False
+        assert _matches_pattern(str(tmp_path / ".env" / "config"), ".env") is True
 
-    def test_case_sensitivity(self):
+    def test_case_sensitivity(self, tmp_path):
         """fnmatch is case-sensitive on Unix, case-insensitive on Windows."""
         # On Unix, these won't match, but on Windows they might
         # We test the actual behavior
-        result_lower = _matches_pattern("/file.TXT", "*.txt")
-        result_upper = _matches_pattern("/file.txt", "*.TXT")
+        result_lower = _matches_pattern(str(tmp_path / "file.TXT"), "*.txt")
+        result_upper = _matches_pattern(str(tmp_path / "file.txt"), "*.TXT")
         # At least verify the function returns booleans
         assert result_lower is True or result_lower is False
         assert result_upper is True or result_upper is False
 
-    def test_empty_pattern(self):
-        assert _matches_pattern("/home/user/file.txt", "") is False
+    def test_empty_pattern(self, tmp_path):
+        assert _matches_pattern(str(tmp_path / "file.txt"), "") is False
 
-    def test_root_file(self):
-        assert _matches_pattern("/.DS_Store", ".DS_Store") is True
-        assert _matches_pattern("/file.tmp", "*.tmp") is True
+    def test_root_file(self, tmp_path):
+        assert _matches_pattern(str(tmp_path / ".DS_Store"), ".DS_Store") is True
+        assert _matches_pattern(str(tmp_path / "file.tmp"), "*.tmp") is True
 
 
 # ---------------------------------------------------------------------------

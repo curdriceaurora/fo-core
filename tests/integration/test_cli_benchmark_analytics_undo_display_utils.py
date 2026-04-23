@@ -777,7 +777,7 @@ class TestAnalyticsFormatDuration:
 
 
 class TestAnalyticsDisplayHelpers:
-    def _make_storage_stats(self) -> StorageStats:
+    def _make_storage_stats(self, tmp_path: Path) -> StorageStats:
         from datetime import UTC, datetime
 
         from models.analytics import FileInfo, StorageStats
@@ -791,7 +791,7 @@ class TestAnalyticsDisplayHelpers:
             size_by_type={".txt": 500000, ".pdf": 500000},
             largest_files=[
                 FileInfo(
-                    path=Path("/tmp/large.pdf"),
+                    path=tmp_path / "large.pdf",
                     size=500000,
                     type=".pdf",
                     modified=datetime(2026, 1, 1, tzinfo=UTC),
@@ -852,18 +852,18 @@ class TestAnalyticsDisplayHelpers:
             by_size_range={"small": 80, "medium": 50, "large": 20},
         )
 
-    def test_display_storage_stats_with_chart(self) -> None:
+    def test_display_storage_stats_with_chart(self, tmp_path: Path) -> None:
         from cli.analytics import display_storage_stats
         from utils.chart_generator import ChartGenerator
 
         chart_gen = ChartGenerator(use_unicode=True)
-        stats = self._make_storage_stats()
+        stats = self._make_storage_stats(tmp_path)
         display_storage_stats(stats, chart_gen)
 
-    def test_display_storage_stats_no_chart(self) -> None:
+    def test_display_storage_stats_no_chart(self, tmp_path: Path) -> None:
         from cli.analytics import display_storage_stats
 
-        stats = self._make_storage_stats()
+        stats = self._make_storage_stats(tmp_path)
         display_storage_stats(stats, None)
 
     def test_display_quality_metrics_high_score(self) -> None:
@@ -931,7 +931,7 @@ class TestAnalyticsDisplayHelpers:
         display_file_distribution(distribution, None)
 
 
-def _make_full_dashboard() -> AnalyticsDashboard:
+def _make_full_dashboard(tmp_path: Path) -> AnalyticsDashboard:
     """Build a real AnalyticsDashboard with all required fields populated."""
     from datetime import UTC, datetime
 
@@ -954,7 +954,7 @@ def _make_full_dashboard() -> AnalyticsDashboard:
         size_by_type={".txt": 1024 * 1024 * 50, ".pdf": 1024 * 1024 * 50},
         largest_files=[
             FileInfo(
-                path=Path("/tmp/doc.pdf"),
+                path=tmp_path / "doc.pdf",
                 size=1024 * 1024 * 5,
                 type=".pdf",
                 modified=datetime(2026, 1, 1, tzinfo=UTC),
@@ -1018,7 +1018,7 @@ class TestAnalyticsCommand:
         src = tmp_path / "src"
         src.mkdir()
         (src / "doc.txt").write_text("Some content")
-        dashboard = _make_full_dashboard()
+        dashboard = _make_full_dashboard(tmp_path)
         with patch("cli.analytics.AnalyticsService") as mock_svc_cls:
             mock_svc = MagicMock()
             mock_svc_cls.return_value = mock_svc
@@ -1031,7 +1031,7 @@ class TestAnalyticsCommand:
 
         src = tmp_path / "src"
         src.mkdir()
-        dashboard = _make_full_dashboard()
+        dashboard = _make_full_dashboard(tmp_path)
         with patch("cli.analytics.AnalyticsService") as mock_svc_cls:
             mock_svc = MagicMock()
             mock_svc_cls.return_value = mock_svc
@@ -1047,7 +1047,7 @@ class TestAnalyticsCommand:
         src = tmp_path / "src"
         src.mkdir()
         export_path = tmp_path / "report.json"
-        dashboard = _make_full_dashboard()
+        dashboard = _make_full_dashboard(tmp_path)
         with patch("cli.analytics.AnalyticsService") as mock_svc_cls:
             mock_svc = MagicMock()
             mock_svc_cls.return_value = mock_svc
@@ -1061,7 +1061,7 @@ class TestAnalyticsCommand:
 
         src = tmp_path / "src"
         src.mkdir()
-        dashboard = _make_full_dashboard()
+        dashboard = _make_full_dashboard(tmp_path)
         with (
             patch("cli.analytics.AnalyticsService") as mock_svc_cls,
             patch("cli.analytics.ChartGenerator") as mock_cg,
@@ -1091,7 +1091,7 @@ class TestAnalyticsCommand:
 
         src = tmp_path / "src"
         src.mkdir()
-        dashboard = _make_full_dashboard()
+        dashboard = _make_full_dashboard(tmp_path)
         with patch("cli.analytics.AnalyticsService") as mock_svc_cls:
             mock_svc = MagicMock()
             mock_svc_cls.return_value = mock_svc
@@ -1106,7 +1106,7 @@ class TestAnalyticsCommand:
         src = tmp_path / "src"
         src.mkdir()
         export_path = tmp_path / "report.txt"
-        dashboard = _make_full_dashboard()
+        dashboard = _make_full_dashboard(tmp_path)
         with patch("cli.analytics.AnalyticsService") as mock_svc_cls:
             mock_svc = MagicMock()
             mock_svc_cls.return_value = mock_svc
@@ -1424,13 +1424,13 @@ class TestDedupeDisplayBanner:
 
 
 class TestDedupeDisplayConfig:
-    def test_display_config_dry_run(self) -> None:
+    def test_display_config_dry_run(self, tmp_path: Path) -> None:
         from cli.dedupe_display import display_config
 
         mock_console = MagicMock()
         display_config(
             mock_console,
-            directory="/tmp/test",
+            directory=str(tmp_path / "test"),
             algorithm="sha256",
             strategy="oldest",
             recursive=True,
@@ -1440,13 +1440,13 @@ class TestDedupeDisplayConfig:
         calls = [str(c) for c in mock_console.print.call_args_list]
         assert any("dry run" in c.lower() for c in calls)
 
-    def test_display_config_live_unsafe(self) -> None:
+    def test_display_config_live_unsafe(self, tmp_path: Path) -> None:
         from cli.dedupe_display import display_config
 
         mock_console = MagicMock()
         display_config(
             mock_console,
-            directory="/tmp/test",
+            directory=str(tmp_path / "test"),
             algorithm="md5",
             strategy="newest",
             recursive=False,
@@ -1456,13 +1456,13 @@ class TestDedupeDisplayConfig:
         calls = [str(c) for c in mock_console.print.call_args_list]
         assert any("warning" in c.lower() or "safe mode" in c.lower() for c in calls)
 
-    def test_display_config_batch_mode(self) -> None:
+    def test_display_config_batch_mode(self, tmp_path: Path) -> None:
         from cli.dedupe_display import display_config
 
         mock_console = MagicMock()
         display_config(
             mock_console,
-            directory="/tmp/test",
+            directory=str(tmp_path / "test"),
             algorithm="sha256",
             strategy="oldest",
             recursive=True,
@@ -1472,13 +1472,13 @@ class TestDedupeDisplayConfig:
         )
         mock_console.print.assert_called()
 
-    def test_display_config_batch_manual_no_batch_text(self) -> None:
+    def test_display_config_batch_manual_no_batch_text(self, tmp_path: Path) -> None:
         from cli.dedupe_display import display_config
 
         mock_console = MagicMock()
         display_config(
             mock_console,
-            directory="/tmp/test",
+            directory=str(tmp_path / "test"),
             algorithm="sha256",
             strategy="manual",
             recursive=True,

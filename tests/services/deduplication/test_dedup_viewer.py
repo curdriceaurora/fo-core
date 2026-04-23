@@ -44,10 +44,10 @@ def viewer(console: Console) -> ComparisonViewer:
 
 
 @pytest.fixture
-def sample_metadata() -> ImageMetadata:
+def sample_metadata(tmp_path: Path) -> ImageMetadata:
     """Return a representative ImageMetadata object."""
     return ImageMetadata(
-        path=Path("/tmp/image1.png"),
+        path=tmp_path / "image1.png",
         width=1920,
         height=1080,
         format="PNG",
@@ -58,10 +58,10 @@ def sample_metadata() -> ImageMetadata:
 
 
 @pytest.fixture
-def sample_metadata_small() -> ImageMetadata:
+def sample_metadata_small(tmp_path: Path) -> ImageMetadata:
     """Return a smaller / lower-quality ImageMetadata object."""
     return ImageMetadata(
-        path=Path("/tmp/image2.jpg"),
+        path=tmp_path / "image2.jpg",
         width=640,
         height=480,
         format="JPEG",
@@ -212,7 +212,7 @@ class TestShowComparison:
                 return_value=DuplicateReview([sample_metadata.path], []),
             ) as mock_process,
         ):
-            result = viewer.show_comparison([Path("/tmp/image1.png")], similarity_score=95.0)
+            result = viewer.show_comparison([sample_metadata.path], similarity_score=95.0)
             assert result.files_to_keep == [sample_metadata.path]
             mock_process.assert_called_once()
 
@@ -263,9 +263,14 @@ class TestBatchReview:
             mock_auto.assert_called_once()
             assert decisions[sample_metadata.path] == "keep"
 
-    def test_manual_review_mode(self, viewer: ComparisonViewer, sample_metadata):
+    def test_manual_review_mode(
+        self,
+        viewer: ComparisonViewer,
+        sample_metadata,
+        sample_metadata_small,
+    ):
         """auto_select_best=False uses show_comparison."""
-        review = DuplicateReview([sample_metadata.path], [Path("/tmp/image2.jpg")])
+        review = DuplicateReview([sample_metadata.path], [sample_metadata_small.path])
         with (
             patch.object(viewer, "show_comparison", return_value=review),
             patch.object(viewer, "_display_review_summary"),
@@ -273,7 +278,7 @@ class TestBatchReview:
             groups = {"hash1": [Path("/a.png"), Path("/b.png")]}
             decisions = viewer.batch_review(groups, auto_select_best=False)
             assert decisions[sample_metadata.path] == "keep"
-            assert decisions[Path("/tmp/image2.jpg")] == "delete"
+            assert decisions[sample_metadata_small.path] == "delete"
 
     def test_quit_early_via_confirm(self, viewer: ComparisonViewer):
         """When user skips and declines continue, batch stops."""

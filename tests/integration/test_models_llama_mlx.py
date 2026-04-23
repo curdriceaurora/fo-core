@@ -8,6 +8,7 @@ Covers:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -120,7 +121,7 @@ class TestLlamaCppTextModel:
     def _require_llama_cpp(self) -> None:
         pytest.importorskip("llama_cpp")
 
-    def test_init_raises_import_error_when_unavailable(self) -> None:
+    def test_init_raises_import_error_when_unavailable(self, tmp_path: Path) -> None:
         from models.base import ModelConfig, ModelType
         from models.llama_cpp_text_model import LlamaCppTextModel
 
@@ -128,7 +129,7 @@ class TestLlamaCppTextModel:
             name="llama-cpp",
             model_type=ModelType.TEXT,
             provider="llama_cpp",
-            model_path="/tmp/test.gguf",
+            model_path=str(tmp_path / "test.gguf"),
         )
         with (
             patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", False),
@@ -136,7 +137,7 @@ class TestLlamaCppTextModel:
         ):
             LlamaCppTextModel(config)
 
-    def test_init_raises_value_error_for_wrong_model_type(self) -> None:
+    def test_init_raises_value_error_for_wrong_model_type(self, tmp_path: Path) -> None:
         from models.base import ModelConfig, ModelType
         from models.llama_cpp_text_model import LlamaCppTextModel
 
@@ -144,7 +145,7 @@ class TestLlamaCppTextModel:
             name="llama-cpp",
             model_type=ModelType.VISION,
             provider="llama_cpp",
-            model_path="/tmp/test.gguf",
+            model_path=str(tmp_path / "test.gguf"),
         )
         with (
             patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True),
@@ -264,53 +265,54 @@ class TestLlamaCppTextModel:
         model.cleanup()  # must not raise
         assert model.client is None
 
-    def test_device_to_gpu_layers_cpu_returns_zero(self) -> None:
+    def test_device_to_gpu_layers_cpu_returns_zero(self, tmp_path: Path) -> None:
         from models.base import DeviceType
         from models.llama_cpp_text_model import LlamaCppTextModel
 
-        config = LlamaCppTextModel.get_default_config("/tmp/m.gguf")
+        config = LlamaCppTextModel.get_default_config(str(tmp_path / "m.gguf"))
         config.device = DeviceType.CPU
         with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = LlamaCppTextModel(config)
         assert model._device_to_gpu_layers() == 0
 
-    def test_device_to_gpu_layers_cuda_returns_minus_one(self) -> None:
+    def test_device_to_gpu_layers_cuda_returns_minus_one(self, tmp_path: Path) -> None:
         from models.base import DeviceType
         from models.llama_cpp_text_model import LlamaCppTextModel
 
-        config = LlamaCppTextModel.get_default_config("/tmp/m.gguf")
+        config = LlamaCppTextModel.get_default_config(str(tmp_path / "m.gguf"))
         config.device = DeviceType.CUDA
         with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = LlamaCppTextModel(config)
         assert model._device_to_gpu_layers() == -1
 
-    def test_device_to_gpu_layers_mps_returns_minus_one(self) -> None:
+    def test_device_to_gpu_layers_mps_returns_minus_one(self, tmp_path: Path) -> None:
         from models.base import DeviceType
         from models.llama_cpp_text_model import LlamaCppTextModel
 
-        config = LlamaCppTextModel.get_default_config("/tmp/m.gguf")
+        config = LlamaCppTextModel.get_default_config(str(tmp_path / "m.gguf"))
         config.device = DeviceType.MPS
         with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = LlamaCppTextModel(config)
         assert model._device_to_gpu_layers() == -1
 
-    def test_device_to_gpu_layers_extra_params_override(self) -> None:
+    def test_device_to_gpu_layers_extra_params_override(self, tmp_path: Path) -> None:
         from models.llama_cpp_text_model import LlamaCppTextModel
 
-        config = LlamaCppTextModel.get_default_config("/tmp/m.gguf")
+        config = LlamaCppTextModel.get_default_config(str(tmp_path / "m.gguf"))
         config.extra_params = {"n_gpu_layers": 32}
         with patch("models.llama_cpp_text_model.LLAMA_CPP_AVAILABLE", True):
             model = LlamaCppTextModel(config)
         assert model._device_to_gpu_layers() == 32
 
-    def test_get_default_config_returns_text_type(self) -> None:
+    def test_get_default_config_returns_text_type(self, tmp_path: Path) -> None:
         from models.base import ModelType
         from models.llama_cpp_text_model import LlamaCppTextModel
 
-        config = LlamaCppTextModel.get_default_config("/tmp/model.gguf")
+        model_path = str(tmp_path / "model.gguf")
+        config = LlamaCppTextModel.get_default_config(model_path)
         assert config.model_type == ModelType.TEXT
         assert config.provider == "llama_cpp"
-        assert config.model_path == "/tmp/model.gguf"
+        assert config.model_path == model_path
 
 
 # ---------------------------------------------------------------------------
