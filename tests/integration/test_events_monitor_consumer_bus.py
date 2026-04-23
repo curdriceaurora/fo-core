@@ -56,7 +56,7 @@ def _make_event(
     return Event(
         id=event_id,
         stream=stream,
-        data=data or {"event_type": "file.created", "path": "/tmp/a.txt"},
+        data=data or {"event_type": "file.created", "path": "a.txt"},
         timestamp=datetime.now(UTC),
     )
 

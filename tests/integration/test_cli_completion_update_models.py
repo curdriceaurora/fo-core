@@ -420,13 +420,13 @@ class TestModelPullCommand:
 class TestModelCacheCommand:
     """Tests for `fo model cache`."""
 
-    def test_cache_with_data(self, cli_runner: object) -> None:
+    def test_cache_with_data(self, cli_runner: object, tmp_path) -> None:
         from cli.main import app
 
         with patch("models.model_manager.ModelManager") as MockMgr:
             MockMgr.return_value.cache_info.return_value = {
                 "models_cached": 3,
-                "cache_dir": "/tmp/models",
+                "cache_dir": str(tmp_path / "models"),
             }
             result = cli_runner.invoke(app, ["model", "cache"])
 

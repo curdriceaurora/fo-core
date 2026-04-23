@@ -442,9 +442,9 @@ class TestIsinstanceTupleForm:
         value2: int | None = 42
         assert isinstance(value2, (int, type(None)))
 
-    def test_isinstance_path_types(self) -> None:
+    def test_isinstance_path_types(self, tmp_path: Path) -> None:
         """isinstance with Path types should work."""
-        p = Path("/tmp/test")
+        p = tmp_path / "test"
         assert isinstance(p, (str, Path))
         assert not isinstance(42, (str, Path))
 

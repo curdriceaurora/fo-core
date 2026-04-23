@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -57,14 +58,18 @@ class _CancelPublishMiddleware:
         return None
 
 
-def test_event_publisher_and_pubsub_dispatch_work_together() -> None:
+def test_event_publisher_and_pubsub_dispatch_work_together(tmp_path: Path) -> None:
+    example = str(tmp_path / "example.txt")
+    ignored = str(tmp_path / "ignored.txt")
+    after_unsub = str(tmp_path / "after-unsubscribe.txt")
+
     stream_manager = _FakeStreamManager()
     publisher = EventPublisher(stream_manager=stream_manager)
 
     assert publisher.connect() is True
     file_id = publisher.publish_file_event(
         EventType.FILE_CREATED,
-        "/tmp/example.txt",
+        example,
         {"size": 12},
     )
     scan_id = publisher.publish_scan_event("scan-1", "completed", {"processed": 3})
@@ -86,14 +91,14 @@ def test_event_publisher_and_pubsub_dispatch_work_together() -> None:
         received.append(data)
 
     sub = pubsub.subscribe("file.*", handler, filter_fn=lambda data: data.get("ok") is True)
-    message_id = pubsub.publish("file.created", {"ok": True, "path": "/tmp/example.txt"})
+    message_id = pubsub.publish("file.created", {"ok": True, "path": example})
     assert message_id == "id-3"
     assert received[0]["seen_by_before_publish"] is True
     assert received[0]["seen_by_before_consume"] is True
 
     pubsub.registry.deactivate("file.*", handler)
     assert sub.active is False
-    pubsub.publish("file.created", {"ok": True, "path": "/tmp/ignored.txt"})
+    pubsub.publish("file.created", {"ok": True, "path": ignored})
     assert len(received) == 1
 
     pubsub.registry.activate("file.*", handler)
@@ -102,7 +107,7 @@ def test_event_publisher_and_pubsub_dispatch_work_together() -> None:
     assert len(received) == 1
 
     assert pubsub.unsubscribe("file.*", handler) is True
-    pubsub.publish("file.created", {"ok": True, "path": "/tmp/after-unsubscribe.txt"})
+    pubsub.publish("file.created", {"ok": True, "path": after_unsub})
     assert len(received) == 1
 
 

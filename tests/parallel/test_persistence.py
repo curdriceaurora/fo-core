@@ -23,6 +23,17 @@ from parallel.persistence import JobPersistence
 class TestJobPersistenceInit(unittest.TestCase):
     """Test JobPersistence initialization."""
 
+    def setUp(self) -> None:
+        import tempfile
+
+        self._tmpdir = tempfile.mkdtemp(prefix="fo-jp-init-")
+        self.tmp_path = Path(self._tmpdir)
+
+    def tearDown(self) -> None:
+        import shutil
+
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
     def test_default_jobs_dir(self) -> None:
         """Test that default directory resolves to a platform-appropriate path.
 
@@ -37,9 +48,9 @@ class TestJobPersistenceInit(unittest.TestCase):
         canonical = get_data_dir() / "jobs"
         self.assertIn(persistence.jobs_dir, {legacy, canonical})
 
-    def test_custom_jobs_dir(self, tmp_path: Path | None = None) -> None:
+    def test_custom_jobs_dir(self) -> None:
         """Test that custom directory is used."""
-        custom = Path("/tmp/test-jobs")
+        custom = self.tmp_path / "test-jobs"
         persistence = JobPersistence(jobs_dir=custom)
         self.assertEqual(persistence.jobs_dir, custom)
 

@@ -200,16 +200,18 @@ class TestConfigManagerModuleDelegation:
         result = mgr.to_daemon_config(cfg)
         assert result.poll_interval == 2
 
-    def test_to_daemon_config_with_paths(self):
+    def test_to_daemon_config_with_paths(self, tmp_path: Path):
         mgr = ConfigManager()
+        watch_a = tmp_path / "a"
+        out_dir = tmp_path / "out"
         cfg = AppConfig(
             daemon={
-                "watch_directories": ["/tmp/a"],
-                "output_directory": "/tmp/out",
+                "watch_directories": [str(watch_a)],
+                "output_directory": str(out_dir),
             }
         )
         result = mgr.to_daemon_config(cfg)
-        assert Path("/tmp/a") in result.watch_directories
+        assert watch_a in result.watch_directories
 
     def test_config_to_dict_includes_overrides(self):
         mgr = ConfigManager()

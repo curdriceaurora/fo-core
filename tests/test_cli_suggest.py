@@ -26,15 +26,15 @@ def mock_engine():
 
 
 @pytest.fixture
-def mock_engine_with_suggestions():
+def mock_engine_with_suggestions(tmp_path):
     """Return a mock SuggestionEngine with sample suggestions."""
     engine = MagicMock()
 
     suggestion = MagicMock()
     suggestion.suggestion_id = "s1"
     suggestion.suggestion_type = _MockSuggestionType.MOVE
-    suggestion.file_path = Path("/tmp/doc.txt")
-    suggestion.target_path = Path("/tmp/Documents/doc.txt")
+    suggestion.file_path = tmp_path / "doc.txt"
+    suggestion.target_path = tmp_path / "Documents" / "doc.txt"
     suggestion.confidence = 75.0
     suggestion.reasoning = "Matches document pattern"
     suggestion.new_name = None

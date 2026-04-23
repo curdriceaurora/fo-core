@@ -307,29 +307,33 @@ class TestMigratorCoverage:
         assert "VALID" in preview
 
     # Branch 439->441: generate_report with skipped > 10
-    def test_generate_report_many_skipped(self, migrator: JohnnyDecimalMigrator) -> None:
+    def test_generate_report_many_skipped(
+        self, migrator: JohnnyDecimalMigrator, tmp_path: Path
+    ) -> None:
         result = MigrationResult(
             success=False,
             transformed_count=0,
             failed_count=1,
             skipped_count=15,
             duration_seconds=1.0,
-            failed_paths=[(Path("/tmp/bad"), "error")],
-            skipped_paths=[Path(f"/tmp/skip_{i}") for i in range(15)],
+            failed_paths=[(tmp_path / "bad", "error")],
+            skipped_paths=[tmp_path / f"skip_{i}" for i in range(15)],
         )
         report = migrator.generate_report(result)
         assert "and 5 more" in report
         assert "Failures" in report
 
     # Branch 439->441 False: generate_report with skipped <= 10
-    def test_generate_report_few_skipped(self, migrator: JohnnyDecimalMigrator) -> None:
+    def test_generate_report_few_skipped(
+        self, migrator: JohnnyDecimalMigrator, tmp_path: Path
+    ) -> None:
         result = MigrationResult(
             success=True,
             transformed_count=5,
             failed_count=0,
             skipped_count=3,
             duration_seconds=0.5,
-            skipped_paths=[Path(f"/tmp/skip_{i}") for i in range(3)],
+            skipped_paths=[tmp_path / f"skip_{i}" for i in range(3)],
         )
         report = migrator.generate_report(result)
         assert "Skipped (3 folders)" in report

@@ -66,11 +66,12 @@ class TestPipelineConfigValidation:
         with pytest.raises(ValueError, match="max_concurrent must be at least 1"):
             PipelineConfig(max_concurrent=-1)
 
-    def test_output_directory_normalized_to_path(self) -> None:
+    def test_output_directory_normalized_to_path(self, tmp_path: Path) -> None:
         """Output directory is converted to Path."""
-        config = PipelineConfig(output_directory=Path("/tmp/test"))
+        out_dir = tmp_path / "test"
+        config = PipelineConfig(output_directory=out_dir)
         assert isinstance(config.output_directory, Path)
-        assert config.output_directory == Path("/tmp/test")
+        assert config.output_directory == out_dir
 
     def test_extensions_normalized_with_dots(self) -> None:
         """Extensions without leading dots get them added."""

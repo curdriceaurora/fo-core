@@ -48,11 +48,12 @@ class TestCopilotEngineInit:
         assert engine._max_history_turns == 4
         assert engine._conversation._max_messages == 8  # 4 turns * 2
 
-    def test_init_with_working_directory(self):
+    def test_init_with_working_directory(self, tmp_path):
         """Test initialization with custom working directory."""
-        engine = CopilotEngine(working_directory="/tmp/test")
+        work_dir = str(tmp_path / "test")
+        engine = CopilotEngine(working_directory=work_dir)
 
-        assert engine._session.working_directory == "/tmp/test"
+        assert engine._session.working_directory == work_dir
 
     def test_init_with_text_model(self):
         """Test initialization with custom text model."""

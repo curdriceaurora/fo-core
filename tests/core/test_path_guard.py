@@ -51,7 +51,7 @@ class TestValidateWithinRoots:
             validate_within_roots(outside, [tmp_path])
 
     def test_dotdot_traversal_is_normalized_and_rejected(self, tmp_path: Path) -> None:
-        """`/tmp/allowed/../outside` resolves to `/tmp/outside`; must fail
+        """`<tmp>/allowed/../outside` resolves to `<tmp>/outside`; must fail
         even though the literal string starts with an allowed-root prefix.
         """
         inside = tmp_path / "inside"

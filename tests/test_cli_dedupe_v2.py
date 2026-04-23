@@ -22,17 +22,17 @@ def mock_detector():
 
 
 @pytest.fixture
-def mock_detector_with_groups():
+def mock_detector_with_groups(tmp_path):
     """Return a mock DuplicateDetector with duplicate groups."""
     detector = MagicMock()
 
     file_meta_1 = MagicMock()
-    file_meta_1.path = Path("/tmp/a.txt")
+    file_meta_1.path = tmp_path / "a.txt"
     file_meta_1.size = 1024
     file_meta_1.modified_time = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
 
     file_meta_2 = MagicMock()
-    file_meta_2.path = Path("/tmp/b.txt")
+    file_meta_2.path = tmp_path / "b.txt"
     file_meta_2.size = 1024
     file_meta_2.modified_time = datetime(2025, 1, 2, 12, 0, tzinfo=UTC)
 

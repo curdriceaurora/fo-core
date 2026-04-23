@@ -57,10 +57,11 @@ class TestProcessedFile:
         assert pf.processing_time == 0.0
         assert pf.error is None
 
-    def test_all_fields(self) -> None:
+    def test_all_fields(self, tmp_path: Path) -> None:
         """Verify all fields are stored correctly."""
+        pdf_path = tmp_path / "b.pdf"
         pf = ProcessedFile(
-            file_path=Path("/tmp/b.pdf"),
+            file_path=pdf_path,
             description="A summary",
             folder_name="science",
             filename="research_paper",
@@ -68,7 +69,7 @@ class TestProcessedFile:
             processing_time=1.23,
             error="some error",
         )
-        assert pf.file_path == Path("/tmp/b.pdf")
+        assert pf.file_path == pdf_path
         assert pf.description == "A summary"
         assert pf.folder_name == "science"
         assert pf.filename == "research_paper"

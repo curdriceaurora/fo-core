@@ -46,10 +46,10 @@ def test_manager_register_update_connect_send(tmp_path: Path) -> None:
     assert exported
 
 
-def test_manager_handles_missing_integrations_gracefully() -> None:
+def test_manager_handles_missing_integrations_gracefully(tmp_path) -> None:
     manager = IntegrationManager()
     assert manager.get("missing") is None
     assert manager.update_settings("missing", {"x": 1}) is False
     assert asyncio.run(manager.connect("missing")) is False
     assert asyncio.run(manager.disconnect("missing")) is False
-    assert asyncio.run(manager.send_file("missing", "/tmp/nope")) is False
+    assert asyncio.run(manager.send_file("missing", str(tmp_path / "nope"))) is False

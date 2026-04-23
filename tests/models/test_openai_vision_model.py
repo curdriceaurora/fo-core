@@ -2,7 +2,7 @@
 
 Patterns applied:
 - pytestmark: unit + ci markers
-- tmp_path for all file I/O (no /tmp/ paths)
+- tmp_path for all file I/O (no hardcoded temp paths)
 - Assert mock call args exactly, not just return values
 - Parametrize near-duplicate cases (task types, mime types)
 - No tautological assertions

@@ -1,3 +1,5 @@
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -8,6 +10,12 @@ from parallel.priority_queue import PriorityQueue, QueueItem
 
 @pytest.mark.unit
 class TestPriorityQueueFix(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = Path(tempfile.mkdtemp(prefix="fo-pqfix-"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
     def test_reorder_duplicate_processing_bug(self):
         """
         Verify that reordering an item does not cause it to be processed twice.
@@ -15,7 +23,7 @@ class TestPriorityQueueFix(unittest.TestCase):
         """
         pq = PriorityQueue()
         item_id = "test_item"
-        item = QueueItem(id=item_id, path=Path("/tmp/test"), priority=10)
+        item = QueueItem(id=item_id, path=self._tmp / "test", priority=10)
 
         # 1. Enqueue item with priority 10
         pq.enqueue(item)
