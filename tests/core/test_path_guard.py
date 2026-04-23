@@ -113,10 +113,10 @@ class TestValidateWithinRoots:
         path = tmp_path / "cyclic"
         original_resolve = Path.resolve
 
-        def raise_cycle(self: Path, *args, **kwargs):
+        def raise_cycle(self: Path, strict: bool = False) -> Path:
             if self == path:
                 raise RuntimeError("symlink loop")
-            return original_resolve(self, *args, **kwargs)
+            return original_resolve(self, strict=strict)
 
         monkeypatch.setattr(Path, "resolve", raise_cycle)
         with pytest.raises(PathTraversalError, match="symlink cycle or stale handle"):
@@ -131,10 +131,10 @@ class TestValidateWithinRoots:
         bad_root = tmp_path / "bad_root"
         original_resolve = Path.resolve
 
-        def raise_for_bad(self: Path, *args, **kwargs):
+        def raise_for_bad(self: Path, strict: bool = False) -> Path:
             if self == bad_root:
                 raise OSError("device offline")
-            return original_resolve(self, *args, **kwargs)
+            return original_resolve(self, strict=strict)
 
         monkeypatch.setattr(Path, "resolve", raise_for_bad)
         with pytest.raises(PathTraversalError, match="resolve allowed roots"):

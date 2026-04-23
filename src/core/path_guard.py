@@ -4,20 +4,38 @@ Epic A.foundation (hardening roadmap #154). Provides two primitives:
 
 - `validate_within_roots(path, allowed_roots)` — assert `path` resolves inside
   one of the supplied roots and return its canonical absolute form. Raises
-  `PathTraversalError` otherwise. Every CLI command that accepts a path
-  argument routes through this helper (see Appendix A.4 of the roadmap spec
-  for the full command surface).
+  `PathTraversalError` otherwise. A.cli wires this into every CLI command
+  that accepts a path argument (see Appendix A.4 of the roadmap spec for
+  the full command surface).
 - `safe_walk(root, *, follow_symlinks=False, include_hidden=False)` — yield
   files under `root`, filtering symlinks and hidden entries by default.
-  Replaces raw `rglob("*")` calls in walker subsystems (analytics, pattern
-  analysis, misplacement detection, dedup detection, copilot, JD/PARA scans)
-  that risked indexing `/etc/passwd` or credential-bearing dotfiles.
+  Replaces raw `rglob("*")` / `glob("*")` in the **user-input walker
+  surfaces** migrated by A.foundation: analytics, pattern analysis,
+  misplacement detection, dedup detection, copilot, JD/PARA scans, and
+  the `cli/{benchmark,doctor,suggest,utilities}` search/scan commands.
+  System-managed walkers that operate on app-owned state are deliberately
+  out of scope (see *Scope note* below) and continue to use `glob`/`rglob`
+  until they cross a user-input boundary.
+
+Scope note — system-managed paths that *don't* need `safe_walk`:
+
+- `undo/validator.py` (trash directory, system-managed)
+- `services/copilot/rules/rule_manager.py` (app-shipped rule yamls)
+- `services/intelligence/profile_{manager,migrator}.py` (profile/backup dir)
+- `config/path_migration.py` (legacy XDG migration, run once)
+- `parallel/persistence.py` (job-queue state, internal only)
+- `methodologies/para/migration_manager.py` (internal migration helper)
+- `core/file_ops.py::collect_files` (called on a pre-validated organize
+  root; safe_walk adoption here tracked as a follow-up)
 
 Design invariants:
 
-- Both helpers return/compare **resolved** paths. All paths are normalized
-  via `Path.resolve()` before any comparison or traversal-check; callers get
-  the canonical form back and don't need to re-resolve.
+- `validate_within_roots()` returns/compares **resolved** paths: input and
+  roots are normalized via `Path.resolve()` before any comparison or
+  traversal-check, so callers get the canonical form back and don't need
+  to re-resolve. `safe_walk()` yields the *lexical* paths produced by
+  `Path.glob()` / `Path.rglob()` after applying its filters — callers
+  that need canonical paths should resolve them explicitly.
 - `PathTraversalError` is a `ValueError` subclass so existing
   `except ValueError` handlers keep working.
 - `safe_walk`'s hidden-file filter applies to the path **relative to `root`**

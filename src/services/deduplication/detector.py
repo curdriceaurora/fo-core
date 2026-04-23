@@ -105,15 +105,16 @@ class DuplicateDetector:
         """
         files = []
 
-        # Dedupe operates on the user's own directory; finding duplicates
-        # under `.cache/`, `.config/`, etc. is the whole point. Skipping
-        # symlinks (S1) is still a hard requirement; hidden-file filtering
-        # is not — `rglob()` included them pre-migration.
+        # Secure defaults: dedupe can DELETE files (`fo dedupe resolve`),
+        # so never hash / index entries under `.env`, `.ssh/*`, etc. by
+        # default — a later `resolve` call shouldn't be able to delete a
+        # user's credential file because its duplicate was found in a
+        # backup directory. Legacy rglob behavior (include hidden) is
+        # tracked for an opt-in `--include-hidden` flag in follow-up.
         walker = safe_walk(
             directory,
             recursive=options.recursive,
             follow_symlinks=options.follow_symlinks,
-            include_hidden=True,
         )
         for path in walker:
             # Check file size constraints
