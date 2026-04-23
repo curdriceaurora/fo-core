@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from events.stream import Event
+from utils.atomic_write import append_durable
 
 logger = logging.getLogger(__name__)
 
@@ -243,8 +244,11 @@ class AuditLogger:
         """
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(self._log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry.to_dict()) + "\n")
+        # B1b: append-log durability — fsync the record and the
+        # containing directory entry so the audit record survives a
+        # crash between write and fsync. Order-preserving append, so
+        # a truncate-replace pattern would be wrong here.
+        append_durable(self._log_path, json.dumps(entry.to_dict()))
 
     @staticmethod
     def _matches_filter(entry: AuditEntry, filters: AuditFilter | None) -> bool:
