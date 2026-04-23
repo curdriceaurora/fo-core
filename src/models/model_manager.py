@@ -172,10 +172,16 @@ class ModelManager:
                 return True
             self._console.print(f"[red]Pull failed (exit code {proc.returncode}).[/red]")
             return False
-        except FileNotFoundError:
+        except FileNotFoundError as e:
+            # B2: surface to both the user (console) and the log stream
+            # so aggregated logs show the failure with its exception
+            # class — pre-B2 only the console print existed, making
+            # failed pulls invisible in log-only monitoring.
+            logger.error("Ollama pull failed (type=%s): %s", type(e).__name__, e)
             self._console.print("[red]Ollama CLI not found. Install from https://ollama.ai[/red]")
             return False
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
+            logger.error("Ollama pull failed (type=%s): %s", type(e).__name__, e)
             self._console.print("[red]Pull timed out.[/red]")
             return False
 
