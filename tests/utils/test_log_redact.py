@@ -159,6 +159,68 @@ class TestRedactsKeyValueForms:
         assert "def inside" not in rendered
         assert REDACTED in rendered
 
+    def test_single_quoted_placeholder_value_containing_single_quote(self) -> None:
+        """codex P1: ``logger.info(\"password='%s'\", \"abc'def\")`` must
+        redact the whole quoted placeholder expansion, not stop at the
+        first interior single quote and leak the suffix.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("password='%s'", "abc'def")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "abc'def" not in rendered
+        assert "def" not in rendered
+        assert rendered == f"password='{REDACTED}'"
+
+    def test_double_quoted_placeholder_value_containing_double_quote(self) -> None:
+        """Mirror case: ``logger.info('token=\"%s\"', 'abc\"def')``."""
+        f = CredentialRedactingFilter()
+        record = _make_record('token="%s"', 'abc"def')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert 'abc"def' not in rendered
+        assert "def" not in rendered
+        assert rendered == f'token="{REDACTED}"'
+
+    def test_quoted_value_followed_by_period_preserves_suffix(self) -> None:
+        """codex P2: punctuation after a closed quoted value must not force
+        the regex into the unclosed-quote fallback and swallow later
+        fields.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record('password="secret". user=alice')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "secret" not in rendered
+        assert rendered == f'password="{REDACTED}". user=alice'
+
+    def test_quoted_value_followed_by_colon_preserves_suffix(self) -> None:
+        """Mirror case: closing quote followed by ``:`` keeps later text."""
+        f = CredentialRedactingFilter()
+        record = _make_record("token='secret': next")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "secret" not in rendered
+        assert rendered == f"token='{REDACTED}': next"
+
+    def test_quoted_value_followed_by_slash_preserves_suffix(self) -> None:
+        """URL-ish separators after the closing quote must preserve suffix."""
+        f = CredentialRedactingFilter()
+        record = _make_record('password="secret"/ user=alice')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "secret" not in rendered
+        assert rendered == f'password="{REDACTED}"/ user=alice'
+
+    def test_quoted_value_followed_by_question_mark_preserves_suffix(self) -> None:
+        """Query-string separators after the closing quote must preserve suffix."""
+        f = CredentialRedactingFilter()
+        record = _make_record("token='secret'?next=1")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "secret" not in rendered
+        assert rendered == f"token='{REDACTED}'?next=1"
+
     def test_malformed_unclosed_double_quote_redacted(self) -> None:
         """codex P1 (PRRT_kwDOR_Rkws59IsZr): malformed quoted credential
         (opening quote with no matching close — e.g. truncated log, or
