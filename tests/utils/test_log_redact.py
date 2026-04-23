@@ -203,6 +203,24 @@ class TestRedactsKeyValueForms:
         assert "secret" not in rendered
         assert rendered == f"token='{REDACTED}': next"
 
+    def test_quoted_value_followed_by_slash_preserves_suffix(self) -> None:
+        """URL-ish separators after the closing quote must preserve suffix."""
+        f = CredentialRedactingFilter()
+        record = _make_record('password="secret"/ user=alice')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "secret" not in rendered
+        assert rendered == f'password="{REDACTED}"/ user=alice'
+
+    def test_quoted_value_followed_by_question_mark_preserves_suffix(self) -> None:
+        """Query-string separators after the closing quote must preserve suffix."""
+        f = CredentialRedactingFilter()
+        record = _make_record("token='secret'?next=1")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "secret" not in rendered
+        assert rendered == f"token='{REDACTED}'?next=1"
+
     def test_malformed_unclosed_double_quote_redacted(self) -> None:
         """codex P1 (PRRT_kwDOR_Rkws59IsZr): malformed quoted credential
         (opening quote with no matching close — e.g. truncated log, or
