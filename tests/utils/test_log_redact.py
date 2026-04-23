@@ -80,6 +80,33 @@ class TestRedactsKeyValueForms:
     def test_case_insensitive_key(self) -> None:
         self._assert_redacts("API_KEY=sk-super-secret-xyz123")
 
+    def test_quoted_value_with_spaces_redacted_through_close_quote(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59IQep): quoted secrets that contain
+        whitespace must be redacted through the closing quote, not
+        truncated at the first space. Before the fix
+        ``password='correct horse battery staple'`` became
+        ``password='[REDACTED] horse battery staple'`` — most of the
+        secret leaked.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("password='correct horse battery staple'")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "correct horse battery staple" not in rendered
+        assert "horse" not in rendered
+        assert "battery" not in rendered
+        assert REDACTED in rendered
+
+    def test_quoted_value_with_spaces_double_quotes(self) -> None:
+        """Same shape but with double quotes."""
+        f = CredentialRedactingFilter()
+        record = _make_record('token="multi word secret here"')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "multi word secret here" not in rendered
+        assert "word" not in rendered
+        assert REDACTED in rendered
+
 
 class TestRedactsBearerHeader:
     """HTTP ``Authorization: Bearer <token>`` leaks."""
@@ -118,6 +145,20 @@ class TestRedactsBearerHeader:
         assert f.filter(record) is True
         rendered = record.getMessage()
         assert "xyz.token.here" not in rendered
+        assert REDACTED in rendered
+
+    def test_bearer_with_equals_separator(self) -> None:
+        """codex P2 (PRRT_kwDOR_Rkws59IQew): query-string / form-encoded
+        ``Authorization=Bearer <token>`` is a real logging shape —
+        ``authorization`` isn't in ``_CRED_KEYS`` so the ``key=value``
+        pattern can't catch it. The bearer pattern must accept ``=`` as
+        the separator (in addition to ``:``).
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("Authorization=Bearer abc123.xyz_def")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "abc123.xyz_def" not in rendered
         assert REDACTED in rendered
 
 

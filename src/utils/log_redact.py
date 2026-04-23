@@ -53,24 +53,47 @@ _CRED_KEYS = (
     "passwd",
     "credential",
 )
-# ``key`` + optional quotes + ``=`` or ``:`` + optional quotes, followed by
-# the value we want to capture (everything up to whitespace / a quote /
-# a delimiter). The key is kept in the replacement so the log line still
-# tells you *which* credential leaked — just not what.
+# ``key`` + optional quotes + ``=`` or ``:`` + EITHER a quoted value (where
+# we capture everything up to the matching close quote — covers secrets
+# containing spaces like ``password='correct horse battery staple'``, codex
+# P1 PRRT_kwDOR_Rkws59IQep) OR an unquoted value that stops at the first
+# whitespace / delimiter. The key is kept in the replacement so the log
+# line still tells you *which* credential leaked — just not what.
 _KV_PATTERN = re.compile(
-    r"(?i)(?P<key>(?:" + "|".join(_CRED_KEYS) + r")[\"']?\s*[:=]\s*[\"']?)"
+    r"(?i)(?P<key>(?:" + "|".join(_CRED_KEYS) + r")[\"']?\s*[:=]\s*)"
+    r"(?:"
+    r"(?P<q>[\"'])(?P<qvalue>[^\"']*)(?P=q)"
+    r"|"
     r"(?P<value>[^\"'\s,;&}\])]+)"
+    r")"
 )
 
 # ``Authorization: Bearer <token>`` HTTP header shape. Distinct from the
-# ``key=value`` pattern because the separator is whitespace rather than ``=``.
-# Allows optional quotes around both the key and the separator so dict-repr
-# (``{'Authorization': 'Bearer abc'}``) and JSON (``"Authorization":
-# "Bearer abc"``) forms also match — logger calls that pass header dicts
-# are a real leak path (codex P1 PRRT_kwDOR_Rkws59IB5U).
+# ``key=value`` pattern because the separator between the header name and
+# ``Bearer`` is usually whitespace rather than a closing quote — but the
+# separator between ``Authorization`` and the value can be either ``:``
+# (header style) or ``=`` (query / form style; codex P2
+# PRRT_kwDOR_Rkws59IQew). Allows optional quotes around both the key and
+# the separator so dict-repr (``{'Authorization': 'Bearer abc'}``) and
+# JSON (``"Authorization": "Bearer abc"``) forms also match — logger
+# calls that pass header dicts are a real leak path (codex P1
+# PRRT_kwDOR_Rkws59IB5U).
 _BEARER_PATTERN = re.compile(
-    r"(?i)(?P<prefix>authorization[\"']?\s*:\s*[\"']?bearer\s+)(?P<value>[^\"'\s,;}]+)"
+    r"(?i)(?P<prefix>authorization[\"']?\s*[:=]\s*[\"']?bearer\s+)(?P<value>[^\"'\s,;}]+)"
 )
+
+
+def _kv_replace(match: re.Match[str]) -> str:
+    """``_KV_PATTERN`` callback: preserve the quote shape when redacting.
+
+    When the quoted branch matched (``password='correct horse'``), wrap
+    ``REDACTED`` in the same quote character so the output keeps a valid
+    quoted form. Otherwise the unquoted branch is a simple substitution.
+    """
+    quote = match.group("q")
+    if quote is not None:
+        return f"{match.group('key')}{quote}{REDACTED}{quote}"
+    return f"{match.group('key')}{REDACTED}"
 
 
 def _redact_text(text: str) -> str:
@@ -79,7 +102,7 @@ def _redact_text(text: str) -> str:
     Returns a new string; the original is not mutated. Order of application
     doesn't matter because the patterns don't overlap.
     """
-    text = _KV_PATTERN.sub(lambda m: f"{m.group('key')}{REDACTED}", text)
+    text = _KV_PATTERN.sub(_kv_replace, text)
     text = _BEARER_PATTERN.sub(lambda m: f"{m.group('prefix')}{REDACTED}", text)
     return text
 
