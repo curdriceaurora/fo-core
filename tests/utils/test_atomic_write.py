@@ -321,6 +321,33 @@ class TestAtomicityInvariants:
 
     @pytest.mark.skipif(
         sys.platform == "win32",
+        reason="Symlink semantics on Windows require elevated privileges",
+    )
+    def test_follows_symlinks_instead_of_replacing_link(self, tmp_path: Path) -> None:
+        """codex P2 (PRRT_kwDOR_Rkws59MXyc): the pre-existing
+        ``path.write_text`` / ``open(path, "w")`` sites followed
+        symlinks — users who symlink config/state files to shared
+        storage expect a save to write through to the real target, not
+        replace the symlink with a regular file. Regression guard:
+        when the target is a symlink, the write must update the
+        symlink's target, and the symlink itself must remain a
+        symlink pointing at the same real path.
+        """
+        real_target = tmp_path / "real_config.yaml"
+        real_target.write_text("original")
+        link = tmp_path / "link.yaml"
+        link.symlink_to(real_target)
+
+        atomic_write_text(link, "updated")
+
+        # Link still exists and still points to the same real target.
+        assert link.is_symlink()
+        assert link.resolve() == real_target.resolve()
+        # The real file (not the link) now has the new content.
+        assert real_target.read_text() == "updated"
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
         reason="POSIX file-mode bits not meaningful on Windows",
     )
     def test_preserves_existing_target_permissions(self, tmp_path: Path) -> None:

@@ -120,7 +120,22 @@ def _write_via_temp(
     Creates a temp file in ``target.parent``, runs ``write_fn(handle)``,
     fsyncs, atomically replaces ``target``. Cleans up the temp on any
     exception (writer error, KeyboardInterrupt, failed ``os.replace``).
+
+    Follows symlinks: if ``target`` is a symlink, the write goes
+    through to the link target — matches the pre-existing
+    ``path.write_text()`` / ``open(path, "w")`` semantics so users
+    who symlink config/state files to shared storage don't have
+    their links silently replaced with regular files on save (codex
+    P2 PRRT_kwDOR_Rkws59MXyc).
     """
+    # Resolve symlinks so ``os.replace`` updates the link's target
+    # rather than replacing the link itself. ``strict=False`` tolerates
+    # a broken / dangling symlink by returning the resolved path it
+    # would point at, which is then created by the temp+replace
+    # sequence (matching ``write_text`` behavior of creating the file
+    # at the symlink's target location).
+    if target.is_symlink():
+        target = target.resolve(strict=False)
     # ``NamedTemporaryFile(delete=False)`` leaves the temp around so we
     # can ``os.replace`` it into place. ``dir=target.parent`` is
     # essential — cross-device renames raise ``EXDEV``.
