@@ -267,6 +267,23 @@ class TestRedactsArgs:
         assert "sk-super-secret-xyz123" not in rendered
         assert REDACTED in rendered
 
+    def test_redacts_mapping_style_format_with_userdict(self) -> None:
+        """codex P2 (PRRT_kwDOR_Rkws59JMYx): ``logging`` accepts any
+        ``collections.abc.Mapping`` for mapping-style interpolation, not
+        just ``dict``. A ``UserDict`` with a credential key must still be
+        pre-scrubbed.
+        """
+        from collections import UserDict
+
+        f = CredentialRedactingFilter()
+        args: UserDict[str, str] = UserDict()
+        args["api_key"] = "sk-super-secret-xyz123"
+        record = _make_record("loading %(api_key)s now", args)
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "sk-super-secret-xyz123" not in rendered
+        assert REDACTED in rendered
+
     def test_redacts_raw_secret_arg_when_template_key_is_auth(self) -> None:
         """coderabbit Major (PRRT_kwDOR_Rkws59II7L): ``logger.info("auth=%s",
         secret)`` — after formatting, the rendered message is

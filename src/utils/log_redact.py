@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 import re
 import traceback
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 REDACTED = "[REDACTED]"
 
@@ -208,9 +208,13 @@ class CredentialRedactingFilter(logging.Filter):
             # Pre-scrub mapping-style args: ``logger.info("%(api_key)s",
             # {"api_key": secret})`` interpolates just the raw value, so
             # post-format text redaction has no key=value shape to match.
-            # Replace credential-named dict values with the REDACTED
-            # sentinel before ``getMessage()`` sees them.
-            if isinstance(record.args, dict):
+            # Replace credential-named mapping values with the REDACTED
+            # sentinel before ``getMessage()`` sees them. ``collections.
+            # abc.Mapping`` covers ``UserDict``, ``MappingProxyType``, and
+            # third-party mapping types that ``logging`` also accepts for
+            # mapping-style interpolation (codex P2
+            # PRRT_kwDOR_Rkws59JMYx).
+            if isinstance(record.args, Mapping):
                 record.args = {
                     k: (REDACTED if isinstance(k, str) and _CRED_KEY_FULL.match(k) else v)
                     for k, v in record.args.items()
