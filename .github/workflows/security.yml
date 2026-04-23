@@ -78,7 +78,17 @@ jobs:
     # allowlist because the base audit would fail on
     # "allowlist entry for uninstalled package" if extras entries leaked
     # into .github/accepted-risks.yml (#166).
-    runs-on: ubuntu-latest
+    #
+    # Matrix across Linux + macOS so platform-gated extras (currently
+    # `mlx-lm`, pinned to `platform_system == 'Darwin'`) actually get
+    # audited. Running only on ubuntu-latest would silently leave
+    # macOS-only dependencies out of the coverage footprint — a real gap
+    # codex caught on PR #171.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
