@@ -56,26 +56,28 @@ _CRED_KEYS = (
 # ``key`` + optional quotes + ``=`` or ``:`` + value. The value arm has
 # three alternatives so each form stops on the correct delimiter:
 #
-# 1. Double-quoted (``password="abc'def"``) — allows single quotes inside,
-#    terminates on the closing ``"``.
-# 2. Single-quoted (``password='abc"def'``) — allows double quotes inside,
-#    terminates on the closing ``'``.
+# 1. Double-quoted (``password="abc'def"``) — allows single quotes and
+#    backslash-escaped double quotes inside (``password="abc\\"def"``);
+#    terminates on the first UNESCAPED ``"``.
+# 2. Single-quoted (``password='abc"def'``) — mirror case with escape
+#    support; terminates on the first unescaped ``'``.
 # 3. Unquoted — stops at whitespace / delimiter.
 #
-# Earlier versions used a single quoted alternative with ``[^\"']*`` which
-# forbade BOTH quote characters and missed mixed-punctuation secrets
-# (codex P1 PRRT_kwDOR_Rkws59IYi1). Splitting into separate dq / sq
-# branches is the standard regex-engine-agnostic fix because
-# ``[^(?P=q)]`` inside a character class isn't supported.
+# The quoted alternatives use the classic ``(?:[^Q\\]|\\.)*`` tokenizer
+# idiom — a sequence of non-delimiter / non-backslash characters OR
+# a backslash followed by any character. Without this, JSON-escaped
+# secrets leak (codex P1 PRRT_kwDOR_Rkws59IhT6:
+# ``password="abc\\"def secret"`` previously became
+# ``password="[REDACTED]"def secret"``).
 #
 # The key is kept in the replacement so the log line still tells you
 # *which* credential leaked — just not what.
 _KV_PATTERN = re.compile(
     r"(?i)(?P<key>(?:" + "|".join(_CRED_KEYS) + r")[\"']?\s*[:=]\s*)"
     r"(?:"
-    r'"(?P<qvalue_dq>[^"]*)"'
+    r'"(?P<qvalue_dq>(?:[^"\\]|\\.)*)"'
     r"|"
-    r"'(?P<qvalue_sq>[^']*)'"
+    r"'(?P<qvalue_sq>(?:[^'\\]|\\.)*)'"
     r"|"
     r"(?P<value>[^\"'\s,;&}\])]+)"
     r")"

@@ -132,6 +132,33 @@ class TestRedactsKeyValueForms:
         assert "abc-secret" not in rendered
         assert REDACTED in rendered
 
+    def test_quoted_value_with_escaped_quote(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59IhT6): JSON-escaped secrets like
+        ``password="abc\\"def secret"`` must be fully redacted. The
+        quoted alternative needs to treat ``\\"`` as an interior
+        character, not a terminator. Previously only ``abc`` was masked
+        and ``def secret`` leaked after the unescaped close.
+        """
+        f = CredentialRedactingFilter()
+        # Raw string — the \" in the record is a literal backslash + quote.
+        record = _make_record(r'password="abc\"def secret value"')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "def secret" not in rendered
+        assert "secret value" not in rendered
+        assert REDACTED in rendered
+
+    def test_single_quoted_value_with_escaped_quote(self) -> None:
+        """Mirror case for single-quoted value with a backslash-escaped
+        single quote inside.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record(r"token='abc\'def inside'")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "def inside" not in rendered
+        assert REDACTED in rendered
+
 
 class TestRedactsBearerHeader:
     """HTTP ``Authorization: Bearer <token>`` leaks."""
