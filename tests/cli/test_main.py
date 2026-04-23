@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -77,6 +76,8 @@ def test_organize_command_dry_run(mock_organizer_cls, _mock_setup, tmp_path):
 
     in_dir = tmp_path / "in"
     out_dir = tmp_path / "out"
+    # A.cli: input_dir must exist; output_dir may not (organizer creates it).
+    in_dir.mkdir()
 
     result = runner.invoke(app, ["organize", str(in_dir), str(out_dir), "--dry-run"])
 
@@ -89,7 +90,9 @@ def test_organize_command_dry_run(mock_organizer_cls, _mock_setup, tmp_path):
         enable_vision=True,
         no_prefetch=False,
     )
-    mock_instance.organize.assert_called_once_with(in_dir, out_dir)
+    # A.cli resolves the path args before dispatching; the service sees
+    # the canonical absolute form.
+    mock_instance.organize.assert_called_once_with(in_dir.resolve(), out_dir.resolve())
 
 
 @patch("cli.organize._check_setup_completed", return_value=True)
@@ -100,7 +103,12 @@ def test_organize_command_error(mock_organizer_cls, _mock_setup, tmp_path):
     mock_instance.organize.side_effect = RuntimeError("Something broke")
     mock_organizer_cls.return_value = mock_instance
 
-    result = runner.invoke(app, ["organize", "in", "out"])
+    # A.cli: real directories required so the service-layer error path
+    # (not CLI-arg-validation path) is exercised.
+    in_dir = tmp_path / "in"
+    in_dir.mkdir()
+    out_dir = tmp_path / "out"
+    result = runner.invoke(app, ["organize", str(in_dir), str(out_dir)])
 
     assert result.exit_code == 1
     assert "Error: Something broke" in result.stdout
@@ -115,7 +123,9 @@ def test_preview_command(mock_organizer_cls, _mock_setup, tmp_path):
     mock_instance.organize.return_value = mock_result
     mock_organizer_cls.return_value = mock_instance
 
-    result = runner.invoke(app, ["preview", "in_dir"])
+    in_dir = tmp_path / "in_dir"
+    in_dir.mkdir()
+    result = runner.invoke(app, ["preview", str(in_dir)])
 
     assert result.exit_code == 0
     assert "Previewing" in result.stdout
@@ -126,7 +136,8 @@ def test_preview_command(mock_organizer_cls, _mock_setup, tmp_path):
         enable_vision=True,
         no_prefetch=False,
     )
-    mock_instance.organize.assert_called_once_with(Path("in_dir"), Path("in_dir"))
+    resolved = in_dir.resolve()
+    mock_instance.organize.assert_called_once_with(resolved, resolved)
 
 
 @patch("cli.organize._check_setup_completed", return_value=True)
@@ -137,7 +148,9 @@ def test_preview_command_error(mock_organizer_cls, _mock_setup, tmp_path):
     mock_instance.organize.side_effect = ValueError("Bad input")
     mock_organizer_cls.return_value = mock_instance
 
-    result = runner.invoke(app, ["preview", "in_dir"])
+    in_dir = tmp_path / "in_dir"
+    in_dir.mkdir()
+    result = runner.invoke(app, ["preview", str(in_dir)])
 
     assert result.exit_code == 1
     assert "Error: Bad input" in result.stdout

@@ -11,6 +11,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from cli.path_validation import resolve_cli_path
 from cli.state import _get_state
 from core.path_guard import safe_walk
 
@@ -351,6 +352,7 @@ def search(
     ),
 ) -> None:
     """Search for files by name pattern with optional type filtering."""
+    directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
     search_dir, should_exit = _validate_search_params(limit, directory, type_filter)
     if should_exit:
         _output_search_results([], json_out)
@@ -379,9 +381,13 @@ def analyze(
         truncate_content,
     )
 
-    # Check file exists and is a regular file
+    # A.cli: `resolve_cli_path(must_be_dir=False)` accepts any existing
+    # path (file, dir, socket, fifo). Keep the explicit is_file() guard so
+    # directories and special files get a clear "not a regular file"
+    # error rather than a later decode failure.
+    file_path = resolve_cli_path(file_path, must_exist=True, must_be_dir=False)
     if not file_path.is_file():
-        console.print(f"[red]Error: File '{file_path}' not found.[/red]")
+        console.print(f"[red]Error: File '{file_path}' is not a regular file.[/red]")
         raise typer.Exit(code=1)
 
     # Detect binary files before reading as text

@@ -253,6 +253,10 @@ warn_unused_ignores = true
 warn_no_return = true
 follow_imports = "normal"
 ignore_missing_imports = true
+# striprtf ships no stubs and its `rtf_to_text` function is unannotated; exclude
+# calls into it from `disallow_untyped_calls` (both call sites still coerce the
+# result via `str(...)` to preserve downstream types). Unblocks CI after PR #167.
+untyped_calls_exclude = ["striprtf"]
 
 # Optional-dep model wrappers: mlx_lm and llama_cpp have no stubs and their
 # type signatures are only visible when the packages are installed.  The files

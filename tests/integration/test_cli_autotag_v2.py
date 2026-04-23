@@ -58,10 +58,11 @@ def _make_recommendation(suggestions: list | None = None) -> MagicMock:
 
 
 class TestSuggestCommand:
-    def test_suggest_directory_not_found_exits_1(self, tmp_path) -> None:
+    def test_suggest_directory_not_found_exits_2(self, tmp_path) -> None:
+        """A.cli: non-existent dir → ``typer.BadParameter`` (exit 2)."""
         missing = tmp_path / "does_not_exist"
         result = runner.invoke(autotag_app, ["suggest", str(missing)])
-        assert result.exit_code == 1
+        assert result.exit_code == 2
 
     def test_suggest_empty_directory_exits_0(self, tmp_path) -> None:
         result = runner.invoke(autotag_app, ["suggest", str(tmp_path)])
@@ -163,10 +164,11 @@ class TestSuggestCommand:
 
 
 class TestApplyCommand:
-    def test_apply_file_not_found_exits_1(self, tmp_path) -> None:
+    def test_apply_file_not_found_exits_2(self, tmp_path) -> None:
+        """A.cli: non-existent file → ``typer.BadParameter`` (exit 2)."""
         missing = tmp_path / "missing.txt"
         result = runner.invoke(autotag_app, ["apply", str(missing), "tag1"])
-        assert result.exit_code == 1
+        assert result.exit_code == 2
 
     def test_apply_success(self, tmp_path) -> None:
         f = tmp_path / "doc.txt"
@@ -277,10 +279,11 @@ class TestRecentCommand:
 
 
 class TestBatchCommand:
-    def test_batch_directory_not_found_exits_1(self, tmp_path) -> None:
+    def test_batch_directory_not_found_exits_2(self, tmp_path) -> None:
+        """A.cli: non-existent dir → ``typer.BadParameter`` (exit 2)."""
         missing = tmp_path / "no_dir"
         result = runner.invoke(autotag_app, ["batch", str(missing)])
-        assert result.exit_code == 1
+        assert result.exit_code == 2
 
     def test_batch_no_matching_files_exits_0(self, tmp_path) -> None:
         result = runner.invoke(autotag_app, ["batch", str(tmp_path), "--pattern", "*.xyz"])

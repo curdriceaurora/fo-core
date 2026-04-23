@@ -15,6 +15,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from cli.path_validation import resolve_cli_path
+
 console = Console()
 
 dedupe_app = typer.Typer(
@@ -127,6 +129,7 @@ def scan(
     json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Scan a directory and display duplicate file groups."""
+    directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
     detector = _get_detector()
     options = _build_scan_options(
         directory, algorithm, recursive, min_size, max_size, include, exclude
@@ -160,6 +163,7 @@ def resolve(
     exclude: str | None = typer.Option(None, help="Comma-separated exclude patterns."),
 ) -> None:
     """Scan and resolve duplicates using a strategy."""
+    directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
     detector = _get_detector()
     options = _build_scan_options(
         directory, algorithm, recursive, min_size, max_size, include, exclude
@@ -216,6 +220,7 @@ def report(
     json_output: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
     """Scan and display a summary report of duplicates."""
+    directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
     detector = _get_detector()
     from services.deduplication.detector import ScanOptions
     from services.deduplication.hasher import HashAlgorithm

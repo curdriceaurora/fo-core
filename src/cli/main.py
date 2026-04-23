@@ -222,9 +222,13 @@ def analytics(
 ) -> None:
     """Display storage analytics dashboard."""
     from cli.analytics import analytics_command
+    from cli.path_validation import resolve_cli_path
 
     args: list[str] = []
     if directory is not None:
+        # A.cli: resolve + validate the directory argument before
+        # handing the string back to the Click-compat analytics_command.
+        directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
         args.append(str(directory))
     if verbose or _get_state().verbose:
         args.append("--verbose")

@@ -38,13 +38,14 @@ pytestmark = pytest.mark.integration
 class TestBenchmarkRunCommand:
     """Exercise the ``benchmark run`` CLI command via typer invocation."""
 
-    def test_run_nonexistent_path_exits_1(self, cli_runner, tmp_path: Path) -> None:
+    def test_run_nonexistent_path_exits_2(self, cli_runner, tmp_path: Path) -> None:
+        """A.cli: non-existent path → ``typer.BadParameter`` (exit 2)."""
         from cli.main import app
 
         result = cli_runner.invoke(
             app, ["benchmark", "run", str(tmp_path / "gone"), "--iterations", "1", "--warmup", "0"]
         )
-        assert result.exit_code == 1
+        assert result.exit_code == 2
         assert "does not exist" in result.output.lower() or "error" in result.output.lower()
 
     def test_run_empty_dir_text_output(self, cli_runner, tmp_path: Path) -> None:
@@ -1960,10 +1961,11 @@ class TestSearchCommandLimitZero:
 
 class TestAnalyzeCommandErrorPaths:
     def test_analyze_file_not_found(self, cli_runner, tmp_path: Path) -> None:
+        """A.cli: non-existent file → ``typer.BadParameter`` (exit 2)."""
         from cli.main import app
 
         result = cli_runner.invoke(app, ["analyze", str(tmp_path / "missing.txt")])
-        assert result.exit_code == 1
+        assert result.exit_code == 2
 
     def test_analyze_binary_file_exits_1(self, cli_runner, tmp_path: Path) -> None:
         from cli.main import app

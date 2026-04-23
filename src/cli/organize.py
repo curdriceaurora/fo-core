@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
+from cli.path_validation import resolve_cli_path, validate_pair
 from cli.state import _get_state
 
 console = Console()
@@ -113,6 +114,13 @@ def organize(
     # Check if setup has been completed
     _check_setup_completed()
 
+    # A.cli: resolve + validate both path args before any filesystem work.
+    # Input must exist and be a dir; output may not exist yet (the
+    # organizer creates it), but when it does exist it must be a dir.
+    input_dir = resolve_cli_path(input_dir, must_exist=True, must_be_dir=True)
+    output_dir = resolve_cli_path(output_dir, must_exist=False, must_be_dir=True)
+    validate_pair(input_dir, output_dir)
+
     console.print(f"[bold]Organizing[/bold] {input_dir} -> {output_dir}")
     if dry_run or _get_state().dry_run:
         console.print("[yellow]Dry run mode — no files will be moved.[/yellow]")
@@ -177,6 +185,10 @@ def preview(
     """Preview how files would be organized (dry-run)."""
     # Check if setup has been completed
     _check_setup_completed()
+
+    # A.cli: single-path validation — preview never writes, so no
+    # output-dir pair check needed.
+    input_dir = resolve_cli_path(input_dir, must_exist=True, must_be_dir=True)
 
     console.print(f"[bold]Previewing[/bold] {input_dir}")
     resolved_workers, resolved_prefetch_depth = _resolve_parallel_settings(

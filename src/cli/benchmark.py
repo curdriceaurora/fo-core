@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import typer
 
+from cli.path_validation import resolve_cli_path
 from core.path_guard import safe_walk
 from models.base import ModelType
 
@@ -925,6 +926,23 @@ def _maybe_attach_comparison_output(
 # ---------------------------------------------------------------------------
 
 
+def _validate_compare_path(compare_path: Path | None) -> Path | None:
+    """Resolve ``--compare`` and reject directories at the CLI boundary.
+
+    ``resolve_cli_path(must_be_dir=False)`` accepts any existing FS object;
+    an explicit ``is_file()`` guard catches directories so they fail with
+    ``typer.BadParameter`` (exit 2) instead of later at ``read_text()``
+    with ``IsADirectoryError`` (exit 1). Extracted to keep ``run()``'s
+    cyclomatic complexity within the C901 limit.
+    """
+    if compare_path is None:
+        return None
+    resolved = resolve_cli_path(compare_path, must_exist=True, must_be_dir=False)
+    if not resolved.is_file():
+        raise typer.BadParameter(f"Baseline compare path is not a regular file: {resolved!s}")
+    return resolved
+
+
 @benchmark_app.command()
 def run(
     input_path: Path = typer.Argument(
@@ -973,11 +991,11 @@ def run(
     from rich.console import Console
 
     console = Console()
-    input_path = input_path.resolve()
-
-    if not input_path.exists():
-        console.print(f"[red]Error: Path does not exist: {input_path}[/red]")
-        raise typer.Exit(code=1)
+    # A.cli: resolve + validate the input tree. `--compare` points at a
+    # JSON baseline (a file, not a dir); validate it separately via
+    # _validate_compare_path so run()'s complexity stays within C901.
+    input_path = resolve_cli_path(input_path, must_exist=True, must_be_dir=True)
+    compare_path = _validate_compare_path(compare_path)
 
     # Collect files (capped to prevent OOM on pathologically large trees)
     try:
