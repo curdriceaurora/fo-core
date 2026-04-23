@@ -57,9 +57,26 @@ class TestConfigList:
     def test_list_shows_profiles_or_empty_message(self) -> None:
         result = runner.invoke(app, ["config", "list"])
         assert result.exit_code == 0
-        # Either shows profile names or an empty-state message
-        output = result.output.lower()
-        assert ("default" in output) or ("no profiles" in output) or len(result.output.strip()) >= 0
+        # T9 fix (roadmap §3 C4): the pre-existing trailing
+        # ``or len(result.output.strip()) >= 0`` clause was always
+        # ``True`` (``len`` is non-negative by definition), making
+        # the whole disjunction vacuous — the test passed regardless
+        # of what the CLI printed, including an empty string.
+        #
+        # The first revision of this fix asserted ``"default"`` OR
+        # ``"no profiles"`` was in the output, but ``fo config list``
+        # iterates whatever profiles the user actually has (see
+        # ``src/cli/config_cli.py::config_list``). A user whose config
+        # only contains custom profiles like ``work`` / ``personal``
+        # — valid state — would fail this test (codex P2
+        # PRRT_kwDOR_Rkws59Nq6G). The invariant we actually want is
+        # "the command produced visible output": both branches (the
+        # empty-state message and the per-profile loop) emit at least
+        # one non-whitespace character, so an empty string signals a
+        # real regression.
+        assert result.output.strip(), (
+            f"`fo config list` produced empty output; got: {result.output!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
