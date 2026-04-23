@@ -234,6 +234,7 @@ class TestDedupeReport:
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 class TestDedupeIncludeHidden:
     """#170: ``--include-hidden`` opts into dotfile / hidden-dir traversal.
 
