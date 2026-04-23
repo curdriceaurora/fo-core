@@ -100,10 +100,30 @@ class CredentialRedactingFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if isinstance(record.msg, str):
-            record.msg = _redact_text(record.msg)
+        """Redact ``record`` in-place. Always returns ``True`` (never drops).
+
+        When ``record.args`` is non-empty, the record is a template +
+        arguments pair (e.g. ``logger.info("api_key=%s", secret)``).
+        Running the redact pattern on ``record.msg`` alone can strip ``%s``
+        placeholders while leaving ``record.args`` intact, and the
+        downstream ``record.getMessage()`` then raises ``TypeError`` —
+        Python's logging error handler would print the raw ``args`` tuple
+        (including the unredacted secret) to stderr. Avoid that by
+        formatting first and redacting the result, then clearing ``args``
+        so the formatted-and-redacted string is what ``getMessage()``
+        returns.
+        """
         if record.args:
-            record.args = _redact_args(record.args)  # type: ignore[assignment]
+            try:
+                formatted = record.getMessage()
+            except (TypeError, ValueError):
+                # Malformed template — let ``logging`` surface the error
+                # via its own handler rather than swallow it here.
+                return True
+            record.msg = _redact_text(formatted)
+            record.args = None
+        elif isinstance(record.msg, str):
+            record.msg = _redact_text(record.msg)
         return True
 
 

@@ -167,6 +167,28 @@ class TestContract:
         assert "alice" in rendered
         assert "abc" not in rendered
 
+    def test_regression_template_placeholder_preserved_with_credential_key_in_msg(
+        self,
+    ) -> None:
+        """codex P1: ``logger.info("api_key=%s", secret)`` has a credential
+        key in ``record.msg`` with a ``%s`` placeholder and the secret in
+        ``record.args``. Naively redacting ``record.msg`` could strip the
+        ``%s`` (capture group consumes it), leaving args intact —
+        ``record.getMessage()`` then raises ``TypeError``, Python's logging
+        error handler prints the raw args tuple (including the secret) to
+        stderr, and the filter ends up LEAKING the credential it was meant
+        to mask. The filter must format first, redact the result, and
+        clear ``args`` so downstream ``getMessage()`` never raises.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("api_key=%s", "sk-super-secret-xyz123")
+        assert f.filter(record) is True
+        # getMessage() must not raise — the classic bug symptom.
+        rendered = record.getMessage()
+        # And the secret must be absent from the rendered output.
+        assert "sk-super-secret-xyz123" not in rendered
+        assert REDACTED in rendered
+
 
 class TestCLIIntegration:
     """End-to-end: invoking the CLI main-callback installs the filter on root.
@@ -194,9 +216,7 @@ class TestCLIIntegration:
             result = CliRunner().invoke(app, ["version"])
             assert result.exit_code == 0
             # Filter attached to root.
-            attached = [
-                f for f in root.filters if isinstance(f, CredentialRedactingFilter)
-            ]
+            attached = [f for f in root.filters if isinstance(f, CredentialRedactingFilter)]
             assert len(attached) >= 1, (
                 "cli.main.main_callback did not install CredentialRedactingFilter"
             )
@@ -218,9 +238,7 @@ class TestCLIIntegration:
             assert REDACTED in rendered
         finally:
             logging.setLogRecordFactory(original_factory)
-            for f in [
-                f for f in root.filters if isinstance(f, CredentialRedactingFilter)
-            ]:
+            for f in [f for f in root.filters if isinstance(f, CredentialRedactingFilter)]:
                 root.removeFilter(f)
             for f in preexisting:
                 root.addFilter(f)
