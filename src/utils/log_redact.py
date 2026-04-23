@@ -100,7 +100,7 @@ class CredentialRedactingFilter(logging.Filter):
         if record.args:
             try:
                 formatted = record.getMessage()
-            except Exception:  # noqa: BLE001 — see rationale below
+            except Exception:
                 # ``getMessage()`` runs ``record.msg % record.args`` which
                 # invokes each arg's ``__str__`` / ``__repr__``. A bug in
                 # either (custom ``Exception`` subclass, buggy ``__str__``
