@@ -167,6 +167,42 @@ class TestContract:
         assert "alice" in rendered
         assert "abc" not in rendered
 
+    def test_malformed_template_is_passed_through_unchanged(self) -> None:
+        """A record whose ``msg % args`` raises (wrong arg count, etc.) must
+        be left as-is so Python's logging error handler can surface the
+        original formatting error. The filter must still return ``True``
+        (never drops) and must not mutate ``record.msg`` or ``record.args``.
+        """
+        f = CredentialRedactingFilter()
+        # Template expects 2 %s, only 1 arg provided → getMessage() raises
+        # TypeError when invoked.
+        record = _make_record("need=%s and=%s", "one-arg-only")
+        original_msg = record.msg
+        original_args = record.args
+        assert f.filter(record) is True
+        assert record.msg == original_msg
+        assert record.args == original_args
+
+    def test_install_on_root_honours_extra_loggers(self) -> None:
+        """``install_on_root(extra_loggers=["foo"])`` attaches the filter to
+        each named logger so it fires for records originating there. Belt-
+        and-suspenders for the ``setLogRecordFactory`` install.
+        """
+        from utils.log_redact import install_on_root
+
+        original_factory = logging.getLogRecordFactory()
+        named = "test_log_redact_extra"
+        target_logger = logging.getLogger(named)
+        pre_filters = list(target_logger.filters)
+        try:
+            installed = install_on_root(extra_loggers=[named])
+            assert installed in target_logger.filters, (
+                "install_on_root did not attach filter to the named logger"
+            )
+        finally:
+            logging.setLogRecordFactory(original_factory)
+            target_logger.filters = pre_filters
+
     def test_regression_template_placeholder_preserved_with_credential_key_in_msg(
         self,
     ) -> None:

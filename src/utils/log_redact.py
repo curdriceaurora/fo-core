@@ -73,22 +73,6 @@ def _redact_text(text: str) -> str:
     return text
 
 
-def _redact_args(args: object) -> object:
-    """Redact each positional format arg.
-
-    ``record.args`` is either a tuple, a mapping (``%(name)s`` style), or a
-    single value. Preserve the shape — ``logging`` will try to format with
-    whatever we return.
-    """
-    if isinstance(args, tuple):
-        return tuple(_redact_text(str(a)) if isinstance(a, str) else a for a in args)
-    if isinstance(args, dict):
-        return {k: _redact_text(str(v)) if isinstance(v, str) else v for k, v in args.items()}
-    if isinstance(args, str):
-        return _redact_text(args)
-    return args
-
-
 class CredentialRedactingFilter(logging.Filter):
     """Redact credential-shaped substrings in log records. Never drops.
 
