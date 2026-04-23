@@ -313,14 +313,17 @@ class TestDedupeIncludeHidden:
             ],
         )
 
-        assert mock_confirm.called, "confirm_action was not invoked"
+        # Exactly one prompt — catches accidental double-prompting regressions.
+        mock_confirm.assert_called_once()
         message = mock_confirm.call_args[0][0]
         assert "hidden" in message.lower()
         assert "credential" in message.lower() or "sensitive" in message.lower()
         # Declined → command exits before scanning; detector.scan_directory
         # must NOT be called.
         mock_det.scan_directory.assert_not_called()
-        assert result.exit_code == 0
+        # Non-zero exit so shell scripts (`&&` chains, CI gates) can
+        # distinguish user-cancellation from "no duplicates found".
+        assert result.exit_code == 1
 
     @patch("cli.dedupe_v2.confirm_action")
     @patch("cli.dedupe_v2._get_detector")
@@ -330,9 +333,8 @@ class TestDedupeIncludeHidden:
         mock_confirm: MagicMock,
         tmp_path: Path,
     ) -> None:
-        """Default ``resolve`` (no ``--include-hidden``) must NOT invoke the
-        hidden-file confirmation. Only the hidden flag triggers the extra
-        gate.
+        """Default ``resolve`` (no ``--include-hidden``) over a non-hidden
+        root must NOT invoke the hidden-file confirmation.
         """
         mock_det = MagicMock()
         mock_get_det.return_value = mock_det
@@ -341,3 +343,32 @@ class TestDedupeIncludeHidden:
         result = runner.invoke(app, ["dedupe", "resolve", str(tmp_path), "--strategy", "oldest"])
         assert result.exit_code == 0
         mock_confirm.assert_not_called()
+
+    @patch("cli.dedupe_v2.confirm_action")
+    @patch("cli.dedupe_v2._get_detector")
+    def test_resolve_hidden_root_triggers_prompt_without_flag(
+        self,
+        mock_get_det: MagicMock,
+        mock_confirm: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """codex P1: ``fo dedupe resolve ~/.ssh --strategy oldest`` traverses
+        the scan root even without ``--include-hidden`` — ``safe_walk``'s
+        hidden filter is relative to root. The confirmation gate must fire
+        based on whether hidden files will actually be scanned, not just the
+        flag. A scan root whose path contains a dot-prefixed component
+        (``.ssh``) qualifies.
+        """
+        hidden_root = tmp_path / ".ssh"
+        hidden_root.mkdir()
+        mock_confirm.return_value = False  # decline
+        mock_det = MagicMock()
+        mock_get_det.return_value = mock_det
+
+        result = runner.invoke(
+            app, ["dedupe", "resolve", str(hidden_root), "--strategy", "oldest"]
+        )
+
+        mock_confirm.assert_called_once()
+        mock_det.scan_directory.assert_not_called()
+        assert result.exit_code == 1

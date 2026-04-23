@@ -67,11 +67,28 @@ def _build_scan_options(
 # the hash index, so a backup-directory duplicate could cascade into a
 # credential deletion. The prompt forces a conscious second-click.
 _HIDDEN_RESOLVE_WARNING = (
-    "You are running ``dedupe resolve --include-hidden``. Hidden files "
-    "(``.env``, ``.ssh/*``, ``.config/*``, etc.) will be hashed and may be "
+    "You are about to [bold]dedupe resolve[/bold] a scan that includes hidden "
+    "files ([yellow].env[/yellow], [yellow].ssh/*[/yellow], "
+    "[yellow].config/*[/yellow], etc.). These will be hashed and may be "
     "deleted as duplicates — including potentially sensitive credentials. "
     "Continue?"
 )
+
+
+def _hidden_files_will_be_scanned(directory: Path, *, include_hidden: bool) -> bool:
+    """Return True when the scan is likely to touch hidden files.
+
+    The `resolve` confirmation gate must fire not only when ``--include-hidden``
+    is set, but also when the scan *root itself* is a hidden directory
+    (`fo dedupe resolve ~/.ssh --strategy oldest`). ``safe_walk``'s hidden
+    filter is relative to `root`: a root of `~/.ssh` means `id_rsa` has no
+    hidden component *under* the root, and would be scanned even with
+    `include_hidden=False`. Either condition is enough to warrant the prompt.
+    """
+    if include_hidden:
+        return True
+    resolved = directory.resolve()
+    return any(part.startswith(".") and part not in (".", "..") for part in resolved.parts)
 
 
 def _display_groups_table(
@@ -204,12 +221,17 @@ def resolve(
 ) -> None:
     """Scan and resolve duplicates using a strategy."""
     directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
-    # #170: opting into hidden-file inclusion on a command that DELETES files
-    # requires an explicit confirmation — `--yes` / `--no-interactive` still
-    # honour their usual semantics via `confirm_action`.
-    if include_hidden and not confirm_action(_HIDDEN_RESOLVE_WARNING, default=False):
+    # #170: any `resolve` that will actually traverse hidden files (either via
+    # ``--include-hidden`` OR because the scan root itself is a hidden dir
+    # like ``~/.ssh``) requires an explicit credential-risk confirmation.
+    # ``--yes`` / ``--no-interactive`` still honour their usual semantics via
+    # ``confirm_action``. User-cancellation exits with code 1 so shell scripts
+    # and ``&&`` chains can distinguish "aborted" from "no duplicates found".
+    if _hidden_files_will_be_scanned(
+        directory, include_hidden=include_hidden
+    ) and not confirm_action(_HIDDEN_RESOLVE_WARNING, default=False):
         console.print("[yellow]Aborted.[/yellow]")
-        raise typer.Exit()
+        raise typer.Exit(code=1)
     detector = _get_detector()
     options = _build_scan_options(
         directory,
