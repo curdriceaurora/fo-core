@@ -197,6 +197,19 @@ def test_version_is_pre_1_handles_invalid_input() -> None:
     assert _version_is_pre_1("xyz") is False
 
 
+def test_version_is_pre_1_respects_pep_440_epoch() -> None:
+    """Regression for codex P2 review on PR #171: PEP 440 allows an epoch
+    prefix like ``0!1.2``. The epoch (``0``) is not the release major —
+    the release here is ``1.2`` (post-1.0). A naive leading-digit regex
+    would misclassify this as pre-1.0 and force a cap on a legitimate
+    post-1.0 pin.
+    """
+    # epoch 0, release 1.2 — post-1.0
+    assert _version_is_pre_1("0!1.2") is False
+    # epoch 1, release 0.9 — pre-1.0 despite epoch >= 1
+    assert _version_is_pre_1("1!0.9") is True
+
+
 def test_pre_1_bare_zero_without_cap_fails(tmp_path: Path) -> None:
     """End-to-end #164: ``foo>=0`` (bare zero, no cap) now fails the
     cap-or-marker rule. Before the fix this silently passed.
@@ -224,14 +237,14 @@ def test_constraint_satisfiable_when_match_exists() -> None:
     assert _constraint_is_satisfiable("6.1.1", ["6.0.0", "6.1.0", "6.1.1", "7.0.0"]) is True
 
 
-def test_constraint_unsatisfiable_for_fabricated_post_1_version() -> None:
-    """Regression for #165 / C8 VERSION_FABRICATION: a ``>=6.2`` pin when the
-    latest published 6.x is ``6.1.1`` and the next release is ``7.0.0`` has
-    no published version >= 6.2 that stays in-range. The helper correctly
-    reports the constraint as satisfiable by ``7.0.0`` (which is >= 6.2),
-    so the upper-bound cap is what prevents the fabrication from installing.
-    This test documents the helper's contract: it does not check caps,
-    only the lower-bound existence.
+def test_constraint_satisfiable_ignores_upper_cap_for_fabricated_post_1_version() -> None:
+    """Regression for #165 / C8 VERSION_FABRICATION: the helper only checks
+    lower-bound existence, not caps. A ``>=6.2`` pin with no published 6.2
+    but a published 7.0.0 is reported as satisfiable — the *upper-bound*
+    cap (``<7`` in the real psutil case) is what prevents the fabrication
+    from installing. This test documents the contract (renamed from the
+    earlier "unsatisfiable"-prefixed name, which contradicted its own
+    assertion and confused readers — coderabbit review on PR #171).
     """
     # `>=6.2` alone is satisfiable by 7.0.0.
     assert _constraint_is_satisfiable("6.2", ["6.0.0", "6.1.0", "6.1.1", "7.0.0"]) is True

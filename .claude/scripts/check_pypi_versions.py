@@ -42,15 +42,30 @@ from urllib import error, parse, request
 
 
 def _version_is_pre_1(version: str) -> bool:
-    """Return True when the major component is 0.
+    """Return True when the PEP 440 *release* major component is 0.
 
     Covers every pre-1.0 shape: ``0.7.2``, ``0.0.19``, bare ``0``, and
     pre-releases like ``0rc1`` / ``0a1`` / ``0b0``. Previously only
     ``"0."`` was recognised, which silently let uncapped ``foo>=0`` pins
     bypass the E3 cap-or-marker rule (#164).
+
+    Uses ``packaging.version.Version`` so PEP 440 epoch syntax is
+    handled correctly — ``0!1.2`` has epoch ``0`` and major release ``1``,
+    i.e. *post-1.0*. A naive leading-digit regex would read the epoch
+    and misclassify it (codex P2 review on PR #171).
     """
-    match = re.match(r"^(\d+)", version)
-    return match is not None and int(match.group(1)) == 0
+    try:
+        from packaging.version import InvalidVersion, Version
+    except ImportError:  # pragma: no cover — packaging is pinned in pyproject.toml
+        # Fallback to the regex path if packaging somehow isn't available.
+        match = re.match(r"^(\d+)", version)
+        return match is not None and int(match.group(1)) == 0
+    try:
+        return Version(version).major == 0
+    except InvalidVersion:
+        # Non-PEP-440 garbage — treat as post-1.0 so the pre-1.0 rule
+        # doesn't enforce a cap on something we can't classify.
+        return False
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:

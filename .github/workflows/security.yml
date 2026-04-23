@@ -84,6 +84,12 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
+          # Cache pip wheels keyed on pyproject.toml so the `.[all]` install
+          # (torch / opencv / faster-whisper — ~1 GB) doesn't re-download on
+          # every schedule/PR run. Keeps the retry wrapper for genuine CDN
+          # flakes but dramatically narrows its blast radius.
+          cache: pip
+          cache-dependency-path: pyproject.toml
       - name: Install pip-audit + gate deps
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
         with:
@@ -95,6 +101,14 @@ jobs:
         # `.[all]` pulls torch / opencv / faster-whisper / etc. — expect this
         # step to be slower than the base audit. The retry wrapper also guards
         # the large wheel downloads against transient CDN flakes (issue #145).
+        #
+        # `pip-audit` (no path argument) audits the **installed environment**
+        # — which is exactly what we need here: `.[all]` has put every extra's
+        # transitive graph on disk, and that's what we want scanned.
+        # `pip-audit .` is project-path mode and ONLY inspects the
+        # `[project.dependencies]` block in pyproject.toml, silently ignoring
+        # `[project.optional-dependencies]`. Running the path form against a
+        # `.[all]`-installed env would defeat the whole reason this job exists.
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
         with:
           timeout_minutes: 20
@@ -102,9 +116,13 @@ jobs:
           retry_on: error
           command: |
             set -euo pipefail
-            pip install -e .[all] >/dev/null
+            # Quote `.[all]` so bracket-glob-enabled shells (zsh / bash with
+            # failglob) can't accidentally expand or null-match it.
+            pip install -e '.[all]' >/dev/null
             set +e
-            pip-audit . --format=json > audit-extras.json
+            # Environment mode (no `.` argument) — audits the installed
+            # graph, not pyproject.toml. See the long comment on the step.
+            pip-audit --format=json > audit-extras.json
             audit_exit=$?
             set -e
             if [ ! -s audit-extras.json ]; then
