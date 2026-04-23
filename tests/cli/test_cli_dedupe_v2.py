@@ -226,3 +226,122 @@ class TestDedupeReport:
         result = runner.invoke(app, ["dedupe", "report", str(tmp_path), "--json"])
         assert result.exit_code == 0
         assert "50" in result.output
+
+
+# ---------------------------------------------------------------------------
+# --include-hidden opt-in (#170)
+# ---------------------------------------------------------------------------
+
+
+class TestDedupeIncludeHidden:
+    """#170: ``--include-hidden`` opts into dotfile / hidden-dir traversal.
+
+    Default behaviour keeps credential-bearing paths (``.env``, ``.ssh/*``)
+    out of the dedupe hash index so ``dedupe resolve`` can't delete them by
+    accident. These tests verify the flag plumbs from the CLI into
+    ``ScanOptions.include_hidden``, and that ``resolve --include-hidden``
+    prompts for an explicit confirmation before touching hidden files.
+    """
+
+    @patch("cli.dedupe_v2._get_detector")
+    def test_scan_default_sets_include_hidden_false(
+        self, mock_get_det: MagicMock, tmp_path: Path
+    ) -> None:
+        """Without the flag, the ScanOptions handed to the detector must
+        have ``include_hidden=False``."""
+        mock_det = MagicMock()
+        mock_get_det.return_value = mock_det
+        mock_det.get_duplicate_groups.return_value = {}
+
+        result = runner.invoke(app, ["dedupe", "scan", str(tmp_path)])
+        assert result.exit_code == 0
+        mock_det.scan_directory.assert_called_once()
+        options = mock_det.scan_directory.call_args[0][1]
+        assert options.include_hidden is False
+
+    @patch("cli.dedupe_v2._get_detector")
+    def test_scan_with_include_hidden_flag(
+        self, mock_get_det: MagicMock, tmp_path: Path
+    ) -> None:
+        """``scan --include-hidden`` → ``ScanOptions.include_hidden=True``."""
+        mock_det = MagicMock()
+        mock_get_det.return_value = mock_det
+        mock_det.get_duplicate_groups.return_value = {}
+
+        result = runner.invoke(app, ["dedupe", "scan", str(tmp_path), "--include-hidden"])
+        assert result.exit_code == 0
+        options = mock_det.scan_directory.call_args[0][1]
+        assert options.include_hidden is True
+
+    @patch("cli.dedupe_v2._get_detector")
+    def test_report_with_include_hidden_flag(
+        self, mock_get_det: MagicMock, tmp_path: Path
+    ) -> None:
+        """``report --include-hidden`` plumbs through ScanOptions."""
+        mock_det = MagicMock()
+        mock_get_det.return_value = mock_det
+        mock_det.get_statistics.return_value = {"total_files": 0, "duplicate_files": 0}
+        mock_det.get_duplicate_groups.return_value = {}
+
+        result = runner.invoke(
+            app, ["dedupe", "report", str(tmp_path), "--include-hidden"]
+        )
+        assert result.exit_code == 0
+        options = mock_det.scan_directory.call_args[0][1]
+        assert options.include_hidden is True
+
+    @patch("cli.dedupe_v2.confirm_action")
+    @patch("cli.dedupe_v2._get_detector")
+    def test_resolve_include_hidden_prompts_for_confirmation(
+        self,
+        mock_get_det: MagicMock,
+        mock_confirm: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """``resolve --include-hidden`` must prompt before deleting hidden
+        files, with a message explicitly mentioning credential risk.
+        """
+        mock_confirm.return_value = False  # user declines → bail out
+        mock_det = MagicMock()
+        mock_get_det.return_value = mock_det
+
+        result = runner.invoke(
+            app,
+            [
+                "dedupe",
+                "resolve",
+                str(tmp_path),
+                "--strategy",
+                "oldest",
+                "--include-hidden",
+            ],
+        )
+
+        assert mock_confirm.called, "confirm_action was not invoked"
+        message = mock_confirm.call_args[0][0]
+        assert "hidden" in message.lower()
+        assert "credential" in message.lower() or "sensitive" in message.lower()
+        # Declined → command exits before scanning; detector.scan_directory
+        # must NOT be called.
+        mock_det.scan_directory.assert_not_called()
+        assert result.exit_code == 0
+
+    @patch("cli.dedupe_v2.confirm_action")
+    @patch("cli.dedupe_v2._get_detector")
+    def test_resolve_without_include_hidden_skips_prompt(
+        self,
+        mock_get_det: MagicMock,
+        mock_confirm: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """Default ``resolve`` (no ``--include-hidden``) must NOT invoke the
+        hidden-file confirmation. Only the hidden flag triggers the extra
+        gate.
+        """
+        mock_det = MagicMock()
+        mock_get_det.return_value = mock_det
+        mock_det.get_duplicate_groups.return_value = {}
+
+        result = runner.invoke(app, ["dedupe", "resolve", str(tmp_path), "--strategy", "oldest"])
+        assert result.exit_code == 0
+        mock_confirm.assert_not_called()

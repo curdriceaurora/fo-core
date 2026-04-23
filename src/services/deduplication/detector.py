@@ -27,6 +27,12 @@ class ScanOptions:
     algorithm: HashAlgorithm = "sha256"
     recursive: bool = True
     follow_symlinks: bool = False
+    # #170: default False keeps `.env` / `.ssh/*` / `.config/*` out of the
+    # dedupe hash index. `fo dedupe resolve` can DELETE files, so including
+    # hidden entries in the index means a backup-directory duplicate could
+    # trigger deletion of a credential file. Flipping this to True is the
+    # opt-in, CLI-prompted path — see `cli.dedupe_v2`.
+    include_hidden: bool = False
     min_file_size: int = 0  # Minimum file size to consider (bytes)
     max_file_size: int | None = None  # Maximum file size (None = no limit)
     file_patterns: list[str] | None = None  # Glob patterns to include
@@ -107,14 +113,15 @@ class DuplicateDetector:
 
         # Secure defaults: dedupe can DELETE files (`fo dedupe resolve`),
         # so never hash / index entries under `.env`, `.ssh/*`, etc. by
-        # default — a later `resolve` call shouldn't be able to delete a
-        # user's credential file because its duplicate was found in a
-        # backup directory. Legacy rglob behavior (include hidden) is
-        # tracked for an opt-in `--include-hidden` flag in follow-up.
+        # default. Users who genuinely want to dedupe their `.cache/` or
+        # `.config/` trees opt in via `fo dedupe … --include-hidden`, which
+        # the CLI layer (cli.dedupe_v2) confirms with an explicit prompt
+        # for the resolve path because the hidden set may include secrets.
         walker = safe_walk(
             directory,
             recursive=options.recursive,
             follow_symlinks=options.follow_symlinks,
+            include_hidden=options.include_hidden,
         )
         for path in walker:
             # Check file size constraints
