@@ -347,6 +347,7 @@ class TestRulesExport:
         assert "Exported" in result.output
 
     @pytest.mark.integration
+    @pytest.mark.ci
     def test_export_output_is_existing_directory_rejected(
         self, runner, mock_rule_manager, tmp_path
     ):
@@ -362,6 +363,7 @@ class TestRulesExport:
         assert "not a regular file" in result.output.lower()
 
     @pytest.mark.integration
+    @pytest.mark.ci
     def test_export_parent_dir_missing_rejected(self, runner, mock_rule_manager, tmp_path):
         """A.cli: ``--output`` under a non-existent parent must fail with
         ``typer.BadParameter`` (exit 2). ``is_dir()`` also rejects the case
@@ -374,6 +376,7 @@ class TestRulesExport:
         assert "does not exist" in result.output.lower()
 
     @pytest.mark.integration
+    @pytest.mark.ci
     def test_export_write_oserror_surfaces_as_exit_1(self, runner, mock_rule_manager, tmp_path):
         """A.cli: if ``write_text()`` itself fails (e.g. permission denied),
         surface a user-facing error (exit 1), not a raw ``OSError`` traceback.
@@ -425,6 +428,7 @@ class TestRulesImport:
         assert "does not exist" in result.output.lower()
 
     @pytest.mark.integration
+    @pytest.mark.ci
     def test_import_directory_rejected(self, runner, tmp_path):
         """A.cli: ``must_be_dir=False`` alone allows directories through, so
         there's an explicit ``is_file()`` guard after ``resolve_cli_path``.

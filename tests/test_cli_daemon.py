@@ -13,6 +13,7 @@ from cli.daemon import daemon_app
 runner = CliRunner()
 
 
+@pytest.mark.ci
 @pytest.mark.unit
 @pytest.mark.integration
 class TestDaemonStart:
@@ -133,6 +134,7 @@ class TestDaemonStatus:
         assert "Running" in result.output
 
 
+@pytest.mark.ci
 @pytest.mark.unit
 @pytest.mark.integration
 class TestDaemonProcess:

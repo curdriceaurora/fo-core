@@ -77,3 +77,30 @@ def test_cli_command_rejects_missing_path(
         f"expected exit 2 for {argv}; got {result.exit_code}\noutput: {result.output}"
     )
     assert "does not exist" in result.output.lower()
+
+
+def test_benchmark_compare_directory_rejected(tmp_path: Path) -> None:
+    """``--compare`` points at a JSON baseline file; directories must be
+    rejected at the CLI boundary (exit 2) rather than later at read_text()
+    with IsADirectoryError (exit 1). Covers the ``_validate_compare_path``
+    helper's is_file branch.
+    """
+    input_dir = tmp_path / "in"
+    input_dir.mkdir()
+    compare_dir = tmp_path / "a_dir"
+    compare_dir.mkdir()
+    result = runner.invoke(app, ["benchmark", "run", str(input_dir), "--compare", str(compare_dir)])
+    assert result.exit_code == 2
+    assert "not a regular file" in result.output.lower()
+
+
+def test_analyze_directory_rejected_with_regular_file_message(tmp_path: Path) -> None:
+    """After ``resolve_cli_path`` accepts the directory (must_be_dir=False),
+    the explicit ``is_file()`` guard in analyze prints "not a regular file"
+    and exits 1 (distinct from exit 2's CLI-boundary usage errors).
+    """
+    d = tmp_path / "target"
+    d.mkdir()
+    result = runner.invoke(app, ["analyze", str(d)])
+    assert result.exit_code == 1
+    assert "not a regular file" in result.output.lower()

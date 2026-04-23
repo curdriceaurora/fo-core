@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from cli.main import app
 
-pytestmark = [pytest.mark.unit, pytest.mark.integration]
+pytestmark = [pytest.mark.ci, pytest.mark.unit, pytest.mark.integration]
 
 runner = CliRunner()
 
