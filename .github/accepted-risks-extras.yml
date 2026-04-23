@@ -1,0 +1,29 @@
+# Accepted-risk allowlist for the `.[all]` audit (optional extras).
+#
+# This file is paired with the `audit-dependencies-extras` job in
+# .github/workflows/security.yml, which installs `pip install -e .[all]` so
+# optional-extra transitive risks (via `[llama]`, `[media]`, `[search]`, etc.)
+# are surfaced. The base-install audit uses .github/accepted-risks.yml
+# separately; each allowlist scopes to only the packages its audit job
+# actually installs (#166).
+#
+# Schema is the same as .github/accepted-risks.yml — enforced by
+# scripts/pip_audit_gate.py:
+#   - advisory_id : string, GHSA-/PYSEC-/CVE- prefix
+#   - package     : string, PyPI distribution name
+#   - version_spec: string, PEP 440 specifier
+#   - reason      : string, why the code path is unreachable for fo-core
+#   - expires_on  : YYYY-MM-DD (≤ 6 months from add date)
+
+allowlist:
+  - advisory_id: GHSA-w8v5-vhqr-4h9v
+    package: diskcache
+    version_spec: "<=5.6.3"
+    reason: >-
+      Transitive via llama-cpp-python (``[llama]`` extra). The vulnerable
+      cache-path code path is never invoked by fo-core — the ``[llama]``
+      surface only uses llama-cpp-python for local inference, and the disk
+      cache is pinned to a per-model temp dir we control. Upstream has no
+      patched release as of 2026-04-22; re-evaluate when diskcache ships
+      a 5.6.x+ that addresses the advisory.
+    expires_on: 2026-10-22

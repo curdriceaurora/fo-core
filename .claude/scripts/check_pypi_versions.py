@@ -8,7 +8,9 @@ Two independent checks are bundled into one script (both run by default):
    version of *package* is >= X.Y.Z.  This catches cases like
    ``rank-bm25>=0.7.2`` where the latest published version is 0.2.2 — no
    installation is possible, so the requirement is effectively broken.
-   Only pre-1.0 packages are checked (version < 1.0.0).
+   Runs on **every** ``>=`` pin (pre-1.0 and post-1.0) — the ``psutil>=6.2``
+   fabrication that originally motivated this script was post-1.0 and was
+   missed by the earlier pre-1.0-only gate (#165).
 
 2. **Pre-1.0 cap-or-marker** (E3 of the hardening roadmap, #158):
    Any pre-1.0 ``>=`` pin must have either an upper bound (e.g. ``<1``) or
@@ -40,8 +42,15 @@ from urllib import error, parse, request
 
 
 def _version_is_pre_1(version: str) -> bool:
-    """Return True for pre-1.0 versions like 0.7.2, 0.0.19."""
-    return version.startswith("0.")
+    """Return True when the major component is 0.
+
+    Covers every pre-1.0 shape: ``0.7.2``, ``0.0.19``, bare ``0``, and
+    pre-releases like ``0rc1`` / ``0a1`` / ``0b0``. Previously only
+    ``"0."`` was recognised, which silently let uncapped ``foo>=0`` pins
+    bypass the E3 cap-or-marker rule (#164).
+    """
+    match = re.match(r"^(\d+)", version)
+    return match is not None and int(match.group(1)) == 0
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
@@ -135,8 +144,11 @@ def _check_caps_or_marker(pyproject_path: Path) -> list[str]:
         # Only audit bare `>=0.X` pins. `~=0.X` is already bounded by PEP 440
         # semantics (`~=0.18` means `>=0.18,<0.19`), and `==0.X` is pinned exactly.
         # Those forms are safe; this rule targets unbounded `>=`.
+        #
+        # `_version_is_pre_1` catches every pre-1.0 shape — `0`, `0rc1`,
+        # `0.0.19`, `0.7.2` — not just `"0."`-prefixed strings (#164).
         has_pre_1_lower = any(
-            s.operator == ">=" and s.version.startswith("0.") for s in req.specifier
+            s.operator == ">=" and _version_is_pre_1(s.version) for s in req.specifier
         )
         if not has_pre_1_lower:
             continue
@@ -159,7 +171,7 @@ def _check_caps_or_marker(pyproject_path: Path) -> list[str]:
     return failures
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: C901
+def main(argv: list[str] | None = None) -> int:
     """Entry point. Dispatches the two checks based on CLI flags.
 
     Complexity noqa: this is a linear CLI dispatcher — splitting into helpers
@@ -222,8 +234,12 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
         package = match.group(1)
         version = match.group(2)
 
-        if not _version_is_pre_1(version):
-            continue  # Only validate pre-1.0 packages (higher risk of invented versions)
+        # PyPI satisfiability applies to every ``>=X.Y.Z`` pin — not just
+        # pre-1.0. The ``psutil>=6.2,<7`` fabrication that originally
+        # motivated this script (PR #846, rule C8) was post-1.0 and got
+        # through under the old pre-1.0-only gate. The cap-or-marker rule
+        # still scopes to pre-1.0 (that's the E3 policy); PyPI
+        # satisfiability runs on everything (#165).
 
         pkg_norm = package.lower().replace("_", "-")
 

@@ -20,14 +20,16 @@
 # allowlist must correspond to packages installed by the base project. If a
 # risk applies only to an optional extra (e.g. `[llama]`, `[media]`), it must
 # not be seeded here — the gate's "allowlist entry for uninstalled package"
-# rule will fail the base audit. A separate extras-audit job (future work)
-# will own those entries.
+# rule will fail the base audit. The sibling `audit-dependencies-extras` job
+# (installs `.[all]`) uses .github/accepted-risks-extras.yml for those
+# entries; see #166.
 #
 # Historically seeded entries (both removed in epic-e-deps because they fall
 # outside the base audit scope):
 #   - GHSA-wj6h-64fc-37mp (ecdsa): was transitive via `python-jose`, which
 #     is no longer a dependency of fo-core in any scope.
 #   - GHSA-w8v5-vhqr-4h9v (diskcache): transitive via `llama-cpp-python`,
-#     which lives in the `[llama]` optional extra — out of base audit scope.
+#     which lives in the `[llama]` optional extra — now tracked in
+#     .github/accepted-risks-extras.yml.
 
 allowlist: []

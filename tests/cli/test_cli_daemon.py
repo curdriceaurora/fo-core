@@ -264,8 +264,12 @@ class TestDaemonWatch:
 
         result = runner.invoke(app, ["daemon", "watch", str(watch_dir)])
         assert result.exit_code == 0
+        # Rich wraps long paths at the CliRunner terminal width — normalize
+        # line breaks before asserting file-name substrings so the test
+        # passes regardless of the platform's reported width.
+        normalized_output = result.output.replace("\n", "")
         assert "Watching" in result.output
-        assert "new.txt" in result.output
+        assert "new.txt" in normalized_output
         assert "Stopped watching" in result.output
         mock_monitor.start.assert_called_once()
         mock_monitor.stop.assert_called_once()
@@ -289,4 +293,9 @@ class TestDaemonWatch:
 
         result = runner.invoke(app, ["daemon", "watch", str(watch_dir)])
         assert result.exit_code == 0
-        assert "fallback.txt" in result.output
+        # Rich wraps long paths at the terminal width that CliRunner exposes,
+        # which can split "fallback.txt" across a newline on narrow Linux CI
+        # runners. Normalize line breaks before matching so the assertion is
+        # about *content*, not Rich's layout.
+        normalized_output = result.output.replace("\n", "")
+        assert "fallback.txt" in normalized_output
