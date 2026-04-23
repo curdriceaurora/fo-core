@@ -159,6 +159,34 @@ class TestRedactsKeyValueForms:
         assert "def inside" not in rendered
         assert REDACTED in rendered
 
+    def test_malformed_unclosed_double_quote_redacted(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59IsZr): malformed quoted credential
+        (opening quote with no matching close — e.g. truncated log, or
+        ``logger.info('password="%s', secret)`` where the template is
+        missing its close) must still redact. Before the fix the closed-
+        quote branches didn't match and the unquoted fallback rejected
+        values starting with a quote, so the secret leaked.
+        """
+        f = CredentialRedactingFilter()
+        # Unclosed double quote — the whole remainder after the quote
+        # must be scrubbed.
+        record = _make_record('password="super secret value never closes')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "super secret value" not in rendered
+        assert "secret value" not in rendered
+        assert REDACTED in rendered
+
+    def test_malformed_unclosed_single_quote_redacted(self) -> None:
+        """Mirror case: unclosed single-quoted credential value."""
+        f = CredentialRedactingFilter()
+        record = _make_record("token='abc secret truncated here")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "abc secret truncated here" not in rendered
+        assert "secret truncated" not in rendered
+        assert REDACTED in rendered
+
 
 class TestRedactsBearerHeader:
     """HTTP ``Authorization: Bearer <token>`` leaks."""

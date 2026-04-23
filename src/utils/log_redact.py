@@ -54,30 +54,31 @@ _CRED_KEYS = (
     "credential",
 )
 # ``key`` + optional quotes + ``=`` or ``:`` + value. The value arm has
-# three alternatives so each form stops on the correct delimiter:
+# five alternatives ordered so each form stops on the correct delimiter:
 #
-# 1. Double-quoted (``password="abc'def"``) — allows single quotes and
-#    backslash-escaped double quotes inside (``password="abc\\"def"``);
-#    terminates on the first UNESCAPED ``"``.
-# 2. Single-quoted (``password='abc"def'``) — mirror case with escape
-#    support; terminates on the first unescaped ``'``.
-# 3. Unquoted — stops at whitespace / delimiter.
+# 1. Double-quoted, closed (``password="abc'def"``) — allows single
+#    quotes and ``\\"`` escapes inside; terminates on unescaped ``"``.
+# 2. Single-quoted, closed — mirror case.
+# 3. Double-quoted, UNCLOSED (``password="super secret``, truncated log
+#    or malformed template) — eats everything up to end of line so the
+#    remainder of the credential doesn't leak (codex P1
+#    PRRT_kwDOR_Rkws59IsZr). Over-redaction here is safer than leak.
+# 4. Single-quoted, unclosed — mirror case.
+# 5. Unquoted — stops at whitespace / delimiter.
 #
-# The quoted alternatives use the classic ``(?:[^Q\\]|\\.)*`` tokenizer
-# idiom — a sequence of non-delimiter / non-backslash characters OR
-# a backslash followed by any character. Without this, JSON-escaped
-# secrets leak (codex P1 PRRT_kwDOR_Rkws59IhT6:
-# ``password="abc\\"def secret"`` previously became
-# ``password="[REDACTED]"def secret"``).
-#
-# The key is kept in the replacement so the log line still tells you
-# *which* credential leaked — just not what.
+# The alternation order matters: the closed variants must come before
+# the unclosed ones so well-formed quoted values don't accidentally get
+# consumed by the greedy unclosed fallback.
 _KV_PATTERN = re.compile(
     r"(?i)(?P<key>(?:" + "|".join(_CRED_KEYS) + r")[\"']?\s*[:=]\s*)"
     r"(?:"
     r'"(?P<qvalue_dq>(?:[^"\\]|\\.)*)"'
     r"|"
     r"'(?P<qvalue_sq>(?:[^'\\]|\\.)*)'"
+    r"|"
+    r'"(?P<mvalue_dq>[^\r\n]*)'
+    r"|"
+    r"'(?P<mvalue_sq>[^\r\n]*)"
     r"|"
     r"(?P<value>[^\"'\s,;&}\])]+)"
     r")"
@@ -101,15 +102,21 @@ _BEARER_PATTERN = re.compile(
 def _kv_replace(match: re.Match[str]) -> str:
     """``_KV_PATTERN`` callback: preserve the quote shape when redacting.
 
-    When a quoted branch matched, wrap ``REDACTED`` in the matching quote
-    character so the output keeps a valid quoted form. The ``is not None``
-    check (rather than truthy) matters for empty-string values —
+    Five branches, ordered the same as the pattern: closed dq/sq first
+    (wrap REDACTED in matching quotes), then unclosed dq/sq (preserve the
+    opening quote, emit REDACTED but no close — output stays recognisable
+    as a truncated quoted value), then unquoted. The ``is not None`` check
+    (rather than truthy) matters for empty-string values —
     ``password=""`` has ``qvalue_dq = ""`` which is falsy but not None.
     """
     if match.group("qvalue_dq") is not None:
         return f'{match.group("key")}"{REDACTED}"'
     if match.group("qvalue_sq") is not None:
         return f"{match.group('key')}'{REDACTED}'"
+    if match.group("mvalue_dq") is not None:
+        return f'{match.group("key")}"{REDACTED}'
+    if match.group("mvalue_sq") is not None:
+        return f"{match.group('key')}'{REDACTED}"
     return f"{match.group('key')}{REDACTED}"
 
 
