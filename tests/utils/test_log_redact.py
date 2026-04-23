@@ -25,7 +25,7 @@ import pytest
 
 from utils.log_redact import REDACTED, CredentialRedactingFilter
 
-pytestmark = [pytest.mark.ci, pytest.mark.unit]
+pytestmark = [pytest.mark.ci, pytest.mark.unit, pytest.mark.integration]
 
 
 def _make_record(msg: object, *args: object) -> logging.LogRecord:
