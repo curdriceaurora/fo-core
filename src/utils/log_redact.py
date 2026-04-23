@@ -53,6 +53,14 @@ _CRED_KEYS = (
     "passwd",
     "credential",
 )
+# Full-match form of the credential-key list, for matching dict-arg names
+# in mapping-style format logs (``logger.info("%(api_key)s", {"api_key":
+# ...})``). ``_KV_PATTERN`` catches the ``key=value`` text shape, but
+# mapping-style interpolation strips the key name before emission —
+# ``getMessage()`` returns only the raw value, which doesn't match any
+# text pattern. So we scrub credential-named dict keys BEFORE formatting
+# (codex P1 PRRT_kwDOR_Rkws59I2zc).
+_CRED_KEY_FULL = re.compile(r"(?i)^(?:" + "|".join(_CRED_KEYS) + r")$")
 # ``key`` + optional quotes + ``=`` or ``:`` + value. The value arm has
 # five alternatives ordered so each form stops on the correct delimiter:
 #
@@ -197,6 +205,16 @@ class CredentialRedactingFilter(logging.Filter):
         # open") is wrong for a credential safety net — the whole point
         # is that unknown-shape inputs get masked, not passed through.
         if record.args:
+            # Pre-scrub mapping-style args: ``logger.info("%(api_key)s",
+            # {"api_key": secret})`` interpolates just the raw value, so
+            # post-format text redaction has no key=value shape to match.
+            # Replace credential-named dict values with the REDACTED
+            # sentinel before ``getMessage()`` sees them.
+            if isinstance(record.args, dict):
+                record.args = {
+                    k: (REDACTED if isinstance(k, str) and _CRED_KEY_FULL.match(k) else v)
+                    for k, v in record.args.items()
+                }
             try:
                 formatted = record.getMessage()
             except Exception:

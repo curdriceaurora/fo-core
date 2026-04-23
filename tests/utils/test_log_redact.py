@@ -252,6 +252,21 @@ class TestRedactsArgs:
         assert "sk-super-secret-xyz123" not in record.getMessage()
         assert REDACTED in record.getMessage()
 
+    def test_redacts_mapping_style_format_with_credential_key(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59I2zc): ``logger.info("%(api_key)s",
+        {"api_key": secret})`` — mapping-style ``%`` formatting
+        interpolates just the raw value, so ``getMessage()`` returns
+        only the secret without any ``key=value`` shape. Post-format text
+        redaction can't catch it. The filter must scrub credential-named
+        dict values BEFORE formatting.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("%(api_key)s loaded", {"api_key": "sk-super-secret-xyz123"})
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "sk-super-secret-xyz123" not in rendered
+        assert REDACTED in rendered
+
     def test_redacts_raw_secret_arg_when_template_key_is_auth(self) -> None:
         """coderabbit Major (PRRT_kwDOR_Rkws59II7L): ``logger.info("auth=%s",
         secret)`` — after formatting, the rendered message is
