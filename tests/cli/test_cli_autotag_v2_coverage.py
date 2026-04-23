@@ -94,6 +94,7 @@ class TestAutotagApplyErrors:
         missing = tmp_path / "gone.txt"
         result = runner.invoke(autotag_app, ["apply", str(missing), "tag1", "tag2"])
         assert result.exit_code == 2
+        assert "does not exist" in result.output.lower()
 
     def test_apply_service_error(self, tmp_path: Path) -> None:
         from cli.autotag_v2 import autotag_app
@@ -189,6 +190,7 @@ class TestAutotagBatchErrors:
         bad = tmp_path / "missing"
         result = runner.invoke(autotag_app, ["batch", str(bad)])
         assert result.exit_code == 2
+        assert "does not exist" in result.output.lower()
 
     def test_batch_service_init_error(self, tmp_path: Path) -> None:
         from cli.autotag_v2 import autotag_app

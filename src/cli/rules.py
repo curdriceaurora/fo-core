@@ -221,11 +221,19 @@ def rules_export(
 
     if output:
         # A.cli: output file may not exist (we're creating it). The parent
-        # directory must exist though — resolve + sanity-check the parent.
+        # directory must exist and be a directory; if output itself already
+        # exists it must be a regular file, otherwise write_text() would
+        # raise IsADirectoryError after validation.
         output = resolve_cli_path(output, must_exist=False, must_be_dir=False)
-        if not output.parent.exists():
+        if not output.parent.is_dir():
             raise typer.BadParameter(f"Output directory does not exist: {output.parent}")
-        output.write_text(content, encoding="utf-8")
+        if output.exists() and not output.is_file():
+            raise typer.BadParameter(f"Output path is not a regular file: {output}")
+        try:
+            output.write_text(content, encoding="utf-8")
+        except OSError as exc:
+            console.print(f"[red]Failed to write YAML: {exc}[/red]")
+            raise typer.Exit(code=1) from exc
         console.print(f"[green]Exported '{rule_set}' to {output}[/green]")
     else:
         console.print(content)
@@ -239,11 +247,13 @@ def rules_import(
     """Import a rule set from a YAML file."""
     import yaml
 
-    # A.cli: YAML file must exist and be a file, not a directory.
-    # `resolve_cli_path` raises typer.BadParameter (exit 2) if the file
-    # is missing, so the subsequent inline `if not file.exists()` check
-    # became dead code and was removed.
+    # A.cli: YAML file must exist and be a regular file. `must_be_dir=False`
+    # on its own only rejects directories *when must_be_dir=True*; we need
+    # an explicit is_file() guard to catch the dir-passed-to-import case
+    # before yaml.safe_load tries to read_text() it.
     file = resolve_cli_path(file, must_exist=True, must_be_dir=False)
+    if not file.is_file():
+        raise typer.BadParameter(f"Input path is not a regular file: {file}")
 
     from services.copilot.rules import RuleManager, RuleSet
 

@@ -120,7 +120,28 @@ class TestResolveCliPathErrors:
         missing = tmp_path / ".." / "nope"
         with pytest.raises(typer.BadParameter) as excinfo:
             resolve_cli_path(missing)
-        assert str(missing) in str(excinfo.value) or str(missing.resolve()) in str(excinfo.value)
+        # T4: both halves must appear — disjunction would pass even if the
+        # original literal is ever dropped from the message.
+        message = str(excinfo.value)
+        assert str(missing) in message
+        assert str(missing.resolve()) in message
+
+    def test_resolution_failure_becomes_bad_parameter(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``Path.resolve`` can raise ``RuntimeError`` (py<3.13) or ``OSError``
+        (py>=3.13) on symlink loops and unresolvable ``~user``. The helper's
+        contract is to surface these as ``typer.BadParameter`` so typer emits
+        a usage error (exit 2) instead of an internal traceback.
+        """
+
+        def _boom(self: Path, *_: object, **__: object) -> Path:
+            raise OSError("ELOOP: synthetic symlink loop")
+
+        monkeypatch.setattr(Path, "resolve", _boom)
+        with pytest.raises(typer.BadParameter) as excinfo:
+            resolve_cli_path(tmp_path / "anywhere")
+        assert "Unable to resolve path" in str(excinfo.value)
 
 
 # --------------------------------------------------------------------------

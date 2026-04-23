@@ -52,16 +52,23 @@ def start(
     from daemon.config import DaemonConfig
     from daemon.service import DaemonService
 
-    # A.cli: resolve + validate both paths when provided. watch_dir must
-    # exist; output_dir is created on demand.
+    # A.cli: resolve + validate both paths. watch_dir must exist;
+    # output_dir is created on demand. Default "organized_output" is
+    # resolved too so it passes through validate_pair — otherwise
+    # ``--watch-dir .`` with no ``--output-dir`` would write into the
+    # watched tree, which is exactly the nested pair we're trying to reject.
     if watch_dir is not None:
         watch_dir = resolve_cli_path(watch_dir, must_exist=True, must_be_dir=True)
-    if output_dir is not None:
+    if output_dir is None:
+        output_dir = resolve_cli_path(
+            Path("organized_output"), must_exist=False, must_be_dir=True
+        )
+    else:
         output_dir = resolve_cli_path(output_dir, must_exist=False, must_be_dir=True)
-    if watch_dir is not None and output_dir is not None:
+    if watch_dir is not None:
         validate_pair(watch_dir, output_dir)
     watch_dirs = [watch_dir] if watch_dir else []
-    out = output_dir or Path("organized_output")
+    out = output_dir
 
     config = DaemonConfig(
         watch_directories=watch_dirs,

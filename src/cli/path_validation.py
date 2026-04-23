@@ -27,6 +27,22 @@ from pathlib import Path
 import typer
 
 
+def _resolve_user_path(path: Path) -> Path:
+    """``path.expanduser().resolve()`` with all resolution errors surfaced as
+    ``typer.BadParameter``.
+
+    ``Path.resolve()`` raises ``RuntimeError`` (Python < 3.13) or ``OSError``
+    (Python >= 3.13) on symlink loops and other OS-level resolution failures;
+    ``Path.expanduser()`` raises ``RuntimeError`` for unknown ``~user``. The
+    CLI contract is to surface these as ``BadParameter`` (typer usage error,
+    exit 2) rather than letting a raw traceback escape.
+    """
+    try:
+        return path.expanduser().resolve()
+    except (OSError, RuntimeError) as exc:
+        raise typer.BadParameter(f"Unable to resolve path {path!s}: {exc}") from exc
+
+
 def resolve_cli_path(
     path: Path,
     *,
@@ -56,12 +72,13 @@ def resolve_cli_path(
         ``.is_absolute()`` and a fully-normalised form.
 
     Raises:
-        typer.BadParameter: Missing path (when ``must_exist=True``) or
-            path-exists-but-not-a-directory (when ``must_be_dir=True``).
-            Typer renders these as ``Usage: ... Invalid value ...``
-            rather than a Python traceback.
+        typer.BadParameter: Missing path (when ``must_exist=True``),
+            path-exists-but-not-a-directory (when ``must_be_dir=True``), or
+            any OS-level resolution failure (symlink loop, unknown ``~user``).
+            Typer renders these as ``Usage: ... Invalid value ...`` rather
+            than a Python traceback.
     """
-    resolved = path.expanduser().resolve()
+    resolved = _resolve_user_path(path)
 
     if must_exist and not resolved.exists():
         raise typer.BadParameter(f"Path does not exist: {path!s} (resolved to {resolved!s})")
@@ -98,8 +115,8 @@ def validate_pair(input_dir: Path, output_dir: Path) -> None:
             three rules above. The message names the specific violation
             so the user can spot the argument ordering mistake.
     """
-    in_resolved = input_dir.resolve()
-    out_resolved = output_dir.resolve()
+    in_resolved = _resolve_user_path(input_dir)
+    out_resolved = _resolve_user_path(output_dir)
 
     if in_resolved == out_resolved:
         raise typer.BadParameter(

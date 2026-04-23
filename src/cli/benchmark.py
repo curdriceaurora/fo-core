@@ -980,6 +980,13 @@ def run(
     input_path = resolve_cli_path(input_path, must_exist=True, must_be_dir=True)
     if compare_path is not None:
         compare_path = resolve_cli_path(compare_path, must_exist=True, must_be_dir=False)
+        # must_be_dir=False accepts any existing FS object; reject directories
+        # explicitly so --compare fails at the CLI boundary (exit 2) instead of
+        # later at read_text() with IsADirectoryError (exit 1).
+        if not compare_path.is_file():
+            raise typer.BadParameter(
+                f"Baseline compare path is not a regular file: {compare_path!s}"
+            )
 
     # Collect files (capped to prevent OOM on pathologically large trees)
     try:

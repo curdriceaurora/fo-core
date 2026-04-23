@@ -387,7 +387,7 @@ def analyze(
     # error rather than a later decode failure.
     file_path = resolve_cli_path(file_path, must_exist=True, must_be_dir=False)
     if not file_path.is_file():
-        console.print(f"[red]Error: File '{file_path}' not found.[/red]")
+        console.print(f"[red]Error: File '{file_path}' is not a regular file.[/red]")
         raise typer.Exit(code=1)
 
     # Detect binary files before reading as text
