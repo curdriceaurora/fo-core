@@ -7,6 +7,8 @@ organisation rules.
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 import typer
@@ -223,15 +225,33 @@ def rules_export(
         # A.cli: output file may not exist (we're creating it). The parent
         # directory must exist and be a directory; if output itself already
         # exists it must be a regular file, otherwise write_text() would
-        # raise IsADirectoryError after validation.
+        # raise IsADirectoryError after validation. Project F3: write via
+        # tempfile + os.replace so a mid-write crash or concurrent writer
+        # never leaves a half-written YAML export on disk.
         output = resolve_cli_path(output, must_exist=False, must_be_dir=False)
         if not output.parent.is_dir():
             raise typer.BadParameter(f"Output directory does not exist: {output.parent}")
         if output.exists() and not output.is_file():
             raise typer.BadParameter(f"Output path is not a regular file: {output}")
+        tmp_path: Path | None = None
         try:
-            output.write_text(content, encoding="utf-8")
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=output.parent,
+                prefix=f".{output.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp_file:
+                tmp_path = Path(tmp_file.name)
+                tmp_file.write(content)
+            os.replace(tmp_path, output)
         except OSError as exc:
+            if tmp_path is not None:
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
             console.print(f"[red]Failed to write YAML: {exc}[/red]")
             raise typer.Exit(code=1) from exc
         console.print(f"[green]Exported '{rule_set}' to {output}[/green]")

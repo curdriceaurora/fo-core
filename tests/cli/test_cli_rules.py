@@ -378,13 +378,15 @@ class TestRulesExport:
     @pytest.mark.integration
     @pytest.mark.ci
     def test_export_write_oserror_surfaces_as_exit_1(self, runner, mock_rule_manager, tmp_path):
-        """A.cli: if ``write_text()`` itself fails (e.g. permission denied),
-        surface a user-facing error (exit 1), not a raw ``OSError`` traceback.
+        """A.cli: if the atomic write itself fails (e.g. permission denied
+        on ``os.replace``), surface a user-facing error (exit 1), not a
+        raw ``OSError`` traceback. Project F3: write goes through
+        tempfile + os.replace, so patch os.replace at the import site.
         """
         output_file = tmp_path / "rules.yaml"
         with (
             patch(_RULE_MGR_PATH, return_value=mock_rule_manager),
-            patch.object(Path, "write_text", side_effect=OSError("permission denied")),
+            patch("cli.rules.os.replace", side_effect=OSError("permission denied")),
         ):
             result = runner.invoke(rules_app, ["export", "-o", str(output_file)])
         assert result.exit_code == 1

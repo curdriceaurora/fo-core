@@ -135,10 +135,13 @@ class TestResolveCliPathErrors:
         a usage error (exit 2) instead of an internal traceback.
         """
 
-        def _boom(self: Path, *_: object, **__: object) -> Path:
+        def _boom(_self: Path, *_: object, **__: object) -> Path:
             raise OSError("ELOOP: synthetic symlink loop")
 
-        monkeypatch.setattr(Path, "resolve", _boom)
+        # Narrow patch: only Path.resolve calls via cli.path_validation raise —
+        # leaves the rest of the test machinery (pytest internals, tmp_path,
+        # other imported modules) free to resolve paths normally.
+        monkeypatch.setattr("cli.path_validation.Path.resolve", _boom)
         with pytest.raises(typer.BadParameter) as excinfo:
             resolve_cli_path(tmp_path / "anywhere")
         assert "Unable to resolve path" in str(excinfo.value)

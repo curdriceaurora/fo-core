@@ -106,14 +106,18 @@ def validate_pair(input_dir: Path, output_dir: Path) -> None:
     back into the sibling tree is caught just like a literal nested path.
 
     Args:
-        input_dir: Already-resolved input directory (typically from
-            ``resolve_cli_path``).
-        output_dir: Already-resolved output directory.
+        input_dir: Input directory — resolved defensively even though callers
+            typically pass an already-resolved path from ``resolve_cli_path``.
+            The re-resolve is load-bearing for symlink-based evasion: a caller
+            that passed ``Path("out_link")`` pointing at ``in_dir/subdir``
+            would slip past the ``relative_to`` comparison without it.
+        output_dir: Output directory — resolved defensively (same reasoning).
 
     Raises:
         typer.BadParameter: When the pair is incoherent by any of the
-            three rules above. The message names the specific violation
-            so the user can spot the argument ordering mistake.
+            three rules above, OR when resolution itself fails (symlink
+            loop, unknown ``~user``). The message names the specific
+            violation so the user can spot the argument ordering mistake.
     """
     in_resolved = _resolve_user_path(input_dir)
     out_resolved = _resolve_user_path(output_dir)
