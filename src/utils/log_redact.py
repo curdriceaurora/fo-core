@@ -87,10 +87,12 @@ _CRED_KEY_FULL = re.compile(r"(?i)^(?:" + "|".join(_CRED_KEY_FULL_NAMES) + r")$"
 #    quotes, ``\\"`` escapes, and even raw interior ``"`` characters
 #    inserted by ``logger.info('token="%s"', 'abc"def')``. A quote only
 #    counts as the closer when the next char is a normal value boundary
-#    (whitespace / punctuation / end-of-string), so quoted placeholders
-#    don't leak suffixes when the substituted credential contains the
-#    same quote character as the template wrapper (codex P1
-#    PRRT_kwDOR_Rkws59JVLj).
+#    (whitespace / field punctuation / end-of-string), so quoted
+#    placeholders don't leak suffixes when the substituted credential
+#    contains the same quote character as the template wrapper (codex
+#    P1 PRRT_kwDOR_Rkws59JVLj) while still preserving trailing context in
+#    shapes like ``password="secret". user=alice`` and
+#    ``token='secret': next``.
 # 2. Single-quoted, closed — mirror case.
 # 3. Double-quoted, UNCLOSED (``password="super secret``, truncated log
 #    or malformed template) — eats everything up to end of line so the
@@ -105,9 +107,9 @@ _CRED_KEY_FULL = re.compile(r"(?i)^(?:" + "|".join(_CRED_KEY_FULL_NAMES) + r")$"
 _KV_PATTERN = re.compile(
     r"(?i)(?P<key>(?:" + "|".join(_CRED_KEYS) + r")[\"']?\s*[:=]\s*)"
     r"(?:"
-    r'"(?P<qvalue_dq>(?:[^"\\]|\\.|"(?![\s,;&}\])]|$))*)"(?=[\s,;&}\])]|$)'
+    r'"(?P<qvalue_dq>(?:[^"\\]|\\.|"(?![\s,;:.&}\])]|$))*)"(?=[\s,;:.&}\])]|$)'
     r"|"
-    r"'(?P<qvalue_sq>(?:[^'\\]|\\.|'(?![\s,;&}\])]|$))*)'(?=[\s,;&}\])]|$)"
+    r"'(?P<qvalue_sq>(?:[^'\\]|\\.|'(?![\s,;:.&}\])]|$))*)'(?=[\s,;:.&}\])]|$)"
     r"|"
     r'"(?P<mvalue_dq>[^\r\n]*)'
     r"|"

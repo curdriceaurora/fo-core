@@ -182,6 +182,27 @@ class TestRedactsKeyValueForms:
         assert "def" not in rendered
         assert rendered == f'token="{REDACTED}"'
 
+    def test_quoted_value_followed_by_period_preserves_suffix(self) -> None:
+        """codex P2: punctuation after a closed quoted value must not force
+        the regex into the unclosed-quote fallback and swallow later
+        fields.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record('password="secret". user=alice')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "secret" not in rendered
+        assert rendered == f'password="{REDACTED}". user=alice'
+
+    def test_quoted_value_followed_by_colon_preserves_suffix(self) -> None:
+        """Mirror case: closing quote followed by ``:`` keeps later text."""
+        f = CredentialRedactingFilter()
+        record = _make_record("token='secret': next")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "secret" not in rendered
+        assert rendered == f"token='{REDACTED}': next"
+
     def test_malformed_unclosed_double_quote_redacted(self) -> None:
         """codex P1 (PRRT_kwDOR_Rkws59IsZr): malformed quoted credential
         (opening quote with no matching close — e.g. truncated log, or
