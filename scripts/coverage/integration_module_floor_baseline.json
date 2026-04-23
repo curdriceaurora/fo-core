@@ -54,6 +54,7 @@
     "src/core/hardware_profile.py": 68.0,
     "src/core/initializer.py": 100.0,
     "src/core/organizer.py": 88.0,
+    "src/core/path_guard.py": 95.0,
     "src/core/setup_wizard.py": 96.0,
     "src/core/types.py": 100.0,
     "src/daemon/__init__.py": 100.0,

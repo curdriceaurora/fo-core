@@ -1523,6 +1523,66 @@ class TestDedupeDisplayBackupInfo:
         assert mock_console.print.call_count == 2
 
 
+class TestDedupeDisplaySummary:
+    """Pin both branches of `display_summary` — dry-run and live. D#167
+    removed the legacy `fo dedupe` CLI that previously exercised these
+    paths; without this class the `dry_run=True/False` arms fall out of
+    integration coverage.
+    """
+
+    @staticmethod
+    def _panel_texts(mock_console: MagicMock) -> list[str]:
+        """Flatten everything printed to the console into plain strings.
+
+        `display_summary` passes a `rich.panel.Panel` to `console.print`;
+        the banner text lives in `Panel.renderable`, which `str(call.args)`
+        doesn't expose. Pull it out explicitly so the assertion can match
+        the panel copy.
+        """
+        from rich.panel import Panel
+
+        texts: list[str] = []
+        for call in mock_console.print.call_args_list:
+            for arg in call.args:
+                if isinstance(arg, Panel):
+                    texts.append(str(arg.renderable))
+                else:
+                    texts.append(str(arg))
+        return texts
+
+    def test_summary_dry_run_branch_renders_dry_run_panel(self) -> None:
+        from cli.dedupe_display import display_summary
+
+        mock_console = MagicMock()
+        display_summary(
+            mock_console,
+            total_groups=3,
+            total_duplicates=5,
+            total_removed=2,
+            space_saved=1024 * 1024,
+            dry_run=True,
+        )
+        printed = self._panel_texts(mock_console)
+        assert any("DRY RUN SUMMARY" in text for text in printed)
+        assert not any("DEDUPLICATION COMPLETE" in text for text in printed)
+
+    def test_summary_live_branch_renders_complete_panel(self) -> None:
+        from cli.dedupe_display import display_summary
+
+        mock_console = MagicMock()
+        display_summary(
+            mock_console,
+            total_groups=1,
+            total_duplicates=2,
+            total_removed=1,
+            space_saved=2048,
+            dry_run=False,
+        )
+        printed = self._panel_texts(mock_console)
+        assert any("DEDUPLICATION COMPLETE" in text for text in printed)
+        assert not any("DRY RUN SUMMARY" in text for text in printed)
+
+
 # ===========================================================================
 # utilities.py — analyze verbose, _build_json_record, _format_file_size
 # ===========================================================================

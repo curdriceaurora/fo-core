@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import typer
 
+from core.path_guard import safe_walk
 from models.base import ModelType
 
 if TYPE_CHECKING:
@@ -100,6 +101,11 @@ class _SuiteRunner(TypedDict):
 
 
 _RUNNER_PROFILE_VERSION = "2026-03-14-v1"
+
+# Cap discovery so a pathologically large input tree can't exhaust memory
+# before the suite-specific cap is applied. Chosen to exceed every real
+# benchmark corpus we ship (<500 files) with comfortable headroom.
+_MAX_BENCHMARK_FILES = 10_000
 
 
 # ---------------------------------------------------------------------------
@@ -973,9 +979,18 @@ def run(
         console.print(f"[red]Error: Path does not exist: {input_path}[/red]")
         raise typer.Exit(code=1)
 
-    # Collect files
+    # Collect files (capped to prevent OOM on pathologically large trees)
     try:
-        files = [f for f in input_path.rglob("*") if f.is_file()]
+        files: list[Path] = []
+        for f in safe_walk(input_path):
+            files.append(f)
+            if len(files) >= _MAX_BENCHMARK_FILES:
+                logger.warning(
+                    "Benchmark corpus capped at %d files for %s",
+                    _MAX_BENCHMARK_FILES,
+                    input_path,
+                )
+                break
     except Exception as e:
         console.print(f"[red]Error reading files: {e}[/red]")
         raise typer.Exit(code=1) from e

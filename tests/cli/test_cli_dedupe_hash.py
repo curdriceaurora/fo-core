@@ -15,7 +15,7 @@ from cli.dedupe_hash import (
     scan_for_duplicates,
 )
 
-pytestmark = [pytest.mark.ci, pytest.mark.unit]
+pytestmark = [pytest.mark.ci, pytest.mark.unit, pytest.mark.integration]
 
 
 class TestProgressTracker:

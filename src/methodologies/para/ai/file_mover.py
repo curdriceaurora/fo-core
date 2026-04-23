@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from core.path_guard import safe_walk
+
 from ..categories import PARACategory
 from ..config import PARAConfig
 from .suggestion_engine import PARASuggestion, PARASuggestionEngine
@@ -125,8 +127,12 @@ class PARAFileMover:
         max_collision_attempts: int = 1000,
         exists_provider: Callable[[Path], bool] = Path.exists,
         is_dir_provider: Callable[[Path], bool] = Path.is_dir,
-        rglob_provider: Callable[[Path, str], Iterator[Path]] = lambda p, pat: p.rglob(pat),
-        iterdir_provider: Callable[[Path], Iterator[Path]] = lambda p: p.iterdir(),
+        rglob_provider: Callable[[Path, str], Iterator[Path]] = lambda p, pat: safe_walk(
+            p, pattern=pat
+        ),
+        iterdir_provider: Callable[[Path], Iterator[Path]] = lambda p: safe_walk(
+            p, recursive=False
+        ),
         stat_provider: Callable[[Path], _StatLike] = lambda p: p.stat(),
         resolve_provider: Callable[[Path], Path] = Path.resolve,
     ) -> None:

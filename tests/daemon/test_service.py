@@ -18,7 +18,7 @@ import pytest
 from daemon.config import DaemonConfig
 from daemon.service import DaemonService
 
-pytestmark = [pytest.mark.unit, pytest.mark.ci]
+pytestmark = [pytest.mark.unit, pytest.mark.ci, pytest.mark.integration]
 
 
 @pytest.fixture

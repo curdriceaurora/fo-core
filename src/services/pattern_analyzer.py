@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from core.path_guard import safe_walk
+
 logger = logging.getLogger(__name__)
 
 
@@ -232,9 +234,9 @@ class PatternAnalyzer:
 
         location_patterns = []
 
-        # Analyze each subdirectory
-        for subdir in directory.rglob("*"):
-            if not subdir.is_dir() or subdir.name.startswith("."):
+        # Analyze each subdirectory (security filters: skip symlinks and hidden)
+        for subdir in safe_walk(directory, only_files=False):
+            if not subdir.is_dir():
                 continue
 
             # Get files in this directory (non-recursive)

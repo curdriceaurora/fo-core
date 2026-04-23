@@ -14,12 +14,12 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
+from core.path_guard import safe_walk
 from services.copilot.models import (
     ExecutionResult,
     Intent,
     IntentType,
 )
-from utils import is_hidden
 
 if TYPE_CHECKING:
     from interfaces.search import RetrieverProtocol
@@ -232,10 +232,8 @@ class CommandExecutor:
         docs: list[str] = []
         paths: list[Path] = []
         try:
-            for entry in search_root.rglob("*"):
+            for entry in safe_walk(search_root):
                 rel = entry.relative_to(search_root)
-                if entry.is_symlink() or not entry.is_file() or is_hidden(rel):
-                    continue
                 text = read_text_safe(entry)
                 docs.append(f"{entry.stem} {' '.join(rel.parts)} {text}".strip())
                 paths.append(entry)
@@ -322,8 +320,8 @@ class CommandExecutor:
         query_lower = query.lower()
         matches = []
         try:
-            for entry in search_root.rglob("*"):
-                if entry.is_file() and query_lower in entry.name.lower():
+            for entry in safe_walk(search_root):
+                if query_lower in entry.name.lower():
                     matches.append(str(entry))
                     if len(matches) >= 20:
                         break

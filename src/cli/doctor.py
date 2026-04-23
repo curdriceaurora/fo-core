@@ -19,7 +19,7 @@ from rich.table import Table
 
 from cli.interactive import confirm_action
 from cli.state import _get_state
-from utils import is_hidden
+from core.path_guard import safe_walk
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -167,35 +167,16 @@ def scan_directory(directory: Path) -> dict[str, int]:
         Dictionary mapping file extensions to counts
     """
     extension_counts: dict[str, int] = {}
-    skipped = 0
 
-    try:
-        entries = directory.rglob("*")
-    except (OSError, PermissionError) as exc:
-        logger.error("Cannot scan directory %s: %s", directory, exc, exc_info=True)
-        return extension_counts
-
-    for item in entries:
-        try:
-            if item.is_symlink():
-                continue
-            if is_hidden(item):
-                continue
-            if not item.is_file():
-                continue
-        except (OSError, PermissionError) as exc:
-            logger.debug("Skipping %s: %s", item, exc)
-            skipped += 1
-            continue
-
+    # safe_walk already skips symlinks, hidden entries, and per-entry OSError
+    # (PermissionError, stale handles). No additional try/except needed —
+    # every yielded path is a readable, regular file.
+    for item in safe_walk(directory):
         ext = _normalized_extension(item)
         if ext:
             extension_counts[ext] = extension_counts.get(ext, 0) + 1
         else:
             extension_counts[""] = extension_counts.get("", 0) + 1
-
-    if skipped:
-        logger.warning("Skipped %d entries due to filesystem errors", skipped)
 
     return extension_counts
 

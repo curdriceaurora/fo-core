@@ -9,6 +9,7 @@ import pytest
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestCompletion:
     """Tests for path completion callbacks."""
 
@@ -56,6 +57,7 @@ class TestCompletion:
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestInteractiveFlags:
     """Tests for interactive module flag management."""
 
@@ -75,6 +77,7 @@ class TestInteractiveFlags:
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestConfirmAction:
     """Tests for confirm_action."""
 
@@ -105,6 +108,7 @@ class TestConfirmAction:
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestPromptChoice:
     """Tests for prompt_choice."""
 
@@ -116,8 +120,67 @@ class TestPromptChoice:
         assert result == "b"
         interactive.set_flags(no_interactive=False)
 
+    def test_prompts_with_default_in_interactive_mode(self) -> None:
+        from cli import interactive
+
+        interactive.set_flags(yes=False, no_interactive=False)
+        with patch.object(interactive, "Prompt") as mock_prompt:
+            mock_prompt.ask.return_value = "a"
+            result = interactive.prompt_choice("Pick", ["a", "b"], default="a")
+            assert result == "a"
+            mock_prompt.ask.assert_called_once()
+            # `default` arg is forwarded when provided
+            assert mock_prompt.ask.call_args.kwargs.get("default") == "a"
+
+    def test_prompts_without_default_in_interactive_mode(self) -> None:
+        from cli import interactive
+
+        interactive.set_flags(yes=False, no_interactive=False)
+        with patch.object(interactive, "Prompt") as mock_prompt:
+            mock_prompt.ask.return_value = "b"
+            result = interactive.prompt_choice("Pick", ["a", "b"], default=None)
+            assert result == "b"
+            # default is *not* forwarded when the caller didn't supply one
+            assert "default" not in mock_prompt.ask.call_args.kwargs
+
 
 @pytest.mark.unit
+@pytest.mark.integration
+class TestPromptDirectory:
+    """Tests for prompt_directory — the loop that keeps asking until a
+    real directory is provided. D#167 removed the legacy dedupe CLI's
+    directory prompt, which was the only integration path hitting this.
+    """
+
+    def test_returns_resolved_path_on_valid_directory(self, tmp_path: Path) -> None:
+        from cli import interactive
+
+        with patch.object(interactive, "Prompt") as mock_prompt:
+            mock_prompt.ask.return_value = str(tmp_path)
+            result = interactive.prompt_directory("Where?")
+        assert result == tmp_path.resolve()
+
+    def test_reprompts_until_valid_directory(self, tmp_path: Path) -> None:
+        from cli import interactive
+
+        good = tmp_path / "exists"
+        good.mkdir()
+
+        with patch.object(interactive, "Prompt") as mock_prompt:
+            # First two answers are invalid; third is the real dir.
+            mock_prompt.ask.side_effect = [
+                str(tmp_path / "nope1"),
+                str(tmp_path / "nope2"),
+                str(good),
+            ]
+            result = interactive.prompt_directory()
+
+        assert result == good.resolve()
+        assert mock_prompt.ask.call_count == 3
+
+
+@pytest.mark.unit
+@pytest.mark.integration
 class TestCreateProgress:
     """Tests for create_progress."""
 
@@ -131,6 +194,7 @@ class TestCreateProgress:
 
 
 @pytest.mark.unit
+@pytest.mark.integration
 class TestMainCallbackFlags:
     """Test that global flags are wired into main.py."""
 

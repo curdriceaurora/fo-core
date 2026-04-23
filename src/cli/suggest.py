@@ -15,6 +15,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from core.path_guard import safe_walk
+
 console = Console()
 
 suggest_app = typer.Typer(
@@ -39,8 +41,8 @@ def _get_analyzer() -> Any:
 
 
 def _collect_files(directory: Path) -> list[Path]:
-    """Recursively collect files under *directory*."""
-    return [p for p in directory.rglob("*") if p.is_file()]
+    """Recursively collect files under *directory* with symlink + hidden filters."""
+    return list(safe_walk(directory))
 
 
 # -----------------------------------------------------------------------

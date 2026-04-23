@@ -16,6 +16,7 @@ from pathlib import Path
 from loguru import logger
 from rich.console import Console
 
+from core.path_guard import safe_walk
 from core.types import (
     AUDIO_EXTENSIONS,
     AUDIO_FALLBACK_FOLDER,
@@ -197,7 +198,9 @@ def cleanup_empty_dirs(root: Path) -> None:
     Args:
         root: The output directory used during organize.
     """
-    for dirpath in sorted(root.rglob("*"), reverse=True):
+    # safe_walk skips symlinks so we don't try to rmdir a symlinked target.
+    # Include hidden dirs so legitimate empty `.cache/` leftovers still get cleaned.
+    for dirpath in sorted(safe_walk(root, only_files=False, include_hidden=True), reverse=True):
         if dirpath.is_dir() and dirpath != root:
             try:
                 dirpath.rmdir()

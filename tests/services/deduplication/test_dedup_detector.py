@@ -21,6 +21,7 @@ from services.deduplication.detector import (
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 @pytest.mark.unit
 class TestScanOptions(unittest.TestCase):
     """Test ScanOptions dataclass."""
@@ -58,6 +59,7 @@ class TestScanOptions(unittest.TestCase):
 
 
 @pytest.mark.ci
+@pytest.mark.integration
 @pytest.mark.unit
 class TestDuplicateDetector(unittest.TestCase):
     """Test cases for DuplicateDetector."""

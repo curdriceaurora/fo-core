@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.path_guard import safe_walk
+
 from .pattern_analyzer import PatternAnalysis, PatternAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -124,9 +126,8 @@ class MisplacementDetector:
         if pattern_analysis is None:
             pattern_analysis = self.pattern_analyzer.analyze_directory(directory)
 
-        # Get all files
-        files = list(directory.rglob("*"))
-        files = [f for f in files if f.is_file() and not f.name.startswith(".")]
+        # Get all files (security filters: skip symlinks and hidden entries)
+        files = list(safe_walk(directory))
 
         misplaced_files = []
 

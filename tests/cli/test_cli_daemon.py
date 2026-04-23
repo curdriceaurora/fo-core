@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 
 from cli.main import app
 
-pytestmark = [pytest.mark.unit]
+pytestmark = [pytest.mark.unit, pytest.mark.integration]
 
 runner = CliRunner()
 
@@ -237,3 +237,56 @@ class TestDaemonProcess:
         result = runner.invoke(app, ["daemon", "process", str(input_dir), str(output_dir)])
         assert result.exit_code == 1
         assert "Model unavailable" in result.output
+
+
+class TestDaemonWatch:
+    """Tests for ``fo daemon watch`` — the polling loop that D#167 left
+    uncovered when the legacy watch entry point was removed.
+    """
+
+    @patch("watcher.monitor.FileMonitor")
+    @patch("watcher.config.WatcherConfig")
+    def test_watch_prints_events_then_exits_on_ctrl_c(
+        self, mock_config_cls: MagicMock, mock_monitor_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        watch_dir = tmp_path / "watched"
+        watch_dir.mkdir()
+
+        mock_monitor = MagicMock()
+        mock_monitor_cls.return_value = mock_monitor
+
+        evt = MagicMock()
+        evt.event_type = "created"
+        evt.path = str(watch_dir / "new.txt")
+        # First poll yields an event; second poll raises KeyboardInterrupt
+        # so the command exits cleanly (that's the documented stop mechanism).
+        mock_monitor.get_events_blocking.side_effect = [[evt], KeyboardInterrupt()]
+
+        result = runner.invoke(app, ["daemon", "watch", str(watch_dir)])
+        assert result.exit_code == 0
+        assert "Watching" in result.output
+        assert "new.txt" in result.output
+        assert "Stopped watching" in result.output
+        mock_monitor.start.assert_called_once()
+        mock_monitor.stop.assert_called_once()
+
+    @patch("watcher.monitor.FileMonitor")
+    @patch("watcher.config.WatcherConfig")
+    def test_watch_uses_event_src_path_fallback_when_path_missing(
+        self, mock_config_cls: MagicMock, mock_monitor_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        watch_dir = tmp_path / "watched"
+        watch_dir.mkdir()
+
+        mock_monitor = MagicMock()
+        mock_monitor_cls.return_value = mock_monitor
+
+        class _EventNoPath:
+            event_type = "modified"
+            src_path = str(watch_dir / "fallback.txt")
+
+        mock_monitor.get_events_blocking.side_effect = [[_EventNoPath()], KeyboardInterrupt()]
+
+        result = runner.invoke(app, ["daemon", "watch", str(watch_dir)])
+        assert result.exit_code == 0
+        assert "fallback.txt" in result.output
