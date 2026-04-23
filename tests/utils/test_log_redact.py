@@ -303,6 +303,24 @@ class TestContract:
         assert record.msg == original_msg
         assert record.args == original_args
 
+    def test_filter_is_idempotent_on_repeated_invocation(self) -> None:
+        """codex P2 (PRRT_kwDOR_Rkws59H2ZK): ``install_on_root`` attaches
+        the filter to both the global ``LogRecordFactory`` AND the root
+        logger, so records emitted at root are filtered twice. ``_KV_PATTERN``
+        isn't idempotent on already-bracketed ``[REDACTED]`` values —
+        ``api_key=[REDACTED]`` → ``api_key=[REDACTED]]``. The sentinel
+        ``record._fo_redacted`` short-circuits repeat passes.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("api_key=sk-super-secret-xyz123")
+        assert f.filter(record) is True
+        first_pass = record.getMessage()
+        # Run filter AGAIN — simulates duplicate attachment.
+        assert f.filter(record) is True
+        assert record.getMessage() == first_pass
+        # Explicit shape check: no trailing ``]]`` bracket corruption.
+        assert "]]" not in record.getMessage()
+
     def test_loguru_patcher_replaces_exception_with_sanitized_version(self) -> None:
         """codex P1 (PRRT_kwDOR_Rkws59HjtX): the loguru patcher must
         overwrite ``record["exception"]`` with a sanitized

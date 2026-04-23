@@ -87,6 +87,14 @@ class CredentialRedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         """Redact ``record`` in-place. Always returns ``True`` (never drops).
 
+        Idempotent: a sentinel attribute ``_fo_redacted`` is set on the
+        record after the first pass so subsequent invocations (e.g. from
+        both the ``setLogRecordFactory`` wrapper AND a duplicate
+        logger-level filter attachment) short-circuit. Without this guard,
+        the non-idempotent redact pattern would double-bracket already-
+        scrubbed values (``api_key=[REDACTED]`` → ``api_key=[REDACTED]]``)
+        for root-originated records, corrupting output.
+
         When ``record.args`` is non-empty, the record is a template +
         arguments pair (e.g. ``logger.info("api_key=%s", secret)``).
         Running the redact pattern on ``record.msg`` alone can strip ``%s``
@@ -98,6 +106,8 @@ class CredentialRedactingFilter(logging.Filter):
         so the formatted-and-redacted string is what ``getMessage()``
         returns.
         """
+        if getattr(record, "_fo_redacted", False):
+            return True
         # --- Message redaction (args-present and no-args paths) ---
         # ``getMessage()`` runs ``record.msg % record.args`` which invokes
         # each arg's ``__str__`` / ``__repr__``. A bug in any of those
@@ -145,6 +155,11 @@ class CredentialRedactingFilter(logging.Filter):
             except Exception:
                 return True
             record.exc_text = _redact_text(exc_text)
+        # Mark the record so subsequent filter invocations (duplicate
+        # logger-level filter attachment, factory + filter combo) skip the
+        # re-redact pass. Essential because ``_KV_PATTERN`` isn't
+        # idempotent on already-bracketed ``[REDACTED]`` values.
+        record._fo_redacted = True
         return True
 
 
@@ -171,6 +186,11 @@ def _install_on_loguru(instance: CredentialRedactingFilter) -> bool:
     from typing import Any
 
     def _patcher(record: Any) -> None:
+        # Idempotency: a prior pass (duplicate install) marked this record,
+        # skip to avoid double-redaction corrupting ``[REDACTED]`` brackets.
+        extra = record.get("extra") or {}
+        if extra.get("_fo_redacted"):
+            return
         # Loguru record: ``{'message': str, 'exception': RecordException | None, ...}``.
         # Redact the main message and the exception repr (which loguru
         # stringifies during emission just like logging's exc_info path).
@@ -214,6 +234,8 @@ def _install_on_loguru(instance: CredentialRedactingFilter) -> bool:
                 return
             sanitized = Exception(redacted)
             record["exception"] = RecordException(type(sanitized), sanitized, None)
+        # Mark this record so duplicate patcher installs skip the rewrite.
+        record["extra"]["_fo_redacted"] = True
 
     # ``patcher`` runs on every record; installing twice would stack, so
     # configure with a single canonical patcher. ``logger.configure``
