@@ -15,6 +15,8 @@ from pathlib import Path
 
 import yaml
 
+from utils.atomic_write import atomic_write_with
+
 from .categories import PARACategory
 
 logger = logging.getLogger(__name__)
@@ -267,8 +269,11 @@ class PARAConfig:
 
         try:
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w") as f:
-                yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+            atomic_write_with(
+                config_path,
+                lambda fh: yaml.dump(data, fh, default_flow_style=False, sort_keys=False),
+                mode="w",
+            )
 
             logger.info(f"Configuration saved to {config_path}")
 

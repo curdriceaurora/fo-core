@@ -14,6 +14,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from utils.atomic_write import atomic_write_with
+
 logger = logging.getLogger(__name__)
 
 
@@ -449,8 +451,11 @@ class TagLearningEngine:
             }
 
             storage_path = self.storage_path
-            with open(storage_path, "w") as f:
-                json.dump(data, f, indent=2)
+            atomic_write_with(
+                storage_path,
+                lambda fh: json.dump(data, fh, indent=2),
+                mode="w",
+            )
 
             logger.debug(f"Saved learning data to {storage_path}")
 

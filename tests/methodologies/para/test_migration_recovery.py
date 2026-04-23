@@ -687,15 +687,19 @@ class TestMigrationManagerEdgeCases:
         """Test backup creation cleans up on exception."""
         plan = migration_manager.analyze_source(temp_source, temp_target, recursive=False)
 
-        # Mock to raise exception during manifest creation
-        original_open = open
-
-        def mock_open(file, *args, **kwargs):
-            if "manifest.json" in str(file) and "w" in args:
+        # Mock to raise during the atomic manifest write. The manifest
+        # write now goes through ``atomic_write_with`` (B1a hardening),
+        # so the injection point lives at the wrapper, not at
+        # ``builtins.open``.
+        def _failing_atomic_write(path, _writer, *, mode="wb"):
+            if path.name == "manifest.json":
                 raise OSError("Simulated write error")
-            return original_open(file, *args, **kwargs)
+            raise AssertionError(f"unexpected atomic_write_with target: {path}")
 
-        monkeypatch.setattr("builtins.open", mock_open)
+        monkeypatch.setattr(
+            "methodologies.para.migration_manager.atomic_write_with",
+            _failing_atomic_write,
+        )
 
         # Should raise and cleanup
         with pytest.raises(OSError):

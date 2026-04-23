@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from models.suggestion_types import Suggestion, SuggestionType
+from utils.atomic_write import atomic_write_with
 
 logger = logging.getLogger(__name__)
 
@@ -365,8 +366,11 @@ class SuggestionFeedback:
                 "last_updated": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             }
 
-            with open(self.feedback_file, "w") as f:
-                json.dump(data, f, indent=2)
+            atomic_write_with(
+                self.feedback_file,
+                lambda fh: json.dump(data, fh, indent=2),
+                mode="w",
+            )
 
             logger.debug(f"Saved {len(self.feedback_entries)} feedback entries")
 

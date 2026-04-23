@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from utils.atomic_write import atomic_write_with
+
 from .categories import NumberingScheme, get_default_scheme
 from .numbering import JohnnyDecimalGenerator
 from .scanner import FolderScanner, ScanResult
@@ -323,8 +325,11 @@ class JohnnyDecimalMigrator:
             "backup_path": str(rollback_info.backup_path) if rollback_info.backup_path else None,
         }
 
-        with open(rollback_file, "w") as f:
-            json.dump(data, f, indent=2)
+        atomic_write_with(
+            rollback_file,
+            lambda fh: json.dump(data, fh, indent=2),
+            mode="w",
+        )
 
         logger.debug(f"Saved rollback info to {rollback_file}")
 

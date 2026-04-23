@@ -16,6 +16,7 @@ from typing import Any
 
 from config.path_manager import get_config_dir
 from config.path_migration import resolve_legacy_path
+from utils.atomic_write import atomic_write_with
 
 from ..categories import PARACategory
 from ..config import HeuristicWeights
@@ -304,8 +305,11 @@ class FeedbackCollector:
         try:
             self._storage_dir.mkdir(parents=True, exist_ok=True)
             data = [event.to_dict() for event in self._events]
-            with open(self._feedback_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            atomic_write_with(
+                self._feedback_file,
+                lambda fh: json.dump(data, fh, indent=2, ensure_ascii=False),
+                mode="w",
+            )
         except OSError as e:
             logger.error("Failed to save feedback events: %s", e, exc_info=True)
 

@@ -94,8 +94,11 @@ def _write_via_temp(
     *,
     encoding: str | None = None,
 ) -> None:
-    """Create a temp file in ``target.parent``, run ``write_fn(handle)``,
-    fsync, atomically replace ``target``. Clean up temp on any exception.
+    """Atomically write via temp file + fsync + ``os.replace``.
+
+    Creates a temp file in ``target.parent``, runs ``write_fn(handle)``,
+    fsyncs, atomically replaces ``target``. Cleans up the temp on any
+    exception (writer error, KeyboardInterrupt, failed ``os.replace``).
     """
     # ``NamedTemporaryFile(delete=False)`` leaves the temp around so we
     # can ``os.replace`` it into place. ``dir=target.parent`` is
@@ -234,13 +237,13 @@ def atomic_write_with(
 
 
 def append_durable(path: Path, line: str, *, encoding: str = "utf-8") -> None:
-    """Append one record to ``path`` with flush + fsync durability.
+    r"""Append one record to ``path`` with flush + fsync durability.
 
     For log-style files where order matters and truncate-replace is
     wrong (audit log, VS Code JSONL command stream). The helper:
 
     1. Opens ``path`` in append mode, creating it if absent.
-    2. Writes ``line``, terminating with ``\\n`` if not already.
+    2. Writes ``line``, terminating with ``\n`` if not already.
     3. Flushes the Python-level buffer and fsyncs the OS descriptor.
 
     Same-line atomicity for small (< PIPE_BUF) writes is a Linux

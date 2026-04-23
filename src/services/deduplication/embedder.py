@@ -14,6 +14,8 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from utils.atomic_write import atomic_write_with
+
 logger = logging.getLogger(__name__)
 
 
@@ -268,8 +270,12 @@ class DocumentEmbedder:
             return
 
         try:
-            with open(path, "wb") as f:
-                pickle.dump(self.vectorizer, f)
+            # Streaming pickle (multi-MB vectorizer) — atomic_write_with
+            # avoids buffering the full pickle in RAM. Satisfies S6
+            # (cache TOCTOU): temp-file + os.replace so a mid-write crash
+            # can't leave a half-written pickle that raises
+            # ``UnpicklingError`` when next loaded.
+            atomic_write_with(path, lambda fh: pickle.dump(self.vectorizer, fh))
 
             logger.info(f"Saved vectorizer to {path}")
 
@@ -311,8 +317,13 @@ class DocumentEmbedder:
             return
 
         try:
-            with open(self.cache_path, "wb") as f:
-                pickle.dump(self.embedding_cache, f)
+            # Atomic streaming pickle — see ``save_model`` above for the
+            # rationale (S6 cache-TOCTOU, avoids in-RAM buffering of the
+            # multi-MB embedding cache).
+            atomic_write_with(
+                self.cache_path,
+                lambda fh: pickle.dump(self.embedding_cache, fh),
+            )
 
             logger.debug(f"Saved {len(self.embedding_cache)} embeddings to cache")
 
