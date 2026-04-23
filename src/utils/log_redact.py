@@ -32,6 +32,14 @@ from collections.abc import Iterable, Mapping
 
 REDACTED = "[REDACTED]"
 
+# Unforgeable module-level sentinel for the idempotency guard. Using a
+# truthy attribute (``record._fo_redacted = True``) is vulnerable to
+# bypass via ``logger.info(..., extra={"_fo_redacted": True})`` — an
+# attacker-controlled log-extra could mark the record as already
+# redacted and skip the scrub. Identity check on a unique ``object()``
+# instance can't be forged without a reference to our sentinel.
+_RECORD_REDACTED_SENTINEL = object()
+
 # Keys that, when seen as the left-hand side of ``key=value`` / ``key: value``
 # / ``key="value"`` in a log message, should have their right-hand side
 # replaced with ``REDACTED``. Hyphen and underscore spellings both covered
@@ -53,14 +61,25 @@ _CRED_KEYS = (
     "passwd",
     "credential",
 )
-# Full-match form of the credential-key list, for matching dict-arg names
-# in mapping-style format logs (``logger.info("%(api_key)s", {"api_key":
-# ...})``). ``_KV_PATTERN`` catches the ``key=value`` text shape, but
-# mapping-style interpolation strips the key name before emission —
-# ``getMessage()`` returns only the raw value, which doesn't match any
-# text pattern. So we scrub credential-named dict keys BEFORE formatting
-# (codex P1 PRRT_kwDOR_Rkws59I2zc).
-_CRED_KEY_FULL = re.compile(r"(?i)^(?:" + "|".join(_CRED_KEYS) + r")$")
+# ``authorization`` is NOT in ``_CRED_KEYS`` because ``_KV_PATTERN`` would
+# then preempt ``_BEARER_PATTERN`` on ``Authorization: Bearer <token>`` —
+# the kv match would capture only ``Bearer`` as the value (stops at
+# whitespace), leaving the actual token unredacted. Handle the bearer-
+# header shape exclusively via ``_BEARER_PATTERN``. But for the mapping-
+# style case (``logger.info("%(Authorization)s", {"Authorization": ...})``,
+# codex P1 PRRT_kwDOR_Rkws59JVLj) ``_BEARER_PATTERN`` can't catch it
+# post-format (the prefix is gone), so we pre-scrub by matching the dict
+# KEY name. Dict-key scrub uses a wider list than the text pattern.
+_CRED_KEY_FULL_NAMES: tuple[str, ...] = (*_CRED_KEYS, "authorization")
+# Full-match form for dict-arg key names in mapping-style format logs
+# (``logger.info("%(api_key)s", {"api_key": ...})``). ``_KV_PATTERN``
+# catches the ``key=value`` text shape, but mapping-style interpolation
+# strips the key name before emission — ``getMessage()`` returns only
+# the raw value, which doesn't match any text pattern. So we scrub
+# credential-named mapping keys BEFORE formatting (codex P1
+# PRRT_kwDOR_Rkws59I2zc). Uses the wider ``_CRED_KEY_FULL_NAMES`` list
+# which includes ``authorization`` (see comment above).
+_CRED_KEY_FULL = re.compile(r"(?i)^(?:" + "|".join(_CRED_KEY_FULL_NAMES) + r")$")
 # ``key`` + optional quotes + ``=`` or ``:`` + value. The value arm has
 # five alternatives ordered so each form stops on the correct delimiter:
 #
@@ -186,7 +205,13 @@ class CredentialRedactingFilter(logging.Filter):
         so the formatted-and-redacted string is what ``getMessage()``
         returns.
         """
-        if getattr(record, "_fo_redacted", False):
+        # Identity check on ``_RECORD_REDACTED_SENTINEL``: a truthy
+        # attribute ``record._fo_redacted = True`` reachable via
+        # ``logger.info(..., extra={"_fo_redacted": True})`` could
+        # otherwise short-circuit redaction before secrets are scrubbed.
+        # The sentinel is a fresh ``object()`` whose identity can't be
+        # reproduced from outside this module.
+        if getattr(record, "_fo_redacted", None) is _RECORD_REDACTED_SENTINEL:
             return True
         # --- Message redaction (args-present and no-args paths) ---
         # ``getMessage()`` runs ``record.msg % record.args`` which invokes
@@ -205,21 +230,24 @@ class CredentialRedactingFilter(logging.Filter):
         # open") is wrong for a credential safety net — the whole point
         # is that unknown-shape inputs get masked, not passed through.
         if record.args:
-            # Pre-scrub mapping-style args: ``logger.info("%(api_key)s",
-            # {"api_key": secret})`` interpolates just the raw value, so
-            # post-format text redaction has no key=value shape to match.
-            # Replace credential-named mapping values with the REDACTED
-            # sentinel before ``getMessage()`` sees them. ``collections.
-            # abc.Mapping`` covers ``UserDict``, ``MappingProxyType``, and
-            # third-party mapping types that ``logging`` also accepts for
-            # mapping-style interpolation (codex P2
-            # PRRT_kwDOR_Rkws59JMYx).
-            if isinstance(record.args, Mapping):
-                record.args = {
-                    k: (REDACTED if isinstance(k, str) and _CRED_KEY_FULL.match(k) else v)
-                    for k, v in record.args.items()
-                }
             try:
+                # Pre-scrub mapping-style args: ``logger.info("%(api_key)s",
+                # {"api_key": secret})`` interpolates just the raw value,
+                # so post-format text redaction has no key=value shape to
+                # match. Replace credential-named mapping values with the
+                # REDACTED sentinel before ``getMessage()`` sees them.
+                # ``collections.abc.Mapping`` covers ``UserDict``,
+                # ``MappingProxyType``, and third-party mapping types
+                # ``logging`` also accepts (codex P2
+                # PRRT_kwDOR_Rkws59JMYx). Pre-scrub is INSIDE the try so a
+                # broken ``Mapping.items()`` / ``__iter__`` implementation
+                # can't escape the filter (codex P2
+                # PRRT_kwDOR_Rkws59JVLp).
+                if isinstance(record.args, Mapping):
+                    record.args = {
+                        k: (REDACTED if isinstance(k, str) and _CRED_KEY_FULL.match(k) else v)
+                        for k, v in record.args.items()
+                    }
                 formatted = record.getMessage()
             except Exception:
                 try:
@@ -261,13 +289,36 @@ class CredentialRedactingFilter(logging.Filter):
             try:
                 exc_text = "".join(traceback.format_exception(*record.exc_info))
             except Exception:
-                return True
-            record.exc_text = _redact_text(exc_text)
+                # Fail-CLOSED on traceback formatting failure (buggy
+                # ``__str__`` / ``__repr__`` on the exception itself).
+                # Returning early leaves ``exc_text = None`` and
+                # ``exc_info`` intact, which the default ``Formatter``
+                # then re-renders via the same buggy call path — the
+                # raw exception message (including any embedded secret)
+                # ends up in the log output. Replace both with a safe
+                # placeholder: ``exc_text = REDACTED`` pre-populates
+                # the formatter cache, and clearing ``exc_info`` stops
+                # the formatter from attempting its own render
+                # (coderabbit Major PRRT_kwDOR_Rkws59II7G).
+                record.exc_text = REDACTED
+                record.exc_info = None
+            else:
+                record.exc_text = _redact_text(exc_text)
+        elif record.exc_text:
+            # Some code paths populate ``exc_text`` directly (e.g.,
+            # pre-formatted exceptions, loguru-to-stdlib bridges)
+            # without going through ``exc_info``. Redact those too so
+            # a pre-rendered traceback containing a secret doesn't
+            # reach the handler unscrubbed (coderabbit Major
+            # PRRT_kwDOR_Rkws59II7G).
+            record.exc_text = _redact_text(record.exc_text)
         # Mark the record so subsequent filter invocations (duplicate
         # logger-level filter attachment, factory + filter combo) skip the
         # re-redact pass. Essential because ``_KV_PATTERN`` isn't
-        # idempotent on already-bracketed ``[REDACTED]`` values.
-        record._fo_redacted = True
+        # idempotent on already-bracketed ``[REDACTED]`` values. Uses the
+        # module-level sentinel (see comment at the top of ``filter``) so
+        # external callers can't forge the idempotency marker.
+        record._fo_redacted = _RECORD_REDACTED_SENTINEL
         return True
 
 
@@ -296,8 +347,12 @@ def _install_on_loguru(instance: CredentialRedactingFilter) -> bool:
     def _patcher(record: Any) -> None:
         # Idempotency: a prior pass (duplicate install) marked this record,
         # skip to avoid double-redaction corrupting ``[REDACTED]`` brackets.
+        # Identity check on the module sentinel rather than a truthy value
+        # so a caller-supplied ``bind(_fo_redacted=True)`` can't bypass
+        # redaction (coderabbit Major PRRT_kwDOR_Rkws59II7G, symmetric
+        # with the stdlib filter).
         extra = record.get("extra") or {}
-        if extra.get("_fo_redacted"):
+        if extra.get("_fo_redacted") is _RECORD_REDACTED_SENTINEL:
             return
         # Loguru record: ``{'message': str, 'exception': RecordException | None, ...}``.
         # Redact the main message and the exception repr (which loguru
@@ -343,7 +398,8 @@ def _install_on_loguru(instance: CredentialRedactingFilter) -> bool:
             sanitized = Exception(redacted)
             record["exception"] = RecordException(type(sanitized), sanitized, None)
         # Mark this record so duplicate patcher installs skip the rewrite.
-        record["extra"]["_fo_redacted"] = True
+        # Uses the module sentinel (see ``filter`` for the rationale).
+        record["extra"]["_fo_redacted"] = _RECORD_REDACTED_SENTINEL
 
     # ``patcher`` runs on every record; installing twice would stack, so
     # configure with a single canonical patcher. ``logger.configure``

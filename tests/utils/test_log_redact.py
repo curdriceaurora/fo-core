@@ -267,6 +267,47 @@ class TestRedactsArgs:
         assert "sk-super-secret-xyz123" not in rendered
         assert REDACTED in rendered
 
+    def test_redacts_mapping_style_authorization_placeholder(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59JVLj): the mapping-style
+        ``%(Authorization)s`` template interpolates just ``Bearer <token>``
+        (the ``Authorization`` prefix is gone), so ``_BEARER_PATTERN``
+        can't match afterwards. ``authorization`` must be in the
+        credential-key list so the dict value is pre-scrubbed.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record(
+            "header %(Authorization)s sent",
+            {"Authorization": "Bearer abc123.xyz_def"},
+        )
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "abc123.xyz_def" not in rendered
+        assert REDACTED in rendered
+
+    def test_filter_survives_broken_mapping_items(self) -> None:
+        """codex P2 (PRRT_kwDOR_Rkws59JVLp): the pre-scrub comprehension
+        runs inside the try/except so a custom ``Mapping`` whose
+        ``items()`` / ``__iter__`` raises doesn't escape the filter and
+        break the caller (we're installed via ``setLogRecordFactory`` so
+        every ``logger.*()`` call hits this).
+        """
+        from collections.abc import Mapping as AbcMapping
+
+        class _PoisonMapping(AbcMapping):  # type: ignore[type-arg]
+            def __iter__(self):  # type: ignore[override]
+                raise RuntimeError("broken __iter__")
+
+            def __len__(self) -> int:
+                return 0
+
+            def __getitem__(self, key):  # type: ignore[override]
+                raise KeyError(key)
+
+        f = CredentialRedactingFilter()
+        record = _make_record("template %(k)s", _PoisonMapping())
+        # Must return True (never drops) and must not raise.
+        assert f.filter(record) is True
+
     def test_redacts_mapping_style_format_with_userdict(self) -> None:
         """codex P2 (PRRT_kwDOR_Rkws59JMYx): ``logging`` accepts any
         ``collections.abc.Mapping`` for mapping-style interpolation, not
@@ -515,6 +556,85 @@ class TestContract:
         assert record.getMessage() == first_pass
         # Explicit shape check: no trailing ``]]`` bracket corruption.
         assert "]]" not in record.getMessage()
+
+    def test_forged_idempotency_attribute_does_not_bypass_redaction(self) -> None:
+        """coderabbit Major (PRRT_kwDOR_Rkws59II7G): the idempotency guard
+        must key off an unforgeable module sentinel — identity-checked
+        against ``_RECORD_REDACTED_SENTINEL`` — rather than any truthy
+        value. A caller-supplied ``extra={"_fo_redacted": True}`` would
+        otherwise land as ``record._fo_redacted = True`` (``LogRecord``
+        applies ``extra`` as instance attributes) and short-circuit the
+        filter before secrets are scrubbed.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("api_key=sk-super-secret-xyz123")
+        # Attacker-supplied truthy value mimicking the old idempotency
+        # marker. Must NOT be honoured.
+        record._fo_redacted = True  # type: ignore[attr-defined]
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "sk-super-secret-xyz123" not in rendered
+        assert REDACTED in rendered
+
+    def test_redacts_pre_populated_exc_text(self) -> None:
+        """coderabbit Major (PRRT_kwDOR_Rkws59II7G): some code paths
+        populate ``record.exc_text`` directly (pre-formatted exceptions
+        cached by an earlier formatter, loguru→stdlib bridges) without
+        going through ``exc_info``. The filter must redact the pre-
+        populated field so a rendered traceback carrying a secret doesn't
+        reach the handler unscrubbed.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("caught an error")
+        record.exc_text = (
+            "Traceback (most recent call last):\n"
+            '  File "x.py", line 1, in <module>\n'
+            '    raise RuntimeError("api_key=sk-super-secret-xyz123")\n'
+            "RuntimeError: api_key=sk-super-secret-xyz123"
+        )
+        assert f.filter(record) is True
+        assert record.exc_text is not None
+        assert "sk-super-secret-xyz123" not in record.exc_text
+        assert REDACTED in record.exc_text
+
+    def test_exc_info_format_failure_fails_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """coderabbit Major (PRRT_kwDOR_Rkws59II7G): if
+        ``traceback.format_exception(*record.exc_info)`` raises (e.g. a
+        monkey-patched ``traceback`` module in a pathological test env,
+        or a custom exception subclass whose ``__traceback__`` walk
+        breaks), the filter must NOT leave ``exc_info`` intact for the
+        default ``Formatter`` to re-render via the same broken call
+        path. Fail closed: replace ``exc_text`` with the REDACTED
+        sentinel and clear ``exc_info`` so the formatter skips its own
+        render. (``traceback.format_exception`` is itself defensive
+        against buggy ``__str__`` — it renders
+        ``<exception str() failed>`` rather than raising — so the only
+        way to exercise this branch deterministically is to patch the
+        formatter.)
+        """
+        import sys
+
+        import utils.log_redact as log_redact_mod
+
+        def _boom(*_args: object, **_kwargs: object) -> list[str]:
+            raise RuntimeError("simulated traceback.format_exception failure")
+
+        monkeypatch.setattr(log_redact_mod.traceback, "format_exception", _boom)
+
+        f = CredentialRedactingFilter()
+        try:
+            raise RuntimeError("api_key=sk-super-secret-xyz123")
+        except RuntimeError:
+            exc_info = sys.exc_info()
+        record = _make_record("caught an error")
+        record.exc_info = exc_info
+        assert f.filter(record) is True
+        # Fail-closed: exc_text is the sanitized placeholder and
+        # exc_info is cleared so the default Formatter won't attempt its
+        # own render via the broken call path (which would leak the raw
+        # exception message containing the secret).
+        assert record.exc_text == REDACTED
+        assert record.exc_info is None
 
     def test_loguru_patcher_replaces_exception_with_sanitized_version(self) -> None:
         """codex P1 (PRRT_kwDOR_Rkws59HjtX): the loguru patcher must
