@@ -187,16 +187,37 @@ class TextProcessor:
             )
 
         except FileReadError as e:
-            logger.error(f"Failed to read {file_path.name}: {e}")
+            # B2: include exception type so filesystem-level failures
+            # can be distinguished from downstream model errors in log
+            # aggregates. Loguru ``{}`` interpolation (not f-string)
+            # preserves structured capture (G2).
+            logger.error(
+                "Failed to read {} (type={}): {}",
+                file_path.name,
+                type(e).__name__,
+                e,
+            )
             return ProcessedFile(
                 file_path=file_path,
                 description="",
                 folder_name="errors",
                 filename=file_path.stem,
+                # Preserve the existing ``error=str(e)`` contract — B2
+                # scope is log-message categorisation, not the public
+                # ``ProcessedFile.error`` field.
                 error=str(e),
             )
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
-            logger.exception(f"Failed to process {file_path.name}: {e}")
+            # B2: typed tuple already narrows to "model / inference"
+            # errors; log the class name so a RuntimeError
+            # (provider) vs AttributeError (uninitialised model) can be
+            # bucketed without reparsing.
+            logger.exception(
+                "Failed to process {} (type={}): {}",
+                file_path.name,
+                type(e).__name__,
+                e,
+            )
             return ProcessedFile(
                 file_path=file_path,
                 description="",
@@ -268,7 +289,13 @@ SUMMARY:"""
 
             return summary
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
-            logger.error(f"Failed to generate description: {e}")
+            # B2: include exception class name so provider / tokenizer /
+            # network surface can be distinguished in log aggregates.
+            logger.error(
+                "Failed to generate description (type={}): {}",
+                type(e).__name__,
+                e,
+            )
             return f"Content about {content[:100]}..."
 
     def _generate_folder_name(self, text: str, original_stem: str | None = None) -> str:
@@ -347,7 +374,13 @@ CATEGORY:"""
             return result
 
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
-            logger.error(f"Failed to generate folder name: {e}")
+            # B2: include exception class name (see ``_generate_description``
+            # for rationale).
+            logger.error(
+                "Failed to generate folder name (type={}): {}",
+                type(e).__name__,
+                e,
+            )
             return "documents"
 
     def _generate_filename(self, text: str, original_stem: str | None = None) -> str:
@@ -431,7 +464,13 @@ FILENAME:"""
             return result
 
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
-            logger.error(f"Failed to generate filename: {e}")
+            # B2: include exception class name (see ``_generate_description``
+            # for rationale).
+            logger.error(
+                "Failed to generate filename (type={}): {}",
+                type(e).__name__,
+                e,
+            )
             return "document"
 
     def cleanup(self) -> None:

@@ -206,12 +206,26 @@ class VisionProcessor:
             )
 
         except Exception as e:
-            logger.exception(f"Failed to process {file_path.name}: {e}")
+            # B2: broad catch is load-bearing (organizer iterates many
+            # images; one bad file must not crash the pipeline) but the
+            # log message now includes the exception class name so
+            # operators can bucket failures by category (filesystem vs
+            # model-inference vs decode) without reparsing stack traces.
+            # ``logger.exception`` attaches the full traceback on top.
+            logger.exception(
+                "Failed to process {} (type={}): {}",
+                file_path.name,
+                type(e).__name__,
+                e,
+            )
             return ProcessedImage(
                 file_path=file_path,
                 description="",
                 folder_name="errors",
                 filename=file_path.stem,
+                # Preserve the existing ``error=str(e)`` contract — B2
+                # scope is log-message categorisation, not the public
+                # ``ProcessedImage.error`` field.
                 error=str(e),
             )
 
