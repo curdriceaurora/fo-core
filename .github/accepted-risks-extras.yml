@@ -16,7 +16,7 @@
 #   - expires_on  : YYYY-MM-DD (≤ 6 months from add date)
 
 allowlist:
-  - advisory_id: GHSA-w8v5-vhqr-4h9v
+  - advisory_id: CVE-2025-69872
     package: diskcache
     version_spec: "<=5.6.3"
     reason: >-
@@ -24,6 +24,18 @@ allowlist:
       cache-path code path is never invoked by fo-core — the ``[llama]``
       surface only uses llama-cpp-python for local inference, and the disk
       cache is pinned to a per-model temp dir we control. Upstream has no
-      patched release as of 2026-04-22; re-evaluate when diskcache ships
+      patched release as of 2026-04-23; re-evaluate when diskcache ships
       a 5.6.x+ that addresses the advisory.
-    expires_on: 2026-10-22
+    expires_on: 2026-10-23
+  - advisory_id: PYSEC-2022-42969
+    package: py
+    version_spec: "<=1.11.0"
+    reason: >-
+      Transitive via pytest (``[dev]`` / ``[all]`` test extras). The
+      advisory is a ReDoS in ``py.path.svnwc`` — SVN working-copy handling
+      that fo-core never invokes. Our pytest usage is limited to the core
+      test runner; no SVN-adjacent helpers are imported. The ``py``
+      package is effectively unmaintained (last release 2022-11) so no
+      upstream fix is expected. Re-evaluate when pytest drops the ``py``
+      dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
+    expires_on: 2026-10-23
