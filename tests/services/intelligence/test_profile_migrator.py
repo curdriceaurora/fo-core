@@ -309,5 +309,34 @@ def test_register_migration_adds_function(migrator):
     assert migrator._migration_functions["1.0->2.0"] is custom_migration
 
 
+# ---------------------------------------------------------------------------
+# T10 backfill: _is_version_supported — positive AND negative case
+# ---------------------------------------------------------------------------
+
+
+def test_is_version_supported_accepts_current_version(migrator):
+    """_is_version_supported returns True for listed versions."""
+    assert migrator._is_version_supported("1.0") is True
+
+
+def test_is_version_supported_rejects_unknown_version(migrator, capsys):
+    """_is_version_supported returns False for versions not in SUPPORTED_VERSIONS,
+    and prints a diagnostic.
+
+    T10 surface-shape negative case: "99.0" looks like a valid semver but
+    isn't in the allowlist → False. Catches an implementation that
+    accidentally returns True for any well-formed version string.
+    """
+    assert migrator._is_version_supported("99.0") is False
+    captured = capsys.readouterr()
+    assert "Unsupported target version" in captured.out
+
+
+def test_is_version_supported_rejects_empty_string(migrator, capsys):
+    """_is_version_supported returns False for the empty string (surface-shape
+    adversarial input)."""
+    assert migrator._is_version_supported("") is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

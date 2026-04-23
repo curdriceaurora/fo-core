@@ -423,3 +423,139 @@ class TestIsInOrNear:
         f = tmp_path / "deep" / "nested" / "file.txt"
         target = tmp_path / "other" / "dir"
         assert detector._is_in_or_near(f, target) is False
+
+
+# ---------------------------------------------------------------------------
+# T10 backfill: _check_type_mismatch — boolean predicate
+# ---------------------------------------------------------------------------
+
+
+def _make_context(
+    *,
+    file_path: Path,
+    file_type: str,
+    sibling_types: set[str] | None = None,
+    naming_patterns: list[str] | None = None,
+) -> ContextAnalysis:
+    """Build a minimal ContextAnalysis for predicate-level tests."""
+    return ContextAnalysis(
+        file_path=file_path,
+        file_type=file_type,
+        mime_type=None,
+        size=0,
+        directory=file_path.parent,
+        sibling_files=[],
+        sibling_types=sibling_types or set(),
+        parent_category="general",
+        naming_patterns=naming_patterns or [],
+    )
+
+
+class TestCheckTypeMismatch:
+    """T10 (test-generation-patterns.md): positive AND negative cases so that
+    a predicate flip in implementation is detectable."""
+
+    def test_type_not_in_sibling_categories_returns_true(self, detector, tmp_path):
+        # File is a PDF (documents); siblings are all images → different
+        # category → mismatch.
+        context = _make_context(
+            file_path=tmp_path / "mixed" / "report.pdf",
+            file_type=".pdf",
+            sibling_types={".jpg", ".png", ".gif"},
+        )
+        assert detector._check_type_mismatch(context) is True
+
+    def test_type_matches_sibling_category_returns_false(self, detector, tmp_path):
+        # File is a JPG (images); siblings are all images → same category → no
+        # mismatch. Fails if `_check_type_mismatch` is inverted to
+        # `return file_category in sibling_categories`.
+        context = _make_context(
+            file_path=tmp_path / "photos" / "pic.jpg",
+            file_type=".jpg",
+            sibling_types={".jpg", ".png", ".gif"},
+        )
+        assert detector._check_type_mismatch(context) is False
+
+    def test_empty_siblings_returns_true(self, detector, tmp_path):
+        # No siblings means no overlap possible; category is "not in (empty
+        # set)" → True. Documents the current contract.
+        context = _make_context(
+            file_path=tmp_path / "orphan" / "report.pdf",
+            file_type=".pdf",
+            sibling_types=set(),
+        )
+        assert detector._check_type_mismatch(context) is True
+
+
+# ---------------------------------------------------------------------------
+# T10 backfill: _check_pattern_mismatch — boolean predicate
+# ---------------------------------------------------------------------------
+
+
+class TestCheckPatternMismatch:
+    """T10 (test-generation-patterns.md): positive AND negative cases so that
+    a predicate flip is detectable. Also covers the empty-patterns short-circuit."""
+
+    def test_filename_lacks_expected_pattern_returns_true(self, detector, tmp_path):
+        context = _make_context(
+            file_path=tmp_path / "reports" / "notes.txt",
+            file_type=".txt",
+            naming_patterns=["report_", "_q"],
+        )
+        # "notes" contains neither "report_" nor "_q" → pattern mismatch.
+        assert (
+            detector._check_pattern_mismatch(tmp_path / "reports" / "notes.txt", context, None)
+            is True
+        )
+
+    def test_filename_matches_expected_pattern_returns_false(self, detector, tmp_path):
+        context = _make_context(
+            file_path=tmp_path / "reports" / "report_q1.txt",
+            file_type=".txt",
+            naming_patterns=["report_", "_q"],
+        )
+        # "report_q1" matches both "report_" and "_q" → no mismatch. Fails if
+        # the predicate drops the `not` and returns `any(...)` instead.
+        assert (
+            detector._check_pattern_mismatch(
+                tmp_path / "reports" / "report_q1.txt", context, None
+            )
+            is False
+        )
+
+    def test_empty_naming_patterns_short_circuit_returns_false(self, detector, tmp_path):
+        context = _make_context(
+            file_path=tmp_path / "misc" / "anything.txt",
+            file_type=".txt",
+            naming_patterns=[],
+        )
+        # No expected patterns → cannot mismatch. Documents the early-return.
+        assert (
+            detector._check_pattern_mismatch(
+                tmp_path / "misc" / "anything.txt", context, None
+            )
+            is False
+        )
+
+
+# ---------------------------------------------------------------------------
+# T10 backfill: _is_in_or_near — surface-shape negative case
+# ---------------------------------------------------------------------------
+
+
+class TestIsInOrNearSurfaceShape:
+    """T10 surface-shape check: file is a STRICT descendant of target's parent
+    (not a sibling of target) — has similar path shape but different semantics.
+    A naive implementation that compared only basename prefixes would match;
+    the real one relying on `parent.parent == target.parent` must reject it."""
+
+    def test_descendant_of_targets_parent_is_not_a_sibling(self, detector, tmp_path):
+        # target = /tmp_path/workspace/docs
+        # file   = /tmp_path/workspace/docs/deep/readme.txt  — in target (True)
+        # file2  = /tmp_path/workspace/images/pic.jpg        — sibling (True)
+        # file3  = /tmp_path/workspace/docs_v2/deep/readme.txt — similar name,
+        #          but actually a sibling's descendant → True (sibling dir rule)
+        # file4  = /tmp_path/outside/readme.txt              — NOT near (False)
+        target = tmp_path / "workspace" / "docs"
+        file4 = tmp_path / "outside" / "readme.txt"
+        assert detector._is_in_or_near(file4, target) is False
