@@ -159,6 +159,29 @@ class TestRedactsKeyValueForms:
         assert "def inside" not in rendered
         assert REDACTED in rendered
 
+    def test_single_quoted_placeholder_value_containing_single_quote(self) -> None:
+        """codex P1: ``logger.info(\"password='%s'\", \"abc'def\")`` must
+        redact the whole quoted placeholder expansion, not stop at the
+        first interior single quote and leak the suffix.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("password='%s'", "abc'def")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "abc'def" not in rendered
+        assert "def" not in rendered
+        assert rendered == f"password='{REDACTED}'"
+
+    def test_double_quoted_placeholder_value_containing_double_quote(self) -> None:
+        """Mirror case: ``logger.info('token=\"%s\"', 'abc\"def')``."""
+        f = CredentialRedactingFilter()
+        record = _make_record('token="%s"', 'abc"def')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert 'abc"def' not in rendered
+        assert "def" not in rendered
+        assert rendered == f'token="{REDACTED}"'
+
     def test_malformed_unclosed_double_quote_redacted(self) -> None:
         """codex P1 (PRRT_kwDOR_Rkws59IsZr): malformed quoted credential
         (opening quote with no matching close — e.g. truncated log, or
