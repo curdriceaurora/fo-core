@@ -28,8 +28,7 @@ import typer
 
 
 def _resolve_user_path(path: Path) -> Path:
-    """``path.expanduser().resolve()`` with all resolution errors surfaced as
-    ``typer.BadParameter``.
+    """Resolve ``path`` with all resolution failures surfaced as ``BadParameter``.
 
     ``Path.resolve()`` raises ``RuntimeError`` (Python < 3.13) or ``OSError``
     (Python >= 3.13) on symlink loops and other OS-level resolution failures;

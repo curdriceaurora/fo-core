@@ -7,7 +7,6 @@ Tests the Typer-based rules management CLI commands including:
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
