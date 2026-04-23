@@ -70,6 +70,79 @@ jobs:
               --audit audit.json \
               --allowlist .github/accepted-risks.yml
 
+  audit-dependencies-extras:
+    # Mirrors `audit-dependencies` but installs `.[all]` so transitive risks
+    # from optional extras (`[llama]`, `[media]`, `[search]`, `[dedup-*]`,
+    # `[scientific]`, `[cad]`, `[claude]`, `[mlx]`, `[cloud]`) are audited
+    # against .github/accepted-risks-extras.yml. Separate job + separate
+    # allowlist because the base audit would fail on
+    # "allowlist entry for uninstalled package" if extras entries leaked
+    # into .github/accepted-risks.yml (#166).
+    #
+    # Matrix across Linux + macOS so platform-gated extras (currently
+    # `mlx-lm`, pinned to `platform_system == 'Darwin'`) actually get
+    # audited. Running only on ubuntu-latest would silently leave
+    # macOS-only dependencies out of the coverage footprint — a real gap
+    # codex caught on PR #171.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+          # Cache pip wheels keyed on pyproject.toml so the `.[all]` install
+          # (torch / opencv / faster-whisper — ~1 GB) doesn't re-download on
+          # every schedule/PR run. Keeps the retry wrapper for genuine CDN
+          # flakes but dramatically narrows its blast radius.
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install pip-audit + gate deps
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: pip install pip-audit pyyaml packaging
+      - name: Audit dependencies (.[all])
+        # `.[all]` pulls torch / opencv / faster-whisper / etc. — expect this
+        # step to be slower than the base audit. The retry wrapper also guards
+        # the large wheel downloads against transient CDN flakes (issue #145).
+        #
+        # `pip-audit` (no path argument) audits the **installed environment**
+        # — which is exactly what we need here: `.[all]` has put every extra's
+        # transitive graph on disk, and that's what we want scanned.
+        # `pip-audit .` is project-path mode and ONLY inspects the
+        # `[project.dependencies]` block in pyproject.toml, silently ignoring
+        # `[project.optional-dependencies]`. Running the path form against a
+        # `.[all]`-installed env would defeat the whole reason this job exists.
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: |
+            set -euo pipefail
+            # Quote `.[all]` so bracket-glob-enabled shells (zsh / bash with
+            # failglob) can't accidentally expand or null-match it.
+            pip install -e '.[all]' >/dev/null
+            set +e
+            # Environment mode (no `.` argument) — audits the installed
+            # graph, not pyproject.toml. See the long comment on the step.
+            pip-audit --format=json > audit-extras.json
+            audit_exit=$?
+            set -e
+            if [ ! -s audit-extras.json ]; then
+              echo "::error::pip-audit produced no output (exit $audit_exit) — likely a crash"
+              exit 1
+            fi
+            python3 scripts/pip_audit_gate.py \
+              --audit audit-extras.json \
+              --allowlist .github/accepted-risks-extras.yml
+
   bandit-scan:
     runs-on: ubuntu-latest
     steps:

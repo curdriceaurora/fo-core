@@ -23,6 +23,8 @@ check_pypi_versions = importlib.util.module_from_spec(_spec)
 sys.modules["check_pypi_versions"] = check_pypi_versions
 _spec.loader.exec_module(check_pypi_versions)
 _check_caps_or_marker = check_pypi_versions._check_caps_or_marker
+_version_is_pre_1 = check_pypi_versions._version_is_pre_1
+_constraint_is_satisfiable = check_pypi_versions._constraint_is_satisfiable
 
 
 def _write_pyproject(tmp_path: Path, deps: list[str]) -> Path:
@@ -148,3 +150,117 @@ def test_script_invocation_exits_nonzero_on_failure(tmp_path: Path) -> None:
     )
     assert r.returncode == 1
     assert "pydub" in r.stderr
+
+
+# ---------------------------------------------------------------------------
+# #164 — _version_is_pre_1 must catch every pre-1.0 shape, not just "0."
+# ---------------------------------------------------------------------------
+
+
+def test_version_is_pre_1_dotted() -> None:
+    """The classic cases: dotted pre-1.0 versions."""
+    assert _version_is_pre_1("0.7.2") is True
+    assert _version_is_pre_1("0.0.19") is True
+    assert _version_is_pre_1("0.1") is True
+
+
+def test_version_is_pre_1_bare_zero() -> None:
+    """Bare ``>=0`` must be treated as pre-1.0 (regression for #164).
+
+    Previously ``version.startswith("0.")`` returned False for ``"0"``,
+    silently letting ``foo>=0`` bypass the cap-or-marker rule.
+    """
+    assert _version_is_pre_1("0") is True
+
+
+def test_version_is_pre_1_pre_release() -> None:
+    """Pre-releases with major 0: 0a1, 0b0, 0rc1 (#164)."""
+    assert _version_is_pre_1("0rc1") is True
+    assert _version_is_pre_1("0a1") is True
+    assert _version_is_pre_1("0b0") is True
+
+
+def test_version_is_pre_1_false_for_post_1() -> None:
+    """Anything with major >= 1 is post-1.0 and falls outside the pre-1.0 rule."""
+    assert _version_is_pre_1("1.0.0") is False
+    assert _version_is_pre_1("1") is False
+    assert _version_is_pre_1("2.31.0") is False
+    assert _version_is_pre_1("10.2.3") is False
+    assert _version_is_pre_1("1rc1") is False
+
+
+def test_version_is_pre_1_handles_invalid_input() -> None:
+    """Non-numeric leading garbage returns False — treat as post-1.0 so the
+    caller doesn't apply the pre-1.0 rule to something it can't classify.
+    """
+    assert _version_is_pre_1("") is False
+    assert _version_is_pre_1("xyz") is False
+
+
+def test_version_is_pre_1_respects_pep_440_epoch() -> None:
+    """Regression for codex P2 review on PR #171: PEP 440 allows an epoch
+    prefix like ``0!1.2``. The epoch (``0``) is not the release major —
+    the release here is ``1.2`` (post-1.0). A naive leading-digit regex
+    would misclassify this as pre-1.0 and force a cap on a legitimate
+    post-1.0 pin.
+    """
+    # epoch 0, release 1.2 — post-1.0
+    assert _version_is_pre_1("0!1.2") is False
+    # epoch 1, release 0.9 — pre-1.0 despite epoch >= 1
+    assert _version_is_pre_1("1!0.9") is True
+
+
+def test_pre_1_bare_zero_without_cap_fails(tmp_path: Path) -> None:
+    """End-to-end #164: ``foo>=0`` (bare zero, no cap) now fails the
+    cap-or-marker rule. Before the fix this silently passed.
+    """
+    p = _write_pyproject(tmp_path, ['"foo>=0"'])
+    failures = _check_caps_or_marker(p)
+    assert len(failures) == 1, f"Bare `>=0` must fail cap-or-marker; got: {failures}"
+    assert "foo" in failures[0]
+
+
+def test_pre_1_bare_zero_with_cap_passes(tmp_path: Path) -> None:
+    """End-to-end #164: ``foo>=0,<1`` is capped — acceptable."""
+    p = _write_pyproject(tmp_path, ['"foo>=0,<1"'])
+    assert _check_caps_or_marker(p) == []
+
+
+# ---------------------------------------------------------------------------
+# #165 — PyPI satisfiability applies to every >=X.Y.Z pin, not just pre-1.0.
+# Network-free tests exercise the helper directly.
+# ---------------------------------------------------------------------------
+
+
+def test_constraint_satisfiable_when_match_exists() -> None:
+    """A post-1.0 pin with a real published version is satisfiable."""
+    assert _constraint_is_satisfiable("6.1.1", ["6.0.0", "6.1.0", "6.1.1", "7.0.0"]) is True
+
+
+def test_constraint_satisfiable_ignores_upper_cap_for_fabricated_post_1_version() -> None:
+    """Regression for #165 / C8 VERSION_FABRICATION: the helper only checks
+    lower-bound existence, not caps. A ``>=6.2`` pin with no published 6.2
+    but a published 7.0.0 is reported as satisfiable — the *upper-bound*
+    cap (``<7`` in the real psutil case) is what prevents the fabrication
+    from installing. This test documents the contract (renamed from the
+    earlier "unsatisfiable"-prefixed name, which contradicted its own
+    assertion and confused readers — coderabbit review on PR #171).
+    """
+    # `>=6.2` alone is satisfiable by 7.0.0.
+    assert _constraint_is_satisfiable("6.2", ["6.0.0", "6.1.0", "6.1.1", "7.0.0"]) is True
+
+
+def test_constraint_unsatisfiable_when_latest_below_minimum() -> None:
+    """The real C8 catch: every published version is below the declared
+    minimum. Example from rule C8 / PR #846: ``rank-bm25>=0.7.2`` when
+    the latest release is 0.2.2.
+    """
+    assert _constraint_is_satisfiable("0.7.2", ["0.2.0", "0.2.1", "0.2.2"]) is False
+
+
+def test_constraint_skips_unparseable_versions() -> None:
+    """PyPI occasionally has non-PEP-440 version strings (e.g. legacy
+    ``2022.01-preview``). These must not crash the helper; they're just
+    skipped when checking the minimum.
+    """
+    assert _constraint_is_satisfiable("2.0.0", ["legacy-tag", "garbage", "2.1.0"]) is True

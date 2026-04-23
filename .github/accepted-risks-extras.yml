@@ -1,0 +1,41 @@
+# Accepted-risk allowlist for the `.[all]` audit (optional extras).
+#
+# This file is paired with the `audit-dependencies-extras` job in
+# .github/workflows/security.yml, which installs `pip install -e .[all]` so
+# optional-extra transitive risks (via `[llama]`, `[media]`, `[search]`, etc.)
+# are surfaced. The base-install audit uses .github/accepted-risks.yml
+# separately; each allowlist scopes to only the packages its audit job
+# actually installs (#166).
+#
+# Schema is the same as .github/accepted-risks.yml — enforced by
+# scripts/pip_audit_gate.py:
+#   - advisory_id : string, GHSA-/PYSEC-/CVE- prefix
+#   - package     : string, PyPI distribution name
+#   - version_spec: string, PEP 440 specifier
+#   - reason      : string, why the code path is unreachable for fo-core
+#   - expires_on  : YYYY-MM-DD (≤ 6 months from add date)
+
+allowlist:
+  - advisory_id: CVE-2025-69872
+    package: diskcache
+    version_spec: "<=5.6.3"
+    reason: >-
+      Transitive via llama-cpp-python (``[llama]`` extra). The vulnerable
+      cache-path code path is never invoked by fo-core — the ``[llama]``
+      surface only uses llama-cpp-python for local inference, and the disk
+      cache is pinned to a per-model temp dir we control. Upstream has no
+      patched release as of 2026-04-23; re-evaluate when diskcache ships
+      a 5.6.x+ that addresses the advisory.
+    expires_on: 2026-10-23
+  - advisory_id: PYSEC-2022-42969
+    package: py
+    version_spec: "<=1.11.0"
+    reason: >-
+      Transitive via pytest (``[dev]`` / ``[all]`` test extras). The
+      advisory is a ReDoS in ``py.path.svnwc`` — SVN working-copy handling
+      that fo-core never invokes. Our pytest usage is limited to the core
+      test runner; no SVN-adjacent helpers are imported. The ``py``
+      package is effectively unmaintained (last release 2022-11) so no
+      upstream fix is expected. Re-evaluate when pytest drops the ``py``
+      dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
+    expires_on: 2026-10-23
