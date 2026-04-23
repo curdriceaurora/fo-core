@@ -7,6 +7,7 @@ All time-sensitive operations are mocked for fast, deterministic tests.
 
 from __future__ import annotations
 
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -404,17 +405,30 @@ class TestRun:
 
         assert scheduler.is_running is False
 
-    def test_run_clears_stop_event_at_start(self, scheduler: DaemonScheduler) -> None:
-        """run() clears the stop event so a previous stop() doesn't prevent starting."""
+    def test_run_does_not_clear_stop_event_at_start(
+        self,
+        scheduler: DaemonScheduler,
+    ) -> None:
+        """run() must NOT clear ``_stop_event`` at entry.
+
+        The caller (``run_in_background`` or a direct foreground caller) is
+        responsible for clearing the event before invoking ``run()``.
+        Clearing inside ``run()`` creates a missed-signal race with
+        ``stop()`` — see ``TestStopEventRaceRegression``.
+
+        This test verifies the new contract: if the event is set before
+        ``run()`` executes, the loop exits immediately without calling
+        ``_tick``.
+        """
         scheduler._stop_event.set()
 
-        _make_run_terminate_after(scheduler, 1)
-
-        with patch.object(scheduler, "_tick"):
+        with patch.object(scheduler, "_tick") as mock_tick:
             scheduler.run()
 
-        # It ran successfully despite the pre-set event
+        mock_tick.assert_not_called()
         assert scheduler.is_running is False
+        # The event must remain set — run() did not wipe it.
+        assert scheduler._stop_event.is_set()
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +527,120 @@ class TestStop:
         with patch("daemon.scheduler.logger") as mock_logger:
             scheduler.stop()
             mock_logger.debug.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# Race regression tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+@pytest.mark.integration
+class TestStopEventRaceRegression:
+    """Regression tests for the missed-signal race that caused the
+    ``test_restart_cycles_daemon`` flake (daemon PR #179 CI, run
+    24857093314 attempt 1).
+
+    Before the fix, ``run()`` called ``self._stop_event.clear()`` as its
+    second instruction. If ``stop()`` set the event between
+    ``thread.start()`` and ``run()`` getting CPU time — a very real
+    scenario under xdist CI contention — the clear wiped the stop signal
+    and the scheduler loop never exited. The subsequent
+    ``run_in_background()`` from the daemon's restart path then saw
+    ``self._running == True`` and raised
+    ``RuntimeError("Scheduler is already running")``.
+    """
+
+    def test_stop_signal_set_before_run_body_is_honored(
+        self,
+        scheduler: DaemonScheduler,
+    ) -> None:
+        """``run()`` must observe ``_stop_event`` as set when the event is
+        signalled before ``run()`` body executes — never call ``_tick``.
+
+        Uses a ``threading.Event`` gate to deterministically block the
+        scheduler thread between ``thread.start()`` and the first
+        instruction of ``run()``. The test then sets ``_stop_event`` and
+        releases the gate. With the bug (``run()`` clearing ``_stop_event``
+        on entry), the scheduler wipes the signal and calls ``_tick`` in a
+        loop. With the fix, ``run()`` inherits the set event and the loop
+        body never executes.
+
+        Uses ``_tick`` call count as the signal (more deterministic than
+        watching ``is_running``, which flashes True-then-False in microseconds
+        under the fix).
+        """
+        scheduler.schedule_task("noop", 60.0, lambda: None)
+        original_run = scheduler.run
+        gate = threading.Event()
+        tick_called = threading.Event()
+        original_tick = scheduler._tick
+
+        def gated_run() -> None:
+            # Block scheduler thread until test thread opens the gate —
+            # simulating the xdist-contention window where the thread is
+            # alive but run() has not been scheduled for CPU yet.
+            assert gate.wait(timeout=5.0), "test harness: gate never opened"
+            original_run()
+
+        def spy_tick() -> None:
+            tick_called.set()
+            original_tick()
+
+        scheduler.run = gated_run  # type: ignore[method-assign]
+        scheduler._tick = spy_tick  # type: ignore[method-assign]
+        scheduler.run_in_background()
+
+        # Simulate what DaemonService._cleanup()'s scheduler.stop() does:
+        # set the stop event while the scheduler thread is blocked.
+        scheduler._stop_event.set()
+        gate.set()
+
+        # Give the scheduler thread time to proceed past the gate and
+        # reach the while-loop. Under the fix the loop body never runs;
+        # under the bug _tick is called within the first 0.1s iteration.
+        triggered = tick_called.wait(timeout=1.0)
+        assert not triggered, (
+            "run() wiped _stop_event and entered the loop body — missed-signal "
+            "race is present"
+        )
+        assert scheduler._stop_event.is_set(), (
+            "run() must not clear _stop_event; the caller owns that invariant"
+        )
+
+        # Ensure the scheduler thread exits cleanly for fixture teardown.
+        assert scheduler._thread is not None
+        scheduler._thread.join(timeout=2.0)
+        assert scheduler.is_running is False
+
+    def test_run_in_background_clears_stop_event_before_start(
+        self,
+        scheduler: DaemonScheduler,
+    ) -> None:
+        """A stale ``_stop_event`` from a prior ``stop()`` must not block
+        the next ``run_in_background()`` cycle.
+
+        Simulates a restart: first cycle leaves the event set (as
+        ``stop()`` does); the next ``run_in_background()`` must clear it
+        synchronously before starting the thread, so the new scheduler
+        thread observes the event as unset whenever it eventually runs.
+        """
+        scheduler.stop()
+        assert scheduler._stop_event.is_set()
+
+        # run_in_background must clear the event before thread.start()
+        with patch("daemon.scheduler.threading.Thread") as mock_thread_cls:
+            mock_thread_cls.return_value = MagicMock()
+
+            def assert_cleared_at_start_call(*args: object, **kwargs: object) -> None:
+                assert not scheduler._stop_event.is_set(), (
+                    "run_in_background must clear _stop_event BEFORE starting "
+                    "the thread, to avoid a missed-signal race with stop()"
+                )
+
+            mock_thread_cls.return_value.start.side_effect = assert_cleared_at_start_call
+            scheduler.run_in_background()
 
 
 # ---------------------------------------------------------------------------

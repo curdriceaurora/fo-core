@@ -124,6 +124,36 @@ class TestDaemonLifecycle:
 
         assert daemon.is_running is True
 
+    def test_repeated_restart_cycles_do_not_leave_scheduler_zombie(
+        self,
+        daemon: DaemonService,
+    ) -> None:
+        """Repeated start/stop cycles must not leave the scheduler in a
+        zombied ``_running=True`` state.
+
+        Regression for the ``test_restart_cycles_daemon`` flake (PR #179 CI):
+        ``DaemonScheduler.run()`` used to clear ``_stop_event`` inside itself,
+        which races with ``_cleanup()``'s ``scheduler.stop()`` call. Under
+        xdist CI contention this caused the next ``run_in_background()`` in
+        ``_background_run`` to raise ``RuntimeError("Scheduler is already
+        running")``, leaving the daemon with ``is_running=False`` after
+        restart.
+        """
+        for _ in range(5):
+            daemon.start_background()
+            assert daemon.is_running is True
+            daemon.restart()
+
+            # restart() already waits for the background thread to reach
+            # _started_event.set(). is_running must be True immediately.
+            assert daemon.is_running is True
+
+            daemon.stop()
+            deadline = time.monotonic() + 5.0
+            while daemon.is_running and time.monotonic() < deadline:
+                pass
+            assert daemon.is_running is False
+
 
 class TestPidFileManagement:
     """Tests for PID file lifecycle with the daemon."""
