@@ -183,6 +183,34 @@ class TestContract:
         assert record.msg == original_msg
         assert record.args == original_args
 
+    def test_buggy_arg_str_does_not_escape_filter(self) -> None:
+        """codex P2: the filter is attached via ``setLogRecordFactory`` so it
+        runs on every ``logger.*()`` call. If a ``%s`` arg's ``__str__`` /
+        ``__repr__`` raises an exception unrelated to format errors
+        (``RuntimeError``, ``AttributeError``, custom ``Exception``
+        subclass), that exception must NOT propagate out of the filter —
+        otherwise the caller's normal code path breaks, including for
+        records that would later be dropped by handler level.
+        """
+
+        class _PoisonArg:
+            def __str__(self) -> str:
+                raise RuntimeError("buggy __str__")
+
+            def __repr__(self) -> str:
+                raise RuntimeError("buggy __repr__")
+
+        f = CredentialRedactingFilter()
+        record = _make_record("auth=%s", _PoisonArg())
+        original_msg = record.msg
+        original_args = record.args
+        # Must return True (never drops) and must not let RuntimeError escape.
+        assert f.filter(record) is True
+        # Record left untouched so logging's own emit() path can surface the
+        # error via its own handler chain.
+        assert record.msg == original_msg
+        assert record.args == original_args
+
     def test_install_on_root_honours_extra_loggers(self) -> None:
         """``install_on_root(extra_loggers=["foo"])`` attaches the filter to
         each named logger so it fires for records originating there. Belt-

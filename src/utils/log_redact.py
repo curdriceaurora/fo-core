@@ -100,9 +100,19 @@ class CredentialRedactingFilter(logging.Filter):
         if record.args:
             try:
                 formatted = record.getMessage()
-            except (TypeError, ValueError):
-                # Malformed template — let ``logging`` surface the error
-                # via its own handler rather than swallow it here.
+            except Exception:  # noqa: BLE001 — see rationale below
+                # ``getMessage()`` runs ``record.msg % record.args`` which
+                # invokes each arg's ``__str__`` / ``__repr__``. A bug in
+                # either (custom ``Exception`` subclass, buggy ``__str__``
+                # that raises ``RuntimeError`` / ``AttributeError``, etc.)
+                # must NOT escape the filter. We're attached via
+                # ``setLogRecordFactory`` so this runs on EVERY
+                # ``logger.*()`` call — escalating here would break the
+                # caller's normal execution, including records that would
+                # otherwise be dropped later by level filtering. Swallow
+                # any exception, leave the record untouched, and let
+                # ``logging`` surface the error via its own handler path
+                # when the downstream ``emit()`` re-attempts the format.
                 return True
             record.msg = _redact_text(formatted)
             record.args = None
