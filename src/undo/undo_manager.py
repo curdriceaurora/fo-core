@@ -17,6 +17,20 @@ from .validator import OperationValidator
 logger = logging.getLogger(__name__)
 
 
+class _RedoAborted(Exception):
+    """Internal sentinel: a redo operation failed, so the enclosing
+    ``db.transaction()`` context manager should roll back the in-flight
+    DB writes before ``redo_transaction`` returns ``False``.
+
+    Not part of the public surface — never leaks out of
+    :meth:`UndoManager.redo_transaction`.
+    """
+
+    def __init__(self, operation_id: int | None) -> None:
+        super().__init__(f"redo aborted at operation {operation_id}")
+        self.operation_id = operation_id
+
+
 class UndoManager:
     """Main interface for undo/redo operations.
 
@@ -102,12 +116,16 @@ class UndoManager:
         success = self.executor.rollback_operation(operation)
 
         if success:
-            # Update operation status
-            self.history.db.execute_query(
-                "UPDATE operations SET status = ? WHERE id = ?",
-                (OperationStatus.ROLLED_BACK.value, operation_id),
-            )
-            self.history.db.get_connection().commit()
+            # Update operation status atomically — ``db.transaction()``
+            # holds the db lock across write + commit and rolls back
+            # on any exception, avoiding the previous race where
+            # ``execute_query`` released the lock before
+            # ``get_connection().commit()`` reacquired it (B3).
+            with self.history.db.transaction() as conn:
+                conn.execute(
+                    "UPDATE operations SET status = ? WHERE id = ?",
+                    (OperationStatus.ROLLED_BACK.value, operation_id),
+                )
             logger.info(f"Successfully undid operation {operation_id}")
 
             # Clear redo stack (undo creates new timeline)
@@ -158,13 +176,16 @@ class UndoManager:
         result = self.executor.rollback_transaction(transaction_id, operations)
 
         if result.success:
-            # Update all rolled-back operations to ROLLED_BACK status in DB
-            for operation in operations:
-                self.history.db.execute_query(
-                    "UPDATE operations SET status = ? WHERE id = ?",
-                    (OperationStatus.ROLLED_BACK.value, operation.id),
-                )
-            self.history.db.get_connection().commit()
+            # Update all rolled-back operations to ROLLED_BACK status
+            # inside a single transaction — either every status flips
+            # or none do, so the DB can't be left half-updated if a
+            # mid-loop failure raises (B3).
+            with self.history.db.transaction() as conn:
+                for operation in operations:
+                    conn.execute(
+                        "UPDATE operations SET status = ? WHERE id = ?",
+                        (OperationStatus.ROLLED_BACK.value, operation.id),
+                    )
 
             logger.info(
                 f"Successfully undid transaction {transaction_id}: "
@@ -213,29 +234,33 @@ class UndoManager:
                 )
                 return False
 
-        # Execute redo in chronological (forward) order as a single DB transaction
-        conn = self.history.db.get_connection()
+        # Execute redo in chronological (forward) order as a single
+        # DB transaction. ``db.transaction()`` commits on clean exit
+        # and rolls back on any exception — we raise a sentinel to
+        # bail out of the loop early (rollback triggered via context
+        # manager) if any per-operation redo fails, keeping the DB
+        # consistent with what actually landed on disk (B3).
         try:
-            for operation in forward_ops:
-                success = self.executor.redo_operation(operation)
-                if success:
-                    self.history.db.execute_query(
+            with self.history.db.transaction() as conn:
+                for operation in forward_ops:
+                    success = self.executor.redo_operation(operation)
+                    if not success:
+                        logger.error(
+                            f"Failed to redo operation {operation.id} "
+                            f"in transaction {transaction_id}"
+                        )
+                        raise _RedoAborted(operation.id)
+                    conn.execute(
                         "UPDATE operations SET status = ? WHERE id = ?",
                         (OperationStatus.COMPLETED.value, operation.id),
                     )
                     logger.info(f"Successfully redid operation {operation.id}")
-                else:
-                    logger.error(
-                        f"Failed to redo operation {operation.id} in transaction {transaction_id}"
-                    )
-                    conn.rollback()
-                    return False
+        except _RedoAborted:
+            return False
         except Exception:
             logger.exception(f"Unexpected error while redoing transaction {transaction_id}")
-            conn.rollback()
             return False
 
-        conn.commit()
         logger.info(
             f"Successfully redid transaction {transaction_id}: {len(forward_ops)} operations"
         )
@@ -298,12 +323,13 @@ class UndoManager:
         success = self.executor.redo_operation(operation)
 
         if success:
-            # Update operation status back to completed
-            self.history.db.execute_query(
-                "UPDATE operations SET status = ? WHERE id = ?",
-                (OperationStatus.COMPLETED.value, operation_id),
-            )
-            self.history.db.get_connection().commit()
+            # Update operation status back to completed atomically
+            # (B3 — see ``undo_operation`` for the race rationale).
+            with self.history.db.transaction() as conn:
+                conn.execute(
+                    "UPDATE operations SET status = ? WHERE id = ?",
+                    (OperationStatus.COMPLETED.value, operation_id),
+                )
             logger.info(f"Successfully redid operation {operation_id}")
         else:
             logger.error(f"Failed to redo operation {operation_id}")
