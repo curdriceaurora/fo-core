@@ -107,6 +107,31 @@ class TestRedactsKeyValueForms:
         assert "word" not in rendered
         assert REDACTED in rendered
 
+    def test_double_quoted_value_containing_single_quote(self) -> None:
+        """codex P1 (PRRT_kwDOR_Rkws59IYi1): ``password="abc'def"`` — the
+        secret contains a single quote inside double quotes. Previous
+        regex excluded BOTH quote chars from the value group, so this
+        shape escaped redaction entirely. The pattern must only
+        terminate on the matching delimiter.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record('password="abc\'def-secret-value"')
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "abc'def-secret-value" not in rendered
+        assert "def-secret" not in rendered
+        assert REDACTED in rendered
+
+    def test_single_quoted_value_containing_double_quote(self) -> None:
+        """Mirror case: single-quoted value with a double quote inside."""
+        f = CredentialRedactingFilter()
+        record = _make_record("token='xyz\"abc-secret-value'")
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert 'xyz"abc-secret-value' not in rendered
+        assert "abc-secret" not in rendered
+        assert REDACTED in rendered
+
 
 class TestRedactsBearerHeader:
     """HTTP ``Authorization: Bearer <token>`` leaks."""

@@ -53,16 +53,29 @@ _CRED_KEYS = (
     "passwd",
     "credential",
 )
-# ``key`` + optional quotes + ``=`` or ``:`` + EITHER a quoted value (where
-# we capture everything up to the matching close quote — covers secrets
-# containing spaces like ``password='correct horse battery staple'``, codex
-# P1 PRRT_kwDOR_Rkws59IQep) OR an unquoted value that stops at the first
-# whitespace / delimiter. The key is kept in the replacement so the log
-# line still tells you *which* credential leaked — just not what.
+# ``key`` + optional quotes + ``=`` or ``:`` + value. The value arm has
+# three alternatives so each form stops on the correct delimiter:
+#
+# 1. Double-quoted (``password="abc'def"``) — allows single quotes inside,
+#    terminates on the closing ``"``.
+# 2. Single-quoted (``password='abc"def'``) — allows double quotes inside,
+#    terminates on the closing ``'``.
+# 3. Unquoted — stops at whitespace / delimiter.
+#
+# Earlier versions used a single quoted alternative with ``[^\"']*`` which
+# forbade BOTH quote characters and missed mixed-punctuation secrets
+# (codex P1 PRRT_kwDOR_Rkws59IYi1). Splitting into separate dq / sq
+# branches is the standard regex-engine-agnostic fix because
+# ``[^(?P=q)]`` inside a character class isn't supported.
+#
+# The key is kept in the replacement so the log line still tells you
+# *which* credential leaked — just not what.
 _KV_PATTERN = re.compile(
     r"(?i)(?P<key>(?:" + "|".join(_CRED_KEYS) + r")[\"']?\s*[:=]\s*)"
     r"(?:"
-    r"(?P<q>[\"'])(?P<qvalue>[^\"']*)(?P=q)"
+    r'"(?P<qvalue_dq>[^"]*)"'
+    r"|"
+    r"'(?P<qvalue_sq>[^']*)'"
     r"|"
     r"(?P<value>[^\"'\s,;&}\])]+)"
     r")"
@@ -86,13 +99,15 @@ _BEARER_PATTERN = re.compile(
 def _kv_replace(match: re.Match[str]) -> str:
     """``_KV_PATTERN`` callback: preserve the quote shape when redacting.
 
-    When the quoted branch matched (``password='correct horse'``), wrap
-    ``REDACTED`` in the same quote character so the output keeps a valid
-    quoted form. Otherwise the unquoted branch is a simple substitution.
+    When a quoted branch matched, wrap ``REDACTED`` in the matching quote
+    character so the output keeps a valid quoted form. The ``is not None``
+    check (rather than truthy) matters for empty-string values —
+    ``password=""`` has ``qvalue_dq = ""`` which is falsy but not None.
     """
-    quote = match.group("q")
-    if quote is not None:
-        return f"{match.group('key')}{quote}{REDACTED}{quote}"
+    if match.group("qvalue_dq") is not None:
+        return f'{match.group("key")}"{REDACTED}"'
+    if match.group("qvalue_sq") is not None:
+        return f"{match.group('key')}'{REDACTED}'"
     return f"{match.group('key')}{REDACTED}"
 
 
