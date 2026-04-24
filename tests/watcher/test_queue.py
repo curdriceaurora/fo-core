@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from watcher.queue import EventQueue, EventType, FileEvent
+from watcher.queue import _DROP_LOG_INTERVAL, EventQueue, EventType, FileEvent
 
 pytestmark = [pytest.mark.unit]
 # Note: EventQueue tests use threading.Thread, making them
@@ -404,8 +404,14 @@ class TestEventQueueEdgeCases:
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 class TestEventQueueBackpressure:
     """F1 (hardening roadmap #159): overflow is no longer silent.
+
+    Marked ``ci`` so the PR-suite ``-m "ci"`` run exercises the new
+    ``dropped_count`` / ``is_full`` / ``max_size`` paths — otherwise
+    the diff-cover gate (80% of changed lines) fails on D6-style
+    unit-only coverage.
 
     Pre-F1 the queue used ``deque(maxlen=...)`` which silently dropped
     the oldest event. Consumers had no way to know overflow had
@@ -506,8 +512,6 @@ class TestEventQueueBackpressure:
     ) -> None:
         """Logging throttled to every _DROP_LOG_INTERVAL drops so a
         saturated queue doesn't spam the log."""
-        from watcher.queue import _DROP_LOG_INTERVAL
-
         queue = EventQueue(max_size=1)
         queue.enqueue(self._make_event(tmp_path, name="seed.txt"))
         with caplog.at_level("WARNING", logger="watcher.queue"):
