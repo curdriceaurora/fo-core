@@ -75,6 +75,7 @@ jobs:
             --cov-report=xml \
             --timeout=60 \
             -n=auto \
+            --dist=loadgroup \
             --override-ini="addopts=" \
             | tee "$RUNNER_TEMP/integration-coverage-report.txt"
 

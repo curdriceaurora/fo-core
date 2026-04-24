@@ -239,6 +239,7 @@ run_test_pr_version() {
     --cov-report="xml:$venv_dir/coverage-pr.xml" \
     --timeout=30 \
     -n=auto \
+    --dist=loadgroup \
     --override-ini=addopts=
 }
 
@@ -267,6 +268,7 @@ run_test_full_version() {
     --cov-report="xml:$venv_dir/coverage-full.xml" \
     --timeout=30 \
     -n=auto \
+    --dist=loadgroup \
     --override-ini=addopts=
   run_step \
     "Run docstring coverage gate (Python $version)" \

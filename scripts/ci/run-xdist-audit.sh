@@ -21,6 +21,7 @@ for i in 1 2 3; do
     pytest tests/ \
         -m "not integration and not benchmark and not e2e" \
         -n auto \
+        --dist=loadgroup \
         --timeout=30 \
         -q \
         --tb=short \
