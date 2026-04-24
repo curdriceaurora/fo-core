@@ -49,6 +49,7 @@ jobs:
             -m "not benchmark and not e2e" \
             --strict-markers \
             -n auto \
+            --dist=loadgroup \
             --timeout=60 \
             --cov=src \
             --cov-report= \
@@ -116,7 +117,7 @@ jobs:
           command: pip install -e ".[dev,search]"
       - name: Run tests
         # CI Full's cross-platform contract: validate the portable ci/smoke subset on macOS.
-        run: pytest tests/ --strict-markers --timeout=30 -n=auto --override-ini="addopts=" -m "ci or smoke"
+        run: pytest tests/ --strict-markers --timeout=30 -n=auto --dist=loadgroup --override-ini="addopts=" -m "ci or smoke"
 
   test-windows:
     name: Test Windows (Python 3.12)

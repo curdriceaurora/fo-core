@@ -54,6 +54,45 @@ repos:
         pass_filenames: false
 
       # ----------------------------------------------------------------
+      # G2: Full-file scan — no hardcoded /tmp/, /Users/, /home/ paths in
+      # test files (including pre-existing lines that G1 would miss).
+      # Honors `# noqa: G2` markers for parser-test-input and similar
+      # legitimate hardcoded-path exceptions (see T13 in
+      # .claude/rules/test-generation-patterns.md).
+      # ----------------------------------------------------------------
+      - id: g2-no-hardcoded-test-paths
+        name: no hardcoded paths in test files (G2)
+        entry: python3 scripts/check_test_hardcoded_paths.py
+        language: system
+        pass_filenames: false
+        files: ^tests/.*\.py$
+
+      # ----------------------------------------------------------------
+      # G3: AST check — every CLI command that accepts a Path argument
+      # must route it through resolve_cli_path() / validate_pair() /
+      # validate_within_roots() (or a _validate_* helper that delegates
+      # to one of those). Prevents Epic A.cli regressions (#154 §2.5).
+      # ----------------------------------------------------------------
+      - id: g3-cli-path-validation
+        name: CLI Path parameters must go through resolve_cli_path (G3)
+        entry: python3 scripts/check_cli_path_validation.py
+        language: system
+        pass_filenames: false
+        files: ^src/cli/.*\.py$
+
+      # ----------------------------------------------------------------
+      # G5: pytest `-n auto` must be paired with `--dist=loadgroup`.
+      # Without loadgroup, @pytest.mark.xdist_group markers are silently
+      # non-enforcing and singleton-sharing tests will race under xdist
+      # (see .claude/rules/xdist-safe-patterns.md Pattern 3).
+      # ----------------------------------------------------------------
+      - id: g5-xdist-loadgroup
+        name: -n auto requires --dist=loadgroup (G5)
+        entry: python3 scripts/check_xdist_loadgroup.py
+        language: system
+        pass_filenames: false
+
+      # ----------------------------------------------------------------
       # G2: No f-strings in logger calls (single or double quote)
       # Matches: logger.debug(f"..."), logger.info(f'...'),
       #          logger.exception( f"..."), etc.

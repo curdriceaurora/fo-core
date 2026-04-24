@@ -213,7 +213,7 @@ jobs:
       - name: Run tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pytest tests/ --strict-markers -m "ci and not benchmark" --cov=src --cov-report=xml --timeout=30 -n=auto --override-ini="addopts="
+        run: pytest tests/ --strict-markers -m "ci and not benchmark" --cov=src --cov-report=xml --timeout=30 -n=auto --dist=loadgroup --override-ini="addopts="
       - name: Install diff-cover
         if: ${{ github.event.pull_request.changed_files <= 75 }}
         # Split out of the diff-coverage-gate step so the retry wrapper only re-runs
@@ -268,6 +268,7 @@ jobs:
             -m "not benchmark and not e2e and not smoke" \
             --strict-markers \
             -n auto \
+            --dist=loadgroup \
             --timeout=60 \
             --cov=src \
             --cov-branch \

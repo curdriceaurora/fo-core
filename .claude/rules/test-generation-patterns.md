@@ -81,11 +81,13 @@ def test_update_rule(self, rule_manager, sample_rule):
 | `int` | `assert isinstance(result, int)` | `assert result == expected_int` |
 | `float` | `assert isinstance(result, float)` | `assert result == pytest.approx(expected_float)` |
 
-**Residual count**: ~135 sole-isinstance violations remain in the test suite; cleanup tracked in a
-dedicated phase. The CI guardrail is currently diff-scoped (changed files only) — full-suite
-enforcement will follow the cleanup phase.
+**Residual count**: 0 — the full residual backlog was cleaned in the C1 phase (PR #179)
+before the guardrail was promoted to full-suite enforcement. Any new sole-isinstance
+assertion (even in pre-existing files) is blocked by CI.
 
-**CI enforcement**: `test_changed_tests_have_no_sole_isinstance_assertions` in `tests/ci/test_test_quality_guardrails.py`
+**CI enforcement**: `test_changed_tests_have_no_sole_isinstance_assertions` in
+`tests/ci/test_test_quality_guardrails.py` — iterates every `*.py` under `tests/`,
+not just the diff. Full-suite promotion landed in `epic-g-rails` (G4).
 
 ---
 
@@ -366,7 +368,9 @@ size, or duration? If yes — this assertion always passes. Assert a meaningful 
 (>= 1, == expected, < max) instead."*
 
 **CI enforcement**: `test_changed_tests_have_no_vacuous_len_gte_zero_assertions` in
-`tests/ci/test_test_quality_guardrails.py` (detects `len(x) >= 0` and `0 <= len(x)` forms).
+`tests/ci/test_test_quality_guardrails.py` — full-suite enforcement
+(iterates every `*.py` under `tests/`, not just the diff). Detects both
+`len(x) >= 0` and `0 <= len(x)` forms.
 
 ---
 
