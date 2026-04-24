@@ -39,19 +39,23 @@ class _StageResult:
 
 
 class _RecordingStage:
-    """PipelineStage test double that records every ``process`` call."""
+    """PipelineStage test double that records every ``process`` call.
+
+    ``test_preserves_file_order`` relies on ``run_prefetched_batch``
+    assembling results in input-index order rather than completion
+    order; no artificial delay is needed. The project's C1 CI
+    guardrail (see ``.claude/rules/ci-generation-patterns.md``)
+    forbids ``time.sleep`` in changed tests.
+    """
 
     name = "recorder"
 
-    def __init__(self, label: str, *, delay_s: float = 0.0) -> None:
+    def __init__(self, label: str) -> None:
         self.label = label
-        self.delay_s = delay_s
         self.calls: list[Path] = []
 
     def process(self, context: StageContext) -> StageContext:
         self.calls.append(context.file_path)
-        if self.delay_s:
-            time.sleep(self.delay_s)
         context.extra.setdefault("stages_seen", []).append(self.label)
         return context
 
@@ -280,23 +284,26 @@ class TestRunPrefetchedBatch:
         assert all(r.success for r in results)
 
     def test_preserves_file_order(self, tmp_path: Path) -> None:
-        # Use varying delays to shuffle completion order; results must
-        # still return in input order.
+        # Results must come back in input-index order regardless of future
+        # completion order from the prefetch thread pool. ``prefetch_depth=3``
+        # means up to three files have outstanding I/O futures at any time —
+        # the loop consumes them in input order, not completion order.
         files = [tmp_path / f"f{i}.txt" for i in range(4)]
         for f in files:
             f.write_text("x")
-        delayed_stage = _RecordingStage("delayed", delay_s=0.0)
+        stage = _RecordingStage("io")
         executor = ResourceAwareExecutor(prefetch_depth=3, prefetch_stages=1)
 
         results = executor.run_prefetched_batch(
             files=files,
-            stages=[delayed_stage],
+            stages=[stage],
             run_stages=_run_stages,
             make_context=_make_context,
             finalize_result=_finalize_result,
         )
 
         assert [r.file_path for r in results] == files
+        assert stage.calls == files or sorted(stage.calls) == sorted(files)
 
     def test_respects_memory_limiter(self, tmp_path: Path) -> None:
         files = [tmp_path / f"f{i}.txt" for i in range(4)]
@@ -321,8 +328,20 @@ class TestRunPrefetchedBatch:
         )
 
         assert len(results) == len(files)
-        # Limiter must have been consulted at least once.
-        assert limiter.check.called
+        assert all(r.success for r in results)
+        # Every file must have traversed the inline fallback — the stage
+        # ran once per file exactly. (``limiter.check.called`` alone would
+        # pass even if the executor silently dropped files.)
+        assert sorted(stage.calls) == sorted(files)
+        assert len(stage.calls) == len(files)
+        # Priming attempts one enqueue, breaks on denial; the main loop
+        # then attempts one lookahead per iteration while the index is
+        # in range (len(files) - prefetch_depth attempts total). For
+        # len=4, prefetch_depth=2 that's 1 (prime) + 2 (lookahead) = 3.
+        # ``>= 2`` is the minimum viable signal: priming + at least one
+        # lookahead enforcement. Lower would mean the limiter was never
+        # actually enforced per file.
+        assert limiter.check.call_count >= 2
 
     def test_stage_error_surfaces_on_context(self, tmp_path: Path) -> None:
         files = [tmp_path / "f.txt"]

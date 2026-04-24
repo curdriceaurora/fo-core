@@ -171,6 +171,17 @@ class PipelineOrchestrator:
                 ``resource_monitor.should_evict()`` for proactive buffer-pool
                 shrink decisions. Must be between 0 and 100.
         """
+        # Validate memory_pressure_threshold_percent BEFORE any other
+        # setup so a bad value doesn't leave the orchestrator partially
+        # initialised (coderabbit review on PR #189 — preserves the
+        # pre-D2 validation ordering). The executor re-validates
+        # internally as its own contract; this is the cheap early guard.
+        if not 0.0 <= memory_pressure_threshold_percent <= 100.0:
+            raise ValueError(
+                "memory_pressure_threshold_percent must be between 0 and 100, "
+                f"got {memory_pressure_threshold_percent}"
+            )
+
         self.config = config or PipelineConfig()
         self.router = FileRouter()
         self.processor_pool = ProcessorPool()
@@ -180,9 +191,7 @@ class PipelineOrchestrator:
 
         # D2 seam: prefetch, memory limiting, and buffer rebalancing live
         # in ``ResourceAwareExecutor``. The orchestrator delegates all
-        # resource-aware calls to it. Range validation on
-        # ``memory_pressure_threshold_percent`` happens inside the
-        # executor constructor.
+        # resource-aware calls to it.
         self._resource_executor = ResourceAwareExecutor(
             prefetch_depth=prefetch_depth,
             prefetch_stages=prefetch_stages,
