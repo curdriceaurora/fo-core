@@ -1517,3 +1517,137 @@ class TestPlatformSpecificBranches:
         assert result.overall_confidence == 0.0
         assert result.recommended_category is None
         assert all(s.score == 0.0 for s in result.scores.values())
+
+
+# ---------------------------------------------------------------------------
+# D3 AIInferenceAdapter injection (test the seam, not ollama)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.ci
+class TestAIHeuristicAdapterInjection:
+    """Epic D.pipeline D3 seam — AIHeuristic accepts a custom adapter so
+    tests can run without patching module globals.
+
+    Each test provides a minimal fake that satisfies ``AIInferenceAdapter``
+    protocol; the heuristic code never reaches the real ``ollama`` client.
+    """
+
+    def test_injected_adapter_controls_availability(self, tmp_path: Path) -> None:
+        """When an injected adapter reports unavailable, the heuristic
+        returns a zero result with ollama_unavailable — regardless of
+        the module-level OLLAMA_AVAILABLE flag."""
+        from methodologies.para.detection.heuristics import (
+            AIHeuristic,
+            AIInferenceAdapter,
+        )
+
+        class _UnavailableAdapter:
+            def is_available(self) -> bool:
+                return False
+
+            def infer(self, *, prompt: str, system: str) -> str | None:
+                raise AssertionError("must not be called when unavailable")
+
+        adapter: AIInferenceAdapter = _UnavailableAdapter()
+        h = AIHeuristic(weight=0.10, adapter=adapter)
+        test_file = tmp_path / "notes.txt"
+        test_file.write_text("content")
+
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", True):
+            result = h.evaluate(test_file)
+
+        assert result.metadata["ai_analysis"] == "ollama_unavailable"
+        assert result.overall_confidence == 0.0
+        assert result.abstained is True
+
+    def test_injected_adapter_infer_is_called_with_prompt_and_system(self, tmp_path: Path) -> None:
+        """The heuristic routes both prompt and system message through
+        ``adapter.infer(prompt=..., system=...)`` — exact kwargs so a
+        future refactor that drops one arg is caught."""
+        from methodologies.para.detection.heuristics import (
+            AIHeuristic,
+            AIInferenceAdapter,
+        )
+
+        calls: list[dict[str, str]] = []
+
+        class _FakeAdapter:
+            def is_available(self) -> bool:
+                return True
+
+            def infer(self, *, prompt: str, system: str) -> str | None:
+                calls.append({"prompt": prompt, "system": system})
+                return json.dumps(
+                    {
+                        "project": 0.8,
+                        "area": 0.1,
+                        "resource": 0.05,
+                        "archive": 0.05,
+                        "reasoning": "fake adapter",
+                    }
+                )
+
+        adapter: AIInferenceAdapter = _FakeAdapter()
+        h = AIHeuristic(weight=0.10, adapter=adapter)
+        test_file = tmp_path / "proposal.txt"
+        test_file.write_text("Project proposal with deadline next week")
+
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", True):
+            result = h.evaluate(test_file)
+
+        assert len(calls) == 1
+        assert "proposal.txt" in calls[0]["prompt"]
+        assert calls[0]["system"] == AIHeuristic._SYSTEM_MESSAGE
+        assert result.metadata["ai_analysis"] == "complete"
+        assert result.recommended_category == PARACategory.PROJECT
+
+    def test_injected_adapter_none_response_yields_ollama_error(self, tmp_path: Path) -> None:
+        """Adapter returning None (transport failure) → ollama_error."""
+        from methodologies.para.detection.heuristics import (
+            AIHeuristic,
+            AIInferenceAdapter,
+        )
+
+        class _FailingAdapter:
+            def is_available(self) -> bool:
+                return True
+
+            def infer(self, *, prompt: str, system: str) -> str | None:
+                return None
+
+        adapter: AIInferenceAdapter = _FailingAdapter()
+        h = AIHeuristic(weight=0.10, adapter=adapter)
+        test_file = tmp_path / "x.txt"
+        test_file.write_text("content")
+
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", True):
+            result = h.evaluate(test_file)
+
+        assert result.metadata["ai_analysis"] == "ollama_error"
+
+
+@pytest.mark.ci
+class TestOllamaInferenceAdapter:
+    """The default adapter wraps ollama.Client; verify it reads module
+    globals so pre-D3 tests that patch OLLAMA_AVAILABLE still work."""
+
+    def test_is_available_returns_false_when_ollama_missing(self) -> None:
+        from methodologies.para.detection.heuristics import (
+            OllamaInferenceAdapter,
+        )
+
+        cfg = AIHeuristicConfig()
+        adapter = OllamaInferenceAdapter(cfg)
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False):
+            assert adapter.is_available() is False
+
+    def test_infer_returns_none_when_unavailable(self) -> None:
+        from methodologies.para.detection.heuristics import (
+            OllamaInferenceAdapter,
+        )
+
+        cfg = AIHeuristicConfig()
+        adapter = OllamaInferenceAdapter(cfg)
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False):
+            assert adapter.infer(prompt="x", system="y") is None
