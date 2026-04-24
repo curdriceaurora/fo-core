@@ -252,10 +252,21 @@ class TestSignalWriteFailureTracking:
             os.read(r, 1024)  # drain
         assert daemon._signal_write_failures == 0
 
-    def test_log_helper_emits_once_per_delta(self, caplog: pytest.LogCaptureFixture) -> None:
+    def test_log_helper_emits_once_per_delta(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """``_log_signal_write_failures_if_new`` is idempotent between
         observed counter values — no log spam on every loop iteration
-        when the counter is stable."""
+        when the counter is stable.
+
+        The helper also enforces a minimum interval between emits (F4
+        rate limiting). We disable that interval here so the per-delta
+        contract is tested independently; the rate-limit guarantee is
+        exercised in ``test_log_helper_rate_limits_bursts`` below.
+        """
+        monkeypatch.setattr("daemon.service._SIGNAL_LOG_MIN_INTERVAL_S", 0.0)
         daemon = DaemonService(_make_config())
         daemon._signal_write_failures = 3
         with caplog.at_level("WARNING", logger="daemon.service"):
@@ -268,11 +279,49 @@ class TestSignalWriteFailureTracking:
         assert "(total: 3)" in warnings[0].message
         assert daemon._last_logged_write_failures == 3
 
-        # New delta after the stable run — one more log.
+        # New delta after the stable run — a second WARNING must fire
+        # and its payload must include the new total, not just flip
+        # internal state.
         daemon._signal_write_failures = 5
         with caplog.at_level("WARNING", logger="daemon.service"):
             daemon._log_signal_write_failures_if_new()
+        warnings = [r for r in caplog.records if "write failures" in r.message]
+        assert len(warnings) == 2, "second WARNING did not fire after counter increased from 3 to 5"
+        assert "(total: 5)" in warnings[1].message
         assert daemon._last_logged_write_failures == 5
+
+    def test_log_helper_rate_limits_bursts(
+        self,
+        caplog: pytest.LogCaptureFixture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """F4 rate limit: back-to-back deltas inside the min interval
+        window produce only one WARNING. When the window has elapsed,
+        a subsequent delta logs again."""
+        daemon = DaemonService(_make_config())
+
+        fake_now = [100.0]
+
+        def _now() -> float:
+            return fake_now[0]
+
+        monkeypatch.setattr("daemon.service.time.monotonic", _now)
+        monkeypatch.setattr("daemon.service._SIGNAL_LOG_MIN_INTERVAL_S", 1.0)
+
+        with caplog.at_level("WARNING", logger="daemon.service"):
+            daemon._signal_write_failures = 1
+            daemon._log_signal_write_failures_if_new()  # emits
+            fake_now[0] = 100.5  # inside the 1.0s window
+            daemon._signal_write_failures = 4
+            daemon._log_signal_write_failures_if_new()  # suppressed
+            fake_now[0] = 101.6  # past the window
+            daemon._signal_write_failures = 7
+            daemon._log_signal_write_failures_if_new()  # emits
+
+        warnings = [r for r in caplog.records if "write failures" in r.message]
+        assert len(warnings) == 2, "rate limit did not suppress the burst"
+        assert "(total: 1)" in warnings[0].message
+        assert "(total: 7)" in warnings[1].message
 
 
 @pytest.mark.unit
@@ -296,13 +345,30 @@ class TestSignalPipeDrain:
 
     def test_drain_tolerates_closed_fd(self) -> None:
         """Reading from a closed fd returns cleanly (logged at DEBUG,
-        no raise) so the run loop keeps turning."""
+        no raise) so the run loop keeps turning.
+
+        Uses a sentinel fd via ``os.dup`` so that after closing, the fd
+        number stays invalid for the duration of this test: ``os.dup``
+        allocates a new descriptor number we own, and closing only that
+        one leaves the original pipe ends intact. Under xdist, plain
+        ``os.close(r)`` + ``os.read(r, ...)`` races against the Python
+        runtime reallocating ``r``'s integer value to an unrelated open
+        file — the assertion "must not raise" would then pass for the
+        wrong reason (or consume bytes from an unrelated fd).
+        """
         daemon = DaemonService(_make_config())
         r, w = os.pipe()
-        os.close(w)
-        os.close(r)
-        # Closed fd — must not raise.
-        daemon._drain_signal_pipe(r)
+        try:
+            sentinel = os.dup(r)
+            os.close(sentinel)
+            # ``sentinel`` is now a stable closed fd number — the runtime
+            # can still reuse it, but because we never expose ``r`` or
+            # ``w`` to the read path, the test doesn't consume their
+            # buffers on a race.
+            daemon._drain_signal_pipe(sentinel)
+        finally:
+            os.close(r)
+            os.close(w)
 
     def test_drain_handles_empty_pipe(self) -> None:
         """A drain on an empty pipe returns immediately."""

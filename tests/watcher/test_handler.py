@@ -646,9 +646,44 @@ class TestDebounceDictEviction:
             assert f"path/{i}" not in handler._last_event_times
         # Warning was emitted.
         assert any(
-            "exceeded" in rec.message.lower() and "dropped" in rec.message.lower()
+            "exceeded" in rec.message.lower() and "drop" in rec.message.lower()
             for rec in caplog.records
         )
+
+    def test_hard_cap_warning_latched_until_back_under_cap(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The hard-cap WARNING fires once per breach episode, not once
+        per event while the dict sits at cap+1.
+
+        Regression guard for the O(N log N) sort + log-flood in the
+        debounce hot path.
+        """
+        from watcher.handler import _MAX_DEBOUNCE_ENTRIES
+
+        config = WatcherConfig(debounce_seconds=60.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue)
+
+        now = time.monotonic()
+        with handler._debounce_lock:
+            for i in range(_MAX_DEBOUNCE_ENTRIES + 5):
+                handler._last_event_times[f"path/{i}"] = now - (5 - i) * 0.0001
+
+        with caplog.at_level("WARNING", logger="watcher.handler"):
+            # First breach — must log.
+            handler._should_process("new/0")
+            breach_records = [r for r in caplog.records if "exceeded" in r.message.lower()]
+            assert len(breach_records) == 1
+            # Next call while still at cap+1 — must NOT re-log.
+            caplog.clear()
+            with handler._debounce_lock:
+                for i in range(5):
+                    handler._last_event_times[f"refill/{i}"] = now - i * 0.0001
+            handler._should_process("new/1")
+            assert not [r for r in caplog.records if "exceeded" in r.message.lower()], (
+                "latch did not suppress repeat warning while still over cap"
+            )
 
     def test_eviction_does_not_drop_still_debouncing_entries(self) -> None:
         """An entry whose debounce window is still active must NOT be

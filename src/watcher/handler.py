@@ -6,6 +6,7 @@ configurable pattern filtering, and event queuing for batch processing.
 
 from __future__ import annotations
 
+import heapq
 import logging
 import os
 import threading
@@ -76,6 +77,12 @@ class FileEventHandler(FileSystemEventHandler):
         # Debounce state: maps file path -> last event timestamp (monotonic)
         self._last_event_times: dict[str, float] = {}
         self._debounce_lock = threading.Lock()
+        # F3: latched flag so the hard-cap warning emits at most once
+        # per breach episode. Without this, a sustained traffic pattern
+        # keeping the dict at cap+1 would log a WARNING on every single
+        # event, burying other logs. Reset to False as soon as the dict
+        # drops back under the cap so a later breach logs again.
+        self._debounce_cap_warned = False
 
         # Callback hooks (optional, for direct notification without queue)
         self._on_created_callbacks: list[Callable[..., object]] = []
@@ -250,14 +257,27 @@ class FileEventHandler(FileSystemEventHandler):
         # oldest entries in bulk until under the cap.
         if len(self._last_event_times) > _MAX_DEBOUNCE_ENTRIES:
             surplus = len(self._last_event_times) - _MAX_DEBOUNCE_ENTRIES
-            oldest_first = sorted(self._last_event_times.items(), key=lambda kv: kv[1])
-            for key, _ in oldest_first[:surplus]:
+            # heapq.nsmallest runs in O(N log surplus) — the full
+            # ``sorted`` call was O(N log N) and ran under
+            # ``_debounce_lock`` on every filesystem event while the
+            # dict sat at cap+1. ``surplus`` is typically 1 in steady
+            # state, so this is a large constant-factor win on busy
+            # watchers.
+            oldest = heapq.nsmallest(surplus, self._last_event_times.items(), key=lambda kv: kv[1])
+            for key, _ in oldest:
                 del self._last_event_times[key]
-            logger.warning(
-                "Debounce dict exceeded %d entries; dropped %d oldest to cap memory.",
-                _MAX_DEBOUNCE_ENTRIES,
-                surplus,
-            )
+            # One-shot log per breach: suppress repeats until the dict
+            # drops back under the cap. Operators still see the first
+            # warning; the subsequent eviction storm is silent.
+            if not self._debounce_cap_warned:
+                logger.warning(
+                    "Debounce dict exceeded %d entries; dropping oldest in bulk "
+                    "(further occurrences suppressed until cap is no longer hit).",
+                    _MAX_DEBOUNCE_ENTRIES,
+                )
+                self._debounce_cap_warned = True
+        else:
+            self._debounce_cap_warned = False
 
     def _fire_callbacks(self, event_type: EventType, file_event: FileEvent) -> None:
         """Invoke registered callbacks for the given event type.

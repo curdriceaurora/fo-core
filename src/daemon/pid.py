@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -155,7 +156,36 @@ class PidFileManager:
         create_time = psutil.Process(pid).create_time()
         pid_file = Path(pid_file)
         pid_file.parent.mkdir(parents=True, exist_ok=True)
-        pid_file.write_text(json.dumps({"pid": pid, "create_time": create_time}))
+        # F3 (atomic write): temp file + os.replace so a mid-write crash
+        # can never leave a partial JSON file. A corrupt record would
+        # otherwise defeat the F2 recycling check — ``read_pid_record``
+        # falls through to legacy int parse, returns None, and a fresh
+        # ``daemon start`` would spawn a second daemon alongside the
+        # original.
+        payload = json.dumps({"pid": pid, "create_time": create_time})
+        tmp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                dir=pid_file.parent,
+                prefix=f".{pid_file.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                tmp.write(payload)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+                tmp_path = Path(tmp.name)
+            os.replace(tmp_path, pid_file)
+            tmp_path = None  # successfully moved — no cleanup needed
+        finally:
+            if tmp_path is not None and tmp_path.exists():
+                # os.replace failed — best-effort cleanup of the stray
+                # temp file so we don't accumulate .tmp debris.
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    logger.debug("Failed to clean up stray temp PID file %s", tmp_path)
         logger.debug(
             "Wrote PID record pid=%d create_time=%f to %s",
             pid,
@@ -198,8 +228,16 @@ class PidFileManager:
                 ct_raw = data.get("create_time")
                 create_time = float(ct_raw) if ct_raw is not None else None
                 return PidRecord(pid=pid, create_time=create_time)
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            # Distinguish "valid JSON with malformed pid field" from
+            # "invalid JSON, try legacy int" so an operator debugging a
+            # corrupt PID file can tell the two failure modes apart.
+            logger.debug(
+                "read_pid_record: JSON parse failed for %s (%s); "
+                "falling through to legacy int parse",
+                pid_file,
+                exc,
+            )
 
         # Fall through to legacy integer format.
         try:

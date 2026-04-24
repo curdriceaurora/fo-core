@@ -12,6 +12,7 @@ import pytest
 from typer.testing import CliRunner
 
 from cli.main import app
+from daemon.pid import PidRecord
 
 pytestmark = [pytest.mark.unit, pytest.mark.integration]
 
@@ -111,7 +112,7 @@ class TestDaemonStop:
         mock_pid_file.exists.return_value = True
         mock_mgr = MagicMock()
         mock_pid_cls.return_value = mock_mgr
-        mock_mgr.read_pid.return_value = 12345
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=12345, create_time=None)
 
         result = runner.invoke(app, ["daemon", "stop"])
         assert result.exit_code == 0
@@ -129,7 +130,7 @@ class TestDaemonStop:
         mock_pid_file.exists.return_value = True
         mock_mgr = MagicMock()
         mock_pid_cls.return_value = mock_mgr
-        mock_mgr.read_pid.return_value = 99999
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=99999, create_time=None)
 
         result = runner.invoke(app, ["daemon", "stop"])
         assert result.exit_code == 0
@@ -151,7 +152,7 @@ class TestDaemonStatus:
         mock_mgr = MagicMock()
         mock_pid_cls.return_value = mock_mgr
         mock_mgr.is_running.return_value = True
-        mock_mgr.read_pid.return_value = 12345
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=12345, create_time=None)
 
         result = runner.invoke(app, ["daemon", "status"])
         assert result.exit_code == 0
@@ -289,7 +290,10 @@ class TestDaemonWatch:
             event_type = "modified"
             src_path = str(watch_dir / "fallback.txt")
 
-        mock_monitor.get_events_blocking.side_effect = [[_EventNoPath()], KeyboardInterrupt()]
+        mock_monitor.get_events_blocking.side_effect = [
+            [_EventNoPath()],
+            KeyboardInterrupt(),
+        ]
 
         result = runner.invoke(app, ["daemon", "watch", str(watch_dir)])
         assert result.exit_code == 0

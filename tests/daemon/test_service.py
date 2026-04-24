@@ -7,6 +7,7 @@ PID file management, callback registration, and background operation.
 
 from __future__ import annotations
 
+import json
 import os
 import signal
 import threading
@@ -165,8 +166,6 @@ class TestPidFileManagement:
         contains a JSON record (``{pid, create_time}``). The record's
         ``pid`` field must be the current process's PID.
         """
-        import json
-
         daemon.start_background()
 
         assert pid_file.exists()

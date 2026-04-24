@@ -21,6 +21,12 @@ from .scheduler import DaemonScheduler
 
 logger = logging.getLogger(__name__)
 
+# F4: minimum interval between signal-write-failure WARNINGs. At the
+# default poll_interval=0.05s a saturated pipe would log ~20 times per
+# second without rate limiting — a single shutdown-pipe race could bury
+# the rest of the log. 1.0s keeps the signal actionable without flooding.
+_SIGNAL_LOG_MIN_INTERVAL_S = 1.0
+
 
 class DaemonService:
     """Long-running daemon that watches directories and organizes files.
@@ -69,6 +75,12 @@ class DaemonService:
         # atomic on CPython under the GIL.
         self._signal_write_failures = 0
         self._last_logged_write_failures = 0
+        # F4 rate-limiting: the run loop polls every ``poll_interval``
+        # (default 0.05s). When the pipe is saturated or closed the
+        # counter increments on every fired signal, which could be
+        # dozens per second. Suppress WARNING emits to at most one per
+        # ``_SIGNAL_LOG_MIN_INTERVAL_S`` so the log remains useful.
+        self._last_signal_log_time = 0.0
         self._started_at: float | None = None
         self._files_processed: int = 0
         self._on_start_callback: Callable[[], None] | None = None
@@ -323,24 +335,38 @@ class DaemonService:
                 return
 
     def _log_signal_write_failures_if_new(self) -> None:
-        """F4: emit a warning on new signal-write failures.
+        """F4: emit a rate-limited warning on new signal-write failures.
 
-        Compares ``_signal_write_failures`` (written by the signal
-        handler) against ``_last_logged_write_failures`` and emits a
-        throttled warning only when the counter increased. Idempotent
-        between loop iterations so the run loop doesn't log every tick.
+        Compares ``_signal_write_failures`` (incremented by the signal
+        handler on ``os.write`` failure) against
+        ``_last_logged_write_failures`` and emits a WARNING only when
+        the counter increased AND at least
+        ``_SIGNAL_LOG_MIN_INTERVAL_S`` seconds have passed since the
+        last emit. The interval guard is important: with
+        ``poll_interval=0.05s`` a saturated pipe would otherwise log
+        ~20 times per second, burying everything else.
+
+        The counter-delta state is updated on every call (not just on
+        emits) so a burst of failures followed by a stable plateau only
+        logs once total — the post-interval re-check would still find
+        no new increase.
         """
         current = self._signal_write_failures
-        if current > self._last_logged_write_failures:
-            delta = current - self._last_logged_write_failures
-            logger.warning(
-                "Signal handler write failures since last loop: %d (total: %d). "
-                "The signal pipe is saturated or closed; shutdown signals may be "
-                "delayed until the run loop reaches the next iteration.",
-                delta,
-                current,
-            )
-            self._last_logged_write_failures = current
+        if current <= self._last_logged_write_failures:
+            return
+        now = time.monotonic()
+        if now - self._last_signal_log_time < _SIGNAL_LOG_MIN_INTERVAL_S:
+            return
+        delta = current - self._last_logged_write_failures
+        logger.warning(
+            "Signal handler write failures since last loop: %d (total: %d). "
+            "The signal pipe is saturated or closed; shutdown signals may be "
+            "delayed until the run loop reaches the next iteration.",
+            delta,
+            current,
+        )
+        self._last_logged_write_failures = current
+        self._last_signal_log_time = now
 
     def _cleanup(self) -> None:
         """Clean up daemon resources on shutdown.

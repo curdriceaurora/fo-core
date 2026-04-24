@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
+from daemon.pid import PidRecord
+
 pytestmark = [pytest.mark.unit, pytest.mark.integration]
 
 runner = CliRunner()
@@ -120,7 +122,7 @@ class TestDaemonStop:
         pid_file.write_text("not_a_number")
 
         mock_mgr = MagicMock()
-        mock_mgr.read_pid.return_value = None
+        mock_mgr.read_pid_record.return_value = None
 
         with (
             patch("cli.daemon._DEFAULT_PID_FILE", pid_file),
@@ -138,7 +140,7 @@ class TestDaemonStop:
         pid_file.write_text("12345")
 
         mock_mgr = MagicMock()
-        mock_mgr.read_pid.return_value = 12345
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=12345, create_time=None)
 
         with (
             patch("cli.daemon._DEFAULT_PID_FILE", pid_file),
@@ -157,7 +159,7 @@ class TestDaemonStop:
         pid_file.write_text("99999")
 
         mock_mgr = MagicMock()
-        mock_mgr.read_pid.return_value = 99999
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=99999, create_time=None)
 
         with (
             patch("cli.daemon._DEFAULT_PID_FILE", pid_file),
@@ -176,7 +178,7 @@ class TestDaemonStop:
         pid_file.write_text("1")
 
         mock_mgr = MagicMock()
-        mock_mgr.read_pid.return_value = 1
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=1, create_time=None)
 
         with (
             patch("cli.daemon._DEFAULT_PID_FILE", pid_file),
@@ -200,7 +202,7 @@ class TestDaemonStatus:
 
         mock_mgr = MagicMock()
         mock_mgr.is_running.return_value = True
-        mock_mgr.read_pid.return_value = 12345
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=12345, create_time=None)
 
         with (
             patch("cli.daemon._DEFAULT_PID_FILE", pid_file),
