@@ -190,6 +190,11 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "methodologies.para" = ["default_config.yaml"]
+# D6: ship the sentiment/keyword lexicon JSON alongside the audio
+# module so ``SentimentLexicon.load_default()`` finds it inside an
+# installed wheel. Without this declaration ``pip wheel`` omits the
+# JSON and ``content_analyzer`` fails at import in installed envs.
+"services.audio" = ["data/content_analyzer_lexicon.json"]
 
 # Ruff configuration (linting and formatting)
 [tool.ruff]
