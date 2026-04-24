@@ -602,8 +602,7 @@ class TestStopEventRaceRegression:
         # under the bug _tick is called within the first 0.1s iteration.
         triggered = tick_called.wait(timeout=1.0)
         assert not triggered, (
-            "run() wiped _stop_event and entered the loop body — missed-signal "
-            "race is present"
+            "run() wiped _stop_event and entered the loop body — missed-signal race is present"
         )
         assert scheduler._stop_event.is_set(), (
             "run() must not clear _stop_event; the caller owns that invariant"
