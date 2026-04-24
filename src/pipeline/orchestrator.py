@@ -12,7 +12,7 @@ import shutil
 import threading
 import time
 from collections.abc import Sequence
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -30,10 +30,11 @@ from .processor_pool import (
     ProcessorResult,
     normalize_processor_result,
 )
+from .resource_aware_executor import BUFFER_KEY as _BUFFER_KEY
+from .resource_aware_executor import ResourceAwareExecutor
 from .router import FileRouter, ProcessorType
 
 logger = logging.getLogger(__name__)
-_BUFFER_KEY = "pipeline.buffer"
 
 
 @dataclass(frozen=True)
@@ -170,12 +171,6 @@ class PipelineOrchestrator:
                 ``resource_monitor.should_evict()`` for proactive buffer-pool
                 shrink decisions. Must be between 0 and 100.
         """
-        if not 0.0 <= memory_pressure_threshold_percent <= 100.0:
-            raise ValueError(
-                "memory_pressure_threshold_percent must be between 0 and 100, "
-                f"got {memory_pressure_threshold_percent}"
-            )
-
         self.config = config or PipelineConfig()
         self.router = FileRouter()
         self.processor_pool = ProcessorPool()
@@ -183,19 +178,26 @@ class PipelineOrchestrator:
         self._stats_lock = threading.Lock()
         self._stages: list[PipelineStage] = list(stages) if stages else []
 
-        self._prefetch_depth = max(0, prefetch_depth)
-        self._prefetch_stages = max(0, prefetch_stages)
-        self._memory_limiter = memory_limiter
+        # D2 seam: prefetch, memory limiting, and buffer rebalancing live
+        # in ``ResourceAwareExecutor``. The orchestrator delegates all
+        # resource-aware calls to it. Range validation on
+        # ``memory_pressure_threshold_percent`` happens inside the
+        # executor constructor.
+        self._resource_executor = ResourceAwareExecutor(
+            prefetch_depth=prefetch_depth,
+            prefetch_stages=prefetch_stages,
+            memory_limiter=memory_limiter,
+            buffer_pool=buffer_pool,
+            resource_monitor=resource_monitor,
+            memory_pressure_threshold_percent=memory_pressure_threshold_percent,
+        )
         self._batch_sizer = batch_sizer or AdaptiveBatchSizer()
-        self._buffer_pool: BufferPool | None = buffer_pool
-        self._resource_monitor = resource_monitor or ResourceMonitor()
-        self._memory_pressure_threshold_percent = memory_pressure_threshold_percent
 
         self._running = False
         self._lock = threading.Lock()
         self._monitor: Any = None
         self._watch_thread: threading.Thread | None = None
-        self._executor = ThreadPoolExecutor(
+        self._thread_executor = ThreadPoolExecutor(
             max_workers=self.config.max_concurrent,
         )
 
@@ -210,12 +212,13 @@ class PipelineOrchestrator:
 
     @property
     def buffer_pool(self) -> BufferPool:
-        """Return the orchestrator's shared buffer pool."""
-        if self._buffer_pool is None:
-            with self._lock:
-                if self._buffer_pool is None:
-                    self._buffer_pool = BufferPool()
-        return self._buffer_pool
+        """Return the shared buffer pool (lazy-built on first access).
+
+        Delegates to ``ResourceAwareExecutor.buffer_pool`` — the pool
+        moved there in D2, but the public accessor is preserved so
+        existing callers keep working without knowing about the seam.
+        """
+        return self._resource_executor.buffer_pool
 
     def set_stages(self, stages: Sequence[PipelineStage]) -> None:
         """Replace the stage list at runtime (thread-safe).
@@ -277,8 +280,8 @@ class PipelineOrchestrator:
                 self._watch_thread.join(timeout=5.0)
                 self._watch_thread = None
 
-            # Clean up executor
-            self._executor.shutdown(wait=False)
+            # Clean up the orchestrator's worker thread pool.
+            self._thread_executor.shutdown(wait=False)
 
             # Clean up processors
             self.processor_pool.cleanup()
@@ -329,7 +332,7 @@ class PipelineOrchestrator:
         # Snapshot once; set_stages() may replace self._stages concurrently.
         stages = self._stages
         overhead_per_file = self.buffer_pool.buffer_size if stages else 0
-        file_sizes = [self._safe_file_size(path) for path in files]
+        file_sizes = [self._resource_executor.safe_file_size(path) for path in files]
         batch_size = max(
             1,
             self._batch_sizer.calculate_batch_size(
@@ -343,11 +346,22 @@ class PipelineOrchestrator:
 
         results: list[ProcessingResult] = []
 
-        if stages and self._prefetch_depth > 0 and self._prefetch_stages > 0 and len(files) > 1:
+        if (
+            stages
+            and self._resource_executor.prefetch_depth > 0
+            and self._resource_executor.prefetch_stages > 0
+            and len(files) > 1
+        ):
             # Keep prefetch behavior deterministic (Issue #713 contracts) while
             # still applying proactive memory feedback to the shared buffer pool.
-            results = self._process_batch_prefetch(files, stages)
-            self._rebalance_buffer_pool()
+            results = self._resource_executor.run_prefetched_batch(
+                files=files,
+                stages=stages,
+                run_stages=self._run_stages,
+                make_context=self._make_context,
+                finalize_result=self._finalize_result,
+            )
+            self._resource_executor.rebalance_buffer_pool()
             return results
 
         results = []
@@ -355,12 +369,12 @@ class PipelineOrchestrator:
         while index < len(files):
             upper = min(index + batch_size, len(files))
             batch_files = files[index:upper]
-            chunk_start_rss = self._safe_current_rss()
+            chunk_start_rss = self._resource_executor.safe_current_rss()
             results.extend(self._process_batch_chunk(batch_files, stages))
-            self._rebalance_buffer_pool()
+            self._resource_executor.rebalance_buffer_pool()
 
             if upper < len(files):
-                chunk_end_rss = self._safe_current_rss()
+                chunk_end_rss = self._resource_executor.safe_current_rss()
                 chunk_rss_delta = max(0, chunk_end_rss - chunk_start_rss)
                 adjusted = self._batch_sizer.adjust_from_feedback(
                     chunk_rss_delta,
@@ -376,51 +390,9 @@ class PipelineOrchestrator:
         """Return True if the pipeline is currently running."""
         return self._running
 
-    def _safe_file_size(self, file_path: Path) -> int:
-        """Return file size in bytes, or 0 when unavailable."""
-        try:
-            return file_path.stat().st_size
-        except OSError:
-            logger.debug("Unable to stat %s for adaptive batching", file_path, exc_info=True)
-            return 0
-
-    def _safe_current_rss(self) -> int:
-        """Return current process RSS in bytes, or 0 when unavailable."""
-        try:
-            return self._resource_monitor.get_memory_usage().rss
-        except (OSError, RuntimeError, ValueError):
-            logger.debug("Unable to read current RSS for adaptive batching", exc_info=True)
-            return 0
-
-    def _rebalance_buffer_pool(self) -> None:
-        """Resize buffer pool in response to memory pressure and utilization."""
-        pool = self._buffer_pool
-        if pool is None:
-            return
-
-        try:
-            under_pressure = self._resource_monitor.should_evict(
-                threshold_percent=self._memory_pressure_threshold_percent,
-            )
-        except (OSError, RuntimeError, ValueError):
-            logger.debug("Failed to evaluate memory pressure for buffer pool", exc_info=True)
-            return
-
-        if under_pressure:
-            target = max(pool.initial_buffers, pool.in_use_count)
-            new_size = pool.resize(target)
-            logger.info(
-                "Memory pressure detected; resized buffer pool to %d buffers (target=%d)",
-                new_size,
-                target,
-            )
-            return
-
-        if pool.utilization >= 0.9 and pool.total_buffers < pool.max_buffers:
-            growth_step = max(1, pool.initial_buffers // 2)
-            target = min(pool.max_buffers, pool.total_buffers + growth_step)
-            new_size = pool.resize(target)
-            logger.debug("Increased buffer pool capacity to %d buffers", new_size)
+    # ``_safe_file_size``, ``_safe_current_rss``, ``_rebalance_buffer_pool``
+    # moved to :class:`ResourceAwareExecutor` in D2. Call
+    # ``self._resource_executor.<method>`` instead.
 
     def _process_batch_chunk(
         self,
@@ -515,33 +487,15 @@ class PipelineOrchestrator:
             dry_run=not self.config.should_move_files,
         )
 
-    def _acquire_buffer(self, file_path: Path) -> bytearray | None:
-        """Acquire a reusable buffer for processing *file_path*."""
-        file_size = self._safe_file_size(file_path)
-        pool = self.buffer_pool
-        requested = max(pool.buffer_size, file_size)
-        try:
-            return pool.acquire(size=requested)
-        except (MemoryError, RuntimeError, ValueError, TimeoutError):
-            logger.warning("Failed to acquire buffer for %s", file_path, exc_info=True)
-            return None
-
-    def _release_buffer(self, file_path: Path, buffer: bytearray | None) -> None:
-        """Release a previously acquired processing buffer, if any."""
-        if buffer is None:
-            return
-        pool = self.buffer_pool
-        try:
-            pool.release(buffer)
-        except (ValueError, RuntimeError):
-            logger.warning("Failed to release buffer for %s", file_path, exc_info=True)
+    # ``_acquire_buffer`` / ``_release_buffer`` moved to
+    # :class:`ResourceAwareExecutor` in D2.
 
     def _process_file_staged(
         self, file_path: Path, stages: list[PipelineStage]
     ) -> ProcessingResult:
         """Run *file_path* through the configured stages."""
         start_time = time.monotonic()
-        buffer = self._acquire_buffer(file_path)
+        buffer = self._resource_executor.acquire_buffer(file_path)
         try:
             context = self._make_context(file_path)
             if buffer is not None:
@@ -549,121 +503,12 @@ class PipelineOrchestrator:
             context = self._run_stages(context, stages)
             return self._finalize_result(context, start_time)
         finally:
-            self._release_buffer(file_path, buffer)
+            self._resource_executor.release_buffer(file_path, buffer)
 
-    def _process_batch_prefetch(
-        self, files: list[Path], stages: list[PipelineStage]
-    ) -> list[ProcessingResult]:
-        """Process a batch with I/O-compute overlap via a prefetch queue.
-
-        Splits *stages* at ``effective_prefetch_stages`` (capped at 1 for
-        thread-safety — shared components such as ``ProcessorPool`` are not
-        safe for concurrent initialisation): the I/O stages are submitted to
-        a dedicated :class:`~concurrent.futures.ThreadPoolExecutor` for
-        upcoming files while the compute stages run on the calling thread for
-        the current file.
-
-        At most ``self._prefetch_depth`` I/O futures are outstanding at
-        any time.  If a ``memory_limiter`` is configured, no new futures
-        are opened when ``limiter.check()`` returns *False*.
-
-        An error in a prefetched file's I/O stages does not crash the
-        batch; a failed :class:`~interfaces.StageContext`
-        is returned and the compute stages are still attempted (they will
-        short-circuit on ``context.failed``).
-
-        Per-file ``ProcessingResult.duration_ms`` is measured from the
-        moment the I/O future is *submitted* (not when it completes), so
-        the reported wall-clock time covers prefetched I/O latency as well
-        as compute time.  For files that fall through to the sequential
-        inline path (no outstanding future), timing starts just before
-        ``_run_io`` is called.
-
-        Args:
-            files: Ordered list of file paths to process.
-            stages: Snapshot of the stage list taken by the caller.
-
-        Returns:
-            List of :class:`ProcessingResult` instances in the same
-            order as *files*.
-        """
-        # Cap at 1: stages beyond the first (e.g. AnalyzerStage) rely on
-        # shared components (ProcessorPool) that are not thread-safe for
-        # concurrent initialisation.
-        effective_prefetch_stages = min(self._prefetch_stages, 1)
-        if self._prefetch_stages > 1:
-            logger.warning(
-                "prefetch_stages=%d is not fully supported; "
-                "capping effective prefetch stages to %d for thread-safety",
-                self._prefetch_stages,
-                effective_prefetch_stages,
-            )
-        io_stages = stages[:effective_prefetch_stages]
-        compute_stages = stages[effective_prefetch_stages:]
-
-        def _run_io(idx: int) -> tuple[StageContext, bytearray | None]:
-            file_path = files[idx]
-            buffer = self._acquire_buffer(file_path)
-            try:
-                ctx = self._make_context(file_path)
-                if buffer is not None:
-                    ctx.extra[_BUFFER_KEY] = buffer
-                io_ctx = self._run_stages(ctx, io_stages)
-                if buffer is not None:
-                    io_ctx.extra[_BUFFER_KEY] = buffer
-                return io_ctx, buffer
-            except Exception:  # Intentional catch-all: ensures buffer cleanup on any stage error
-                self._release_buffer(file_path, buffer)
-                raise
-
-        futures: dict[int, tuple[Future[tuple[StageContext, bytearray | None]], float]] = {}
-        results: list[ProcessingResult] = []
-
-        with ThreadPoolExecutor(max_workers=self._prefetch_depth) as io_exec:
-            # Prime the queue with the first prefetch_depth files.
-            for i in range(min(self._prefetch_depth, len(files))):
-                if self._memory_limiter is not None and not self._memory_limiter.check():
-                    logger.warning("Prefetch depth capped at %d due to memory limit", i)
-                    break
-                futures[i] = (io_exec.submit(_run_io, i), time.monotonic())
-
-            for i in range(len(files)):
-                # Enqueue the next lookahead file as we consume one slot.
-                next_i = i + self._prefetch_depth
-                if next_i < len(files) and next_i not in futures:
-                    if self._memory_limiter is None or self._memory_limiter.check():
-                        futures[next_i] = (io_exec.submit(_run_io, next_i), time.monotonic())
-
-                # Retrieve the prefetched I/O context (or compute inline).
-                if i in futures:
-                    future, start_time = futures.pop(i)
-                    try:
-                        ctx, buffer = future.result()
-                    except (
-                        Exception
-                    ) as exc:  # Intentional catch-all: future can raise any stage error
-                        logger.warning(
-                            "Prefetch future failed for %s: %s",
-                            files[i],
-                            exc,
-                            exc_info=True,
-                        )
-                        ctx = self._make_context(files[i])
-                        ctx.error = str(exc)
-                        buffer = None
-                else:
-                    start_time = time.monotonic()
-                    ctx, buffer = _run_io(i)
-
-                # Run compute stages on the calling thread.
-                try:
-                    ctx = self._run_stages(ctx, compute_stages)
-                    results.append(self._finalize_result(ctx, start_time))
-                finally:
-                    self._release_buffer(files[i], buffer)
-                    ctx.extra.pop(_BUFFER_KEY, None)
-
-        return results
+    # ``_process_batch_prefetch`` moved to
+    # :class:`ResourceAwareExecutor.run_prefetched_batch` in D2.
+    # ``process_batch`` above invokes it with the orchestrator's
+    # callbacks (``_run_stages``, ``_make_context``, ``_finalize_result``).
 
     # ------------------------------------------------------------------
     # Legacy processing (backward compatible)
@@ -870,7 +715,7 @@ class PipelineOrchestrator:
 
                     try:
                         # Submit to executor to avoid blocking the watch loop
-                        self._executor.submit(self.process_file, event.path)
+                        self._thread_executor.submit(self.process_file, event.path)
                     except (RuntimeError, OSError):
                         logger.exception("Error processing %s", event.path)
 
