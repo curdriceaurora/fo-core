@@ -1097,9 +1097,7 @@ class TestAIHeuristicParseResponse:
 
         assert result is None
 
-    def test_ensure_client_short_circuits_when_ollama_not_available(
-        self, tmp_path: Path
-    ) -> None:
+    def test_ensure_client_short_circuits_when_ollama_not_available(self, tmp_path: Path) -> None:
         """_ensure_client exits with False (and never touches the client)
         when OLLAMA_AVAILABLE is False after acquiring the init lock.
 

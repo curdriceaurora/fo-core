@@ -86,9 +86,7 @@ class TestFileEventHandlerFiltering:
     ) -> None:
         """Test that __pycache__ contents are filtered."""
         handler = FileEventHandler(default_config, queue)
-        event = FileCreatedEvent(
-            src_path=str(tmp_path / "__pycache__" / "module.cpython-312.pyc")
-        )
+        event = FileCreatedEvent(src_path=str(tmp_path / "__pycache__" / "module.cpython-312.pyc"))
         handler.on_created(event)
         assert queue.size == 0
 
@@ -107,9 +105,7 @@ class TestFileEventHandlerFiltering:
         handler.on_created(FileCreatedEvent(src_path=str(tmp_path / "report.pdf")))
         assert queue.size == 2
 
-    def test_file_type_filter_rejects_non_matching(
-        self, queue: EventQueue, tmp_path: Path
-    ) -> None:
+    def test_file_type_filter_rejects_non_matching(self, queue: EventQueue, tmp_path: Path) -> None:
         """Test that file_types filter rejects non-matching extensions."""
         config = WatcherConfig(
             debounce_seconds=0.0,
@@ -330,9 +326,7 @@ class TestFileEventHandlerCallbacks:
         handler.register_callback(EventType.MOVED, callback)
 
         handler.on_moved(
-            FileMovedEvent(
-                src_path=str(tmp_path / "old.txt"), dest_path=str(tmp_path / "new.txt")
-            )
+            FileMovedEvent(src_path=str(tmp_path / "old.txt"), dest_path=str(tmp_path / "new.txt"))
         )
         callback.assert_called_once()
 
@@ -462,9 +456,7 @@ class TestFileEventHandlerDebounceThreadSafety:
         # Only one event should get through due to debouncing
         assert queue.size == 1
 
-    def test_concurrent_debounce_different_files(
-        self, queue: EventQueue, tmp_path: Path
-    ) -> None:
+    def test_concurrent_debounce_different_files(self, queue: EventQueue, tmp_path: Path) -> None:
         """Test debouncing with different files from concurrent threads."""
         config = WatcherConfig(debounce_seconds=1.0, exclude_patterns=[])
         handler = FileEventHandler(config, queue)
@@ -472,9 +464,7 @@ class TestFileEventHandlerDebounceThreadSafety:
         import threading
 
         def fire_event(file_id: int) -> None:
-            handler.on_created(
-                FileCreatedEvent(src_path=str(tmp_path / f"file_{file_id}.txt"))
-            )
+            handler.on_created(FileCreatedEvent(src_path=str(tmp_path / f"file_{file_id}.txt")))
 
         threads = [threading.Thread(target=fire_event, args=(i,)) for i in range(10)]
         for t in threads:

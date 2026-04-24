@@ -207,12 +207,9 @@ class TestMatchesPattern:
     def test_nested_directory_pattern(self, tmp_path):
         # Pattern matching works on components, not wildcard expansion
         assert (
-            _matches_pattern(str(tmp_path / "__pycache__" / "module.pyc"), "__pycache__/*")
-            is False
+            _matches_pattern(str(tmp_path / "__pycache__" / "module.pyc"), "__pycache__/*") is False
         )
-        assert (
-            _matches_pattern(str(tmp_path / "__pycache__" / "module.pyc"), "__pycache__") is True
-        )
+        assert _matches_pattern(str(tmp_path / "__pycache__" / "module.pyc"), "__pycache__") is True
 
     def test_wildcard_prefix(self, tmp_path):
         # ".venv/*" pattern doesn't match because matching is on components

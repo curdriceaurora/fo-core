@@ -233,9 +233,7 @@ class TestDebugLevelDoesNotLeakAiResponses:
             f"Raw AI response '{sensitive_response}' must not appear in any DEBUG log"
         )
 
-    def test_raw_ai_filename_response_not_logged(
-        self, processor, mock_text_model, tmp_path: Path
-    ):
+    def test_raw_ai_filename_response_not_logged(self, processor, mock_text_model, tmp_path: Path):
         """The raw AI response string for filename generation must not appear in DEBUG logs."""
         sensitive_response = "SECRETFILENAME_private_medical_records"
         mock_text_model.generate.side_effect = [

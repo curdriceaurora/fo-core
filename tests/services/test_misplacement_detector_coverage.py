@@ -517,9 +517,7 @@ class TestCheckPatternMismatch:
         # "report_q1" matches both "report_" and "_q" → no mismatch. Fails if
         # the predicate drops the `not` and returns `any(...)` instead.
         assert (
-            detector._check_pattern_mismatch(
-                tmp_path / "reports" / "report_q1.txt", context, None
-            )
+            detector._check_pattern_mismatch(tmp_path / "reports" / "report_q1.txt", context, None)
             is False
         )
 
@@ -531,9 +529,7 @@ class TestCheckPatternMismatch:
         )
         # No expected patterns → cannot mismatch. Documents the early-return.
         assert (
-            detector._check_pattern_mismatch(
-                tmp_path / "misc" / "anything.txt", context, None
-            )
+            detector._check_pattern_mismatch(tmp_path / "misc" / "anything.txt", context, None)
             is False
         )
 
