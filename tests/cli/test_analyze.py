@@ -107,12 +107,20 @@ def test_analyze_directory_not_regular_file(tmp_path: Path):
     the binary/text detection path — surface a clear "not a regular file"
     error (exit 1 from the inline is_file guard, distinct from A.cli's
     usage-error exit 2 for non-existent paths).
+
+    Whitespace is collapsed before matching: Click's error formatter
+    wraps long paths at ~80 columns, which on CI runners splits the
+    phrase across ``"is not\\na regular file"`` so a naive substring
+    check fails on long ``tmp_path`` values. Real users see the message
+    rendered by their terminal regardless of the line break — the test
+    should pin the semantic, not the byte-for-byte wrapping.
     """
     d = tmp_path / "some_dir"
     d.mkdir()
     result = runner.invoke(app, ["analyze", str(d)])
     assert result.exit_code == 1
-    assert "not a regular file" in result.stdout.lower()
+    collapsed = " ".join(result.stdout.lower().split())
+    assert "not a regular file" in collapsed
 
 
 def test_analyze_empty_file(tmp_path: Path):
