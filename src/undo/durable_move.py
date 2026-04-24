@@ -83,6 +83,20 @@ class _JournalEntry:
     state: str
 
 
+def _normalized_path_str(path: Path) -> str:
+    """Canonicalize *path* for journal storage + comparison.
+
+    Coderabbit PRRT_kwDOR_Rkws59fzVv: without normalization,
+    equivalent paths like ``./a/b`` and ``/abs/a/b`` would compare
+    unequal when :func:`is_path_in_flight` walks the journal.
+    Resolving handles symlinks, relative components (``..``), and
+    case-folding on Windows. ``strict=False`` tolerates paths that
+    don't exist yet (the dst often doesn't at the moment of the
+    ``started`` journal write).
+    """
+    return os.fspath(Path(path).resolve(strict=False))
+
+
 def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
     """Move *src* to *dst* atomically (same device) or durably (EXDEV).
 
@@ -112,6 +126,15 @@ def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
 
     if not src.exists() and not src.is_symlink():
         raise FileNotFoundError(f"Source does not exist: {src}")
+    # Coderabbit PRRT_kwDOR_Rkws59fzVo: reject directories explicitly.
+    # The same-device ``os.replace`` path happily renames directories
+    # but the EXDEV ``shutil.copyfile`` path raises ``IsADirectoryError``
+    # AFTER writing the ``started`` journal entry, stranding the journal
+    # in a state sweep can't recover from. Surface the contract
+    # violation up front with ``IsADirectoryError`` so callers can
+    # handle it without digging through the journal.
+    if src.is_dir() and not src.is_symlink():
+        raise IsADirectoryError(f"durable_move only supports regular files; {src} is a directory")
 
     dst.parent.mkdir(parents=True, exist_ok=True)
 
@@ -152,10 +175,14 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
        nonexistent source, which is a no-op.
     7. Append ``done`` entry for audit/observability.
     """
+    # Resolve to absolute paths before journaling. ``is_path_in_flight``
+    # will match on ``str()`` of the resolved form, so callers passing
+    # unresolved / relative / symlinked paths still get the right
+    # match (coderabbit PRRT_kwDOR_Rkws59fzVv).
     payload = {
         "op": "move",
-        "src": str(src),
-        "dst": str(dst),
+        "src": _normalized_path_str(src),
+        "dst": _normalized_path_str(dst),
         "state": STATE_STARTED,
     }
     _append_journal(journal, payload)
@@ -201,6 +228,15 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
         # the shared helper.
         fsync_directory(dst)
         os.replace(tmp_path, dst)
+        # Codex P1 PRRT_kwDOR_Rkws59fwMG: fsync ``dst.parent`` AGAIN
+        # after the rename so the new directory entry is durable
+        # before we log ``copied`` and unlink the source. Without
+        # this second fsync, a crash between ``os.replace`` and the
+        # next journal append could leave the journal claiming
+        # ``copied`` while the rename itself hadn't reached disk —
+        # sweep would then unlink the (recoverable) source while
+        # the destination directory entry had rolled back.
+        fsync_directory(dst)
         tmp_path = None  # successfully moved into place
     except BaseException:
         # Leave the ``started`` journal entry and clean up stray tmp
@@ -239,34 +275,138 @@ def sweep(journal: Path) -> None:
       in place).
     - ``done``: operation already completed; drop the entry.
 
-    Once all entries are processed the journal is truncated.
+    Reconciled entries are dropped from the journal; entries whose
+    cleanup raised ``OSError`` (transient permission/lock issues) are
+    retained so the next startup can retry. Without that retention,
+    a single failed sweep would strand the operation forever (codex
+    P1 PRRT_kwDOR_Rkws59fwMK).
 
     Args:
         journal: JSONL journal from a prior :func:`durable_move` run.
             Missing or empty journal is a no-op.
     """
     journal = Path(journal)
+    if not journal.exists():
+        return
+
+    # Coderabbit PRRT_kwDOR_Rkws59fzVp: hold an exclusive
+    # ``fcntl.flock`` on the journal for the whole read-modify-write.
+    # Without it, a concurrent ``fo`` invocation that appends a
+    # ``started`` entry between the read and the rewrite would have
+    # its entry silently wiped by the truncate. ``fcntl.flock`` is
+    # POSIX-only; on Windows we fall back to the pre-lock read-modify-
+    # write path and rely on the "single CLI invocation" invariant
+    # documented at the module level.
+    if os.name != "nt":
+        try:
+            import fcntl
+
+            with open(journal, "r+") as fh:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    _sweep_locked_body(journal, fh)
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            return
+        except (ImportError, OSError):
+            # ``ImportError``: fcntl unavailable (shouldn't happen on
+            # POSIX but defensive). ``OSError`` on open can happen if
+            # the journal disappeared between ``exists`` and
+            # ``open`` — fall through to the unlocked path which
+            # handles the missing-file case.
+            pass
+    _sweep_unlocked_body(journal)
+
+
+def _sweep_locked_body(journal: Path, fh) -> None:  # type: ignore[no-untyped-def]
+    """Sweep body executed while holding an exclusive flock on ``fh``."""
+    fh.seek(0)
+    entries = _parse_journal_text(fh.read())
+    if not entries:
+        return
+    retained = _reconcile_entries(entries)
+    fh.seek(0)
+    fh.truncate()
+    if retained:
+        fh.write("\n".join(_serialize_entry(e) for e in retained) + "\n")
+    fh.flush()
+    os.fsync(fh.fileno())
+
+
+def _sweep_unlocked_body(journal: Path) -> None:
+    """Windows / no-fcntl fallback. Best-effort — callers rely on
+    single-invocation serialization."""
     entries = _read_journal(journal)
     if not entries:
         return
+    retained = _reconcile_entries(entries)
+    if retained:
+        lines = [_serialize_entry(e) for e in retained]
+        journal.write_text("\n".join(lines) + "\n")
+    else:
+        journal.write_text("")
 
-    # Collapse to the latest state per (src, dst).
+
+def _reconcile_entries(entries: list[_JournalEntry]) -> list[_JournalEntry]:
+    """Collapse entries to latest state per (src, dst) and return
+    entries that still need retry after ``_complete_or_rollback``."""
     latest: dict[tuple[str, str], _JournalEntry] = {}
     for entry in entries:
-        key = (entry.src, entry.dst)
-        latest[key] = entry
-
+        latest[(entry.src, entry.dst)] = entry
+    retained: list[_JournalEntry] = []
     for entry in latest.values():
-        _complete_or_rollback(entry)
-
-    # All done — truncate the journal. We write an empty file rather
-    # than unlink so the next durable_move finds a path it can
-    # append to without a race on file creation.
-    journal.write_text("")
+        if not _complete_or_rollback(entry):
+            retained.append(entry)
+    return retained
 
 
-def _complete_or_rollback(entry: _JournalEntry) -> None:
-    """Act on a single journal entry based on its state."""
+def _serialize_entry(e: _JournalEntry) -> str:
+    """JSON-serialize a journal entry for write-back."""
+    return json.dumps({"op": e.op, "src": e.src, "dst": e.dst, "state": e.state})
+
+
+def _parse_journal_text(text: str) -> list[_JournalEntry]:
+    """Parse JSONL journal text into typed entries.
+
+    Mirrors :func:`_read_journal` but works on an already-read string
+    so ``_sweep_locked_body`` can use the locked fd's read.
+    """
+    entries: list[_JournalEntry] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            logger.warning("sweep: dropping unparsable journal line: %r", line)
+            continue
+        op = data.get("op")
+        src = data.get("src")
+        dst = data.get("dst")
+        state = data.get("state")
+        if not (
+            isinstance(op, str)
+            and isinstance(src, str)
+            and isinstance(dst, str)
+            and isinstance(state, str)
+        ):
+            logger.warning("sweep: dropping malformed journal entry: %r", data)
+            continue
+        entries.append(_JournalEntry(op=op, src=src, dst=dst, state=state))
+    return entries
+
+
+def _complete_or_rollback(entry: _JournalEntry) -> bool:
+    """Act on a single journal entry based on its state.
+
+    Returns:
+        ``True`` if the entry was successfully reconciled (or was
+        already ``done``) and can be dropped from the journal.
+        ``False`` if a transient error (usually ``OSError``) left the
+        state unresolved — caller must retain the entry so the next
+        sweep can retry.
+    """
     src = Path(entry.src)
     dst = Path(entry.dst)
 
@@ -283,6 +423,7 @@ def _complete_or_rollback(entry: _JournalEntry) -> None:
                 exc,
                 exc_info=True,
             )
+            return False
     elif entry.state == STATE_COPIED:
         # Destination is complete; finish by removing source.
         try:
@@ -296,12 +437,16 @@ def _complete_or_rollback(entry: _JournalEntry) -> None:
                 exc,
                 exc_info=True,
             )
+            return False
     elif entry.state == STATE_DONE:
         # Nothing to do — operation completed before the crash (or
         # before the last journal flush).
         pass
     else:
         logger.warning("sweep: unknown journal state %r for entry %r", entry.state, entry)
+        # Unknown states are dropped rather than retained — retrying
+        # an unrecognized entry won't change anything.
+    return True
 
 
 def is_path_in_flight(path: Path, *, journal: Path) -> bool:
@@ -330,12 +475,14 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
     entries = _read_journal(journal)
     if not entries:
         return False
+    # Normalize the query path the same way writers do so the compare
+    # works on equivalent paths (coderabbit PRRT_kwDOR_Rkws59fzVv).
+    path_str = _normalized_path_str(path)
     # Collapse to the latest state per (src, dst) — an entry may
     # have been updated across crash-recovery attempts.
     latest: dict[tuple[str, str], _JournalEntry] = {}
     for entry in entries:
         latest[(entry.src, entry.dst)] = entry
-    path_str = str(path)
     for entry in latest.values():
         if entry.state == STATE_DONE:
             continue

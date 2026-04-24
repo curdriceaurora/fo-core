@@ -120,6 +120,43 @@ class TestIsPathInFlight:
         )
         assert is_path_in_flight(tmp_path / "target.txt", journal=journal) is False
 
+    def test_is_path_in_flight_normalizes_symlinks(self, tmp_path: Path) -> None:
+        """Coderabbit PRRT_kwDOR_Rkws59fzVv: equivalent paths must
+        match. A query via a symlink that resolves to the journalled
+        target must report in-flight.
+        """
+        from undo.durable_move import _normalized_path_str, is_path_in_flight
+
+        target = tmp_path / "target.txt"
+        target.write_text("x")
+        canonical = _normalized_path_str(target)
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [
+                {
+                    "op": "move",
+                    "src": canonical,
+                    "dst": str(tmp_path / "dst.txt"),
+                    "state": "started",
+                }
+            ],
+        )
+
+        # Symlink resolving to target — must match via resolve().
+        link = tmp_path / "link.txt"
+        link.symlink_to(target)
+        assert is_path_in_flight(link, journal=journal) is True
+        # Relative path resolving to target — must match.
+        import os as _os
+
+        original_cwd = _os.getcwd()
+        try:
+            _os.chdir(tmp_path)
+            assert is_path_in_flight(Path("target.txt"), journal=journal) is True
+        finally:
+            _os.chdir(original_cwd)
+
 
 # ---------------------------------------------------------------------------
 # OperationValidator.is_trash_safe_to_delete — GC hook

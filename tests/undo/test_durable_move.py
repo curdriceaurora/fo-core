@@ -259,6 +259,64 @@ class TestDurableMoveSweep:
         sweep(journal)
         assert _read_journal(journal) == []
 
+    def test_sweep_retains_failed_entries(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59fwMK: if
+        ``_complete_or_rollback`` logs an ``OSError`` and can't
+        finish (transient lock / permission denied), sweep must
+        retain the entry so the next startup retries. Without this,
+        a single failed sweep strands the operation forever.
+        """
+        from undo.durable_move import sweep
+
+        # Two entries: one that succeeds (done), one that fails on
+        # unlink (started, dst we'll make unremovable via monkeypatch).
+        journal = tmp_path / "move.journal"
+        good_src = tmp_path / "good-src.txt"
+        good_dst = tmp_path / "good-dst.txt"
+        bad_src = tmp_path / "bad-src.txt"
+        bad_dst = tmp_path / "bad-dst.txt"
+        bad_dst.write_text("partial")
+        _write_journal(
+            journal,
+            [
+                {
+                    "op": "move",
+                    "src": str(good_src),
+                    "dst": str(good_dst),
+                    "state": "done",
+                },
+                {
+                    "op": "move",
+                    "src": str(bad_src),
+                    "dst": str(bad_dst),
+                    "state": "started",
+                },
+            ],
+        )
+
+        real_unlink = Path.unlink
+
+        def failing_unlink(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if str(self) == str(bad_dst):
+                raise OSError(13, "simulated permission denied")
+            return real_unlink(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", failing_unlink)
+
+        sweep(journal)
+
+        # Failed entry retained for retry.
+        entries = _read_journal(journal)
+        assert any(e["src"] == str(bad_src) for e in entries), (
+            f"failed sweep entry must be retained; journal: {entries}"
+        )
+        # Successful (done) entry dropped.
+        assert not any(e["src"] == str(good_src) for e in entries), (
+            "successfully reconciled entry must be dropped"
+        )
+
     def test_sweep_is_idempotent(self, tmp_path: Path) -> None:
         """Sweeping twice is safe — the journal is empty after the
         first pass."""
@@ -307,6 +365,78 @@ class TestDurableMoveFailureModes:
     """Failure modes: missing source, permission errors, crash
     during copy, etc."""
 
+    def test_sweep_unlocked_body_rollback_started(self, tmp_path: Path) -> None:
+        """``_sweep_unlocked_body`` (Windows/no-fcntl fallback) has
+        the same rollback contract as the locked path. Exercised
+        directly since the real platform gate uses ``os.name`` at
+        module level and can't be cleanly monkeypatched from tests
+        (the module captures ``os`` at import time for the gate
+        check).
+        """
+        from undo.durable_move import _sweep_unlocked_body
+
+        journal = tmp_path / "move.journal"
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("intact")
+        dst.write_text("partial")
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "started"}],
+        )
+
+        _sweep_unlocked_body(journal)
+
+        assert not dst.exists()
+        assert src.read_text() == "intact"
+        assert _read_journal(journal) == []
+
+    def test_sweep_unlocked_body_retains_failed_entry(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``_sweep_unlocked_body`` retains failed entries for retry
+        (matches the POSIX-locked path contract)."""
+        from undo.durable_move import _sweep_unlocked_body
+
+        journal = tmp_path / "move.journal"
+        bad_src = tmp_path / "bad.txt"
+        bad_dst = tmp_path / "bad-dst.txt"
+        bad_dst.write_text("x")
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(bad_src), "dst": str(bad_dst), "state": "started"}],
+        )
+
+        real_unlink = Path.unlink
+
+        def failing_unlink(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if str(self) == str(bad_dst):
+                raise OSError(13, "simulated")
+            return real_unlink(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", failing_unlink)
+
+        _sweep_unlocked_body(journal)
+
+        entries = _read_journal(journal)
+        assert any(e["src"] == str(bad_src) for e in entries)
+
+    def test_directory_source_raises_is_a_directory(self, tmp_path: Path) -> None:
+        """Coderabbit PRRT_kwDOR_Rkws59fzVo: directory inputs must be
+        rejected up front with ``IsADirectoryError``, not silently
+        handled differently by the same-device and EXDEV paths.
+        """
+        from undo.durable_move import durable_move
+
+        src_dir = tmp_path / "src_dir"
+        src_dir.mkdir()
+        (src_dir / "inside.txt").write_text("x")
+
+        with pytest.raises(IsADirectoryError, match="directory"):
+            durable_move(src_dir, tmp_path / "dst", journal=tmp_path / "j")
+        # Directory and contents are untouched.
+        assert (src_dir / "inside.txt").exists()
+
     def test_missing_source_raises_file_not_found(self, tmp_path: Path) -> None:
         from undo.durable_move import durable_move
 
@@ -316,6 +446,148 @@ class TestDurableMoveFailureModes:
                 tmp_path / "dst.txt",
                 journal=tmp_path / "j.log",
             )
+
+    def test_non_exdev_os_replace_error_propagates(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Permission errors (or any OSError other than EXDEV) from
+        ``os.replace`` on the fast path must propagate to the caller —
+        we only fall through to the durable path on EXDEV."""
+        from undo.durable_move import durable_move
+
+        def deny_replace(src, dst):  # type: ignore[no-untyped-def]
+            raise PermissionError("not allowed")
+
+        monkeypatch.setattr("undo.durable_move.os.replace", deny_replace)
+
+        src = tmp_path / "src.txt"
+        src.write_text("x")
+        with pytest.raises(PermissionError):
+            durable_move(src, tmp_path / "dst.txt", journal=tmp_path / "j")
+
+    def test_copystat_failure_is_non_fatal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A ``copystat`` failure in the EXDEV path is logged at
+        DEBUG and the move still completes with default mode."""
+        from undo.durable_move import durable_move
+
+        # Force EXDEV
+        def always_exdev(src, dst):  # type: ignore[no-untyped-def]
+            raise OSError(errno.EXDEV, "Cross-device link")
+
+        # Sabotage copystat
+        def broken_copystat(src, dst, **kwargs):  # type: ignore[no-untyped-def]
+            raise OSError("copystat failed")
+
+        real_replace = os.replace
+        call_count = {"n": 0}
+
+        def exdev_then_real(src, dst):  # type: ignore[no-untyped-def]
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise OSError(errno.EXDEV, "EXDEV", str(src))
+            return real_replace(src, dst)
+
+        monkeypatch.setattr("undo.durable_move.os.replace", exdev_then_real)
+        monkeypatch.setattr("undo.durable_move.shutil.copystat", broken_copystat)
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("payload")
+        durable_move(src, dst, journal=tmp_path / "j")
+        # Move still completed.
+        assert dst.read_text() == "payload"
+        assert not src.exists()
+
+    def test_exdev_source_already_gone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FileNotFoundError from the final source unlink is swallowed
+        (source was already gone — treat the move as complete)."""
+        from undo.durable_move import durable_move
+
+        real_replace = os.replace
+        real_unlink = os.unlink
+        call_count = {"replace": 0}
+
+        def exdev_then_real(src, dst):  # type: ignore[no-untyped-def]
+            call_count["replace"] += 1
+            if call_count["replace"] == 1:
+                raise OSError(errno.EXDEV, "EXDEV", str(src))
+            return real_replace(src, dst)
+
+        def unlink_missing(p):  # type: ignore[no-untyped-def]
+            # Let the temp-file cleanup path go through, but raise
+            # FileNotFoundError for the source unlink at the end of
+            # _durable_cross_device_move.
+            if str(p).endswith("src.txt"):
+                raise FileNotFoundError(2, "gone")
+            return real_unlink(p)
+
+        monkeypatch.setattr("undo.durable_move.os.replace", exdev_then_real)
+        monkeypatch.setattr("undo.durable_move.os.unlink", unlink_missing)
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("payload")
+        # Must not raise — source-already-gone is benign.
+        durable_move(src, dst, journal=tmp_path / "j")
+        assert dst.read_text() == "payload"
+
+    def test_sweep_copied_source_unlink_failure_retained(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """STATE_COPIED + source unlink OSError → entry retained
+        (covers the copied-branch failure path symmetric to the
+        started-branch one)."""
+        from undo.durable_move import _sweep_unlocked_body
+
+        src = tmp_path / "leftover-src.txt"
+        dst = tmp_path / "final-dst.txt"
+        src.write_text("still here")
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "copied"}],
+        )
+
+        real_unlink = Path.unlink
+
+        def deny_unlink(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if str(self) == str(src):
+                raise OSError(13, "denied")
+            return real_unlink(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", deny_unlink)
+
+        _sweep_unlocked_body(journal)
+
+        entries = _read_journal(journal)
+        assert any(e["src"] == str(src) for e in entries), (
+            "copied-state unlink failure must retain entry"
+        )
+
+    def test_read_journal_drops_malformed_lines(self, tmp_path: Path) -> None:
+        """Lines that can't parse as JSON, or parse as the wrong
+        shape, are logged + dropped (not treated as valid entries)."""
+        from undo.durable_move import _read_journal
+
+        journal = tmp_path / "corrupt.journal"
+        journal.write_text(
+            "\n".join(
+                [
+                    "not json at all",
+                    json.dumps({"op": "move"}),  # missing fields
+                    json.dumps({"op": "move", "src": 1, "dst": "x", "state": "done"}),  # wrong type
+                    json.dumps({"op": "move", "src": "a", "dst": "b", "state": "done"}),  # ok
+                ]
+            )
+            + "\n"
+        )
+        entries = _read_journal(journal)
+        assert len(entries) == 1
+        assert entries[0].state == "done"
 
     def test_crash_between_started_and_copied_leaves_recoverable_state(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

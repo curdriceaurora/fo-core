@@ -24,9 +24,15 @@ from typing import Any
 
 import yaml
 
-from config.migrations import migrate_to_current
+from config.migrations import compare_versions, migrate_to_current
 from config.path_manager import get_config_dir
-from config.schema import CURRENT_SCHEMA_VERSION, AppConfig, ModelPreset, UpdateSettings
+from config.schema import (
+    CURRENT_SCHEMA_VERSION,
+    LEGACY_CONFIG_VERSION,
+    AppConfig,
+    ModelPreset,
+    UpdateSettings,
+)
 from models.base import DeviceType, ModelConfig, ModelType
 from utils.atomic_write import atomic_write_text
 
@@ -114,15 +120,17 @@ class ConfigManager:
         # defaults rather than crashing the CLI at startup — we'd
         # rather a user's customizations be lost to fresh defaults
         # than have ``fo`` fail to start at all.
-        # Fall back to ``CURRENT_SCHEMA_VERSION`` when the field is
-        # missing or explicitly null — these are pre-F6 configs (no
-        # version stamp) which are contemporary with schema 1.0.
-        # Using the symbolic constant means a future schema bump
-        # doesn't need to update this line.
-        raw_version = data.get("version", CURRENT_SCHEMA_VERSION)
-        disk_version = str(raw_version) if raw_version is not None else CURRENT_SCHEMA_VERSION
+        # Codex P2 PRRT_kwDOR_Rkws59fwMM: missing/null ``version`` is
+        # an UNVERSIONED / pre-F6 config. Classify as
+        # ``LEGACY_CONFIG_VERSION`` (frozen 1.0 baseline), NOT as
+        # ``CURRENT_SCHEMA_VERSION``. A future bump to 2.0 would
+        # otherwise silently skip migrations for these files, losing
+        # any fields renamed in the 1.0→2.0 transition.
+        raw_version = data.get("version", LEGACY_CONFIG_VERSION)
+        disk_version = str(raw_version) if raw_version is not None else LEGACY_CONFIG_VERSION
         if disk_version != CURRENT_SCHEMA_VERSION:
-            if disk_version > CURRENT_SCHEMA_VERSION:
+            # Use numeric compare: ``"10.0" > "2.0"`` must be True.
+            if compare_versions(disk_version, CURRENT_SCHEMA_VERSION) > 0:
                 logger.warning(
                     "Config file version %s is newer than this build's "
                     "schema version %s. Loading best-effort; fields "
@@ -464,7 +472,7 @@ class ConfigManager:
 
         return AppConfig(
             profile_name=profile,
-            version=data.get("version", "1.0"),
+            version=data.get("version", CURRENT_SCHEMA_VERSION),
             default_methodology=data.get("default_methodology", "none"),
             setup_completed=data.get("setup_completed", False),
             models=models,

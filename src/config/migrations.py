@@ -49,6 +49,39 @@ MigrationFn = Callable[[dict[str, object]], dict[str, object]]
 MIGRATIONS: dict[str, MigrationFn] = {}
 
 
+def _version_key(version: str) -> tuple[int, ...]:
+    """Tuple key for ordering dotted-int version strings.
+
+    Codex PRRT_kwDOR_Rkws59fzVk / coderabbit: string comparison on
+    versions is wrong (``"10.0" > "2.0"`` is ``False``
+    lexicographically). Parse each component as int so numeric
+    ordering holds. Non-numeric components fall back to 0 so
+    malformed versions don't crash — migration walker treats them
+    as very old and warns.
+    """
+    try:
+        return tuple(int(part) for part in version.split("."))
+    except ValueError:
+        logger.warning(
+            "Non-numeric config version %r; treating as 0.0 for ordering",
+            version,
+        )
+        return (0,)
+
+
+def compare_versions(a: str, b: str) -> int:
+    """Return ``-1``/``0``/``1`` for ``a < b`` / ``a == b`` / ``a > b``.
+
+    Public so ``ConfigManager.load`` can do future/past detection
+    without reimplementing the comparison. Relies on
+    :func:`_version_key` for the actual ordering.
+    """
+    ka, kb = _version_key(a), _version_key(b)
+    if ka == kb:
+        return 0
+    return -1 if ka < kb else 1
+
+
 def migrate_to_current(
     data: dict[str, object],
     *,
@@ -74,12 +107,11 @@ def migrate_to_current(
         return data
 
     current = from_version
-    # Sort keys so migration chains run in a deterministic order.
-    # String compare is correct for simple ``"0.5"`` → ``"1.0"`` →
-    # ``"1.5"`` sequences. Bumps that need non-lexicographic ordering
-    # should switch to ``packaging.version.Version`` comparison.
-    for step_from in sorted(MIGRATIONS.keys()):
-        if step_from < current:
+    # Sort by numeric tuple-key so ``"2.0"`` < ``"10.0"`` orders
+    # correctly. String sort would give the wrong order for future
+    # double-digit majors.
+    for step_from in sorted(MIGRATIONS.keys(), key=_version_key):
+        if _version_key(step_from) < _version_key(current):
             # Already past this migration's source version — skip.
             continue
         if step_from != current:
@@ -131,7 +163,7 @@ def _next_version(v: str) -> str:
     correct; complex branching schemas would need a more formal
     version graph.
     """
-    sorted_keys = sorted(MIGRATIONS.keys())
+    sorted_keys = sorted(MIGRATIONS.keys(), key=_version_key)
     try:
         idx = sorted_keys.index(v)
     except ValueError:

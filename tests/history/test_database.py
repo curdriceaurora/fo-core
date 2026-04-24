@@ -306,14 +306,11 @@ class TestDatabaseIntegrityCheck:
             fh.truncate(size // 2)
 
         db2 = DatabaseManager(temp_db_path)
-        try:
+        with pytest.raises(DatabaseCorruptionError) as excinfo:
             db2.initialize()
-        except DatabaseCorruptionError as exc:
-            msg = str(exc).lower()
-            # Must mention recovery/quarantine/move action so the caller
-            # can render a prompt. Exact wording locks in the contract.
-            assert any(word in msg for word in ("quarantine", "move aside", "rename", "back up")), (
-                f"error message lacks recovery guidance: {exc}"
-            )
-        else:
-            pytest.fail("DatabaseCorruptionError was not raised on corrupt db")
+        msg = str(excinfo.value).lower()
+        # Must mention recovery/quarantine/move action so the caller
+        # can render a prompt. Exact wording locks in the contract.
+        assert any(word in msg for word in ("quarantine", "move aside", "rename", "back up")), (
+            f"error message lacks recovery guidance: {excinfo.value}"
+        )

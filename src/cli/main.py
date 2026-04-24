@@ -106,8 +106,19 @@ def main_callback(
     try:
         _durable_move_sweep(_default_journal_path())
     except Exception:
-        logging.getLogger(__name__).debug(
-            "durable_move sweep at CLI startup failed (ignored)", exc_info=True
+        # Coderabbit PRRT_kwDOR_Rkws59fzVf: log at WARNING, not DEBUG.
+        # Most users don't run with debug verbosity, so a permanently
+        # unreadable journal (permission denied, corrupted JSONL) would
+        # silently accumulate unrecovered entries across every
+        # invocation with zero operator signal. WARNING surfaces the
+        # problem without impacting normal runs (the journal is
+        # missing/empty on the common path and ``sweep`` fast-exits
+        # before hitting any of these error paths).
+        logging.getLogger(__name__).warning(
+            "durable_move sweep at CLI startup failed; "
+            "interrupted-move recovery may be stuck. Inspect %s",
+            _default_journal_path(),
+            exc_info=True,
         )
 
     set_flags(yes=yes, no_interactive=no_interactive)
