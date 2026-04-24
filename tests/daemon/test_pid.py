@@ -270,6 +270,52 @@ class TestPidRecord:
         pid_file.write_text(json.dumps({"pid": "12345", "create_time": 1.0}))
         assert pid_manager.read_pid_record(pid_file) is None
 
+    def test_read_pid_record_rejects_nan_create_time(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Codex P2: ``create_time = NaN`` silently defeats the F2
+        recycling check because ``abs(actual - NaN) > tolerance`` is
+        always False. Must be treated as corrupt.
+
+        JSON doesn't natively have NaN — some encoders emit the string
+        ``"nan"`` (e.g. numpy serializers, ad-hoc writers). We test by
+        writing the raw JSON fragment ``NaN`` (Python's json.loads
+        accepts it permissively by default).
+        """
+        # json.loads accepts ``NaN`` as a non-standard extension.
+        pid_file.write_text('{"pid": 12345, "create_time": NaN}')
+        assert pid_manager.read_pid_record(pid_file) is None
+
+    def test_read_pid_record_rejects_positive_infinity_create_time(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Infinity is as corrupt as NaN for our purposes — arithmetic
+        with Inf gives Inf (comparison always True → False-positive
+        recycling) or NaN again. Reject."""
+        pid_file.write_text('{"pid": 12345, "create_time": Infinity}')
+        assert pid_manager.read_pid_record(pid_file) is None
+
+    def test_read_pid_record_rejects_negative_infinity_create_time(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Negative infinity — same reasoning as +Inf."""
+        pid_file.write_text('{"pid": 12345, "create_time": -Infinity}')
+        assert pid_manager.read_pid_record(pid_file) is None
+
+    def test_is_running_nan_create_time_does_not_bypass_recycling_check(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """End-to-end proof of the bug codex flagged: a crafted PID
+        file with NaN create_time pointing at a live process (us) must
+        NOT be reported as running. Before the fix, ``is_running``
+        would return True because the NaN comparison always evaluates
+        False, masking the recycling check.
+        """
+        pid_file.write_text(f'{{"pid": {os.getpid()}, "create_time": NaN}}')
+        # read_pid_record returns None for NaN → is_running returns
+        # False (no record to validate).
+        assert pid_manager.is_running(pid_file) is False
+
     def test_is_running_detects_pid_recycling(
         self, pid_manager: PidFileManager, pid_file: Path
     ) -> None:
