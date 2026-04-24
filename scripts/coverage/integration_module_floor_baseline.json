@@ -269,6 +269,7 @@
     "src/services/vision_processor.py": 91.0,
     "src/undo/__init__.py": 100.0,
     "src/undo/models.py": 95.0,
+    "src/undo/durable_move.py": 81.0,
     "src/undo/rollback.py": 93.0,
     "src/undo/undo_manager.py": 91.0,
     "src/undo/validator.py": 95.0,

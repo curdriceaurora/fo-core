@@ -10,12 +10,20 @@ import logging
 import shutil
 from pathlib import Path
 
+from config.path_manager import get_state_dir
 from history.models import Operation, OperationType
 
+from .durable_move import durable_move
 from .models import RollbackResult
 from .validator import OperationValidator
 
 logger = logging.getLogger(__name__)
+
+# F7 (hardening roadmap #159): journal location for durable moves.
+# Lives under the daemon state dir so it's co-located with the
+# history database — one recovery surface for both. Operators who
+# need to inspect or audit interrupted moves know where to look.
+_DEFAULT_JOURNAL = get_state_dir() / "undo" / "durable_move.journal"
 
 
 class RollbackExecutor:
@@ -25,14 +33,23 @@ class RollbackExecutor:
     to undo or redo file operations.
     """
 
-    def __init__(self, validator: OperationValidator | None = None):
+    def __init__(
+        self,
+        validator: OperationValidator | None = None,
+        journal_path: Path | None = None,
+    ):
         """Initialize rollback executor.
 
         Args:
-            validator: Operation validator
+            validator: Operation validator.
+            journal_path: F7 durable-move journal location. Defaults
+                to the shared rollback journal under the state dir.
+                Tests pass a per-test ``tmp_path`` to isolate from
+                the real user journal.
         """
         self.validator = validator or OperationValidator()
         self.trash_dir = self.validator.trash_dir
+        self.journal_path = journal_path or _DEFAULT_JOURNAL
 
     def rollback_operation(self, operation: Operation) -> bool:
         """Rollback a single operation (undo).
@@ -103,11 +120,11 @@ class RollbackExecutor:
         logger.info(f"Rolling back move: {destination} -> {source}")
 
         try:
-            # Ensure parent directory exists
-            source.parent.mkdir(parents=True, exist_ok=True)
-
-            # Move file back
-            shutil.move(str(destination), str(source))
+            # F7: durable_move replaces ``shutil.move``. Atomic on
+            # same device; EXDEV path journals each step so a crash
+            # mid-move leaves recoverable state. The helper itself
+            # creates dst's parent directory (matches pre-F7 semantics).
+            durable_move(destination, source, journal=self.journal_path)
 
             logger.info(f"Successfully rolled back move operation {operation.id}")
             return True
@@ -162,11 +179,12 @@ class RollbackExecutor:
         logger.info(f"Rolling back delete: restoring {original_path} from trash")
 
         try:
-            # Ensure parent directory exists
-            original_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Restore from trash
-            shutil.move(str(trash_path), str(original_path))
+            # F7: durable_move for trash→original restore. Pairs
+            # with F8's trash GC race protection — once the move
+            # lands in the journal the GC validator can detect the
+            # in-progress restore and avoid deleting the trash path
+            # mid-move.
+            durable_move(trash_path, original_path, journal=self.journal_path)
 
             # Clean up trash directory for this operation
             if trash_path.parent.name == str(operation.id):
@@ -250,11 +268,9 @@ class RollbackExecutor:
         logger.info(f"Redoing move: {source} -> {destination}")
 
         try:
-            # Ensure parent directory exists
-            destination.parent.mkdir(parents=True, exist_ok=True)
-
-            # Move file
-            shutil.move(str(source), str(destination))
+            # F7: durable_move for redo. Same reasoning as
+            # rollback_move — atomic same-device, journalled EXDEV.
+            durable_move(source, destination, journal=self.journal_path)
 
             logger.info(f"Successfully redid move operation {operation.id}")
             return True
@@ -462,9 +478,13 @@ class RollbackExecutor:
 
         trash_dir.mkdir(parents=True, exist_ok=True)
 
-        # Move to trash
+        # F7: durable_move for the delete→trash move. This is the
+        # paired half of the trash-restore path: if an organize
+        # operation crashes mid-move, sweep on next startup
+        # completes the move into the trash so the undo record
+        # stays in sync with on-disk state.
         trash_path = trash_dir / file_path.name
-        shutil.move(str(file_path), str(trash_path))
+        durable_move(file_path, trash_path, journal=self.journal_path)
 
         logger.debug(f"Moved {file_path} to trash: {trash_path}")
         return trash_path

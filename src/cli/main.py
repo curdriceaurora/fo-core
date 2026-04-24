@@ -5,6 +5,7 @@ Provides the unified entry point with all commands and sub-apps.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, cast
 
@@ -94,6 +95,21 @@ def main_callback(
     # exception args. Installed at the CLI entry point so the filter exists
     # before any command runs.
     install_on_root()
+
+    # F7 (hardening roadmap #159): sweep any interrupted durable_move
+    # operations from a prior crashed run. Runs before any command so
+    # the on-disk state is coherent before the user's intent executes.
+    # Failures here are logged + swallowed — a sweep error is never
+    # worth crashing the CLI over; the next run will retry.
+    try:
+        from undo.durable_move import sweep as _durable_move_sweep
+        from undo.rollback import _DEFAULT_JOURNAL
+
+        _durable_move_sweep(_DEFAULT_JOURNAL)
+    except Exception:
+        logging.getLogger(__name__).debug(
+            "durable_move sweep at CLI startup failed (ignored)", exc_info=True
+        )
 
     set_flags(yes=yes, no_interactive=no_interactive)
 
