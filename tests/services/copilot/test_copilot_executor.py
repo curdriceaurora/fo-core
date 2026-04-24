@@ -184,8 +184,8 @@ class TestHandleOrganize:
 class TestHandleMove:
     """Test the move handler."""
 
-    def test_missing_source_param(self, executor):
-        result = executor.execute(_intent(IntentType.MOVE, destination="/tmp/x"))
+    def test_missing_source_param(self, executor, tmp_path):
+        result = executor.execute(_intent(IntentType.MOVE, destination=str(tmp_path / "x")))
         assert not result.success
         assert "specify" in result.message.lower()
 

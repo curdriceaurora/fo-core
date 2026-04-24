@@ -7,6 +7,8 @@ peek, reorder, and concurrent access patterns.
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -20,11 +22,18 @@ from parallel.priority_queue import PriorityQueue, QueueItem
 class TestQueueItem(unittest.TestCase):
     """Test cases for QueueItem dataclass."""
 
+    def setUp(self) -> None:
+        self._tmp = Path(tempfile.mkdtemp(prefix="fo-pq-"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
     def test_create_with_defaults(self) -> None:
         """Test creating a QueueItem with default values."""
-        item = QueueItem(id="item-1", path=Path("/tmp/test.txt"))
+        path = self._tmp / "test.txt"
+        item = QueueItem(id="item-1", path=path)
         self.assertEqual(item.id, "item-1")
-        self.assertEqual(item.path, Path("/tmp/test.txt"))
+        self.assertEqual(item.path, path)
         self.assertEqual(item.priority, 0)
         self.assertEqual(item.metadata, {})
         self.assertIsInstance(item.enqueued_at, float)
@@ -33,7 +42,7 @@ class TestQueueItem(unittest.TestCase):
         """Test creating a QueueItem with all fields specified."""
         item = QueueItem(
             id="item-2",
-            path=Path("/tmp/doc.pdf"),
+            path=self._tmp / "doc.pdf",
             priority=5,
             metadata={"type": "document"},
             enqueued_at=100.0,
@@ -44,8 +53,8 @@ class TestQueueItem(unittest.TestCase):
 
     def test_metadata_isolation(self) -> None:
         """Test that default metadata dicts are independent."""
-        item1 = QueueItem(id="a", path=Path("/a"))
-        item2 = QueueItem(id="b", path=Path("/b"))
+        item1 = QueueItem(id="a", path=self._tmp / "a")
+        item2 = QueueItem(id="b", path=self._tmp / "b")
         item1.metadata["key"] = "value"
         self.assertNotIn("key", item2.metadata)
 
@@ -57,12 +66,16 @@ class TestPriorityQueue(unittest.TestCase):
     def setUp(self) -> None:
         """Set up a fresh queue for each test."""
         self.queue = PriorityQueue()
+        self._tmp = Path(tempfile.mkdtemp(prefix="fo-pq-"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self._tmp, ignore_errors=True)
 
     def _make_item(self, item_id: str, priority: int = 0) -> QueueItem:
         """Helper to create a QueueItem."""
         return QueueItem(
             id=item_id,
-            path=Path(f"/tmp/{item_id}.txt"),
+            path=self._tmp / f"{item_id}.txt",
             priority=priority,
         )
 

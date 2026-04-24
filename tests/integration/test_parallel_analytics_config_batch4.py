@@ -1294,7 +1294,7 @@ class TestIntentParser:
         from services.copilot.models import IntentType
 
         parser = IntentParser()
-        intent = parser.parse("move files to /tmp/dest")
+        intent = parser.parse("move files to /tmp/dest")  # noqa: G2 (parser test input)
 
         assert intent.intent_type == IntentType.MOVE
 
@@ -1366,7 +1366,7 @@ class TestIntentParser:
         from services.copilot.intent_parser import IntentParser
 
         parser = IntentParser()
-        intent = parser.parse("organize /home/user/Downloads")
+        intent = parser.parse("organize /home/user/Downloads")  # noqa: G2 (parser test input)
 
         assert "paths" in intent.parameters or "source" in intent.parameters
 
@@ -1494,10 +1494,10 @@ class TestIntentParser:
     def test_extract_paths_detects_unix_paths(self) -> None:
         from services.copilot.intent_parser import IntentParser
 
-        result = IntentParser._extract_paths("move /home/user/docs")
+        result = IntentParser._extract_paths("move /home/user/docs")  # noqa: G2 (parser test input)
 
         assert len(result) == 1
-        assert "/home/user/docs" in result[0]
+        assert "/home/user/docs" in result[0]  # noqa: G2 (parser test input)
 
 
 # ===========================================================================

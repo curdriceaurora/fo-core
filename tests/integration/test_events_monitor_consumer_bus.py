@@ -56,7 +56,7 @@ def _make_event(
     return Event(
         id=event_id,
         stream=stream,
-        data=data or {"event_type": "file.created", "path": "/tmp/a.txt"},
+        data=data or {"event_type": "file.created", "path": "a.txt"},
         timestamp=datetime.now(UTC),
     )
 
@@ -592,11 +592,13 @@ class TestEventConsumerDispatch:
 
     def test_dispatch_partial_failure_not_acknowledged(self) -> None:
         """When one of two handlers fails, all_succeeded is False → no ACK."""
+
+        def _raising_handler(e: Event) -> None:
+            raise RuntimeError("oops")
+
         consumer, mock_redis = self._make()
         consumer.register_handler(EventType.FILE_CREATED, lambda e: None)
-        consumer.register_handler(
-            EventType.FILE_CREATED, lambda e: (_ for _ in ()).throw(RuntimeError("oops"))
-        )
+        consumer.register_handler(EventType.FILE_CREATED, _raising_handler)
 
         evt = _make_event(data={"event_type": "file.created"})
         consumer._dispatch_event(evt, "events", "grp1")

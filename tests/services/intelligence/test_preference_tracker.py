@@ -121,12 +121,12 @@ def test_correction_get_pattern_key_with_extension():
     assert key == "file_move|.pdf|2024"
 
 
-def test_correction_get_pattern_key_no_extension():
+def test_correction_get_pattern_key_no_extension(tmp_path: Path):
     """Test pattern key generation for a file without an extension."""
     correction = Correction(
         correction_type=CorrectionType.FILE_RENAME,
-        source=Path("/tmp/Makefile"),
-        destination=Path("/build/Makefile"),
+        source=tmp_path / "Makefile",
+        destination=tmp_path / "build" / "Makefile",
         timestamp=datetime.now(UTC),
     )
     key = correction.get_pattern_key()

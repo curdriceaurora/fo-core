@@ -72,6 +72,17 @@ class TestComputeFileHash(unittest.TestCase):
 class TestCheckpointManagerInit(unittest.TestCase):
     """Test CheckpointManager initialization."""
 
+    def setUp(self) -> None:
+        import tempfile
+
+        self._tmpdir = tempfile.mkdtemp(prefix="fo-ckpt-init-")
+        self.tmp_path = Path(self._tmpdir)
+
+    def tearDown(self) -> None:
+        import shutil
+
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
     def test_default_dir(self) -> None:
         """Test that default directory is under home."""
         from config.path_manager import get_data_dir
@@ -84,7 +95,7 @@ class TestCheckpointManagerInit(unittest.TestCase):
 
     def test_custom_dir(self) -> None:
         """Test that custom directory is used."""
-        custom = Path("/tmp/test-checkpoints")
+        custom = self.tmp_path / "test-checkpoints"
         mgr = CheckpointManager(checkpoints_dir=custom)
         self.assertEqual(mgr.checkpoints_dir, custom)
 
@@ -245,7 +256,7 @@ class TestUpdateCheckpoint(unittest.TestCase):
 
     def test_update_nonexistent_checkpoint_returns_none(self) -> None:
         """Test updating a missing checkpoint returns None."""
-        result = self.mgr.update_checkpoint("no-checkpoint", Path("/tmp/x.txt"))
+        result = self.mgr.update_checkpoint("no-checkpoint", self.tmp_path / "x.txt")
         self.assertIsNone(result)
 
     def test_update_does_not_duplicate_completed(self) -> None:

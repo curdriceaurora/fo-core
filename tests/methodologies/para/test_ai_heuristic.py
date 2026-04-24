@@ -1084,6 +1084,41 @@ class TestAIHeuristicParseResponse:
         assert result["resource"] == 0.0
         assert result["archive"] == 0.0
 
+    def test_parse_response_malformed_json_between_braces_returns_none(self) -> None:
+        """_parse_response returns None when content between braces is not
+        valid JSON (hits the ``except json.JSONDecodeError`` branch).
+
+        C5 coverage gap: prior tests for missing braces hit the
+        ``end <= start`` early-return; this hits the separate decode path.
+        """
+        h = AIHeuristic(weight=0.10)
+        # Braces present but body is unparseable — triggers JSONDecodeError
+        result = h._parse_response("prefix { this is not json at all } suffix")
+
+        assert result is None
+
+    def test_ensure_client_short_circuits_when_ollama_not_available(self, tmp_path: Path) -> None:
+        """_ensure_client exits with False (and never touches the client)
+        when OLLAMA_AVAILABLE is False after acquiring the init lock.
+
+        C5 coverage gap: the prior ``test_ollama_not_installed`` skips
+        ``_ensure_client`` entirely by patching OLLAMA_AVAILABLE AND
+        ``ollama`` to None. This test exercises the explicit post-lock
+        ``if not OLLAMA_AVAILABLE`` branch.
+        """
+        h = AIHeuristic(weight=0.10)
+        # Force _available to None so _ensure_client proceeds past the
+        # early-return on line 531–532.
+        h._available = None
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", new=False):
+            assert h._ensure_client() is False
+
+        # A second call must hit the early-return, confirming _available
+        # was cached to False by the first call.
+        assert h._available is False
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", new=False):
+            assert h._ensure_client() is False
+
 
 # ---------------------------------------------------------------------------
 # Tests: HeuristicEngine edge cases

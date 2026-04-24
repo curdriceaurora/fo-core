@@ -1127,7 +1127,7 @@ class TestSuggestionFeedback:
                 suggestion_id="u1",
                 suggestion_type=SuggestionType.RENAME,
                 action="accepted",
-                file_path="/tmp/f.txt",
+                file_path=str(tmp_path / "f.txt"),
                 target_path=None,
                 confidence=70.0,
             )

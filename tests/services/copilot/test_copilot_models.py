@@ -7,6 +7,7 @@ and CopilotSession dataclasses including all properties and edge cases.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -217,16 +218,17 @@ class TestExecutionResult:
         assert result.details == {}
         assert result.affected_files == []
 
-    def test_failure_result_with_details(self) -> None:
+    def test_failure_result_with_details(self, tmp_path: Path) -> None:
+        affected = str(tmp_path / "a.txt")
         result = ExecutionResult(
             success=False,
             message="Failed",
             details={"error_code": 42},
-            affected_files=["/tmp/a.txt"],
+            affected_files=[affected],
         )
         assert result.success is False
         assert result.details["error_code"] == 42
-        assert result.affected_files == ["/tmp/a.txt"]
+        assert result.affected_files == [affected]
 
     def test_defaults_are_independent(self) -> None:
         r1 = ExecutionResult(success=True, message="ok")
@@ -267,9 +269,10 @@ class TestCopilotSession:
         )
         assert session.turn_count == 2
 
-    def test_working_directory(self) -> None:
-        session = CopilotSession(working_directory="/home/user")
-        assert session.working_directory == "/home/user"
+    def test_working_directory(self, tmp_path: Path) -> None:
+        working_dir = str(tmp_path / "user")
+        session = CopilotSession(working_directory=working_dir)
+        assert session.working_directory == working_dir
 
     def test_session_id(self) -> None:
         session = CopilotSession(session_id="abc-123")

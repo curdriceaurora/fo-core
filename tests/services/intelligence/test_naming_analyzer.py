@@ -338,5 +338,90 @@ class TestNamingAnalyzerIntegration:
         assert pattern1["consistency"] > pattern2["consistency"]
 
 
+# ---------------------------------------------------------------------------
+# T10 backfill: positive AND negative cases for boolean predicates
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestHasDatePattern:
+    """T10 (test-generation-patterns.md): _has_date_pattern must recognize
+    supported date formats AND reject text without dates. Without the negative
+    case an implementation that always returns True would pass."""
+
+    def test_hyphen_iso_date_matches(self):
+        assert NamingAnalyzer()._has_date_pattern("report-2024-03-15-final") is True
+
+    def test_underscore_iso_date_matches(self):
+        assert NamingAnalyzer()._has_date_pattern("report_2024_03_15_final") is True
+
+    def test_us_date_matches(self):
+        assert NamingAnalyzer()._has_date_pattern("memo_03-15-2024") is True
+
+    def test_compact_8_digit_date_matches(self):
+        assert NamingAnalyzer()._has_date_pattern("scan_20240315") is True
+
+    def test_no_date_pattern_returns_false(self):
+        # Plain identifier with no date — must NOT match. Fails if the
+        # patterns list is over-broad (e.g. any digit sequence).
+        assert NamingAnalyzer()._has_date_pattern("project_notes_draft") is False
+
+    def test_short_digit_sequence_rejected(self):
+        # 7-digit substring is NOT a date (the compact pattern is 8 digits).
+        # Surface-shape check: looks date-like but isn't.
+        assert NamingAnalyzer()._has_date_pattern("id_1234567_record") is False
+
+
+@pytest.mark.unit
+class TestHasVersionPattern:
+    """T10: _has_version_pattern must match documented forms AND reject text
+    without any version marker."""
+
+    def test_v_prefix_matches(self):
+        assert NamingAnalyzer()._has_version_pattern("report_v2.pdf") is True
+
+    def test_semver_matches(self):
+        assert NamingAnalyzer()._has_version_pattern("package-1.2.3") is True
+
+    def test_no_version_returns_false(self):
+        # Plain name with no version token — must NOT match. Fails if the
+        # predicate collapses to `return True`.
+        assert NamingAnalyzer()._has_version_pattern("ordinary_filename") is False
+
+    def test_bare_number_without_version_marker_returns_false(self):
+        # Surface-shape check: digits alone shouldn't count as a version
+        # unless accompanied by a version marker (`v`, dot-separated, etc.).
+        assert NamingAnalyzer()._has_version_pattern("chapter5") is False
+
+
+@pytest.mark.unit
+class TestIsMetadataToken:
+    """T10: _is_metadata_token combines `_has_version_pattern`,
+    `_has_date_pattern`, and a keyword list. Cover each branch AND a
+    non-metadata token so inversions are detectable."""
+
+    def test_version_token_is_metadata(self):
+        assert NamingAnalyzer()._is_metadata_token("v2") is True
+
+    def test_date_token_is_metadata(self):
+        assert NamingAnalyzer()._is_metadata_token("2024-03-15") is True
+
+    def test_keyword_final_is_metadata(self):
+        assert NamingAnalyzer()._is_metadata_token("final") is True
+
+    def test_keyword_draft_is_metadata_case_insensitive(self):
+        assert NamingAnalyzer()._is_metadata_token("Draft") is True
+
+    def test_content_token_is_not_metadata(self):
+        # Plain content word (not a keyword, not a version, not a date).
+        # The primary negative case — fails if any clause over-matches.
+        assert NamingAnalyzer()._is_metadata_token("report") is False
+
+    def test_numeric_non_version_non_date_returns_false(self):
+        # "5" is neither a version (no `v` prefix, not dotted) nor a date
+        # (not 8 digits, no separators) nor a keyword → not metadata.
+        assert NamingAnalyzer()._is_metadata_token("5") is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

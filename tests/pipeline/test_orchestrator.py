@@ -150,12 +150,12 @@ def pipeline_with_mock(
 class TestProcessingResult:
     """Test the ProcessingResult dataclass."""
 
-    def test_successful_result(self) -> None:
+    def test_successful_result(self, tmp_path: Path) -> None:
         result = ProcessingResult(
             file_path=Path("test.txt"),
             success=True,
             category="documents",
-            destination=Path("/tmp/organized/documents/test.txt"),
+            destination=tmp_path / "organized" / "documents" / "test.txt",
             duration_ms=150.5,
         )
         assert result.success is True

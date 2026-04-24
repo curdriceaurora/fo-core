@@ -7,21 +7,24 @@ from unittest.mock import patch
 from config.path_manager import PathManager, get_canonical_paths
 
 
-def test_get_canonical_paths_uses_xdg_when_available():
+def test_get_canonical_paths_uses_xdg_when_available(tmp_path: Path):
     """Should use XDG base directories when environment variables set"""
+    xdg_config = tmp_path / "xdg-config"
+    xdg_data = tmp_path / "xdg-data"
+    xdg_state = tmp_path / "xdg-state"
     with patch.dict(
         os.environ,
         {
-            "XDG_CONFIG_HOME": "/tmp/test-xdg-config",
-            "XDG_DATA_HOME": "/tmp/test-xdg-data",
-            "XDG_STATE_HOME": "/tmp/test-xdg-state",
+            "XDG_CONFIG_HOME": str(xdg_config),
+            "XDG_DATA_HOME": str(xdg_data),
+            "XDG_STATE_HOME": str(xdg_state),
         },
     ):
         paths = get_canonical_paths()
 
-        assert paths["config"] == Path("/tmp/test-xdg-config/fo")
-        assert paths["data"] == Path("/tmp/test-xdg-data/fo")
-        assert paths["state"] == Path("/tmp/test-xdg-state/fo")
+        assert paths["config"] == xdg_config / "fo"
+        assert paths["data"] == xdg_data / "fo"
+        assert paths["state"] == xdg_state / "fo"
         # Cache uses platformdirs user_cache_dir, which is independent of XDG_DATA_HOME
         from platformdirs import user_cache_dir
 
@@ -50,9 +53,9 @@ def test_get_canonical_paths_uses_home_defaults():
         assert paths["cache"] == Path(user_cache_dir("fo"))
 
 
-def test_path_manager_creates_directories():
+def test_path_manager_creates_directories(tmp_path: Path):
     """PathManager should create all necessary directories"""
-    with patch.dict(os.environ, {"HOME": "/tmp/test-home"}):
+    with patch.dict(os.environ, {"HOME": str(tmp_path / "home")}):
         manager = PathManager()
         # Mock mkdir to verify calls
         with patch.object(Path, "mkdir") as mock_mkdir:
@@ -61,9 +64,9 @@ def test_path_manager_creates_directories():
             assert mock_mkdir.call_count >= 3
 
 
-def test_path_manager_provides_specific_paths():
+def test_path_manager_provides_specific_paths(tmp_path: Path):
     """PathManager should provide specific file paths"""
-    with patch.dict(os.environ, {"HOME": "/home/user"}):
+    with patch.dict(os.environ, {"HOME": str(tmp_path / "user")}):
         manager = PathManager()
 
         assert str(manager.config_file).endswith("config.json")

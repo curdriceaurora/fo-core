@@ -34,12 +34,14 @@ class TestWatchLoop:
         orch = PipelineOrchestrator(config)
         return orch
 
-    def test_watch_loop_processes_file_events(self):
+    def test_watch_loop_processes_file_events(self, tmp_path: Path):
         """File events should be passed to process_file."""
         orch = self._make_orchestrator()
         orch._running = True
         mock_monitor = MagicMock()
         orch._monitor = mock_monitor
+
+        test_path = tmp_path / "test.txt"
 
         call_count = 0
 
@@ -48,7 +50,7 @@ class TestWatchLoop:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return [FakeEvent(path=Path("/tmp/test.txt"))]
+                return [FakeEvent(path=test_path)]
             # Stop the loop
             orch._running = False
             return []
@@ -57,9 +59,9 @@ class TestWatchLoop:
 
         with patch.object(orch, "process_file") as mock_process:
             orch._watch_loop()
-            mock_process.assert_called_once_with(Path("/tmp/test.txt"))
+            mock_process.assert_called_once_with(test_path)
 
-    def test_watch_loop_skips_directory_events(self):
+    def test_watch_loop_skips_directory_events(self, tmp_path: Path):
         """Directory events should be skipped."""
         orch = self._make_orchestrator()
         orch._running = True
@@ -73,7 +75,7 @@ class TestWatchLoop:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return [FakeEvent(path=Path("/tmp/somedir"), is_directory=True)]
+                return [FakeEvent(path=tmp_path / "somedir", is_directory=True)]
             orch._running = False
             return []
 
@@ -85,7 +87,7 @@ class TestWatchLoop:
                 f"process_file should not be called for directories, got {mock_process.call_count} calls"
             )
 
-    def test_watch_loop_handles_vanished_file(self):
+    def test_watch_loop_handles_vanished_file(self, tmp_path: Path):
         """FileNotFoundError from process_file should be caught, loop continues."""
         orch = self._make_orchestrator()
         orch._running = True
@@ -100,8 +102,8 @@ class TestWatchLoop:
             call_count += 1
             if call_count == 1:
                 return [
-                    FakeEvent(path=Path("/tmp/vanished.txt")),
-                    FakeEvent(path=Path("/tmp/exists.txt")),
+                    FakeEvent(path=tmp_path / "vanished.txt"),
+                    FakeEvent(path=tmp_path / "exists.txt"),
                 ]
             orch._running = False
             return []
@@ -124,7 +126,7 @@ class TestWatchLoop:
             f"Both files should be attempted even if one vanishes, got {len(process_calls)} attempts"
         )
 
-    def test_watch_loop_handles_processing_error(self):
+    def test_watch_loop_handles_processing_error(self, tmp_path: Path):
         """RuntimeError from process_file should be caught, loop continues."""
         orch = self._make_orchestrator()
         orch._running = True
@@ -138,7 +140,7 @@ class TestWatchLoop:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return [FakeEvent(path=Path("/tmp/bad.txt"))]
+                return [FakeEvent(path=tmp_path / "bad.txt")]
             orch._running = False
             return []
 
@@ -177,12 +179,14 @@ class TestWatchLoopExecutor:
         orch = PipelineOrchestrator(config)
         return orch
 
-    def test_watch_loop_uses_executor(self):
+    def test_watch_loop_uses_executor(self, tmp_path: Path):
         """File processing should be submitted to executor."""
         orch = self._make_orchestrator()
         orch._running = True
         mock_monitor = MagicMock()
         orch._monitor = mock_monitor
+
+        test_path = tmp_path / "test.txt"
 
         call_count = 0
 
@@ -191,7 +195,7 @@ class TestWatchLoopExecutor:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return [FakeEvent(path=Path("/tmp/test.txt"))]
+                return [FakeEvent(path=test_path)]
             orch._running = False
             return []
 
@@ -200,7 +204,7 @@ class TestWatchLoopExecutor:
         with patch.object(orch._executor, "submit") as mock_submit:
             orch._watch_loop()
             # submit should have been called with process_file and the path
-            mock_submit.assert_called_once_with(orch.process_file, Path("/tmp/test.txt"))
+            mock_submit.assert_called_once_with(orch.process_file, test_path)
 
     def test_executor_max_workers_matches_config(self):
         """Executor should be created with max_workers from config.max_concurrent."""

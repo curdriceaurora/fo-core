@@ -211,11 +211,11 @@ class TestOperation:
         assert d["status"] == "completed"
         assert d["created_at"] == now.isoformat()
 
-    def test_to_dict_with_failed_status(self, now: datetime) -> None:
+    def test_to_dict_with_failed_status(self, now: datetime, tmp_path: Path) -> None:
         op = Operation(
             operation_type=OperationType.DELETE,
             timestamp=now,
-            source_path=Path("/tmp/gone.txt"),
+            source_path=tmp_path / "gone.txt",
             status=OperationStatus.FAILED,
             error_message="Permission denied",
         )

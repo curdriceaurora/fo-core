@@ -196,18 +196,19 @@ class TestAudioTranscriberInit:
         assert transcriber.num_workers == 1
         assert transcriber._model is None
 
-    def test_custom_values(self):
+    def test_custom_values(self, tmp_path: Path):
+        cache_dir = tmp_path / "cache"
         with patch.object(AudioTranscriber, "_detect_device", return_value="cpu"):
             t = AudioTranscriber(
                 model_size=ModelSize.LARGE_V3,
                 device="cpu",
                 compute_type=ComputeType.FLOAT32,
-                cache_dir=Path("/tmp/cache"),
+                cache_dir=cache_dir,
                 num_workers=4,
             )
         assert t.model_size == ModelSize.LARGE_V3
         assert t.compute_type == ComputeType.FLOAT32
-        assert t.cache_dir == Path("/tmp/cache")
+        assert t.cache_dir == cache_dir
         assert t.num_workers == 4
 
 

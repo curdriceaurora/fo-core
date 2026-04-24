@@ -29,9 +29,9 @@ class TestDirectoryPrefs:
         assert stats["override_parent_count"] == 0
         assert stats["inheritance_enabled_count"] == 0
 
-    def test_set_and_get_preference(self, dir_prefs):
+    def test_set_and_get_preference(self, dir_prefs, tmp_path):
         """Test setting and getting a single preference."""
-        test_path = Path("/home/user/documents")
+        test_path = tmp_path / "home" / "user" / "documents"
         pref = {"folder_mappings": {"pdf": "PDFs"}, "confidence": 0.8}
 
         dir_prefs.set_preference(test_path, pref)
@@ -41,10 +41,10 @@ class TestDirectoryPrefs:
         assert result["folder_mappings"]["pdf"] == "PDFs"
         assert result["confidence"] == 0.8
 
-    def test_preference_inheritance(self, dir_prefs):
+    def test_preference_inheritance(self, dir_prefs, tmp_path):
         """Test that child directories inherit parent preferences."""
-        parent_path = Path("/home/user")
-        child_path = Path("/home/user/documents")
+        parent_path = tmp_path / "home" / "user"
+        child_path = tmp_path / "home" / "user" / "documents"
 
         parent_pref = {"global_setting": "parent_value"}
         child_pref = {"folder_mappings": {"pdf": "PDFs"}}
@@ -58,12 +58,12 @@ class TestDirectoryPrefs:
         assert result["global_setting"] == "parent_value"
         assert result["folder_mappings"]["pdf"] == "PDFs"
 
-    def test_deep_inheritance_chain(self, dir_prefs):
+    def test_deep_inheritance_chain(self, dir_prefs, tmp_path):
         """Test inheritance across multiple directory levels."""
-        root = Path("/home/user")
-        level1 = Path("/home/user/documents")
-        level2 = Path("/home/user/documents/work")
-        level3 = Path("/home/user/documents/work/projects")
+        root = tmp_path / "home" / "user"
+        level1 = tmp_path / "home" / "user" / "documents"
+        level2 = tmp_path / "home" / "user" / "documents" / "work"
+        level3 = tmp_path / "home" / "user" / "documents" / "work" / "projects"
 
         dir_prefs.set_preference(root, {"root_setting": "root"})
         dir_prefs.set_preference(level1, {"level1_setting": "l1"})
@@ -76,10 +76,10 @@ class TestDirectoryPrefs:
         assert result["level1_setting"] == "l1"
         assert result["level2_setting"] == "l2"
 
-    def test_child_overrides_parent(self, dir_prefs):
+    def test_child_overrides_parent(self, dir_prefs, tmp_path):
         """Test that child preferences override parent for same keys."""
-        parent = Path("/home/user")
-        child = Path("/home/user/documents")
+        parent = tmp_path / "home" / "user"
+        child = tmp_path / "home" / "user" / "documents"
 
         parent_pref = {"folder_mappings": {"pdf": "Documents"}}
         child_pref = {"folder_mappings": {"pdf": "PDFs"}}
@@ -92,10 +92,10 @@ class TestDirectoryPrefs:
         # Child should override parent
         assert result["folder_mappings"]["pdf"] == "PDFs"
 
-    def test_override_parent_flag(self, dir_prefs):
+    def test_override_parent_flag(self, dir_prefs, tmp_path):
         """Test override_parent flag stops inheritance."""
-        parent = Path("/home/user")
-        child = Path("/home/user/documents")
+        parent = tmp_path / "home" / "user"
+        child = tmp_path / "home" / "user" / "documents"
 
         parent_pref = {"parent_setting": "should_not_inherit"}
         child_pref = {"child_setting": "only_this"}
@@ -109,10 +109,10 @@ class TestDirectoryPrefs:
         assert "child_setting" in result
         assert "parent_setting" not in result
 
-    def test_deep_merge_nested_dicts(self, dir_prefs):
+    def test_deep_merge_nested_dicts(self, dir_prefs, tmp_path):
         """Test that nested dictionaries are merged properly."""
-        parent = Path("/home/user")
-        child = Path("/home/user/documents")
+        parent = tmp_path / "home" / "user"
+        child = tmp_path / "home" / "user" / "documents"
 
         parent_pref = {"folder_mappings": {"pdf": "Documents", "txt": "TextFiles"}}
         child_pref = {
@@ -132,15 +132,15 @@ class TestDirectoryPrefs:
         assert result["folder_mappings"]["txt"] == "TextFiles"  # Inherited
         assert result["folder_mappings"]["doc"] == "WordDocs"  # Added
 
-    def test_no_preference_returns_none(self, dir_prefs):
+    def test_no_preference_returns_none(self, dir_prefs, tmp_path):
         """Test that querying a path with no preferences returns None."""
-        result = dir_prefs.get_preference_with_inheritance(Path("/nonexistent"))
+        result = dir_prefs.get_preference_with_inheritance(tmp_path / "nonexistent")
         assert result is None
 
-    def test_list_directory_preferences(self, dir_prefs):
+    def test_list_directory_preferences(self, dir_prefs, tmp_path):
         """Test listing all directory preferences."""
-        path1 = Path("/home/user")
-        path2 = Path("/home/user/documents")
+        path1 = tmp_path / "home" / "user"
+        path2 = tmp_path / "home" / "user" / "documents"
 
         dir_prefs.set_preference(path1, {"setting1": "value1"})
         dir_prefs.set_preference(path2, {"setting2": "value2"})
@@ -152,9 +152,9 @@ class TestDirectoryPrefs:
         assert any(str(p).endswith("user") for p in paths)
         assert any(str(p).endswith("documents") for p in paths)
 
-    def test_remove_preference(self, dir_prefs):
+    def test_remove_preference(self, dir_prefs, tmp_path):
         """Test removing a preference."""
-        test_path = Path("/home/user/documents")
+        test_path = tmp_path / "home" / "user" / "documents"
         dir_prefs.set_preference(test_path, {"setting": "value"})
 
         # Verify it exists
@@ -167,15 +167,15 @@ class TestDirectoryPrefs:
         # Verify it's gone
         assert dir_prefs.get_preference_with_inheritance(test_path) is None
 
-    def test_remove_nonexistent_preference(self, dir_prefs):
+    def test_remove_nonexistent_preference(self, dir_prefs, tmp_path):
         """Test removing a preference that doesn't exist."""
-        removed = dir_prefs.remove_preference(Path("/nonexistent"))
+        removed = dir_prefs.remove_preference(tmp_path / "nonexistent")
         assert removed is False
 
-    def test_clear_all(self, dir_prefs):
+    def test_clear_all(self, dir_prefs, tmp_path):
         """Test clearing all preferences."""
-        dir_prefs.set_preference(Path("/path1"), {"setting": "value"})
-        dir_prefs.set_preference(Path("/path2"), {"setting": "value"})
+        dir_prefs.set_preference(tmp_path / "path1", {"setting": "value"})
+        dir_prefs.set_preference(tmp_path / "path2", {"setting": "value"})
 
         assert len(dir_prefs.list_directory_preferences()) == 2
 
@@ -183,11 +183,11 @@ class TestDirectoryPrefs:
 
         assert len(dir_prefs.list_directory_preferences()) == 0
 
-    def test_statistics(self, dir_prefs):
+    def test_statistics(self, dir_prefs, tmp_path):
         """Test preference statistics."""
-        dir_prefs.set_preference(Path("/path1"), {"s": "v"}, override_parent=False)
-        dir_prefs.set_preference(Path("/path2"), {"s": "v"}, override_parent=True)
-        dir_prefs.set_preference(Path("/path3"), {"s": "v"}, override_parent=False)
+        dir_prefs.set_preference(tmp_path / "path1", {"s": "v"}, override_parent=False)
+        dir_prefs.set_preference(tmp_path / "path2", {"s": "v"}, override_parent=True)
+        dir_prefs.set_preference(tmp_path / "path3", {"s": "v"}, override_parent=False)
 
         stats = dir_prefs.get_statistics()
 
@@ -206,9 +206,9 @@ class TestDirectoryPrefs:
         assert result is not None
         assert result["setting"] == "value"
 
-    def test_metadata_not_in_result(self, dir_prefs):
+    def test_metadata_not_in_result(self, dir_prefs, tmp_path):
         """Test that internal metadata is not included in results."""
-        test_path = Path("/home/user")
+        test_path = tmp_path / "home" / "user"
         dir_prefs.set_preference(test_path, {"setting": "value"})
 
         result = dir_prefs.get_preference_with_inheritance(test_path)
@@ -217,9 +217,9 @@ class TestDirectoryPrefs:
         assert "_override_parent" not in result
         assert "_path" not in result
 
-    def test_metadata_not_in_list(self, dir_prefs):
+    def test_metadata_not_in_list(self, dir_prefs, tmp_path):
         """Test that internal metadata is not included in list results."""
-        dir_prefs.set_preference(Path("/home/user"), {"setting": "value"})
+        dir_prefs.set_preference(tmp_path / "home" / "user", {"setting": "value"})
 
         prefs_list = dir_prefs.list_directory_preferences()
         pref_dict = prefs_list[0][1]
@@ -228,9 +228,9 @@ class TestDirectoryPrefs:
         assert "_override_parent" not in pref_dict
         assert "_path" not in pref_dict
 
-    def test_empty_preference_dict(self, dir_prefs):
+    def test_empty_preference_dict(self, dir_prefs, tmp_path):
         """Test setting an empty preference dictionary."""
-        test_path = Path("/home/user")
+        test_path = tmp_path / "home" / "user"
         dir_prefs.set_preference(test_path, {})
 
         result = dir_prefs.get_preference_with_inheritance(test_path)
@@ -238,20 +238,20 @@ class TestDirectoryPrefs:
         # Should return empty dict (not None)
         assert result == {}
 
-    def test_complex_inheritance_scenario(self, dir_prefs):
+    def test_complex_inheritance_scenario(self, dir_prefs, tmp_path):
         """Test a complex real-world inheritance scenario."""
         # Setup: root has global settings
-        root = Path("/home/user")
+        root = tmp_path / "home" / "user"
         dir_prefs.set_preference(root, {"naming_patterns": {"prefix": "user_"}, "confidence": 0.7})
 
         # Documents overrides naming, adds folder mappings
-        docs = Path("/home/user/documents")
+        docs = tmp_path / "home" / "user" / "documents"
         dir_prefs.set_preference(
             docs, {"naming_patterns": {"prefix": "doc_"}, "folder_mappings": {"pdf": "PDFs"}}
         )
 
         # Work documents adds more mappings
-        work = Path("/home/user/documents/work")
+        work = tmp_path / "home" / "user" / "documents" / "work"
         dir_prefs.set_preference(
             work, {"folder_mappings": {"xlsx": "Spreadsheets"}, "confidence": 0.9}
         )
@@ -264,11 +264,11 @@ class TestDirectoryPrefs:
         assert result["folder_mappings"]["xlsx"] == "Spreadsheets"  # From work
         assert result["confidence"] == 0.9  # From work (overrides root)
 
-    def test_inheritance_stops_at_override(self, dir_prefs):
+    def test_inheritance_stops_at_override(self, dir_prefs, tmp_path):
         """Test that inheritance chain stops at override_parent=True."""
-        grandparent = Path("/home/user")
-        parent = Path("/home/user/documents")
-        child = Path("/home/user/documents/work")
+        grandparent = tmp_path / "home" / "user"
+        parent = tmp_path / "home" / "user" / "documents"
+        child = tmp_path / "home" / "user" / "documents" / "work"
 
         dir_prefs.set_preference(grandparent, {"gp": "value"})
         dir_prefs.set_preference(parent, {"p": "value"}, override_parent=True)
