@@ -39,3 +39,21 @@ allowlist:
       upstream fix is expected. Re-evaluate when pytest drops the ``py``
       dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
     expires_on: 2026-10-23
+  - advisory_id: CVE-2026-3219
+    package: pip
+    version_spec: "<=26.0.1"
+    reason: >-
+      Pip 26.0.1 is installed transitively into the ``.[all]`` CI
+      environment as the package installer itself. The advisory
+      (published 2026-04-23) affects pip's wheel installation path when
+      processing an attacker-crafted package index response. fo-core's
+      only use of pip in production is the self-install flow (``fo
+      update``) which pins to explicit GitHub releases — not a mutable
+      index — so the vulnerable code path is unreachable for end users.
+      CI jobs that invoke pip do so against the curated PyPI mirror
+      inside the GitHub-hosted runner, not an attacker-controlled index.
+      Base (``.``) audit does not pull pip as a project dep and isn't
+      affected; this entry scopes solely to the ``.[all]`` extras job.
+      Re-evaluate when pip 26.0.2+ ships the fix (upstream tracking
+      pypa/pip#13245).
+    expires_on: 2026-07-24

@@ -638,3 +638,63 @@ class TestPidRecordIntegration:
         # No stray .tmp debris next to the target.
         stray = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
         assert stray == [], f"temp files left behind: {stray}"
+
+    def test_atomic_write_cleans_up_tmp_on_fsync_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Coderabbit PRRT_kwDOR_Rkws59dhdX: the cleanup path for
+        mid-write failures (``fsync``, ``write``, ``flush`` raising)
+        was previously untested — ``tmp_path`` was only assigned AFTER
+        those calls, so the ``finally`` skipped the temp file on
+        disk. With the assignment moved to the first statement of the
+        ``with`` block, a failing ``fsync`` must still leave no
+        stray ``.tmp`` debris.
+        """
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "daemon.pid"
+
+        def fail_fsync(fd):  # type: ignore[no-untyped-def]
+            raise OSError("simulated fsync failure (e.g. ENOSPC)")
+
+        monkeypatch.setattr("daemon.pid.os.fsync", fail_fsync)
+
+        with pytest.raises(OSError, match="simulated fsync"):
+            PidFileManager().write_pid_record(pid_file)
+
+        assert not pid_file.exists()
+        stray = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
+        assert stray == [], (
+            f"fsync failure left .tmp debris behind: {stray} — "
+            "tmp_path must be captured before write/flush/fsync so the "
+            "finally-block cleanup fires on mid-write failures"
+        )
+
+    def test_is_running_accessdenied_falls_back_to_liveness(self, tmp_path: Path) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59dh0X: in hardened deployments
+        (hidepid=2, restricted /proc), ``create_time`` raises
+        ``AccessDenied`` even though the process is alive. ``is_running``
+        must fall back to the PID-liveness check rather than reporting
+        a running daemon as stopped.
+        """
+        import json
+        from unittest.mock import patch
+
+        import psutil
+
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "daemon.pid"
+        # Write a JSON record with a plausible create_time.
+        pid_file.write_text(json.dumps({"pid": os.getpid(), "create_time": 12345.678}))
+
+        with (
+            patch("daemon.pid.psutil.pid_exists", return_value=True),
+            patch(
+                "daemon.pid.psutil.Process",
+                side_effect=psutil.AccessDenied(os.getpid()),
+            ),
+        ):
+            # Must report running (PID alive) despite lacking
+            # create_time access — degraded-but-correct behavior.
+            assert PidFileManager().is_running(pid_file) is True

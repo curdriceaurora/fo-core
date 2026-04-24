@@ -242,6 +242,34 @@ class TestPidRecord:
         pid_file.write_bytes(b"\xff\xfe\xfd corrupted")
         assert pid_manager.read_pid_record(pid_file) is None
 
+    def test_read_pid_record_rejects_float_pid(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59dh0Y: ``int(3.9)`` silently yields
+        3 — if the PID file has a float pid, coercing it could signal
+        the wrong process. Must return None (corrupt).
+        """
+        pid_file.write_text(json.dumps({"pid": 3.9, "create_time": 1.0}))
+        assert pid_manager.read_pid_record(pid_file) is None
+
+    def test_read_pid_record_rejects_bool_pid(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Same root cause as the float case: ``True`` is a subclass of
+        ``int`` and ``int(True)`` yields 1 — pid 1 is init on Linux.
+        Must be rejected outright."""
+        pid_file.write_text(json.dumps({"pid": True, "create_time": 1.0}))
+        assert pid_manager.read_pid_record(pid_file) is None
+
+    def test_read_pid_record_rejects_string_pid(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """String pid like ``"12345"`` was previously coerced by
+        ``int()`` — now rejected as corrupt even though the string
+        happens to parse."""
+        pid_file.write_text(json.dumps({"pid": "12345", "create_time": 1.0}))
+        assert pid_manager.read_pid_record(pid_file) is None
+
     def test_is_running_detects_pid_recycling(
         self, pid_manager: PidFileManager, pid_file: Path
     ) -> None:

@@ -151,6 +151,10 @@ class PidFileManager:
         Raises:
             OSError: If the file cannot be written.
             psutil.NoSuchProcess: If *pid* doesn't exist at write time.
+            psutil.AccessDenied: If *pid* refers to a process owned by
+                another user whose ``create_time`` isn't readable
+                (typically only triggered when callers pass an explicit
+                *pid* that isn't the current process).
         """
         pid = pid if pid is not None else os.getpid()
         create_time = psutil.Process(pid).create_time()
@@ -215,10 +219,19 @@ class PidFileManager:
                 suffix=".tmp",
                 delete=False,
             ) as tmp:
+                # Coderabbit PRRT_kwDOR_Rkws59dhdX: capture ``tmp_path``
+                # BEFORE write/flush/fsync so the ``finally`` cleanup
+                # armed at Line 166 actually sees the on-disk temp if
+                # any of those calls raises (ENOSPC, EIO,
+                # KeyboardInterrupt). ``NamedTemporaryFile(delete=False)``
+                # creates the file on disk immediately and does not
+                # auto-unlink on exception — without this assignment
+                # order a mid-write failure would leave ``.tmp`` debris
+                # next to the real PID file.
+                tmp_path = Path(tmp.name)
                 tmp.write(payload)
                 tmp.flush()
                 os.fsync(tmp.fileno())
-                tmp_path = Path(tmp.name)
             try:
                 os.chmod(tmp_path, target_mode)
             except OSError:
@@ -323,7 +336,21 @@ class PidFileManager:
         try:
             data = json.loads(content)
             if isinstance(data, dict) and "pid" in data:
-                pid = int(data["pid"])
+                # Codex P2 PRRT_kwDOR_Rkws59dh0Y: reject non-integer pid
+                # values outright rather than coercing with ``int()`` —
+                # ``int(True)`` yields 1, ``int(3.9)`` yields 3, either
+                # of which could signal the wrong process in
+                # ``daemon stop``. An externally-written or malformed
+                # record with a boolean or float pid is corrupt; the
+                # code-path contract is "treat corrupt as None".
+                #
+                # ``isinstance(v, bool)`` first because ``bool`` is a
+                # subclass of ``int`` in Python (``isinstance(True,
+                # int)`` is True).
+                raw_pid = data["pid"]
+                if isinstance(raw_pid, bool) or not isinstance(raw_pid, int):
+                    raise TypeError(f"pid field must be int, got {type(raw_pid).__name__}")
+                pid = raw_pid
                 ct_raw = data.get("create_time")
                 create_time = float(ct_raw) if ct_raw is not None else None
                 return PidRecord(pid=pid, create_time=create_time)
@@ -388,10 +415,27 @@ class PidFileManager:
         # that wrote the record.
         try:
             actual_create_time = psutil.Process(record.pid).create_time()
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            # Process disappeared between pid_exists and create_time,
-            # or we can't inspect it — treat as not running.
+        except psutil.NoSuchProcess:
+            # Process disappeared between pid_exists and create_time —
+            # it's really gone, treat as not running.
             return False
+        except psutil.AccessDenied:
+            # Codex P2 PRRT_kwDOR_Rkws59dh0X: in hardened deployments
+            # (cross-user checks with restricted ``/proc`` visibility,
+            # hidepid=2, seccomp-bpf sandboxes, etc.) we can't read
+            # ``create_time`` but ``pid_exists`` already confirmed the
+            # process is alive. Returning False here reports a running
+            # daemon as stopped — a regression from the pre-F2
+            # ``psutil.pid_exists``-only fallback. Degrade gracefully:
+            # without create_time we lose recycling detection (same
+            # degradation as the legacy-format branch above), but
+            # we correctly report liveness.
+            logger.debug(
+                "PID %d create_time unreadable (AccessDenied); "
+                "falling back to PID-liveness only (no recycling check)",
+                record.pid,
+            )
+            return True
 
         if abs(actual_create_time - record.create_time) > _CREATE_TIME_TOLERANCE_S:
             logger.warning(
