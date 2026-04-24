@@ -34,6 +34,120 @@ from ..config import AIHeuristicConfig, CategoryThresholds
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# AIInferenceAdapter — D3 seam for decoupling AIHeuristic from Ollama.
+# ---------------------------------------------------------------------------
+#
+# Epic D.pipeline (hardening roadmap #157 — D3): Before D3 the heuristic
+# engine instantiated ``ollama.Client`` directly, making tests mock the
+# module globals ``OLLAMA_AVAILABLE`` and ``ollama`` for every case.
+# The adapter factors the "available + infer" surface into a single
+# protocol so alternative backends (local vLLM, OpenAI-compatible,
+# deterministic fakes for tests) can be injected without touching
+# AIHeuristic's body.
+#
+# Backward compat: if no adapter is passed to ``AIHeuristic(...)`` the
+# default ``OllamaInferenceAdapter`` is used, which reads the same
+# ``OLLAMA_AVAILABLE`` / ``ollama`` module globals the existing tests
+# monkey-patch. Pre-D3 tests keep passing verbatim.
+
+
+class AIInferenceAdapter(Protocol):
+    """Transport-agnostic surface for AI PARA classification.
+
+    Implementations must provide ``is_available()`` (cheap check + lazy
+    init) and ``infer()`` (one-shot inference call). Both must be
+    thread-safe.
+
+    The adapter owns its own connection lifecycle, timeout, and cache-key
+    concerns are NOT its responsibility — the heuristic layer handles
+    caching on top of the adapter.
+    """
+
+    def is_available(self) -> bool:
+        """Return ``True`` if the backend is installed and reachable.
+
+        Cached after the first call so the external check (e.g. TCP
+        connect) runs at most once per adapter instance.
+        """
+        ...
+
+    def infer(self, *, prompt: str, system: str) -> str | None:
+        """Run one-shot inference and return the raw response text.
+
+        Returns ``None`` on any transport-level failure (backend
+        unreachable, timeout, HTTP error). Parse errors are the caller's
+        responsibility — raw text is returned verbatim on success.
+        """
+        ...
+
+
+class OllamaInferenceAdapter:
+    """Default ``AIInferenceAdapter`` — wraps ``ollama.Client``.
+
+    Reads the module-level ``OLLAMA_AVAILABLE`` / ``ollama`` globals so
+    pre-D3 tests that patch those continue to work without change.
+    """
+
+    def __init__(self, config: AIHeuristicConfig) -> None:
+        """Store config; defer client creation to the first ``is_available`` call."""
+        self._config = config
+        self._client: Any = None
+        self._available: bool | None = None
+        self._init_lock = threading.Lock()
+
+    def is_available(self) -> bool:
+        """Lazily create the Ollama client with double-checked locking.
+
+        See the module docstring for ``AIHeuristic._ensure_client``
+        (kept for documentation of the race window this method closes).
+        """
+        if self._available is not None:
+            return self._available
+
+        with self._init_lock:
+            if self._available is not None:
+                return self._available
+
+            if not OLLAMA_AVAILABLE:
+                self._available = False
+                return False
+
+            try:
+                self._client = ollama.Client(
+                    host=self._config.ollama_url,
+                    timeout=self._config.timeout,
+                )
+                self._client.list()
+                self._available = True
+            except Exception:
+                logger.warning("Ollama unavailable at %s", self._config.ollama_url, exc_info=True)
+                self._available = False
+
+        return self._available
+
+    def infer(self, *, prompt: str, system: str) -> str | None:
+        """Call ``ollama.Client.generate`` and return the raw response text."""
+        if not self.is_available() or self._client is None:
+            return None
+        try:
+            response = self._client.generate(
+                model=self._config.model,
+                system=system,
+                prompt=prompt,
+                options={
+                    "temperature": self._config.temperature,
+                    "num_predict": self._config.max_tokens,
+                },
+                stream=False,
+            )
+        except Exception:
+            logger.warning("Ollama generate failed", exc_info=True)
+            return None
+        response_text = response.get("response", "") or ""
+        return response_text if isinstance(response_text, str) else None
+
+
 @dataclass
 class CategoryScore:
     """Score for a PARA category."""
@@ -504,15 +618,30 @@ class AIHeuristic(Heuristic):
         "Content preview:\n{content}\n"
     )
 
-    def __init__(self, weight: float = 1.0, config: AIHeuristicConfig | None = None) -> None:
+    def __init__(
+        self,
+        weight: float = 1.0,
+        config: AIHeuristicConfig | None = None,
+        adapter: AIInferenceAdapter | None = None,
+    ) -> None:
         """Initialize AI heuristic.
 
         Args:
             weight: Weight of this heuristic in final scoring (0.0 to 1.0)
             config: AI heuristic configuration. Uses defaults if not provided.
+            adapter: Optional inference adapter (D3 seam). Defaults to
+                ``OllamaInferenceAdapter(config)`` — which reads the same
+                module-level ``OLLAMA_AVAILABLE`` / ``ollama`` globals the
+                pre-D3 tests monkey-patch. Pass a fake adapter in tests to
+                avoid patching module globals.
         """
         super().__init__(weight=weight)
         self.config = config or AIHeuristicConfig()
+        # D3 seam: when an adapter is supplied, _invoke_inference delegates
+        # to it. When None, the pre-D3 inline ``self._client.generate(...)``
+        # path is used — preserves backward compat with tests that poke
+        # ``h._client`` and ``h._available`` directly.
+        self._adapter: AIInferenceAdapter | None = adapter
         self._client: Any = None
         self._available: bool | None = None
         self._init_lock = threading.Lock()
@@ -522,12 +651,19 @@ class AIHeuristic(Heuristic):
     def _ensure_client(self) -> bool:
         """Lazily create the Ollama client (thread-safe).
 
-        Uses a double-check locking pattern so the Ollama connectivity test
-        runs at most once per instance even under concurrent access.
+        When a D3 ``adapter`` is injected, delegates availability to it
+        instead of instantiating ``ollama.Client`` directly. Otherwise
+        uses a double-check locking pattern so the Ollama connectivity
+        test runs at most once per instance even under concurrent access.
 
         Returns:
-            True if client is available, False otherwise.
+            True if the inference backend is available, False otherwise.
         """
+        if self._adapter is not None:
+            available = self._adapter.is_available()
+            self._available = available
+            return available
+
         if self._available is not None:
             return self._available
 
@@ -553,6 +689,34 @@ class AIHeuristic(Heuristic):
                 self._available = False
 
         return self._available
+
+    def _invoke_inference(self, *, prompt: str, system: str) -> str | None:
+        """D3 seam for custom inference backends.
+
+        Default implementation calls ``self._client.generate(...)`` — the
+        pre-D3 Ollama path. Subclasses or test doubles can replace this
+        method (or pass an ``adapter`` whose ``infer`` method is
+        delegated to here) to swap in a different backend.
+
+        Returns:
+            Raw response text from the inference backend, or ``None`` on
+            transport failure. Callers convert ``None`` to a zero-result
+            with ``metadata["ai_analysis"] == "ollama_error"``.
+        """
+        if self._adapter is not None:
+            return self._adapter.infer(prompt=prompt, system=system)
+        response = self._client.generate(
+            model=self.config.model,
+            system=system,
+            prompt=prompt,
+            options={
+                "temperature": self.config.temperature,
+                "num_predict": self.config.max_tokens,
+            },
+            stream=False,
+        )
+        response_text = response.get("response", "") or ""
+        return response_text if isinstance(response_text, str) else None
 
     def _get_cache_key(self, file_path: Path) -> tuple[str, int, int] | None:
         """Return a cache key for the file, or None if stat fails.
@@ -735,19 +899,11 @@ class AIHeuristic(Heuristic):
         prompt = self._build_prompt(file_path, content)
 
         try:
-            response = self._client.generate(
-                model=self.config.model,
-                system=self._SYSTEM_MESSAGE,
-                prompt=prompt,
-                options={
-                    "temperature": self.config.temperature,
-                    "num_predict": self.config.max_tokens,
-                },
-                stream=False,
-            )
-            response_text: str = response.get("response", "") or ""
+            response_text = self._invoke_inference(prompt=prompt, system=self._SYSTEM_MESSAGE)
         except Exception:
             logger.warning("Ollama generate failed", exc_info=True)
+            return self._zero_result("ollama_error")
+        if response_text is None:
             return self._zero_result("ollama_error")
 
         try:
