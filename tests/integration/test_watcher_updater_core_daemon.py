@@ -210,7 +210,13 @@ class TestFileEventHandlerDebounce:
     def test_debounce_dict_hard_cap_prevents_unbounded_growth(self, tmp_path: Path) -> None:
         """F3: even if nothing is stale, the dict is capped at
         ``_MAX_DEBOUNCE_ENTRIES``. Oldest entries are dropped in bulk
-        on the next ``_should_process`` call."""
+        on the next ``_should_process`` call.
+
+        Also exercises the one-shot warning latch: a second over-cap
+        call skips the WARNING (``272->exit`` branch) because
+        ``_debounce_cap_warned`` is already True. The gate exists so
+        a sustained over-cap pattern doesn't flood logs.
+        """
         import time as _time
 
         from watcher.config import WatcherConfig
@@ -226,8 +232,20 @@ class TestFileEventHandlerDebounce:
             for i in range(_MAX_DEBOUNCE_ENTRIES + overflow):
                 handler._last_event_times[f"p{i}"] = now - (overflow - i) * 0.0001
 
+        # First over-cap call: logs the warning, sets the latch, evicts.
         handler._should_process("trigger")
         assert len(handler._last_event_times) <= _MAX_DEBOUNCE_ENTRIES + 1
+        assert handler._debounce_cap_warned is True
+
+        # Push back over cap and call again — the latch must suppress
+        # the warning on this second eviction (exercises line 272->exit).
+        with handler._debounce_lock:
+            for i in range(overflow):
+                handler._last_event_times[f"refill{i}"] = now - (overflow - i) * 0.0001
+        handler._should_process("trigger2")
+        assert handler._debounce_cap_warned is True, (
+            "latch must stay True while we're still breaching the cap"
+        )
 
     def test_pending_paths_tracks_state(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
