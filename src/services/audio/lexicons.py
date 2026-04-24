@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -80,13 +81,25 @@ class SentimentLexicon:
     def load_default(cls) -> SentimentLexicon:
         """Return the bundled lexicon, caching the result.
 
-        Subsequent calls return the same instance — safe because the
-        dataclass is frozen and the contained fields (frozenset, dict)
-        are not mutated after construction.
+        Uses double-checked locking so concurrent importers don't each
+        trigger a re-parse. The dataclass is frozen and its fields
+        (frozenset, dict) are not mutated after construction, so
+        readers past the lock see a stable instance.
+
+        Coderabbit PR #191: binding to a local variable narrows the
+        type from ``Optional[SentimentLexicon]`` → ``SentimentLexicon``
+        for Pyre / mypy-strict; the raw dict lookup can't be narrowed
+        by a preceding ``is None`` check.
         """
-        if _LOAD_DEFAULT_CACHE["value"] is None:
-            _LOAD_DEFAULT_CACHE["value"] = cls.load_from_path(_DEFAULT_LEXICON_PATH)
-        return _LOAD_DEFAULT_CACHE["value"]
+        cached = _LOAD_DEFAULT_CACHE["value"]
+        if cached is not None:
+            return cached
+        with _LOAD_DEFAULT_LOCK:
+            cached = _LOAD_DEFAULT_CACHE["value"]
+            if cached is None:
+                cached = cls.load_from_path(_DEFAULT_LEXICON_PATH)
+                _LOAD_DEFAULT_CACHE["value"] = cached
+        return cached
 
     @classmethod
     def load_from_path(cls, path: Path) -> SentimentLexicon:
@@ -133,8 +146,11 @@ class SentimentLexicon:
 
 # Module-level cache for ``load_default``. A one-slot dict is used
 # instead of a plain variable to avoid ``nonlocal`` gymnastics inside
-# the classmethod and to keep the cache explicitly visible.
+# the classmethod and to keep the cache explicitly visible. Writes
+# are guarded by ``_LOAD_DEFAULT_LOCK`` under double-checked locking
+# in ``load_default``; see coderabbit review on PR #191.
 _LOAD_DEFAULT_CACHE: dict[str, SentimentLexicon | None] = {"value": None}
+_LOAD_DEFAULT_LOCK = threading.Lock()
 
 
 def _as_frozenset(field: str, value: Any, path: Path) -> frozenset[str]:

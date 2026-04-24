@@ -155,6 +155,57 @@ class TestLoaderErrorHandling:
         with pytest.raises(SentimentLexiconError, match="must be a list"):
             SentimentLexicon.load_from_path(wrong)
 
+    def test_topic_categories_not_an_object_raises(self, tmp_path: Path) -> None:
+        """``_as_topic_dict`` branch 1 — non-object value."""
+        bad = tmp_path / "topics_not_dict.json"
+        bad.write_text(
+            json.dumps(
+                {
+                    "stop_words": [],
+                    "topic_categories": ["not", "an", "object"],
+                    "positive_words": [],
+                    "negative_words": [],
+                    "neutral_words": [],
+                }
+            )
+        )
+        with pytest.raises(SentimentLexiconError, match="must be an object"):
+            SentimentLexicon.load_from_path(bad)
+
+    def test_topic_categories_non_list_value_raises(self, tmp_path: Path) -> None:
+        """``_as_topic_dict`` branch 3 — value is not a list of strings."""
+        bad = tmp_path / "topics_non_list.json"
+        bad.write_text(
+            json.dumps(
+                {
+                    "stop_words": [],
+                    "topic_categories": {"Tech": "cloud,ai"},
+                    "positive_words": [],
+                    "negative_words": [],
+                    "neutral_words": [],
+                }
+            )
+        )
+        with pytest.raises(SentimentLexiconError, match="must be a list of strings"):
+            SentimentLexicon.load_from_path(bad)
+
+    def test_topic_categories_non_string_keyword_raises(self, tmp_path: Path) -> None:
+        """``_as_topic_dict`` branch 3 variant — list contains non-string."""
+        bad = tmp_path / "topics_non_string_kw.json"
+        bad.write_text(
+            json.dumps(
+                {
+                    "stop_words": [],
+                    "topic_categories": {"Tech": ["cloud", 42]},
+                    "positive_words": [],
+                    "negative_words": [],
+                    "neutral_words": [],
+                }
+            )
+        )
+        with pytest.raises(SentimentLexiconError, match="must be a list of strings"):
+            SentimentLexicon.load_from_path(bad)
+
 
 class TestBackwardCompatModuleConstants:
     """The content_analyzer module-level constants remain usable
