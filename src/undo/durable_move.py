@@ -192,59 +192,93 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
 
     tmp_path: Path | None = None
     try:
-        # Copy into a temp in dst's parent so the final rename is
-        # same-filesystem. ``NamedTemporaryFile(delete=False)`` keeps
-        # the file on disk for the os.replace step.
-        with tempfile.NamedTemporaryFile(
-            dir=str(dst.parent),
-            prefix=f".{dst.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as tmp:
-            tmp_path = Path(tmp.name)
-        shutil.copyfile(src, tmp_path)
-        # Preserve mode bits so daemons that rely on chmod survive
-        # the copy (matches pre-F7 ``shutil.move`` behavior on
-        # cross-device moves, which uses copy2 internally).
-        try:
-            shutil.copystat(src, tmp_path)
-        except OSError:
-            # copystat failures are non-fatal — better to complete
-            # the move with default mode than fail.
-            logger.debug(
-                "copystat failed for %s → %s; proceeding with default mode",
-                src,
-                tmp_path,
-                exc_info=True,
-            )
-        # fsync file + parent dir before the rename so a power loss
-        # after ``os.replace`` can't leave the new directory entry
-        # pointing at an inode with unflushed pages.
-        fd = os.open(tmp_path, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        # ``fsync_directory(dst)`` fsyncs ``dst.parent`` — see
-        # ``utils.atomic_io.fsync_directory`` docstring. Same effect
-        # as an explicit ``_fsync_directory(dst.parent)`` but reuses
-        # the shared helper.
-        fsync_directory(dst)
-        os.replace(tmp_path, dst)
-        # Codex P1 PRRT_kwDOR_Rkws59fwMG: fsync ``dst.parent`` AGAIN
-        # after the rename so the new directory entry is durable
-        # before we log ``copied`` and unlink the source. Without
-        # this second fsync, a crash between ``os.replace`` and the
-        # next journal append could leave the journal claiming
-        # ``copied`` while the rename itself hadn't reached disk —
-        # sweep would then unlink the (recoverable) source while
-        # the destination directory entry had rolled back.
-        fsync_directory(dst)
-        tmp_path = None  # successfully moved into place
+        if src.is_symlink():
+            # Codex P1 PRRT_kwDOR_Rkws59gnab: preserve symlink identity
+            # on EXDEV moves. ``shutil.copyfile`` follows symlinks and
+            # would replace ``dst`` with a regular file containing the
+            # target's bytes — breaking rollback fidelity for symlink
+            # trash entries and destroying dangling symlinks entirely
+            # (shutil.copyfile on a dangling symlink raises
+            # ``FileNotFoundError``). Replicates ``shutil.move``'s
+            # pre-F7 symlink handling: readlink → create new symlink
+            # at a tmp path → os.replace → unlink the original.
+            # ``readlink`` preserves absolute-vs-relative target form.
+            target = os.readlink(src)
+            tmp_path = dst.parent / f".{dst.name}.{os.getpid()}.symlink.tmp"
+            # Clean any stale tmp from a prior crashed attempt at the
+            # exact same path. The PID suffix makes collisions between
+            # concurrent processes impossible; the only realistic way
+            # the tmp exists is that a prior invocation with the same
+            # PID crashed mid-symlink (before the ``os.replace``).
+            # An ``OSError`` here surfaces to the outer handler which
+            # logs + leaves the journal's ``started`` entry for sweep.
+            if os.path.lexists(tmp_path):
+                tmp_path.unlink()
+            os.symlink(target, tmp_path)
+            # No file data to fsync for a symlink — the target string
+            # lives in the inode itself on most filesystems — but the
+            # directory entry DOES need to be fsynced before the
+            # rename (parity with the regular-file branch below).
+            fsync_directory(dst)
+            os.replace(tmp_path, dst)
+            fsync_directory(dst)
+            tmp_path = None
+        else:
+            # Copy into a temp in dst's parent so the final rename is
+            # same-filesystem. ``NamedTemporaryFile(delete=False)`` keeps
+            # the file on disk for the os.replace step.
+            with tempfile.NamedTemporaryFile(
+                dir=str(dst.parent),
+                prefix=f".{dst.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as tmp:
+                tmp_path = Path(tmp.name)
+            shutil.copyfile(src, tmp_path)
+            # Preserve mode bits so daemons that rely on chmod survive
+            # the copy (matches pre-F7 ``shutil.move`` behavior on
+            # cross-device moves, which uses copy2 internally).
+            try:
+                shutil.copystat(src, tmp_path)
+            except OSError:
+                # copystat failures are non-fatal — better to complete
+                # the move with default mode than fail.
+                logger.debug(
+                    "copystat failed for %s → %s; proceeding with default mode",
+                    src,
+                    tmp_path,
+                    exc_info=True,
+                )
+            # fsync file + parent dir before the rename so a power loss
+            # after ``os.replace`` can't leave the new directory entry
+            # pointing at an inode with unflushed pages.
+            fd = os.open(tmp_path, os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            # ``fsync_directory(dst)`` fsyncs ``dst.parent`` — see
+            # ``utils.atomic_io.fsync_directory`` docstring. Same effect
+            # as an explicit ``_fsync_directory(dst.parent)`` but reuses
+            # the shared helper.
+            fsync_directory(dst)
+            os.replace(tmp_path, dst)
+            # Codex P1 PRRT_kwDOR_Rkws59fwMG: fsync ``dst.parent`` AGAIN
+            # after the rename so the new directory entry is durable
+            # before we log ``copied`` and unlink the source. Without
+            # this second fsync, a crash between ``os.replace`` and the
+            # next journal append could leave the journal claiming
+            # ``copied`` while the rename itself hadn't reached disk —
+            # sweep would then unlink the (recoverable) source while
+            # the destination directory entry had rolled back.
+            fsync_directory(dst)
+            tmp_path = None  # successfully moved into place
     except BaseException:
         # Leave the ``started`` journal entry and clean up stray tmp
-        # so operators don't accumulate .tmp debris.
-        if tmp_path is not None and tmp_path.exists():
+        # so operators don't accumulate .tmp debris. Use ``lexists``
+        # so a dangling-symlink tmp (target doesn't exist) still gets
+        # removed — ``Path.exists()`` would return False for those.
+        if tmp_path is not None and os.path.lexists(tmp_path):
             try:
                 tmp_path.unlink()
             except OSError:
@@ -261,6 +295,15 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
     except FileNotFoundError:
         # Source already gone — treat as done.
         pass
+
+    # Codex P2 PRRT_kwDOR_Rkws59gnah: fsync ``src.parent`` so the
+    # unlink itself is crash-durable before we log ``done``. On POSIX
+    # an ``os.unlink`` is not persisted until the containing directory
+    # is fsynced; without this call, a power loss here could let ``src``
+    # reappear on reboot while the journal already records ``done``.
+    # ``sweep()`` would then drop the entry and never reconcile the
+    # resurrected file, leaving a phantom copy on disk.
+    fsync_directory(src)
 
     _append_journal(journal, {**payload, "state": STATE_DONE})
 

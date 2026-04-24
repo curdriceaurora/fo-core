@@ -303,7 +303,9 @@ class TestConfigSchemaVersion:
             "doesn't re-trigger migration on already-migrated data"
         )
 
-    def test_unversioned_config_classified_as_legacy(self, tmp_path: Path) -> None:
+    def test_unversioned_config_classified_as_legacy(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """F6 codex P2 PRRT_kwDOR_Rkws59fwMM: configs with no
         ``version`` field (pre-F6 files) must be treated as
         ``LEGACY_CONFIG_VERSION``, NOT as ``CURRENT_SCHEMA_VERSION``.
@@ -313,22 +315,39 @@ class TestConfigSchemaVersion:
         the 1.0→2.0 migration. If we defaulted to current (2.0),
         migrations would silently skip.
 
-        Today current == legacy == "1.0" so the observable behavior
-        is identical. We exercise the classification by registering
-        a migration from LEGACY_CONFIG_VERSION and asserting it runs
-        for an unversioned file — would fail if the code routed
-        unversioned files straight to "current" and skipped migrations.
+        Today ``CURRENT_SCHEMA_VERSION == LEGACY_CONFIG_VERSION == "1.0"``
+        so with no monkeypatching the migration path early-returns and
+        we can't observe the classification (coderabbit
+        PRRT_kwDOR_Rkws59gscN: the previous skip-on-equal variant
+        provided zero active coverage of the P2 fix). We simulate the
+        post-bump state by monkeypatching ``CURRENT_SCHEMA_VERSION``
+        to ``"2.0"`` everywhere it's read, register a sentinel
+        migration keyed on ``LEGACY_CONFIG_VERSION`` ("1.0"), and
+        assert the migration runs — proving the unversioned file was
+        classified as legacy rather than current (which would skip
+        all migrations).
         """
+        import config.manager as manager_mod
         from config import migrations as migrations_mod
+        from config import schema as schema_mod
         from config.schema import LEGACY_CONFIG_VERSION
+
+        # Force divergence so the migration walker actually runs.
+        monkeypatch.setattr(schema_mod, "CURRENT_SCHEMA_VERSION", "2.0")
+        monkeypatch.setattr(manager_mod, "CURRENT_SCHEMA_VERSION", "2.0")
+        monkeypatch.setattr(migrations_mod, "CURRENT_SCHEMA_VERSION", "2.0")
+
+        migration_ran = {"value": False}
+
+        def legacy_migration(data: dict[str, object]) -> dict[str, object]:
+            # Flag the migration and bump the internal version so the
+            # walker's "reached current" check terminates cleanly.
+            migration_ran["value"] = True
+            data["version"] = "2.0"
+            return data
 
         original = migrations_mod.MIGRATIONS.copy()
         try:
-            # Register a sentinel migration keyed on LEGACY_CONFIG_VERSION.
-            def legacy_migration(data: dict) -> dict:
-                data["_migrated_from_legacy"] = True
-                return data
-
             migrations_mod.MIGRATIONS[LEGACY_CONFIG_VERSION] = legacy_migration
             cfg_path = tmp_path / "config.yaml"
             # Deliberately NO version field — simulates a pre-F6 file.
@@ -342,27 +361,17 @@ class TestConfigSchemaVersion:
                 )
             )
 
-            # Force a schema bump via monkeypatching so LEGACY vs
-            # CURRENT actually differ during this test.
-            import config.manager as manager_mod
-
-            # If current == legacy, the migration path is a no-op
-            # (early-return on equal versions), so we can't observe
-            # the legacy classification. Only assert the test is
-            # meaningful under a future bump — today's parity means
-            # this is an upgrade-readiness assertion.
-            if LEGACY_CONFIG_VERSION == manager_mod.CURRENT_SCHEMA_VERSION:
-                pytest.skip(
-                    "LEGACY_CONFIG_VERSION == CURRENT_SCHEMA_VERSION; "
-                    "no migration runs until schema bumps. The test "
-                    "will start enforcing the codex P2 classification "
-                    "once CURRENT is bumped above LEGACY."
-                )
-
             loaded = ConfigManager(tmp_path).load()
-            # Migration must have run (unversioned → classified as
-            # legacy → routed through 1.0 migration).
-            assert loaded  # type: ignore[truthy-bool]  # placeholder for future schema
+
+            # Load succeeded AND the legacy-keyed migration actually
+            # ran: proves the unversioned file was classified as
+            # LEGACY_CONFIG_VERSION, not as CURRENT.
+            assert isinstance(loaded, AppConfig)
+            assert migration_ran["value"], (
+                "migration keyed on LEGACY_CONFIG_VERSION must run when "
+                "loading an unversioned config under simulated schema bump "
+                "(codex P2 PRRT_kwDOR_Rkws59fwMM classification contract)"
+            )
         finally:
             migrations_mod.MIGRATIONS.clear()
             migrations_mod.MIGRATIONS.update(original)

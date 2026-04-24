@@ -31,7 +31,7 @@ class RollbackExecutor:
         self,
         validator: OperationValidator | None = None,
         journal_path: Path | None = None,
-    ):
+    ) -> None:
         """Initialize rollback executor.
 
         Args:

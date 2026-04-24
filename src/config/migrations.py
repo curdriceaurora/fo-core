@@ -37,6 +37,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
+from config.schema import CURRENT_SCHEMA_VERSION
+
 logger = logging.getLogger(__name__)
 
 MigrationFn = Callable[[dict[str, object]], dict[str, object]]
@@ -171,7 +173,8 @@ def _next_version(v: str) -> str:
     if idx + 1 < len(sorted_keys):
         return sorted_keys[idx + 1]
     # No further migration registered — caller assumes we've reached
-    # the current version.
-    from config.schema import CURRENT_SCHEMA_VERSION
-
+    # the current version. Read through the module binding so tests
+    # can monkeypatch ``migrations.CURRENT_SCHEMA_VERSION`` to force
+    # divergence from the legacy fallback in ``config.manager.load``
+    # (coderabbit PRRT_kwDOR_Rkws59gscN / F9 hoist-to-top).
     return CURRENT_SCHEMA_VERSION

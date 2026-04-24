@@ -165,6 +165,177 @@ class TestDurableMoveCrossDevice:
         sweep(journal)
         assert dst.read_text() == "x"
 
+    def test_cross_device_preserves_symlink_identity(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59gnab: EXDEV symlink moves must
+        preserve the symlink itself — NOT dereference and copy the
+        target's bytes. The pre-F7 ``shutil.move`` does this; the F7
+        helper must match.
+        """
+        if os.name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.durable_move import durable_move
+
+        self._force_exdev(monkeypatch)
+        target = tmp_path / "target.txt"
+        target.write_text("target bytes")
+        src = tmp_path / "link.txt"
+        src.symlink_to(target)
+        dst = tmp_path / "moved-link.txt"
+        journal = tmp_path / "move.journal"
+
+        durable_move(src, dst, journal=journal)
+
+        # dst is now a symlink (not a regular file), pointing at the
+        # same target. Reading through it still yields target bytes,
+        # but the identity check is what matters.
+        assert dst.is_symlink(), (
+            "EXDEV move of a symlink must land a symlink at dst; "
+            "shutil.copyfile dereferences and produces a regular file "
+            "(codex P1 PRRT_kwDOR_Rkws59gnab)"
+        )
+        assert os.readlink(dst) == str(target), (
+            f"symlink target must be preserved; got {os.readlink(dst)!r}"
+        )
+        # Original symlink is gone; target itself is untouched.
+        assert not src.is_symlink() and not src.exists()
+        assert target.read_text() == "target bytes"
+
+    def test_cross_device_preserves_dangling_symlink(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Dangling symlinks (target doesn't exist) are legitimate
+        file-system entries — ``shutil.move`` preserves them on EXDEV.
+        ``shutil.copyfile`` on a dangling symlink raises
+        ``FileNotFoundError`` because it tries to open the target, so
+        the old implementation would have destroyed the entry entirely.
+        The readlink-based path handles this correctly.
+        """
+        if os.name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.durable_move import durable_move
+
+        self._force_exdev(monkeypatch)
+        src = tmp_path / "dangling.txt"
+        # Target deliberately does NOT exist.
+        src.symlink_to(tmp_path / "nonexistent.txt")
+        dst = tmp_path / "moved-dangling.txt"
+        journal = tmp_path / "move.journal"
+
+        durable_move(src, dst, journal=journal)
+
+        assert dst.is_symlink(), "dangling symlink must land as a symlink at dst"
+        assert os.readlink(dst) == str(tmp_path / "nonexistent.txt")
+        assert not src.is_symlink() and not os.path.lexists(src)
+
+    def test_cross_device_symlink_clears_stale_tmp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If a prior crashed attempt left a stale tmp symlink at the
+        exact PID-suffixed path, the new attempt removes it and
+        proceeds — covers the defensive ``os.path.lexists`` branch
+        in the EXDEV symlink path.
+        """
+        if os.name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.durable_move import durable_move
+
+        self._force_exdev(monkeypatch)
+        target = tmp_path / "target.txt"
+        target.write_text("t")
+        src = tmp_path / "link.txt"
+        src.symlink_to(target)
+        dst = tmp_path / "dst.txt"
+
+        # Pre-create a stale tmp at the exact same name the symlink
+        # branch generates. Matches the ``f".{dst.name}.{pid}.symlink.tmp"``
+        # format in ``_durable_cross_device_move``.
+        stale = dst.parent / f".{dst.name}.{os.getpid()}.symlink.tmp"
+        stale.symlink_to(tmp_path / "something-unrelated")
+        assert os.path.lexists(stale)
+
+        durable_move(src, dst, journal=tmp_path / "j.journal")
+
+        assert dst.is_symlink()
+        assert os.readlink(dst) == str(target)
+        # Stale tmp is gone (either cleaned up pre-symlink or swept
+        # by os.replace).
+        assert not os.path.lexists(stale)
+
+    def test_cross_device_fsyncs_src_parent_after_unlink(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59gnah: after unlinking ``src`` in
+        the EXDEV path, ``src.parent`` must be fsynced BEFORE the
+        ``done`` journal entry is appended. Otherwise a power loss in
+        that window could let ``src`` reappear on reboot while the
+        journal records ``done`` — sweep drops the entry and skips
+        cleanup, leaving a phantom copy on disk.
+
+        Instrumented by capturing every ``fsync_directory`` call and
+        asserting ``src.parent`` was fsynced AFTER the ``os.unlink(src)``
+        but before the final ``_append_journal`` with state=done.
+        """
+        from undo import durable_move as dm
+
+        self._force_exdev(monkeypatch)
+
+        fsync_calls: list[tuple[str, Path]] = []  # (stage, path)
+        unlinked: list[Path] = []
+        journaled_done: list[int] = []  # indices into fsync_calls
+
+        real_fsync = dm.fsync_directory
+        real_unlink = os.unlink
+        real_append = dm._append_journal
+
+        def tracking_fsync(path):  # type: ignore[no-untyped-def]
+            fsync_calls.append(("fsync", Path(path)))
+            real_fsync(path)
+
+        def tracking_unlink(p, *a, **k):  # type: ignore[no-untyped-def]
+            unlinked.append(Path(p))
+            fsync_calls.append(("unlink", Path(p)))
+            return real_unlink(p, *a, **k)
+
+        def tracking_append(journal, payload):  # type: ignore[no-untyped-def]
+            if payload.get("state") == "done":
+                journaled_done.append(len(fsync_calls))
+            return real_append(journal, payload)
+
+        monkeypatch.setattr("undo.durable_move.fsync_directory", tracking_fsync)
+        monkeypatch.setattr("undo.durable_move.os.unlink", tracking_unlink)
+        monkeypatch.setattr("undo.durable_move._append_journal", tracking_append)
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("x")
+        journal = tmp_path / "move.journal"
+
+        dm.durable_move(src, dst, journal=journal)
+
+        # Find the unlink(src) event and the fsync(src) that must
+        # follow it, and verify both happen before state=done was
+        # journaled.
+        unlink_idx = next(
+            i for i, (stage, p) in enumerate(fsync_calls) if stage == "unlink" and p == src
+        )
+        post_unlink_src_fsync = [
+            i
+            for i, (stage, p) in enumerate(fsync_calls)
+            if i > unlink_idx and stage == "fsync" and p == src
+        ]
+        assert post_unlink_src_fsync, (
+            f"fsync_directory(src) must be called after os.unlink(src) "
+            f"(codex P2 PRRT_kwDOR_Rkws59gnah). call trace: {fsync_calls}"
+        )
+        done_idx = journaled_done[0]
+        assert post_unlink_src_fsync[0] < done_idx, (
+            f"fsync_directory(src) must happen BEFORE state=done is journaled; "
+            f"src fsync at {post_unlink_src_fsync[0]}, done at {done_idx}; "
+            f"trace: {fsync_calls}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Recovery sweep — crash simulation
@@ -621,8 +792,14 @@ class TestDurableMoveFailureModes:
 
     def test_read_journal_drops_malformed_lines(self, tmp_path: Path) -> None:
         """Lines that can't parse as JSON, or parse as the wrong
-        shape, are logged + dropped (not treated as valid entries)."""
-        from undo.durable_move import _read_journal
+        shape, are logged + dropped (not treated as valid entries).
+
+        Coderabbit PRRT_kwDOR_Rkws59gscQ: the production helper
+        returns typed ``_JournalEntry`` objects while the local test
+        helper of the same name returns ``list[dict]``. Alias the
+        import so the two call sites can't be confused.
+        """
+        from undo.durable_move import _read_journal as _prod_read_journal
 
         journal = tmp_path / "corrupt.journal"
         journal.write_text(
@@ -636,7 +813,7 @@ class TestDurableMoveFailureModes:
             )
             + "\n"
         )
-        entries = _read_journal(journal)
+        entries = _prod_read_journal(journal)
         assert len(entries) == 1
         assert entries[0].state == "done"
 
@@ -767,10 +944,19 @@ class TestAppendJournalFlockCoordination:
         holder = open(journal, "r+", encoding="utf-8")
         fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
 
+        # ``appender_entered`` is set IMMEDIATELY before the
+        # _append_journal call — eliminates the coderabbit
+        # PRRT_kwDOR_Rkws59gscT false-positive path where a slow CI
+        # runner just never scheduled the appender thread within the
+        # timeout. If this event fires then the remaining
+        # ``append_done.wait(...)`` is a real invariant: thread is
+        # running, is about to flock, MUST block on LOCK_EX.
+        appender_entered = threading.Event()
         append_done = threading.Event()
         append_error: list[BaseException] = []
 
         def _appender() -> None:
+            appender_entered.set()
             try:
                 _append_journal(
                     journal,
@@ -784,10 +970,18 @@ class TestAppendJournalFlockCoordination:
         t = threading.Thread(target=_appender, daemon=True)
         t.start()
 
-        # Without flock coordination the appender would finish in
-        # microseconds. With flock, it blocks on LOCK_EX while the
-        # holder still has it.
-        assert not append_done.wait(timeout=0.6), (
+        # Confirm the appender thread actually ran — disambiguates
+        # "blocked on flock" (intended) from "never scheduled"
+        # (false pass on shared CI runners).
+        assert appender_entered.wait(timeout=5.0), (
+            "appender thread never scheduled — test environment issue"
+        )
+
+        # Thread reached _append_journal and is now in (or about to
+        # enter) the open() + flock() sequence. Without flock
+        # coordination it would finish in microseconds; with flock,
+        # it blocks on LOCK_EX while our holder still has it.
+        assert not append_done.wait(timeout=0.5), (
             "_append_journal must block while another holder has LOCK_EX "
             "(codex P1 PRRT_kwDOR_Rkws59gbdH)"
         )

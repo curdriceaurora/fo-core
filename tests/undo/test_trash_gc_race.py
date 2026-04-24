@@ -29,9 +29,16 @@ class TestIsPathInFlight:
     """
 
     def test_empty_journal_is_never_in_flight(self, tmp_path: Path) -> None:
+        """Coderabbit PRRT_kwDOR_Rkws59gscW: the file must actually
+        exist (as an empty file) to exercise the "journal exists but
+        has no entries" branch — previously this test just used an
+        unwritten Path and was equivalent to the missing-journal case.
+        """
         from undo.durable_move import is_path_in_flight
 
         journal = tmp_path / "empty.journal"
+        journal.write_text("")  # zero-byte file — distinct from "file doesn't exist"
+        assert journal.exists() and journal.stat().st_size == 0
         assert is_path_in_flight(tmp_path / "any.txt", journal=journal) is False
 
     def test_missing_journal_is_never_in_flight(self, tmp_path: Path) -> None:

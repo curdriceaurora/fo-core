@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from history.database import DatabaseManager
+from history.database import DatabaseCorruptionError, DatabaseManager
 
 
 @pytest.mark.unit
@@ -247,8 +247,6 @@ class TestDatabaseIntegrityCheck:
     def test_integrity_check_raises_on_truncated_file(self, temp_db_path):
         """A deliberately-corrupted database file is rejected with
         ``DatabaseCorruptionError`` referencing the file path."""
-        from history.database import DatabaseCorruptionError
-
         # Seed a valid db, then truncate it mid-page to corrupt.
         db = DatabaseManager(temp_db_path)
         db.initialize()
@@ -271,8 +269,6 @@ class TestDatabaseIntegrityCheck:
     def test_integrity_check_raises_on_bit_flip(self, temp_db_path):
         """Random-byte overwrite past the header triggers
         integrity_check failure (bit-rot / disk corruption)."""
-        from history.database import DatabaseCorruptionError
-
         db = DatabaseManager(temp_db_path)
         db.initialize()
         # Insert a row so the db has payload beyond the schema.
@@ -296,8 +292,6 @@ class TestDatabaseIntegrityCheck:
     def test_corruption_error_is_actionable(self, temp_db_path):
         """The error message must tell the operator what to do — not
         just "integrity_check failed". Look for the quarantine hint."""
-        from history.database import DatabaseCorruptionError
-
         db = DatabaseManager(temp_db_path)
         db.initialize()
         db.close()
