@@ -531,9 +531,7 @@ class TestExecutorJournalPathCoordination:
     F8 GC-vs-restore race.
     """
 
-    def test_executor_inherits_validator_journal_path_when_omitted(
-        self, tmp_path: Path
-    ) -> None:
+    def test_executor_inherits_validator_journal_path_when_omitted(self, tmp_path: Path) -> None:
         from undo.validator import OperationValidator
 
         custom_journal = tmp_path / "custom-tenant.journal"
@@ -550,9 +548,7 @@ class TestExecutorJournalPathCoordination:
             "PRRT_kwDOR_Rkws59hGWY)"
         )
 
-    def test_explicit_executor_journal_path_overrides_validator(
-        self, tmp_path: Path
-    ) -> None:
+    def test_explicit_executor_journal_path_overrides_validator(self, tmp_path: Path) -> None:
         """If both are specified, the explicit executor journal_path
         wins — callers opt into the split only when they pass it."""
         from undo.validator import OperationValidator
