@@ -294,6 +294,46 @@ def _complete_or_rollback(entry: _JournalEntry) -> None:
         logger.warning("sweep: unknown journal state %r for entry %r", entry.state, entry)
 
 
+def is_path_in_flight(path: Path, *, journal: Path) -> bool:
+    """Return True iff *path* is the src or dst of an uncompleted move.
+
+    F8 (hardening roadmap #159): exposes the durable_move journal as
+    a coordination point for concurrent access to paths. Any consumer
+    that wants to delete or mutate a file that might simultaneously
+    be the subject of an in-flight :func:`durable_move` (trash GC,
+    dedup cleanup, manual ``rm``) should call this first and skip the
+    path if True.
+
+    "In-flight" means the journal's latest state entry for the
+    (src, dst) pair is ``started`` or ``copied`` — neither ``done``
+    nor absent. An operation in those states leaves files on disk
+    whose lifecycle the sweep will complete on next startup;
+    deleting one of them out from under the sweep would strand the
+    operation permanently.
+
+    Args:
+        path: Absolute path to check.
+        journal: Same journal used by the matching ``durable_move``
+            calls. Missing/empty journal → ``False`` (nothing in
+            flight).
+    """
+    entries = _read_journal(journal)
+    if not entries:
+        return False
+    # Collapse to the latest state per (src, dst) — an entry may
+    # have been updated across crash-recovery attempts.
+    latest: dict[tuple[str, str], _JournalEntry] = {}
+    for entry in entries:
+        latest[(entry.src, entry.dst)] = entry
+    path_str = str(path)
+    for entry in latest.values():
+        if entry.state == STATE_DONE:
+            continue
+        if entry.src == path_str or entry.dst == path_str:
+            return True
+    return False
+
+
 def _append_journal(journal: Path, payload: dict) -> None:
     """Append one JSON line to the journal, flushing + fsyncing.
 
