@@ -95,9 +95,10 @@ class DaemonService:
         self._stopped_event.clear()
 
         try:
-            # Write PID file
+            # Write PID file — F2 record format (pid + create_time) so
+            # ``is_running`` can detect PID recycling after crash.
             if self.config.pid_file is not None:
-                self._pid_manager.write_pid(self.config.pid_file)
+                self._pid_manager.write_pid_record(self.config.pid_file)
 
             # Install signal handlers (only in main thread)
             self._install_signal_handlers()
@@ -243,9 +244,10 @@ class DaemonService:
         self._started_at = time.monotonic()
 
         try:
-            # Write PID file
+            # Write PID file — F2 record format (pid + create_time) so
+            # ``is_running`` can detect PID recycling after crash.
             if self.config.pid_file is not None:
-                self._pid_manager.write_pid(self.config.pid_file)
+                self._pid_manager.write_pid_record(self.config.pid_file)
 
             # Set up default periodic tasks
             self._setup_default_tasks()
