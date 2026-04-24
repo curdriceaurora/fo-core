@@ -9,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from cli.daemon import daemon_app
+from daemon.pid import PidRecord
 
 runner = CliRunner()
 
@@ -95,7 +96,7 @@ class TestDaemonStop:
         pid_file.write_text("12345")
         mock_mgr = MagicMock()
         mock_mgr_cls.return_value = mock_mgr
-        mock_mgr.read_pid.return_value = 12345
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=12345, create_time=None)
 
         with patch("cli.daemon._DEFAULT_PID_FILE", pid_file):
             result = runner.invoke(daemon_app, ["stop"])
@@ -126,7 +127,7 @@ class TestDaemonStatus:
         mock_mgr = MagicMock()
         mock_mgr_cls.return_value = mock_mgr
         mock_mgr.is_running.return_value = True
-        mock_mgr.read_pid.return_value = 99999
+        mock_mgr.read_pid_record.return_value = PidRecord(pid=99999, create_time=None)
 
         with patch("cli.daemon._DEFAULT_PID_FILE", pid_file):
             result = runner.invoke(daemon_app, ["status"])

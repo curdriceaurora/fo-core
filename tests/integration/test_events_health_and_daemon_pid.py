@@ -429,3 +429,272 @@ class TestPidFileManager:
         with patch("daemon.pid.os.kill", side_effect=ProcessLookupError):
             result = mgr.is_running(pid_file)
         assert result is False
+
+
+# ---------------------------------------------------------------------------
+# F2 hardening — integration-level PID-record / is_running
+# ---------------------------------------------------------------------------
+
+
+class TestPidRecordIntegration:
+    """F2: integration-level coverage for the new ``write_pid_record`` /
+    ``read_pid_record`` / is_running-with-create_time paths so the
+    daemon/pid.py integration-coverage floor (88%) is maintained."""
+
+    def test_round_trip_pid_record(self, tmp_path: Path) -> None:
+        import json
+
+        from daemon.pid import PidFileManager
+
+        mgr = PidFileManager()
+        pid_file = tmp_path / "daemon.pid"
+        written = mgr.write_pid_record(pid_file)
+        # File on disk is JSON with pid + create_time.
+        data = json.loads(pid_file.read_text())
+        assert data["pid"] == os.getpid()
+        assert "create_time" in data
+        # Read back round-trips.
+        read = mgr.read_pid_record(pid_file)
+        assert read is not None
+        assert read.pid == written.pid
+        assert read.create_time == written.create_time
+
+    def test_is_running_with_create_time_match(self, tmp_path: Path) -> None:
+        from daemon.pid import PidFileManager
+
+        mgr = PidFileManager()
+        pid_file = tmp_path / "daemon.pid"
+        mgr.write_pid_record(pid_file)
+        assert mgr.is_running(pid_file) is True
+
+    def test_is_running_rejects_recycled_pid(self, tmp_path: Path) -> None:
+        """Shifted create_time simulates a PID that was recycled after
+        the original daemon died — is_running must return False."""
+        import json
+
+        import psutil
+
+        from daemon.pid import PidFileManager
+
+        mgr = PidFileManager()
+        pid = os.getpid()
+        actual_ct = psutil.Process(pid).create_time()
+        pid_file = tmp_path / "daemon.pid"
+        pid_file.write_text(json.dumps({"pid": pid, "create_time": actual_ct - 3600.0}))
+        assert mgr.is_running(pid_file) is False
+
+    def test_legacy_text_format_still_reads(self, tmp_path: Path) -> None:
+        """A PID file written by pre-F2 code (plain integer) still
+        parses via read_pid_record; create_time is None."""
+        from daemon.pid import PidFileManager
+
+        mgr = PidFileManager()
+        pid_file = tmp_path / "daemon.pid"
+        pid_file.write_text(str(os.getpid()))
+        record = mgr.read_pid_record(pid_file)
+        assert record is not None
+        assert record.pid == os.getpid()
+        assert record.create_time is None
+        # And is_running falls back to pid_exists only.
+        assert mgr.is_running(pid_file) is True
+
+    def test_read_record_empty_file(self, tmp_path: Path) -> None:
+        """Empty PID file → None (not a raise). Covers the early-out
+        branch in ``read_pid_record``."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "empty.pid"
+        pid_file.write_text("")
+        assert PidFileManager().read_pid_record(pid_file) is None
+
+    def test_read_record_corrupt_content(self, tmp_path: Path) -> None:
+        """Content that is neither JSON nor a plain integer → None
+        with a logged warning. Covers the final-fallback error path."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "corrupt.pid"
+        pid_file.write_text("{ not json either")
+        assert PidFileManager().read_pid_record(pid_file) is None
+
+    def test_read_record_json_missing_pid_falls_through(self, tmp_path: Path) -> None:
+        """Valid JSON but missing the ``pid`` key — the json-branch
+        gives up and the code falls through to the legacy int-parse
+        (which also fails for a JSON object string). Exercises that
+        fallthrough path."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "no_pid_key.pid"
+        pid_file.write_text('{"something_else": 42}')
+        assert PidFileManager().read_pid_record(pid_file) is None
+
+    def test_is_running_handles_race_process_disappears(self, tmp_path: Path) -> None:
+        """F2 TOCTOU branch: ``psutil.pid_exists`` returns True but
+        ``psutil.Process`` raises ``NoSuchProcess`` between the checks
+        (the process terminated in between). Must return False rather
+        than propagate the exception."""
+        import json
+        from unittest.mock import patch
+
+        import psutil
+
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "race.pid"
+        pid_file.write_text(json.dumps({"pid": os.getpid(), "create_time": 12345.678}))
+
+        with (
+            patch("daemon.pid.psutil.pid_exists", return_value=True),
+            patch(
+                "daemon.pid.psutil.Process",
+                side_effect=psutil.NoSuchProcess(os.getpid()),
+            ),
+        ):
+            assert PidFileManager().is_running(pid_file) is False
+
+    def test_rotation_preserves_mode(self, tmp_path: Path) -> None:
+        """Covers the chmod + os.replace permission-preservation path
+        (round-2/3 codex P2) in the integration suite. A pre-existing
+        PID file at 0o640 must stay 0o640 after rotation.
+        """
+        import pytest
+
+        if os.name == "nt":
+            pytest.skip("POSIX file-mode semantics")
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "rotated.pid"
+        pid_file.write_text("0")
+        os.chmod(pid_file, 0o640)
+
+        PidFileManager().write_pid_record(pid_file)
+
+        mode = pid_file.stat().st_mode & 0o7777
+        assert mode == 0o640
+
+    def test_rotation_chown_path_is_exercised(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Covers the os.chown call + PermissionError branch (round-4).
+
+        Spies on os.chown to confirm it's invoked with the
+        pre-existing uid/gid, and raises PermissionError to exercise
+        the except branch without requiring CAP_CHOWN.
+        """
+        import pytest
+
+        if os.name == "nt" or not hasattr(os, "chown"):
+            pytest.skip("os.chown is Unix-only")
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "owned.pid"
+        pid_file.write_text("0")
+        stat = pid_file.stat()
+
+        calls: list[tuple[str, int, int]] = []
+
+        def fake_chown(path, uid, gid):  # type: ignore[no-untyped-def]
+            calls.append((str(path), int(uid), int(gid)))
+            raise PermissionError("simulated lack of CAP_CHOWN")
+
+        monkeypatch.setattr("daemon.pid.os.chown", fake_chown)
+
+        # Must not raise — PermissionError is logged + swallowed.
+        PidFileManager().write_pid_record(pid_file)
+        assert calls == [(str(pid_file), stat.st_uid, stat.st_gid)]
+
+    def test_read_record_non_utf8_returns_none(self, tmp_path: Path) -> None:
+        """Covers the ``UnicodeDecodeError`` branch in read_pid_record
+        (round-4 codex P2). Raw non-UTF-8 bytes must return None
+        gracefully rather than propagating the decode error into
+        ``daemon status``/``stop``."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "corrupt-bytes.pid"
+        pid_file.write_bytes(b"\xff\xfe\xfd garbage")
+        assert PidFileManager().read_pid_record(pid_file) is None
+
+    def test_atomic_write_cleans_up_tmp_on_replace_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Covers the ``finally`` tmp_path cleanup branch (round-2):
+        when ``os.replace`` fails mid-write, the stray ``.tmp`` file
+        must be unlinked rather than left next to the real PID file."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "daemon.pid"
+        real_replace = os.replace
+
+        def fail_once(src, dst):  # type: ignore[no-untyped-def]
+            monkeypatch.setattr("daemon.pid.os.replace", real_replace)
+            raise OSError("simulated os.replace failure")
+
+        monkeypatch.setattr("daemon.pid.os.replace", fail_once)
+
+        with pytest.raises(OSError, match="simulated"):
+            PidFileManager().write_pid_record(pid_file)
+
+        # No real pid file landed.
+        assert not pid_file.exists()
+        # No stray .tmp debris next to the target.
+        stray = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
+        assert stray == [], f"temp files left behind: {stray}"
+
+    def test_atomic_write_cleans_up_tmp_on_fsync_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Coderabbit PRRT_kwDOR_Rkws59dhdX: the cleanup path for
+        mid-write failures (``fsync``, ``write``, ``flush`` raising)
+        was previously untested — ``tmp_path`` was only assigned AFTER
+        those calls, so the ``finally`` skipped the temp file on
+        disk. With the assignment moved to the first statement of the
+        ``with`` block, a failing ``fsync`` must still leave no
+        stray ``.tmp`` debris.
+        """
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "daemon.pid"
+
+        def fail_fsync(fd):  # type: ignore[no-untyped-def]
+            raise OSError("simulated fsync failure (e.g. ENOSPC)")
+
+        monkeypatch.setattr("daemon.pid.os.fsync", fail_fsync)
+
+        with pytest.raises(OSError, match="simulated fsync"):
+            PidFileManager().write_pid_record(pid_file)
+
+        assert not pid_file.exists()
+        stray = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
+        assert stray == [], (
+            f"fsync failure left .tmp debris behind: {stray} — "
+            "tmp_path must be captured before write/flush/fsync so the "
+            "finally-block cleanup fires on mid-write failures"
+        )
+
+    def test_is_running_accessdenied_falls_back_to_liveness(self, tmp_path: Path) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59dh0X: in hardened deployments
+        (hidepid=2, restricted /proc), ``create_time`` raises
+        ``AccessDenied`` even though the process is alive. ``is_running``
+        must fall back to the PID-liveness check rather than reporting
+        a running daemon as stopped.
+        """
+        import json
+        from unittest.mock import patch
+
+        import psutil
+
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "daemon.pid"
+        # Write a JSON record with a plausible create_time.
+        pid_file.write_text(json.dumps({"pid": os.getpid(), "create_time": 12345.678}))
+
+        with (
+            patch("daemon.pid.psutil.pid_exists", return_value=True),
+            patch(
+                "daemon.pid.psutil.Process",
+                side_effect=psutil.AccessDenied(os.getpid()),
+            ),
+        ):
+            # Must report running (PID alive) despite lacking
+            # create_time access — degraded-but-correct behavior.
+            assert PidFileManager().is_running(pid_file) is True

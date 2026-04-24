@@ -6,6 +6,7 @@ configurable pattern filtering, and event queuing for batch processing.
 
 from __future__ import annotations
 
+import heapq
 import logging
 import os
 import threading
@@ -26,6 +27,27 @@ from .config import WatcherConfig
 from .queue import EventQueue, EventType, FileEvent
 
 logger = logging.getLogger(__name__)
+
+# F3 (hardening roadmap #159): debounce-dict eviction tunables.
+#
+# ``_STALE_MULTIPLIER``: entries older than ``debounce_seconds *
+# _STALE_MULTIPLIER`` are dropped on every ``_should_process`` call —
+# after that horizon the entry no longer gates anything, so keeping it
+# only wastes memory.
+#
+# ``_MIN_EVICTION_HORIZON_S``: floor on the stale horizon. Without it,
+# a ``debounce_seconds=0.0`` config produces a zero stale horizon and
+# evicts every entry (including the one we just wrote). The 60s floor
+# means eviction kicks in no sooner than one minute regardless of
+# config — enough for any realistic debouncing, loose enough to avoid
+# thrashing the lock on busy watchers.
+#
+# ``_MAX_DEBOUNCE_ENTRIES``: hard ceiling against pathological cases
+# (e.g. very large debounce_seconds making the age horizon enormous).
+# When exceeded, the oldest entries are dropped in bulk.
+_STALE_MULTIPLIER = 10
+_MIN_EVICTION_HORIZON_S = 60.0
+_MAX_DEBOUNCE_ENTRIES = 10_000
 
 
 class FileEventHandler(FileSystemEventHandler):
@@ -55,6 +77,12 @@ class FileEventHandler(FileSystemEventHandler):
         # Debounce state: maps file path -> last event timestamp (monotonic)
         self._last_event_times: dict[str, float] = {}
         self._debounce_lock = threading.Lock()
+        # F3: latched flag so the hard-cap warning emits at most once
+        # per breach episode. Without this, a sustained traffic pattern
+        # keeping the dict at cap+1 would log a WARNING on every single
+        # event, burying other logs. Reset to False as soon as the dict
+        # drops back under the cap so a later breach logs again.
+        self._debounce_cap_warned = False
 
         # Callback hooks (optional, for direct notification without queue)
         self._on_created_callbacks: list[Callable[..., object]] = []
@@ -170,6 +198,20 @@ class FileEventHandler(FileSystemEventHandler):
         Uses monotonic time for reliable interval measurement regardless
         of system clock adjustments.
 
+        F3 (hardening roadmap #159): evicts stale debounce entries on
+        every call. Pre-F3 the ``_last_event_times`` dict grew
+        unbounded — a long-running daemon that observed many distinct
+        paths leaked memory indefinitely. Post-F3 the dict is capped
+        in two ways:
+
+        1. Any entry older than ``debounce_seconds * _STALE_MULTIPLIER``
+           is dropped (it no longer gates anything because the window
+           has long since expired).
+        2. If the dict exceeds ``_MAX_DEBOUNCE_ENTRIES`` the oldest
+           entries are dropped in bulk — a hard ceiling against
+           pathological cases where the eviction heuristic doesn't keep
+           up (e.g. debounce_seconds set very high).
+
         Args:
             path_key: String representation of the file path.
 
@@ -179,6 +221,8 @@ class FileEventHandler(FileSystemEventHandler):
         now = time.monotonic()
 
         with self._debounce_lock:
+            self._evict_stale_debounce_entries_locked(now)
+
             last_time = self._last_event_times.get(path_key)
 
             if last_time is not None:
@@ -188,6 +232,52 @@ class FileEventHandler(FileSystemEventHandler):
 
             self._last_event_times[path_key] = now
             return True
+
+    def _evict_stale_debounce_entries_locked(self, now: float) -> None:
+        """Drop debounce entries that are older than the stale horizon.
+
+        Called from inside ``_should_process`` under ``_debounce_lock``.
+        Split into a helper so tests can assert eviction policy without
+        going through the full debounce machinery.
+        """
+        stale_horizon = max(
+            self.config.debounce_seconds * _STALE_MULTIPLIER,
+            _MIN_EVICTION_HORIZON_S,
+        )
+        expired = [
+            key
+            for key, last_time in self._last_event_times.items()
+            if (now - last_time) > stale_horizon
+        ]
+        for key in expired:
+            del self._last_event_times[key]
+
+        # Hard ceiling against pathological growth (e.g. very large
+        # ``debounce_seconds`` making ``stale_horizon`` huge). Drop the
+        # oldest entries in bulk until under the cap.
+        if len(self._last_event_times) > _MAX_DEBOUNCE_ENTRIES:
+            surplus = len(self._last_event_times) - _MAX_DEBOUNCE_ENTRIES
+            # heapq.nsmallest runs in O(N log surplus) — the full
+            # ``sorted`` call was O(N log N) and ran under
+            # ``_debounce_lock`` on every filesystem event while the
+            # dict sat at cap+1. ``surplus`` is typically 1 in steady
+            # state, so this is a large constant-factor win on busy
+            # watchers.
+            oldest = heapq.nsmallest(surplus, self._last_event_times.items(), key=lambda kv: kv[1])
+            for key, _ in oldest:
+                del self._last_event_times[key]
+            # One-shot log per breach: suppress repeats until the dict
+            # drops back under the cap. Operators still see the first
+            # warning; the subsequent eviction storm is silent.
+            if not self._debounce_cap_warned:
+                logger.warning(
+                    "Debounce dict exceeded %d entries; dropping oldest in bulk "
+                    "(further occurrences suppressed until cap is no longer hit).",
+                    _MAX_DEBOUNCE_ENTRIES,
+                )
+                self._debounce_cap_warned = True
+        else:
+            self._debounce_cap_warned = False
 
     def _fire_callbacks(self, event_type: EventType, file_event: FileEvent) -> None:
         """Invoke registered callbacks for the given event type.

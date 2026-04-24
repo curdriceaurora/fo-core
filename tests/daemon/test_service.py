@@ -7,6 +7,7 @@ PID file management, callback registration, and background operation.
 
 from __future__ import annotations
 
+import json
 import os
 import signal
 import threading
@@ -159,12 +160,18 @@ class TestPidFileManagement:
     """Tests for PID file lifecycle with the daemon."""
 
     def test_pid_file_created_on_start(self, daemon: DaemonService, pid_file: Path) -> None:
-        """Starting the daemon creates the PID file."""
+        """Starting the daemon creates the PID file.
+
+        F2: the service now writes via ``write_pid_record`` so the file
+        contains a JSON record (``{pid, create_time}``). The record's
+        ``pid`` field must be the current process's PID.
+        """
         daemon.start_background()
 
         assert pid_file.exists()
-        content = pid_file.read_text().strip()
-        assert int(content) == os.getpid()
+        data = json.loads(pid_file.read_text())
+        assert data["pid"] == os.getpid()
+        assert "create_time" in data
 
     def test_pid_file_removed_on_stop(self, daemon: DaemonService, pid_file: Path) -> None:
         """Stopping the daemon removes the PID file."""

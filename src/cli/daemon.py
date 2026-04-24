@@ -105,11 +105,17 @@ def stop() -> None:
         console.print("[yellow]No PID file found — daemon may not be running.[/yellow]")
         raise typer.Exit(code=1)
 
-    pid = mgr.read_pid(_DEFAULT_PID_FILE)
-    if pid is None:
+    # F2 (hardening roadmap #159): use ``read_pid_record`` so we parse
+    # both JSON records written by ``write_pid_record`` and legacy
+    # text-only files. ``read_pid`` only handles the legacy int format
+    # and would silently return None for a JSON record, causing stop to
+    # delete a valid PID file and leave the daemon orphaned.
+    record = mgr.read_pid_record(_DEFAULT_PID_FILE)
+    if record is None:
         console.print("[yellow]Could not read PID from file.[/yellow]")
         mgr.remove_pid(_DEFAULT_PID_FILE)
         raise typer.Exit(code=1)
+    pid = record.pid
 
     console.print(f"Sending SIGTERM to PID {pid}...")
     try:
@@ -133,7 +139,9 @@ def status() -> None:
 
     mgr = PidFileManager()
     running = mgr.is_running(_DEFAULT_PID_FILE)
-    pid = mgr.read_pid(_DEFAULT_PID_FILE) if _DEFAULT_PID_FILE.exists() else None
+    # F2: ``read_pid_record`` handles both JSON and legacy formats.
+    record = mgr.read_pid_record(_DEFAULT_PID_FILE) if _DEFAULT_PID_FILE.exists() else None
+    pid = record.pid if record is not None else None
 
     table = Table(title="Daemon Status")
     table.add_column("Property", style="bold")
