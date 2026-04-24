@@ -278,6 +278,50 @@ class TestEventQueueMaxSize:
         assert q.size == 100
 
 
+class TestEventQueueBackpressure:
+    """F1 (hardening roadmap #159): integration coverage for the new
+    observability surface — ``dropped_count``, ``is_full``, ``max_size``
+    — so the integration-coverage floor tracks these paths."""
+
+    def test_dropped_count_tracks_overflow(self) -> None:
+        q = EventQueue(max_size=2)
+        for i in range(5):
+            q.enqueue(_make_event(EventType.CREATED, Path(f"f{i}.txt")))
+        # 5 enqueues on 2-slot queue → 3 drops.
+        assert q.dropped_count == 3
+        # Unbounded queue never records drops.
+        unbounded = EventQueue()
+        for i in range(50):
+            unbounded.enqueue(_make_event(EventType.CREATED, Path(f"u{i}.txt")))
+        assert unbounded.dropped_count == 0
+
+    def test_is_full_signals_backpressure(self) -> None:
+        q = EventQueue(max_size=2)
+        assert q.is_full is False
+        q.enqueue(_make_event(EventType.CREATED, Path("a.txt")))
+        assert q.is_full is False
+        q.enqueue(_make_event(EventType.CREATED, Path("b.txt")))
+        assert q.is_full is True
+        # Consuming makes room — backpressure released.
+        q.dequeue_batch(max_size=1)
+        assert q.is_full is False
+        # Unbounded is never full.
+        assert EventQueue().is_full is False
+
+    def test_max_size_exposes_capacity(self) -> None:
+        assert EventQueue(max_size=42).max_size == 42
+        assert EventQueue().max_size == 0
+
+    def test_overflow_emits_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Pre-F1 overflow was silent; post-F1 the first drop logs."""
+        q = EventQueue(max_size=1)
+        q.enqueue(_make_event(EventType.CREATED, Path("seed.txt")))
+        with caplog.at_level("WARNING", logger="watcher.queue"):
+            q.enqueue(_make_event(EventType.CREATED, Path("overflow.txt")))
+        assert any("overflow" in rec.message.lower() for rec in caplog.records)
+        assert q.dropped_count == 1
+
+
 class TestEventQueueBlocking:
     def test_dequeue_blocking_returns_immediately_if_events_present(self) -> None:
         q = EventQueue()

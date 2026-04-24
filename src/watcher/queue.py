@@ -6,6 +6,7 @@ supports batch dequeuing for efficient processing.
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections import deque
 from dataclasses import dataclass
@@ -13,6 +14,12 @@ from datetime import datetime
 from pathlib import Path
 
 from _compat import StrEnum
+
+logger = logging.getLogger(__name__)
+
+# Log a throttled warning every ``_DROP_LOG_INTERVAL`` drops so the signal
+# is visible without spamming at sustained overflow rates.
+_DROP_LOG_INTERVAL = 100
 
 
 class EventType(StrEnum):
@@ -49,6 +56,14 @@ class EventQueue:
     Events are enqueued individually and can be dequeued in configurable
     batch sizes for efficient downstream processing.
 
+    F1 (hardening roadmap #159): overflow is no longer silent. When the
+    queue is full, the oldest event is dropped (preserving the pre-F1
+    behaviour), a throttled warning is logged, and
+    :attr:`dropped_count` is incremented so callers can observe
+    saturation. The :attr:`is_full` property lets producers apply
+    their own backpressure (e.g. coalesce events or skip debouncing)
+    before enqueue.
+
     Attributes:
         max_size: Maximum number of events the queue can hold.
             When exceeded, oldest events are dropped. 0 means unlimited.
@@ -60,7 +75,12 @@ class EventQueue:
         Args:
             max_size: Maximum queue capacity. 0 means unlimited.
         """
-        self._queue: deque[FileEvent] = deque(maxlen=max_size if max_size > 0 else None)
+        # No ``maxlen`` here: overflow is handled explicitly in
+        # ``enqueue`` so we can count and log drops instead of silently
+        # losing events. Pre-F1 used ``deque(maxlen=...)``.
+        self._queue: deque[FileEvent] = deque()
+        self._max_size = max_size if max_size > 0 else 0
+        self._dropped_count = 0
         self._lock = threading.Lock()
         self._not_empty = threading.Condition(self._lock)
 
@@ -68,12 +88,26 @@ class EventQueue:
         """Add an event to the queue.
 
         Thread-safe. If the queue is at max capacity, the oldest event
-        is silently dropped.
+        is dropped to make room (drop-oldest policy). Each drop
+        increments :attr:`dropped_count`, and every
+        :data:`_DROP_LOG_INTERVAL` drops emit a throttled warning so
+        sustained overflow is observable without flooding the log.
 
         Args:
             event: The file event to enqueue.
         """
         with self._not_empty:
+            if self._max_size > 0 and len(self._queue) >= self._max_size:
+                self._queue.popleft()
+                self._dropped_count += 1
+                if self._dropped_count == 1 or self._dropped_count % _DROP_LOG_INTERVAL == 0:
+                    logger.warning(
+                        "EventQueue overflow at max_size=%d; dropped oldest event "
+                        "(total_dropped=%d). Consider increasing max_size or "
+                        "slowing the event producer.",
+                        self._max_size,
+                        self._dropped_count,
+                    )
             self._queue.append(event)
             self._not_empty.notify()
 
@@ -155,3 +189,31 @@ class EventQueue:
         """Return True if the queue contains no events."""
         with self._lock:
             return len(self._queue) == 0
+
+    @property
+    def is_full(self) -> bool:
+        """Return True if a bounded queue is at capacity.
+
+        Producers can check this before enqueue to apply their own
+        backpressure — e.g. coalescing events, skipping debouncing, or
+        logging at the producer side. Always False for an unbounded
+        queue (``max_size == 0``).
+        """
+        with self._lock:
+            return self._max_size > 0 and len(self._queue) >= self._max_size
+
+    @property
+    def dropped_count(self) -> int:
+        """Number of events dropped due to overflow since construction.
+
+        F1 metric: non-decreasing counter of drop events. A rising value
+        indicates the queue is under sustained pressure; a stable value
+        means overflow has stopped (even if it was hit earlier).
+        """
+        with self._lock:
+            return self._dropped_count
+
+    @property
+    def max_size(self) -> int:
+        """The configured maximum size (0 for unbounded)."""
+        return self._max_size

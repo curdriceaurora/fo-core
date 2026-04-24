@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from watcher.queue import EventQueue, EventType, FileEvent
+from watcher.queue import _DROP_LOG_INTERVAL, EventQueue, EventType, FileEvent
 
 pytestmark = [pytest.mark.unit]
 # Note: EventQueue tests use threading.Thread, making them
@@ -396,3 +396,130 @@ class TestEventQueueEdgeCases:
         assert str(EventType.CREATED) == "EventType.CREATED" or "created" in EventType.CREATED
         assert EventType.MODIFIED.value == "modified"
         assert isinstance(EventType.DELETED, str)
+
+
+# ---------------------------------------------------------------------------
+# F1 hardening — backpressure + dropped-event metric
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestEventQueueBackpressure:
+    """F1 (hardening roadmap #159): overflow is no longer silent.
+
+    Marked ``ci`` so the PR-suite ``-m "ci"`` run exercises the new
+    ``dropped_count`` / ``is_full`` / ``max_size`` paths — otherwise
+    the diff-cover gate (80% of changed lines) fails on D6-style
+    unit-only coverage.
+
+    Pre-F1 the queue used ``deque(maxlen=...)`` which silently dropped
+    the oldest event. Consumers had no way to know overflow had
+    happened. These tests pin the new surface:
+
+    - ``dropped_count`` is a non-decreasing counter observable by callers
+    - ``is_full`` lets producers apply their own backpressure
+    - ``max_size`` is exposed so callers can reason about capacity
+    - Overflow still drops the oldest event (policy preserved for
+      backward compat with ``test_max_size_capacity``)
+    - A warning is logged at throttled intervals on sustained overflow
+    """
+
+    def _make_event(self, tmp_path: Path, name: str = "test.txt") -> FileEvent:
+        return FileEvent(
+            event_type=EventType.CREATED,
+            path=tmp_path / name,
+            timestamp=datetime.now(UTC),
+        )
+
+    def test_dropped_count_starts_at_zero(self) -> None:
+        """A freshly constructed queue has recorded no drops."""
+        assert EventQueue(max_size=10).dropped_count == 0
+        assert EventQueue().dropped_count == 0  # unbounded also reports zero
+
+    def test_dropped_count_increments_on_overflow(self, tmp_path: Path) -> None:
+        """Each enqueue past capacity bumps the counter by exactly one."""
+        queue = EventQueue(max_size=2)
+        for i in range(5):
+            queue.enqueue(self._make_event(tmp_path, name=f"f{i}.txt"))
+        # 5 enqueues on a 2-slot queue → 3 drops.
+        assert queue.dropped_count == 3
+        assert queue.size == 2
+
+    def test_dropped_count_stays_stable_when_not_full(self, tmp_path: Path) -> None:
+        """Enqueuing below capacity does not increment the drop counter."""
+        queue = EventQueue(max_size=10)
+        for i in range(5):
+            queue.enqueue(self._make_event(tmp_path, name=f"f{i}.txt"))
+        assert queue.dropped_count == 0
+
+    def test_unbounded_queue_never_drops(self, tmp_path: Path) -> None:
+        """``max_size=0`` means unbounded; no overflow path ever fires."""
+        queue = EventQueue()  # unbounded default
+        for i in range(1000):
+            queue.enqueue(self._make_event(tmp_path, name=f"f{i}.txt"))
+        assert queue.dropped_count == 0
+        assert queue.size == 1000
+
+    def test_is_full_reflects_capacity(self, tmp_path: Path) -> None:
+        queue = EventQueue(max_size=2)
+        assert queue.is_full is False
+        queue.enqueue(self._make_event(tmp_path, name="a.txt"))
+        assert queue.is_full is False
+        queue.enqueue(self._make_event(tmp_path, name="b.txt"))
+        assert queue.is_full is True
+        # Drop-oldest keeps the queue at capacity — still full.
+        queue.enqueue(self._make_event(tmp_path, name="c.txt"))
+        assert queue.is_full is True
+        # Consuming one event leaves a slot free.
+        queue.dequeue_batch(max_size=1)
+        assert queue.is_full is False
+
+    def test_is_full_always_false_for_unbounded(self, tmp_path: Path) -> None:
+        queue = EventQueue()  # max_size=0
+        for i in range(100):
+            queue.enqueue(self._make_event(tmp_path, name=f"f{i}.txt"))
+        assert queue.is_full is False
+
+    def test_max_size_property_exposes_constructor_value(self) -> None:
+        assert EventQueue(max_size=42).max_size == 42
+        assert EventQueue(max_size=0).max_size == 0
+        assert EventQueue().max_size == 0
+
+    def test_overflow_drops_oldest_not_newest(self, tmp_path: Path) -> None:
+        """Behaviour preserved from pre-F1: the drop-oldest policy."""
+        queue = EventQueue(max_size=3)
+        for i in range(5):
+            queue.enqueue(self._make_event(tmp_path, name=f"f{i}.txt"))
+        batch = queue.dequeue_batch(max_size=10)
+        assert [e.path.name for e in batch] == ["f2.txt", "f3.txt", "f4.txt"]
+
+    def test_first_drop_emits_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The very first drop produces a warning (no silent overflow)."""
+        queue = EventQueue(max_size=1)
+        queue.enqueue(self._make_event(tmp_path, name="a.txt"))
+        with caplog.at_level("WARNING", logger="watcher.queue"):
+            queue.enqueue(self._make_event(tmp_path, name="b.txt"))
+        assert any(
+            "overflow" in rec.message.lower() and "total_dropped=1" in rec.message
+            for rec in caplog.records
+        )
+
+    def test_sustained_drops_are_throttled(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Logging throttled to every _DROP_LOG_INTERVAL drops so a
+        saturated queue doesn't spam the log."""
+        queue = EventQueue(max_size=1)
+        queue.enqueue(self._make_event(tmp_path, name="seed.txt"))
+        with caplog.at_level("WARNING", logger="watcher.queue"):
+            # Cause exactly _DROP_LOG_INTERVAL drops after the seed.
+            for i in range(_DROP_LOG_INTERVAL):
+                queue.enqueue(self._make_event(tmp_path, name=f"f{i}.txt"))
+        # Expect exactly two warnings: the first-drop signal + the
+        # ``_DROP_LOG_INTERVAL``th drop.
+        overflow_warnings = [r for r in caplog.records if "overflow" in r.message.lower()]
+        assert len(overflow_warnings) == 2
+        assert queue.dropped_count == _DROP_LOG_INTERVAL
