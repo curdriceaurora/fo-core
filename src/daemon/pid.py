@@ -167,31 +167,28 @@ class PidFileManager:
         # Permission preservation (codex P2 PRRT_kwDOR_Rkws59bl3J):
         # ``tempfile.NamedTemporaryFile`` creates the file with mode
         # 0o600 (via ``mkstemp``). After ``os.replace`` the destination
-        # inherits that mode, silently dropping the standard
-        # ``open(path, "w")`` semantics the pre-F2 ``write_pid`` used
-        # (``0o666 & ~umask`` — typically 0o644). In deployments where
-        # the daemon runs as one user and operators run ``daemon
-        # status``/``stop`` as another, 0o600 breaks cross-account
-        # reads, causing ``read_pid_record`` to return None and
-        # ``stop`` to wipe a valid PID file. Reinstate the pre-F2 mode:
-        # preserve the pre-existing file's mode on rotation; fall back
-        # to ``0o666 & ~umask`` on a first write so the daemon's PID
-        # file is readable by the same accounts that could read the
-        # legacy text version.
+        # inherits that mode, silently dropping cross-account access
+        # the pre-F2 ``write_pid`` provided via ``open(path, "w")``.
+        # In deployments where the daemon runs as one user and
+        # operators run ``daemon status``/``stop`` as another, 0o600
+        # breaks cross-account reads, causing ``read_pid_record`` to
+        # return None and ``stop`` to wipe a valid PID file.
+        #
+        # Strategy: preserve the pre-existing file's mode on rotation;
+        # fall back to ``0o644`` for first-time writes. 0o644 is the
+        # standard daemon PID file mode (matches /var/run/*.pid
+        # convention and the default-umask result of the pre-F2
+        # ``open(path, "w")``). Deliberately NOT probing ``os.umask``
+        # — that call is process-global and creates a race window
+        # where concurrent threads creating files inherit the probe's
+        # permissive mode (codex P2 PRRT_kwDOR_Rkws59bvEf). Operators
+        # who need a stricter mode can chmod the PID file; rotation
+        # will preserve it.
         try:
             existing_mode: int | None = pid_file.stat().st_mode & 0o7777
         except FileNotFoundError:
             existing_mode = None
-        if existing_mode is None:
-            # Probe umask without leaving a stale value — ``os.umask``
-            # returns the previous umask and sets the argument; restore
-            # immediately so this method has no side effects on other
-            # file writes in the same process.
-            current_umask = os.umask(0)
-            os.umask(current_umask)
-            target_mode = 0o666 & ~current_umask
-        else:
-            target_mode = existing_mode
+        target_mode = existing_mode if existing_mode is not None else 0o644
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w",

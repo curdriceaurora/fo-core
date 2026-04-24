@@ -287,18 +287,51 @@ class TestWritePidRecordPermissions:
     pre-F2 mode semantics.
     """
 
-    def test_new_pid_file_respects_umask(self, pid_manager: PidFileManager, pid_file: Path) -> None:
-        """First-time writes get ``0o666 & ~umask`` — matches what
-        ``open(path, "w")`` would have produced."""
-        prior_umask = os.umask(0o022)
+    def test_new_pid_file_is_0o644(self, pid_manager: PidFileManager, pid_file: Path) -> None:
+        """First-time writes get the standard 0o644 daemon PID file
+        mode — independent of the caller's umask.
+
+        Hardcoding avoids probing umask (which would require mutating
+        process-global state and race with concurrent file creation in
+        other threads; codex P2 PRRT_kwDOR_Rkws59bvEf). 0o644 matches
+        the ``/var/run/*.pid`` convention and the default-umask-022
+        result of the pre-F2 ``open(path, "w")``.
+        """
+        pid_manager.write_pid_record(pid_file)
+        mode = pid_file.stat().st_mode & 0o7777
+        assert mode == 0o644, f"expected standard daemon PID file mode 0o644, got {mode:#o}"
+
+    def test_write_does_not_depend_on_or_mutate_process_umask(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Regression guard for codex P2 PRRT_kwDOR_Rkws59bvEf.
+
+        Setting an unusual caller-side umask (0o077) and then writing
+        must:
+          1. Leave umask unchanged afterwards (no probe-and-restore).
+          2. Still produce a 0o644 PID file (mode independent of
+             umask).
+
+        If the code regresses to ``os.umask(0)`` + restore, the
+        process-global umask would flip during the call — we can't
+        observe the window from a single-threaded test, but paired
+        with the mode-is-0o644 assertion we prove the code cannot be
+        reading umask at all.
+        """
+        prior_umask = os.umask(0o077)
         try:
             pid_manager.write_pid_record(pid_file)
+            current = os.umask(0o077)
+            assert current == 0o077, (
+                f"write_pid_record must not leak a umask change; got {current:#o}"
+            )
+            mode = pid_file.stat().st_mode & 0o7777
+            assert mode == 0o644, (
+                f"PID file mode must be 0o644 regardless of caller's "
+                f"umask (0o077 set here); got {mode:#o}"
+            )
         finally:
             os.umask(prior_umask)
-        mode = pid_file.stat().st_mode & 0o7777
-        # umask 022 → 0o644. Explicit value so a regression to the
-        # mkstemp default (0o600) fails loudly.
-        assert mode == 0o644, f"expected 0o644 under umask 022, got {mode:#o}"
 
     def test_rotation_preserves_existing_mode(
         self, pid_manager: PidFileManager, pid_file: Path
