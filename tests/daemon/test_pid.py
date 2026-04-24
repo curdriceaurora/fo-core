@@ -14,7 +14,7 @@ from pathlib import Path
 import psutil
 import pytest
 
-from daemon.pid import PidFileManager
+from daemon.pid import _CREATE_TIME_TOLERANCE_S, PidFileManager
 
 pytestmark = [pytest.mark.unit, pytest.mark.smoke, pytest.mark.ci]
 
@@ -177,8 +177,10 @@ class TestPidRecord:
         assert record.pid == os.getpid()
         assert record.create_time is not None
         # Must match the actual create_time of this process (within tolerance).
+        # Use the same constant ``is_running`` compares against so the test
+        # stays aligned if the tolerance is ever retuned.
         expected = psutil.Process(os.getpid()).create_time()
-        assert abs(record.create_time - expected) < 0.5
+        assert abs(record.create_time - expected) < _CREATE_TIME_TOLERANCE_S
 
     def test_record_is_json_format(self, pid_manager: PidFileManager, pid_file: Path) -> None:
 

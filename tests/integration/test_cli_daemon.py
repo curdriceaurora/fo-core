@@ -373,16 +373,23 @@ class TestJSONPidFileCLIBoundary:
         """`daemon stop` parses a JSON PID record and does not orphan
         the file.
 
-        Uses a sentinel PID (``99999999``) so ``os.kill`` raises
-        ``ProcessLookupError`` — the CLI then removes the PID file and
-        reports a clean stop. Regressing to ``read_pid`` would return
-        ``None``, print "Could not read PID", still remove the file,
-        but exit code 1 (not 0).
+        ``os.kill`` is mocked to raise ``ProcessLookupError`` — the CLI
+        then removes the PID file and reports a clean stop. Regressing
+        to ``read_pid`` would return ``None``, print "Could not read
+        PID", still remove the file, but exit code 1 (not 0).
+
+        Mocking (rather than relying on the PID itself being unused)
+        keeps the test deterministic on hosts with large ``pid_max``
+        where a sentinel might happen to be allocated, and matches the
+        pattern used by ``test_stop_stale_pid_exits_0_and_cleans_up``.
         """
         pid_file = tmp_path / "daemon.pid"
         pid_file.write_text(json.dumps({"pid": 99999999, "create_time": 1.0}))
 
-        with patch("cli.daemon._DEFAULT_PID_FILE", pid_file):
+        with (
+            patch("cli.daemon._DEFAULT_PID_FILE", pid_file),
+            patch("os.kill", side_effect=ProcessLookupError()),
+        ):
             result = runner.invoke(app, ["daemon", "stop"])
 
         assert result.exit_code == 0, (
@@ -393,11 +400,18 @@ class TestJSONPidFileCLIBoundary:
 
     def test_stop_falls_back_to_legacy_int_pid(self, tmp_path: Path) -> None:
         """Backward compatibility: pre-F2 PID files (plain integer
-        text) still work through the new CLI read path."""
+        text) still work through the new CLI read path.
+
+        ``os.kill`` is mocked for the same determinism reason as
+        ``test_stop_reads_json_pid_record`` above.
+        """
         pid_file = tmp_path / "daemon.pid"
         pid_file.write_text("99999998")
 
-        with patch("cli.daemon._DEFAULT_PID_FILE", pid_file):
+        with (
+            patch("cli.daemon._DEFAULT_PID_FILE", pid_file),
+            patch("os.kill", side_effect=ProcessLookupError()),
+        ):
             result = runner.invoke(app, ["daemon", "stop"])
 
         assert result.exit_code == 0
