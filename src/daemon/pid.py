@@ -240,7 +240,15 @@ class PidFileManager:
             # writing its own PID file as the same account; matters
             # only when an operator pre-provisioned ``root:operator``
             # or similar for cross-account access.
-            if existing_uid is not None and existing_gid is not None:
+            #
+            # ``hasattr`` guard (codex P1 PRRT_kwDOR_Rkws59cFi6): on
+            # Windows ``os.chown`` doesn't exist as an attribute at
+            # all — a bare ``os.chown(...)`` call raises
+            # ``AttributeError`` before the ``try`` block has a chance
+            # to catch it, aborting daemon startup whenever a PID
+            # file already exists. Short-circuit on the missing
+            # attribute so the rest of the rotation succeeds.
+            if existing_uid is not None and existing_gid is not None and hasattr(os, "chown"):
                 try:
                     os.chown(pid_file, existing_uid, existing_gid)
                 except (PermissionError, OSError) as exc:

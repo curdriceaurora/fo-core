@@ -433,3 +433,34 @@ class TestWritePidRecordPermissions:
         # File is still written correctly.
         data = json.loads(pid_file.read_text())
         assert data["pid"] == os.getpid()
+
+    def test_rotation_skips_chown_when_os_chown_missing(
+        self,
+        pid_manager: PidFileManager,
+        pid_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Regression guard for codex P1 PRRT_kwDOR_Rkws59cFi6: on
+        Windows ``os.chown`` doesn't exist. A bare ``os.chown(...)``
+        call would raise ``AttributeError`` during attribute lookup
+        (before any ``try`` can catch it), aborting daemon rotation
+        whenever a PID file already exists.
+
+        Simulate the Windows case by removing ``os.chown`` from the
+        ``daemon.pid`` module namespace and verifying rotation still
+        succeeds — the ``hasattr`` guard must short-circuit before
+        the call.
+        """
+        pid_file.write_text("0")
+
+        import daemon.pid as pid_mod
+
+        # ``raising=False`` tolerates the attribute's absence if the
+        # test itself runs on a platform that never had it.
+        monkeypatch.delattr(pid_mod.os, "chown", raising=False)
+        assert not hasattr(pid_mod.os, "chown"), "test setup: os.chown must be absent for this case"
+
+        record = pid_manager.write_pid_record(pid_file)
+        assert record.pid == os.getpid()
+        data = json.loads(pid_file.read_text())
+        assert data["pid"] == os.getpid()
