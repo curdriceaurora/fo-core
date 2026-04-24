@@ -65,8 +65,10 @@ class RollbackExecutor:
             )
 
     def _move(self, src: Path, dst: Path) -> None:
-        """Move *src* to *dst*, using ``durable_move`` for files and
-        ``shutil.move`` for directories.
+        """Move *src* to *dst* with a file-vs-directory dispatch.
+
+        Files and symlinks go through ``durable_move``;
+        non-symlink directories fall back to ``shutil.move``.
 
         Codex PRRT_kwDOR_Rkws59hT9a (and earlier PRRT_kwDOR_Rkws59gRpq):
         ``durable_move`` rejects non-symlink directories up front with
