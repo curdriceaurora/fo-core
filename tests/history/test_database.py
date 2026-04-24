@@ -213,3 +213,107 @@ class TestDatabaseManager:
         # Should be able to access by column name
         assert result["operation_type"] == "move"
         assert result["source_path"] == "/test/path"
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestDatabaseIntegrityCheck:
+    """F5 (hardening roadmap #159): ``initialize`` runs ``PRAGMA
+    integrity_check`` on the database before any schema work and
+    raises ``DatabaseCorruptionError`` on corruption so callers can
+    prompt the operator to quarantine + reinit.
+
+    Pre-F5 behavior: a corrupt ``history.db`` would silently propagate
+    its corruption into every subsequent operation, with no actionable
+    error message and no quarantine. Post-F5 the database layer
+    refuses to open a corrupt file and tells the caller exactly which
+    file needs to be moved aside.
+    """
+
+    @pytest.fixture
+    def temp_db_path(self, tmp_path):
+        """Create a scratch db path (not yet created on disk)."""
+        return tmp_path / "history.db"
+
+    def test_integrity_check_passes_on_fresh_db(self, temp_db_path):
+        """A freshly-initialized database must pass integrity_check."""
+        db = DatabaseManager(temp_db_path)
+        db.initialize()
+        # ``initialize`` itself runs the check — reaching this assertion
+        # means it passed. Sanity-check by running it again explicitly.
+        db.check_integrity()
+        db.close()
+
+    def test_integrity_check_raises_on_truncated_file(self, temp_db_path):
+        """A deliberately-corrupted database file is rejected with
+        ``DatabaseCorruptionError`` referencing the file path."""
+        from history.database import DatabaseCorruptionError
+
+        # Seed a valid db, then truncate it mid-page to corrupt.
+        db = DatabaseManager(temp_db_path)
+        db.initialize()
+        db.close()
+
+        # Truncate the file — destroys the SQLite header/pages.
+        size = temp_db_path.stat().st_size
+        with open(temp_db_path, "r+b") as fh:
+            fh.truncate(size // 2)
+
+        # Fresh manager — must detect corruption on initialize.
+        db2 = DatabaseManager(temp_db_path)
+        with pytest.raises(DatabaseCorruptionError) as excinfo:
+            db2.initialize()
+        assert str(temp_db_path) in str(excinfo.value), (
+            "corruption error must reference the corrupt db path so "
+            "the operator knows which file to quarantine"
+        )
+
+    def test_integrity_check_raises_on_bit_flip(self, temp_db_path):
+        """Random-byte overwrite past the header triggers
+        integrity_check failure (bit-rot / disk corruption)."""
+        from history.database import DatabaseCorruptionError
+
+        db = DatabaseManager(temp_db_path)
+        db.initialize()
+        # Insert a row so the db has payload beyond the schema.
+        db.execute_query(
+            "INSERT INTO operations (operation_type, timestamp, source_path, status) VALUES (?, ?, ?, ?)",
+            ("move", "2024-01-01T00:00:00Z", "/a", "completed"),
+        )
+        db.get_connection().commit()
+        db.close()
+
+        # Flip bits in the middle of the file — past the header so
+        # opening still works, but pages fail integrity.
+        with open(temp_db_path, "r+b") as fh:
+            fh.seek(4096)  # after page 1
+            fh.write(b"\x00" * 512)
+
+        db2 = DatabaseManager(temp_db_path)
+        with pytest.raises(DatabaseCorruptionError):
+            db2.initialize()
+
+    def test_corruption_error_is_actionable(self, temp_db_path):
+        """The error message must tell the operator what to do — not
+        just "integrity_check failed". Look for the quarantine hint."""
+        from history.database import DatabaseCorruptionError
+
+        db = DatabaseManager(temp_db_path)
+        db.initialize()
+        db.close()
+        size = temp_db_path.stat().st_size
+        with open(temp_db_path, "r+b") as fh:
+            fh.truncate(size // 2)
+
+        db2 = DatabaseManager(temp_db_path)
+        try:
+            db2.initialize()
+        except DatabaseCorruptionError as exc:
+            msg = str(exc).lower()
+            # Must mention recovery/quarantine/move action so the caller
+            # can render a prompt. Exact wording locks in the contract.
+            assert any(word in msg for word in ("quarantine", "move aside", "rename", "back up")), (
+                f"error message lacks recovery guidance: {exc}"
+            )
+        else:
+            pytest.fail("DatabaseCorruptionError was not raised on corrupt db")

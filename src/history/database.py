@@ -6,6 +6,7 @@ and migration support for the operation history system.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sqlite3
 from collections.abc import Generator
@@ -15,6 +16,40 @@ from threading import Lock
 from typing import cast
 
 logger = logging.getLogger(__name__)
+
+
+class DatabaseCorruptionError(RuntimeError):
+    """F5 (hardening roadmap #159): raised when ``PRAGMA integrity_check``
+    detects on-disk corruption during ``DatabaseManager.initialize``.
+
+    Pre-F5 a corrupt ``history.db`` would silently propagate through
+    every subsequent operation — indexes returning wrong rows, inserts
+    blowing up with obscure errors. Post-F5 the database layer refuses
+    to open a corrupt file and surfaces a specific exception carrying
+    the corrupt file's path so CLI hooks can render a quarantine
+    prompt.
+
+    The message is deliberately actionable: it lists the corrupt path
+    and the ``mv``-aside + reinit recovery step so operators can
+    follow the instruction without reading the source.
+
+    Attributes:
+        db_path: Path of the corrupt database file (for quarantine UI).
+        integrity_errors: Raw output of ``PRAGMA integrity_check`` —
+            verbose diagnostic for logs / bug reports.
+    """  # noqa: D205
+
+    def __init__(self, db_path: Path, integrity_errors: list[str]) -> None:
+        """Build the corruption error with the actionable recovery message."""
+        self.db_path = db_path
+        self.integrity_errors = integrity_errors
+        details = "; ".join(integrity_errors[:5]) or "no detail"
+        more = f" (and {len(integrity_errors) - 5} more)" if len(integrity_errors) > 5 else ""
+        super().__init__(
+            f"History database at {db_path} is corrupt: {details}{more}. "
+            f"Quarantine the file (e.g. ``mv {db_path} {db_path}.corrupt``) "
+            "and rerun the command — a fresh database will be created."
+        )
 
 
 class DatabaseManager:
@@ -100,6 +135,24 @@ class DatabaseManager:
             conn = self.get_connection()
 
             try:
+                # F5 (hardening roadmap #159): integrity_check FIRST,
+                # before any other pragma or schema work. Opening a
+                # corrupt SQLite file via ``connect()`` often succeeds,
+                # but the next pragma (``journal_mode=WAL``) can raise
+                # ``DatabaseError: database disk image is malformed``
+                # on truncated files — an opaque signal that hides
+                # which file needs quarantine. Running integrity_check
+                # first normalizes both the "returns error rows" and
+                # "raises DatabaseError" failure modes into a single
+                # typed :class:`DatabaseCorruptionError` with the path,
+                # giving the CLI layer a clean hook for a quarantine
+                # prompt.
+                #
+                # On a fresh file (no pages yet), integrity_check
+                # returns ``[("ok",)]`` without touching WAL state, so
+                # this is a no-op cost for the common path.
+                self._check_integrity_locked(conn)
+
                 # Enable WAL mode for better concurrent access
                 conn.execute("PRAGMA journal_mode=WAL")
 
@@ -131,10 +184,106 @@ class DatabaseManager:
                 self._initialized = True
                 logger.info("Database initialization complete")
 
-            except Exception as e:
-                conn.rollback()
-                logger.error(f"Database initialization failed: {e}")
+            except DatabaseCorruptionError:
+                # F5: propagate unchanged. Don't attempt ``conn.rollback``
+                # on a corrupt connection — it can raise a secondary
+                # DatabaseError that masks the actionable corruption
+                # message. Nothing to roll back: we raise before any
+                # schema mutation runs.
                 raise
+            except Exception as e:
+                # Rollback failure is swallowed (via
+                # ``contextlib.suppress``) so it can't mask the
+                # original initialization error. Rollback on certain
+                # corrupt-state transitions raises a secondary
+                # DatabaseError that's less informative than the
+                # primary cause.
+                with contextlib.suppress(Exception):
+                    conn.rollback()
+                logger.error("Database initialization failed: %s", e, exc_info=True)
+                raise
+
+    def check_integrity(self) -> None:
+        """F5 (hardening roadmap #159): run ``PRAGMA integrity_check``.
+
+        Raises :class:`DatabaseCorruptionError` if any page fails the
+        check. On a clean database ``PRAGMA integrity_check`` returns
+        exactly one row ``("ok",)``; anything else is a corruption
+        indicator.
+
+        This is idempotent and safe to call any time — used inside
+        :meth:`initialize` once at startup and exposed publicly so
+        diagnostic tools / CLI doctor commands can poll it.
+
+        Raises:
+            DatabaseCorruptionError: If integrity_check fails.
+            sqlite3.OperationalError: If the file can't be opened at all
+                (e.g. permission denied, missing file).
+        """
+        conn = self.get_connection()
+        self._check_integrity_locked(conn)
+
+    def _check_integrity_locked(self, conn: sqlite3.Connection) -> None:
+        """Internal helper: run integrity_check on an existing connection.
+
+        Takes an open connection so the caller can run the check
+        inside their own lock/transaction without re-acquiring. The
+        ``initialize`` path calls this while already holding
+        ``self._lock``.
+
+        Split into a raw-fetch step and a validation step so the
+        "rows returned but not ok" branch is exercisable from tests
+        without needing byte-level SQLite corruption (which Python's
+        sqlite3 authorizer blocks — ``writable_schema=ON`` is
+        refused for ``sqlite_master`` updates from the binding).
+        """
+        # PRAGMA integrity_check has two failure modes:
+        # 1. Returns rows describing the damage (one row per error, up
+        #    to the default cap of 100).
+        # 2. Raises ``sqlite3.DatabaseError`` directly when the damage
+        #    is severe enough that it can't even walk the pages
+        #    (truncated header, unreadable root page, etc.).
+        # Both are corruption signals — normalize to our typed
+        # exception so callers don't have to catch raw DatabaseError
+        # and guess.
+        try:
+            cursor = conn.execute("PRAGMA integrity_check")
+            rows = cursor.fetchall()
+        except sqlite3.DatabaseError as exc:
+            logger.error(
+                "PRAGMA integrity_check raised %s on %s",
+                exc,
+                self.db_path,
+            )
+            raise DatabaseCorruptionError(self.db_path, [str(exc)]) from exc
+        self._validate_integrity_rows(rows)
+
+    def _validate_integrity_rows(
+        self,
+        rows: list[tuple[object, ...]] | list[sqlite3.Row],
+    ) -> None:
+        """Validate the rows returned by ``PRAGMA integrity_check``.
+
+        Clean result is exactly one row with value ``"ok"``. Anything
+        else (multiple rows, or a single row whose first column isn't
+        ``"ok"``) is a corruption report — raise
+        :class:`DatabaseCorruptionError` carrying the diagnostic
+        messages.
+
+        Exposed as a separate helper (rather than inlined in
+        :meth:`_check_integrity_locked`) so tests can cover the
+        non-ok branch directly without needing to craft a corrupt
+        file that sqlite3's Python binding will accept.
+        """
+        messages = [row[0] for row in rows if row and row[0] is not None]
+        if messages == ["ok"]:
+            return
+        logger.error(
+            "PRAGMA integrity_check failed on %s: %s",
+            self.db_path,
+            messages,
+        )
+        raise DatabaseCorruptionError(self.db_path, messages)
 
     def _migrate(self, from_version: int, to_version: int, conn: sqlite3.Connection) -> None:
         """Perform database migration from one version to another.
