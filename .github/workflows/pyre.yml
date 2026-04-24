@@ -44,6 +44,8 @@ jobs:
       - name: Install Pyre and project dependencies
         run: |
           pip install -e .
+          # click<8.2 is required because pyre-check is incompatible with the
+          # breaking changes introduced in click 8.2.0.
           pip install "click<8.2" pyre-check
 
       - name: Run Pyre
