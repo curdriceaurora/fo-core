@@ -12,21 +12,11 @@ from pathlib import Path
 
 from history.models import Operation, OperationStatus, OperationType
 
+from ._journal import default_journal_path
+from .durable_move import is_path_in_flight
 from .models import Conflict, ConflictType, ValidationResult
 
 logger = logging.getLogger(__name__)
-
-
-def _default_journal_path() -> Path:
-    """Lazy-resolve the durable_move journal path.
-
-    F8: top-level import of ``path_manager`` would force the state
-    dir to exist at module import time, which breaks tests that set
-    ``XDG_STATE_HOME`` per-test after import. Resolve at call time.
-    """
-    from config.path_manager import get_state_dir
-
-    return get_state_dir() / "undo" / "durable_move.journal"
 
 
 class OperationValidator:
@@ -60,7 +50,7 @@ class OperationValidator:
             trash_dir = get_data_dir() / "trash"
         self.trash_dir: Path = trash_dir
         self.trash_dir.mkdir(parents=True, exist_ok=True)
-        self.journal_path: Path = journal_path or _default_journal_path()
+        self.journal_path: Path = journal_path or default_journal_path()
 
     def validate_undo(self, operation: Operation) -> ValidationResult:
         """Validate an undo operation.
@@ -585,6 +575,4 @@ class OperationValidator:
             True if the path can be safely removed by GC;
             False if an in-flight rollback is touching it.
         """  # noqa: D205
-        from .durable_move import is_path_in_flight
-
         return not is_path_in_flight(trash_entry, journal=self.journal_path)

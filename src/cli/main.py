@@ -27,6 +27,8 @@ from cli.state import CLIState, _get_state
 from cli.suggest import suggest_app
 from cli.update import update_app
 from cli.utilities import analyze, search
+from undo._journal import default_journal_path as _default_journal_path
+from undo.durable_move import sweep as _durable_move_sweep
 
 console = Console()
 
@@ -102,10 +104,7 @@ def main_callback(
     # Failures here are logged + swallowed — a sweep error is never
     # worth crashing the CLI over; the next run will retry.
     try:
-        from undo.durable_move import sweep as _durable_move_sweep
-        from undo.rollback import _DEFAULT_JOURNAL
-
-        _durable_move_sweep(_DEFAULT_JOURNAL)
+        _durable_move_sweep(_default_journal_path())
     except Exception:
         logging.getLogger(__name__).debug(
             "durable_move sweep at CLI startup failed (ignored)", exc_info=True

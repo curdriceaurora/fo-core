@@ -83,9 +83,14 @@ class TestCorruptHistoryDb:
         # Error must reference the corrupt file so the operator knows
         # which path to quarantine.
         assert str(db_path) in str(excinfo.value)
-        # And must mention a recovery action.
+        # And must mention a recovery action. ``quarantine`` is the
+        # specific keyword the message uses; we don't match on ``move``
+        # because a future error message like "unable to move
+        # database" would falsely pass.
         msg = str(excinfo.value).lower()
-        assert any(word in msg for word in ("quarantine", "rename", "move"))
+        assert "quarantine" in msg, (
+            f"corruption error must mention quarantine action; got: {excinfo.value}"
+        )
 
     def test_missing_db_creates_new_one(
         self,
@@ -150,28 +155,39 @@ class TestCorruptHistoryDb:
         self,
         tmp_path: Path,
     ) -> None:
-        """F5: calling ``check_integrity`` on an already-open manager
-        whose underlying file was corrupted externally must surface
-        the corruption (covers the public-API branch distinct from
-        the init-time check)."""
+        """F5: the public ``check_integrity`` method detects corruption
+        when called on a fresh manager pointing at a pre-corrupted
+        file.
+
+        Covers the public-API branch (``self._lock`` acquired +
+        ``_check_integrity_locked`` invoked) separately from the
+        init-time caller inside ``initialize``. Writes a seed db,
+        closes + flushes WAL, corrupts, then opens a NEW manager
+        and calls ``check_integrity`` directly without going
+        through ``initialize`` first — that's the diagnostic
+        entry-point CLI doctor commands use.
+        """
         from history.database import DatabaseCorruptionError, DatabaseManager
 
         db_path = tmp_path / "target.db"
-        db = DatabaseManager(db_path)
-        db.initialize()
-        db.close()
-
-        # Corrupt the file outside the manager's lifecycle.
+        seed = DatabaseManager(db_path)
+        seed.initialize()
+        seed.close()
+        # Remove WAL sidecars so the reopen reads the corrupted file
+        # directly rather than replaying the log.
+        for suffix in ("-wal", "-shm"):
+            sidecar = db_path.with_name(db_path.name + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
         with open(db_path, "r+b") as fh:
             fh.seek(4096)
             fh.write(b"\x00" * 1024)
 
-        # Reopen and call public check explicitly.
+        # Fresh manager — ``check_integrity`` is called without the
+        # init-time check running (we never call ``initialize``).
         db2 = DatabaseManager(db_path)
-        # Skip init's internal check by setting the flag so the test
-        # exercises ONLY the public method branch.
         with pytest.raises(DatabaseCorruptionError):
-            db2.initialize()
+            db2.check_integrity()
 
     def test_validate_integrity_rows_rejects_non_ok_rows(
         self,

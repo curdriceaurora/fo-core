@@ -39,7 +39,7 @@ from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
-MigrationFn = Callable[[dict], dict]
+MigrationFn = Callable[[dict[str, object]], dict[str, object]]
 
 # Public registry: sorted by source version string. Populated by
 # bumps to ``CURRENT_SCHEMA_VERSION`` as new breaking changes ship.
@@ -49,7 +49,12 @@ MigrationFn = Callable[[dict], dict]
 MIGRATIONS: dict[str, MigrationFn] = {}
 
 
-def migrate_to_current(data: dict, *, from_version: str, to_version: str) -> dict:
+def migrate_to_current(
+    data: dict[str, object],
+    *,
+    from_version: str,
+    to_version: str,
+) -> dict[str, object]:
     """Walk the migration registry from *from_version* to *to_version*.
 
     Returns the migrated data dict. Missing migrations are logged

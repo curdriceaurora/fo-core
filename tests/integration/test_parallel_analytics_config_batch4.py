@@ -1549,13 +1549,20 @@ class TestConfigManager:
         assert config_path.exists()
 
     def test_save_and_load_roundtrip(self, tmp_path: Path) -> None:
+        """F6 (hardening roadmap #159): ``save`` now always stamps
+        ``CURRENT_SCHEMA_VERSION`` into the serialized record, even
+        if the in-memory ``AppConfig.version`` is different. This
+        prevents stale version fields from surviving a migration +
+        save cycle. The non-version fields still round-trip as
+        expected.
+        """
         from config.manager import ConfigManager
-        from config.schema import AppConfig
+        from config.schema import CURRENT_SCHEMA_VERSION, AppConfig
 
         mgr = ConfigManager(config_dir=tmp_path)
         cfg = AppConfig(
             profile_name="test",
-            version="2.0",
+            version="2.0",  # deliberately stale — save must overwrite
             default_methodology="para",
             setup_completed=True,
         )
@@ -1563,7 +1570,8 @@ class TestConfigManager:
 
         loaded = mgr.load("test")
 
-        assert loaded.version == "2.0"
+        # version gets stamped to current by save — not round-tripped.
+        assert loaded.version == CURRENT_SCHEMA_VERSION
         assert loaded.default_methodology == "para"
         assert loaded.setup_completed is True
 

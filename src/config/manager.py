@@ -114,8 +114,13 @@ class ConfigManager:
         # defaults rather than crashing the CLI at startup — we'd
         # rather a user's customizations be lost to fresh defaults
         # than have ``fo`` fail to start at all.
-        raw_version = data.get("version", "1.0")
-        disk_version = str(raw_version) if raw_version is not None else "1.0"
+        # Fall back to ``CURRENT_SCHEMA_VERSION`` when the field is
+        # missing or explicitly null — these are pre-F6 configs (no
+        # version stamp) which are contemporary with schema 1.0.
+        # Using the symbolic constant means a future schema bump
+        # doesn't need to update this line.
+        raw_version = data.get("version", CURRENT_SCHEMA_VERSION)
+        disk_version = str(raw_version) if raw_version is not None else CURRENT_SCHEMA_VERSION
         if disk_version != CURRENT_SCHEMA_VERSION:
             if disk_version > CURRENT_SCHEMA_VERSION:
                 logger.warning(

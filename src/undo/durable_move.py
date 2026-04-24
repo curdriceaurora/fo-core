@@ -56,8 +56,12 @@ import logging
 import os
 import shutil
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+
+from utils.atomic_io import fsync_directory
+from utils.atomic_write import append_durable
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +195,11 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
             os.fsync(fd)
         finally:
             os.close(fd)
-        _fsync_directory(dst.parent)
+        # ``fsync_directory(dst)`` fsyncs ``dst.parent`` — see
+        # ``utils.atomic_io.fsync_directory`` docstring. Same effect
+        # as an explicit ``_fsync_directory(dst.parent)`` but reuses
+        # the shared helper.
+        fsync_directory(dst)
         os.replace(tmp_path, dst)
         tmp_path = None  # successfully moved into place
     except BaseException:
@@ -273,6 +281,7 @@ def _complete_or_rollback(entry: _JournalEntry) -> None:
                 "sweep: failed to remove partial destination %s: %s",
                 dst,
                 exc,
+                exc_info=True,
             )
     elif entry.state == STATE_COPIED:
         # Destination is complete; finish by removing source.
@@ -285,6 +294,7 @@ def _complete_or_rollback(entry: _JournalEntry) -> None:
                 "sweep: failed to unlink source after copied state %s: %s",
                 src,
                 exc,
+                exc_info=True,
             )
     elif entry.state == STATE_DONE:
         # Nothing to do — operation completed before the crash (or
@@ -334,25 +344,16 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
     return False
 
 
-def _append_journal(journal: Path, payload: dict) -> None:
-    """Append one JSON line to the journal, flushing + fsyncing.
+def _append_journal(journal: Path, payload: Mapping[str, object]) -> None:
+    """Append one JSON line to the journal with fsync durability.
 
-    Fsync ensures the entry is durable before the caller proceeds
-    to the I/O it describes — otherwise a crash after the I/O but
-    before the entry hits disk would leave the orphan invisible to
-    :func:`sweep`.
+    Delegates to :func:`utils.atomic_write.append_durable` which
+    already handles the flush + fsync + directory fsync pattern.
+    We just own the JSON serialization and ensure the parent dir
+    exists (``append_durable`` requires an existing parent).
     """
     journal.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(payload) + "\n"
-    # ``open(..., "a")`` is append-mode — each write is atomic up to
-    # PIPE_BUF bytes on POSIX, which is always larger than a single
-    # JSON line here. Fsync both the file and the directory so both
-    # the data AND the directory entry survive a power loss.
-    with open(journal, "a") as fh:
-        fh.write(line)
-        fh.flush()
-        os.fsync(fh.fileno())
-    _fsync_directory(journal.parent)
+    append_durable(journal, json.dumps(payload))
 
 
 def _read_journal(journal: Path) -> list[_JournalEntry]:
@@ -385,27 +386,3 @@ def _read_journal(journal: Path) -> list[_JournalEntry]:
             continue
         entries.append(_JournalEntry(op=op, src=src, dst=dst, state=state))
     return entries
-
-
-def _fsync_directory(directory: Path) -> None:
-    """Fsync a directory so its entries survive a power loss.
-
-    On Windows, directory fsync is not supported and opening a
-    directory raises — gracefully skip on non-POSIX.
-    """
-    if os.name == "nt":
-        return
-    try:
-        fd = os.open(directory, os.O_RDONLY)
-    except OSError as exc:
-        logger.debug("Cannot open directory for fsync: %s (%s)", directory, exc)
-        return
-    try:
-        os.fsync(fd)
-    except OSError as exc:
-        # Some filesystems (tmpfs on Linux) return ENOTSUP on
-        # directory fsync. That's benign — the rename is still
-        # ordered via the filesystem's journal.
-        logger.debug("Directory fsync failed: %s (%s)", directory, exc)
-    finally:
-        os.close(fd)

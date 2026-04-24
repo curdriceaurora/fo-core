@@ -214,21 +214,35 @@ class TestTrashSafeToDelete:
         validator = OperationValidator(trash_dir=trash_dir, journal_path=journal)
         assert validator.is_trash_safe_to_delete(entry) is True
 
-    def test_default_journal_path_used_when_unspecified(self, tmp_path: Path) -> None:
+    def test_default_journal_path_used_when_unspecified(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """``OperationValidator`` defaults to the shared rollback
         journal (``<state_dir>/undo/durable_move.journal``) so any
         future trash-GC consumer works out of the box without
         passing a journal path.
+
+        Isolates via ``XDG_STATE_HOME`` so the test never reads the
+        real user state dir (would be xdist-flaky if a crashed prior
+        run left a journal entry behind).
         """
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg_state"))
+
         from undo.validator import OperationValidator
 
         trash_dir = tmp_path / "trash"
         trash_dir.mkdir()
-        # No journal_path argument — validator must pick up a real
-        # default (from path_manager) rather than blowing up.
+        # No journal_path argument — validator must pick up the
+        # isolated default (via path_manager + our XDG override).
         validator = OperationValidator(trash_dir=trash_dir)
-        # The default journal likely doesn't exist on a clean test
-        # environment, so all paths are "safe" (not in-flight).
+        # Verify the validator actually resolved the isolated path,
+        # not a real-user path: journal should be under our tmp_path.
+        assert str(tmp_path) in str(validator.journal_path), (
+            f"validator.journal_path={validator.journal_path} didn't "
+            "pick up the XDG_STATE_HOME override"
+        )
+        # With no journal entries (isolated empty state dir), any
+        # path is safe to delete.
         some_entry = trash_dir / "any" / "file.txt"
         assert validator.is_trash_safe_to_delete(some_entry) is True
 

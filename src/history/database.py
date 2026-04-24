@@ -215,13 +215,20 @@ class DatabaseManager:
         :meth:`initialize` once at startup and exposed publicly so
         diagnostic tools / CLI doctor commands can poll it.
 
+        Acquires ``self._lock`` before running. The inner helper
+        ``_check_integrity_locked`` is also called from ``initialize``
+        (already holding the lock) — the public method exists to
+        provide a safe external entry point without requiring callers
+        to reason about the manager's internal locking.
+
         Raises:
             DatabaseCorruptionError: If integrity_check fails.
             sqlite3.OperationalError: If the file can't be opened at all
                 (e.g. permission denied, missing file).
         """
-        conn = self.get_connection()
-        self._check_integrity_locked(conn)
+        with self._lock:
+            conn = self.get_connection()
+            self._check_integrity_locked(conn)
 
     def _check_integrity_locked(self, conn: sqlite3.Connection) -> None:
         """Internal helper: run integrity_check on an existing connection.
@@ -254,6 +261,7 @@ class DatabaseManager:
                 "PRAGMA integrity_check raised %s on %s",
                 exc,
                 self.db_path,
+                exc_info=True,
             )
             raise DatabaseCorruptionError(self.db_path, [str(exc)]) from exc
         self._validate_integrity_rows(rows)
@@ -275,7 +283,7 @@ class DatabaseManager:
         non-ok branch directly without needing to craft a corrupt
         file that sqlite3's Python binding will accept.
         """
-        messages = [row[0] for row in rows if row and row[0] is not None]
+        messages: list[str] = [str(row[0]) for row in rows if row and row[0] is not None]
         if messages == ["ok"]:
             return
         logger.error(

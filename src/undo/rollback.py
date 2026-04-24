@@ -10,20 +10,14 @@ import logging
 import shutil
 from pathlib import Path
 
-from config.path_manager import get_state_dir
 from history.models import Operation, OperationType
 
+from ._journal import default_journal_path
 from .durable_move import durable_move
 from .models import RollbackResult
 from .validator import OperationValidator
 
 logger = logging.getLogger(__name__)
-
-# F7 (hardening roadmap #159): journal location for durable moves.
-# Lives under the daemon state dir so it's co-located with the
-# history database — one recovery surface for both. Operators who
-# need to inspect or audit interrupted moves know where to look.
-_DEFAULT_JOURNAL = get_state_dir() / "undo" / "durable_move.journal"
 
 
 class RollbackExecutor:
@@ -49,7 +43,7 @@ class RollbackExecutor:
         """
         self.validator = validator or OperationValidator()
         self.trash_dir = self.validator.trash_dir
-        self.journal_path = journal_path or _DEFAULT_JOURNAL
+        self.journal_path = journal_path or default_journal_path()
 
     def rollback_operation(self, operation: Operation) -> bool:
         """Rollback a single operation (undo).
@@ -116,6 +110,10 @@ class RollbackExecutor:
         """
         source = operation.source_path
         destination = operation.destination_path
+
+        if destination is None:
+            logger.error(f"Cannot rollback move operation {operation.id}: no destination path")
+            return False
 
         logger.info(f"Rolling back move: {destination} -> {source}")
 
