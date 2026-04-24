@@ -502,7 +502,25 @@ def _complete_or_rollback(entry: _JournalEntry) -> bool:
         )
         return False  # retain for next sweep / manual reconciliation
     elif entry.state == STATE_COPIED:
-        # Destination is complete; finish by removing source.
+        # Codex P1 PRRT_kwDOR_Rkws59hGWW: verify dst still exists
+        # before unlinking src. A crash-and-recovery window can leave
+        # the journal with a ``copied`` record while an out-of-band
+        # actor (operator cleanup, another process, backup restore)
+        # removed dst between the journal write and this sweep. Blind
+        # ``src.unlink()`` in that state destroys the last remaining
+        # copy — a data-loss path. ``os.path.lexists`` is used
+        # (instead of ``dst.exists()``) so a dangling-symlink dst
+        # still counts as "present" — the symlink itself is a first-
+        # class file-system entity we committed to on os.replace.
+        if not os.path.lexists(dst):
+            logger.warning(
+                "sweep: retaining copied entry %s -> %s — dst is missing; "
+                "unlinking src would destroy the last remaining copy. "
+                "Operator or retry must reconcile.",
+                src,
+                dst,
+            )
+            return False
         try:
             src.unlink()
         except FileNotFoundError:

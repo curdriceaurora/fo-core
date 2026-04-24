@@ -36,14 +36,33 @@ class RollbackExecutor:
 
         Args:
             validator: Operation validator.
-            journal_path: F7 durable-move journal location. Defaults
-                to the shared rollback journal under the state dir.
-                Tests pass a per-test ``tmp_path`` to isolate from
-                the real user journal.
+            journal_path: F7 durable-move journal location. When
+                omitted, inherits the validator's ``journal_path``
+                so write (durable_move) and read
+                (``is_trash_safe_to_delete``) coordinate on the same
+                file; falls back to :func:`default_journal_path` only
+                when no validator-configured value is available. Tests
+                pass a per-test ``tmp_path`` to isolate from the real
+                user journal.
         """
         self.validator = validator or OperationValidator()
         self.trash_dir = self.validator.trash_dir
-        self.journal_path = journal_path or default_journal_path()
+        # Codex P2 PRRT_kwDOR_Rkws59hGWY: if the caller injects a
+        # validator with a custom ``journal_path`` (typical in tests
+        # and in any multi-tenant setup) but omits ``journal_path``
+        # here, we MUST reuse the validator's path. Using the
+        # default instead splits write/read: durable_move would write
+        # entries to the default journal while
+        # ``is_trash_safe_to_delete`` reads the validator's — a path
+        # flagged in-flight in one would appear safe in the other,
+        # reintroducing the F8 GC-vs-restore race.
+        if journal_path is not None:
+            self.journal_path = journal_path
+        else:
+            validator_journal = getattr(self.validator, "journal_path", None)
+            self.journal_path = (
+                validator_journal if validator_journal is not None else default_journal_path()
+            )
 
     def rollback_operation(self, operation: Operation) -> bool:
         """Rollback a single operation (undo).

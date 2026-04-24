@@ -514,3 +514,83 @@ class TestMoveToTrash:
         trash_path = executor._move_to_trash(f, operation_id=None)
         assert trash_path.exists()
         assert not f.exists()
+
+
+# ---------------------------------------------------------------------------
+# Journal coordination between validator and executor
+# ---------------------------------------------------------------------------
+
+
+class TestExecutorJournalPathCoordination:
+    """Codex P2 PRRT_kwDOR_Rkws59hGWY: when a caller injects a
+    validator with a custom ``journal_path`` but omits the
+    executor's ``journal_path`` argument, the executor MUST reuse
+    the validator's path. Using the default would split the
+    write/read: durable_move writes one journal while
+    ``is_trash_safe_to_delete`` reads another — reintroducing the
+    F8 GC-vs-restore race.
+    """
+
+    def test_executor_inherits_validator_journal_path_when_omitted(
+        self, tmp_path: Path
+    ) -> None:
+        from undo.validator import OperationValidator
+
+        custom_journal = tmp_path / "custom-tenant.journal"
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        validator = OperationValidator(trash_dir=trash, journal_path=custom_journal)
+
+        executor = RollbackExecutor(validator=validator)  # no journal_path!
+
+        assert executor.journal_path == custom_journal, (
+            "executor must inherit validator.journal_path when no explicit "
+            "journal_path is passed; otherwise durable_move writes and "
+            "is_trash_safe_to_delete reads diverge (codex P2 "
+            "PRRT_kwDOR_Rkws59hGWY)"
+        )
+
+    def test_explicit_executor_journal_path_overrides_validator(
+        self, tmp_path: Path
+    ) -> None:
+        """If both are specified, the explicit executor journal_path
+        wins — callers opt into the split only when they pass it."""
+        from undo.validator import OperationValidator
+
+        validator_journal = tmp_path / "validator.journal"
+        executor_journal = tmp_path / "executor.journal"
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        validator = OperationValidator(trash_dir=trash, journal_path=validator_journal)
+
+        executor = RollbackExecutor(validator=validator, journal_path=executor_journal)
+
+        assert executor.journal_path == executor_journal
+
+    def test_executor_falls_back_to_default_when_validator_has_no_journal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When the validator exposes no ``journal_path`` attribute
+        (legacy / mocked validators) AND no explicit journal_path is
+        passed, the executor falls back to
+        :func:`default_journal_path` — preserving the pre-fix
+        behaviour for callers that don't wire journal_path at all.
+        """
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg_state"))
+
+        from undo.rollback import default_journal_path
+
+        class LegacyValidator:
+            """Has trash_dir but no journal_path attribute."""
+
+            def __init__(self, trash_dir: Path) -> None:
+                self.trash_dir = trash_dir
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        legacy = LegacyValidator(trash)
+
+        executor = RollbackExecutor(validator=legacy)  # type: ignore[arg-type]
+
+        expected = default_journal_path()
+        assert executor.journal_path == expected

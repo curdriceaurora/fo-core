@@ -425,6 +425,66 @@ class TestDurableMoveSweep:
         assert dst.read_text() == "complete destination"
         assert _read_journal(journal) == []
 
+    def test_sweep_copied_state_retains_when_dst_missing(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59hGWW: if an out-of-band actor
+        removed ``dst`` between the ``copied`` journal write and the
+        next sweep (operator cleanup, another process, backup
+        restore), sweep MUST NOT unlink ``src`` — that would destroy
+        the last remaining copy. The entry is retained for operator
+        or next-pass reconciliation instead.
+        """
+        from undo.durable_move import sweep
+
+        src = tmp_path / "src.txt"
+        src.write_text("last remaining copy")
+        dst = tmp_path / "dst.txt"  # deliberately absent — removed between journal + sweep
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "copied"}],
+        )
+
+        sweep(journal)
+
+        # Source preserved (data not destroyed), entry retained.
+        assert src.read_text() == "last remaining copy", (
+            "copied-state sweep must not unlink src when dst is missing; "
+            "this was a data-loss path (codex P1 PRRT_kwDOR_Rkws59hGWW)"
+        )
+        entries = _read_journal(journal)
+        assert len(entries) == 1 and entries[0]["state"] == "copied", (
+            f"entry must be retained for reconciliation; got {entries}"
+        )
+
+    def test_sweep_copied_state_accepts_symlink_dst(self, tmp_path: Path) -> None:
+        """``os.path.lexists(dst)`` (not ``dst.exists()``) is used so a
+        dangling-symlink dst still counts as present — the symlink
+        itself is the thing we committed to via ``os.replace`` in the
+        symlink-preserving EXDEV branch.
+        """
+        if os.name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.durable_move import sweep
+
+        src = tmp_path / "src.txt"
+        src.write_text("src")
+        dst = tmp_path / "dst-link.txt"
+        # Dangling symlink (target doesn't exist). `dst.exists()` → False,
+        # but `os.path.lexists(dst)` → True.
+        dst.symlink_to(tmp_path / "nonexistent-target.txt")
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "copied"}],
+        )
+
+        sweep(journal)
+
+        # dst still present (the symlink itself); src removed as normal.
+        assert dst.is_symlink(), "dangling symlink dst must satisfy the presence check"
+        assert not src.exists()
+        assert _read_journal(journal) == []
+
     def test_sweep_ignores_done_entries(self, tmp_path: Path) -> None:
         """``done`` entries were logged for audit/observability but
         are already complete. Sweep leaves src/dst as-is and clears
@@ -471,6 +531,11 @@ class TestDurableMoveSweep:
         bad_src = tmp_path / "bad-src.txt"
         bad_dst = tmp_path / "bad-dst.txt"
         bad_src.write_text("leftover after copied")
+        # bad_dst MUST exist so sweep passes the codex P1
+        # PRRT_kwDOR_Rkws59hGWW dst-present check and reaches the
+        # src.unlink attempt (which is what the monkeypatched Path.unlink
+        # intercepts to simulate an OSError).
+        bad_dst.write_text("complete destination")
         _write_journal(
             journal,
             [
@@ -550,27 +615,30 @@ class TestDurableMoveSweep:
 
     def test_sweep_tolerates_missing_files(self, tmp_path: Path) -> None:
         """A journal entry for paths that no longer exist on disk
-        doesn't crash the sweep. Uses ``copied`` state (which
-        performs actual reconciliation) since ``started`` is now
-        retained-as-ambiguous and does no disk I/O.
+        doesn't crash the sweep. Uses ``copied`` with dst missing —
+        which hits the codex P1 PRRT_kwDOR_Rkws59hGWW guard: the
+        entry is RETAINED (not cleared) because unlinking src when
+        dst is gone would destroy the last copy. Sweep must not
+        raise for the missing files.
         """
         from undo.durable_move import sweep
 
+        src = tmp_path / "gone_src.txt"
+        dst = tmp_path / "gone_dst.txt"  # deliberately absent
         journal = tmp_path / "move.journal"
         _write_journal(
             journal,
-            [
-                {
-                    "op": "move",
-                    "src": str(tmp_path / "gone_src.txt"),
-                    "dst": str(tmp_path / "gone_dst.txt"),
-                    "state": "copied",
-                }
-            ],
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "copied"}],
         )
 
-        sweep(journal)  # must not raise (FileNotFoundError on src is swallowed)
-        assert _read_journal(journal) == []
+        sweep(journal)  # must not raise
+
+        # Entry retained per codex P1 PRRT_kwDOR_Rkws59hGWW — dst is
+        # missing so sweep refuses to unlink src (even though src is
+        # also missing here). The retain-on-dst-missing contract is
+        # state-based, not content-aware.
+        entries = _read_journal(journal)
+        assert len(entries) == 1 and entries[0]["state"] == "copied"
 
 
 # ---------------------------------------------------------------------------
