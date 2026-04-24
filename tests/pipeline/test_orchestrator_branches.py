@@ -152,10 +152,10 @@ class TestMemoryPressureThresholdValidation:
     def test_boundary_values_are_accepted(self) -> None:
         """Threshold values of exactly 0.0 and 100.0 are accepted without error."""
         orch_zero = PipelineOrchestrator(memory_pressure_threshold_percent=0.0)
-        assert orch_zero._memory_pressure_threshold_percent == 0.0
+        assert orch_zero._resource_executor.memory_pressure_threshold_percent == 0.0
 
         orch_hundred = PipelineOrchestrator(memory_pressure_threshold_percent=100.0)
-        assert orch_hundred._memory_pressure_threshold_percent == 100.0
+        assert orch_hundred._resource_executor.memory_pressure_threshold_percent == 100.0
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +190,9 @@ class TestBufferPoolLazyInit:
         assert len(results) == 2
         assert results[0] is not None
         assert results[1] is not None
-        assert orch._buffer_pool is not None
+        # D2: buffer pool lives on the executor; orchestrator exposes it
+        # via ``buffer_pool`` property which delegates.
+        assert orch._resource_executor._buffer_pool is not None
         assert results[0] is results[1]
 
     def test_supplied_buffer_pool_is_returned_directly(self) -> None:
@@ -388,21 +390,22 @@ class TestFinalizeResult:
 
 @pytest.mark.integration
 class TestSafeFileSizeFallback:
-    """_safe_file_size returns 0 when stat() raises OSError."""
+    """Orchestrator delegates ``safe_file_size`` to its resource executor
+    (D2 seam); this class pins the delegation + zero-on-error contract."""
 
     def test_safe_file_size_returns_zero_on_oserror(self) -> None:
-        """_safe_file_size returns 0 when stat() raises OSError for a nonexistent path."""
+        """``safe_file_size`` returns 0 when stat() raises OSError for a nonexistent path."""
         orch = PipelineOrchestrator()
         ghost = Path("/nonexistent/totally/made/up.bin")
-        size = orch._safe_file_size(ghost)
+        size = orch._resource_executor.safe_file_size(ghost)
         assert size == 0
 
     def test_safe_file_size_returns_actual_size_for_real_file(self, tmp_path: Path) -> None:
-        """_safe_file_size returns the correct byte count for an existing file."""
+        """``safe_file_size`` returns the correct byte count for an existing file."""
         f = tmp_path / "data.bin"
         f.write_bytes(b"x" * 100)
         orch = PipelineOrchestrator()
-        size = orch._safe_file_size(f)
+        size = orch._resource_executor.safe_file_size(f)
         assert size == 100
 
 
@@ -413,44 +416,42 @@ class TestSafeFileSizeFallback:
 
 @pytest.mark.integration
 class TestSafeCurrentRssFallback:
-    """_safe_current_rss returns 0 when ResourceMonitor raises."""
+    """``ResourceAwareExecutor.safe_current_rss`` returns 0 when
+    ResourceMonitor raises; swapping the executor's monitor simulates
+    platform failure."""
 
     def test_safe_current_rss_returns_zero_on_oserror(self) -> None:
-        """_safe_current_rss returns 0 when get_memory_usage raises OSError."""
         orch = PipelineOrchestrator()
         mock_monitor = MagicMock()
         mock_monitor.get_memory_usage.side_effect = OSError("no /proc")
-        orch._resource_monitor = mock_monitor
-        rss = orch._safe_current_rss()
+        orch._resource_executor._resource_monitor = mock_monitor
+        rss = orch._resource_executor.safe_current_rss()
         assert rss == 0
 
     def test_safe_current_rss_returns_zero_on_runtime_error(self) -> None:
-        """_safe_current_rss returns 0 when get_memory_usage raises RuntimeError."""
         orch = PipelineOrchestrator()
         mock_monitor = MagicMock()
         mock_monitor.get_memory_usage.side_effect = RuntimeError("platform unsupported")
-        orch._resource_monitor = mock_monitor
-        rss = orch._safe_current_rss()
+        orch._resource_executor._resource_monitor = mock_monitor
+        rss = orch._resource_executor.safe_current_rss()
         assert rss == 0
 
     def test_safe_current_rss_returns_zero_on_value_error(self) -> None:
-        """_safe_current_rss returns 0 when get_memory_usage raises ValueError."""
         orch = PipelineOrchestrator()
         mock_monitor = MagicMock()
         mock_monitor.get_memory_usage.side_effect = ValueError("bad format")
-        orch._resource_monitor = mock_monitor
-        rss = orch._safe_current_rss()
+        orch._resource_executor._resource_monitor = mock_monitor
+        rss = orch._resource_executor.safe_current_rss()
         assert rss == 0
 
     def test_safe_current_rss_returns_actual_value_on_success(self) -> None:
-        """_safe_current_rss returns the rss value from get_memory_usage on success."""
         orch = PipelineOrchestrator()
         mock_monitor = MagicMock()
         mock_rss_info = MagicMock()
         mock_rss_info.rss = 123_456_789
         mock_monitor.get_memory_usage.return_value = mock_rss_info
-        orch._resource_monitor = mock_monitor
-        rss = orch._safe_current_rss()
+        orch._resource_executor._resource_monitor = mock_monitor
+        rss = orch._resource_executor.safe_current_rss()
         assert rss == 123_456_789
 
 
@@ -461,18 +462,18 @@ class TestSafeCurrentRssFallback:
 
 @pytest.mark.integration
 class TestRebalanceBufferPool:
-    """_rebalance_buffer_pool: skip when None, shrink under pressure, grow on high utilisation."""
+    """``ResourceAwareExecutor.rebalance_buffer_pool``: skip when None,
+    shrink under pressure, grow on high utilisation (integration-level
+    through the orchestrator's executor)."""
 
     def test_no_pool_skips_rebalance(self) -> None:
-        """When _buffer_pool is None, _rebalance_buffer_pool is a no-op."""
         orch = PipelineOrchestrator()
         # Ensure pool is None (no lazy-init has fired yet)
-        assert orch._buffer_pool is None
+        assert orch._resource_executor._buffer_pool is None
         # Must not raise
-        orch._rebalance_buffer_pool()
+        orch._resource_executor.rebalance_buffer_pool()
 
     def test_under_memory_pressure_shrinks_pool(self) -> None:
-        """should_evict=True triggers a resize down to initial_buffers."""
         pool = BufferPool(buffer_size=256, initial_buffers=2, max_buffers=8)
         pool.resize(6)
         assert pool.total_buffers == 6
@@ -481,51 +482,45 @@ class TestRebalanceBufferPool:
         mock_monitor.should_evict.return_value = True
 
         orch = PipelineOrchestrator(buffer_pool=pool, resource_monitor=mock_monitor)
-        orch._rebalance_buffer_pool()
+        orch._resource_executor.rebalance_buffer_pool()
 
         # Pool should have been resized down to initial_buffers (2)
         assert pool.total_buffers == pool.initial_buffers
         mock_monitor.should_evict.assert_called_once_with(
-            threshold_percent=orch._memory_pressure_threshold_percent
+            threshold_percent=orch._resource_executor.memory_pressure_threshold_percent
         )
 
     def test_high_utilisation_grows_pool(self, tmp_path: Path) -> None:
-        """utilization >= 0.9 and room to grow triggers a resize up."""
         pool = BufferPool(buffer_size=256, initial_buffers=2, max_buffers=8)
-        # Acquire buffers to push utilisation to 100%
         acquired = [pool.acquire() for _ in range(2)]
         assert pool.utilization == 1.0
 
         mock_monitor = MagicMock()
-        mock_monitor.should_evict.return_value = False  # no pressure
+        mock_monitor.should_evict.return_value = False
 
         orch = PipelineOrchestrator(buffer_pool=pool, resource_monitor=mock_monitor)
         before = pool.total_buffers
-        orch._rebalance_buffer_pool()
+        orch._resource_executor.rebalance_buffer_pool()
 
         assert pool.total_buffers > before
-        # Cleanup
         for buf in acquired:
             pool.release(buf)
 
     def test_monitor_exception_in_rebalance_is_swallowed(self) -> None:
-        """OSError from should_evict must not propagate from _rebalance_buffer_pool."""
         pool = BufferPool(buffer_size=256, initial_buffers=2, max_buffers=4)
         mock_monitor = MagicMock()
         mock_monitor.should_evict.side_effect = OSError("no metrics")
 
         orch = PipelineOrchestrator(buffer_pool=pool, resource_monitor=mock_monitor)
-        # Should not raise
-        orch._rebalance_buffer_pool()
+        orch._resource_executor.rebalance_buffer_pool()
 
     def test_runtime_error_in_rebalance_is_swallowed(self) -> None:
-        """RuntimeError from should_evict is swallowed and does not propagate."""
         pool = BufferPool(buffer_size=256, initial_buffers=2, max_buffers=4)
         mock_monitor = MagicMock()
         mock_monitor.should_evict.side_effect = RuntimeError("crash")
 
         orch = PipelineOrchestrator(buffer_pool=pool, resource_monitor=mock_monitor)
-        orch._rebalance_buffer_pool()
+        orch._resource_executor.rebalance_buffer_pool()
 
 
 # ---------------------------------------------------------------------------
@@ -535,10 +530,11 @@ class TestRebalanceBufferPool:
 
 @pytest.mark.integration
 class TestAcquireReleaseBuffer:
-    """_acquire_buffer and _release_buffer error path coverage."""
+    """Buffer acquire/release error path coverage (delegated to
+    ``ResourceAwareExecutor`` under D2)."""
 
     def test_acquire_returns_none_on_pool_exception(self, tmp_path: Path) -> None:
-        """Processing continues successfully even when pool.acquire() raises an exception."""
+        """Processing continues successfully even when pool.acquire() raises."""
         f = tmp_path / "a.txt"
         f.write_text("x")
         pool = MagicMock()
@@ -551,15 +547,14 @@ class TestAcquireReleaseBuffer:
         assert result.success is True
 
     def test_release_none_buffer_is_no_op(self, tmp_path: Path) -> None:
-        """_release_buffer(path, None) must not call pool.release."""
+        """``release_buffer(path, None)`` must not call ``pool.release``."""
         pool = MagicMock(spec=BufferPool)
         pool.buffer_size = 1024
         pool.acquire.return_value = bytearray(1024)
         orch = PipelineOrchestrator(buffer_pool=pool)
         f = tmp_path / "a.txt"
         f.write_text("x")
-        # Call with None buffer directly
-        orch._release_buffer(f, None)
+        orch._resource_executor.release_buffer(f, None)
         pool.release.assert_not_called()
 
     def test_release_exception_is_swallowed(self, tmp_path: Path) -> None:

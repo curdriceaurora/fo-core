@@ -201,7 +201,7 @@ class TestWatchLoopExecutor:
 
         mock_monitor.get_events = fake_get_events
 
-        with patch.object(orch._executor, "submit") as mock_submit:
+        with patch.object(orch._thread_executor, "submit") as mock_submit:
             orch._watch_loop()
             # submit should have been called with process_file and the path
             mock_submit.assert_called_once_with(orch.process_file, test_path)
@@ -211,7 +211,7 @@ class TestWatchLoopExecutor:
         config = PipelineConfig(dry_run=True, max_concurrent=8)
         orch = PipelineOrchestrator(config)
         # Verify executor exists and was initialized (don't access private _max_workers)
-        assert orch._executor is not None, "Executor should be initialized"
+        assert orch._thread_executor is not None, "Executor should be initialized"
         # Verify the config value is what we set
         assert config.max_concurrent == 8, (
             f"Config max_concurrent should be 8, got {config.max_concurrent}"
@@ -223,6 +223,6 @@ class TestWatchLoopExecutor:
         orch._running = True
         orch._watch_thread = MagicMock()
 
-        with patch.object(orch._executor, "shutdown") as mock_shutdown:
+        with patch.object(orch._thread_executor, "shutdown") as mock_shutdown:
             orch.stop()
             mock_shutdown.assert_called_once_with(wait=False)
