@@ -1922,9 +1922,7 @@ class TestAIHeuristicSeamIntegration:
     tests. These tests cover them end-to-end through ``evaluate()``.
     """
 
-    def test_ensure_client_delegates_to_adapter_is_available(
-        self, tmp_path: Path
-    ) -> None:
+    def test_ensure_client_delegates_to_adapter_is_available(self, tmp_path: Path) -> None:
         """``AIHeuristic._ensure_client`` returns the adapter's
         availability and caches it on ``self._available``."""
         from methodologies.para.detection.heuristics import (
@@ -1947,9 +1945,7 @@ class TestAIHeuristicSeamIntegration:
 
         assert h._available is True
 
-    def test_invoke_inference_delegates_to_adapter_infer(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invoke_inference_delegates_to_adapter_infer(self, tmp_path: Path) -> None:
         """``AIHeuristic.evaluate`` routes through
         ``_invoke_inference`` → ``adapter.infer``; the client's
         ``generate`` is called via the adapter, not inline."""
