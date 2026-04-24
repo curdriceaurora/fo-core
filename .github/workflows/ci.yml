@@ -62,7 +62,7 @@ jobs:
           cache: pip
       - name: Install lint deps (pre-commit + dev extras)
         # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -85,7 +85,7 @@ jobs:
           cache: pip
       - name: Install deptry + package
         # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -106,7 +106,7 @@ jobs:
           cache: pip
       - name: Install dev extras
         # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -188,7 +188,7 @@ jobs:
         # search is required for TestBM25Index, TestVectorIndexRecall, TestHybridRetriever,
         # and related CLI/API/copilot tests — not in dev because it is an optional runtime extra.
         # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -219,7 +219,7 @@ jobs:
         # Split out of the diff-coverage-gate step so the retry wrapper only re-runs
         # pip install, not the gate itself.  Retry wrapper guards against transient
         # TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 3
           max_attempts: 3
@@ -251,7 +251,7 @@ jobs:
           cache: pip
       - name: Install dependencies
         # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -296,7 +296,7 @@ jobs:
           cache: pip
       - name: Install dev extras
         # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -338,7 +338,7 @@ jobs:
           cache: pip
       - name: Install dependencies
         # Retry wrapper guards against transient TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -458,7 +458,7 @@ jobs:
         # Retry wrapper guards against transient TLS/CDN flakes (issue #145) —
         # the 2026-04-21 integration coverage-gate failure was exactly this
         # case (mid-stream DECRYPTION_FAILED_OR_BAD_RECORD_MAC on a numpy wheel).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -523,7 +523,7 @@ jobs:
         # Split out of the size-check step so the retry wrapper only re-runs
         # pip install, not the size measurement.  Retry wrapper guards against
         # transient TLS/CDN flakes (issue #145).
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08  # v3.0.2
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 10
           max_attempts: 3
