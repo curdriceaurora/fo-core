@@ -357,14 +357,19 @@ class TestDurableMoveSweep:
         journal.write_text("")
         sweep(journal)
 
-    def test_sweep_started_state_preserves_both_paths(self, tmp_path: Path) -> None:
-        """Codex P1 PRRT_kwDOR_Rkws59gbdD: state ``started`` = crash
-        BEFORE the EXDEV copy reached ``os.replace``. ``dst`` has not
-        been written by our transaction, so it may still be a
-        legitimate pre-existing file (or absent). Sweep MUST NOT
-        unlink it — doing so was a data-loss path during crash
-        recovery. ``src`` is the live copy and is also untouched.
-        The journal entry is dropped after logging.
+    def test_sweep_started_state_retains_entry_and_preserves_paths(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59gbdD + PRRT_kwDOR_Rkws59g2Ex:
+        ``started`` is AMBIGUOUS — a crash between ``os.replace`` and
+        the ``copied`` journal append leaves a ``started`` entry with
+        dst already overwritten. Sweep must:
+
+        - NEVER unlink dst (data-loss in the "crashed before replace"
+          sub-case)
+        - NEVER unlink src (data-loss in the same sub-case if dst was
+          never replaced)
+        - RETAIN the journal entry so the next sweep / operator /
+          retry can reconcile (dropping it would lose recovery
+          metadata and potentially orphan files permanently)
         """
         from undo.durable_move import sweep
 
@@ -380,14 +385,21 @@ class TestDurableMoveSweep:
 
         sweep(journal)
 
-        # Both paths preserved unchanged — the move never committed.
+        # Both paths preserved unchanged — sweep didn't destroy anything.
         assert src.read_text() == "intact source"
         assert dst.read_text() == "legitimate pre-existing destination", (
             "started-state sweep must not destroy a legitimate dst; "
             "this was the codex P1 data-loss path"
         )
-        # Journal cleared after sweep (no retry needed for this state).
-        assert _read_journal(journal) == []
+        # Entry RETAINED so the next sweep / retry / operator can
+        # reconcile (codex P1 PRRT_kwDOR_Rkws59g2Ex — retry metadata).
+        entries = _read_journal(journal)
+        assert len(entries) == 1, (
+            f"started entry must be retained for ambiguity resolution; got {entries}"
+        )
+        assert entries[0]["state"] == "started"
+        assert entries[0]["src"] == str(src)
+        assert entries[0]["dst"] == str(dst)
 
     def test_sweep_completes_copied_state(self, tmp_path: Path) -> None:
         """State ``copied`` = crash after destination fsync but
@@ -499,8 +511,10 @@ class TestDurableMoveSweep:
         )
 
     def test_sweep_is_idempotent(self, tmp_path: Path) -> None:
-        """Sweeping twice is safe — the journal is empty after the
-        first pass."""
+        """Sweeping twice is safe — the same retained ``started``
+        entry survives both passes without raising. Uses a ``done``
+        entry alongside to verify sweep makes progress (drops done,
+        retains ambiguous started) on each pass."""
         from undo.durable_move import sweep
 
         journal = tmp_path / "move.journal"
@@ -509,16 +523,37 @@ class TestDurableMoveSweep:
         dst = tmp_path / "dst.txt"
         _write_journal(
             journal,
-            [{"op": "move", "src": str(src), "dst": str(dst), "state": "started"}],
+            [
+                # One ambiguous entry retained across sweeps.
+                {"op": "move", "src": str(src), "dst": str(dst), "state": "started"},
+                # One done entry dropped on first sweep, no-op on second.
+                {
+                    "op": "move",
+                    "src": str(tmp_path / "d_src"),
+                    "dst": str(tmp_path / "d_dst"),
+                    "state": "done",
+                },
+            ],
         )
 
         sweep(journal)
+        # After pass 1: started retained, done dropped.
+        after_first = _read_journal(journal)
+        assert len(after_first) == 1 and after_first[0]["state"] == "started"
+
         sweep(journal)  # must not raise
+        # After pass 2: same started entry still there (still ambiguous).
+        after_second = _read_journal(journal)
+        assert after_second == after_first, (
+            "idempotent sweeps must not accumulate or lose the retained entry"
+        )
 
     def test_sweep_tolerates_missing_files(self, tmp_path: Path) -> None:
         """A journal entry for paths that no longer exist on disk
-        (e.g. operator deleted them manually) doesn't crash the
-        sweep — sweep is best-effort cleanup."""
+        doesn't crash the sweep. Uses ``copied`` state (which
+        performs actual reconciliation) since ``started`` is now
+        retained-as-ambiguous and does no disk I/O.
+        """
         from undo.durable_move import sweep
 
         journal = tmp_path / "move.journal"
@@ -529,12 +564,13 @@ class TestDurableMoveSweep:
                     "op": "move",
                     "src": str(tmp_path / "gone_src.txt"),
                     "dst": str(tmp_path / "gone_dst.txt"),
-                    "state": "started",
+                    "state": "copied",
                 }
             ],
         )
 
-        sweep(journal)  # must not raise
+        sweep(journal)  # must not raise (FileNotFoundError on src is swallowed)
+        assert _read_journal(journal) == []
 
 
 # ---------------------------------------------------------------------------
@@ -546,14 +582,14 @@ class TestDurableMoveFailureModes:
     """Failure modes: missing source, permission errors, crash
     during copy, etc."""
 
-    def test_sweep_unlocked_body_started_preserves_dst(self, tmp_path: Path) -> None:
+    def test_sweep_unlocked_body_started_retains_entry(self, tmp_path: Path) -> None:
         """``_sweep_unlocked_body`` (Windows/no-fcntl fallback) shares
-        the same started-state contract as the locked path: dst is
-        NEVER unlinked on ``started`` (codex P1 PRRT_kwDOR_Rkws59gbdD).
-        Exercised directly since the real platform gate uses
-        ``os.name`` at module level and can't be cleanly monkeypatched
-        from tests (the module captures ``os`` at import time for the
-        gate check).
+        the same started-state contract as the locked path: never
+        unlink either path AND retain the entry (codex P1
+        PRRT_kwDOR_Rkws59gbdD + PRRT_kwDOR_Rkws59g2Ex). Exercised
+        directly since the real platform gate uses ``os.name`` at
+        module level and can't be cleanly monkeypatched from tests
+        (the module captures ``os`` at import time).
         """
         from undo.durable_move import _sweep_unlocked_body
 
@@ -569,10 +605,13 @@ class TestDurableMoveFailureModes:
 
         _sweep_unlocked_body(journal)
 
-        # Both paths preserved; journal cleared.
+        # Both paths preserved; entry retained for reconciliation.
         assert src.read_text() == "intact"
         assert dst.read_text() == "legitimate pre-existing"
-        assert _read_journal(journal) == []
+        entries = _read_journal(journal)
+        assert len(entries) == 1 and entries[0]["state"] == "started", (
+            f"unlocked sweep must retain started entry; got {entries}"
+        )
 
     def test_sweep_unlocked_body_retains_failed_entry(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -894,8 +933,11 @@ class TestStartedStateDoesNotUnlinkDestination:
         assert src.read_bytes() == b"source bytes"
 
     def test_started_sweep_tolerates_absent_dst(self, tmp_path: Path) -> None:
-        """If dst never existed (common case), sweep still drops the
-        started entry cleanly — no FileNotFoundError surfacing."""
+        """If dst never existed (common case), sweep still doesn't
+        raise. Entry is retained (same ambiguity class as the
+        dst-exists case; codex P1 PRRT_kwDOR_Rkws59g2Ex) so operator
+        or retry can reconcile.
+        """
         from undo.durable_move import sweep
 
         src = tmp_path / "src.txt"
@@ -911,7 +953,50 @@ class TestStartedStateDoesNotUnlinkDestination:
 
         assert src.read_text() == "x"
         assert not dst.exists()
-        assert _read_journal(journal) == []
+        # Retained for reconciliation (same invariant as dst-exists case).
+        entries = _read_journal(journal)
+        assert len(entries) == 1 and entries[0]["state"] == "started"
+
+    def test_started_entry_persists_across_multiple_sweeps(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59g2Ex: a ``started`` entry is
+        AMBIGUOUS — we don't know if ``os.replace`` completed before
+        the crash. Sweep retains it so the next startup (or a retry
+        that logs new started/copied/done) can supersede it. The
+        entry must NEVER silently disappear across sweeps.
+        """
+        from undo.durable_move import sweep
+
+        src = tmp_path / "ambig-src.txt"
+        dst = tmp_path / "ambig-dst.txt"
+        src.write_text("src")
+        dst.write_text("dst")
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "started"}],
+        )
+
+        # Sweep 5 times; entry must survive every pass.
+        for pass_num in range(5):
+            sweep(journal)
+            entries = _read_journal(journal)
+            assert len(entries) == 1 and entries[0]["state"] == "started", (
+                f"pass {pass_num}: started entry must survive every sweep; got {entries}"
+            )
+
+        # A later successful retry supersedes the started entry with
+        # copied/done; sweep then drops the stale record.
+        _write_journal(
+            journal,
+            [
+                {"op": "move", "src": str(src), "dst": str(dst), "state": "started"},
+                {"op": "move", "src": str(src), "dst": str(dst), "state": "done"},
+            ],
+        )
+        sweep(journal)
+        assert _read_journal(journal) == [], (
+            "a later done entry for the same (src,dst) must supersede the ambiguous started record"
+        )
 
 
 class TestAppendJournalFlockCoordination:

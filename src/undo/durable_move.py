@@ -464,26 +464,43 @@ def _complete_or_rollback(entry: _JournalEntry) -> bool:
     dst = Path(entry.dst)
 
     if entry.state == STATE_STARTED:
-        # Codex P1 PRRT_kwDOR_Rkws59gbdD: the EXDEV path logs
-        # ``started`` BEFORE the copy begins, so when we reach this
-        # branch ``dst`` has NOT been touched by our transaction — it
-        # is either absent or a legitimate pre-existing file (possibly
-        # created concurrently by another process). The previous
-        # implementation called ``dst.unlink()`` unconditionally,
-        # which destroyed that legitimate file — a data-loss crash-
-        # recovery path. The correct reconciliation is: do nothing.
-        # ``src`` is still the live copy, and ``dst`` was never
-        # written, so the caller can safely retry the move. Any
-        # orphaned ``.{dst.name}.*.tmp`` file left behind by a
-        # crashed copy is debris; NamedTemporaryFile's randomized
-        # suffix makes it unsafe for sweep to target those blindly
-        # (collisions with concurrent unrelated moves).
-        logger.info(
-            "sweep: dropping uncommitted started entry %s -> %s "
-            "(move never reached os.replace; leaving both paths untouched)",
+        # Codex P1 PRRT_kwDOR_Rkws59gbdD + PRRT_kwDOR_Rkws59g2Ex:
+        # ``started`` is an AMBIGUOUS state, not a "move never
+        # committed" state. The EXDEV path logs ``started`` before
+        # the copy and does NOT log ``copied`` until AFTER
+        # ``os.replace``, so a crash anywhere in this window leaves
+        # a ``started`` record with one of three possible on-disk
+        # realities:
+        #
+        #   (a) crash before os.replace: src intact, dst pristine
+        #       (pre-existing file OR absent). Retry is safe.
+        #   (b) crash during or after os.replace but before the
+        #       ``copied`` log fsyncs: dst has the NEW content, src
+        #       still exists. A naive retry would double-copy; the
+        #       correct recovery is "unlink src" (i.e. complete the
+        #       ``copied`` semantics).
+        #   (c) same as (b) but os.replace was atomic and the tmp
+        #       already got cleaned — indistinguishable from (b)
+        #       without content comparison.
+        #
+        # We cannot safely disambiguate (a) from (b) without
+        # introducing a new journal state or storing tmp_path in the
+        # record (future F7.1). For now the SAFE reconciliation is:
+        # do NOT unlink dst (which would destroy a legitimate
+        # pre-existing file in case (a)) and do NOT unlink src
+        # (which would cause data loss in case (a) where dst was
+        # never replaced), and RETAIN the entry so the next sweep /
+        # operator sees it. Dropping the entry would lose all retry
+        # metadata and potentially leave both src+dst on disk forever.
+        logger.warning(
+            "sweep: retaining ambiguous started entry %s -> %s "
+            "(crash occurred in the copy→replace window; cannot safely "
+            "reconcile without content comparison — operator or retry "
+            "must resolve)",
             src,
             dst,
         )
+        return False  # retain for next sweep / manual reconciliation
     elif entry.state == STATE_COPIED:
         # Destination is complete; finish by removing source.
         try:

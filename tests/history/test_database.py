@@ -217,6 +217,7 @@ class TestDatabaseManager:
 
 @pytest.mark.unit
 @pytest.mark.ci
+@pytest.mark.integration
 class TestDatabaseIntegrityCheck:
     """F5 (hardening roadmap #159): ``initialize`` runs ``PRAGMA
     integrity_check`` on the database before any schema work and
@@ -308,3 +309,65 @@ class TestDatabaseIntegrityCheck:
         assert any(word in msg for word in ("quarantine", "move aside", "rename", "back up")), (
             f"error message lacks recovery guidance: {excinfo.value}"
         )
+
+    def test_operational_error_is_not_classified_as_corruption(self, temp_db_path):
+        """Codex P1 PRRT_kwDOR_Rkws59g2Eu: ``PRAGMA integrity_check``
+        can raise ``sqlite3.OperationalError`` for TRANSIENT reasons
+        (database locked by another writer, I/O interrupt, etc.).
+        Those are NOT corruption — wrapping them as
+        ``DatabaseCorruptionError`` would trigger destructive
+        quarantine remediation on a healthy file. The helper must
+        let ``OperationalError`` propagate unchanged.
+
+        Uses ``_check_integrity_locked`` directly with a mock
+        connection because ``sqlite3.Connection.execute`` is a
+        read-only C attribute that can't be monkeypatched.
+        """
+        import sqlite3
+        from unittest.mock import MagicMock
+
+        db = DatabaseManager(temp_db_path)
+
+        # Mock connection whose .execute raises a lock error.
+        # OperationalError is a subclass of DatabaseError, so if the
+        # helper catches DatabaseError broadly it would (incorrectly)
+        # wrap this as corruption.
+        lock_error = sqlite3.OperationalError("database is locked")
+        mock_conn = MagicMock(spec=sqlite3.Connection)
+        mock_conn.execute.side_effect = lock_error
+
+        with pytest.raises(sqlite3.OperationalError) as excinfo:
+            db._check_integrity_locked(mock_conn)
+
+        # OperationalError must propagate unchanged — NOT wrapped.
+        assert excinfo.value is lock_error, (
+            "OperationalError must propagate; wrapping as "
+            "DatabaseCorruptionError would trigger destructive "
+            "quarantine on a healthy locked database "
+            "(codex P1 PRRT_kwDOR_Rkws59g2Eu)"
+        )
+        assert not isinstance(excinfo.value, DatabaseCorruptionError)
+
+    def test_non_operational_database_error_is_classified_as_corruption(self, temp_db_path):
+        """Companion to the OperationalError passthrough: a generic
+        ``sqlite3.DatabaseError`` from ``PRAGMA integrity_check``
+        (e.g. "database disk image is malformed" for a truncated
+        file that's too damaged for integrity_check to even report
+        rows) SHOULD still be wrapped as ``DatabaseCorruptionError``.
+        Preserves the round-3 contract for actual corruption.
+        """
+        import sqlite3
+        from unittest.mock import MagicMock
+
+        db = DatabaseManager(temp_db_path)
+
+        # Real corruption signal — DatabaseError that is NOT an
+        # OperationalError subclass.
+        corruption_error = sqlite3.DatabaseError("database disk image is malformed")
+        assert not isinstance(corruption_error, sqlite3.OperationalError)
+
+        mock_conn = MagicMock(spec=sqlite3.Connection)
+        mock_conn.execute.side_effect = corruption_error
+
+        with pytest.raises(DatabaseCorruptionError):
+            db._check_integrity_locked(mock_conn)

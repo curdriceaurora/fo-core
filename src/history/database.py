@@ -244,18 +244,28 @@ class DatabaseManager:
         sqlite3 authorizer blocks — ``writable_schema=ON`` is
         refused for ``sqlite_master`` updates from the binding).
         """
-        # PRAGMA integrity_check has two failure modes:
+        # PRAGMA integrity_check can fail in three distinct ways:
         # 1. Returns rows describing the damage (one row per error, up
-        #    to the default cap of 100).
-        # 2. Raises ``sqlite3.DatabaseError`` directly when the damage
-        #    is severe enough that it can't even walk the pages
-        #    (truncated header, unreadable root page, etc.).
-        # Both are corruption signals — normalize to our typed
-        # exception so callers don't have to catch raw DatabaseError
-        # and guess.
+        #    to the default cap of 100) — handled by
+        #    :meth:`_validate_integrity_rows`.
+        # 2. Raises ``sqlite3.OperationalError`` for TRANSIENT conditions
+        #    (database locked by another writer, I/O interrupt, etc.).
+        #    These are NOT corruption — classifying them as such would
+        #    trigger destructive quarantine remediation on a healthy
+        #    file (codex P1 PRRT_kwDOR_Rkws59g2Eu). Let them propagate
+        #    so callers can distinguish "retry later" from "quarantine".
+        # 3. Raises a different ``sqlite3.DatabaseError`` (truncated
+        #    header, unreadable root page, not-a-database, etc.) when
+        #    the damage is severe enough that integrity_check can't
+        #    even walk the pages. THESE are corruption signals —
+        #    normalize to our typed exception.
         try:
             cursor = conn.execute("PRAGMA integrity_check")
             rows = cursor.fetchall()
+        except sqlite3.OperationalError:
+            # Transient (lock/busy/I-O). Propagate unchanged — the
+            # file is most likely healthy; the caller can retry.
+            raise
         except sqlite3.DatabaseError as exc:
             logger.error(
                 "PRAGMA integrity_check raised %s on %s",
