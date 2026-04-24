@@ -97,9 +97,11 @@ def _collect_validator_call_targets(body: list[ast.stmt]) -> set[str]:
     """Return the set of argument names passed positionally to any
     allowed validator call anywhere in ``body``.
 
-    Handles nested function bodies too (a validator call inside a
-    helper defined alongside the main logic still counts — the name
-    is validated somewhere in the function's scope).
+    Does NOT descend into nested ``def``/``async def``/``class``/lambda
+    blocks — those are separate scopes. Without this exclusion, an
+    unused dead helper that happens to call ``resolve_cli_path(param)``
+    would make the rail accept a command that never actually validates
+    ``param``. (Codex finding on PR #184.)
     """
     targets: set[str] = set()
 
@@ -120,6 +122,22 @@ def _collect_validator_call_targets(body: list[ast.stmt]) -> set[str]:
                     if isinstance(arg, ast.Name):
                         targets.add(arg.id)
             self.generic_visit(node)
+
+        # Nested scopes are NOT part of the command body's execution
+        # path. A validator call inside a nested def / class / lambda
+        # only runs if someone calls that nested name — which might
+        # never happen.
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            return
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            return
 
     visitor = _Visitor()
     for stmt in body:

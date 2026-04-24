@@ -1651,3 +1651,69 @@ class TestOllamaInferenceAdapter:
         adapter = OllamaInferenceAdapter(cfg)
         with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False):
             assert adapter.infer(prompt="x", system="y") is None
+
+
+@pytest.mark.ci
+class TestAdapterBypassesOllamaAvailableGate:
+    """Codex P1 regression (PR #185): the ``if not OLLAMA_AVAILABLE``
+    short-circuit at the top of ``evaluate`` previously fired before the
+    adapter's ``is_available()`` check — defeating the entire D3 seam
+    on systems without the ``ollama`` package. The fix gates the
+    short-circuit on ``self._adapter is None`` so an injected adapter
+    (OpenAI, vLLM, test fake) runs regardless of module-level state.
+    """
+
+    def test_adapter_runs_when_ollama_available_is_false(self, tmp_path: Path) -> None:
+        from methodologies.para.detection.heuristics import (
+            AIHeuristic,
+            AIInferenceAdapter,
+        )
+
+        calls: list[dict[str, str]] = []
+
+        class _FakeAdapter:
+            def is_available(self) -> bool:
+                return True
+
+            def infer(self, *, prompt: str, system: str) -> str | None:
+                calls.append({"prompt": prompt, "system": system})
+                return json.dumps(
+                    {
+                        "project": 0.75,
+                        "area": 0.15,
+                        "resource": 0.05,
+                        "archive": 0.05,
+                        "reasoning": "adapter used despite no ollama",
+                    }
+                )
+
+        adapter: AIInferenceAdapter = _FakeAdapter()
+        h = AIHeuristic(weight=0.10, adapter=adapter)
+        test_file = tmp_path / "spec.txt"
+        test_file.write_text("Project spec for Q4 launch")
+
+        # Simulate a system where the ollama package is not installed.
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False):
+            result = h.evaluate(test_file)
+
+        # The adapter MUST have been called — the short-circuit was
+        # gated on ``self._adapter is None`` after the fix.
+        assert len(calls) == 1
+        assert result.metadata["ai_analysis"] == "complete"
+        assert result.recommended_category == PARACategory.PROJECT
+
+    def test_no_adapter_short_circuits_when_ollama_unavailable(self, tmp_path: Path) -> None:
+        """The pre-D3 behavior is preserved when no adapter is injected:
+        if ``ollama`` is not installed the heuristic short-circuits with
+        ``ollama_not_installed`` before any client construction attempt."""
+        from methodologies.para.detection.heuristics import AIHeuristic
+
+        h = AIHeuristic(weight=0.10)  # no adapter injected
+        test_file = tmp_path / "spec.txt"
+        test_file.write_text("content")
+
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False):
+            result = h.evaluate(test_file)
+
+        assert result.metadata["ai_analysis"] == "ollama_not_installed"
+        assert result.abstained is True

@@ -11,9 +11,9 @@ where xdist spreads work across multiple workers (see
 
 This script scans YAML (CI configs, pre-commit), shell, Makefile, and
 Python files for ``-n auto`` / ``-n=auto`` / ``-n"auto"`` pytest
-invocations. For each file, every command that contains ``-n auto`` must
-also contain ``--dist=loadgroup`` within a 5-line window following the
-``-n`` flag (accounting for backslash line continuations).
+invocations. For each match, ``--dist=loadgroup`` must appear within the
+SAME pytest command — where "same command" is defined by contiguous
+lines joined by shell ``\\`` line-continuation.
 
 Scan scope (commands only matter inside a pytest invocation):
 
@@ -57,11 +57,6 @@ _SCANNABLE_SUFFIXES = {".yml", ".yaml", ".toml", ".sh", ".bash", ".zsh", ".mk", 
 _N_AUTO_RE = re.compile(r'-n[\s=]+[\'"]?auto[\'"]?\b(?!\w)')
 _LOADGROUP_RE = re.compile(r'--dist[\s=]+[\'"]?loadgroup[\'"]?|-dloadgroup')
 _NOQA_G5_RE = re.compile(r"#\s*noqa:\s*G5\b")
-
-# A pytest invocation can span up to this many lines after ``-n auto`` via
-# backslash continuations or YAML block scalars. Five lines covers all
-# known real-world cases in this repo without being unboundedly greedy.
-_LOADGROUP_WINDOW = 5
 
 
 def _iter_candidate_files() -> list[Path]:
@@ -108,9 +103,41 @@ def _is_reference_not_command(line: str, path: Path) -> bool:
     return False
 
 
+def _ends_continuation(line: str) -> bool:
+    """True if ``line`` uses a shell line-continuation (trailing ``\\``)."""
+    return line.rstrip().endswith("\\")
+
+
+def _command_range(lines: list[str], n_auto_idx: int) -> tuple[int, int]:
+    """Return the [start, end] line indices (inclusive) of the single
+    pytest command that contains the ``-n auto`` match at ``n_auto_idx``.
+
+    Walks backward while the preceding line ends with ``\\``, and
+    forward while the current line ends with ``\\``. Stops at the
+    first line without a trailing ``\\``.
+
+    Replaces the prior ±5-line window, which let ``--dist=loadgroup``
+    from a neighbouring command or comment satisfy the rail for an
+    unrelated ``-n auto`` match (codex finding on PR #184).
+    """
+    start = n_auto_idx
+    while start > 0 and _ends_continuation(lines[start - 1]):
+        start -= 1
+    end = n_auto_idx
+    while end < len(lines) - 1 and _ends_continuation(lines[end]):
+        end += 1
+    return start, end
+
+
 def find_violations(path: Path) -> list[tuple[int, str]]:
     """Return [(lineno, line_text)] for every ``-n auto`` without a
-    nearby ``--dist=loadgroup`` in ``path``."""
+    ``--dist=loadgroup`` in the SAME pytest command.
+
+    "Same command" is defined by shell line-continuation: the range
+    spans contiguous lines linked by trailing ``\\``. This prevents a
+    ``--dist=loadgroup`` from a neighbouring command or comment from
+    satisfying the rail for an unrelated ``-n auto`` match.
+    """
     violations: list[tuple[int, str]] = []
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
@@ -124,14 +151,9 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
             continue
         if _is_reference_not_command(line, path):
             continue
-        # Look for --dist=loadgroup on the same line OR within a
-        # _LOADGROUP_WINDOW-line window around it (covers backslash
-        # continuations in shell and YAML block scalars, plus the
-        # occasional ``--dist`` preceding the ``-n`` flag).
-        window_end = min(i + _LOADGROUP_WINDOW + 1, len(lines))
-        window_start = max(i - _LOADGROUP_WINDOW, 0)
-        window = "\n".join(lines[window_start:window_end])
-        if _LOADGROUP_RE.search(window):
+        start, end = _command_range(lines, i)
+        command_text = "\n".join(lines[start : end + 1])
+        if _LOADGROUP_RE.search(command_text):
             continue
         violations.append((i + 1, line.rstrip()))
     return violations
@@ -152,11 +174,11 @@ def main() -> int:
 
     print(
         "ERROR (G5): pytest `-n auto` found without `--dist=loadgroup` "
-        "nearby.\n"
+        "in the same command.\n"
         "Without `--dist=loadgroup`, `@pytest.mark.xdist_group` markers are "
         "silently non-enforcing and singleton-sharing tests will race "
         "under xdist.\n"
-        "Add `--dist=loadgroup` to the same command, or append "
+        "Add `--dist=loadgroup` to the same pytest command, or append "
         "`# noqa: G5 (reason)` if xdist-group serialization is genuinely "
         "not needed.\n",
         file=sys.stderr,

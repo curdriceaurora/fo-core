@@ -881,7 +881,12 @@ class AIHeuristic(Heuristic):
         Returns:
             HeuristicResult with per-category scores from the LLM.
         """
-        if not OLLAMA_AVAILABLE:
+        # The OLLAMA_AVAILABLE short-circuit only applies when no custom
+        # adapter is injected. An injected adapter (OpenAI, vLLM, test
+        # fake) is responsible for its own availability and MUST be able
+        # to run on systems where the ``ollama`` package is not installed
+        # — that's the entire point of the D3 seam.
+        if self._adapter is None and not OLLAMA_AVAILABLE:
             logger.debug("ollama package not installed — skipping AI heuristic")
             return self._zero_result("ollama_not_installed")
 
