@@ -250,3 +250,88 @@ class TestFullCliEnforcement:
         assert result.returncode == 0, (
             f"G3 rail reported unvalidated Path parameters in src/cli/:\n\n{result.stderr}"
         )
+
+
+class TestNestedScopeIsolation:
+    """A validator call that lives inside a nested ``def``/``class``/
+    ``lambda`` MUST NOT satisfy the rail for an unrelated outer-scope
+    Path parameter. Regression for codex P2 finding on PR #184: the
+    visitor walked every Call node in the body including those inside
+    dead inner functions, so an unused helper that called
+    ``resolve_cli_path(p)`` would make the outer command appear to
+    validate ``p`` even when the outer body never actually did.
+    """
+
+    def test_nested_def_does_not_satisfy_outer_param(self, tmp_path: Path) -> None:
+        f = tmp_path / "nested_def.py"
+        f.write_text(
+            dedent(
+                """
+                from pathlib import Path
+                import typer
+                from cli.path_validation import resolve_cli_path
+                app = typer.Typer()
+
+                @app.command()
+                def show(file: Path) -> None:
+                    def _unused_helper():
+                        # validator call lives in a nested function that is
+                        # never invoked — must NOT satisfy the rail for `file`
+                        return resolve_cli_path(file)
+                    print(file.read_text())
+                """
+            )
+        )
+        violations = find_violations(f)
+        assert len(violations) == 1
+        _lineno, func_name, param_name = violations[0]
+        assert func_name == "show"
+        assert param_name == "file"
+
+    def test_nested_class_does_not_satisfy_outer_param(self, tmp_path: Path) -> None:
+        f = tmp_path / "nested_class.py"
+        f.write_text(
+            dedent(
+                """
+                from pathlib import Path
+                import typer
+                from cli.path_validation import resolve_cli_path
+                app = typer.Typer()
+
+                @app.command()
+                def show(file: Path) -> None:
+                    class _Inner:
+                        def run(self):
+                            return resolve_cli_path(file)
+                    print(file.read_text())
+                """
+            )
+        )
+        violations = find_violations(f)
+        assert len(violations) == 1
+        _lineno, func_name, param_name = violations[0]
+        assert func_name == "show"
+        assert param_name == "file"
+
+    def test_lambda_body_does_not_satisfy_outer_param(self, tmp_path: Path) -> None:
+        f = tmp_path / "nested_lambda.py"
+        f.write_text(
+            dedent(
+                """
+                from pathlib import Path
+                import typer
+                from cli.path_validation import resolve_cli_path
+                app = typer.Typer()
+
+                @app.command()
+                def show(file: Path) -> None:
+                    _ = lambda: resolve_cli_path(file)
+                    print(file.read_text())
+                """
+            )
+        )
+        violations = find_violations(f)
+        assert len(violations) == 1
+        _lineno, func_name, param_name = violations[0]
+        assert func_name == "show"
+        assert param_name == "file"

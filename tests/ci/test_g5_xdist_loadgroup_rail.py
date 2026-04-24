@@ -179,3 +179,53 @@ class TestFullRepoEnforcement:
         assert result.returncode == 0, (
             f"G5 check reported `-n auto` without `--dist=loadgroup`:\n\n{result.stderr}"
         )
+
+
+class TestCommandBoundaryIsolation:
+    """The detector must treat each pytest invocation as a separate
+    command — a ``--dist=loadgroup`` on a neighboring command MUST NOT
+    satisfy the rail for an unrelated ``-n auto`` in a different command.
+    Regression for codex P2 finding on PR #184: the original ±5-line
+    window let loadgroup on a nearby line silence a real violation.
+    "Same command" is now defined strictly by shell ``\\``
+    line-continuation.
+    """
+
+    def test_separate_command_does_not_share_loadgroup(self, tmp_path: Path) -> None:
+        """Two separate pytest calls on adjacent lines: the first has
+        --dist=loadgroup, the second does not. The second must flag."""
+        f = tmp_path / "run.sh"
+        f.write_text(
+            "#!/usr/bin/env bash\n"
+            "pytest tests/unit -n auto --dist=loadgroup\n"
+            "pytest tests/other -n auto\n"
+        )
+        violations = find_violations(f)
+        assert len(violations) == 1
+        assert violations[0][0] == 3
+
+    def test_continuation_spanning_loadgroup_passes(self, tmp_path: Path) -> None:
+        """``-n auto`` on one line, ``--dist=loadgroup`` three lines
+        later, joined by backslash continuations — same command."""
+        f = tmp_path / "run.sh"
+        f.write_text(
+            "#!/usr/bin/env bash\n"
+            "pytest tests/ \\\n"
+            "  -n auto \\\n"
+            "  --timeout=30 \\\n"
+            "  --dist=loadgroup\n"
+        )
+        assert find_violations(f) == []
+
+    def test_comment_loadgroup_does_not_silence_violation(self, tmp_path: Path) -> None:
+        """A ``--dist=loadgroup`` inside a comment near the violating
+        line must not count as part of the same command."""
+        f = tmp_path / "run.sh"
+        f.write_text(
+            "#!/usr/bin/env bash\n"
+            "# Prior runs used: pytest -n auto --dist=loadgroup\n"
+            "pytest tests/ -n auto --timeout=30\n"
+        )
+        violations = find_violations(f)
+        assert len(violations) == 1
+        assert violations[0][0] == 3
