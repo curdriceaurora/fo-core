@@ -308,7 +308,12 @@ class PidFileManager:
             # because ``Path.read_text`` raises ``UnicodeDecodeError``
             # which is NOT an ``OSError``. The docstring promises
             # ``None`` for corrupt files; honour it.
-            logger.warning("PID file %s is not valid UTF-8 (likely corrupt): %s", pid_file, exc)
+            logger.warning(
+                "PID file %s is not valid UTF-8 (likely corrupt): %s",
+                pid_file,
+                exc,
+                exc_info=True,
+            )
             return None
 
         if not content:

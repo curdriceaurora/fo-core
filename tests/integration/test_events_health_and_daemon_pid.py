@@ -550,3 +550,91 @@ class TestPidRecordIntegration:
             ),
         ):
             assert PidFileManager().is_running(pid_file) is False
+
+    def test_rotation_preserves_mode(self, tmp_path: Path) -> None:
+        """Covers the chmod + os.replace permission-preservation path
+        (round-2/3 codex P2) in the integration suite. A pre-existing
+        PID file at 0o640 must stay 0o640 after rotation.
+        """
+        import pytest
+
+        if os.name == "nt":
+            pytest.skip("POSIX file-mode semantics")
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "rotated.pid"
+        pid_file.write_text("0")
+        os.chmod(pid_file, 0o640)
+
+        PidFileManager().write_pid_record(pid_file)
+
+        mode = pid_file.stat().st_mode & 0o7777
+        assert mode == 0o640
+
+    def test_rotation_chown_path_is_exercised(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Covers the os.chown call + PermissionError branch (round-4).
+
+        Spies on os.chown to confirm it's invoked with the
+        pre-existing uid/gid, and raises PermissionError to exercise
+        the except branch without requiring CAP_CHOWN.
+        """
+        import pytest
+
+        if os.name == "nt" or not hasattr(os, "chown"):
+            pytest.skip("os.chown is Unix-only")
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "owned.pid"
+        pid_file.write_text("0")
+        stat = pid_file.stat()
+
+        calls: list[tuple[str, int, int]] = []
+
+        def fake_chown(path, uid, gid):  # type: ignore[no-untyped-def]
+            calls.append((str(path), int(uid), int(gid)))
+            raise PermissionError("simulated lack of CAP_CHOWN")
+
+        monkeypatch.setattr("daemon.pid.os.chown", fake_chown)
+
+        # Must not raise — PermissionError is logged + swallowed.
+        PidFileManager().write_pid_record(pid_file)
+        assert calls == [(str(pid_file), stat.st_uid, stat.st_gid)]
+
+    def test_read_record_non_utf8_returns_none(self, tmp_path: Path) -> None:
+        """Covers the ``UnicodeDecodeError`` branch in read_pid_record
+        (round-4 codex P2). Raw non-UTF-8 bytes must return None
+        gracefully rather than propagating the decode error into
+        ``daemon status``/``stop``."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "corrupt-bytes.pid"
+        pid_file.write_bytes(b"\xff\xfe\xfd garbage")
+        assert PidFileManager().read_pid_record(pid_file) is None
+
+    def test_atomic_write_cleans_up_tmp_on_replace_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Covers the ``finally`` tmp_path cleanup branch (round-2):
+        when ``os.replace`` fails mid-write, the stray ``.tmp`` file
+        must be unlinked rather than left next to the real PID file."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "daemon.pid"
+        real_replace = os.replace
+
+        def fail_once(src, dst):  # type: ignore[no-untyped-def]
+            monkeypatch.setattr("daemon.pid.os.replace", real_replace)
+            raise OSError("simulated os.replace failure")
+
+        monkeypatch.setattr("daemon.pid.os.replace", fail_once)
+
+        with pytest.raises(OSError, match="simulated"):
+            PidFileManager().write_pid_record(pid_file)
+
+        # No real pid file landed.
+        assert not pid_file.exists()
+        # No stray .tmp debris next to the target.
+        stray = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
+        assert stray == [], f"temp files left behind: {stray}"
