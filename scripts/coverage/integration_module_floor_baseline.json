@@ -43,6 +43,7 @@
     "src/cli/utilities.py": 82.0,
     "src/config/__init__.py": 100.0,
     "src/config/manager.py": 86.0,
+    "src/config/migrations.py": 94.0,
     "src/config/path_manager.py": 100.0,
     "src/config/path_migration.py": 90.0,
     "src/config/provider_env.py": 100.0,

@@ -196,3 +196,305 @@ class TestModuleOverridesSerialization:
         assert "watcher" not in profile_data
         assert "daemon" not in profile_data
         assert "updates" in profile_data
+
+
+# ---------------------------------------------------------------------------
+# F6 — Config schema migration path (hardening roadmap #159)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+@pytest.mark.integration
+class TestConfigSchemaVersion:
+    """F6: loading a config with a mismatched schema version must be
+    handled explicitly — migrate known old versions, warn loudly on
+    unknown/future versions rather than silently reading as defaults.
+    """
+
+    def test_current_schema_version_exported(self) -> None:
+        """``CURRENT_SCHEMA_VERSION`` is exported from ``config.schema``
+        and matches ``AppConfig().version`` default — bumping one
+        forces updating the other via the import contract."""
+        from config.schema import CURRENT_SCHEMA_VERSION
+
+        assert CURRENT_SCHEMA_VERSION == AppConfig().version
+
+    def test_load_accepts_current_version(self, tmp_path: Path) -> None:
+        """A config saved with the current version loads cleanly,
+        no warning emitted."""
+        import logging
+
+        mgr = ConfigManager(tmp_path)
+        cfg = AppConfig(version=AppConfig().version, profile_name="default")
+        mgr.save(cfg)
+
+        caplog_records: list[logging.LogRecord] = []
+
+        class _Handler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                caplog_records.append(record)
+
+        handler = _Handler()
+        handler.setLevel(logging.WARNING)
+        root = logging.getLogger("config.manager")
+        root.addHandler(handler)
+        try:
+            loaded = mgr.load()
+        finally:
+            root.removeHandler(handler)
+
+        assert loaded.version == cfg.version
+        version_warnings = [r for r in caplog_records if "version" in r.getMessage().lower()]
+        assert not version_warnings, (
+            f"current-version load should not warn; got {[r.getMessage() for r in version_warnings]}"
+        )
+
+    def test_load_future_version_warns_loudly(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """F6: a config from a newer fo version (unknown to this
+        install) must WARN loudly so the operator knows the config may
+        have fields this binary can't round-trip. We still load best
+        effort — refusing would strand users mid-upgrade."""
+        mgr = ConfigManager(tmp_path)
+        cfg_path = tmp_path / "config.yaml"
+        cfg_path.write_text(
+            yaml.dump(
+                {
+                    "profiles": {
+                        "default": {
+                            "version": "99.0",  # from the future
+                            "default_methodology": "none",
+                        }
+                    }
+                }
+            )
+        )
+
+        with caplog.at_level("WARNING", logger="config.manager"):
+            loaded = mgr.load()
+
+        # Must still load (best effort) — refusing would strand upgrades.
+        assert isinstance(loaded, AppConfig)
+        # Must have warned about the unknown version.
+        msgs = [r.getMessage() for r in caplog.records]
+        assert any("99.0" in m and "version" in m.lower() for m in msgs), (
+            f"expected a loud warning about unknown version 99.0; got {msgs}"
+        )
+
+    def test_save_always_writes_current_version(self, tmp_path: Path) -> None:
+        """F6: ``save`` stamps the CURRENT_SCHEMA_VERSION into the
+        serialized record, even if the in-memory AppConfig has a
+        stale version field (e.g. after loading an older config,
+        migrating it, and re-saving)."""
+        from config.schema import CURRENT_SCHEMA_VERSION
+
+        mgr = ConfigManager(tmp_path)
+        cfg = AppConfig()
+        cfg.version = "0.5"  # pretend this was an ancient config
+        mgr.save(cfg)
+
+        raw = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
+        profile_data = raw["profiles"]["default"]
+        assert profile_data["version"] == CURRENT_SCHEMA_VERSION, (
+            "save must stamp the current schema version so a later load "
+            "doesn't re-trigger migration on already-migrated data"
+        )
+
+    def test_migrate_registered_old_version(self, tmp_path: Path) -> None:
+        """F6: registering a migration for an old version causes
+        loads from that version to transform the data before
+        AppConfig construction. Uses a synthetic migration so the
+        contract is exercised without a real migration existing yet.
+        """
+        from config import migrations as migrations_mod
+
+        # Register a synthetic migration 0.5 → current via monkeypatch.
+        # The load path must invoke it and apply the transformation.
+        def migrate_0_5_to_1_0(data: dict) -> dict:
+            data.setdefault("default_methodology", "migrated-default")
+            return data
+
+        original_migrations = migrations_mod.MIGRATIONS.copy()
+        try:
+            migrations_mod.MIGRATIONS["0.5"] = migrate_0_5_to_1_0
+            cfg_path = tmp_path / "config.yaml"
+            cfg_path.write_text(
+                yaml.dump(
+                    {
+                        "profiles": {
+                            "default": {
+                                "version": "0.5",
+                                # no default_methodology — migration must add it
+                            }
+                        }
+                    }
+                )
+            )
+            loaded = ConfigManager(tmp_path).load()
+            assert loaded.default_methodology == "migrated-default", (
+                "migration for 0.5 should have added the default_methodology field"
+            )
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original_migrations)
+
+    def test_migration_failure_falls_back_to_defaults(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """F6: if a registered migration raises, the load path must
+        log the failure and fall back to AppConfig defaults rather
+        than crashing the CLI at startup."""
+        from config import migrations as migrations_mod
+
+        def broken_migration(data: dict) -> dict:
+            raise RuntimeError("simulated bad migration")
+
+        original_migrations = migrations_mod.MIGRATIONS.copy()
+        try:
+            migrations_mod.MIGRATIONS["0.5"] = broken_migration
+            cfg_path = tmp_path / "config.yaml"
+            cfg_path.write_text(yaml.dump({"profiles": {"default": {"version": "0.5"}}}))
+
+            with caplog.at_level("ERROR", logger="config.manager"):
+                loaded = ConfigManager(tmp_path).load()
+
+            assert isinstance(loaded, AppConfig)
+            msgs = [r.getMessage() for r in caplog.records]
+            assert any("migration" in m.lower() for m in msgs), (
+                "broken migration must be logged at ERROR"
+            )
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original_migrations)
+
+    def test_migrate_to_current_is_noop_when_versions_match(self) -> None:
+        """F6: ``migrate_to_current`` short-circuits when the source
+        matches the target so the chain-walk cost is zero for the
+        common "already current" case."""
+        from config.migrations import migrate_to_current
+
+        data = {"version": "1.0", "key": "value"}
+        result = migrate_to_current(data, from_version="1.0", to_version="1.0")
+        assert result is data  # short-circuit: same object returned
+
+    def test_migrate_to_current_skips_earlier_migrations(self) -> None:
+        """F6: chain-walk pattern — if from_version is ``"1.0"`` and
+        the registry has migrations for ``"0.5"`` and ``"1.0"``, only
+        the ``"1.0"`` migration runs. The earlier one is skipped.
+        """
+        from config import migrations as migrations_mod
+        from config.migrations import migrate_to_current
+
+        calls: list[str] = []
+
+        def mig_05(data: dict) -> dict:
+            calls.append("0.5")
+            data["v05_ran"] = True
+            return data
+
+        def mig_10(data: dict) -> dict:
+            calls.append("1.0")
+            data["v10_ran"] = True
+            return data
+
+        original = migrations_mod.MIGRATIONS.copy()
+        try:
+            migrations_mod.MIGRATIONS["0.5"] = mig_05
+            migrations_mod.MIGRATIONS["1.0"] = mig_10
+            # from_version is "1.0" — must skip the 0.5 migration.
+            result = migrate_to_current({}, from_version="1.0", to_version="2.0")
+            assert calls == ["1.0"]
+            assert "v10_ran" in result
+            assert "v05_ran" not in result
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original)
+
+    def test_migrate_to_current_gap_in_registry_warns(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """F6: if the registry has migrations for ``"0.5"`` and
+        ``"2.0"`` but not ``"1.0"``, starting from 1.0 should WARN
+        about the gap and return data unchanged rather than running
+        the 2.0 migration on 1.0-shaped data.
+        """
+        from config import migrations as migrations_mod
+        from config.migrations import migrate_to_current
+
+        original = migrations_mod.MIGRATIONS.copy()
+        try:
+            migrations_mod.MIGRATIONS["0.5"] = lambda d: d
+            migrations_mod.MIGRATIONS["2.0"] = lambda d: d  # gap at 1.0
+            data = {"marker": "v1"}
+            with caplog.at_level("WARNING", logger="config.migrations"):
+                result = migrate_to_current(data, from_version="1.0", to_version="2.5")
+            assert result == {"marker": "v1"}
+            msgs = [r.getMessage() for r in caplog.records]
+            assert any("No migration registered" in m for m in msgs)
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original)
+
+    def test_migrate_to_current_exhausted_registry_warns(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """F6: if the chain runs out before reaching ``to_version``
+        (e.g. registry ends at 1.0 but target is 2.0), WARN about
+        the incomplete migration and return best-effort."""
+        from config import migrations as migrations_mod
+        from config.migrations import migrate_to_current
+
+        original = migrations_mod.MIGRATIONS.copy()
+        try:
+            migrations_mod.MIGRATIONS["0.5"] = lambda d: d
+            # Chain ends at 0.5 → no 1.0 migration, so it stops.
+            with caplog.at_level("WARNING", logger="config.migrations"):
+                result = migrate_to_current(
+                    {"marker": "start"},
+                    from_version="0.5",
+                    to_version="9.9",
+                )
+            assert result == {"marker": "start"}
+            msgs = [r.getMessage() for r in caplog.records]
+            assert any(
+                "did not reach target version" in m or "No migration registered" in m for m in msgs
+            ), f"expected exhaustion warning; got {msgs}"
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original)
+
+    def test_migrate_to_current_reraises_migration_exception(self) -> None:
+        """F6: ``migrate_to_current`` re-raises migration exceptions
+        so the caller (ConfigManager.load) can log + fall back. Silent
+        migration failure would produce subtly-wrong runtime config."""
+        from config import migrations as migrations_mod
+        from config.migrations import migrate_to_current
+
+        def bad(data: dict) -> dict:
+            raise RuntimeError("boom")
+
+        original = migrations_mod.MIGRATIONS.copy()
+        try:
+            migrations_mod.MIGRATIONS["0.5"] = bad
+            with pytest.raises(RuntimeError, match="boom"):
+                migrate_to_current({}, from_version="0.5", to_version="1.0")
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original)
+
+    def test_next_version_unknown_returns_input(self) -> None:
+        """F6: ``_next_version`` returns the input unchanged when the
+        version isn't in the registry (defensive helper for chain
+        walks that encounter unexpected state)."""
+        from config import migrations as migrations_mod
+        from config.migrations import _next_version
+
+        original = migrations_mod.MIGRATIONS.copy()
+        try:
+            migrations_mod.MIGRATIONS.clear()
+            assert _next_version("0.5") == "0.5"
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original)
