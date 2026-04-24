@@ -421,19 +421,26 @@ def _complete_or_rollback(entry: _JournalEntry) -> bool:
     dst = Path(entry.dst)
 
     if entry.state == STATE_STARTED:
-        # Destination may be partial or absent; delete it.
-        try:
-            dst.unlink()
-        except FileNotFoundError:
-            pass
-        except OSError as exc:
-            logger.warning(
-                "sweep: failed to remove partial destination %s: %s",
-                dst,
-                exc,
-                exc_info=True,
-            )
-            return False
+        # Codex P1 PRRT_kwDOR_Rkws59gbdD: the EXDEV path logs
+        # ``started`` BEFORE the copy begins, so when we reach this
+        # branch ``dst`` has NOT been touched by our transaction — it
+        # is either absent or a legitimate pre-existing file (possibly
+        # created concurrently by another process). The previous
+        # implementation called ``dst.unlink()`` unconditionally,
+        # which destroyed that legitimate file — a data-loss crash-
+        # recovery path. The correct reconciliation is: do nothing.
+        # ``src`` is still the live copy, and ``dst`` was never
+        # written, so the caller can safely retry the move. Any
+        # orphaned ``.{dst.name}.*.tmp`` file left behind by a
+        # crashed copy is debris; NamedTemporaryFile's randomized
+        # suffix makes it unsafe for sweep to target those blindly
+        # (collisions with concurrent unrelated moves).
+        logger.info(
+            "sweep: dropping uncommitted started entry %s -> %s "
+            "(move never reached os.replace; leaving both paths untouched)",
+            src,
+            dst,
+        )
     elif entry.state == STATE_COPIED:
         # Destination is complete; finish by removing source.
         try:
@@ -502,14 +509,45 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
 
 
 def _append_journal(journal: Path, payload: Mapping[str, object]) -> None:
-    """Append one JSON line to the journal with fsync durability.
+    """Append one JSON line to the journal with flock + fsync durability.
 
-    Delegates to :func:`utils.atomic_write.append_durable` which
-    already handles the flush + fsync + directory fsync pattern.
-    We just own the JSON serialization and ensure the parent dir
-    exists (``append_durable`` requires an existing parent).
+    Codex P1 PRRT_kwDOR_Rkws59gbdH: :func:`sweep` holds an exclusive
+    ``fcntl.flock`` on the journal for the entire read-modify-truncate
+    cycle. This helper MUST acquire the same advisory lock before
+    writing — otherwise a concurrent writer can append a ``started``
+    entry between sweep's read and its truncate, and sweep will then
+    silently wipe that record. If the writer then crashes mid-move,
+    recovery metadata is lost and the orphan files on disk have no
+    journal entry sweep can use to reconcile them on the next startup.
+
+    POSIX path: open the journal in append mode, acquire ``LOCK_EX``
+    on the descriptor, write + flush + fsync the data, fsync the
+    parent directory, then release the lock. ``O_APPEND`` makes the
+    offset advance atomically, but the lock (not the offset) is what
+    serializes us with sweep's truncate.
+
+    Non-POSIX fallback: :func:`utils.atomic_write.append_durable`.
+    Crash-safety relies on the module-docstring "single CLI
+    invocation" invariant; Windows sweep uses the unlocked body too.
     """
     journal.parent.mkdir(parents=True, exist_ok=True)
+    if os.name != "nt":
+        try:
+            import fcntl
+        except ImportError:  # pragma: no cover - POSIX ships fcntl
+            fcntl = None  # type: ignore[assignment]
+        if fcntl is not None:
+            line = json.dumps(payload) + "\n"
+            with open(journal, "a", encoding="utf-8") as fh:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                try:
+                    fh.write(line)
+                    fh.flush()
+                    os.fsync(fh.fileno())
+                finally:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            fsync_directory(journal)
+            return
     append_durable(journal, json.dumps(payload))
 
 

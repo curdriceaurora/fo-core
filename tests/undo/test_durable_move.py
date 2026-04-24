@@ -186,17 +186,21 @@ class TestDurableMoveSweep:
         journal.write_text("")
         sweep(journal)
 
-    def test_sweep_rollback_started_state(self, tmp_path: Path) -> None:
-        """State ``started`` = crash before the copy finished. The
-        destination may be partial/absent; delete it and drop the
-        journal entry. Source is untouched.
+    def test_sweep_started_state_preserves_both_paths(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59gbdD: state ``started`` = crash
+        BEFORE the EXDEV copy reached ``os.replace``. ``dst`` has not
+        been written by our transaction, so it may still be a
+        legitimate pre-existing file (or absent). Sweep MUST NOT
+        unlink it — doing so was a data-loss path during crash
+        recovery. ``src`` is the live copy and is also untouched.
+        The journal entry is dropped after logging.
         """
         from undo.durable_move import sweep
 
         src = tmp_path / "src.txt"
         dst = tmp_path / "dst.txt"
         src.write_text("intact source")
-        dst.write_text("partial garbage from crashed copy")
+        dst.write_text("legitimate pre-existing destination")
         journal = tmp_path / "move.journal"
         _write_journal(
             journal,
@@ -205,10 +209,13 @@ class TestDurableMoveSweep:
 
         sweep(journal)
 
-        # Destination cleaned up; source preserved.
-        assert not dst.exists(), "started-state dst must be removed on sweep"
+        # Both paths preserved unchanged — the move never committed.
         assert src.read_text() == "intact source"
-        # Journal is cleared after successful sweep.
+        assert dst.read_text() == "legitimate pre-existing destination", (
+            "started-state sweep must not destroy a legitimate dst; "
+            "this was the codex P1 data-loss path"
+        )
+        # Journal cleared after sweep (no retry needed for this state).
         assert _read_journal(journal) == []
 
     def test_sweep_completes_copied_state(self, tmp_path: Path) -> None:
@@ -271,13 +278,16 @@ class TestDurableMoveSweep:
         from undo.durable_move import sweep
 
         # Two entries: one that succeeds (done), one that fails on
-        # unlink (started, dst we'll make unremovable via monkeypatch).
+        # src.unlink during the copied-state reconciliation.
+        # (Previously the failing entry was ``started`` + dst.unlink;
+        # that scenario no longer applies now that started-state sweep
+        # leaves dst alone — codex P1 PRRT_kwDOR_Rkws59gbdD.)
         journal = tmp_path / "move.journal"
         good_src = tmp_path / "good-src.txt"
         good_dst = tmp_path / "good-dst.txt"
         bad_src = tmp_path / "bad-src.txt"
         bad_dst = tmp_path / "bad-dst.txt"
-        bad_dst.write_text("partial")
+        bad_src.write_text("leftover after copied")
         _write_journal(
             journal,
             [
@@ -291,7 +301,7 @@ class TestDurableMoveSweep:
                     "op": "move",
                     "src": str(bad_src),
                     "dst": str(bad_dst),
-                    "state": "started",
+                    "state": "copied",
                 },
             ],
         )
@@ -299,7 +309,7 @@ class TestDurableMoveSweep:
         real_unlink = Path.unlink
 
         def failing_unlink(self, *args, **kwargs):  # type: ignore[no-untyped-def]
-            if str(self) == str(bad_dst):
+            if str(self) == str(bad_src):
                 raise OSError(13, "simulated permission denied")
             return real_unlink(self, *args, **kwargs)
 
@@ -365,13 +375,14 @@ class TestDurableMoveFailureModes:
     """Failure modes: missing source, permission errors, crash
     during copy, etc."""
 
-    def test_sweep_unlocked_body_rollback_started(self, tmp_path: Path) -> None:
-        """``_sweep_unlocked_body`` (Windows/no-fcntl fallback) has
-        the same rollback contract as the locked path. Exercised
-        directly since the real platform gate uses ``os.name`` at
-        module level and can't be cleanly monkeypatched from tests
-        (the module captures ``os`` at import time for the gate
-        check).
+    def test_sweep_unlocked_body_started_preserves_dst(self, tmp_path: Path) -> None:
+        """``_sweep_unlocked_body`` (Windows/no-fcntl fallback) shares
+        the same started-state contract as the locked path: dst is
+        NEVER unlinked on ``started`` (codex P1 PRRT_kwDOR_Rkws59gbdD).
+        Exercised directly since the real platform gate uses
+        ``os.name`` at module level and can't be cleanly monkeypatched
+        from tests (the module captures ``os`` at import time for the
+        gate check).
         """
         from undo.durable_move import _sweep_unlocked_body
 
@@ -379,7 +390,7 @@ class TestDurableMoveFailureModes:
         src = tmp_path / "src.txt"
         dst = tmp_path / "dst.txt"
         src.write_text("intact")
-        dst.write_text("partial")
+        dst.write_text("legitimate pre-existing")
         _write_journal(
             journal,
             [{"op": "move", "src": str(src), "dst": str(dst), "state": "started"}],
@@ -387,30 +398,34 @@ class TestDurableMoveFailureModes:
 
         _sweep_unlocked_body(journal)
 
-        assert not dst.exists()
+        # Both paths preserved; journal cleared.
         assert src.read_text() == "intact"
+        assert dst.read_text() == "legitimate pre-existing"
         assert _read_journal(journal) == []
 
     def test_sweep_unlocked_body_retains_failed_entry(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """``_sweep_unlocked_body`` retains failed entries for retry
-        (matches the POSIX-locked path contract)."""
+        (matches the POSIX-locked path contract). Uses a ``copied``
+        entry since started-state reconciliation no longer unlinks
+        anything (codex P1 PRRT_kwDOR_Rkws59gbdD).
+        """
         from undo.durable_move import _sweep_unlocked_body
 
         journal = tmp_path / "move.journal"
-        bad_src = tmp_path / "bad.txt"
+        bad_src = tmp_path / "bad-src.txt"
         bad_dst = tmp_path / "bad-dst.txt"
-        bad_dst.write_text("x")
+        bad_src.write_text("x")
         _write_journal(
             journal,
-            [{"op": "move", "src": str(bad_src), "dst": str(bad_dst), "state": "started"}],
+            [{"op": "move", "src": str(bad_src), "dst": str(bad_dst), "state": "copied"}],
         )
 
         real_unlink = Path.unlink
 
         def failing_unlink(self, *args, **kwargs):  # type: ignore[no-untyped-def]
-            if str(self) == str(bad_dst):
+            if str(self) == str(bad_src):
                 raise OSError(13, "simulated")
             return real_unlink(self, *args, **kwargs)
 
@@ -657,6 +672,160 @@ class TestDurableMoveFailureModes:
         assert any(e["state"] == "started" for e in entries), (
             f"started entry must persist after copy crash; got {entries}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Round-3 P1 regression tests
+# ---------------------------------------------------------------------------
+
+
+class TestStartedStateDoesNotUnlinkDestination:
+    """Codex P1 PRRT_kwDOR_Rkws59gbdD.
+
+    Belt-and-suspenders coverage for the started-state invariant:
+    ``sweep`` must never unlink ``dst`` when reconciling a ``started``
+    entry, because the EXDEV path writes the journal BEFORE the copy
+    begins. ``dst`` may be a legitimate pre-existing file that our
+    transaction never touched.
+    """
+
+    def test_started_sweep_preserves_dst_contents_byte_for_byte(self, tmp_path: Path) -> None:
+        """Detailed byte-equality check — not just ``dst.exists()``.
+
+        Guards against future "clever" rollback logic that might,
+        say, truncate dst to zero instead of unlinking it.
+        """
+        from undo.durable_move import sweep
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_bytes(b"source bytes")
+        original_dst_bytes = b"pre-existing dst content \x00 with \xff NUL + binary"
+        dst.write_bytes(original_dst_bytes)
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "started"}],
+        )
+
+        sweep(journal)
+
+        assert dst.read_bytes() == original_dst_bytes, (
+            "started-state sweep must preserve dst byte-for-byte "
+            "(codex P1 PRRT_kwDOR_Rkws59gbdD data-loss path)"
+        )
+        assert src.read_bytes() == b"source bytes"
+
+    def test_started_sweep_tolerates_absent_dst(self, tmp_path: Path) -> None:
+        """If dst never existed (common case), sweep still drops the
+        started entry cleanly — no FileNotFoundError surfacing."""
+        from undo.durable_move import sweep
+
+        src = tmp_path / "src.txt"
+        src.write_text("x")
+        dst = tmp_path / "never_existed.txt"  # deliberately absent
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "started"}],
+        )
+
+        sweep(journal)  # must not raise
+
+        assert src.read_text() == "x"
+        assert not dst.exists()
+        assert _read_journal(journal) == []
+
+
+class TestAppendJournalFlockCoordination:
+    """Codex P1 PRRT_kwDOR_Rkws59gbdH.
+
+    ``sweep()`` holds ``fcntl.flock(LOCK_EX)`` during the read-
+    modify-truncate cycle. ``_append_journal`` MUST acquire the same
+    advisory lock before writing — otherwise sweep can truncate away
+    a freshly-appended ``started`` record, losing crash-recovery
+    metadata.
+    """
+
+    def test_append_journal_blocks_while_sweep_holds_flock(self, tmp_path: Path) -> None:
+        """Core invariant: an ``_append_journal`` call issued while
+        sweep (or any other holder) has ``LOCK_EX`` on the journal
+        blocks until the lock is released. Proves the appender
+        respects the same advisory lock sweep uses.
+        """
+        fcntl = pytest.importorskip("fcntl")
+        import threading
+        import time
+
+        from undo.durable_move import _append_journal
+
+        journal = tmp_path / "move.journal"
+        journal.write_text("")  # create so the held-open fd has an inode
+
+        # Acquire LOCK_EX in the main thread — mimics sweep holding
+        # the journal during its read-modify-truncate cycle.
+        holder = open(journal, "r+", encoding="utf-8")
+        fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
+
+        append_done = threading.Event()
+        append_error: list[BaseException] = []
+
+        def _appender() -> None:
+            try:
+                _append_journal(
+                    journal,
+                    {"op": "move", "src": "/a", "dst": "/b", "state": "started"},
+                )
+            except BaseException as exc:  # pragma: no cover - failure surface
+                append_error.append(exc)
+            finally:
+                append_done.set()
+
+        t = threading.Thread(target=_appender, daemon=True)
+        t.start()
+
+        # Without flock coordination the appender would finish in
+        # microseconds. With flock, it blocks on LOCK_EX while the
+        # holder still has it.
+        assert not append_done.wait(timeout=0.6), (
+            "_append_journal must block while another holder has LOCK_EX "
+            "(codex P1 PRRT_kwDOR_Rkws59gbdH)"
+        )
+        # Journal still empty — appender has not written its line.
+        assert journal.read_text() == ""
+
+        # Release the lock; appender should now complete promptly.
+        fcntl.flock(holder.fileno(), fcntl.LOCK_UN)
+        holder.close()
+        assert append_done.wait(timeout=5.0), "appender never completed after flock release"
+        t.join(timeout=2.0)
+        assert append_error == [], f"appender raised: {append_error}"
+
+        # Allow a brief moment for the append to flush (fsync is
+        # synchronous, but scheduling can vary on shared CI runners).
+        deadline = time.monotonic() + 2.0
+        lines: list[str] = []
+        while time.monotonic() < deadline:
+            lines = [line for line in journal.read_text().splitlines() if line]
+            if lines:
+                break
+        assert len(lines) == 1, f"expected 1 appended line, got {lines}"
+        assert '"state": "started"' in lines[0]
+
+    def test_append_journal_writes_when_no_holder(self, tmp_path: Path) -> None:
+        """Baseline: with no competing lock holder, the flock-aware
+        appender still writes the line + flushes + fsyncs (i.e. the
+        non-blocking path works)."""
+        pytest.importorskip("fcntl")
+
+        from undo.durable_move import _append_journal
+
+        journal = tmp_path / "move.journal"
+        _append_journal(journal, {"op": "move", "src": "/x", "dst": "/y", "state": "done"})
+
+        lines = [line for line in journal.read_text().splitlines() if line]
+        assert len(lines) == 1
+        assert '"state": "done"' in lines[0]
 
 
 # ---------------------------------------------------------------------------
