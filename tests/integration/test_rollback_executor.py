@@ -102,6 +102,23 @@ class TestRollbackOperationDispatch:
         # file moved to trash, no longer at original path
         assert not f.exists()
 
+    def test_create_dispatch_on_directory(self, tmp_path: Path) -> None:
+        """F7 regression guard (codex PRRT_kwDOR_Rkws59gRpq): undo
+        of a CREATE operation that produced a directory must still
+        succeed — ``_move_to_trash`` falls back to ``shutil.move``
+        for directories since ``durable_move`` is file-only by
+        design.
+        """
+        executor = RollbackExecutor(validator=None)
+        d = tmp_path / "created_dir"
+        d.mkdir()
+        (d / "inside.txt").write_text("content")
+        op = _op(OperationType.CREATE, d)
+
+        result = executor.rollback_operation(op)
+        assert result is True, "undo of a created directory must succeed"
+        assert not d.exists(), "original directory must be moved to trash"
+
     def test_exception_in_dispatch_returns_false(self, tmp_path: Path) -> None:
         executor = RollbackExecutor(validator=None)
         op = _op(OperationType.MOVE, tmp_path / "src.txt", None)

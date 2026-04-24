@@ -86,15 +86,18 @@ class _JournalEntry:
 def _normalized_path_str(path: Path) -> str:
     """Canonicalize *path* for journal storage + comparison.
 
-    Coderabbit PRRT_kwDOR_Rkws59fzVv: without normalization,
-    equivalent paths like ``./a/b`` and ``/abs/a/b`` would compare
-    unequal when :func:`is_path_in_flight` walks the journal.
-    Resolving handles symlinks, relative components (``..``), and
-    case-folding on Windows. ``strict=False`` tolerates paths that
-    don't exist yet (the dst often doesn't at the moment of the
-    ``started`` journal write).
+    Uses ``os.path.abspath`` — resolves relative paths to absolute
+    and collapses ``..``/``.`` segments, but does NOT follow symlinks.
+    This is deliberate (codex PRRT_kwDOR_Rkws59gRpv): a symlink is a
+    first-class file-system entity, and if the caller moves the
+    symlink itself, ``sweep`` must unlink that symlink on recovery —
+    not the target it happened to point at.
+
+    Coderabbit PRRT_kwDOR_Rkws59fzVv: this same canonicalization
+    makes equivalent paths (relative vs absolute, redundant ``..``,
+    Windows case) compare as equal in :func:`is_path_in_flight`.
     """
-    return os.fspath(Path(path).resolve(strict=False))
+    return os.path.abspath(os.fspath(path))
 
 
 def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
@@ -334,8 +337,11 @@ def _sweep_locked_body(journal: Path, fh) -> None:  # type: ignore[no-untyped-de
 
 
 def _sweep_unlocked_body(journal: Path) -> None:
-    """Windows / no-fcntl fallback. Best-effort — callers rely on
-    single-invocation serialization."""
+    """Sweep body for Windows / environments without ``fcntl``.
+
+    Best-effort — callers rely on single-invocation serialization
+    for crash safety; see the module docstring.
+    """
     entries = _read_journal(journal)
     if not entries:
         return
@@ -348,8 +354,12 @@ def _sweep_unlocked_body(journal: Path) -> None:
 
 
 def _reconcile_entries(entries: list[_JournalEntry]) -> list[_JournalEntry]:
-    """Collapse entries to latest state per (src, dst) and return
-    entries that still need retry after ``_complete_or_rollback``."""
+    """Collapse entries to latest state per (src, dst) and reconcile.
+
+    Returns the subset of entries that still need retry after
+    ``_complete_or_rollback`` — i.e. the ones whose cleanup raised
+    a transient ``OSError``.
+    """
     latest: dict[tuple[str, str], _JournalEntry] = {}
     for entry in entries:
         latest[(entry.src, entry.dst)] = entry

@@ -421,6 +421,42 @@ class TestDurableMoveFailureModes:
         entries = _read_journal(journal)
         assert any(e["src"] == str(bad_src) for e in entries)
 
+    def test_normalized_path_str_does_not_follow_symlinks(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59gRpv: a symlink must journal as
+        itself, not its target. Otherwise a crash during the
+        post-replace unlink would unlink the target instead of the
+        symlink on sweep recovery.
+        """
+        from undo.durable_move import _normalized_path_str
+
+        target = tmp_path / "target.txt"
+        target.write_text("real content")
+        link = tmp_path / "link.txt"
+        link.symlink_to(target)
+
+        normalized = _normalized_path_str(link)
+        # Must preserve the symlink path — NOT resolve to the target.
+        assert normalized == str(link), (
+            f"symlink path normalization must not follow the link; "
+            f"got {normalized!r}, expected {link!r}"
+        )
+        # Sanity: target's normalized form is still itself.
+        assert _normalized_path_str(target) == str(target)
+
+    def test_normalized_path_still_resolves_relative_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Normalization still handles the coderabbit
+        PRRT_kwDOR_Rkws59fzVv concern: relative / redundant paths
+        collapse to the absolute form, even without following
+        symlinks."""
+        from undo.durable_move import _normalized_path_str
+
+        monkeypatch.chdir(tmp_path)
+        # ``./sub/../target.txt`` should collapse to ``<tmp_path>/target.txt``.
+        result = _normalized_path_str(Path("./sub/../target.txt"))
+        assert result == str(tmp_path / "target.txt"), result
+
     def test_directory_source_raises_is_a_directory(self, tmp_path: Path) -> None:
         """Coderabbit PRRT_kwDOR_Rkws59fzVo: directory inputs must be
         rejected up front with ``IsADirectoryError``, not silently

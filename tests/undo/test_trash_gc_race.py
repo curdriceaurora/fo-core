@@ -120,10 +120,16 @@ class TestIsPathInFlight:
         )
         assert is_path_in_flight(tmp_path / "target.txt", journal=journal) is False
 
-    def test_is_path_in_flight_normalizes_symlinks(self, tmp_path: Path) -> None:
-        """Coderabbit PRRT_kwDOR_Rkws59fzVv: equivalent paths must
-        match. A query via a symlink that resolves to the journalled
-        target must report in-flight.
+    def test_is_path_in_flight_matches_relative_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Coderabbit PRRT_kwDOR_Rkws59fzVv: a query via a relative
+        path must match a journal entry storing the absolute form.
+
+        Symlinks are intentionally NOT normalized (codex
+        PRRT_kwDOR_Rkws59gRpv — resolving would strand the wrong
+        file during crash recovery); see
+        ``test_is_path_in_flight_does_not_follow_symlinks``.
         """
         from undo.durable_move import _normalized_path_str, is_path_in_flight
 
@@ -143,19 +149,46 @@ class TestIsPathInFlight:
             ],
         )
 
-        # Symlink resolving to target — must match via resolve().
+        # Relative path resolving to target must match absolute.
+        monkeypatch.chdir(tmp_path)
+        assert is_path_in_flight(Path("target.txt"), journal=journal) is True
+        # Absolute path (already canonical) matches.
+        assert is_path_in_flight(target, journal=journal) is True
+
+    def test_is_path_in_flight_does_not_follow_symlinks(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59gRpv: a symlink and its target
+        are DIFFERENT paths for journal purposes. A journal entry
+        for the symlink must NOT match a query for the target
+        (and vice versa) — otherwise sweep recovery could unlink
+        the wrong file.
+        """
+        from undo.durable_move import _normalized_path_str, is_path_in_flight
+
+        target = tmp_path / "target.txt"
+        target.write_text("x")
         link = tmp_path / "link.txt"
         link.symlink_to(target)
-        assert is_path_in_flight(link, journal=journal) is True
-        # Relative path resolving to target — must match.
-        import os as _os
 
-        original_cwd = _os.getcwd()
-        try:
-            _os.chdir(tmp_path)
-            assert is_path_in_flight(Path("target.txt"), journal=journal) is True
-        finally:
-            _os.chdir(original_cwd)
+        # Journal stores the symlink path.
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [
+                {
+                    "op": "move",
+                    "src": _normalized_path_str(link),
+                    "dst": str(tmp_path / "dst.txt"),
+                    "state": "started",
+                }
+            ],
+        )
+
+        # Query via the symlink → match.
+        assert is_path_in_flight(link, journal=journal) is True
+        # Query via the resolved target → NO match. Following the
+        # symlink during normalization would incorrectly report the
+        # target as in-flight.
+        assert is_path_in_flight(target, journal=journal) is False
 
 
 # ---------------------------------------------------------------------------

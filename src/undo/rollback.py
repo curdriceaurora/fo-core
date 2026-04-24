@@ -476,13 +476,22 @@ class RollbackExecutor:
 
         trash_dir.mkdir(parents=True, exist_ok=True)
 
-        # F7: durable_move for the delete→trash move. This is the
-        # paired half of the trash-restore path: if an organize
-        # operation crashes mid-move, sweep on next startup
-        # completes the move into the trash so the undo record
-        # stays in sync with on-disk state.
+        # F7: ``durable_move`` for files; fall back to ``shutil.move``
+        # for directories. Codex PRRT_kwDOR_Rkws59gRpq: directory
+        # rollback paths (undo of a copied folder, undo of a created
+        # directory) route through ``_move_to_trash`` and must keep
+        # working — ``durable_move`` is file-only by design. Symlinks
+        # are files for this purpose; ``shutil.move`` on a symlink
+        # would follow it, so keep them on the durable_move path.
         trash_path = trash_dir / file_path.name
-        durable_move(file_path, trash_path, journal=self.journal_path)
+        if file_path.is_dir() and not file_path.is_symlink():
+            # Non-atomic but matches pre-F7 behavior for directories.
+            # A crash mid-move leaves a partial directory that the
+            # user will need to clean up manually. Durable recovery
+            # for directories is intentionally out of F7 scope.
+            shutil.move(str(file_path), str(trash_path))
+        else:
+            durable_move(file_path, trash_path, journal=self.journal_path)
 
         logger.debug(f"Moved {file_path} to trash: {trash_path}")
         return trash_path
