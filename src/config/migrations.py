@@ -36,19 +36,48 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-
-from config.schema import CURRENT_SCHEMA_VERSION
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
 MigrationFn = Callable[[dict[str, object]], dict[str, object]]
 
-# Public registry: sorted by source version string. Populated by
-# bumps to ``CURRENT_SCHEMA_VERSION`` as new breaking changes ship.
-# Empty today — the schema is at 1.0 with no historical predecessors
-# to migrate from. Tests monkeypatch this dict to cover the
-# migration-runs and migration-fails paths.
-MIGRATIONS: dict[str, MigrationFn] = {}
+
+@dataclass(frozen=True)
+class Migration:
+    """A single schema-migration step.
+
+    Codex PRRT_kwDOR_Rkws59hdFY: each migration declares the version
+    it produces, so the walker can't silently jump over a gap in the
+    registry. Previously the walker used ``_next_version`` to infer
+    the post-migration version from the next registered key — which
+    applied the wrong transform when the registry had gaps (e.g.
+    ``{"0.5", "2.0"}`` with no ``"1.0"``: after the 0.5 migration
+    produced 1.0-shaped data, the walker jumped ``current`` to 2.0
+    and ran the 2.0 migration on 1.0-shaped data, silently corrupting
+    fields).
+
+    Attributes:
+        to_version: The schema version this migration produces.
+            Must be strictly greater than the key it is registered
+            under (enforced at walk time — a non-increasing
+            ``to_version`` stops the walk to avoid infinite loops).
+        transform: Callable taking a raw config dict and returning
+            the post-migration dict. Must be idempotent (rerunning
+            it on already-migrated data is a no-op).
+    """
+
+    to_version: str
+    transform: MigrationFn
+
+
+# Public registry. Keys are source versions; values declare both the
+# transform AND its target version (see :class:`Migration`). Populated
+# by bumps to :data:`config.schema.CURRENT_SCHEMA_VERSION` as new
+# breaking changes ship. Empty today — the schema is at 1.0 with no
+# historical predecessors to migrate from. Tests monkeypatch this dict
+# to cover the migration-runs and migration-fails paths.
+MIGRATIONS: dict[str, Migration] = {}
 
 
 def _version_key(version: str) -> tuple[int, ...]:
@@ -105,30 +134,53 @@ def migrate_to_current(
         The (possibly transformed) config dict ready for
         ``AppConfig`` construction.
     """
-    if from_version == to_version:
+    # Coderabbit PRRT_kwDOR_Rkws59hgCI: compare numerically so
+    # textually-different-but-equivalent versions (e.g. ``"1.0"`` vs
+    # ``"1.0.0"``) short-circuit the same way; string equality alone
+    # would skip this guard and bail below with a false-positive gap
+    # warning.
+    if _version_key(from_version) == _version_key(to_version):
         return data
 
+    # Codex PRRT_kwDOR_Rkws59hdFY: follow the chain declared by
+    # each migration's ``to_version``, not the next registry key.
+    # If ``MIGRATIONS.get(current)`` is ``None`` the chain has a
+    # gap and we must stop — applying the next-higher registered
+    # migration would treat the data as if it were already at that
+    # version.
     current = from_version
-    # Sort by numeric tuple-key so ``"2.0"`` < ``"10.0"`` orders
-    # correctly. String sort would give the wrong order for future
-    # double-digit majors.
-    for step_from in sorted(MIGRATIONS.keys(), key=_version_key):
-        if _version_key(step_from) < _version_key(current):
-            # Already past this migration's source version — skip.
-            continue
-        if step_from != current:
-            # Gap in the registry — we don't have a migration that
-            # starts from ``current``. Warn and bail best-effort.
+    safety_limit = len(MIGRATIONS) + 1  # defensive: no cycles / no infinite walks
+    for _ in range(safety_limit):
+        if _version_key(current) >= _version_key(to_version):
+            return data
+        step = MIGRATIONS.get(current)
+        if step is None:
+            # No migration registered from ``current`` — could be a
+            # registry gap (future binary forgot to ship an
+            # intermediate) or the on-disk file predates all known
+            # migrations. Either way, bail best-effort with a loud
+            # warning so the operator sees the gap.
             logger.warning(
-                "No migration registered for config version %s; "
-                "loading as-is. If fields were renamed or added in a "
-                "newer schema, they may fall back to defaults.",
+                "No migration registered from config version %s; loading "
+                "as-is. If fields were renamed or added in a newer schema, "
+                "they may fall back to defaults. Target was %s.",
                 current,
+                to_version,
             )
             return data
-        migration = MIGRATIONS[step_from]
+        if _version_key(step.to_version) <= _version_key(current):
+            # Defensive guard against a misconfigured migration that
+            # would otherwise loop forever. Should never hit unless a
+            # test monkeypatches the registry with a bad entry.
+            logger.error(
+                "Migration from %s declares non-increasing target %s; "
+                "stopping to avoid infinite loop.",
+                current,
+                step.to_version,
+            )
+            return data
         try:
-            data = migration(data)
+            data = step.transform(data)
         except Exception:
             # Re-raise — the caller (ConfigManager.load) decides
             # whether to log + fall back to defaults. We don't want
@@ -136,45 +188,17 @@ def migrate_to_current(
             # produce subtly-wrong config at runtime.
             logger.error(
                 "Config migration from version %s failed; the caller will fall back to defaults.",
-                step_from,
+                current,
                 exc_info=True,
             )
             raise
-        current = _next_version(step_from)
-        if current == to_version:
-            return data
-
-    # Exhausted the registry without reaching to_version — either a
-    # future config we can't migrate down, or a gap in the chain.
-    if current != to_version:
-        logger.warning(
-            "Config migration did not reach target version %s (stopped at %s). Loading as-is.",
-            to_version,
-            current,
-        )
+        current = step.to_version
+    # Exhausted the safety limit without reaching to_version — should
+    # only happen if a pathologically bad registry was installed.
+    logger.warning(
+        "Config migration did not reach target version %s (stopped at %s after %d steps). Loading as-is.",
+        to_version,
+        current,
+        safety_limit,
+    )
     return data
-
-
-def _next_version(v: str) -> str:
-    """Return the version string that follows *v* in the migration chain.
-
-    Trivial implementation: the registry is keyed by source version,
-    and the "next" version is simply the next lexicographic key. A
-    migration from ``"0.5"`` produces data at the next registered
-    version. For a linear ``0.5 → 1.0 → 1.5`` chain this is
-    correct; complex branching schemas would need a more formal
-    version graph.
-    """
-    sorted_keys = sorted(MIGRATIONS.keys(), key=_version_key)
-    try:
-        idx = sorted_keys.index(v)
-    except ValueError:
-        return v
-    if idx + 1 < len(sorted_keys):
-        return sorted_keys[idx + 1]
-    # No further migration registered — caller assumes we've reached
-    # the current version. Read through the module binding so tests
-    # can monkeypatch ``migrations.CURRENT_SCHEMA_VERSION`` to force
-    # divergence from the legacy fallback in ``config.manager.load``
-    # (coderabbit PRRT_kwDOR_Rkws59gscN / F9 hoist-to-top).
-    return CURRENT_SCHEMA_VERSION

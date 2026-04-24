@@ -222,9 +222,19 @@ class DatabaseManager:
         to reason about the manager's internal locking.
 
         Raises:
-            DatabaseCorruptionError: If integrity_check fails.
-            sqlite3.OperationalError: If the file can't be opened at all
-                (e.g. permission denied, missing file).
+            DatabaseCorruptionError: If ``PRAGMA integrity_check``
+                reports damage (non-``"ok"`` rows) or raises a non-
+                operational ``sqlite3.DatabaseError`` severe enough
+                to prevent page walking (malformed header, not-a-db,
+                etc.).
+            sqlite3.OperationalError: For TRANSIENT conditions —
+                "database is locked" (another writer holds an
+                exclusive transaction), I/O interrupt, or failure
+                to open the file at all (permission denied, missing
+                file). Propagated unchanged so callers can retry
+                without triggering destructive quarantine
+                remediation. See codex PRRT_kwDOR_Rkws59g2Eu for the
+                classification contract.
         """
         with self._lock:
             conn = self.get_connection()

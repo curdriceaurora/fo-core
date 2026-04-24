@@ -333,9 +333,14 @@ class TestConfigSchemaVersion:
         from config.schema import LEGACY_CONFIG_VERSION
 
         # Force divergence so the migration walker actually runs.
+        # (No monkeypatch on ``migrations_mod``: the walker now uses
+        # each ``Migration.to_version`` rather than reading a module-
+        # level CURRENT_SCHEMA_VERSION — round-8 codex PRRT_kwDOR_Rkws59hdFY.
+        # Setting only schema_mod + manager_mod is sufficient because
+        # manager.load passes ``to_version=CURRENT_SCHEMA_VERSION`` as
+        # an argument to migrate_to_current.)
         monkeypatch.setattr(schema_mod, "CURRENT_SCHEMA_VERSION", "2.0")
         monkeypatch.setattr(manager_mod, "CURRENT_SCHEMA_VERSION", "2.0")
-        monkeypatch.setattr(migrations_mod, "CURRENT_SCHEMA_VERSION", "2.0")
 
         migration_ran = {"value": False}
 
@@ -346,9 +351,13 @@ class TestConfigSchemaVersion:
             data["version"] = "2.0"
             return data
 
+        from config.migrations import Migration
+
         original = migrations_mod.MIGRATIONS.copy()
         try:
-            migrations_mod.MIGRATIONS[LEGACY_CONFIG_VERSION] = legacy_migration
+            migrations_mod.MIGRATIONS[LEGACY_CONFIG_VERSION] = Migration(
+                to_version="2.0", transform=legacy_migration
+            )
             cfg_path = tmp_path / "config.yaml"
             # Deliberately NO version field — simulates a pre-F6 file.
             cfg_path.write_text(
@@ -400,9 +409,13 @@ class TestConfigSchemaVersion:
             data.setdefault("default_methodology", "migrated-default")
             return data
 
+        from config.migrations import Migration
+
         original_migrations = migrations_mod.MIGRATIONS.copy()
         try:
-            migrations_mod.MIGRATIONS["0.5"] = migrate_0_5_to_1_0
+            migrations_mod.MIGRATIONS["0.5"] = Migration(
+                to_version="1.0", transform=migrate_0_5_to_1_0
+            )
             cfg_path = tmp_path / "config.yaml"
             cfg_path.write_text(
                 yaml.dump(
@@ -435,9 +448,13 @@ class TestConfigSchemaVersion:
         def broken_migration(data: dict) -> dict:
             raise RuntimeError("simulated bad migration")
 
+        from config.migrations import Migration
+
         original_migrations = migrations_mod.MIGRATIONS.copy()
         try:
-            migrations_mod.MIGRATIONS["0.5"] = broken_migration
+            migrations_mod.MIGRATIONS["0.5"] = Migration(
+                to_version="1.0", transform=broken_migration
+            )
             cfg_path = tmp_path / "config.yaml"
             cfg_path.write_text(yaml.dump({"profiles": {"default": {"version": "0.5"}}}))
 
@@ -483,10 +500,12 @@ class TestConfigSchemaVersion:
             data["v10_ran"] = True
             return data
 
+        from config.migrations import Migration
+
         original = migrations_mod.MIGRATIONS.copy()
         try:
-            migrations_mod.MIGRATIONS["0.5"] = mig_05
-            migrations_mod.MIGRATIONS["1.0"] = mig_10
+            migrations_mod.MIGRATIONS["0.5"] = Migration(to_version="1.0", transform=mig_05)
+            migrations_mod.MIGRATIONS["1.0"] = Migration(to_version="2.0", transform=mig_10)
             # from_version is "1.0" — must skip the 0.5 migration.
             result = migrate_to_current({}, from_version="1.0", to_version="2.0")
             assert calls == ["1.0"]
@@ -505,12 +524,14 @@ class TestConfigSchemaVersion:
         the 2.0 migration on 1.0-shaped data.
         """
         from config import migrations as migrations_mod
-        from config.migrations import migrate_to_current
+        from config.migrations import Migration, migrate_to_current
 
         original = migrations_mod.MIGRATIONS.copy()
         try:
-            migrations_mod.MIGRATIONS["0.5"] = lambda d: d
-            migrations_mod.MIGRATIONS["2.0"] = lambda d: d  # gap at 1.0
+            migrations_mod.MIGRATIONS["0.5"] = Migration(to_version="1.0", transform=lambda d: d)
+            migrations_mod.MIGRATIONS["2.0"] = Migration(
+                to_version="3.0", transform=lambda d: d
+            )  # gap at 1.0 between 0.5's output (1.0) and 2.0's input
             data = {"marker": "v1"}
             with caplog.at_level("WARNING", logger="config.migrations"):
                 result = migrate_to_current(data, from_version="1.0", to_version="2.5")
@@ -528,11 +549,11 @@ class TestConfigSchemaVersion:
         (e.g. registry ends at 1.0 but target is 2.0), WARN about
         the incomplete migration and return best-effort."""
         from config import migrations as migrations_mod
-        from config.migrations import migrate_to_current
+        from config.migrations import Migration, migrate_to_current
 
         original = migrations_mod.MIGRATIONS.copy()
         try:
-            migrations_mod.MIGRATIONS["0.5"] = lambda d: d
+            migrations_mod.MIGRATIONS["0.5"] = Migration(to_version="1.0", transform=lambda d: d)
             # Chain ends at 0.5 → no 1.0 migration, so it stops.
             with caplog.at_level("WARNING", logger="config.migrations"):
                 result = migrate_to_current(
@@ -559,9 +580,11 @@ class TestConfigSchemaVersion:
         def bad(data: dict) -> dict:
             raise RuntimeError("boom")
 
+        from config.migrations import Migration
+
         original = migrations_mod.MIGRATIONS.copy()
         try:
-            migrations_mod.MIGRATIONS["0.5"] = bad
+            migrations_mod.MIGRATIONS["0.5"] = Migration(to_version="1.0", transform=bad)
             with pytest.raises(RuntimeError, match="boom"):
                 migrate_to_current({}, from_version="0.5", to_version="1.0")
         finally:
@@ -589,17 +612,87 @@ class TestConfigSchemaVersion:
         assert compare_versions("abc", "1.0") < 0  # (0,) < (1, 0)
         assert compare_versions("1.0", "abc") > 0
 
-    def test_next_version_unknown_returns_input(self) -> None:
-        """F6: ``_next_version`` returns the input unchanged when the
-        version isn't in the registry (defensive helper for chain
-        walks that encounter unexpected state)."""
-        from config import migrations as migrations_mod
-        from config.migrations import _next_version
+    def test_migration_walker_stops_on_registry_gap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59hdFY: when the registry has a
+        gap (e.g. ``{"0.5", "2.0"}`` with no ``"1.0"``) the walker
+        must NOT jump ``current`` to 2.0 and run the 2.0 migration
+        on 1.0-shaped data. It stops at 1.0 with a warning,
+        returning the data as-produced by the 0.5 step.
 
-        original = migrations_mod.MIGRATIONS.copy()
+        Also asserts ``Migration.to_version`` is the authoritative
+        version tracker — the walker never infers it from the next
+        registry key.
+        """
+        from config import migrations as migrations_mod
+        from config.migrations import Migration, migrate_to_current
+
+        calls: list[str] = []
+
+        def mig_half(d: dict[str, object]) -> dict[str, object]:
+            calls.append("0.5->1.0")
+            d["after_half"] = True
+            return d
+
+        def mig_two(d: dict[str, object]) -> dict[str, object]:  # pragma: no cover
+            # Should NEVER run in this scenario — the gap stops the
+            # walker before 2.0 is reached.
+            calls.append("2.0->3.0 (BUG: gap jumped)")
+            d["after_two"] = True
+            return d
+
+        original = dict(migrations_mod.MIGRATIONS)
         try:
             migrations_mod.MIGRATIONS.clear()
-            assert _next_version("0.5") == "0.5"
+            # Registry has 0.5 producing 1.0, and 2.0 producing 3.0 —
+            # but NO migration from 1.0 → 2.0. Classic gap.
+            migrations_mod.MIGRATIONS["0.5"] = Migration(to_version="1.0", transform=mig_half)
+            migrations_mod.MIGRATIONS["2.0"] = Migration(to_version="3.0", transform=mig_two)
+
+            result = migrate_to_current(
+                {"starting": "at 0.5"}, from_version="0.5", to_version="3.0"
+            )
+
+            # Only the 0.5 migration ran; walker stopped at the gap.
+            assert calls == ["0.5->1.0"], (
+                f"walker must stop at the gap (current=1.0, no registered migration); "
+                f"got calls={calls}"
+            )
+            assert result.get("after_half") is True
+            assert "after_two" not in result, (
+                "migration 2.0->3.0 must NOT have run on 1.0-shaped data "
+                "(codex P2 PRRT_kwDOR_Rkws59hdFY)"
+            )
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original)
+
+    def test_migration_walker_stops_on_non_increasing_target(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Defensive: a migration that declares a ``to_version`` at or
+        below its source version would otherwise loop forever. Walker
+        logs the error and stops.
+        """
+        from config import migrations as migrations_mod
+        from config.migrations import Migration, migrate_to_current
+
+        def bad_migration(d: dict[str, object]) -> dict[str, object]:
+            d["ran"] = True
+            return d
+
+        original = dict(migrations_mod.MIGRATIONS)
+        try:
+            migrations_mod.MIGRATIONS.clear()
+            # Declares to_version == source (no progress).
+            migrations_mod.MIGRATIONS["1.0"] = Migration(to_version="1.0", transform=bad_migration)
+
+            # Must return without looping forever.
+            result = migrate_to_current({}, from_version="1.0", to_version="2.0")
+
+            # Since from == to_version would early-return, use a
+            # target that requires a step but the misconfigured
+            # migration can't make progress toward.
+            assert isinstance(result, dict)
         finally:
             migrations_mod.MIGRATIONS.clear()
             migrations_mod.MIGRATIONS.update(original)

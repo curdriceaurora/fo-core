@@ -365,7 +365,13 @@ def sweep(journal: Path) -> None:
 
 
 def _sweep_locked_body(journal: Path, fh) -> None:  # type: ignore[no-untyped-def]
-    """Sweep body executed while holding an exclusive flock on ``fh``."""
+    """Sweep body executed while holding an exclusive flock on ``fh``.
+
+    The ``journal`` path is carried through for diagnostic logging
+    (coderabbit PRRT_kwDOR_Rkws59hgCS) — it parallels the
+    ``_sweep_unlocked_body(journal)`` signature and gives debug log
+    lines the journal location when the sweep retains entries.
+    """
     fh.seek(0)
     entries = _parse_journal_text(fh.read())
     if not entries:
@@ -375,6 +381,11 @@ def _sweep_locked_body(journal: Path, fh) -> None:  # type: ignore[no-untyped-de
     fh.truncate()
     if retained:
         fh.write("\n".join(_serialize_entry(e) for e in retained) + "\n")
+        logger.debug(
+            "sweep: retained %d unreconciled entries in %s",
+            len(retained),
+            journal,
+        )
     fh.flush()
     os.fsync(fh.fileno())
 
@@ -460,6 +471,24 @@ def _complete_or_rollback(entry: _JournalEntry) -> bool:
         state unresolved — caller must retain the entry so the next
         sweep can retry.
     """
+    # Codex P2 PRRT_kwDOR_Rkws59hdFb: the journal is shared across
+    # operation types — the module docstring reserves ``op`` for
+    # future ``"copy"``, ``"symlink"``, etc. Sweep only knows how to
+    # reconcile ``"move"`` ops; for anything else, acting on
+    # ``entry.state`` with move semantics (e.g. ``src.unlink()`` in
+    # the ``copied`` branch) would cause data loss on a downgrade
+    # from a binary that wrote the newer op. Retain the entry so a
+    # future binary with the right handler can process it.
+    if entry.op != "move":
+        logger.warning(
+            "sweep: retaining journal entry with unknown op %r (state=%r); "
+            "this sweep binary only knows 'move', will leave for a handler "
+            "that understands the op.",
+            entry.op,
+            entry.state,
+        )
+        return False
+
     src = Path(entry.src)
     dst = Path(entry.dst)
 

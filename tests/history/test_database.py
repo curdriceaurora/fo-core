@@ -4,8 +4,10 @@ Tests for database manager.
 
 from __future__ import annotations
 
+import sqlite3
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -323,9 +325,6 @@ class TestDatabaseIntegrityCheck:
         connection because ``sqlite3.Connection.execute`` is a
         read-only C attribute that can't be monkeypatched.
         """
-        import sqlite3
-        from unittest.mock import MagicMock
-
         db = DatabaseManager(temp_db_path)
 
         # Mock connection whose .execute raises a lock error.
@@ -356,9 +355,6 @@ class TestDatabaseIntegrityCheck:
         rows) SHOULD still be wrapped as ``DatabaseCorruptionError``.
         Preserves the round-3 contract for actual corruption.
         """
-        import sqlite3
-        from unittest.mock import MagicMock
-
         db = DatabaseManager(temp_db_path)
 
         # Real corruption signal — DatabaseError that is NOT an

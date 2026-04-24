@@ -456,6 +456,46 @@ class TestDurableMoveSweep:
             f"entry must be retained for reconciliation; got {entries}"
         )
 
+    def test_sweep_retains_entries_with_unknown_op(self, tmp_path: Path) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59hdFb: the journal is shared —
+        ``op`` field is reserved for future ``"copy"``, ``"symlink"``
+        etc. Sweep must NEVER apply move semantics to a non-``move``
+        op (would data-loss on downgrade from a binary that wrote
+        the newer op). Retain for a future handler.
+        """
+        from undo.durable_move import sweep
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("original")
+        dst.write_text("pre-existing")
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [
+                # Future op type sweep doesn't understand.
+                {
+                    "op": "mirror",
+                    "src": str(src),
+                    "dst": str(dst),
+                    "state": "copied",
+                },
+            ],
+        )
+
+        sweep(journal)
+
+        # Neither path touched (crucial: the copied-state move branch
+        # would have unlinked src — that MUST NOT happen here).
+        assert src.read_text() == "original", (
+            "sweep must not apply move semantics to op='mirror'; "
+            "unlinking src would be data loss (codex P2 PRRT_kwDOR_Rkws59hdFb)"
+        )
+        assert dst.read_text() == "pre-existing"
+        # Entry retained for a future binary that knows ``mirror``.
+        entries = _read_journal(journal)
+        assert len(entries) == 1 and entries[0]["op"] == "mirror"
+
     def test_sweep_copied_state_tolerates_fsync_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
