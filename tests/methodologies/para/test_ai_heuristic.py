@@ -2010,11 +2010,17 @@ class TestAIHeuristicSeamIntegration:
         with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", True):
             result = h.evaluate(test_file)
 
-        # Positive proof: the adapter branch ran.
+        # Positive proof: the adapter branch ran with the expected
+        # payload. Coderabbit PR #188 — prior version used membership-
+        # only checks (``"prompt" in infer_kwargs``) which would still
+        # pass if _invoke_inference passed empty strings or the wrong
+        # system message. Mirrors the sibling ``@pytest.mark.ci`` test
+        # ``test_injected_adapter_infer_is_called_with_prompt_and_system``.
         spy_infer.assert_called_once()
         infer_kwargs = spy_infer.call_args.kwargs
-        assert "prompt" in infer_kwargs
-        assert "system" in infer_kwargs
+        assert infer_kwargs["system"] == AIHeuristic._SYSTEM_MESSAGE
+        assert "seam.txt" in infer_kwargs["prompt"]
+        assert "Integration seam exercise" in infer_kwargs["prompt"]
         # Negative proof: the inline path categorically did not.
         inline_client_sentinel.generate.assert_not_called()
         assert result.metadata["ai_analysis"] == "complete"
