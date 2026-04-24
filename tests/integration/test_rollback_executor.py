@@ -76,6 +76,27 @@ class TestRollbackOperationDispatch:
         assert src.exists()
         assert not dest.exists()
 
+    def test_move_dispatch_on_directory(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59hT9a: rollback of a MOVE whose
+        destination is a DIRECTORY must succeed — ``_move`` routes
+        directories through ``shutil.move`` because ``durable_move``
+        rejects them with ``IsADirectoryError``.
+        """
+        executor = RollbackExecutor(validator=None)
+        dest_dir = tmp_path / "dest_dir"
+        dest_dir.mkdir()
+        (dest_dir / "inside.txt").write_text("content")
+        src = tmp_path / "src_parent" / "moved_dir"
+        src.parent.mkdir()
+        op = _op(OperationType.MOVE, src, dest_dir)
+
+        result = executor.rollback_operation(op)
+
+        assert result is True, "directory MOVE rollback must succeed"
+        assert src.exists() and src.is_dir()
+        assert (src / "inside.txt").read_text() == "content"
+        assert not dest_dir.exists()
+
     def test_rename_dispatch_success(self, tmp_path: Path) -> None:
         executor = RollbackExecutor(validator=None)
         new_name = tmp_path / "new.txt"
@@ -240,6 +261,46 @@ class TestRollbackDelete:
         result = executor.rollback_delete(op)
         assert result is True
         assert src_file.exists()
+
+    def test_restore_directory_from_trash(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59hT9a: ``rollback_delete`` must
+        restore directory trash entries too. ``durable_move`` rejects
+        non-symlink directories with ``IsADirectoryError``, so without
+        the directory fallback in ``_move`` the restore would fail.
+        Regression guard for the round-2 directory-rollback fix pattern
+        extended to the DELETE undo path.
+        """
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        from undo.validator import OperationValidator
+
+        v = OperationValidator(trash_dir=trash)
+        executor = RollbackExecutor(validator=v)
+
+        # Pre-populate trash with a DIRECTORY entry.
+        trash_subdir = trash / "7"
+        trash_subdir.mkdir()
+        dir_in_trash = trash_subdir / "deleted_dir"
+        dir_in_trash.mkdir()
+        (dir_in_trash / "inside.txt").write_text("nested content")
+
+        # Original location of the deleted directory.
+        src_parent = tmp_path / "src_parent"
+        src_parent.mkdir()
+        original_dir = src_parent / "deleted_dir"
+        op = _op(OperationType.DELETE, original_dir, op_id=7)
+
+        result = executor.rollback_delete(op)
+
+        assert result is True, (
+            "rollback_delete must restore directory entries — durable_move "
+            "is file-only and would raise IsADirectoryError on a dir trash "
+            "entry (codex P1 PRRT_kwDOR_Rkws59hT9a)"
+        )
+        assert original_dir.exists() and original_dir.is_dir()
+        assert (original_dir / "inside.txt").read_text() == "nested content"
+        # Trash directory cleaned up by rollback_delete's rmdir call.
+        assert not dir_in_trash.exists()
 
 
 # ---------------------------------------------------------------------------

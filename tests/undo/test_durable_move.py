@@ -456,6 +456,106 @@ class TestDurableMoveSweep:
             f"entry must be retained for reconciliation; got {entries}"
         )
 
+    def test_sweep_copied_state_tolerates_fsync_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Unusual filesystems can raise ``OSError`` from directory
+        fsync. Sweep logs it and continues — the unlink itself
+        succeeded, and the next sweep pass would notice if the entry
+        hadn't persisted. This is a defensive branch but worth
+        locking down so a future refactor doesn't accidentally turn
+        a non-fatal log into a retry.
+        """
+        from undo import durable_move as dm
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("x")
+        dst.write_text("y")
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "copied"}],
+        )
+
+        # First fsync (journal fd in sweep locked body) succeeds; the
+        # second fsync (src.parent after unlink) raises. We detect
+        # the call by path: only the src.parent fsync targets src.
+        real_fsync = dm.fsync_directory
+
+        def flaky_fsync(path):  # type: ignore[no-untyped-def]
+            if Path(path) == src:
+                raise OSError(5, "fsync failed on exotic fs")
+            real_fsync(path)
+
+        monkeypatch.setattr("undo.durable_move.fsync_directory", flaky_fsync)
+
+        # Must not raise — sweep tolerates the fsync failure.
+        dm.sweep(journal)
+
+        # Reconciliation still completed: src was unlinked and entry
+        # dropped from the journal (the fsync failure is non-fatal).
+        assert not src.exists()
+        assert _read_journal(journal) == []
+
+    def test_sweep_copied_state_fsyncs_src_parent_after_unlink(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59hT9b: parallel to the in-line
+        post-unlink fsync in ``_durable_cross_device_move`` (gnah):
+        the sweep's copied-state reconciliation also unlinks ``src``,
+        and that unlink must be fsynced to disk BEFORE sweep truncates
+        the journal entry. Otherwise a power loss between the unlink
+        and the truncate could let ``src`` reappear on reboot while
+        the recovery record is already gone — no retry metadata, no
+        way to know there's a phantom file to clean up.
+
+        Instruments fsync_directory to verify the order:
+        unlink(src) → fsync(src.parent) → return True → sweep truncate.
+        """
+        from undo import durable_move as dm
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("leftover")
+        dst.write_text("complete")
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "move", "src": str(src), "dst": str(dst), "state": "copied"}],
+        )
+
+        trace: list[tuple[str, Path]] = []
+        real_fsync = dm.fsync_directory
+        real_unlink = Path.unlink
+
+        def tracking_fsync(path):  # type: ignore[no-untyped-def]
+            trace.append(("fsync", Path(path)))
+            real_fsync(path)
+
+        def tracking_unlink(self, *a, **k):  # type: ignore[no-untyped-def]
+            trace.append(("unlink", Path(self)))
+            return real_unlink(self, *a, **k)
+
+        monkeypatch.setattr("undo.durable_move.fsync_directory", tracking_fsync)
+        monkeypatch.setattr(Path, "unlink", tracking_unlink)
+
+        dm.sweep(journal)
+
+        # The sweep flock-body itself fsyncs the journal fd; we care
+        # about the ordering of src's unlink vs the subsequent
+        # fsync_directory(src).
+        unlink_ix = next(i for i, (stage, p) in enumerate(trace) if stage == "unlink" and p == src)
+        post_unlink_fsync = [
+            i
+            for i, (stage, p) in enumerate(trace)
+            if i > unlink_ix and stage == "fsync" and p == src
+        ]
+        assert post_unlink_fsync, (
+            f"copied-state sweep must fsync_directory(src) AFTER "
+            f"os.unlink(src) (codex P2 PRRT_kwDOR_Rkws59hT9b); trace: {trace}"
+        )
+
     def test_sweep_copied_state_accepts_symlink_dst(self, tmp_path: Path) -> None:
         """``os.path.lexists(dst)`` (not ``dst.exists()``) is used so a
         dangling-symlink dst still counts as present — the symlink

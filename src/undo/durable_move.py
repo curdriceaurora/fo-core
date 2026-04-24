@@ -533,6 +533,26 @@ def _complete_or_rollback(entry: _JournalEntry) -> bool:
                 exc_info=True,
             )
             return False
+        # Codex P2 PRRT_kwDOR_Rkws59hT9b: fsync ``src.parent`` so the
+        # unlink is crash-durable BEFORE sweep truncates this entry
+        # out of the journal. Parallel to the in-line post-unlink
+        # fsync in ``_durable_cross_device_move`` (gnah). Without
+        # this, a power loss between the unlink and the journal
+        # truncate could let ``src`` reappear on reboot while sweep
+        # has already dropped the record — no retry metadata, no way
+        # to know there's a phantom file to clean up.
+        try:
+            fsync_directory(src)
+        except OSError as exc:
+            # fsync itself can raise on unusual filesystems. Log but
+            # don't fail the reconciliation — the unlink itself
+            # succeeded and sweep's next pass would notice if the
+            # dir entry wasn't persisted.
+            logger.debug(
+                "sweep: fsync of src.parent after unlink failed: %s",
+                exc,
+                exc_info=True,
+            )
     elif entry.state == STATE_DONE:
         # Nothing to do — operation completed before the crash (or
         # before the last journal flush).
