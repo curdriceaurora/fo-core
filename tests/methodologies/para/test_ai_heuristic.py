@@ -1832,14 +1832,23 @@ class TestOllamaInferenceAdapterIntegration:
 
     def test_adapter_infer_returns_none_when_unavailable(self) -> None:
         """``infer()`` short-circuits to ``None`` without touching
-        ``client.generate`` when the adapter is unavailable."""
+        ``client.generate`` when the adapter is unavailable.
+
+        Copilot review (#188): earlier version declared ``fake_ollama``
+        but never patched it into the heuristics module, so
+        ``assert_not_called()`` was a no-op on a dangling mock. The
+        patch here binds ``fake_ollama`` into the module namespace so
+        the assertion genuinely verifies no Client was constructed.
+        """
         from methodologies.para.detection.heuristics import OllamaInferenceAdapter
 
         adapter = OllamaInferenceAdapter(AIHeuristicConfig())
         fake_ollama = MagicMock()
-        # No Client is constructed because is_available short-circuits.
 
-        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False):
+        with (
+            patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", False),
+            patch(f"{_HEURISTICS_MODULE}.ollama", fake_ollama),
+        ):
             result = adapter.infer(prompt="p", system="s")
 
         assert result is None
@@ -1923,32 +1932,50 @@ class TestAIHeuristicSeamIntegration:
     """
 
     def test_ensure_client_delegates_to_adapter_is_available(self, tmp_path: Path) -> None:
-        """``AIHeuristic._ensure_client`` returns the adapter's
-        availability and caches it on ``self._available``."""
+        """``AIHeuristic._ensure_client`` reaches the adapter's
+        ``is_available`` and caches the result on ``self._available``.
+
+        Copilot review (#188): earlier version patched
+        ``heuristics.ollama`` to a working mock, so the inline path
+        would have also returned ``True`` — the assertions could not
+        distinguish the adapter branch from the inline branch.
+
+        The fix is a spy on ``adapter.is_available``. The adapter and
+        inline branches are mutually exclusive (``_ensure_client``
+        early-returns at ``if self._adapter is not None``), so
+        ``spy.call_count == 1`` is proof the adapter branch ran and
+        the inline path did not.
+        """
         from methodologies.para.detection.heuristics import (
             AIHeuristic,
             OllamaInferenceAdapter,
         )
 
         adapter = OllamaInferenceAdapter(AIHeuristicConfig())
-        fake_ollama = MagicMock()
-        fake_client = MagicMock()
-        fake_ollama.Client.return_value = fake_client
-        fake_client.list.return_value = {"models": []}
+        # Mark available without reaching ollama.Client; ``is_available``
+        # then early-returns before any module globals are consulted.
+        adapter._available = True
+        spy_is_available = MagicMock(wraps=adapter.is_available)
+        adapter.is_available = spy_is_available  # type: ignore[method-assign]
         h = AIHeuristic(weight=0.10, adapter=adapter)
 
-        with (
-            patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", True),
-            patch(f"{_HEURISTICS_MODULE}.ollama", fake_ollama),
-        ):
-            assert h._ensure_client() is True
-
+        assert h._ensure_client() is True
+        assert spy_is_available.call_count == 1
         assert h._available is True
 
     def test_invoke_inference_delegates_to_adapter_infer(self, tmp_path: Path) -> None:
         """``AIHeuristic.evaluate`` routes through
-        ``_invoke_inference`` → ``adapter.infer``; the client's
-        ``generate`` is called via the adapter, not inline."""
+        ``_invoke_inference`` → ``adapter.infer``; proves the adapter
+        branch ran by spying on ``adapter.infer`` and by setting
+        ``h._client`` to a mock that MUST NOT be used.
+
+        Copilot review (#188): earlier version only asserted
+        ``fake_client.generate`` was called — but both the adapter
+        path and the inline path route through the same patched
+        client, so the assertion didn't prove which branch ran. The
+        spy + inline-client sabotage makes the test fail unless the
+        adapter seam is the code path actually executed.
+        """
         from methodologies.para.detection.heuristics import (
             AIHeuristic,
             OllamaInferenceAdapter,
@@ -1962,23 +1989,33 @@ class TestAIHeuristicSeamIntegration:
             "reasoning": "seam integration",
         }
         adapter = OllamaInferenceAdapter(AIHeuristicConfig())
-        fake_ollama = MagicMock()
-        fake_client = MagicMock()
-        fake_ollama.Client.return_value = fake_client
-        fake_client.list.return_value = {"models": []}
-        fake_client.generate.return_value = {"response": json.dumps(scores)}
+        adapter._available = True  # skip is_available → ollama.Client
+
+        # Spy on adapter.infer to positively prove the delegation branch ran.
+        spy_infer = MagicMock(return_value=json.dumps(scores))
+        adapter.infer = spy_infer  # type: ignore[method-assign]
 
         h = AIHeuristic(weight=0.10, adapter=adapter)
+        # Inline-path sentinel: ``_invoke_inference`` falls back to
+        # ``self._client.generate(...)`` only when ``self._adapter is None``.
+        # If a regression made the adapter branch fall through, this
+        # mock's ``generate`` would be called — ``assert_not_called()``
+        # catches it regardless of any surrounding ``except Exception``.
+        inline_client_sentinel = MagicMock()
+        h._client = inline_client_sentinel
+
         test_file = tmp_path / "seam.txt"
         test_file.write_text("Integration seam exercise")
 
-        with (
-            patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", True),
-            patch(f"{_HEURISTICS_MODULE}.ollama", fake_ollama),
-        ):
+        with patch(f"{_HEURISTICS_MODULE}.OLLAMA_AVAILABLE", True):
             result = h.evaluate(test_file)
 
+        # Positive proof: the adapter branch ran.
+        spy_infer.assert_called_once()
+        infer_kwargs = spy_infer.call_args.kwargs
+        assert "prompt" in infer_kwargs
+        assert "system" in infer_kwargs
+        # Negative proof: the inline path categorically did not.
+        inline_client_sentinel.generate.assert_not_called()
         assert result.metadata["ai_analysis"] == "complete"
         assert result.recommended_category == PARACategory.PROJECT
-        # Generate was reached via the adapter, not the inline path.
-        fake_client.generate.assert_called_once()
