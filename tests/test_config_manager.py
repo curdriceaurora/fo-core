@@ -667,16 +667,23 @@ class TestConfigSchemaVersion:
             migrations_mod.MIGRATIONS.update(original)
 
     def test_migration_walker_stops_on_non_increasing_target(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Defensive: a migration that declares a ``to_version`` at or
         below its source version would otherwise loop forever. Walker
-        logs the error and stops.
+        logs an ERROR, aborts the transform BEFORE running the bad
+        migration, and returns the input data unchanged.
         """
         from config import migrations as migrations_mod
         from config.migrations import Migration, migrate_to_current
 
+        ran_flag: dict[str, bool] = {"value": False}
+
         def bad_migration(d: dict[str, object]) -> dict[str, object]:
+            # Should NEVER run — the walker must short-circuit on the
+            # non-increasing to_version check before invoking the
+            # transform.
+            ran_flag["value"] = True
             d["ran"] = True
             return d
 
@@ -686,13 +693,24 @@ class TestConfigSchemaVersion:
             # Declares to_version == source (no progress).
             migrations_mod.MIGRATIONS["1.0"] = Migration(to_version="1.0", transform=bad_migration)
 
-            # Must return without looping forever.
-            result = migrate_to_current({}, from_version="1.0", to_version="2.0")
+            input_data: dict[str, object] = {"marker": "unchanged"}
+            with caplog.at_level("ERROR", logger="config.migrations"):
+                result = migrate_to_current(input_data, from_version="1.0", to_version="2.0")
 
-            # Since from == to_version would early-return, use a
-            # target that requires a step but the misconfigured
-            # migration can't make progress toward.
-            assert isinstance(result, dict)
+            # Walker short-circuited before calling the bad migration.
+            assert ran_flag["value"] is False, (
+                "walker must detect the non-increasing to_version and "
+                "bail BEFORE invoking the transform; otherwise an infinite "
+                "loop is possible"
+            )
+            # Data returned is the input dict, completely unmodified.
+            assert result == {"marker": "unchanged"}
+            assert "ran" not in result
+            # Error was logged so operators can diagnose the bad config.
+            msgs = [r.getMessage() for r in caplog.records]
+            assert any("non-increasing target" in m for m in msgs), (
+                f"expected non-increasing-target error; got {msgs}"
+            )
         finally:
             migrations_mod.MIGRATIONS.clear()
             migrations_mod.MIGRATIONS.update(original)
