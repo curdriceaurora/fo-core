@@ -228,6 +228,20 @@ class TestPidRecord:
         pid_file.write_text("{ not json and not int")
         assert pid_manager.read_pid_record(pid_file) is None
 
+    def test_read_pid_record_non_utf8_bytes_returns_none(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59b9f6: a PID file with non-UTF-8
+        bytes used to crash ``daemon status``/``stop`` — ``read_text``
+        raises ``UnicodeDecodeError`` which is not an ``OSError``, so
+        it bubbled out instead of hitting the None-for-corrupt path.
+
+        Writing raw bytes that can't decode as UTF-8 must now return
+        None (graceful) the same as any other corrupt PID file."""
+        # 0xFF is never valid as the first byte of a UTF-8 sequence.
+        pid_file.write_bytes(b"\xff\xfe\xfd corrupted")
+        assert pid_manager.read_pid_record(pid_file) is None
+
     def test_is_running_detects_pid_recycling(
         self, pid_manager: PidFileManager, pid_file: Path
     ) -> None:
@@ -354,3 +368,68 @@ class TestWritePidRecordPermissions:
         assert mode == 0o640, (
             f"pre-existing mode 0o640 must be preserved on rotation; got {mode:#o}"
         )
+
+    def test_rotation_attempts_to_restore_ownership(
+        self, pid_manager: PidFileManager, pid_file: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression guard for codex P2 PRRT_kwDOR_Rkws59b9f_.
+
+        ``os.replace`` creates a new inode owned by the writer; without
+        a follow-up ``os.chown`` a daemon restart would silently drop
+        pre-provisioned ``root:operator`` ownership, breaking
+        cross-account ``daemon stop`` even though the mode is correct.
+
+        We can't actually change ownership in the test environment
+        (requires CAP_CHOWN), but we can verify the code *attempts* the
+        chown with the pre-existing uid/gid by intercepting the syscall.
+        """
+        # Seed an existing file so stat() reports uid/gid.
+        pid_file.write_text("0")
+        stat = pid_file.stat()
+
+        calls: list[tuple[str, int, int]] = []
+
+        real_chown = os.chown
+
+        def spy_chown(path, uid, gid):  # type: ignore[no-untyped-def]
+            calls.append((str(path), int(uid), int(gid)))
+            # Don't actually change ownership — just record the call.
+            return real_chown(path, uid, gid) if uid == stat.st_uid and gid == stat.st_gid else None
+
+        monkeypatch.setattr("daemon.pid.os.chown", spy_chown)
+
+        pid_manager.write_pid_record(pid_file)
+
+        assert calls, (
+            "write_pid_record must call os.chown to restore pre-existing "
+            "ownership after os.replace (P2 PRRT_kwDOR_Rkws59b9f_)"
+        )
+        path, uid, gid = calls[-1]
+        assert path == str(pid_file)
+        assert uid == stat.st_uid
+        assert gid == stat.st_gid
+
+    def test_chown_permission_denied_does_not_fail_write(
+        self,
+        pid_manager: PidFileManager,
+        pid_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """If the daemon lacks CAP_CHOWN (typical non-root case),
+        ``os.chown`` raises ``PermissionError`` — the write must still
+        succeed, just log at DEBUG. A lost PID file is worse than one
+        with the writer's ownership."""
+        # Seed existing file so ownership capture happens.
+        pid_file.write_text("0")
+
+        def deny_chown(path, uid, gid):  # type: ignore[no-untyped-def]
+            raise PermissionError("Operation not permitted")
+
+        monkeypatch.setattr("daemon.pid.os.chown", deny_chown)
+
+        # Must not raise.
+        record = pid_manager.write_pid_record(pid_file)
+        assert record.pid == os.getpid()
+        # File is still written correctly.
+        data = json.loads(pid_file.read_text())
+        assert data["pid"] == os.getpid()

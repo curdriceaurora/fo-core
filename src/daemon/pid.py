@@ -184,10 +184,28 @@ class PidFileManager:
         # permissive mode (codex P2 PRRT_kwDOR_Rkws59bvEf). Operators
         # who need a stricter mode can chmod the PID file; rotation
         # will preserve it.
+        # Codex P2 PRRT_kwDOR_Rkws59b9f_ (ownership preservation): when
+        # an operator pre-provisions the PID file with specific uid:gid
+        # (e.g. ``root:operator`` for cross-account ``daemon stop``),
+        # ``os.replace`` creates a new inode owned by whoever the
+        # daemon runs as, silently dropping the group access. Capture
+        # uid/gid alongside mode before the replace so we can ``chown``
+        # them back. ``chown`` to a *different* user typically requires
+        # CAP_CHOWN / root on Linux — if we don't have it we fall back
+        # silently (same degradation philosophy as the mode path: a
+        # stricter PID file beats a lost one).
+        existing_mode: int | None
+        existing_uid: int | None
+        existing_gid: int | None
         try:
-            existing_mode: int | None = pid_file.stat().st_mode & 0o7777
+            st = pid_file.stat()
+            existing_mode = st.st_mode & 0o7777
+            existing_uid = st.st_uid
+            existing_gid = st.st_gid
         except FileNotFoundError:
             existing_mode = None
+            existing_uid = None
+            existing_gid = None
         target_mode = existing_mode if existing_mode is not None else 0o644
         try:
             with tempfile.NamedTemporaryFile(
@@ -218,6 +236,24 @@ class PidFileManager:
                 )
             os.replace(tmp_path, pid_file)
             tmp_path = None  # successfully moved — no cleanup needed
+            # Restore uid/gid on rotation. No-op when the daemon is
+            # writing its own PID file as the same account; matters
+            # only when an operator pre-provisioned ``root:operator``
+            # or similar for cross-account access.
+            if existing_uid is not None and existing_gid is not None:
+                try:
+                    os.chown(pid_file, existing_uid, existing_gid)
+                except (PermissionError, OSError) as exc:
+                    # Typically PermissionError when the daemon doesn't
+                    # have CAP_CHOWN to set a different user. Don't
+                    # fail the write — just log.
+                    logger.debug(
+                        "Failed to chown %s to %d:%d (%s); ownership inherits writer's account",
+                        pid_file,
+                        existing_uid,
+                        existing_gid,
+                        exc,
+                    )
         finally:
             if tmp_path is not None and tmp_path.exists():
                 # os.replace failed — best-effort cleanup of the stray
@@ -256,6 +292,15 @@ class PidFileManager:
             content = pid_file.read_text().strip()
         except OSError as exc:
             logger.warning("Failed to read PID file %s: %s", pid_file, exc, exc_info=True)
+            return None
+        except UnicodeDecodeError as exc:
+            # Codex P2 PRRT_kwDOR_Rkws59b9f6: a PID file containing
+            # non-UTF-8 bytes (corruption, partial overwrite by a
+            # different tool) used to crash ``daemon status``/``stop``
+            # because ``Path.read_text`` raises ``UnicodeDecodeError``
+            # which is NOT an ``OSError``. The docstring promises
+            # ``None`` for corrupt files; honour it.
+            logger.warning("PID file %s is not valid UTF-8 (likely corrupt): %s", pid_file, exc)
             return None
 
         if not content:
