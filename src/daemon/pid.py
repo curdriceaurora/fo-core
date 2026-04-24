@@ -164,6 +164,34 @@ class PidFileManager:
         # original.
         payload = json.dumps({"pid": pid, "create_time": create_time})
         tmp_path: Path | None = None
+        # Permission preservation (codex P2 PRRT_kwDOR_Rkws59bl3J):
+        # ``tempfile.NamedTemporaryFile`` creates the file with mode
+        # 0o600 (via ``mkstemp``). After ``os.replace`` the destination
+        # inherits that mode, silently dropping the standard
+        # ``open(path, "w")`` semantics the pre-F2 ``write_pid`` used
+        # (``0o666 & ~umask`` — typically 0o644). In deployments where
+        # the daemon runs as one user and operators run ``daemon
+        # status``/``stop`` as another, 0o600 breaks cross-account
+        # reads, causing ``read_pid_record`` to return None and
+        # ``stop`` to wipe a valid PID file. Reinstate the pre-F2 mode:
+        # preserve the pre-existing file's mode on rotation; fall back
+        # to ``0o666 & ~umask`` on a first write so the daemon's PID
+        # file is readable by the same accounts that could read the
+        # legacy text version.
+        try:
+            existing_mode: int | None = pid_file.stat().st_mode & 0o7777
+        except FileNotFoundError:
+            existing_mode = None
+        if existing_mode is None:
+            # Probe umask without leaving a stale value — ``os.umask``
+            # returns the previous umask and sets the argument; restore
+            # immediately so this method has no side effects on other
+            # file writes in the same process.
+            current_umask = os.umask(0)
+            os.umask(current_umask)
+            target_mode = 0o666 & ~current_umask
+        else:
+            target_mode = existing_mode
         try:
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -176,6 +204,21 @@ class PidFileManager:
                 tmp.flush()
                 os.fsync(tmp.fileno())
                 tmp_path = Path(tmp.name)
+            try:
+                os.chmod(tmp_path, target_mode)
+            except OSError:
+                # chmod failure is non-fatal — fall back to the 0o600
+                # temp mode rather than lose the write. A lost PID
+                # file would crash ``daemon stop`` entirely; a
+                # too-restrictive PID file only breaks cross-account
+                # reads, which is the same failure mode we were trying
+                # to fix. Log and move on.
+                logger.debug(
+                    "Failed to chmod temp PID file %s to %#o; "
+                    "proceeding with mkstemp default (0o600)",
+                    tmp_path,
+                    target_mode,
+                )
             os.replace(tmp_path, pid_file)
             tmp_path = None  # successfully moved — no cleanup needed
         finally:
@@ -187,10 +230,11 @@ class PidFileManager:
                 except OSError:
                     logger.debug("Failed to clean up stray temp PID file %s", tmp_path)
         logger.debug(
-            "Wrote PID record pid=%d create_time=%f to %s",
+            "Wrote PID record pid=%d create_time=%f to %s (mode=%#o)",
             pid,
             create_time,
             pid_file,
+            target_mode,
         )
         return PidRecord(pid=pid, create_time=create_time)
 

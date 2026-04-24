@@ -273,3 +273,49 @@ class TestPidRecord:
 
         pid_file.write_text(json.dumps({"pid": -1, "create_time": 0.0}))
         assert pid_manager.is_running(pid_file) is False
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file-mode semantics")
+class TestWritePidRecordPermissions:
+    """F2 permission preservation (codex P2 PRRT_kwDOR_Rkws59bl3J).
+
+    The atomic-write path uses ``tempfile.NamedTemporaryFile`` whose
+    default mode is 0o600. Left as-is, ``os.replace`` would silently
+    narrow the PID file's mode from the pre-F2 ``open(path, "w")``
+    default (typically 0o644) to owner-only, breaking cross-account
+    ``daemon status``/``stop`` readers. These tests lock in the
+    pre-F2 mode semantics.
+    """
+
+    def test_new_pid_file_respects_umask(self, pid_manager: PidFileManager, pid_file: Path) -> None:
+        """First-time writes get ``0o666 & ~umask`` — matches what
+        ``open(path, "w")`` would have produced."""
+        prior_umask = os.umask(0o022)
+        try:
+            pid_manager.write_pid_record(pid_file)
+        finally:
+            os.umask(prior_umask)
+        mode = pid_file.stat().st_mode & 0o7777
+        # umask 022 → 0o644. Explicit value so a regression to the
+        # mkstemp default (0o600) fails loudly.
+        assert mode == 0o644, f"expected 0o644 under umask 022, got {mode:#o}"
+
+    def test_rotation_preserves_existing_mode(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Overwriting an existing PID file keeps its current mode.
+
+        Without this, restarting a daemon could silently drop custom
+        modes an operator set on the PID file (e.g. group-readable
+        `0o640` for a multi-user deployment).
+        """
+        # Seed with an existing file and an explicit non-default mode.
+        pid_file.write_text("0")
+        os.chmod(pid_file, 0o640)
+
+        pid_manager.write_pid_record(pid_file)
+
+        mode = pid_file.stat().st_mode & 0o7777
+        assert mode == 0o640, (
+            f"pre-existing mode 0o640 must be preserved on rotation; got {mode:#o}"
+        )
