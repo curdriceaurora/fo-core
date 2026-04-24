@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import tempfile
 from dataclasses import dataclass
@@ -352,7 +353,24 @@ class PidFileManager:
                     raise TypeError(f"pid field must be int, got {type(raw_pid).__name__}")
                 pid = raw_pid
                 ct_raw = data.get("create_time")
-                create_time = float(ct_raw) if ct_raw is not None else None
+                if ct_raw is None:
+                    create_time: float | None = None
+                else:
+                    # Codex P2: reject non-finite ``create_time`` values
+                    # (NaN, +Inf, -Inf). ``float("nan")`` parses cleanly
+                    # from JSON strings like ``"nan"`` or from a
+                    # malformed numeric literal, but propagating NaN
+                    # into ``is_running`` silently defeats the F2
+                    # recycling check: ``abs(actual - NaN) > tolerance``
+                    # is ALWAYS False (any comparison with NaN is
+                    # False), so a recycled PID would be reported as
+                    # the original daemon. Inf makes the subtraction
+                    # overflow and the comparison either always True
+                    # (False-positive recycling mismatch) or NaN again.
+                    # Treat any non-finite value as corrupt.
+                    create_time = float(ct_raw)
+                    if not math.isfinite(create_time):
+                        raise ValueError(f"create_time must be finite, got {create_time!r}")
                 return PidRecord(pid=pid, create_time=create_time)
         except (json.JSONDecodeError, ValueError, TypeError) as exc:
             # Distinguish "valid JSON with malformed pid field" from
