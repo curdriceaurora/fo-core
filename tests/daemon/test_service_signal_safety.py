@@ -210,3 +210,102 @@ class TestRestoreSignalHandlersMainThread:
         )
         assert daemon._sig_wakeup_r is None, "Pipe read FD should be closed and cleared"
         assert daemon._sig_wakeup_w is None, "Pipe write FD should be closed and cleared"
+
+
+# ---------------------------------------------------------------------------
+# F4 hardening — signal-write failure counter + drain
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestSignalWriteFailureTracking:
+    """F4 (hardening roadmap #159): the signal handler used to swallow
+    ``OSError`` silently. If the pipe was saturated or closed, shutdown
+    signals could be lost with no observability. Post-F4 failures bump
+    ``_signal_write_failures`` and the run loop logs them.
+    """
+
+    def test_counter_starts_at_zero(self) -> None:
+        daemon = DaemonService(_make_config())
+        assert daemon._signal_write_failures == 0
+        assert daemon._last_logged_write_failures == 0
+
+    def test_closed_pipe_increments_failure_counter(self) -> None:
+        """Pre-F4: OSError was pass-ed silently. Post-F4: counter bumps."""
+        daemon = DaemonService(_make_config())
+        r, w = os.pipe()
+        os.close(r)
+        os.close(w)
+        daemon._sig_wakeup_w = w
+
+        assert daemon._signal_write_failures == 0
+        daemon._handle_signal(signal.SIGTERM, None)
+        assert daemon._signal_write_failures == 1
+        daemon._handle_signal(signal.SIGTERM, None)
+        assert daemon._signal_write_failures == 2
+
+    def test_successful_write_does_not_bump_counter(self) -> None:
+        daemon = DaemonService(_make_config())
+        with wired_pipe(daemon) as (r, _w):
+            daemon._handle_signal(signal.SIGTERM, None)
+            os.read(r, 1024)  # drain
+        assert daemon._signal_write_failures == 0
+
+    def test_log_helper_emits_once_per_delta(self, caplog: pytest.LogCaptureFixture) -> None:
+        """``_log_signal_write_failures_if_new`` is idempotent between
+        observed counter values — no log spam on every loop iteration
+        when the counter is stable."""
+        daemon = DaemonService(_make_config())
+        daemon._signal_write_failures = 3
+        with caplog.at_level("WARNING", logger="daemon.service"):
+            daemon._log_signal_write_failures_if_new()
+            daemon._log_signal_write_failures_if_new()  # no counter change
+            daemon._log_signal_write_failures_if_new()
+
+        warnings = [r for r in caplog.records if "write failures" in r.message]
+        assert len(warnings) == 1
+        assert "(total: 3)" in warnings[0].message
+        assert daemon._last_logged_write_failures == 3
+
+        # New delta after the stable run — one more log.
+        daemon._signal_write_failures = 5
+        with caplog.at_level("WARNING", logger="daemon.service"):
+            daemon._log_signal_write_failures_if_new()
+        assert daemon._last_logged_write_failures == 5
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestSignalPipeDrain:
+    """F4: the run loop drains the signal pipe in a loop until EAGAIN,
+    instead of the pre-F4 fixed 1024-byte read. Prevents stale wakeup
+    bytes from lingering after a signal storm."""
+
+    def test_drain_empties_pipe(self) -> None:
+        """Multiple wakeup bytes are all consumed in one drain."""
+        daemon = DaemonService(_make_config())
+        with wired_pipe(daemon) as (r, w):
+            # Fill the pipe with many wakeup bytes.
+            for _ in range(10):
+                os.write(w, b"\x00")
+            daemon._drain_signal_pipe(r)
+            # Pipe is now empty — next read raises BlockingIOError.
+            with pytest.raises(BlockingIOError):
+                os.read(r, 1)
+
+    def test_drain_tolerates_closed_fd(self) -> None:
+        """Reading from a closed fd returns cleanly (logged at DEBUG,
+        no raise) so the run loop keeps turning."""
+        daemon = DaemonService(_make_config())
+        r, w = os.pipe()
+        os.close(w)
+        os.close(r)
+        # Closed fd — must not raise.
+        daemon._drain_signal_pipe(r)
+
+    def test_drain_handles_empty_pipe(self) -> None:
+        """A drain on an empty pipe returns immediately."""
+        daemon = DaemonService(_make_config())
+        with wired_pipe(daemon) as (r, _w):
+            daemon._drain_signal_pipe(r)  # must not hang or raise

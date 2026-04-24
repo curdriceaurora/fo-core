@@ -7,9 +7,11 @@ with both real and synthetic PID values.
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
+import psutil
 import pytest
 
 from daemon.pid import PidFileManager
@@ -147,4 +149,127 @@ class TestIsRunning:
     def test_empty_file_not_running(self, pid_manager: PidFileManager, pid_file: Path) -> None:
         """is_running returns False for an empty PID file."""
         pid_file.write_text("")
+        assert pid_manager.is_running(pid_file) is False
+
+
+# ---------------------------------------------------------------------------
+# F2 hardening — PID-reuse race closed by create_time validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestPidRecord:
+    """F2 (hardening roadmap #159): ``write_pid_record`` / ``read_pid_record``
+    capture both PID and process start-time so ``is_running`` can detect
+    and reject PID recycling after daemon death.
+
+    Pre-F2: a crashed daemon's PID gets reused by the OS for an unrelated
+    process, and ``is_running`` reports the daemon as alive. Post-F2:
+    start-time mismatch is caught and treated as not-running.
+    """
+
+    def test_write_pid_record_captures_current_process_time(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+
+        record = pid_manager.write_pid_record(pid_file)
+        assert record.pid == os.getpid()
+        assert record.create_time is not None
+        # Must match the actual create_time of this process (within tolerance).
+        expected = psutil.Process(os.getpid()).create_time()
+        assert abs(record.create_time - expected) < 0.5
+
+    def test_record_is_json_format(self, pid_manager: PidFileManager, pid_file: Path) -> None:
+
+        pid_manager.write_pid_record(pid_file)
+        content = pid_file.read_text()
+        data = json.loads(content)
+        assert "pid" in data and "create_time" in data
+        assert data["pid"] == os.getpid()
+
+    def test_read_pid_record_round_trips(self, pid_manager: PidFileManager, pid_file: Path) -> None:
+        written = pid_manager.write_pid_record(pid_file)
+        read = pid_manager.read_pid_record(pid_file)
+        assert read is not None
+        assert read.pid == written.pid
+        assert read.create_time == written.create_time
+
+    def test_read_pid_record_legacy_integer_format(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Legacy PID files (written by ``write_pid``, which is text-only)
+        still parse — create_time is None, caller falls back to
+        pid-only liveness check."""
+        pid_file.write_text(str(os.getpid()))
+        record = pid_manager.read_pid_record(pid_file)
+        assert record is not None
+        assert record.pid == os.getpid()
+        assert record.create_time is None
+
+    def test_read_pid_record_nonexistent_returns_none(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        assert pid_manager.read_pid_record(pid_file) is None
+
+    def test_read_pid_record_empty_file_returns_none(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        pid_file.write_text("")
+        assert pid_manager.read_pid_record(pid_file) is None
+
+    def test_read_pid_record_malformed_json_returns_none(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Corrupted JSON falls through to legacy-int parsing; if that
+        also fails, returns None (graceful) rather than raising."""
+        pid_file.write_text("{ not json and not int")
+        assert pid_manager.read_pid_record(pid_file) is None
+
+    def test_is_running_detects_pid_recycling(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """The core F2 case: a PID file whose recorded create_time
+        doesn't match the running process with that PID (= PID was
+        recycled by the OS after the original daemon died). Must
+        return False.
+
+        Simulates recycling by writing a record for the current
+        process's PID but with a create_time shifted 1 hour back —
+        as if the pid_file was written by an old daemon that
+        crashed, and the OS handed the PID to a new process.
+        """
+
+        pid = os.getpid()
+        actual_create_time = psutil.Process(pid).create_time()
+        # Pretend the daemon that wrote this record started an hour before us.
+        fake_create_time = actual_create_time - 3600.0
+        pid_file.write_text(json.dumps({"pid": pid, "create_time": fake_create_time}))
+
+        assert pid_manager.is_running(pid_file) is False
+
+    def test_is_running_accepts_matching_create_time(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """The happy path: record was written by this process, create_time
+        matches, so ``is_running`` returns True."""
+        pid_manager.write_pid_record(pid_file)
+        assert pid_manager.is_running(pid_file) is True
+
+    def test_is_running_legacy_format_falls_back_to_pid_exists(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Legacy text-only PID files (no create_time) can't be validated
+        for recycling — fall back to the pre-F2 behaviour of
+        ``psutil.pid_exists``. Documented degradation, not silent."""
+        pid_file.write_text(str(os.getpid()))
+        assert pid_manager.is_running(pid_file) is True
+
+    def test_is_running_dead_pid_returns_false_with_record(
+        self, pid_manager: PidFileManager, pid_file: Path
+    ) -> None:
+        """Dead PIDs are caught by ``psutil.pid_exists`` before the
+        create_time check — still False."""
+
+        pid_file.write_text(json.dumps({"pid": -1, "create_time": 0.0}))
         assert pid_manager.is_running(pid_file) is False

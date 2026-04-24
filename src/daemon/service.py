@@ -61,6 +61,14 @@ class DaemonService:
         self._original_sigint: signal.Handlers | None = None
         self._sig_wakeup_r: int | None = None
         self._sig_wakeup_w: int | None = None
+        # F4 (hardening roadmap #159): counter bumped by the signal
+        # handler on ``os.write`` failure (pipe full / closed). The
+        # signal handler can't call logger (not async-signal-safe);
+        # the run loop reads this counter on each iteration and logs
+        # a warning if it changed. Simple ``int`` read/write is
+        # atomic on CPython under the GIL.
+        self._signal_write_failures = 0
+        self._last_logged_write_failures = 0
         self._started_at: float | None = None
         self._files_processed: int = 0
         self._on_start_callback: Callable[[], None] | None = None
@@ -267,8 +275,15 @@ class DaemonService:
         Uses select() on the self-pipe when signal handlers are installed
         (foreground mode). Falls back to Event.wait() in background mode
         where no signals are installed.
+
+        F4 (hardening roadmap #159): reports any signal-write failures
+        that the signal handler recorded (it can't log from within a
+        signal handler — not async-safe), and fully drains the pipe
+        on each readable event rather than the fixed 1024-byte read,
+        so a saturated pipe can't leave stale wakeup bytes buffered.
         """
         while not self._stop_event.is_set():
+            self._log_signal_write_failures_if_new()
             sig_wakeup_r = self._sig_wakeup_r
             if sig_wakeup_r is not None:
                 ready, _, _ = select.select(
@@ -278,14 +293,52 @@ class DaemonService:
                     self.config.poll_interval,
                 )
                 if ready:
-                    try:
-                        os.read(sig_wakeup_r, 1024)
-                    except OSError:
-                        pass
+                    self._drain_signal_pipe(sig_wakeup_r)
                     logger.info("Received signal, initiating graceful shutdown")
                     self._stop_event.set()
             else:
                 self._stop_event.wait(timeout=self.config.poll_interval)
+
+    def _drain_signal_pipe(self, fd: int) -> None:
+        """Read from *fd* in a loop until EAGAIN (or a limit) is hit.
+
+        F4: the signal pipe is opened non-blocking (see
+        ``_install_signal_handlers``); this drains all pending wakeup
+        bytes in one pass. A small iteration cap prevents a runaway
+        loop in the unlikely case the pipe is being written faster
+        than we read.
+        """
+        for _ in range(64):
+            try:
+                chunk = os.read(fd, 4096)
+            except BlockingIOError:
+                # Pipe is now empty — normal exit.
+                return
+            except OSError as exc:
+                logger.debug("Signal pipe read failed: %s", exc, exc_info=True)
+                return
+            if not chunk:
+                return
+
+    def _log_signal_write_failures_if_new(self) -> None:
+        """F4: emit a warning on new signal-write failures.
+
+        Compares ``_signal_write_failures`` (written by the signal
+        handler) against ``_last_logged_write_failures`` and emits a
+        throttled warning only when the counter increased. Idempotent
+        between loop iterations so the run loop doesn't log every tick.
+        """
+        current = self._signal_write_failures
+        if current > self._last_logged_write_failures:
+            delta = current - self._last_logged_write_failures
+            logger.warning(
+                "Signal handler write failures since last loop: %d (total: %d). "
+                "The signal pipe is saturated or closed; shutdown signals may be "
+                "delayed until the run loop reaches the next iteration.",
+                delta,
+                current,
+            )
+            self._last_logged_write_failures = current
 
     def _cleanup(self) -> None:
         """Clean up daemon resources on shutdown.
@@ -387,8 +440,16 @@ class DaemonService:
     def _handle_signal(self, signum: int, frame: object) -> None:
         """Handle a termination signal by requesting graceful shutdown.
 
-        Only performs async-signal-safe operations (os.write).
-        The run loop drains the pipe and logs the signal receipt.
+        Only performs async-signal-safe operations (os.write + counter
+        increment). The run loop drains the pipe and logs any write
+        failures this handler recorded.
+
+        F4 (hardening roadmap #159): pre-F4 the OSError on ``os.write``
+        was silently discarded. If the pipe was saturated (many signals
+        queued) or closed (teardown race), the daemon had no way to
+        notice that a shutdown signal might have been lost. Post-F4
+        failures bump ``_signal_write_failures`` so the run loop can
+        log them on its next iteration.
 
         Args:
             signum: The signal number received.
@@ -398,7 +459,10 @@ class DaemonService:
             if self._sig_wakeup_w is not None:
                 os.write(self._sig_wakeup_w, b"\x00")
         except OSError:
-            pass  # pipe full or closed
+            # Can't call logger here — not async-signal-safe. Increment
+            # a counter the run loop reads on each iteration and logs.
+            # Simple ``int`` read/write is atomic under the CPython GIL.
+            self._signal_write_failures += 1
 
     def _setup_default_tasks(self) -> None:
         """Register default periodic tasks with the scheduler."""

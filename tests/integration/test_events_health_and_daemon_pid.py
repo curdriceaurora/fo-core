@@ -429,3 +429,124 @@ class TestPidFileManager:
         with patch("daemon.pid.os.kill", side_effect=ProcessLookupError):
             result = mgr.is_running(pid_file)
         assert result is False
+
+
+# ---------------------------------------------------------------------------
+# F2 hardening — integration-level PID-record / is_running
+# ---------------------------------------------------------------------------
+
+
+class TestPidRecordIntegration:
+    """F2: integration-level coverage for the new ``write_pid_record`` /
+    ``read_pid_record`` / is_running-with-create_time paths so the
+    daemon/pid.py integration-coverage floor (88%) is maintained."""
+
+    def test_round_trip_pid_record(self, tmp_path: Path) -> None:
+        import json
+
+        from daemon.pid import PidFileManager
+
+        mgr = PidFileManager()
+        pid_file = tmp_path / "daemon.pid"
+        written = mgr.write_pid_record(pid_file)
+        # File on disk is JSON with pid + create_time.
+        data = json.loads(pid_file.read_text())
+        assert data["pid"] == os.getpid()
+        assert "create_time" in data
+        # Read back round-trips.
+        read = mgr.read_pid_record(pid_file)
+        assert read is not None
+        assert read.pid == written.pid
+        assert read.create_time == written.create_time
+
+    def test_is_running_with_create_time_match(self, tmp_path: Path) -> None:
+        from daemon.pid import PidFileManager
+
+        mgr = PidFileManager()
+        pid_file = tmp_path / "daemon.pid"
+        mgr.write_pid_record(pid_file)
+        assert mgr.is_running(pid_file) is True
+
+    def test_is_running_rejects_recycled_pid(self, tmp_path: Path) -> None:
+        """Shifted create_time simulates a PID that was recycled after
+        the original daemon died — is_running must return False."""
+        import json
+
+        import psutil
+
+        from daemon.pid import PidFileManager
+
+        mgr = PidFileManager()
+        pid = os.getpid()
+        actual_ct = psutil.Process(pid).create_time()
+        pid_file = tmp_path / "daemon.pid"
+        pid_file.write_text(json.dumps({"pid": pid, "create_time": actual_ct - 3600.0}))
+        assert mgr.is_running(pid_file) is False
+
+    def test_legacy_text_format_still_reads(self, tmp_path: Path) -> None:
+        """A PID file written by pre-F2 code (plain integer) still
+        parses via read_pid_record; create_time is None."""
+        from daemon.pid import PidFileManager
+
+        mgr = PidFileManager()
+        pid_file = tmp_path / "daemon.pid"
+        pid_file.write_text(str(os.getpid()))
+        record = mgr.read_pid_record(pid_file)
+        assert record is not None
+        assert record.pid == os.getpid()
+        assert record.create_time is None
+        # And is_running falls back to pid_exists only.
+        assert mgr.is_running(pid_file) is True
+
+    def test_read_record_empty_file(self, tmp_path: Path) -> None:
+        """Empty PID file → None (not a raise). Covers the early-out
+        branch in ``read_pid_record``."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "empty.pid"
+        pid_file.write_text("")
+        assert PidFileManager().read_pid_record(pid_file) is None
+
+    def test_read_record_corrupt_content(self, tmp_path: Path) -> None:
+        """Content that is neither JSON nor a plain integer → None
+        with a logged warning. Covers the final-fallback error path."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "corrupt.pid"
+        pid_file.write_text("{ not json either")
+        assert PidFileManager().read_pid_record(pid_file) is None
+
+    def test_read_record_json_missing_pid_falls_through(self, tmp_path: Path) -> None:
+        """Valid JSON but missing the ``pid`` key — the json-branch
+        gives up and the code falls through to the legacy int-parse
+        (which also fails for a JSON object string). Exercises that
+        fallthrough path."""
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "no_pid_key.pid"
+        pid_file.write_text('{"something_else": 42}')
+        assert PidFileManager().read_pid_record(pid_file) is None
+
+    def test_is_running_handles_race_process_disappears(self, tmp_path: Path) -> None:
+        """F2 TOCTOU branch: ``psutil.pid_exists`` returns True but
+        ``psutil.Process`` raises ``NoSuchProcess`` between the checks
+        (the process terminated in between). Must return False rather
+        than propagate the exception."""
+        import json
+        from unittest.mock import patch
+
+        import psutil
+
+        from daemon.pid import PidFileManager
+
+        pid_file = tmp_path / "race.pid"
+        pid_file.write_text(json.dumps({"pid": os.getpid(), "create_time": 12345.678}))
+
+        with (
+            patch("daemon.pid.psutil.pid_exists", return_value=True),
+            patch(
+                "daemon.pid.psutil.Process",
+                side_effect=psutil.NoSuchProcess(os.getpid()),
+            ),
+        ):
+            assert PidFileManager().is_running(pid_file) is False

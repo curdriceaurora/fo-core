@@ -265,3 +265,69 @@ class TestDaemonProcess:
             )
         assert result.exit_code == 1
         assert "error" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# F4 hardening — signal-write failure tracking + pipe drain
+# ---------------------------------------------------------------------------
+
+
+class TestSignalWriteFailureTrackingIntegration:
+    """F4 (hardening roadmap #159): integration-level coverage for the
+    signal-write failure counter and the full-drain path so the
+    daemon/service.py integration floor is preserved."""
+
+    def test_closed_pipe_bumps_failure_counter(self) -> None:
+        """Signal handler increments the counter when ``os.write`` fails."""
+        import os
+        import signal
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+        r, w = os.pipe()
+        os.close(r)
+        os.close(w)
+        daemon._sig_wakeup_w = w
+
+        daemon._handle_signal(signal.SIGTERM, None)
+        daemon._handle_signal(signal.SIGTERM, None)
+        assert daemon._signal_write_failures == 2
+
+    def test_drain_empties_full_pipe(self) -> None:
+        """The drain helper reads every buffered byte until EAGAIN."""
+        import os
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+        r, w = os.pipe()
+        os.set_blocking(r, False)
+        os.set_blocking(w, False)
+        try:
+            for _ in range(20):
+                os.write(w, b"\x00")
+            daemon._drain_signal_pipe(r)
+            import pytest as _pytest
+
+            with _pytest.raises(BlockingIOError):
+                os.read(r, 1)
+        finally:
+            os.close(r)
+            os.close(w)
+
+    def test_log_helper_emits_on_delta(self, caplog: pytest.LogCaptureFixture) -> None:
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+        daemon._signal_write_failures = 4
+
+        with caplog.at_level("WARNING", logger="daemon.service"):
+            daemon._log_signal_write_failures_if_new()
+            daemon._log_signal_write_failures_if_new()  # no delta → no extra log
+
+        hits = [r for r in caplog.records if "write failures" in r.message]
+        assert len(hits) == 1

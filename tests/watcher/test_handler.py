@@ -548,3 +548,120 @@ class TestFileEventHandlerCallbackEdgeCases:
         # No callbacks registered, should not raise
         handler.on_created(FileCreatedEvent(src_path=str(tmp_path / "file.txt")))
         assert queue.size == 1
+
+
+# ---------------------------------------------------------------------------
+# F3 hardening — debounce-dict TTL eviction
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestDebounceDictEviction:
+    """F3 (hardening roadmap #159): ``_last_event_times`` must not grow
+    unbounded.
+
+    Pre-F3: the dict accumulated one entry per observed path for the
+    life of the daemon. A watcher pointed at a frequently-churning
+    directory leaked memory indefinitely.
+
+    Post-F3: entries older than ``debounce_seconds * _STALE_MULTIPLIER``
+    are dropped on every ``_should_process`` call, and a hard cap of
+    ``_MAX_DEBOUNCE_ENTRIES`` prevents pathological growth.
+    """
+
+    def test_stale_entries_are_evicted(self) -> None:
+        """Entries older than the stale horizon drop on the next call.
+
+        Uses a config with a realistic debounce window so
+        ``_MIN_EVICTION_HORIZON_S`` (60s floor) isn't the active
+        bound — we want the multiplier-driven horizon here.
+        """
+        from watcher.handler import _MIN_EVICTION_HORIZON_S, _STALE_MULTIPLIER
+
+        config = WatcherConfig(debounce_seconds=10.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue)
+
+        # Effective horizon: max(10 * 10, 60) = 100s.
+        horizon = max(config.debounce_seconds * _STALE_MULTIPLIER, _MIN_EVICTION_HORIZON_S)
+        now = time.monotonic()
+        with handler._debounce_lock:
+            handler._last_event_times["stale/path"] = now - horizon - 1.0
+            handler._last_event_times["fresh/path"] = now - 1.0
+
+        handler._should_process("new/path")
+
+        assert "stale/path" not in handler._last_event_times
+        assert "fresh/path" in handler._last_event_times
+        assert "new/path" in handler._last_event_times
+
+    def test_min_horizon_floor_protects_zero_debounce_config(self) -> None:
+        """When ``debounce_seconds=0`` the multiplier-based horizon is
+        also 0 — without the ``_MIN_EVICTION_HORIZON_S`` floor every
+        entry would evict on every call. Verify the floor holds."""
+        from watcher.handler import _MIN_EVICTION_HORIZON_S
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue)
+
+        now = time.monotonic()
+        # Entry that is under the floor (must survive).
+        with handler._debounce_lock:
+            handler._last_event_times["recent"] = now - _MIN_EVICTION_HORIZON_S / 2
+
+        handler._should_process("trigger")
+        assert "recent" in handler._last_event_times
+
+    def test_hard_cap_drops_oldest_in_bulk(self, caplog: pytest.LogCaptureFixture) -> None:
+        """When the dict exceeds _MAX_DEBOUNCE_ENTRIES, oldest drop out."""
+        from watcher.handler import _MAX_DEBOUNCE_ENTRIES
+
+        # Use a large debounce_seconds so the age-eviction horizon is
+        # comfortably larger than our synthetic timestamp spread, leaving
+        # only the hard-cap branch to do the dropping.
+        config = WatcherConfig(debounce_seconds=60.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue)
+
+        # Force entries above the cap, all within the stale horizon so
+        # the age-based eviction path doesn't drop them — this exercises
+        # the hard-cap branch specifically.
+        now = time.monotonic()
+        over = 50
+        with handler._debounce_lock:
+            for i in range(_MAX_DEBOUNCE_ENTRIES + over):
+                # Fresh enough to survive age eviction, but ordered oldest-first
+                # so the hard-cap branch drops the first ``over`` entries.
+                handler._last_event_times[f"path/{i}"] = now - (over - i) * 0.0001
+
+        with caplog.at_level("WARNING", logger="watcher.handler"):
+            handler._should_process("new/path")
+
+        # Dict size is now at the cap (plus the one new key).
+        assert len(handler._last_event_times) <= _MAX_DEBOUNCE_ENTRIES + 1
+        # First ``over`` entries (oldest) are gone.
+        for i in range(over):
+            assert f"path/{i}" not in handler._last_event_times
+        # Warning was emitted.
+        assert any(
+            "exceeded" in rec.message.lower() and "dropped" in rec.message.lower()
+            for rec in caplog.records
+        )
+
+    def test_eviction_does_not_drop_still_debouncing_entries(self) -> None:
+        """An entry whose debounce window is still active must NOT be
+        evicted by the TTL pass — it's not stale yet."""
+        config = WatcherConfig(debounce_seconds=30.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue)
+
+        # Entry added 5s ago; debounce window is 30s → still active.
+        now = time.monotonic()
+        with handler._debounce_lock:
+            handler._last_event_times["active"] = now - 5.0
+
+        handler._should_process("new/path")
+
+        assert "active" in handler._last_event_times

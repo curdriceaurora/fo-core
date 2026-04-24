@@ -183,6 +183,52 @@ class TestFileEventHandlerDebounce:
         handler.on_created(FileCreatedEvent(f))
         assert q.size == 2
 
+    def test_debounce_dict_evicts_stale_entries(self, tmp_path: Path) -> None:
+        """F3: entries older than the stale horizon are dropped on the
+        next ``_should_process`` call so the dict can't grow unbounded
+        over a long-running daemon's lifetime."""
+        import time as _time
+
+        from watcher.config import WatcherConfig
+        from watcher.handler import _MIN_EVICTION_HORIZON_S, FileEventHandler
+        from watcher.queue import EventQueue
+
+        cfg = WatcherConfig(debounce_seconds=10.0)
+        handler = FileEventHandler(cfg, EventQueue())
+
+        horizon = max(cfg.debounce_seconds * 10, _MIN_EVICTION_HORIZON_S)
+        now = _time.monotonic()
+        with handler._debounce_lock:
+            handler._last_event_times["stale"] = now - horizon - 1.0
+            handler._last_event_times["recent"] = now - 0.1
+
+        handler._should_process("new")
+        assert "stale" not in handler._last_event_times
+        assert "recent" in handler._last_event_times
+        assert "new" in handler._last_event_times
+
+    def test_debounce_dict_hard_cap_prevents_unbounded_growth(self, tmp_path: Path) -> None:
+        """F3: even if nothing is stale, the dict is capped at
+        ``_MAX_DEBOUNCE_ENTRIES``. Oldest entries are dropped in bulk
+        on the next ``_should_process`` call."""
+        import time as _time
+
+        from watcher.config import WatcherConfig
+        from watcher.handler import _MAX_DEBOUNCE_ENTRIES, FileEventHandler
+        from watcher.queue import EventQueue
+
+        cfg = WatcherConfig(debounce_seconds=60.0)
+        handler = FileEventHandler(cfg, EventQueue())
+
+        now = _time.monotonic()
+        overflow = 10
+        with handler._debounce_lock:
+            for i in range(_MAX_DEBOUNCE_ENTRIES + overflow):
+                handler._last_event_times[f"p{i}"] = now - (overflow - i) * 0.0001
+
+        handler._should_process("trigger")
+        assert len(handler._last_event_times) <= _MAX_DEBOUNCE_ENTRIES + 1
+
     def test_pending_paths_tracks_state(self, tmp_path: Path) -> None:
         from watchdog.events import FileCreatedEvent
 
