@@ -444,7 +444,7 @@ all boundaries.
 
 ## 8. Operator visibility
 
-Scoped down per round-1 review: this PR adds only `fo undo recover`. `fo doctor`
+Scoped down per round-1 review: this PR adds only `fo recover`. `fo doctor`
 integration (the command exists at `src/cli/doctor.py`) is a reasonable
 follow-up but kept out of this PR to minimize scope.
 
@@ -452,7 +452,7 @@ follow-up but kept out of this PR to minimize scope.
 
 Round-2 review flagged: a "report-only mode" on the sweep function risks
 accidental sharing of mutating code paths. Fix: extract a pure planner that
-both sweep and `fo undo recover` call.
+both sweep and `fo recover` call.
 
 Signature:
 
@@ -488,27 +488,29 @@ to exercise every row deterministically.
 - `sweep()` calls `plan_recovery_actions(entries)`, then a separate
   `_apply_planned_actions(plan, journal)` executes each action's verb under
   `LOCK_EX`.
-- `fo undo recover` calls `plan_recovery_actions(entries)`, then renders the
+- `fo recover` calls `plan_recovery_actions(entries)`, then renders the
   plan as a table (no execution).
 
 Regression test runs both call sites on the same input and asserts the CLI's
 rendered plan matches the executor's observed actions row-for-row.
 
-### 8.2 `fo undo recover`
+### 8.2 `fo recover`
 
-CLI subcommand that:
+CLI command (top-level, not nested under `fo undo`, to avoid restructuring the
+existing flat `fo undo` command) that:
 
 1. Reads the journal under `LOCK_SH` (on `<journal>.lock` per §6.1).
 2. Calls `plan_recovery_actions(entries)` (§8.1) — pure, no mutation.
-3. Prints a table of retained / actionable entries with `op`, `state`, `age`,
-   `src`, `dst`, and the planned verb + reason.
+3. Prints a table of retained / actionable entries with `op`, `state`, `src`,
+   `dst`, `tmp_path` (when present), and the planned verb + reason.
 4. For v2 `move started` entries the rendered reason includes the
-   disambiguation tier (pre-replace / post-replace / post-unlink / ambiguous).
-5. Exits `0` if the plan is empty, `1` if any action is planned (so scripts
-   can detect "needs cleanup").
+   disambiguation tier (`[pre-replace]` / `[post-replace]` / `[v1-ambiguous]`).
+5. Exits `0` if the plan has no actionable entries (empty OR all-`drop`),
+   `1` if any non-`drop` action would be taken (so scripts can detect
+   "needs cleanup").
 
-Use case: after a crash, an operator runs `fo undo recover` to see what the
-next sweep would do — no mystery WARNINGS in logs.
+Use case: after a crash, an operator runs `fo recover` to see what the next
+sweep would do — no mystery WARNINGS in logs.
 
 ### 8.3 Structured log fields
 
@@ -598,14 +600,14 @@ fixes):
 
 ### 9.6 Operator visibility
 
-- `fo undo recover` with empty journal → exits 0, prints "no retained entries".
-- `fo undo recover` with retained entries → exits 1, prints formatted table.
-- `fo undo recover` per-row hint matches the §5.1 disambiguation tier for the
+- `fo recover` with empty journal → exits 0, prints "no retained entries".
+- `fo recover` with retained entries → exits 1, prints formatted table.
+- `fo recover` per-row hint matches the §5.1 disambiguation tier for the
   on-disk observation (tmp present / tmp absent + src present / etc.).
 - `plan_recovery_actions(entries) -> list[_PlannedAction]` is pure: given
   identical inputs it returns identical output with no file-system mutation.
   Sweep's mutation path calls `plan_recovery_actions` then executes each
-  returned action; `fo undo recover` calls `plan_recovery_actions` and renders
+  returned action; `fo recover` calls `plan_recovery_actions` and renders
   without executing. Regression test runs both call sites on the same input
   and asserts the CLI's rendered plan matches the planner's return value
   verbatim — guarantees there's no "report-only mode" branch that could drift
@@ -642,7 +644,7 @@ fixes):
    no exception cleanup. STARTED disambiguation tests (§9.3) including the
    tmp-durability and invariant tests.
 7. **Dir_move decision locked in** (§5.3) + existing tests adjusted (§9.5).
-8. **`fo undo recover` CLI** + structured log fields (§8) + tests (§9.6).
+8. **`fo recover` CLI** + structured log fields (§8) + tests (§9.6).
 
 Each step is a self-contained commit + CI green before the next. The
 `tmp_path` / writer-protocol change (step 6) is the highest-risk step and
@@ -724,7 +726,7 @@ items. All addressed in the current revision:
 
 **Scope adjustment:**
 
-7. **`fo doctor` integration deferred** (§8): scoped down to just `fo undo recover`.
+7. **`fo doctor` integration deferred** (§8): scoped down to just `fo recover`.
    The `fo doctor` command exists but integrating a journal section there is
    kept out of this PR to minimize scope. Follow-up-ready (low risk, read-only).
 
@@ -760,7 +762,7 @@ items. All addressed:
     Parse also rejects v2 `move started` records missing `tmp_path` (§4.1 rule 9)
     so the tmp-exists invariant can't be bypassed by corrupt/external input.
 11. **Pure `plan_recovery_actions` planner** (§8.1): both sweep and
-    `fo undo recover` call the same pure planner, then either execute the plan
+    `fo recover` call the same pure planner, then either execute the plan
     (sweep) or render it (CLI). Replaces the round-2 "report-only mode" which
     risked a mutating-code-path drift between the two call sites. Regression
     test asserts CLI rendering and sweep execution agree on the action plan

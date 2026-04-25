@@ -2726,6 +2726,82 @@ class TestPlanRecoveryActions:
         assert src.exists()  # unlink raised → src survives
 
 
+class TestIsPathInFlightCollapseIdentity:
+    """§3.1 / step 3 codex iy4u: ``is_path_in_flight`` MUST collapse by
+    the operation identity, not by ``(src, dst)`` alone. Path-keyed
+    collapse re-introduces the iy4u masking bug for the F8 trash-GC
+    coordination path.
+
+    Concrete failure mode without identity-keyed collapse: a
+    ``move /a /b started`` followed by a ``dir_move /a /b done`` for
+    the same paths would let the dir_move done supersede the move
+    started under ``(src, dst)`` reduction. ``is_path_in_flight(/a)``
+    would then return ``False`` during the move's copy → replace
+    window, and trash GC could delete /a out from under it. The
+    identity-keyed collapse keeps both records distinct.
+    """
+
+    def test_separate_ops_on_same_paths_dont_mask(self, tmp_path: Path) -> None:
+        """``move started`` + ``dir_move done`` on identical paths:
+        ``is_path_in_flight`` must still see the move's STARTED entry
+        and return True."""
+        from undo.durable_move import _append_journal, is_path_in_flight
+
+        journal = tmp_path / "move.journal"
+        # NB: writer-side dir_move uses v1 envelope; move uses v2.
+        # Different ops → different §3.1 identities even with same
+        # (src, dst), so the dir_move done can NOT mask the move started.
+        _append_journal(
+            journal,
+            {"op": "move", "src": "/a", "dst": "/b", "state": "started"},
+        )
+        _append_journal(
+            journal,
+            {"op": "dir_move", "src": "/a", "dst": "/b", "state": "done"},
+        )
+        # Without identity-keyed collapse, the dir_move done would
+        # overwrite the move started under (src, dst) and this would
+        # falsely return False.
+        assert is_path_in_flight(Path("/a"), journal=journal) is True
+        assert is_path_in_flight(Path("/b"), journal=journal) is True
+
+    def test_v2_op_id_distinct_attempts_dont_mask(self, tmp_path: Path) -> None:
+        """Two v2 ``move`` retries on the same paths but different
+        op_ids stay distinct under identity collapse — a later
+        attempt's done can NOT mask an earlier attempt's started."""
+        from undo.durable_move import _append_journal, is_path_in_flight
+
+        journal = tmp_path / "move.journal"
+        # Attempt 1: still in flight (started).
+        _append_journal(
+            journal,
+            {
+                "schema": 2,
+                "op": "move",
+                "op_id": "attempt-1",
+                "src": "/a",
+                "dst": "/b",
+                "tmp_path": "/a.tmp",
+                "state": "started",
+            },
+        )
+        # Attempt 2: completed.
+        _append_journal(
+            journal,
+            {
+                "schema": 2,
+                "op": "move",
+                "op_id": "attempt-2",
+                "src": "/a",
+                "dst": "/b",
+                "state": "done",
+            },
+        )
+        # Attempt 1's started must still be visible — its op_id keeps
+        # it distinct from attempt 2's done under §3.1 collapse.
+        assert is_path_in_flight(Path("/a"), journal=journal) is True
+
+
 class TestStartedTmpPathDisambiguation:
     """Step 6 / §7.1: v2 ``move started`` records carry ``tmp_path``;
     sweep observes ``lexists(tmp_path)`` to disambiguate pre-replace

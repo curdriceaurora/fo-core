@@ -1341,11 +1341,16 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
     # Normalize the query path the same way writers do so the compare
     # works on equivalent paths (coderabbit PRRT_kwDOR_Rkws59fzVv).
     path_str = _normalized_path_str(path)
-    # Collapse to the latest state per (src, dst) — an entry may
-    # have been updated across crash-recovery attempts.
-    latest: dict[tuple[str, str], _JournalEntry] = {}
+    # §3.1: collapse by the operation identity ("v2"/op/op_id, "v1"/op/src/dst,
+    # or "unknown"/op/_hash16) — same key the planner uses. Path-keyed collapse
+    # would re-introduce the codex iy4u masking bug for F8 trash-GC: e.g. a
+    # ``move /a /b started`` followed by an unrelated ``dir_move /a /b done``
+    # would let the dir_move done supersede the move started under
+    # ``(src, dst)`` reduction, and ``is_path_in_flight(/a)`` would falsely
+    # return False during the move's copy → replace window.
+    latest: dict[_OpIdentity, _JournalEntry] = {}
     for entry in entries:
-        latest[(entry.src, entry.dst)] = entry
+        latest[_identity(entry)] = entry
     for entry in latest.values():
         if entry.state == STATE_DONE:
             continue
