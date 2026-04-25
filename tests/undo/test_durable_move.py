@@ -861,6 +861,12 @@ class TestDurableMoveFailureModes:
         (matches the POSIX-locked path contract). Uses a ``copied``
         entry since started-state reconciliation no longer unlinks
         anything (codex P1 PRRT_kwDOR_Rkws59gbdD).
+
+        Coderabbit round-10: ``bad_dst`` MUST exist on disk so sweep
+        passes the codex hGWW dst-present check and reaches the
+        ``src.unlink`` attempt — otherwise the dst-missing guard
+        retains the entry first and the monkeypatched failing_unlink
+        never runs (false-pass).
         """
         from undo.durable_move import _sweep_unlocked_body
 
@@ -868,14 +874,19 @@ class TestDurableMoveFailureModes:
         bad_src = tmp_path / "bad-src.txt"
         bad_dst = tmp_path / "bad-dst.txt"
         bad_src.write_text("x")
+        # bad_dst MUST exist so sweep doesn't short-circuit on the
+        # dst-missing guard before reaching the monkeypatched unlink.
+        bad_dst.write_text("complete destination")
         _write_journal(
             journal,
             [{"op": "move", "src": str(bad_src), "dst": str(bad_dst), "state": "copied"}],
         )
 
         real_unlink = Path.unlink
+        unlink_calls: list[Path] = []
 
         def failing_unlink(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            unlink_calls.append(Path(self))
             if str(self) == str(bad_src):
                 raise OSError(13, "simulated")
             return real_unlink(self, *args, **kwargs)
@@ -884,6 +895,14 @@ class TestDurableMoveFailureModes:
 
         _sweep_unlocked_body(journal)
 
+        # Verify the failing_unlink path was actually exercised — proves
+        # the dst-present guard was passed and the OSError-retain branch
+        # is what kept the entry (not the dst-missing short-circuit).
+        assert bad_src in unlink_calls, (
+            f"failing_unlink must have been invoked on bad_src; "
+            f"if absent, the dst-missing guard short-circuited and the "
+            f"OSError-retain branch was never tested. Calls: {unlink_calls}"
+        )
         entries = _read_journal(journal)
         assert any(e["src"] == str(bad_src) for e in entries)
 
@@ -1381,6 +1400,264 @@ class TestAppendJournalFlockCoordination:
         lines = [line for line in journal.read_text().splitlines() if line]
         assert len(lines) == 1
         assert '"state": "done"' in lines[0]
+
+
+# ---------------------------------------------------------------------------
+# Round-10 regression tests
+# ---------------------------------------------------------------------------
+
+
+class TestDirectoryMoveCoordination:
+    """Coderabbit round-10 (Major): directory restores previously
+    bypassed the F8 coordination channel — ``shutil.move`` doesn't
+    write to the journal, so concurrent trash GC could delete a
+    directory mid-restore. ``directory_move`` wraps the call in
+    ``op="dir_move"`` started/done entries so
+    :func:`is_path_in_flight` sees the path as in-flight.
+    """
+
+    def test_directory_move_writes_started_done_pair(self, tmp_path: Path) -> None:
+        """The wrapper writes exactly two journal entries: started
+        before the move, done after."""
+        from undo.durable_move import directory_move
+
+        src = tmp_path / "src_dir"
+        src.mkdir()
+        (src / "inside.txt").write_text("content")
+        dst = tmp_path / "dst_dir"
+        journal = tmp_path / "move.journal"
+
+        directory_move(src, dst, journal=journal)
+
+        # Move completed.
+        assert dst.is_dir() and (dst / "inside.txt").read_text() == "content"
+        assert not src.exists()
+        # Journal contains exactly the started → done pair.
+        entries = _read_journal(journal)
+        assert len(entries) == 2
+        assert entries[0]["op"] == "dir_move"
+        assert entries[0]["state"] == "started"
+        assert entries[1]["op"] == "dir_move"
+        assert entries[1]["state"] == "done"
+
+    def test_directory_move_marks_path_in_flight_during_move(self, tmp_path: Path) -> None:
+        """Codex hdFb / coderabbit round-10: while
+        :func:`directory_move` is mid-shutil.move, both src and dst
+        must register as in-flight via :func:`is_path_in_flight`.
+        Without this, trash GC could delete src or dst between the
+        started entry and the move's completion.
+        """
+        import threading
+
+        from undo.durable_move import directory_move, is_path_in_flight
+
+        src = tmp_path / "src_dir"
+        src.mkdir()
+        # Generate enough content that shutil.move takes a non-trivial
+        # amount of time, giving the test thread a window to observe
+        # the in-flight state.
+        for i in range(50):
+            (src / f"file_{i}.txt").write_text("x" * 1024)
+        dst = tmp_path / "dst_dir"
+        journal = tmp_path / "move.journal"
+
+        observations: list[bool] = []
+        in_flight_seen = threading.Event()
+        move_done = threading.Event()
+
+        def observer() -> None:
+            # Spin until the started entry is visible OR the move
+            # completes. Then record one observation.
+            while not move_done.is_set():
+                if is_path_in_flight(src, journal=journal) or is_path_in_flight(
+                    dst, journal=journal
+                ):
+                    observations.append(True)
+                    in_flight_seen.set()
+                    return
+            observations.append(False)
+
+        t = threading.Thread(target=observer, daemon=True)
+        t.start()
+        try:
+            directory_move(src, dst, journal=journal)
+        finally:
+            move_done.set()
+            t.join(timeout=2)
+
+        assert observations and observations[0] is True, (
+            "is_path_in_flight must see the directory as in-flight while "
+            "directory_move is running (round-10 F8 coordination)"
+        )
+        # After the move completes the in-flight marker is cleared
+        # (done entry supersedes started).
+        assert is_path_in_flight(src, journal=journal) is False
+        assert is_path_in_flight(dst, journal=journal) is False
+
+    def test_directory_move_writes_done_even_if_move_fails(self, tmp_path: Path) -> None:
+        """If shutil.move raises, the wrapper still writes ``done`` so
+        the in-flight marker is released. The exception propagates;
+        callers must reconcile partial on-disk state themselves
+        (directory moves are non-recoverable from sweep)."""
+        from undo.durable_move import directory_move, is_path_in_flight
+
+        src = tmp_path / "src_dir"
+        src.mkdir()
+        (src / "f.txt").write_text("x")
+        # Use a path that shutil.move will reject (parent doesn't
+        # exist would normally be created by us, so use a destination
+        # under a file).
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a dir")
+        dst = blocker / "child" / "dst_dir"
+        journal = tmp_path / "move.journal"
+
+        with pytest.raises((OSError, FileNotFoundError, NotADirectoryError)):
+            directory_move(src, dst, journal=journal)
+
+        # done was still written (released in-flight marker).
+        entries = _read_journal(journal)
+        assert any(e["state"] == "done" for e in entries), (
+            f"directory_move must write done in the finally block even when "
+            f"shutil.move raises; got entries: {entries}"
+        )
+        assert is_path_in_flight(src, journal=journal) is False
+
+
+class TestSweepDirMoveHandling:
+    """Sweep handles ``op="dir_move"`` entries by dropping them
+    (with a warning if state != done). Move semantics MUST NOT
+    apply since shutil.move is non-atomic and non-idempotent.
+    """
+
+    def test_sweep_drops_dir_move_done(self, tmp_path: Path) -> None:
+        from undo.durable_move import sweep
+
+        src = tmp_path / "src_dir"
+        src.mkdir()
+        dst = tmp_path / "dst_dir"
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "dir_move", "src": str(src), "dst": str(dst), "state": "done"}],
+        )
+
+        sweep(journal)
+        assert _read_journal(journal) == []
+        # Disk state untouched.
+        assert src.is_dir() and not dst.exists()
+
+    def test_sweep_drops_dir_move_started_with_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A stranded ``dir_move`` started entry (move crashed) is
+        dropped — sweep can't safely retry shutil.move. The warning
+        prompts operator inspection of the on-disk state."""
+        from undo.durable_move import sweep
+
+        src = tmp_path / "src_dir"
+        src.mkdir()
+        dst = tmp_path / "dst_dir"
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "dir_move", "src": str(src), "dst": str(dst), "state": "started"}],
+        )
+
+        with caplog.at_level("WARNING", logger="undo.durable_move"):
+            sweep(journal)
+        # Entry dropped (in-flight marker released).
+        assert _read_journal(journal) == []
+        # Disk state is whatever shutil.move left it — sweep doesn't
+        # touch either path. We just verify the warning fired.
+        assert any("dir_move entry" in r.getMessage() for r in caplog.records), (
+            f"warning must mention the dir_move entry; got "
+            f"{[r.getMessage() for r in caplog.records]}"
+        )
+
+    def test_sweep_does_not_apply_move_semantics_to_dir_move(self, tmp_path: Path) -> None:
+        """A ``dir_move`` entry in a ``copied`` state must NOT trigger
+        ``src.unlink`` (move-semantics for op=move). Belt-and-
+        suspenders against a future refactor accidentally collapsing
+        the op-dispatch."""
+        from undo.durable_move import sweep
+
+        src = tmp_path / "must-survive.txt"
+        src.write_text("must not be unlinked")
+        dst = tmp_path / "elsewhere.txt"
+        dst.write_text("dst content")
+        journal = tmp_path / "move.journal"
+        # Synthetic: copied state on a dir_move op shouldn't appear
+        # in practice (dir_move only writes started/done) but the
+        # sweep code path must defend against it.
+        _write_journal(
+            journal,
+            [{"op": "dir_move", "src": str(src), "dst": str(dst), "state": "copied"}],
+        )
+
+        sweep(journal)
+
+        assert src.read_text() == "must not be unlinked", (
+            "dir_move must NEVER trigger src.unlink even in unexpected states"
+        )
+        assert dst.read_text() == "dst content"
+
+
+class TestIsPathInFlightSharedLock:
+    """Codex P2 PRRT_kwDOR_Rkws59ir1P: ``is_path_in_flight`` must
+    acquire ``LOCK_SH`` so it cannot return False while a writer is
+    mid-append. Without this, F8 trash GC can delete a path that's
+    about to be marked in-flight.
+    """
+
+    def test_is_path_in_flight_blocks_while_writer_holds_lock_ex(self, tmp_path: Path) -> None:
+        """Hold ``LOCK_EX`` from main thread; the reader thread's
+        ``is_path_in_flight`` call must block until the lock is
+        released."""
+        fcntl = pytest.importorskip("fcntl")
+        import threading
+
+        from undo.durable_move import _append_journal, is_path_in_flight
+
+        journal = tmp_path / "move.journal"
+        # Pre-populate so the file exists for the reader's open().
+        _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+
+        # Hold LOCK_EX from the main thread (simulates an active
+        # _append_journal mid-write).
+        holder = open(journal, "a", encoding="utf-8")
+        fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
+
+        reader_entered = threading.Event()
+        reader_done = threading.Event()
+        result_holder: list[bool | None] = [None]
+
+        def _reader() -> None:
+            reader_entered.set()
+            try:
+                result_holder[0] = is_path_in_flight(Path("/x"), journal=journal)
+            finally:
+                reader_done.set()
+
+        t = threading.Thread(target=_reader, daemon=True)
+        t.start()
+
+        assert reader_entered.wait(timeout=5.0), "reader never scheduled"
+        # Reader must block on LOCK_SH while we hold LOCK_EX.
+        assert not reader_done.wait(timeout=0.5), (
+            "is_path_in_flight must block while another holder has LOCK_EX "
+            "(codex P2 PRRT_kwDOR_Rkws59ir1P); without the shared lock, GC "
+            "could observe a stale journal mid-append and delete an "
+            "in-flight path."
+        )
+
+        # Release; reader should now complete.
+        fcntl.flock(holder.fileno(), fcntl.LOCK_UN)
+        holder.close()
+        assert reader_done.wait(timeout=5.0), "reader never completed"
+        t.join(timeout=2)
+        # Result is False because /x is not in the (single done) entry.
+        assert result_holder[0] is False
 
 
 # ---------------------------------------------------------------------------

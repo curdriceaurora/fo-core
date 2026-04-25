@@ -13,7 +13,7 @@ from pathlib import Path
 from history.models import Operation, OperationType
 
 from ._journal import default_journal_path
-from .durable_move import durable_move
+from .durable_move import directory_move, durable_move
 from .models import RollbackResult
 from .validator import OperationValidator
 
@@ -67,25 +67,28 @@ class RollbackExecutor:
     def _move(self, src: Path, dst: Path) -> None:
         """Move *src* to *dst* with a file-vs-directory dispatch.
 
-        Files and symlinks go through ``durable_move``;
-        non-symlink directories fall back to ``shutil.move``.
+        Files and symlinks go through :func:`durable_move`
+        (atomic same-device, journalled+durable EXDEV);
+        non-symlink directories go through :func:`directory_move`
+        (non-atomic ``shutil.move`` wrapped with started/done
+        journal entries so concurrent F8 trash GC sees them as
+        in-flight).
 
-        Codex PRRT_kwDOR_Rkws59hT9a (and earlier PRRT_kwDOR_Rkws59gRpq):
-        ``durable_move`` rejects non-symlink directories up front with
-        ``IsADirectoryError`` (it is file-only by design — directory
-        crash recovery is F7's intentional non-goal). Every rollback /
-        redo / restore path in this module MUST go through this helper
-        so DELETE/MOVE/COPY of a directory can be undone. Symlinks
-        route through ``durable_move`` because ``shutil.move`` would
-        dereference them and copy target bytes instead of the link.
+        Codex PRRT_kwDOR_Rkws59hT9a (round-7) + coderabbit round-10:
+        :func:`durable_move` rejects non-symlink directories up
+        front with ``IsADirectoryError`` (it is file-only by design
+        — atomic directory recovery is F7's intentional non-goal).
+        Round-10's :func:`directory_move` adds the F8 coordination
+        layer that was previously missing — the bare
+        ``shutil.move`` call did not write to the journal, so
+        :func:`is_path_in_flight` returned False during a directory
+        restore and trash GC could delete the path mid-move.
+        Symlinks still route through :func:`durable_move` because
+        ``shutil.move`` would dereference them and copy target
+        bytes instead of preserving the link.
         """
         if src.is_dir() and not src.is_symlink():
-            # Non-atomic but matches pre-F7 behavior for directories.
-            # A crash mid-move leaves a partial directory the user must
-            # clean up manually. Durable recovery for directories is
-            # intentionally out of F7 scope.
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), str(dst))
+            directory_move(src, dst, journal=self.journal_path)
         else:
             durable_move(src, dst, journal=self.journal_path)
 

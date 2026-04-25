@@ -72,6 +72,16 @@ STATE_STARTED = "started"
 STATE_COPIED = "copied"
 STATE_DONE = "done"
 
+# Journal op constants. ``move`` is the F7 atomic/durable single-file
+# helper. ``dir_move`` (round-10 / coderabbit r3140-class) is the
+# non-atomic shutil.move-based helper for directories — sweep cannot
+# recover from a crash here, but the journal entry exists so concurrent
+# :func:`is_path_in_flight` callers (F8 trash GC) see the directory as
+# in-flight during the move.
+OP_MOVE = "move"
+OP_DIR_MOVE = "dir_move"
+_KNOWN_OPS = frozenset({OP_MOVE, OP_DIR_MOVE})
+
 
 @dataclass(frozen=True)
 class _JournalEntry:
@@ -317,6 +327,54 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
     _append_journal(journal, {**payload, "state": STATE_DONE})
 
 
+def directory_move(src: Path, dst: Path, *, journal: Path) -> None:
+    """Non-atomic directory move with journal coordination for F8.
+
+    Coderabbit (round-10): ``RollbackExecutor._move()`` previously
+    called ``shutil.move`` directly for directories, bypassing the
+    durable_move journal entirely. That left a window where
+    concurrent trash GC (via :func:`is_path_in_flight`) saw no
+    in-flight entry for the directory and could delete the trash
+    path mid-restore — exactly the F8 race ``durable_move`` was
+    introduced to prevent.
+
+    This helper writes ``op="dir_move"`` started/done entries
+    around a non-atomic ``shutil.move``. The entry exists ONLY for
+    coordination, NOT for crash recovery — directory moves are
+    not idempotent, so a crash mid-shutil.move leaves operator-
+    inspectable on-disk state. Sweep drops ``dir_move`` entries
+    (with a warning if state != done) since it cannot safely
+    re-run the move.
+
+    Args:
+        src: Source directory. Must exist as a directory; symlinks
+            should route through :func:`durable_move` instead since
+            the symlink itself is a single inode.
+        dst: Destination directory path. Parent is created if absent.
+        journal: Same journal used by :func:`durable_move` calls so
+            :func:`is_path_in_flight` sees a unified view.
+    """
+    src = Path(src)
+    dst = Path(dst)
+    payload = {
+        "op": OP_DIR_MOVE,
+        "src": _normalized_path_str(src),
+        "dst": _normalized_path_str(dst),
+        "state": STATE_STARTED,
+    }
+    _append_journal(journal, payload)
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dst))
+    finally:
+        # ``done`` is appended even if shutil.move raised, so a
+        # caught exception still clears the in-flight marker for
+        # GC. If shutil.move partially completed before raising,
+        # the operator must reconcile on-disk state — there's no
+        # safe automated recovery for directory moves.
+        _append_journal(journal, {**payload, "state": STATE_DONE})
+
+
 def sweep(journal: Path) -> None:
     """Complete or roll back interrupted :func:`durable_move` ops.
 
@@ -483,24 +541,44 @@ def _complete_or_rollback(entry: _JournalEntry) -> bool:
     # Codex P2 PRRT_kwDOR_Rkws59hdFb: the journal is shared across
     # operation types — the module docstring reserves ``op`` for
     # future ``"copy"``, ``"symlink"``, etc. Sweep only knows how to
-    # reconcile ``"move"`` ops; for anything else, acting on
-    # ``entry.state`` with move semantics (e.g. ``src.unlink()`` in
-    # the ``copied`` branch) would cause data loss on a downgrade
+    # reconcile the ops in ``_KNOWN_OPS``; for anything else, acting
+    # on ``entry.state`` with move semantics (e.g. ``src.unlink()``
+    # in the ``copied`` branch) would cause data loss on a downgrade
     # from a binary that wrote the newer op. Retain the entry so a
     # future binary with the right handler can process it.
-    if entry.op != "move":
+    if entry.op not in _KNOWN_OPS:
         logger.warning(
             "sweep: retaining journal entry with unknown op %r (state=%r); "
-            "this sweep binary only knows 'move', will leave for a handler "
+            "this sweep binary only knows %s, will leave for a handler "
             "that understands the op.",
             entry.op,
             entry.state,
+            sorted(_KNOWN_OPS),
         )
         return False
 
     src = Path(entry.src)
     dst = Path(entry.dst)
 
+    # ``dir_move`` (round-10): coordination-only entries. Sweep cannot
+    # safely retry shutil.move (non-atomic, non-idempotent), so any
+    # state other than ``done`` indicates a crashed move that needs
+    # operator inspection. Drop the entry either way — keeping it
+    # around would just keep the path marked in-flight forever and
+    # block GC.
+    if entry.op == OP_DIR_MOVE:
+        if entry.state != STATE_DONE:
+            logger.warning(
+                "sweep: dir_move entry %s -> %s in state %r — directory "
+                "moves are non-atomic; on-disk state needs operator "
+                "inspection. Dropping entry to release the in-flight marker.",
+                src,
+                dst,
+                entry.state,
+            )
+        return True  # drop
+
+    # entry.op == OP_MOVE — the F7 atomic/durable single-file path.
     if entry.state == STATE_STARTED:
         # Codex P1 PRRT_kwDOR_Rkws59gbdD + PRRT_kwDOR_Rkws59g2Ex:
         # ``started`` is an AMBIGUOUS state, not a "move never
@@ -619,13 +697,49 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
     deleting one of them out from under the sweep would strand the
     operation permanently.
 
+    Codex P2 PRRT_kwDOR_Rkws59ir1P: this read MUST acquire ``LOCK_SH``
+    on the journal before parsing. Writers
+    (:func:`_append_journal`, :func:`sweep`) hold ``LOCK_EX`` while
+    appending or truncating; without a corresponding shared lock here
+    the reader can observe a stale journal between a writer's
+    ``open(..., "a")`` and the actual append, returning ``False`` for
+    a path that's about to be marked in-flight. In the F8 trash-GC
+    flow that race is the entire data-loss vector this function
+    exists to prevent.
+
     Args:
         path: Absolute path to check.
         journal: Same journal used by the matching ``durable_move``
             calls. Missing/empty journal → ``False`` (nothing in
             flight).
     """
-    entries = _read_journal(journal)
+    journal = Path(journal)
+    if not journal.exists():
+        return False
+
+    entries: list[_JournalEntry] = []
+    if os.name != "nt":
+        try:
+            import fcntl
+        except ImportError:  # pragma: no cover - POSIX ships fcntl
+            fcntl = None  # type: ignore[assignment]
+        if fcntl is not None:
+            try:
+                with open(journal, encoding="utf-8") as fh:
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_SH)
+                    try:
+                        entries = _parse_journal_text(fh.read())
+                    finally:
+                        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            except FileNotFoundError:  # pragma: no cover - exists()→open() race
+                # Journal disappeared between exists() and open() —
+                # treat the same as missing-journal. No coordination
+                # needed since no writer can touch a deleted file.
+                return False
+    if not entries and os.name == "nt":  # pragma: no cover - Windows-only
+        # Windows: fall back to unlocked read; relies on the single-
+        # CLI-invocation invariant per the module docstring.
+        entries = _read_journal(journal)
     if not entries:
         return False
     # Normalize the query path the same way writers do so the compare

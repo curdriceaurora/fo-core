@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -212,6 +213,24 @@ class TestConfigSchemaVersion:
     handled explicitly — migrate known old versions, warn loudly on
     unknown/future versions rather than silently reading as defaults.
     """
+
+    @pytest.fixture(autouse=True)
+    def _isolate_migrations(self) -> Generator[None, None, None]:
+        """Coderabbit round-10 Nit: snapshot + restore the global
+        ``MIGRATIONS`` registry around each test so individual tests
+        don't have to duplicate the
+        ``original = MIGRATIONS.copy(); try: ...; finally: clear; update(original)``
+        pattern. The xdist_group on the class already serializes the
+        tests so concurrent workers don't race on the registry.
+        """
+        from config import migrations as migrations_mod
+
+        original = dict(migrations_mod.MIGRATIONS)
+        try:
+            yield
+        finally:
+            migrations_mod.MIGRATIONS.clear()
+            migrations_mod.MIGRATIONS.update(original)
 
     def test_current_schema_version_exported(self) -> None:
         """``CURRENT_SCHEMA_VERSION`` is exported from ``config.schema``
@@ -661,7 +680,7 @@ class TestConfigSchemaVersion:
         result2 = migrate_to_current(data, from_version="1.0.0", to_version="1.0")
         assert result2 is data
 
-    def test_migration_walker_stops_on_registry_gap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_migration_walker_stops_on_registry_gap(self) -> None:
         """Codex P2 PRRT_kwDOR_Rkws59hdFY: when the registry has a
         gap (e.g. ``{"0.5", "2.0"}`` with no ``"1.0"``) the walker
         must NOT jump ``current`` to 2.0 and run the 2.0 migration

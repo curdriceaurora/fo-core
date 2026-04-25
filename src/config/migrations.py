@@ -18,8 +18,10 @@ Contract
 - Migrations must be idempotent — running twice on already-migrated
   data should be a no-op. This simplifies recovery after a partial
   load failure.
-- Migrations never mutate their input in place; they may, but must
-  return the result to signal intent.
+- A migration MUST return its result. In-place mutation is permitted
+  (the walker passes the dict by reference), but the returned value
+  is what the next step receives — returning ``None`` would clobber
+  the chain.
 
 Backwards/future-compat
 -----------------------

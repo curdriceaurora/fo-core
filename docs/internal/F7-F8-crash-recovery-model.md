@@ -193,17 +193,31 @@ Each invariant is enforced by at least one named test. Tests live under
 | MIG-7 | `_version_key` trims trailing-zero components so equivalent versions compare equal (codex hp2C) | `test_version_key_trims_trailing_zeros` |
 | INV-37b | `_normalized_path_str` case-folds on Windows via `os.path.normcase` so journal lookups don't miss `C:\` vs `c:\` (codex hp2G) | `test_normalized_path_case_folds_on_windows` |
 
+### Round-10 additions (directory coordination + shared-lock reads)
+
+| # | Invariant | Test |
+|---|---|---|
+| INV-DM1 | `directory_move` writes started→done journal pair around `shutil.move` | `test_directory_move_writes_started_done_pair` |
+| INV-DM2 | `is_path_in_flight` sees the path as in-flight during the move (F8 coordination) | `test_directory_move_marks_path_in_flight_during_move` |
+| INV-DM3 | `done` is written even if `shutil.move` raises (releases in-flight marker) | `test_directory_move_writes_done_even_if_move_fails` |
+| INV-DM4 | Sweep drops `dir_move` done entries | `test_sweep_drops_dir_move_done` |
+| INV-DM5 | Sweep drops `dir_move` started entries with operator-action warning | `test_sweep_drops_dir_move_started_with_warning` |
+| INV-DM6 | Sweep does NOT apply move semantics (`src.unlink`) to dir_move ops | `test_sweep_does_not_apply_move_semantics_to_dir_move` |
+| INV-LS1 | `is_path_in_flight` blocks on `LOCK_SH` while a writer holds `LOCK_EX` (codex ir1P) | `test_is_path_in_flight_blocks_while_writer_holds_lock_ex` |
+
 ---
 
 ## 4. Exact CI-matching local commands
 
-All commands must run **from the worktree root**
-(`.worktrees/post-merge-fixes`), NOT from the parent repo root. The difference
-matters — ruff's config resolution and the git-diff-based guardrails behave
-differently depending on the working directory.
+All commands must run **from the repo / worktree root** (the directory
+containing `pyproject.toml`), NOT a parent or sibling directory. Running
+from the wrong root changes ruff's config resolution and the git-diff-based
+guardrails' base ref. If you're using `git worktree`, that means the
+worktree's own root, not the main checkout.
 
 ```bash
-cd /Users/rahul/Projects/fo-core/.worktrees/post-merge-fixes
+# Run from $REPO_ROOT (or $WORKTREE_ROOT if using `git worktree`).
+# All paths below are relative to that directory.
 
 # === Job: lint (GitHub Actions) ===
 # Exact invocation CI uses:
