@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
+from threading import RLock
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -178,6 +179,14 @@ class PreferenceTracker:
         self._storage: PreferenceStorage = (
             storage if storage is not None else InMemoryPreferenceStorage()
         )
+        # Tracker-level lock guards the read-then-write sequence in
+        # ``_extract_preferences_from_correction`` (F3 / Codex P1 on PR
+        # #207). The storage backend has its own RLock for individual
+        # ops, but its lock is released between ``find_preferences`` and
+        # ``save_preference`` — without this tracker-level guard, two
+        # concurrent ``track_correction`` calls for the same pattern can
+        # both see "no existing preference" and overwrite each other.
+        self._tracker_lock = RLock()
 
     def track_correction(
         self,
@@ -202,8 +211,13 @@ class PreferenceTracker:
             timestamp=now,
             context=context or {},
         )
-        self._storage.save_correction(correction)
-        self._extract_preferences_from_correction(correction)
+        # Tracker-level lock spans save_correction + extract → save_preference.
+        # Without it, two concurrent track_correction calls for the same
+        # pattern can both observe "no existing preference" and overwrite
+        # each other's frequency=1 record. (Codex P1 on PR #207.)
+        with self._tracker_lock:
+            self._storage.save_correction(correction)
+            self._extract_preferences_from_correction(correction)
 
     def _extract_preferences_from_correction(self, correction: Correction) -> None:
         """Extract / update a preference from ``correction`` via the storage backend.
@@ -294,7 +308,13 @@ class PreferenceTracker:
             if not matching:
                 return None
             best = max(matching, key=lambda p: p.metadata.confidence)
+            # Persist the last_used update through the storage layer; the
+            # in-memory backend would mutate-in-place anyway, but the SQLite
+            # backend reconstructs a fresh dataclass on every find_preferences
+            # so a bare attribute mutation here would be lost. (Per CodeRabbit
+            # / Copilot review on PR #207.)
             best.metadata.last_used = datetime.now(UTC)
+            self._storage.save_preference(best)
             return best
 
         prefix_map = {
@@ -315,7 +335,10 @@ class PreferenceTracker:
         if not prefs:
             return None
         best = max(prefs, key=lambda p: p.metadata.confidence)
+        # Persist last_used through storage so SQLite backend reflects the
+        # change (the in-memory backend would mutate-in-place anyway).
         best.metadata.last_used = datetime.now(UTC)
+        self._storage.save_preference(best)
         return best
 
     def get_all_preferences(

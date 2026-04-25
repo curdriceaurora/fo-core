@@ -25,7 +25,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from .preference_database import PreferenceDatabaseManager
 from .preference_tracker import (
@@ -36,8 +36,13 @@ from .preference_tracker import (
     PreferenceType,
 )
 
-if TYPE_CHECKING:
-    pass
+# Note on imports: ``preference_tracker`` defers ``from .preference_storage
+# import InMemoryPreferenceStorage`` into ``PreferenceTracker.__init__`` so
+# this module can import the dataclasses at top level. The cycle is broken
+# in one direction (tracker → storage uses a deferred import); module-level
+# dataclass imports here are safe and required for runtime use as method
+# parameter / return types. Extracting the dataclasses to a third module
+# would eliminate even the deferred import but is out of scope for D5.
 
 
 # ---------------------------------------------------------------------------
@@ -119,9 +124,12 @@ class InMemoryPreferenceStorage:
     def __init__(self) -> None:
         """Initialize empty in-memory storage with a reentrant lock."""
         self._lock = RLock()
+        # ``total_preferences`` was previously a separate counter that
+        # could drift from ``len(_preferences)`` on rewrite vs append
+        # (CodeRabbit finding on PR #207). It's now derived in
+        # ``get_statistics`` from ``sum(len(prefs) for ...)``.
         self._preferences: dict[str, list[Preference]] = {}
         self._corrections: list[Correction] = []
-        self._total_preferences = 0
         self._successful_applications = 0
         self._failed_applications = 0
 
@@ -141,7 +149,6 @@ class InMemoryPreferenceStorage:
                     return
             existing.append(preference)
             self._preferences[storage_key] = existing
-            self._total_preferences += 1
 
     def find_preferences(
         self,
@@ -189,7 +196,6 @@ class InMemoryPreferenceStorage:
                 count = sum(len(prefs) for prefs in self._preferences.values())
                 self._preferences.clear()
                 self._corrections.clear()
-                self._total_preferences = 0
                 return count
 
             count = 0
@@ -203,7 +209,6 @@ class InMemoryPreferenceStorage:
                     self._preferences[storage_key] = kept
             for k in keys_to_remove:
                 del self._preferences[k]
-            self._total_preferences -= count
             return count
 
     def save_correction(self, correction: Correction) -> None:
@@ -252,13 +257,14 @@ class InMemoryPreferenceStorage:
     def export_data(self) -> dict[str, Any]:
         """Serialize all preferences + corrections + counters to a JSON-friendly dict."""
         with self._lock:
+            total = sum(len(prefs) for prefs in self._preferences.values())
             return {
                 "preferences": {
                     key: [p.to_dict() for p in prefs] for key, prefs in self._preferences.items()
                 },
                 "corrections": [c.to_dict() for c in self._corrections],
                 "statistics": {
-                    "total_preferences": self._total_preferences,
+                    "total_preferences": total,
                     "successful_applications": self._successful_applications,
                     "failed_applications": self._failed_applications,
                 },
@@ -282,8 +288,10 @@ class InMemoryPreferenceStorage:
                         context=corr_data.get("context", {}),
                     )
                 )
+            # ``total_preferences`` in the imported statistics block is
+            # informational only — the live count is derived from
+            # ``len(self._preferences)`` in ``get_statistics``.
             stats = data.get("statistics", {})
-            self._total_preferences = stats.get("total_preferences", 0)
             self._successful_applications = stats.get("successful_applications", 0)
             self._failed_applications = stats.get("failed_applications", 0)
 
@@ -321,23 +329,38 @@ def _row_to_preference(row: dict[str, Any]) -> Preference:
     )
 
 
+def _encode_pref_value(value: Any) -> str:
+    """Encode a preference value for SQLite TEXT storage.
+
+    Always uses JSON so the encoding is fully reversible by
+    :func:`_decode_pref_value` — strings round-trip as quoted JSON,
+    numbers/bools/None as their JSON literals, dicts/lists as JSON
+    objects/arrays. Without this symmetry, ``42`` would store as
+    ``"42"`` and decode back as the string ``"42"`` (CodeRabbit /
+    Codex P2 finding on PR #207).
+    """
+    return json.dumps(value)
+
+
 def _decode_pref_value(stored: str) -> Any:
-    """Restore a preference value from its stored form (JSON if it parses, else str)."""
+    """Restore a preference value from its JSON-encoded text form.
+
+    Inverse of :func:`_encode_pref_value`. Falls back to the raw text
+    only if the column predates the always-JSON encoding (defensive —
+    no main-branch data exists in the legacy form yet, but the fallback
+    keeps the read path robust against manually-inserted rows).
+    """
     if not stored:
         return stored
-    if stored[0] in ("{", "[", '"') or stored in ("true", "false", "null"):
-        try:
-            return json.loads(stored)
-        except json.JSONDecodeError:
-            return stored
-    return stored
+    try:
+        return json.loads(stored)
+    except json.JSONDecodeError:
+        return stored
 
 
-def _encode_pref_value(value: Any) -> str:
-    """Encode a preference value for SQLite TEXT storage (JSON for complex types)."""
-    if isinstance(value, str):
-        return value
-    return json.dumps(value)
+def _iso_z(dt: datetime) -> str:
+    """Render ``dt`` as ISO-8601 with the 'Z' UTC suffix (matches DB column convention)."""
+    return dt.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 class SqlitePreferenceStorage:
@@ -353,13 +376,39 @@ class SqlitePreferenceStorage:
         self._db = PreferenceDatabaseManager(db_path)
         self._db.initialize()
         self._lock = RLock()
+        # In-memory counters for stats keys the SQLite schema doesn't
+        # carry — the original tracker stored these as in-process
+        # counters that never persisted across restarts, so this matches
+        # pre-D5 behavior. (CodeRabbit / Copilot review on PR #207.)
+        self._successful_applications = 0
+        self._failed_applications = 0
 
     def close(self) -> None:
         """Release the SQLite connection (idempotent)."""
         self._db.close()
 
+    def __enter__(self) -> SqlitePreferenceStorage:
+        """Enable ``with SqlitePreferenceStorage(...) as storage:`` usage."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Always close the underlying connection on context exit."""
+        del exc_type, exc_val, exc_tb
+        self.close()
+
     def save_preference(self, preference: Preference) -> None:
-        """Upsert ``preference`` via the database manager."""
+        """Upsert ``preference`` honoring metadata timestamps and frequency.
+
+        The underlying ``PreferenceDatabaseManager.add_preference``
+        always stamps ``created_at`` / ``updated_at`` as "now" AND its
+        ``ON CONFLICT … DO UPDATE`` clause increments ``frequency`` on
+        every save (which would silently bump the dataclass's value on
+        re-save flows like ``get_preference`` writing back ``last_used``).
+        We follow up with a raw UPDATE that restores the timestamps AND
+        the dataclass's ``frequency`` so save_preference is idempotent
+        for the same ``preference`` instance. (Per Codex P2 + Copilot
+        findings on PR #207.)
+        """
         with self._lock:
             self._db.add_preference(
                 preference_type=preference.preference_type.value,
@@ -369,6 +418,27 @@ class SqlitePreferenceStorage:
                 frequency=preference.metadata.frequency,
                 source=preference.metadata.source,
                 context=preference.context if preference.context else None,
+            )
+            # Restore dataclass timestamps + frequency (manager wrote
+            # `now` and may have bumped frequency on the conflict path).
+            conn = self._db.get_connection()
+            conn.execute(
+                """
+                UPDATE preferences
+                SET created_at = ?, updated_at = ?, last_used_at = ?,
+                    frequency = ?
+                WHERE preference_type = ? AND key = ?
+                """,
+                (
+                    _iso_z(preference.metadata.created),
+                    _iso_z(preference.metadata.updated),
+                    _iso_z(preference.metadata.last_used)
+                    if preference.metadata.last_used
+                    else None,
+                    preference.metadata.frequency,
+                    preference.preference_type.value,
+                    preference.key,
+                ),
             )
 
     def find_preferences(
@@ -389,31 +459,66 @@ class SqlitePreferenceStorage:
         preference: Preference,
         success: bool,
     ) -> None:
-        """Apply confidence delta and mirror the new value to the live ``preference``."""
+        """Apply confidence delta and persist to SQLite (raises if pref absent).
+
+        Raises :class:`KeyError` when the preference has no row in the
+        database — silently no-op'ing here would diverge from the
+        in-memory backend, where the dataclass mutation always sticks.
+        Callers must :meth:`save_preference` before updating confidence.
+
+        Persists ``last_used_at`` on the success path (the manager's
+        ``update_preference_confidence`` only writes ``confidence``,
+        leaving ``last_used_at`` stale on the SQLite backend — Codex P2
+        finding on PR #207).
+        """
         with self._lock:
-            # Apply the same delta the in-memory backend does, then update both
-            # the in-memory dataclass and the database row by (type, key).
             now = datetime.now(UTC)
             if success:
                 preference.metadata.confidence = min(0.98, preference.metadata.confidence + 0.05)
                 preference.metadata.last_used = now
+                self._successful_applications += 1
             else:
                 preference.metadata.confidence = max(0.1, preference.metadata.confidence - 0.1)
+                self._failed_applications += 1
             preference.metadata.updated = now
 
-            # Locate the row by (type, key) and update its confidence column.
+            # Locate the row by (type, key) and update confidence + last_used_at + updated_at.
             row = self._db.get_preference(preference.preference_type.value, preference.key)
-            if row is not None:
-                self._db.update_preference_confidence(
-                    int(row["id"]), preference.metadata.confidence
+            if row is None:
+                raise KeyError(
+                    f"No persisted preference for ({preference.preference_type.value}, "
+                    f"{preference.key!r}); call save_preference first."
                 )
+            conn = self._db.get_connection()
+            conn.execute(
+                """
+                UPDATE preferences
+                SET confidence = ?, updated_at = ?, last_used_at = ?
+                WHERE id = ?
+                """,
+                (
+                    preference.metadata.confidence,
+                    _iso_z(preference.metadata.updated),
+                    _iso_z(preference.metadata.last_used)
+                    if preference.metadata.last_used
+                    else None,
+                    int(row["id"]),
+                ),
+            )
 
     def delete_preferences(
         self,
         preference_type: PreferenceType | None = None,
     ) -> int:
-        """Delete preferences (all or by type) via the manager. Returns delete count."""
-        with self._lock:
+        """Delete preferences (all or by type). Returns delete count.
+
+        Wrapped in :meth:`PreferenceDatabaseManager.transaction` so the
+        count + delete pair is atomic and rolls back on failure
+        (CodeRabbit on PR #207). When called with ``preference_type=None``,
+        also clears the ``corrections`` table to match the in-memory
+        backend's semantics.
+        """
+        with self._lock, self._db.transaction():
             conn = self._db.get_connection()
             if preference_type is None:
                 cur = conn.execute("SELECT COUNT(*) FROM preferences")
@@ -433,16 +538,27 @@ class SqlitePreferenceStorage:
             return count
 
     def save_correction(self, correction: Correction) -> None:
-        """Append a correction via the manager."""
+        """Append a correction honoring ``correction.timestamp``.
+
+        ``PreferenceDatabaseManager.add_correction`` always stamps
+        ``timestamp`` with "now"; we follow up with a raw UPDATE so
+        backfilled / imported corrections keep their original
+        chronology. (Codex P2 + CodeRabbit + Copilot on PR #207.)
+        """
         with self._lock:
             metadata = dict(correction.context) if correction.context else None
-            self._db.add_correction(
+            row_id = self._db.add_correction(
                 correction_type=correction.correction_type.value,
                 source_path=str(correction.source),
                 destination_path=str(correction.destination),
                 category_old=(metadata or {}).get("old_category"),
                 category_new=(metadata or {}).get("new_category"),
                 metadata=metadata,
+            )
+            conn = self._db.get_connection()
+            conn.execute(
+                "UPDATE corrections SET timestamp = ? WHERE id = ?",
+                (_iso_z(correction.timestamp), row_id),
             )
 
     def get_corrections_for_file(self, file_path: Path) -> list[Correction]:
@@ -467,15 +583,35 @@ class SqlitePreferenceStorage:
             return [self._row_to_correction(r) for r in rows]
 
     def get_statistics(self) -> dict[str, Any]:
-        """Return aggregate stats with the same keys as the in-memory backend."""
+        """Return aggregate stats with the same keys as the in-memory backend.
+
+        Includes ``successful_applications`` / ``failed_applications`` /
+        ``unique_preferences`` / ``average_confidence`` so callers and
+        tests don't need to special-case the SQLite backend. (Codex P2 +
+        Copilot finding on PR #207 — the original tracker exposed these
+        keys in-memory.)
+        """
         with self._lock:
-            stats = self._db.get_preference_stats()
+            db_stats = self._db.get_preference_stats()
             conn = self._db.get_connection()
             cur = conn.execute("SELECT COUNT(*) FROM corrections")
             corrections_count = int(cur.fetchone()[0])
-            stats["total_correction_history"] = corrections_count
-            stats["total_corrections"] = corrections_count
-            return stats
+            cur = conn.execute(
+                "SELECT COUNT(DISTINCT preference_type || ':' || key) FROM preferences"
+            )
+            unique_count = int(cur.fetchone()[0])
+            return {
+                "total_preferences": db_stats.get("total_preferences", 0),
+                "unique_preferences": unique_count,
+                "total_correction_history": corrections_count,
+                "total_corrections": corrections_count,
+                "successful_applications": self._successful_applications,
+                "failed_applications": self._failed_applications,
+                "average_confidence": round(db_stats.get("average_confidence", 0.0) or 0.0, 3),
+                # Preserve the manager's by_type breakdown so existing
+                # callers depending on it (if any) still see it.
+                "by_type": db_stats.get("by_type", {}),
+            }
 
     def export_data(self) -> dict[str, Any]:
         """Serialize SQLite contents to the same export shape as InMemoryPreferenceStorage."""
@@ -500,8 +636,14 @@ class SqlitePreferenceStorage:
             }
 
     def import_data(self, data: dict[str, Any]) -> None:
-        """Replace all stored preferences/corrections with ``data`` contents."""
-        with self._lock:
+        """Replace stored preferences/corrections with ``data`` contents atomically.
+
+        Wrapped in a single :meth:`PreferenceDatabaseManager.transaction`
+        so a mid-loop insert failure rolls everything back instead of
+        leaving the storage in a half-wiped state. (CodeRabbit finding
+        on PR #207.)
+        """
+        with self._lock, self._db.transaction():
             conn = self._db.get_connection()
             conn.execute("DELETE FROM preferences")
             conn.execute("DELETE FROM corrections")

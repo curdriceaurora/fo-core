@@ -386,27 +386,33 @@ class TestTrackerWithSqliteStorage:
         )
 
         db_path = tmp_path / "prefs.db"
-        storage = SqlitePreferenceStorage(db_path)
-        tracker = PreferenceTracker(storage=storage)
+        # ``with`` ensures the SQLite connection closes even if any of
+        # the assertions below raise (CodeRabbit on PR #207 — was a
+        # storage.close() at the end of a happy-path-only block).
+        with SqlitePreferenceStorage(db_path) as storage:
+            tracker = PreferenceTracker(storage=storage)
 
-        src = tmp_path / "report.pdf"
-        dst = tmp_path / "Documents" / "report.pdf"
-        tracker.track_correction(
-            source=src,
-            destination=dst,
-            correction_type=CorrectionType.FILE_MOVE,
-        )
+            src = tmp_path / "report.pdf"
+            dst = tmp_path / "Documents" / "report.pdf"
+            # Pass non-empty context so save_correction's metadata
+            # branch is exercised (CodeRabbit on PR #207 — original
+            # smoke only hit the no-context happy path).
+            tracker.track_correction(
+                source=src,
+                destination=dst,
+                correction_type=CorrectionType.FILE_MOVE,
+                context={"trigger": "user_drag", "session": "smoke"},
+            )
 
-        # The correction landed in SQLite via the tracker's storage layer
-        recent = tracker.get_recent_corrections(limit=10)
-        assert len(recent) == 1
-        assert recent[0].source == src
-        assert recent[0].destination == dst
-        assert recent[0].correction_type == CorrectionType.FILE_MOVE
+            # The correction landed in SQLite with the supplied context
+            recent = tracker.get_recent_corrections(limit=10)
+            assert len(recent) == 1
+            assert recent[0].source == src
+            assert recent[0].destination == dst
+            assert recent[0].correction_type == CorrectionType.FILE_MOVE
+            assert recent[0].context == {"trigger": "user_drag", "session": "smoke"}
 
-        # The extracted FOLDER_MAPPING preference is also retrievable
-        prefs = tracker.get_all_preferences(PreferenceType.FOLDER_MAPPING)
-        assert len(prefs) == 1
-        assert prefs[0].context.get("source_extension") == ".pdf"
-
-        storage.close()
+            # The extracted FOLDER_MAPPING preference is also retrievable
+            prefs = tracker.get_all_preferences(PreferenceType.FOLDER_MAPPING)
+            assert len(prefs) == 1
+            assert prefs[0].context.get("source_extension") == ".pdf"

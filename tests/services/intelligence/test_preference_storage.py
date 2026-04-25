@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -35,10 +34,13 @@ from services.intelligence.preference_tracker import (
     PreferenceType,
 )
 
-if TYPE_CHECKING:
-    pass
-
-pytestmark = [pytest.mark.unit, pytest.mark.ci, pytest.mark.integration]
+# Marker rationale (CodeRabbit on PR #207): the original triple
+# ``[unit, ci, integration]`` would let both the ``unit`` and
+# ``not integration`` lanes pull these in. Drop ``unit`` since these
+# tests exercise the SQLite backend end-to-end (real file I/O); keep
+# ``ci`` so they run in the PR CI lane and ``integration`` so they
+# count toward integration coverage of preference_storage.py.
+pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 
 # ---------------------------------------------------------------------------
@@ -93,13 +95,26 @@ def _make_correction(
 
 
 @pytest.fixture(params=["in_memory", "sqlite"])
-def storage(request: pytest.FixtureRequest, tmp_path: Path) -> PreferenceStorage:
-    """Yield each storage implementation under test."""
+def storage(request: pytest.FixtureRequest, tmp_path: Path):
+    """Yield each storage implementation under test, finalized with ``close()``.
+
+    SQLite cases hold an open connection; without the finalizer they
+    leak under xdist or on Windows where the file lock blocks reuse
+    (CodeRabbit on PR #207).
+    """
     if request.param == "in_memory":
-        return InMemoryPreferenceStorage()
-    if request.param == "sqlite":
-        return SqlitePreferenceStorage(tmp_path / "preferences.db")
-    raise ValueError(f"Unknown storage param: {request.param}")
+        s: PreferenceStorage = InMemoryPreferenceStorage()
+    elif request.param == "sqlite":
+        s = SqlitePreferenceStorage(tmp_path / "preferences.db")
+    else:
+        raise ValueError(f"Unknown storage param: {request.param}")
+    try:
+        yield s
+    finally:
+        # InMemoryPreferenceStorage doesn't define close(); only call
+        # it on backends that do (currently only SQLite).
+        if hasattr(s, "close"):
+            s.close()
 
 
 class TestPreferenceCRUD:
@@ -266,6 +281,57 @@ class TestCorrectionHistory:
         result = storage.get_corrections_for_file(tmp_path / "ghost.pdf")
         assert result == []
 
+    def test_save_correction_with_non_empty_context_round_trips(
+        self, storage: PreferenceStorage, tmp_path: Path
+    ) -> None:
+        """``correction.context`` (dict) must survive save→find round-trip.
+
+        CodeRabbit on PR #207 noted the contract suite only exercised
+        the ``context={}`` happy path, missing the metadata-binding
+        behavior in ``SqlitePreferenceStorage.save_correction``.
+        """
+        src = tmp_path / "doc.txt"
+        dst = tmp_path / "Documents" / "doc.txt"
+        correction = Correction(
+            correction_type=CorrectionType.CATEGORY_CHANGE,
+            source=src,
+            destination=dst,
+            timestamp=datetime(2026, 1, 15, 10, 30, tzinfo=UTC),
+            context={
+                "old_category": "general",
+                "new_category": "documents",
+                "note": "manual override",
+            },
+        )
+        storage.save_correction(correction)
+
+        results = storage.get_corrections_for_file(src)
+        assert len(results) == 1
+        assert results[0].context == {
+            "old_category": "general",
+            "new_category": "documents",
+            "note": "manual override",
+        }
+
+
+class TestDeleteByTypePreservesCorrections:
+    """``delete_preferences(type)`` MUST NOT clear corrections (CodeRabbit on PR #207)."""
+
+    def test_delete_by_type_leaves_corrections_intact(
+        self, storage: PreferenceStorage, tmp_path: Path
+    ) -> None:
+        a = _make_preference(key="a", preference_type=PreferenceType.FOLDER_MAPPING)
+        storage.save_preference(a)
+        storage.save_correction(_make_correction(tmp_path / "x.txt", tmp_path / "y.txt"))
+
+        deleted = storage.delete_preferences(PreferenceType.FOLDER_MAPPING)
+        assert deleted == 1
+
+        # Preferences gone, corrections preserved
+        assert storage.find_preferences(PreferenceType.FOLDER_MAPPING) == []
+        recent = storage.get_recent_corrections(limit=10)
+        assert len(recent) == 1
+
 
 class TestStatistics:
     def test_stats_includes_total_preferences(self, storage: PreferenceStorage) -> None:
@@ -287,27 +353,50 @@ class TestStatistics:
 
 
 class TestExportImportRoundTrip:
-    def test_export_then_import_recovers_preferences(
+    def test_export_then_import_recovers_preferences_and_corrections(
         self, storage: PreferenceStorage, tmp_path: Path
     ) -> None:
-        # Round-trip a preference + a correction through export/import.
+        """Round-trip a preference AND a correction through export/import.
+
+        Asserts both come back with full fidelity (CodeRabbit on PR
+        #207 — the original test only asserted the preference, missing
+        the SQLite-timestamp regression that this PR also fixes).
+        """
         pref = _make_preference()
+        ts = datetime(2026, 1, 15, 10, 30, tzinfo=UTC)
+        src_path = tmp_path / "a"
+        dst_path = tmp_path / "b"
+        correction = Correction(
+            correction_type=CorrectionType.FILE_MOVE,
+            source=src_path,
+            destination=dst_path,
+            timestamp=ts,
+            context={"note": "round-trip"},
+        )
         storage.save_preference(pref)
-        storage.save_correction(_make_correction(tmp_path / "a", tmp_path / "b"))
+        storage.save_correction(correction)
 
         snapshot = storage.export_data()
         assert isinstance(snapshot, dict)
 
-        # Wipe and restore
+        # Wipe both preferences and corrections, then restore from snapshot.
+        # ``delete_preferences()`` (no arg) clears corrections too.
         storage.delete_preferences()
-        # delete_preferences clears preferences but corrections are still
-        # in the spec's export/import scope. The import call restores both.
         storage.import_data(snapshot)
 
         recovered = storage.find_preferences(PreferenceType.FOLDER_MAPPING)
         assert len(recovered) == 1
         assert recovered[0].key == pref.key
         assert recovered[0].value == pref.value
+
+        # Correction is restored with intact source/destination/timestamp/type
+        recovered_corrs = storage.get_corrections_for_file(src_path)
+        assert len(recovered_corrs) == 1
+        rc = recovered_corrs[0]
+        assert rc.source == src_path
+        assert rc.destination == dst_path
+        assert rc.correction_type == CorrectionType.FILE_MOVE
+        assert rc.timestamp == ts
 
 
 # ---------------------------------------------------------------------------
@@ -319,10 +408,15 @@ class TestPreferenceTrackerInjection:
     """``PreferenceTracker(storage=...)`` delegates correctly to the backend."""
 
     def test_default_constructor_uses_in_memory(self) -> None:
-        tracker = PreferenceTracker()
         # No exception, no args needed — backwards-compat preserved.
-        # The default storage is InMemoryPreferenceStorage.
-        assert isinstance(tracker._storage, InMemoryPreferenceStorage)
+        # The default storage is InMemoryPreferenceStorage. We assert via
+        # observable behavior (no SQLite file, find returns [] cleanly)
+        # rather than poking ``tracker._storage`` (CodeRabbit on PR #207).
+        tracker = PreferenceTracker()
+        from services.intelligence.preference_tracker import PreferenceType as PT
+
+        # find round-trip works without any backing file or external setup
+        assert tracker.get_all_preferences(PT.FOLDER_MAPPING) == []
 
     def test_track_correction_routes_to_storage_save_correction(self, tmp_path: Path) -> None:
         mock_storage = MagicMock(spec=PreferenceStorage)
@@ -368,10 +462,20 @@ class TestPreferenceTrackerInjection:
         assert saved_pref.preference_type == PreferenceType.FOLDER_MAPPING
 
     def test_explicit_in_memory_storage(self) -> None:
-        # Constructing with an explicit InMemoryPreferenceStorage works.
+        """Constructing with an explicit storage instance routes calls to it.
+
+        Asserts via observable behavior (the same Preference saved
+        through the storage shows up via the tracker) rather than
+        poking ``tracker._storage`` (CodeRabbit on PR #207).
+        """
         storage = InMemoryPreferenceStorage()
         tracker = PreferenceTracker(storage=storage)
-        assert tracker._storage is storage
+        # Save through the injected storage, observe via the tracker
+        pref = _make_preference()
+        storage.save_preference(pref)
+        from services.intelligence.preference_tracker import PreferenceType as PT
+
+        assert len(tracker.get_all_preferences(PT.FOLDER_MAPPING)) == 1
 
 
 class TestSqliteStorageDirect:
@@ -379,28 +483,207 @@ class TestSqliteStorageDirect:
 
     def test_db_file_created_on_first_save(self, tmp_path: Path) -> None:
         db_path = tmp_path / "subdir" / "preferences.db"
-        # Parent directory will be created
-        storage = SqlitePreferenceStorage(db_path)
-
-        storage.save_preference(_make_preference())
-
-        # File now exists
-        assert db_path.exists()
-        assert db_path.stat().st_size > 0
+        # Parent directory will be created. ``with`` ensures the
+        # connection is closed on assertion failure too (CodeRabbit on
+        # PR #207 — leak prevention).
+        with SqlitePreferenceStorage(db_path) as storage:
+            storage.save_preference(_make_preference())
+            assert db_path.exists()
+            assert db_path.stat().st_size > 0
 
     def test_round_trip_survives_storage_recreation(self, tmp_path: Path) -> None:
         db_path = tmp_path / "preferences.db"
-
-        # First storage instance writes a preference
-        storage1 = SqlitePreferenceStorage(db_path)
         pref = _make_preference()
-        storage1.save_preference(pref)
-        # Close to release file handles
-        storage1.close()
 
-        # Second instance over the same file reads it back
-        storage2 = SqlitePreferenceStorage(db_path)
-        recovered = storage2.find_preferences(PreferenceType.FOLDER_MAPPING)
-        assert len(recovered) == 1
-        assert recovered[0].key == pref.key
-        storage2.close()
+        # First storage instance writes a preference; ``with`` ensures
+        # the connection closes even if the save raises (CodeRabbit on
+        # PR #207).
+        with SqlitePreferenceStorage(db_path) as storage1:
+            storage1.save_preference(pref)
+
+        # Second instance over the same file reads it back.
+        with SqlitePreferenceStorage(db_path) as storage2:
+            recovered = storage2.find_preferences(PreferenceType.FOLDER_MAPPING)
+            assert len(recovered) == 1
+            assert recovered[0].key == pref.key
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for PR #207 review fixes
+# ---------------------------------------------------------------------------
+
+
+class TestPreviouslyMissingFidelity:
+    """SQLite-only fixes that the in-memory backend never exhibited."""
+
+    def test_sqlite_save_preference_honors_metadata_timestamps(self, tmp_path: Path) -> None:
+        """``SqlitePreferenceStorage.save_preference`` must round-trip metadata timestamps."""
+        storage = SqlitePreferenceStorage(tmp_path / "p.db")
+        try:
+            old_created = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
+            old_updated = datetime(2024, 6, 1, 12, 0, tzinfo=UTC)
+            old_last_used = datetime(2024, 9, 1, 12, 0, tzinfo=UTC)
+            pref = Preference(
+                preference_type=PreferenceType.FOLDER_MAPPING,
+                key="file_move|.pdf|Documents",
+                value="Documents",
+                metadata=PreferenceMetadata(
+                    created=old_created,
+                    updated=old_updated,
+                    confidence=0.5,
+                    frequency=1,
+                    last_used=old_last_used,
+                    source="user_correction",
+                ),
+                context={"source_extension": ".pdf"},
+            )
+            storage.save_preference(pref)
+
+            recovered = storage.find_preferences(PreferenceType.FOLDER_MAPPING)
+            assert len(recovered) == 1
+            assert recovered[0].metadata.created == old_created
+            assert recovered[0].metadata.updated == old_updated
+            assert recovered[0].metadata.last_used == old_last_used
+        finally:
+            storage.close()
+
+    def test_sqlite_save_correction_honors_timestamp(self, tmp_path: Path) -> None:
+        """``SqlitePreferenceStorage.save_correction`` must persist the supplied timestamp."""
+        storage = SqlitePreferenceStorage(tmp_path / "p.db")
+        try:
+            backfill_ts = datetime(2024, 3, 14, 9, 0, tzinfo=UTC)
+            correction = Correction(
+                correction_type=CorrectionType.FILE_MOVE,
+                source=tmp_path / "x.pdf",
+                destination=tmp_path / "Docs" / "x.pdf",
+                timestamp=backfill_ts,
+                context={},
+            )
+            storage.save_correction(correction)
+
+            recent = storage.get_recent_corrections(limit=10)
+            assert len(recent) == 1
+            assert recent[0].timestamp == backfill_ts
+        finally:
+            storage.close()
+
+    def test_sqlite_update_preference_confidence_raises_when_pref_absent(
+        self, tmp_path: Path
+    ) -> None:
+        """Updating confidence on a never-saved preference must raise (not silently no-op)."""
+        storage = SqlitePreferenceStorage(tmp_path / "p.db")
+        try:
+            pref = _make_preference()
+            # No save_preference call → row doesn't exist
+            with pytest.raises(KeyError, match="No persisted preference"):
+                storage.update_preference_confidence(pref, success=True)
+        finally:
+            storage.close()
+
+    def test_sqlite_int_value_round_trips_as_int(self, tmp_path: Path) -> None:
+        """``_encode_pref_value`` / ``_decode_pref_value`` must preserve numeric types."""
+        storage = SqlitePreferenceStorage(tmp_path / "p.db")
+        try:
+            now = datetime(2026, 1, 15, 10, 30, tzinfo=UTC)
+            pref = Preference(
+                preference_type=PreferenceType.CUSTOM,
+                key="numeric",
+                value=42,  # int (not str)
+                metadata=PreferenceMetadata(created=now, updated=now),
+                context={},
+            )
+            storage.save_preference(pref)
+            recovered = storage.find_preferences(PreferenceType.CUSTOM)
+            assert len(recovered) == 1
+            assert recovered[0].value == 42
+            assert isinstance(recovered[0].value, int)
+        finally:
+            storage.close()
+
+
+class TestStatsKeysParity:
+    """``get_statistics`` exposes the same keys for both backends."""
+
+    def test_sqlite_statistics_has_legacy_keys(self, tmp_path: Path) -> None:
+        storage = SqlitePreferenceStorage(tmp_path / "p.db")
+        try:
+            stats = storage.get_statistics()
+            for key in (
+                "total_preferences",
+                "unique_preferences",
+                "total_corrections",
+                "successful_applications",
+                "failed_applications",
+                "average_confidence",
+            ):
+                assert key in stats, f"missing legacy stats key: {key}"
+        finally:
+            storage.close()
+
+
+class TestImportDataAtomic:
+    """``import_data`` must be transactional (CodeRabbit on PR #207)."""
+
+    def test_import_data_failure_rolls_back(self, tmp_path: Path) -> None:
+        """If a save mid-import raises, the previous data must be preserved."""
+        storage = SqlitePreferenceStorage(tmp_path / "p.db")
+        try:
+            # Seed: one preference + one correction
+            pref = _make_preference(key="file_move|.pdf|Documents")
+            storage.save_preference(pref)
+            storage.save_correction(_make_correction(tmp_path / "a.pdf", tmp_path / "b.pdf"))
+            assert len(storage.find_preferences(PreferenceType.FOLDER_MAPPING)) == 1
+
+            # Construct a snapshot whose corrections list has a bad row
+            # (missing required ``timestamp`` key) so save_correction
+            # raises mid-import.
+            bad_snapshot = {
+                "preferences": {
+                    "folder_mapping:new_key": [_make_preference(key="new_key").to_dict()]
+                },
+                "corrections": [
+                    {
+                        "correction_type": "file_move",
+                        "source": "/x",
+                        "destination": "/y",
+                        # Missing 'timestamp' → datetime.fromisoformat raises
+                        "context": {},
+                    }
+                ],
+            }
+            with pytest.raises((KeyError, TypeError, ValueError)):
+                storage.import_data(bad_snapshot)
+
+            # Original data should be preserved (transaction rolled back).
+            preserved = storage.find_preferences(PreferenceType.FOLDER_MAPPING)
+            assert len(preserved) == 1
+            assert preserved[0].key == "file_move|.pdf|Documents"
+        finally:
+            storage.close()
+
+
+class TestLastUsedPersistedThroughTracker:
+    """``PreferenceTracker.get_preference`` must persist ``last_used`` (CodeRabbit)."""
+
+    def test_get_preference_persists_last_used_in_sqlite_backend(self, tmp_path: Path) -> None:
+        storage = SqlitePreferenceStorage(tmp_path / "p.db")
+        try:
+            tracker = PreferenceTracker(storage=storage)
+            tracker.track_correction(
+                source=tmp_path / "doc.pdf",
+                destination=tmp_path / "Documents" / "doc.pdf",
+                correction_type=CorrectionType.FILE_MOVE,
+            )
+
+            t0 = datetime.now(UTC)
+            best = tracker.get_preference(tmp_path / "another.pdf", PreferenceType.FOLDER_MAPPING)
+            assert best is not None
+
+            # Re-fetch via storage (NEW dataclass instance) and check that
+            # ``last_used`` got written through to the DB.
+            re_fetched = storage.find_preferences(PreferenceType.FOLDER_MAPPING)
+            assert len(re_fetched) == 1
+            assert re_fetched[0].metadata.last_used is not None
+            assert re_fetched[0].metadata.last_used >= t0
+        finally:
+            storage.close()
