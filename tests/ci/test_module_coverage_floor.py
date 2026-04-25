@@ -757,3 +757,191 @@ def test_print_report_shows_effective_thresholds_and_guidance(
     assert "effective_min=71.4%" in captured
     assert "This usually means they have lost all integration test coverage." in captured
     assert str(baseline_path) in captured
+
+
+# ---------------------------------------------------------------------------
+# known_local_drift tests
+# ---------------------------------------------------------------------------
+
+
+def _make_baseline_with_drift(tmp_path: Path, modules: dict[str, float]) -> Path:
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(
+        json.dumps(
+            {
+                "generated_at_utc": "2026-01-01T00:00:00+00:00",
+                "source": {"workflow_run_id": 1, "job_id": 2, "commit": "abc"},
+                "policy": {"new_module_min_percent": 71.9, "tolerance_percent": 0.5},
+                "known_local_drift": {
+                    "description": "Test drift modules.",
+                    "modules": {
+                        "src/optimization/memory_profiler.py": "platform branches",
+                        "src/services/deduplication/image_dedup.py": "optional import guard",
+                    },
+                },
+                "modules": modules,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return baseline
+
+
+def test_known_drift_modules_skipped_when_not_in_ci(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Floor failures in known_local_drift modules are silently skipped outside CI."""
+    module = _load_module()
+    monkeypatch.delenv("CI", raising=False)
+
+    report = tmp_path / "report.txt"
+    _write_report(
+        report,
+        [
+            # Below floor — would fail normally
+            "src/optimization/memory_profiler.py  100  19  40  3  81%  10-29",
+            # OK module present too
+            "src/cli/update.py  100  5  40  2  95%",
+        ],
+    )
+
+    baseline = _make_baseline_with_drift(
+        tmp_path,
+        {
+            "src/optimization/memory_profiler.py": 82.0,
+            "src/cli/update.py": 90.0,
+        },
+    )
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    captured = capsys.readouterr().out
+    assert "NOTE:" in captured
+    assert "src/optimization/memory_profiler.py" in captured
+    assert "PASS" in captured
+
+
+def test_known_drift_modules_enforced_when_in_ci(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Floor failures in known_local_drift modules are still enforced when CI=true."""
+    module = _load_module()
+    monkeypatch.setenv("CI", "true")
+
+    report = tmp_path / "report.txt"
+    _write_report(
+        report,
+        [
+            # Below floor — must fail in CI
+            "src/optimization/memory_profiler.py  100  19  40  3  81%  10-29",
+            "src/cli/update.py  100  5  40  2  95%",
+        ],
+    )
+
+    baseline = _make_baseline_with_drift(
+        tmp_path,
+        {
+            "src/optimization/memory_profiler.py": 82.0,
+            "src/cli/update.py": 90.0,
+        },
+    )
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 1
+    captured = capsys.readouterr().out
+    assert "NOTE:" not in captured
+    assert "FAIL" in captured
+
+
+def test_load_known_drift_modules_returns_empty_for_missing_section(
+    tmp_path: Path,
+) -> None:
+    """_load_known_drift_modules returns {} when section is absent."""
+    module = _load_module()
+    baseline: dict = {"modules": {}}
+    assert module._load_known_drift_modules(baseline) == {}
+
+
+def test_load_known_drift_modules_returns_empty_for_malformed_section(
+    tmp_path: Path,
+) -> None:
+    """_load_known_drift_modules returns {} when section or modules key is malformed."""
+    module = _load_module()
+    assert module._load_known_drift_modules({"known_local_drift": "not-a-dict"}) == {}
+    assert module._load_known_drift_modules({"known_local_drift": {"modules": 42}}) == {}
+
+
+def test_known_drift_both_drift_modules_skipped_when_not_in_ci(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Both known-drift modules are skipped, even when both are below their floors."""
+    module = _load_module()
+    monkeypatch.delenv("CI", raising=False)
+
+    report = tmp_path / "report.txt"
+    _write_report(
+        report,
+        [
+            "src/optimization/memory_profiler.py  100  19  40  3  81%",
+            "src/services/deduplication/image_dedup.py  100  13  40  3  87%",
+            "src/cli/update.py  100  5  40  2  95%",
+        ],
+    )
+
+    baseline = _make_baseline_with_drift(
+        tmp_path,
+        {
+            "src/optimization/memory_profiler.py": 82.0,
+            "src/services/deduplication/image_dedup.py": 88.0,
+            "src/cli/update.py": 90.0,
+        },
+    )
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    captured = capsys.readouterr().out
+    assert "NOTE:" in captured
+    assert "2 module(s)" in captured
+    assert "PASS" in captured
