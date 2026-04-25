@@ -1365,6 +1365,22 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
         # Windows: fall back to unlocked read; relies on the single-
         # CLI-invocation invariant per the module docstring.
         entries = _read_journal(journal)
+    return _path_in_flight_from_entries(path, entries)
+
+
+def _path_in_flight_from_entries(path: Path, entries: list[_JournalEntry]) -> bool:
+    """Lock-free predicate: is *path* the src or dst of an active move?
+
+    Extracted from :func:`is_path_in_flight` so callers that ALREADY
+    hold the journal lock (e.g. F8.1 ``TrashGC.safe_delete`` under
+    ``LOCK_EX``) can run the same membership check without re-acquiring
+    ``LOCK_SH`` on the same lock file (which would deadlock on a
+    different fd against the held LOCK_EX on the inode).
+
+    The collapse rule is identical to :func:`is_path_in_flight`: §3.1
+    operation identity, NOT path-keyed reduction. Any bug fix to one
+    must mirror to the other — this function is the canonical predicate.
+    """
     if not entries:
         return False
     # Normalize the query path the same way writers do so the compare
@@ -1372,11 +1388,7 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
     path_str = _normalized_path_str(path)
     # §3.1: collapse by the operation identity ("v2"/op/op_id, "v1"/op/src/dst,
     # or "unknown"/op/_hash16) — same key the planner uses. Path-keyed collapse
-    # would re-introduce the codex iy4u masking bug for F8 trash-GC: e.g. a
-    # ``move /a /b started`` followed by an unrelated ``dir_move /a /b done``
-    # would let the dir_move done supersede the move started under
-    # ``(src, dst)`` reduction, and ``is_path_in_flight(/a)`` would falsely
-    # return False during the move's copy → replace window.
+    # would re-introduce the codex iy4u masking bug for F8 trash-GC.
     latest: dict[_OpIdentity, _JournalEntry] = {}
     for entry in entries:
         latest[_identity(entry)] = entry

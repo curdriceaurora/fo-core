@@ -336,3 +336,255 @@ class TestTrashGCInitRecovery:
         assert gc.trash_dir.is_dir()
         # No orphans existed to clean — no .pending-delete-* entries left.
         assert list(trash.iterdir()) == []
+
+
+# ---------------------------------------------------------------------------
+# safe_delete file / symlink fast path (§3.2, §6.1 file subset)
+# ---------------------------------------------------------------------------
+
+
+class TestSafeDeleteFileFastPath:
+    """Step 3: ``safe_delete`` for files and symlinks per §3.2.
+
+    Sequence: validate path is inside trash_dir → LOCK_EX on
+    <journal>.lock → is_path_in_flight check → lexists → unlink →
+    release. Step 4 adds the directory path with the atomic-rename
+    pattern; this commit covers the fast path only.
+    """
+
+    def test_returns_deleted_for_quiet_file(self, tmp_path: Path) -> None:
+        """No journal entries, file exists in trash → DELETED."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "entry.txt"
+        target.write_text("removable")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.DELETED
+        assert outcome.path == target
+        assert outcome.error is None
+        assert not target.exists(), "file must be unlinked"
+
+    def test_returns_missing_for_absent_path(self, tmp_path: Path) -> None:
+        """Path doesn't exist in trash → MISSING (idempotent)."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "absent.txt"
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.MISSING
+        assert outcome.error is None
+
+    def test_returns_skipped_when_path_in_flight(self, tmp_path: Path) -> None:
+        """Journal contains a ``move started`` entry whose dst is the
+        trash path → SKIPPED_IN_FLIGHT, file still present."""
+        from undo.durable_move import _append_journal
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "in_flight.txt"
+        target.write_text("being moved")
+        journal = tmp_path / "move.journal"
+        # Writer recorded a move whose dst is this trash path.
+        _append_journal(
+            journal,
+            {
+                "op": "move",
+                "src": str(tmp_path / "elsewhere.txt"),
+                "dst": str(target),
+                "state": "started",
+            },
+        )
+        gc = TrashGC(trash, journal_path=journal)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.SKIPPED_IN_FLIGHT
+        assert target.read_text() == "being moved", (
+            "file MUST NOT be unlinked while move is in flight"
+        )
+
+    def test_returns_skipped_when_done_entry_does_not_block(self, tmp_path: Path) -> None:
+        """A completed ``done`` entry must NOT block deletion (the
+        operation is finished; the journal record is bookkeeping)."""
+        from undo.durable_move import _append_journal
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "completed.txt"
+        target.write_text("ready to GC")
+        journal = tmp_path / "move.journal"
+        _append_journal(
+            journal,
+            {
+                "op": "move",
+                "src": str(tmp_path / "x.txt"),
+                "dst": str(target),
+                "state": "done",
+            },
+        )
+        gc = TrashGC(trash, journal_path=journal)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.DELETED
+        assert not target.exists()
+
+    def test_returns_outside_trash_for_escaped_path(self, tmp_path: Path) -> None:
+        """Path outside trash root → OUTSIDE_TRASH, no operation, no
+        lock acquired (security guard)."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        outside = tmp_path / "outside" / "x.txt"
+        outside.parent.mkdir()
+        outside.write_text("must not delete")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        outcome = gc.safe_delete(outside)
+
+        assert outcome.result is TrashDeleteResult.OUTSIDE_TRASH
+        assert outside.read_text() == "must not delete", "out-of-bounds path MUST NOT be touched"
+
+    def test_returns_outside_trash_for_traversal_attempt(self, tmp_path: Path) -> None:
+        """A path containing .. that resolves outside trash root →
+        OUTSIDE_TRASH. Validates the resolve()-then-relative_to()
+        guard, not naive substring matching."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        outside = tmp_path / "neighbour"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("not in trash")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        # Construct a path that LOOKS rooted at trash but escapes via ..
+        traversal = trash / ".." / "neighbour" / "secret.txt"
+        outcome = gc.safe_delete(traversal)
+
+        assert outcome.result is TrashDeleteResult.OUTSIDE_TRASH
+        assert (outside / "secret.txt").exists()
+
+    def test_returns_deleted_for_dangling_symlink(self, tmp_path: Path) -> None:
+        """Symlink in trash whose target is missing → DELETED (lexists
+        catches it where Path.exists wouldn't), symlink itself gone."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        link = trash / "dangling.txt"
+        link.symlink_to(tmp_path / "nonexistent")
+        assert link.is_symlink() and not link.exists()  # dangling
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        outcome = gc.safe_delete(link)
+
+        assert outcome.result is TrashDeleteResult.DELETED
+        import os
+
+        assert not os.path.lexists(link), "dangling symlink must be unlinked"
+
+    def test_does_not_follow_symlink_to_directory(self, tmp_path: Path) -> None:
+        """Symlink in trash points at an unrelated directory tree.
+        ``safe_delete`` MUST unlink the link, NOT walk into the target
+        and delete unrelated content. This is the load-bearing
+        symlink-safety test."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target_tree = tmp_path / "important_tree"
+        target_tree.mkdir()
+        (target_tree / "do_not_delete.txt").write_text("precious")
+
+        link = trash / "link_to_tree"
+        link.symlink_to(target_tree)
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        outcome = gc.safe_delete(link)
+
+        assert outcome.result is TrashDeleteResult.DELETED
+        assert link.is_symlink() is False, "link must be gone"
+        # The target tree MUST be intact — we did NOT walk into it.
+        assert target_tree.is_dir()
+        assert (target_tree / "do_not_delete.txt").read_text() == "precious"
+
+    def test_returns_permission_error_on_unlink_oserror(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """OSError during unlink (other than FileNotFoundError) →
+        PERMISSION_ERROR, error populated, file still present."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "locked.txt"
+        target.write_text("can't delete")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        real_unlink = Path.unlink
+        sentinel_exc = OSError(13, "simulated permission denied")
+
+        def failing_unlink(self: Path, *a: object, **k: object) -> None:
+            if self == target:
+                raise sentinel_exc
+            return real_unlink(self, *a, **k)
+
+        monkeypatch.setattr(Path, "unlink", failing_unlink)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.PERMISSION_ERROR
+        assert outcome.error is sentinel_exc
+        assert target.exists(), "file must remain on disk after PERMISSION_ERROR"
+
+    def test_filenotfound_during_unlink_maps_to_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Spec §5.1 idempotency: if the path lexists at check time but
+        vanishes between check and unlink (a race against another
+        deleter), the OSError is FileNotFoundError → MISSING, NOT
+        PERMISSION_ERROR. Mirrors the unlink-src idempotency in
+        ``_execute_unlink_src`` from #201."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "racy.txt"
+        target.write_text("about to vanish")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        real_unlink = Path.unlink
+
+        def vanishing_unlink(self: Path, *a: object, **k: object) -> None:
+            if self == target:
+                # Simulate a concurrent deleter that won the race
+                # between our lexists() check and our unlink().
+                raise FileNotFoundError(2, "vanished mid-delete")
+            return real_unlink(self, *a, **k)
+
+        monkeypatch.setattr(Path, "unlink", vanishing_unlink)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.MISSING, (
+            "FileNotFoundError between lexists and unlink must map to "
+            "MISSING (idempotent), not PERMISSION_ERROR"
+        )
+        assert outcome.error is None

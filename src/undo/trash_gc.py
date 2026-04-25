@@ -24,12 +24,24 @@ Spec: ``docs/internal/F8-1-trash-gc-design.md``.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 from undo import _journal
+from undo.durable_move import (
+    _HAS_FCNTL,
+    _locked,
+    _path_in_flight_from_entries,
+    _read_journal,
+)
+
+if _HAS_FCNTL:
+    import fcntl
+else:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -198,3 +210,125 @@ class TrashGC:
                 cleaned,
                 failed,
             )
+
+    def safe_delete(self, path: Path) -> TrashDeleteOutcome:
+        """Delete *path* from trash with race-safe coordination (§3.2 / §3.3).
+
+        Step 3 implements the file/symlink fast path: validate path is
+        inside ``trash_dir`` → acquire ``LOCK_EX`` on ``<journal>.lock``
+        → check ``is_path_in_flight`` → ``lexists`` → ``unlink`` →
+        release. Step 4 will add the directory atomic-rename path.
+
+        Symlinks (including dangling and symlinks to directories) are
+        always unlinked, NEVER walked into — see
+        ``test_does_not_follow_symlink_to_directory`` for the load-
+        bearing safety guarantee.
+
+        Args:
+            path: Path to delete. Must resolve inside ``self.trash_dir``;
+                paths that escape return ``OUTSIDE_TRASH``.
+
+        Returns:
+            :class:`TrashDeleteOutcome` per the §5.1 decision table.
+        """
+        # §4.1: out-of-bounds rejection BEFORE acquiring the lock.
+        if not self._is_inside_trash(path):
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.OUTSIDE_TRASH,
+                path=path,
+                reason=(f"path {path} resolves outside the configured trash root {self.trash_dir}"),
+            )
+            logger.warning("trash GC: %s", outcome.reason)
+            return outcome
+
+        # Acquire LOCK_EX on <journal>.lock for the check + unlink window.
+        # Step 4 will reuse this same lock for the atomic-rename of
+        # directories.
+        if _HAS_FCNTL:
+            with _locked(self.journal_path, fcntl.LOCK_EX):
+                return self._delete_file_locked(path)
+        return self._delete_file_locked(path)  # pragma: no cover - Windows
+
+    def _is_inside_trash(self, path: Path) -> bool:
+        """Return True iff *path*'s LEXICAL absolute form is inside ``self.trash_dir``.
+
+        Uses ``os.path.abspath`` + ``relative_to`` — explicitly NOT
+        ``Path.resolve()``. ``resolve`` follows symlinks; for trash
+        deletion we want to delete the LINK itself, not its target,
+        so the containment check must look at the lexical path inside
+        ``trash_dir`` (the link IS in trash) rather than the symlink's
+        target (which can be anywhere). ``abspath`` still collapses
+        ``..`` so a ``trash/../neighbour`` traversal attempt is caught.
+        """
+        try:
+            Path(os.path.abspath(path)).relative_to(Path(os.path.abspath(self.trash_dir)))
+        except ValueError:
+            return False
+        return True
+
+    def _delete_file_locked(self, path: Path) -> TrashDeleteOutcome:
+        """Body of ``safe_delete`` for files/symlinks; runs under ``LOCK_EX``.
+
+        Sequence per §3.2 steps 3–5: in-flight check → lexists →
+        unlink. Step 4 will branch here on ``path.is_dir() and not
+        path.is_symlink()`` to dispatch to the directory rename helper.
+        """
+        # Unlocked predicate: we ALREADY hold LOCK_EX on the lock file.
+        # Calling is_path_in_flight() here would re-acquire LOCK_SH on a
+        # different fd of the same inode and deadlock against our own
+        # LOCK_EX. The shared helper avoids that by accepting pre-loaded
+        # entries — we read them inline (also no lock needed under our
+        # held LOCK_EX).
+        entries = _read_journal(self.journal_path)
+        if _path_in_flight_from_entries(path, entries):
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.SKIPPED_IN_FLIGHT,
+                path=path,
+                reason=(
+                    f"path {path} is the src or dst of an in-flight move/"
+                    "dir_move; deletion would race the rollback"
+                ),
+            )
+            logger.info("trash GC: %s", outcome.reason)
+            return outcome
+
+        # ``lexists`` so dangling symlinks count as present.
+        if not os.path.lexists(path):
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.MISSING,
+                path=path,
+                reason=f"path {path} did not exist at deletion time",
+            )
+            logger.debug("trash GC: %s", outcome.reason)
+            return outcome
+
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            # §5.1 idempotency: a concurrent deleter won the race
+            # between our lexists and our unlink. Treat as MISSING,
+            # NOT PERMISSION_ERROR — we got the same end state.
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.MISSING,
+                path=path,
+                reason=f"path {path} vanished between lexists and unlink",
+            )
+            logger.debug("trash GC: %s", outcome.reason)
+            return outcome
+        except OSError as exc:
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.PERMISSION_ERROR,
+                path=path,
+                reason=f"unlink of {path} raised: {exc}",
+                error=exc,
+            )
+            logger.warning("trash GC: %s", outcome.reason, exc_info=True)
+            return outcome
+
+        outcome = TrashDeleteOutcome(
+            result=TrashDeleteResult.DELETED,
+            path=path,
+            reason=f"unlinked {path}",
+        )
+        logger.debug("trash GC: %s", outcome.reason)
+        return outcome
