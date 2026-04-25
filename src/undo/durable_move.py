@@ -58,6 +58,8 @@ import logging
 import os
 import shutil
 import tempfile
+import time
+import uuid
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -292,141 +294,135 @@ def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
 
 
 def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
-    """EXDEV branch: copy + fsync + os.replace + unlink, with journal.
+    """EXDEV branch: copy + fsync + os.replace + unlink, with v2 journal.
 
-    Sequence is carefully ordered so a crash at any point leaves
-    recoverable state:
+    Step 6 / §7.2 (regular file) + §7.3 (symlink) sequence:
 
-    1. Append ``started`` entry. Crash here = no copy yet; sweep
-       deletes (never-created or partial) destination.
-    2. Copy ``src`` → ``<dst>.tmp`` inside ``dst.parent`` (same-fs
-       as ``dst``). Copy errors propagate — the journal has an
-       unresolved ``started`` entry that sweep cleans up.
-    3. Fsync the temp file and its directory. Without the directory
-       fsync, a power loss after ``os.replace`` could leave the
-       directory entry pointing at an inode whose pages haven't hit
-       disk — a classic atomic-write footgun.
-    4. ``os.replace(tmp, dst)``. Atomic because tmp + dst are on the
-       same filesystem (dst.parent).
-    5. Append ``copied`` entry. Crash here = destination complete,
-       source still exists; sweep unlinks the source.
-    6. Unlink source. Crash here = destination complete, source
-       gone; state is effectively ``done`` but no ``done`` entry is
-       logged yet. Sweep would redundantly try to unlink a
-       nonexistent source, which is a no-op.
-    7. Append ``done`` entry for audit/observability.
+    1. Allocate ``op_id``, build the v2 payload base (``schema=2``,
+       ``op_id``, ``ts``, ``host_pid``).
+    2. Create tmp BEFORE the started journal write (regular: empty
+       ``NamedTemporaryFile(delete=False)``; symlink: ``os.symlink``).
+    3. ``fsync_directory(dst.parent)`` — round-2 blocking fix: makes
+       the tmp's directory entry durable before the started entry can
+       claim ``tmp_path`` exists. Without this, a crash window where
+       tmp lives only in the page cache breaks the §7.1 tmp-exists
+       invariant and sweep would misread tmp-absent as post-replace.
+    4. Append ``started`` with ``tmp_path`` populated.
+    5. Copy + fsync (regular only — symlink target lives in the inode).
+    6. ``os.replace(tmp, dst)`` — consumes tmp atomically into dst.
+    7. ``fsync_directory(dst.parent)`` so the new directory entry is
+       durable before we log ``copied`` (codex P1 fwMG).
+    8. Append ``copied`` with the same ``op_id``.
+    9. ``os.unlink(src)`` + ``fsync_directory(src.parent)`` (codex P2
+       gnah: unlink durability before the ``done`` write).
+    10. Append ``done`` with the same ``op_id``.
+
+    §7.4: this function does NOT remove tmp on exception. If anything
+    after step 2 raises, tmp persists on disk and sweep observes
+    ``lexists(tmp_path)`` to disambiguate pre-replace (tmp present) from
+    post-replace (tmp absent) crashes. The tmp-cleanup that PR #197 had
+    here would have broken that invariant.
     """
     # Resolve to absolute paths before journaling. ``is_path_in_flight``
     # will match on ``str()`` of the resolved form, so callers passing
     # unresolved / relative / symlinked paths still get the right
     # match (coderabbit PRRT_kwDOR_Rkws59fzVv).
-    payload = {
-        "op": "move",
+    op_id = uuid.uuid4().hex
+    base_payload: dict[str, Any] = {
+        "schema": 2,
+        "op": OP_MOVE,
+        "op_id": op_id,
         "src": _normalized_path_str(src),
         "dst": _normalized_path_str(dst),
-        "state": STATE_STARTED,
+        "ts": time.time(),
+        "host_pid": os.getpid(),
     }
-    _append_journal(journal, payload)
 
-    tmp_path: Path | None = None
-    try:
-        if src.is_symlink():
-            # Codex P1 PRRT_kwDOR_Rkws59gnab: preserve symlink identity
-            # on EXDEV moves. ``shutil.copyfile`` follows symlinks and
-            # would replace ``dst`` with a regular file containing the
-            # target's bytes — breaking rollback fidelity for symlink
-            # trash entries and destroying dangling symlinks entirely
-            # (shutil.copyfile on a dangling symlink raises
-            # ``FileNotFoundError``). Replicates ``shutil.move``'s
-            # pre-F7 symlink handling: readlink → create new symlink
-            # at a tmp path → os.replace → unlink the original.
-            # ``readlink`` preserves absolute-vs-relative target form.
-            target = os.readlink(src)
-            tmp_path = dst.parent / f".{dst.name}.{os.getpid()}.symlink.tmp"
-            # Clean any stale tmp from a prior crashed attempt at the
-            # exact same path. The PID suffix makes collisions between
-            # concurrent processes impossible; the only realistic way
-            # the tmp exists is that a prior invocation with the same
-            # PID crashed mid-symlink (before the ``os.replace``).
-            # An ``OSError`` here surfaces to the outer handler which
-            # logs + leaves the journal's ``started`` entry for sweep.
-            if os.path.lexists(tmp_path):
-                tmp_path.unlink()
-            os.symlink(target, tmp_path)
-            # No file data to fsync for a symlink — the target string
-            # lives in the inode itself on most filesystems — but the
-            # directory entry DOES need to be fsynced before the
-            # rename (parity with the regular-file branch below).
-            fsync_directory(dst)
-            os.replace(tmp_path, dst)
-            fsync_directory(dst)
-            tmp_path = None
-        else:
-            # Copy into a temp in dst's parent so the final rename is
-            # same-filesystem. ``NamedTemporaryFile(delete=False)`` keeps
-            # the file on disk for the os.replace step.
-            with tempfile.NamedTemporaryFile(
-                dir=str(dst.parent),
-                prefix=f".{dst.name}.",
-                suffix=".tmp",
-                delete=False,
-            ) as tmp:
-                tmp_path = Path(tmp.name)
-            shutil.copyfile(src, tmp_path)
-            # Preserve mode bits so daemons that rely on chmod survive
-            # the copy (matches pre-F7 ``shutil.move`` behavior on
-            # cross-device moves, which uses copy2 internally).
-            try:
-                shutil.copystat(src, tmp_path)
-            except OSError:
-                # copystat failures are non-fatal — better to complete
-                # the move with default mode than fail.
-                logger.debug(
-                    "copystat failed for %s → %s; proceeding with default mode",
-                    src,
-                    tmp_path,
-                    exc_info=True,
-                )
-            # fsync file + parent dir before the rename so a power loss
-            # after ``os.replace`` can't leave the new directory entry
-            # pointing at an inode with unflushed pages.
-            fd = os.open(tmp_path, os.O_RDONLY)
-            try:
-                os.fsync(fd)
-            finally:
-                os.close(fd)
-            # ``fsync_directory(dst)`` fsyncs ``dst.parent`` — see
-            # ``utils.atomic_io.fsync_directory`` docstring. Same effect
-            # as an explicit ``_fsync_directory(dst.parent)`` but reuses
-            # the shared helper.
-            fsync_directory(dst)
-            os.replace(tmp_path, dst)
-            # Codex P1 PRRT_kwDOR_Rkws59fwMG: fsync ``dst.parent`` AGAIN
-            # after the rename so the new directory entry is durable
-            # before we log ``copied`` and unlink the source. Without
-            # this second fsync, a crash between ``os.replace`` and the
-            # next journal append could leave the journal claiming
-            # ``copied`` while the rename itself hadn't reached disk —
-            # sweep would then unlink the (recoverable) source while
-            # the destination directory entry had rolled back.
-            fsync_directory(dst)
-            tmp_path = None  # successfully moved into place
-    except BaseException:
-        # Leave the ``started`` journal entry and clean up stray tmp
-        # so operators don't accumulate .tmp debris. Use ``lexists``
-        # so a dangling-symlink tmp (target doesn't exist) still gets
-        # removed — ``Path.exists()`` would return False for those.
-        if tmp_path is not None and os.path.lexists(tmp_path):
-            try:
-                tmp_path.unlink()
-            except OSError:
-                logger.debug("Failed to clean up stray temp file %s", tmp_path, exc_info=True)
-        raise
+    # §7.2 step 1 / §7.3 steps 1-3: create tmp BEFORE the started entry.
+    # An exception during tmp creation propagates with NO journal entry
+    # written — that's operator debris (orphan tmp + no record), not a
+    # sweep concern (§7.2 commentary on "crash between syscall and
+    # pre-started fsync_directory").
+    if src.is_symlink():
+        # Codex P1 PRRT_kwDOR_Rkws59gnab: preserve symlink identity on
+        # EXDEV moves. ``readlink`` keeps absolute-vs-relative form.
+        target = os.readlink(src)
+        tmp_path = dst.parent / f".{dst.name}.{os.getpid()}.symlink.tmp"
+        # Clean any stale tmp from a prior crashed attempt at the exact
+        # same path. The PID suffix makes collisions between concurrent
+        # processes impossible; the only realistic way the tmp exists is
+        # that a prior invocation with the same PID crashed mid-symlink
+        # (before the ``os.replace``).
+        if os.path.lexists(tmp_path):
+            tmp_path.unlink()
+        os.symlink(target, tmp_path)
+    else:
+        # Copy target lives in dst's parent so the final rename is
+        # same-filesystem. ``NamedTemporaryFile(delete=False)`` creates
+        # + closes an empty file — fits the §7.2 step 1 contract.
+        with tempfile.NamedTemporaryFile(
+            dir=str(dst.parent),
+            prefix=f".{dst.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp_path = Path(tmp.name)
 
-    # Destination is complete. Log the copied state BEFORE unlinking
-    # the source so a crash between these two steps is recoverable
-    # by sweep (it sees ``copied`` and unlinks the source).
-    _append_journal(journal, {**payload, "state": STATE_COPIED})
+    # §7.1 rule 2 / round-2 blocking fix: fsync_directory(dst.parent)
+    # BEFORE the started journal append makes the tmp's directory entry
+    # durable. Without this ordering, the tmp-exists invariant is not
+    # crash-durable and sweep's tmp-absent ⇒ post-replace inference is
+    # unsafe under power loss.
+    fsync_directory(dst)
+
+    # §7.2 step 3 / §7.3 step 5: started entry now carries tmp_path so
+    # sweep can disambiguate.
+    _append_journal(
+        journal,
+        {**base_payload, "state": STATE_STARTED, "tmp_path": str(tmp_path)},
+    )
+
+    if src.is_symlink():
+        # No file data to fsync for a symlink — the target string lives
+        # in the inode itself on most filesystems. The dst.parent fsync
+        # before the started write already covered the tmp's dir entry.
+        os.replace(tmp_path, dst)
+        fsync_directory(dst)
+    else:
+        shutil.copyfile(src, tmp_path)
+        # Preserve mode bits so daemons that rely on chmod survive the
+        # copy (matches pre-F7 ``shutil.move`` behavior on cross-device
+        # moves, which uses copy2 internally).
+        try:
+            shutil.copystat(src, tmp_path)
+        except OSError:
+            # copystat failures are non-fatal — better to complete the
+            # move with default mode than fail.
+            logger.debug(
+                "copystat failed for %s → %s; proceeding with default mode",
+                src,
+                tmp_path,
+                exc_info=True,
+            )
+        # fsync file + parent dir before the rename so a power loss
+        # after ``os.replace`` can't leave the new directory entry
+        # pointing at an inode with unflushed pages.
+        fd = os.open(tmp_path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        fsync_directory(dst)
+        os.replace(tmp_path, dst)
+        # Codex P1 PRRT_kwDOR_Rkws59fwMG: fsync ``dst.parent`` AGAIN
+        # after the rename so the new directory entry is durable before
+        # we log ``copied`` and unlink the source.
+        fsync_directory(dst)
+
+    # Destination is complete. Log copied BEFORE unlinking src so a
+    # crash here is recoverable by sweep (it sees ``copied`` and
+    # finishes by unlinking src). Same op_id as started.
+    _append_journal(journal, {**base_payload, "state": STATE_COPIED})
 
     try:
         os.unlink(src)
@@ -434,16 +430,11 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
         # Source already gone — treat as done.
         pass
 
-    # Codex P2 PRRT_kwDOR_Rkws59gnah: fsync ``src.parent`` so the
-    # unlink itself is crash-durable before we log ``done``. On POSIX
-    # an ``os.unlink`` is not persisted until the containing directory
-    # is fsynced; without this call, a power loss here could let ``src``
-    # reappear on reboot while the journal already records ``done``.
-    # ``sweep()`` would then drop the entry and never reconcile the
-    # resurrected file, leaving a phantom copy on disk.
+    # Codex P2 PRRT_kwDOR_Rkws59gnah: fsync ``src.parent`` so the unlink
+    # itself is crash-durable before we log ``done``.
     fsync_directory(src)
 
-    _append_journal(journal, {**payload, "state": STATE_DONE})
+    _append_journal(journal, {**base_payload, "state": STATE_DONE})
 
 
 def directory_move(src: Path, dst: Path, *, journal: Path) -> None:
@@ -673,9 +664,14 @@ _PlannedVerb = Literal[
     "drop",
     "retain",
     "unlink_src_then_drop",
+    "drop_tmp_then_drop",
 ]
-"""Step 2: closed verb set per §5.1 PR #197 subset. Step 6 will add
-``drop_tmp_then_drop`` for the v2 STARTED-with-tmp_path-present row."""
+"""Closed verb set per §5.1.
+
+- ``drop`` / ``retain`` / ``unlink_src_then_drop`` — PR #197 subset (step 2).
+- ``drop_tmp_then_drop`` — step 6, v2 ``move started`` + ``lexists(tmp_path)``
+  pre-replace row: unlink the orphan tmp, then drop the entry.
+"""
 
 
 @dataclass(frozen=True)
@@ -817,14 +813,44 @@ def _plan_one(
         )
     # entry.op == OP_MOVE — the F7 atomic/durable single-file path.
     if entry.state == STATE_STARTED:
-        # PR #197 step-2 behavior: ambiguous, retain. Step 6 will
-        # disambiguate via fs_observer(entry.tmp_path).
+        # §7.1 disambiguation (step 6): v2 records carry ``tmp_path`` and
+        # uphold the tmp-exists invariant, so observing ``lexists(tmp_path)``
+        # tells sweep which side of the ``os.replace`` boundary the crash
+        # landed on. v1 records (no schema, no tmp_path) lack the metadata
+        # and preserve PR #197 retain-as-ambiguous behavior.
+        if entry.schema == 2 and entry.tmp_path is not None:
+            if fs_observer(entry.tmp_path):
+                # Pre-replace crash: tmp orphan, replace never ran. src is
+                # still the canonical copy. Unlink tmp; drop entry.
+                return _PlannedAction(
+                    identity=identity,
+                    entry=entry,
+                    verb="drop_tmp_then_drop",
+                    reason=(
+                        f"started entry {entry.src} -> {entry.dst} (tmp "
+                        f"{entry.tmp_path} present) — pre-replace crash; "
+                        "unlinking orphan tmp, src remains canonical"
+                    ),
+                )
+            # Post-replace crash: tmp consumed by ``os.replace``; dst is
+            # complete. Same finishing step as the COPIED row — unlink src.
+            return _PlannedAction(
+                identity=identity,
+                entry=entry,
+                verb="unlink_src_then_drop",
+                reason=(
+                    f"started entry {entry.src} -> {entry.dst} (tmp "
+                    f"{entry.tmp_path} absent) — post-replace crash; "
+                    "finishing by unlinking src"
+                ),
+            )
+        # v1 fallback: no tmp_path metadata to disambiguate.
         return _PlannedAction(
             identity=identity,
             entry=entry,
             verb="retain",
             reason=(
-                f"started entry {entry.src} -> {entry.dst} is ambiguous "
+                f"v1 started entry {entry.src} -> {entry.dst} is ambiguous "
                 "(crash in copy→replace window); cannot reconcile without "
                 "content comparison — operator or retry must resolve"
             ),
@@ -884,9 +910,9 @@ def _apply_planned_actions(plan: list[_PlannedAction]) -> list[_JournalEntry]:
       ``FileNotFoundError`` on unlink is swallowed (already gone). Other
       ``OSError`` falls back to retain — the next sweep retries
       (codex fwMK + PR #197 round-5).
-
-    Step 6 will add ``drop_tmp_then_drop`` for the v2 STARTED-tmp-present
-    row.
+    - ``drop_tmp_then_drop`` (step 6, §7.1 pre-replace row): unlink the
+      v2 ``tmp_path`` orphan, then drop the entry. Same OSError-retains
+      semantics as ``unlink_src_then_drop``.
     """
     retained: list[_JournalEntry] = []
     for action in plan:
@@ -899,6 +925,10 @@ def _apply_planned_actions(plan: list[_PlannedAction]) -> list[_JournalEntry]:
             continue
         if action.verb == "unlink_src_then_drop":
             if not _execute_unlink_src(action.entry):
+                retained.append(action.entry)
+            continue
+        if action.verb == "drop_tmp_then_drop":
+            if not _execute_unlink_tmp(action.entry):
                 retained.append(action.entry)
             continue
         # Defensive: an unknown verb is a programming error, not an
@@ -942,6 +972,50 @@ def _execute_unlink_src(entry: _JournalEntry) -> bool:
     except OSError as exc:
         logger.debug(
             "sweep: fsync of src.parent after unlink failed: %s",
+            exc,
+            exc_info=True,
+        )
+    return True
+
+
+def _execute_unlink_tmp(entry: _JournalEntry) -> bool:
+    """Unlink ``entry.tmp_path`` (v2 STARTED orphan) and fsync its parent.
+
+    Returns True on success (entry should drop), False on transient
+    ``OSError`` (entry should retain — same retry semantics as
+    :func:`_execute_unlink_src`). ``FileNotFoundError`` is success:
+    if an operator already cleaned the orphan, sweep is idempotent.
+
+    Defensive: ``entry.tmp_path is None`` shouldn't reach here (the
+    planner only emits ``drop_tmp_then_drop`` for v2 records with
+    ``tmp_path``), but if it does, log + retain.
+    """
+    if entry.tmp_path is None:  # pragma: no cover - planner invariant
+        logger.error(
+            "sweep: drop_tmp_then_drop on entry without tmp_path %r; retaining",
+            entry,
+        )
+        return False
+    tmp = Path(entry.tmp_path)
+    try:
+        tmp.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        logger.warning(
+            "sweep: failed to unlink tmp orphan %s after pre-replace crash: %s",
+            tmp,
+            exc,
+            exc_info=True,
+        )
+        return False
+    # Match _execute_unlink_src: fsync the parent so the unlink is
+    # crash-durable before sweep compacts this entry out of the journal.
+    try:
+        fsync_directory(tmp)
+    except OSError as exc:
+        logger.debug(
+            "sweep: fsync of tmp.parent after unlink failed: %s",
             exc,
             exc_info=True,
         )

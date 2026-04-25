@@ -2689,6 +2689,478 @@ class TestPlanRecoveryActions:
         assert src.exists()  # unlink raised → src survives
 
 
+class TestStartedTmpPathDisambiguation:
+    """Step 6 / §7.1: v2 ``move started`` records carry ``tmp_path``;
+    sweep observes ``lexists(tmp_path)`` to disambiguate pre-replace
+    (tmp present) from post-replace (tmp absent) crashes.
+
+    The tmp-exists invariant (§7.1) is what makes tmp-absent ⇒
+    post-replace inference safe. Step 6 enforces that invariant on the
+    write path and consumes it in the planner.
+    """
+
+    def test_planner_v2_started_tmp_present_drops_tmp(self) -> None:
+        """§5.1 row: v2 ``move started`` + ``lexists(tmp_path) == True``
+        ⇒ pre-replace crash. ``os.replace`` never ran; tmp is an orphan
+        copy. Verb: ``drop_tmp_then_drop`` (executor unlinks tmp, drops
+        the entry; src remains untouched as the canonical copy)."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entry = _JournalEntry(
+            op="move",
+            src="/a",
+            dst="/b",
+            state="started",
+            schema=2,
+            op_id="op-pre",
+            tmp_path="/path/to/.b.42.tmp",
+        )
+        # fs_observer reports tmp present.
+        plan = plan_recovery_actions([entry], fs_observer=lambda p: p == "/path/to/.b.42.tmp")
+        assert len(plan) == 1
+        assert plan[0].verb == "drop_tmp_then_drop"
+
+    def test_planner_v2_started_tmp_absent_unlinks_src(self) -> None:
+        """§5.1 row: v2 ``move started`` + ``lexists(tmp_path) == False``
+        ⇒ post-replace crash. ``os.replace`` consumed tmp into dst;
+        the only thing left is to unlink src. Verb:
+        ``unlink_src_then_drop`` (same as the COPIED row — sweep
+        finishes by removing the now-redundant source)."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entry = _JournalEntry(
+            op="move",
+            src="/a",
+            dst="/b",
+            state="started",
+            schema=2,
+            op_id="op-post",
+            tmp_path="/path/to/.b.42.tmp",
+        )
+        # fs_observer reports tmp absent (replace consumed it).
+        plan = plan_recovery_actions([entry], fs_observer=lambda _p: False)
+        assert len(plan) == 1
+        assert plan[0].verb == "unlink_src_then_drop"
+
+    def test_planner_v1_started_remains_retain(self) -> None:
+        """v1 records (no ``schema``, no ``tmp_path``) preserve PR #197
+        retain-as-ambiguous behavior. The disambiguation is a v2-only
+        capability; v1 records lack the metadata to safely choose a
+        verb."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entry = _JournalEntry(op="move", src="/a", dst="/b", state="started")
+        plan = plan_recovery_actions([entry], fs_observer=lambda _p: True)
+        assert len(plan) == 1
+        assert plan[0].verb == "retain"
+
+    def test_executor_drop_tmp_then_drop_unlinks_tmp(self, tmp_path: Path) -> None:
+        """Executor's ``drop_tmp_then_drop`` verb: unlinks the tmp file,
+        drops the entry, leaves src + dst untouched (src is canonical
+        because the replace never ran)."""
+        from undo.durable_move import (
+            _apply_planned_actions,
+            _JournalEntry,
+            plan_recovery_actions,
+        )
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        tmp = tmp_path / ".dst.txt.42.tmp"
+        src.write_text("canonical source")
+        tmp.write_text("orphan tmp from pre-replace crash")
+        # dst absent — pre-replace crash means dst was never written.
+        entry = _JournalEntry(
+            op="move",
+            src=str(src),
+            dst=str(dst),
+            state="started",
+            schema=2,
+            op_id="op-1",
+            tmp_path=str(tmp),
+        )
+        plan = plan_recovery_actions([entry])
+        assert plan[0].verb == "drop_tmp_then_drop"
+
+        retained = _apply_planned_actions(plan)
+        assert retained == [], "drop_tmp_then_drop must drop the entry"
+        assert not tmp.exists(), "tmp must be unlinked"
+        assert src.read_text() == "canonical source", "src must be preserved"
+        assert not dst.exists(), "dst must remain absent"
+
+    def test_executor_drop_tmp_then_drop_handles_already_gone(self, tmp_path: Path) -> None:
+        """If ``tmp_path`` is already absent (e.g. operator cleaned it
+        before sweep ran), ``drop_tmp_then_drop`` swallows
+        ``FileNotFoundError`` and still drops the entry — same pattern
+        as ``unlink_src_then_drop``."""
+        from undo.durable_move import (
+            _apply_planned_actions,
+            _JournalEntry,
+        )
+
+        # Build a plan manually so the planner's fs_observer doesn't
+        # flip the verb to unlink_src_then_drop.
+        entry = _JournalEntry(
+            op="move",
+            src=str(tmp_path / "src.txt"),
+            dst=str(tmp_path / "dst.txt"),
+            state="started",
+            schema=2,
+            op_id="op-1",
+            tmp_path=str(tmp_path / "absent.tmp"),
+        )
+        from undo.durable_move import _PlannedAction
+
+        plan = [
+            _PlannedAction(
+                identity=("v2", "move", "op-1"),
+                entry=entry,
+                verb="drop_tmp_then_drop",
+                reason="test: tmp gone before sweep",
+            )
+        ]
+        retained = _apply_planned_actions(plan)
+        assert retained == [], "missing tmp must still drop entry (idempotent)"
+
+    def test_executor_drop_tmp_os_error_retains(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Transient ``OSError`` (other than ``FileNotFoundError``) on
+        tmp unlink retains the entry so the next sweep retries. Mirrors
+        the ``unlink_src_then_drop`` behavior (PR #197 round-5 / codex
+        fwMK)."""
+        from undo.durable_move import (
+            _apply_planned_actions,
+            _JournalEntry,
+            _PlannedAction,
+        )
+
+        tmp = tmp_path / ".dst.42.tmp"
+        tmp.write_text("orphan")
+        entry = _JournalEntry(
+            op="move",
+            src="/src",
+            dst="/dst",
+            state="started",
+            schema=2,
+            op_id="op-1",
+            tmp_path=str(tmp),
+        )
+        plan = [
+            _PlannedAction(
+                identity=("v2", "move", "op-1"),
+                entry=entry,
+                verb="drop_tmp_then_drop",
+                reason="test",
+            )
+        ]
+
+        real_unlink = Path.unlink
+
+        def failing_unlink(self: Path, *a: object, **k: object) -> None:
+            if str(self) == str(tmp):
+                raise OSError(13, "simulated permission denied")
+            return real_unlink(self, *a, **k)
+
+        monkeypatch.setattr(Path, "unlink", failing_unlink)
+
+        retained = _apply_planned_actions(plan)
+        assert retained == [entry], (
+            "transient OSError on tmp unlink must fall back to retain "
+            "(matches unlink_src_then_drop semantics)"
+        )
+        assert tmp.exists(), "unlink raised → tmp survives for next sweep"
+
+
+class TestWriterProtocolV2:
+    """Step 6 / §7.2 + §7.3: writer-side changes to satisfy the §7.1
+    tmp-exists invariant.
+
+    Concretely:
+
+    1. v2 envelope on every journal append: ``schema=2``, ``op_id``
+       (uuid stable across started/copied/done), ``tmp_path`` on
+       started.
+    2. ``fsync_directory(<dst.parent>)`` runs between tmp creation and
+       the started journal append (the round-2 blocking fix).
+    3. ``except BaseException: tmp_path.unlink()`` is removed (§7.4):
+       tmp persists if an exception fires after creation, so sweep
+       can disambiguate.
+    """
+
+    def _force_exdev(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Make ``os.replace`` raise EXDEV once, then pass through."""
+        real_replace = os.replace
+        triggered = {"v": False}
+
+        def exdev_once(src: object, dst: object) -> object:
+            if not triggered["v"]:
+                triggered["v"] = True
+                raise OSError(errno.EXDEV, "Cross-device link", str(src))
+            return real_replace(src, dst)
+
+        monkeypatch.setattr("undo.durable_move.os.replace", exdev_once)
+
+    def test_writer_started_record_carries_v2_envelope(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A successful EXDEV move emits a ``started`` entry with
+        ``schema=2``, a populated ``op_id``, and ``tmp_path`` pointing
+        at the actual tmp file path used during the copy."""
+        from undo.durable_move import durable_move
+
+        self._force_exdev(monkeypatch)
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("payload")
+        journal = tmp_path / "move.journal"
+
+        durable_move(src, dst, journal=journal)
+
+        entries = _read_journal(journal)
+        started = [e for e in entries if e["state"] == "started"]
+        assert len(started) == 1, f"expected one started entry; got {entries!r}"
+        rec = started[0]
+        assert rec["schema"] == 2, "writer must emit schema=2 envelope (§7.2)"
+        assert isinstance(rec.get("op_id"), str) and rec["op_id"], (
+            "v2 started must carry a non-empty op_id (§4.1 rule 8)"
+        )
+        assert isinstance(rec.get("tmp_path"), str) and rec["tmp_path"], (
+            "v2 move started must carry tmp_path for §7.1 disambiguation"
+        )
+        # tmp_path lives in dst.parent so the os.replace is same-fs.
+        assert Path(rec["tmp_path"]).parent == dst.parent
+
+    def test_writer_op_id_stable_across_started_copied_done(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """All three state records for a single move share the SAME
+        ``op_id``, so §3.1 rule 1 collapse-key collapses them into a
+        single identity."""
+        from undo.durable_move import durable_move
+
+        self._force_exdev(monkeypatch)
+        src = tmp_path / "s.txt"
+        dst = tmp_path / "d.txt"
+        src.write_text("x")
+        journal = tmp_path / "move.journal"
+
+        durable_move(src, dst, journal=journal)
+
+        entries = _read_journal(journal)
+        op_ids = {e.get("op_id") for e in entries if e["op"] == "move"}
+        assert len(op_ids) == 1, (
+            f"all states for a single move must share one op_id; got {op_ids!r}"
+        )
+        assert next(iter(op_ids)), "op_id must be non-empty"
+
+    def test_writer_fsyncs_dst_parent_before_started_journal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Round-2 blocking fix (§7.1 rule 2): writer must call
+        ``fsync_directory(dst.parent)`` BEFORE the started journal
+        append. Without this ordering the tmp's directory entry can
+        be lost on power-loss, breaking the §5.1 tmp-absent ⇒
+        post-replace inference."""
+        from undo import durable_move as dm_mod
+
+        self._force_exdev(monkeypatch)
+        src = tmp_path / "s.txt"
+        dst = tmp_path / "d.txt"
+        src.write_text("payload")
+        journal = tmp_path / "move.journal"
+
+        # Record every fsync_directory call and every journal write
+        # (started state only). Step ordering: fsync(dst.parent) MUST
+        # appear before the first started-state journal write event.
+        events: list[tuple[str, str]] = []
+
+        real_fsync = dm_mod.fsync_directory
+
+        def tracking_fsync(p: Path) -> None:
+            events.append(("fsync", str(p.parent if p.is_file() else p)))
+            real_fsync(p)
+
+        real_append = dm_mod._append_journal
+
+        def tracking_append(j: Path, payload):  # type: ignore[no-untyped-def]
+            if payload.get("state") == "started":
+                events.append(("journal_started", str(j)))
+            real_append(j, payload)
+
+        monkeypatch.setattr("undo.durable_move.fsync_directory", tracking_fsync)
+        monkeypatch.setattr("undo.durable_move._append_journal", tracking_append)
+
+        dm_mod.durable_move(src, dst, journal=journal)
+
+        # Find first journal_started and confirm at least one fsync
+        # event preceded it.
+        first_started_idx = next(
+            (i for i, ev in enumerate(events) if ev[0] == "journal_started"),
+            None,
+        )
+        assert first_started_idx is not None, (
+            f"no started-state journal write recorded; events={events!r}"
+        )
+        prior_fsyncs = [ev for ev in events[:first_started_idx] if ev[0] == "fsync"]
+        assert prior_fsyncs, (
+            "§7.1 rule 2 requires fsync_directory(dst.parent) BEFORE the "
+            f"started journal append; events={events!r}"
+        )
+
+    def test_writer_no_exception_cleanup_of_tmp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """§7.4: ``except BaseException: tmp_path.unlink()`` is removed.
+        Exceptions after tmp creation MUST leave tmp on disk so sweep
+        can observe ``lexists(tmp_path) == True`` and disambiguate as
+        pre-replace.
+
+        This test forces ``os.replace`` to raise inside the EXDEV body
+        AFTER the tmp has been created, then asserts the tmp is still
+        on disk.
+        """
+        from undo.durable_move import durable_move
+
+        # Force EXDEV on the FIRST replace (regular code path), then
+        # raise OSError on the second replace (tmp -> dst rename) so
+        # the body propagates an exception while tmp exists.
+        state = {"call": 0}
+
+        def replace_fail_at_tmp_to_dst(src_arg, dst_arg):  # type: ignore[no-untyped-def]
+            state["call"] += 1
+            if state["call"] == 1:
+                # Simulate cross-device on the same-device fast path so
+                # we fall into the EXDEV branch.
+                raise OSError(errno.EXDEV, "simulated cross-device")
+            # Subsequent call IS the tmp → dst rename inside the EXDEV
+            # branch — fail it.
+            raise OSError(28, "simulated disk full at replace")
+
+        monkeypatch.setattr("undo.durable_move.os.replace", replace_fail_at_tmp_to_dst)
+
+        src = tmp_path / "s.txt"
+        dst = tmp_path / "d.txt"
+        src.write_text("payload")
+        journal = tmp_path / "move.journal"
+
+        with pytest.raises(OSError, match="simulated"):
+            durable_move(src, dst, journal=journal)
+
+        # Inspect tmp_path from the started journal record.
+        entries = _read_journal(journal)
+        started = [e for e in entries if e["state"] == "started"]
+        assert len(started) == 1
+        tmp_path_str = started[0].get("tmp_path")
+        assert tmp_path_str, "started entry must record tmp_path for sweep"
+        assert Path(tmp_path_str).exists(), (
+            "§7.4: tmp must persist after exception so sweep can "
+            "observe lexists(tmp_path) == True and unlink it as orphan"
+        )
+
+    def test_writer_no_exception_cleanup_symlink(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Same as above but for the symlink branch — tmp symlink
+        persists across exceptions."""
+        if os.name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.durable_move import durable_move
+
+        # First replace = simulate cross-device on the same-device fast
+        # path. Second replace (the EXDEV branch's tmp→dst symlink
+        # rename) raises so the symlink tmp survives.
+        state = {"call": 0}
+
+        def replace_fail_at_tmp_to_dst(src_arg, dst_arg):  # type: ignore[no-untyped-def]
+            state["call"] += 1
+            if state["call"] == 1:
+                raise OSError(errno.EXDEV, "simulated cross-device")
+            raise OSError(28, "simulated disk full at symlink replace")
+
+        monkeypatch.setattr("undo.durable_move.os.replace", replace_fail_at_tmp_to_dst)
+
+        target = tmp_path / "target.txt"
+        target.write_text("data")
+        src = tmp_path / "link"
+        src.symlink_to(target)
+        dst = tmp_path / "moved-link"
+        journal = tmp_path / "move.journal"
+
+        with pytest.raises(OSError, match="simulated"):
+            durable_move(src, dst, journal=journal)
+
+        entries = _read_journal(journal)
+        started = [e for e in entries if e["state"] == "started"]
+        assert started, "started journal entry must exist for symlink branch"
+        tmp_path_str = started[0].get("tmp_path")
+        assert tmp_path_str, "v2 started must carry tmp_path"
+        # lexists handles the dangling-link case (target may have moved).
+        assert os.path.lexists(tmp_path_str), (
+            "§7.4: symlink tmp must persist on exception so sweep can see and unlink it"
+        )
+
+
+class TestSweepEndToEndV2Started:
+    """Step 6 integration: a real EXDEV move that crashes inside the
+    body, followed by a real ``sweep`` call. Validates the round-trip
+    through the v2 envelope, the §7.1 invariant, and the planner's
+    disambiguation rows."""
+
+    def test_sweep_recovers_pre_replace_crash_unlinks_tmp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """End-to-end pre-replace crash:
+
+        1. EXDEV branch creates tmp, fsyncs, writes started journal.
+        2. ``os.replace`` raises (simulated crash before tmp consumed).
+        3. ``sweep`` reads journal, observes ``lexists(tmp_path)==True``
+           on the orphan tmp, executes ``drop_tmp_then_drop``: unlinks
+           tmp, drops entry, leaves src as the canonical copy.
+        """
+        from undo.durable_move import durable_move, sweep
+
+        state = {"call": 0}
+
+        def fail_after_exdev(src_arg, dst_arg):  # type: ignore[no-untyped-def]
+            state["call"] += 1
+            if state["call"] == 1:
+                raise OSError(errno.EXDEV, "simulated cross-device")
+            raise OSError(28, "simulated crash mid-replace")
+
+        monkeypatch.setattr("undo.durable_move.os.replace", fail_after_exdev)
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("canonical")
+        journal = tmp_path / "move.journal"
+
+        with pytest.raises(OSError, match="simulated crash"):
+            durable_move(src, dst, journal=journal)
+
+        # Sanity: tmp orphan exists on disk; src + journal intact.
+        entries = _read_journal(journal)
+        tmp_path_str = entries[0]["tmp_path"]
+        assert Path(tmp_path_str).exists()
+        assert src.read_text() == "canonical"
+
+        # Restore os.replace so sweep's compaction can rewrite the journal.
+        monkeypatch.undo()
+
+        sweep(journal)
+
+        # Post-sweep: tmp gone, src preserved, journal compacted to empty.
+        assert not Path(tmp_path_str).exists(), (
+            "sweep must unlink the orphan tmp (drop_tmp_then_drop)"
+        )
+        assert src.read_text() == "canonical", (
+            "sweep MUST NOT touch src when tmp is present (pre-replace)"
+        )
+        assert not dst.exists(), "dst should still be absent"
+        # Journal compacted: started entry resolved, no surviving lines.
+        assert _read_journal(journal) == []
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
