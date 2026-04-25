@@ -855,6 +855,44 @@ class TestSafeDeleteDirectory:
         leftover = [p.name for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
         assert leftover == []
 
+    def test_directory_rmtree_filenotfound_maps_to_deleted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex P2 lkHY: if the staging dir is removed by a
+        concurrent recovery sweep (lockless, per §3.4) between our
+        rename and our rmtree, ``shutil.rmtree`` raises
+        ``FileNotFoundError``. The end state is correct (user path
+        gone AND staging gone), so the outcome must be DELETED, not
+        DELETED_WITH_STAGING_FAILURE — otherwise scripts treat a
+        successful concurrent cleanup as a noisy retry signal."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "concurrent_cleanup"
+        target.mkdir()
+        (target / "x").write_text("x")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        def vanishing_rmtree(*a: object, **k: object) -> None:
+            # Simulate a concurrent recovery sweep (or external
+            # cleaner) removing the staging dir between our rename
+            # and our rmtree.
+            raise FileNotFoundError(2, "staging vanished mid-rmtree")
+
+        monkeypatch.setattr("undo.trash_gc.shutil.rmtree", vanishing_rmtree)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.DELETED, (
+            "FileNotFoundError on the unlocked rmtree (concurrent "
+            "cleaner removed the staging dir) must report DELETED — "
+            "not DELETED_WITH_STAGING_FAILURE — so callers don't "
+            "treat a successful concurrent cleanup as a retry signal"
+        )
+        assert outcome.error is None
+        assert not target.exists(), "user's original path must be gone"
+
     def test_directory_returns_partial_failure_when_rmtree_fails(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

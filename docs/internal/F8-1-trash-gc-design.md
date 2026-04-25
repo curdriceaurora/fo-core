@@ -282,7 +282,8 @@ identity per PR #197 codex gnab). `safe_delete` must:
 | File/symlink — `OSError` | file/link | False | present | `unlink` raises | (none) | `PERMISSION_ERROR` |
 | Directory — full success | dir | False | present | `rename` | `rmtree` ok | `DELETED` |
 | Directory — rename fails | dir | False | present | `rename` raises | (none) | `PERMISSION_ERROR` (path still at original) |
-| Directory — rmtree fails | dir | False | present | `rename` ok | `rmtree` raises | `DELETED_WITH_STAGING_FAILURE` (orphan in trash_dir/.pending-delete-*) |
+| Directory — rmtree fails | dir | False | present | `rename` ok | `rmtree` raises non-`FileNotFoundError` `OSError` | `DELETED_WITH_STAGING_FAILURE` (orphan in trash_dir/.pending-delete-*) |
+| Directory — staging vanishes mid-rmtree | dir | False | present | `rename` ok | `rmtree` raises `FileNotFoundError` | `DELETED` (concurrent recovery sweep removed the same `.pending-delete-*` — desired end state achieved; codex lkHY) |
 | Race: missing between lexists and op | (any) | False | gone | `unlink`/`rename` raises `FileNotFoundError` | (n/a) | `MISSING` (idempotent — `FileNotFoundError` mapped to MISSING, not PERMISSION_ERROR) |
 
 ### 5.2 Idempotency

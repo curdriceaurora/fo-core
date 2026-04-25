@@ -483,15 +483,41 @@ class TrashGC:
         rename:
 
         - ``rmtree`` succeeds → ``DELETED`` (clean).
-        - ``rmtree`` raises → ``DELETED_WITH_STAGING_FAILURE``: the
-          user's ``original_path`` is gone (rename succeeded under
-          lock), but the orphan staging dir survives. Next-init eager
+        - ``rmtree`` raises ``FileNotFoundError`` → ``DELETED``: a
+          concurrent ``TrashGC.__init__`` recovery sweep (lockless,
+          per §3.4) removed the same ``.pending-delete-*`` staging
+          dir between our rename and our rmtree. The user's path is
+          gone AND the staging dir is gone; the end state is correct
+          and reporting a failure here would trigger noisy retries
+          (codex P2 lkHY).
+        - ``rmtree`` raises any other ``OSError`` →
+          ``DELETED_WITH_STAGING_FAILURE``: the user's
+          ``original_path`` is gone (rename succeeded under lock),
+          but the orphan staging dir survives. Next-init eager
           recovery (§3.4) cleans it on the next :class:`TrashGC`
           construction. The error is surfaced so operators correlate
           partial-state outcomes with the underlying failure.
         """
         try:
             shutil.rmtree(staging)
+        except FileNotFoundError:
+            # Codex P2 lkHY: a concurrent recovery sweep (or external
+            # cleaner) removed the staging dir between our rename and
+            # our rmtree. The end state is the desired one — the
+            # user's path is gone AND the staging dir is gone — so
+            # report DELETED, not a partial-failure outcome that would
+            # cause noisy retries.
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.DELETED,
+                path=original_path,
+                reason=(
+                    f"renamed {original_path} to staging {staging.name}; "
+                    "staging dir was removed by a concurrent recovery sweep "
+                    "before our rmtree could run (benign race)"
+                ),
+            )
+            logger.debug("trash GC: %s", outcome.reason)
+            return outcome
         except OSError as exc:
             outcome = TrashDeleteOutcome(
                 result=TrashDeleteResult.DELETED_WITH_STAGING_FAILURE,
