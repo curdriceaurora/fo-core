@@ -1584,6 +1584,43 @@ class TestSweepDirMoveHandling:
             f"{[r.getMessage() for r in caplog.records]}"
         )
 
+    def test_sweep_drops_dir_move_done_silently(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """§5.3 / §9.5 lock-in: ``dir_move done`` is dropped silently
+        (no WARNING). Started entries warn so operators investigate
+        the on-disk state; done entries are routine coordination
+        completion and don't need operator attention."""
+        from undo.durable_move import sweep
+
+        src = tmp_path / "src_dir"
+        src.mkdir()
+        dst = tmp_path / "dst_dir"
+        journal = tmp_path / "move.journal"
+        _write_journal(
+            journal,
+            [{"op": "dir_move", "src": str(src), "dst": str(dst), "state": "done"}],
+        )
+
+        with caplog.at_level("WARNING", logger="undo.durable_move"):
+            sweep(journal)
+
+        assert _read_journal(journal) == []
+        # No WARNING-level records about dir_move from sweep — only
+        # filter for sweep messages mentioning dir_move so other
+        # subsystem warnings (if any) don't cause spurious failures.
+        sweep_warnings = [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING"
+            and "dir_move" in r.getMessage()
+            and r.name == "undo.durable_move"
+        ]
+        assert sweep_warnings == [], (
+            "dir_move done must drop SILENTLY (§5.3); WARNING is reserved "
+            f"for non-done states. Observed: {[r.getMessage() for r in sweep_warnings]}"
+        )
+
     def test_sweep_does_not_apply_move_semantics_to_dir_move(self, tmp_path: Path) -> None:
         """A ``dir_move`` entry in a ``copied`` state must NOT trigger
         ``src.unlink`` (move-semantics for op=move). Belt-and-
