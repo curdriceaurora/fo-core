@@ -4,12 +4,14 @@ Tests for database manager.
 
 from __future__ import annotations
 
+import sqlite3
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
-from history.database import DatabaseManager
+from history.database import DatabaseCorruptionError, DatabaseManager
 
 
 @pytest.mark.unit
@@ -213,3 +215,155 @@ class TestDatabaseManager:
         # Should be able to access by column name
         assert result["operation_type"] == "move"
         assert result["source_path"] == "/test/path"
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+@pytest.mark.integration
+class TestDatabaseIntegrityCheck:
+    """F5 (hardening roadmap #159): ``initialize`` runs ``PRAGMA
+    integrity_check`` on the database before any schema work and
+    raises ``DatabaseCorruptionError`` on corruption so callers can
+    prompt the operator to quarantine + reinit.
+
+    Pre-F5 behavior: a corrupt ``history.db`` would silently propagate
+    its corruption into every subsequent operation, with no actionable
+    error message and no quarantine. Post-F5 the database layer
+    refuses to open a corrupt file and tells the caller exactly which
+    file needs to be moved aside.
+    """
+
+    @pytest.fixture
+    def temp_db_path(self, tmp_path):
+        """Create a scratch db path (not yet created on disk)."""
+        return tmp_path / "history.db"
+
+    def test_integrity_check_passes_on_fresh_db(self, temp_db_path):
+        """A freshly-initialized database must pass integrity_check."""
+        db = DatabaseManager(temp_db_path)
+        db.initialize()
+        # ``initialize`` itself runs the check — reaching this assertion
+        # means it passed. Sanity-check by running it again explicitly.
+        db.check_integrity()
+        db.close()
+
+    def test_integrity_check_raises_on_truncated_file(self, temp_db_path):
+        """A deliberately-corrupted database file is rejected with
+        ``DatabaseCorruptionError`` referencing the file path."""
+        # Seed a valid db, then truncate it mid-page to corrupt.
+        db = DatabaseManager(temp_db_path)
+        db.initialize()
+        db.close()
+
+        # Truncate the file — destroys the SQLite header/pages.
+        size = temp_db_path.stat().st_size
+        with open(temp_db_path, "r+b") as fh:
+            fh.truncate(size // 2)
+
+        # Fresh manager — must detect corruption on initialize.
+        db2 = DatabaseManager(temp_db_path)
+        with pytest.raises(DatabaseCorruptionError) as excinfo:
+            db2.initialize()
+        assert str(temp_db_path) in str(excinfo.value), (
+            "corruption error must reference the corrupt db path so "
+            "the operator knows which file to quarantine"
+        )
+
+    def test_integrity_check_raises_on_bit_flip(self, temp_db_path):
+        """Random-byte overwrite past the header triggers
+        integrity_check failure (bit-rot / disk corruption)."""
+        db = DatabaseManager(temp_db_path)
+        db.initialize()
+        # Insert a row so the db has payload beyond the schema.
+        db.execute_query(
+            "INSERT INTO operations (operation_type, timestamp, source_path, status) VALUES (?, ?, ?, ?)",
+            ("move", "2024-01-01T00:00:00Z", "/a", "completed"),
+        )
+        db.get_connection().commit()
+        db.close()
+
+        # Flip bits in the middle of the file — past the header so
+        # opening still works, but pages fail integrity.
+        with open(temp_db_path, "r+b") as fh:
+            fh.seek(4096)  # after page 1
+            fh.write(b"\x00" * 512)
+
+        db2 = DatabaseManager(temp_db_path)
+        with pytest.raises(DatabaseCorruptionError):
+            db2.initialize()
+
+    def test_corruption_error_is_actionable(self, temp_db_path):
+        """The error message must tell the operator what to do — not
+        just "integrity_check failed". Look for the quarantine hint."""
+        db = DatabaseManager(temp_db_path)
+        db.initialize()
+        db.close()
+        size = temp_db_path.stat().st_size
+        with open(temp_db_path, "r+b") as fh:
+            fh.truncate(size // 2)
+
+        db2 = DatabaseManager(temp_db_path)
+        with pytest.raises(DatabaseCorruptionError) as excinfo:
+            db2.initialize()
+        msg = str(excinfo.value).lower()
+        # Must mention recovery/quarantine/move action so the caller
+        # can render a prompt. Exact wording locks in the contract.
+        assert any(word in msg for word in ("quarantine", "move aside", "rename", "back up")), (
+            f"error message lacks recovery guidance: {excinfo.value}"
+        )
+
+    def test_operational_error_is_not_classified_as_corruption(self, temp_db_path):
+        """Codex P1 PRRT_kwDOR_Rkws59g2Eu: ``PRAGMA integrity_check``
+        can raise ``sqlite3.OperationalError`` for TRANSIENT reasons
+        (database locked by another writer, I/O interrupt, etc.).
+        Those are NOT corruption — wrapping them as
+        ``DatabaseCorruptionError`` would trigger destructive
+        quarantine remediation on a healthy file. The helper must
+        let ``OperationalError`` propagate unchanged.
+
+        Uses ``_check_integrity_locked`` directly with a mock
+        connection because ``sqlite3.Connection.execute`` is a
+        read-only C attribute that can't be monkeypatched.
+        """
+        db = DatabaseManager(temp_db_path)
+
+        # Mock connection whose .execute raises a lock error.
+        # OperationalError is a subclass of DatabaseError, so if the
+        # helper catches DatabaseError broadly it would (incorrectly)
+        # wrap this as corruption.
+        lock_error = sqlite3.OperationalError("database is locked")
+        mock_conn = MagicMock(spec=sqlite3.Connection)
+        mock_conn.execute.side_effect = lock_error
+
+        with pytest.raises(sqlite3.OperationalError) as excinfo:
+            db._check_integrity_locked(mock_conn)
+
+        # OperationalError must propagate unchanged — NOT wrapped.
+        assert excinfo.value is lock_error, (
+            "OperationalError must propagate; wrapping as "
+            "DatabaseCorruptionError would trigger destructive "
+            "quarantine on a healthy locked database "
+            "(codex P1 PRRT_kwDOR_Rkws59g2Eu)"
+        )
+        assert not isinstance(excinfo.value, DatabaseCorruptionError)
+
+    def test_non_operational_database_error_is_classified_as_corruption(self, temp_db_path):
+        """Companion to the OperationalError passthrough: a generic
+        ``sqlite3.DatabaseError`` from ``PRAGMA integrity_check``
+        (e.g. "database disk image is malformed" for a truncated
+        file that's too damaged for integrity_check to even report
+        rows) SHOULD still be wrapped as ``DatabaseCorruptionError``.
+        Preserves the round-3 contract for actual corruption.
+        """
+        db = DatabaseManager(temp_db_path)
+
+        # Real corruption signal — DatabaseError that is NOT an
+        # OperationalError subclass.
+        corruption_error = sqlite3.DatabaseError("database disk image is malformed")
+        assert not isinstance(corruption_error, sqlite3.OperationalError)
+
+        mock_conn = MagicMock(spec=sqlite3.Connection)
+        mock_conn.execute.side_effect = corruption_error
+
+        with pytest.raises(DatabaseCorruptionError):
+            db._check_integrity_locked(mock_conn)

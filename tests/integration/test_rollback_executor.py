@@ -76,6 +76,27 @@ class TestRollbackOperationDispatch:
         assert src.exists()
         assert not dest.exists()
 
+    def test_move_dispatch_on_directory(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59hT9a: rollback of a MOVE whose
+        destination is a DIRECTORY must succeed — ``_move`` routes
+        directories through ``shutil.move`` because ``durable_move``
+        rejects them with ``IsADirectoryError``.
+        """
+        executor = RollbackExecutor(validator=None)
+        dest_dir = tmp_path / "dest_dir"
+        dest_dir.mkdir()
+        (dest_dir / "inside.txt").write_text("content")
+        src = tmp_path / "src_parent" / "moved_dir"
+        src.parent.mkdir()
+        op = _op(OperationType.MOVE, src, dest_dir)
+
+        result = executor.rollback_operation(op)
+
+        assert result is True, "directory MOVE rollback must succeed"
+        assert src.exists() and src.is_dir()
+        assert (src / "inside.txt").read_text() == "content"
+        assert not dest_dir.exists()
+
     def test_rename_dispatch_success(self, tmp_path: Path) -> None:
         executor = RollbackExecutor(validator=None)
         new_name = tmp_path / "new.txt"
@@ -101,6 +122,23 @@ class TestRollbackOperationDispatch:
         assert result is True
         # file moved to trash, no longer at original path
         assert not f.exists()
+
+    def test_create_dispatch_on_directory(self, tmp_path: Path) -> None:
+        """F7 regression guard (codex PRRT_kwDOR_Rkws59gRpq): undo
+        of a CREATE operation that produced a directory must still
+        succeed — ``_move_to_trash`` falls back to ``shutil.move``
+        for directories since ``durable_move`` is file-only by
+        design.
+        """
+        executor = RollbackExecutor(validator=None)
+        d = tmp_path / "created_dir"
+        d.mkdir()
+        (d / "inside.txt").write_text("content")
+        op = _op(OperationType.CREATE, d)
+
+        result = executor.rollback_operation(op)
+        assert result is True, "undo of a created directory must succeed"
+        assert not d.exists(), "original directory must be moved to trash"
 
     def test_exception_in_dispatch_returns_false(self, tmp_path: Path) -> None:
         executor = RollbackExecutor(validator=None)
@@ -223,6 +261,46 @@ class TestRollbackDelete:
         result = executor.rollback_delete(op)
         assert result is True
         assert src_file.exists()
+
+    def test_restore_directory_from_trash(self, tmp_path: Path) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59hT9a: ``rollback_delete`` must
+        restore directory trash entries too. ``durable_move`` rejects
+        non-symlink directories with ``IsADirectoryError``, so without
+        the directory fallback in ``_move`` the restore would fail.
+        Regression guard for the round-2 directory-rollback fix pattern
+        extended to the DELETE undo path.
+        """
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        from undo.validator import OperationValidator
+
+        v = OperationValidator(trash_dir=trash)
+        executor = RollbackExecutor(validator=v)
+
+        # Pre-populate trash with a DIRECTORY entry.
+        trash_subdir = trash / "7"
+        trash_subdir.mkdir()
+        dir_in_trash = trash_subdir / "deleted_dir"
+        dir_in_trash.mkdir()
+        (dir_in_trash / "inside.txt").write_text("nested content")
+
+        # Original location of the deleted directory.
+        src_parent = tmp_path / "src_parent"
+        src_parent.mkdir()
+        original_dir = src_parent / "deleted_dir"
+        op = _op(OperationType.DELETE, original_dir, op_id=7)
+
+        result = executor.rollback_delete(op)
+
+        assert result is True, (
+            "rollback_delete must restore directory entries — durable_move "
+            "is file-only and would raise IsADirectoryError on a dir trash "
+            "entry (codex P1 PRRT_kwDOR_Rkws59hT9a)"
+        )
+        assert original_dir.exists() and original_dir.is_dir()
+        assert (original_dir / "inside.txt").read_text() == "nested content"
+        # Trash directory cleaned up by rollback_delete's rmdir call.
+        assert not dir_in_trash.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -497,3 +575,79 @@ class TestMoveToTrash:
         trash_path = executor._move_to_trash(f, operation_id=None)
         assert trash_path.exists()
         assert not f.exists()
+
+
+# ---------------------------------------------------------------------------
+# Journal coordination between validator and executor
+# ---------------------------------------------------------------------------
+
+
+class TestExecutorJournalPathCoordination:
+    """Codex P2 PRRT_kwDOR_Rkws59hGWY: when a caller injects a
+    validator with a custom ``journal_path`` but omits the
+    executor's ``journal_path`` argument, the executor MUST reuse
+    the validator's path. Using the default would split the
+    write/read: durable_move writes one journal while
+    ``is_trash_safe_to_delete`` reads another — reintroducing the
+    F8 GC-vs-restore race.
+    """
+
+    def test_executor_inherits_validator_journal_path_when_omitted(self, tmp_path: Path) -> None:
+        from undo.validator import OperationValidator
+
+        custom_journal = tmp_path / "custom-tenant.journal"
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        validator = OperationValidator(trash_dir=trash, journal_path=custom_journal)
+
+        executor = RollbackExecutor(validator=validator)  # no journal_path!
+
+        assert executor.journal_path == custom_journal, (
+            "executor must inherit validator.journal_path when no explicit "
+            "journal_path is passed; otherwise durable_move writes and "
+            "is_trash_safe_to_delete reads diverge (codex P2 "
+            "PRRT_kwDOR_Rkws59hGWY)"
+        )
+
+    def test_explicit_executor_journal_path_overrides_validator(self, tmp_path: Path) -> None:
+        """If both are specified, the explicit executor journal_path
+        wins — callers opt into the split only when they pass it."""
+        from undo.validator import OperationValidator
+
+        validator_journal = tmp_path / "validator.journal"
+        executor_journal = tmp_path / "executor.journal"
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        validator = OperationValidator(trash_dir=trash, journal_path=validator_journal)
+
+        executor = RollbackExecutor(validator=validator, journal_path=executor_journal)
+
+        assert executor.journal_path == executor_journal
+
+    def test_executor_falls_back_to_default_when_validator_has_no_journal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When the validator exposes no ``journal_path`` attribute
+        (legacy / mocked validators) AND no explicit journal_path is
+        passed, the executor falls back to
+        :func:`default_journal_path` — preserving the pre-fix
+        behaviour for callers that don't wire journal_path at all.
+        """
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg_state"))
+
+        from undo.rollback import default_journal_path
+
+        class LegacyValidator:
+            """Has trash_dir but no journal_path attribute."""
+
+            def __init__(self, trash_dir: Path) -> None:
+                self.trash_dir = trash_dir
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        legacy = LegacyValidator(trash)
+
+        executor = RollbackExecutor(validator=legacy)  # type: ignore[arg-type]
+
+        expected = default_journal_path()
+        assert executor.journal_path == expected
