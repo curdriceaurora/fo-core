@@ -588,3 +588,256 @@ class TestSafeDeleteFileFastPath:
             "MISSING (idempotent), not PERMISSION_ERROR"
         )
         assert outcome.error is None
+
+
+# ---------------------------------------------------------------------------
+# safe_delete directory path: atomic rename + unlocked rmtree (§3.3, §6.1 dir)
+# ---------------------------------------------------------------------------
+
+
+class TestSafeDeleteDirectory:
+    """Step 4: ``safe_delete`` for directories per §3.3.
+
+    Sequence: validate → LOCK_EX → in-flight check → lexists → atomic
+    rename to ``<trash_dir>/.pending-delete-<uuid>`` → release LOCK_EX
+    → unlocked ``rmtree`` of the staging path.
+
+    The atomic-rename pivot (round 2 review fix) is what makes lock-
+    hold time bounded by a single rename syscall regardless of
+    directory subtree size.
+    """
+
+    def test_directory_delete_via_staging_rename(self, tmp_path: Path) -> None:
+        """Populated directory in trash → DELETED, dir gone, no
+        ``.pending-delete-*`` orphan left behind (rmtree finished
+        successfully)."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "deletable_dir"
+        target.mkdir()
+        (target / "child.txt").write_text("inside")
+        (target / "subdir").mkdir()
+        (target / "subdir" / "nested.txt").write_text("nested")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.DELETED
+        assert not target.exists()
+        # No orphan staging entries left over.
+        leftover = [p.name for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
+        assert leftover == [], f"unexpected staging orphans: {leftover}"
+
+    def test_directory_delete_uses_rename_under_lock_then_rmtree(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Spec §3.3 contract: the rename happens before LOCK_UN; the
+        rmtree happens AFTER LOCK_UN. Instruments fcntl.flock + rename
+        + rmtree call order."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX flock semantics")
+        import fcntl
+        import os
+        import shutil
+
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "ordered"
+        target.mkdir()
+        (target / "x").write_text("x")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        events: list[str] = []
+        real_flock = fcntl.flock
+        real_rename = os.rename
+        real_rmtree = shutil.rmtree
+
+        def tracking_flock(fd: int, op: int) -> None:
+            tag = (
+                "LOCK_EX"
+                if op == fcntl.LOCK_EX
+                else ("LOCK_SH" if op == fcntl.LOCK_SH else "LOCK_UN")
+            )
+            events.append(f"flock:{tag}")
+            real_flock(fd, op)
+
+        def tracking_rename(src: object, dst: object) -> None:
+            events.append(f"rename:{Path(str(src)).name}->{Path(str(dst)).name}")
+            real_rename(src, dst)
+
+        def tracking_rmtree(path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            events.append(f"rmtree:{Path(str(path)).name}")
+            return real_rmtree(path, *args, **kwargs)
+
+        monkeypatch.setattr("undo.durable_move.fcntl.flock", tracking_flock)
+        monkeypatch.setattr("undo.trash_gc.os.rename", tracking_rename)
+        monkeypatch.setattr("undo.trash_gc.shutil.rmtree", tracking_rmtree)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.DELETED
+
+        # Find indices of the key events. The contract is:
+        #   LOCK_EX < rename < LOCK_UN < rmtree
+        ex_idx = next(i for i, e in enumerate(events) if e == "flock:LOCK_EX")
+        rename_idx = next(i for i, e in enumerate(events) if e.startswith("rename:"))
+        un_idx = next(i for i, e in enumerate(events) if e == "flock:LOCK_UN")
+        rmtree_idx = next(i for i, e in enumerate(events) if e.startswith("rmtree:"))
+
+        assert ex_idx < rename_idx < un_idx < rmtree_idx, (
+            f"§3.3 contract violated — expected LOCK_EX < rename < LOCK_UN < rmtree; "
+            f"got events={events}"
+        )
+
+    def test_directory_returns_permission_error_when_rename_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``os.rename`` raises ``PermissionError`` → outcome is
+        PERMISSION_ERROR, original dir still at original path, no
+        staging dir created."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "no_rename_perm"
+        target.mkdir()
+        (target / "x").write_text("x")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        sentinel_exc = OSError(13, "simulated permission denied")
+
+        def failing_rename(src: object, dst: object) -> None:
+            raise sentinel_exc
+
+        monkeypatch.setattr("undo.trash_gc.os.rename", failing_rename)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.PERMISSION_ERROR
+        assert outcome.error is sentinel_exc
+        assert target.is_dir(), "target must remain at original path"
+        # No staging entries either (the rename never succeeded).
+        leftover = [p.name for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
+        assert leftover == []
+
+    def test_directory_returns_partial_failure_when_rmtree_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``shutil.rmtree`` raises after the rename succeeded → outcome
+        is DELETED_WITH_STAGING_FAILURE, original path is gone (rename
+        succeeded under lock), the orphan staging dir survives in
+        trash_dir for the next-init recovery to clean."""
+        import shutil
+
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "rmtree_fails"
+        target.mkdir()
+        (target / "x").write_text("data")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        sentinel_exc = OSError(13, "simulated rmtree denied")
+
+        def failing_rmtree(path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            raise sentinel_exc
+
+        monkeypatch.setattr("undo.trash_gc.shutil.rmtree", failing_rmtree)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.DELETED_WITH_STAGING_FAILURE
+        assert outcome.error is sentinel_exc
+        assert not target.exists(), "original path MUST be gone — rename succeeded under lock"
+        # The orphan staging dir survives for next-init cleanup.
+        orphans = [p for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
+        assert len(orphans) == 1, (
+            f"expected exactly one orphan staging dir; got {[p.name for p in orphans]}"
+        )
+        # The orphan should still contain the data — rmtree's failure means it
+        # didn't get to delete anything (or only deleted partially).
+        assert orphans[0].is_dir()
+
+    def test_directory_with_in_flight_dir_move_skipped(self, tmp_path: Path) -> None:
+        """Spec §6.2 race row: a ``dir_move started`` journal entry
+        whose dst is the trash dir → SKIPPED_IN_FLIGHT. Critical
+        because directory move/restore happens precisely via this
+        journal record, and GC must wait for it to complete."""
+        from undo.durable_move import _append_journal
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "in_flight_dir"
+        target.mkdir()
+        (target / "x").write_text("x")
+        journal = tmp_path / "move.journal"
+        _append_journal(
+            journal,
+            {
+                "op": "dir_move",
+                "src": str(tmp_path / "src_dir"),
+                "dst": str(target),
+                "state": "started",
+            },
+        )
+        gc = TrashGC(trash, journal_path=journal)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.SKIPPED_IN_FLIGHT
+        assert target.is_dir(), "directory must NOT be removed during dir_move"
+        # No staging dir created either (rename skipped).
+        leftover = [p.name for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
+        assert leftover == []
+
+    def test_directory_orphan_cleaned_on_next_init(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """End-to-end recovery flow: failed rmtree leaves an orphan
+        staging dir; the next ``TrashGC`` construction sweeps it up.
+        Validates that step 2's eager init recovery composes correctly
+        with step 4's atomic-rename pattern."""
+        import shutil
+
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "to_recover"
+        target.mkdir()
+        (target / "x").write_text("x")
+
+        # Capture the REAL shutil.rmtree before patching so we can
+        # restore it later. After monkeypatch.setattr replaces the
+        # attribute, ``shutil.rmtree`` everywhere in this process
+        # references the patched value (modules are singletons).
+        real_rmtree = shutil.rmtree
+
+        # First TrashGC instance: patch rmtree to fail and produce an orphan.
+        gc1 = TrashGC(trash, journal_path=tmp_path / "j")
+        sentinel_exc = OSError(28, "simulated rmtree disk full")
+
+        def failing_rmtree(*a: object, **k: object) -> None:
+            raise sentinel_exc
+
+        monkeypatch.setattr("undo.trash_gc.shutil.rmtree", failing_rmtree)
+
+        outcome = gc1.safe_delete(target)
+        assert outcome.result is TrashDeleteResult.DELETED_WITH_STAGING_FAILURE
+        orphans_before = [p for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
+        assert len(orphans_before) == 1
+
+        # Restore the real rmtree (captured before the patch) so the
+        # next-init recovery can actually delete the orphan.
+        monkeypatch.setattr("undo.trash_gc.shutil.rmtree", real_rmtree)
+
+        # Second TrashGC instance: eager init recovery sweeps the orphan.
+        TrashGC(trash, journal_path=tmp_path / "j")
+        orphans_after = [p for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
+        assert orphans_after == [], f"next-init recovery must clean orphans; left {orphans_after}"

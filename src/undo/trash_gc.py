@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import uuid
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -216,8 +217,10 @@ class TrashGC:
 
         Step 3 implements the file/symlink fast path: validate path is
         inside ``trash_dir`` → acquire ``LOCK_EX`` on ``<journal>.lock``
-        → check ``is_path_in_flight`` → ``lexists`` → ``unlink`` →
-        release. Step 4 will add the directory atomic-rename path.
+        → check ``is_path_in_flight`` → ``lexists`` → ``unlink`` (file
+        / symlink) OR atomic ``rename`` to ``.pending-delete-<uuid>``
+        (directory) → release ``LOCK_EX`` → unlocked ``rmtree`` of the
+        staging dir for the directory case.
 
         Symlinks (including dangling and symlinks to directories) are
         always unlinked, NEVER walked into — see
@@ -241,13 +244,24 @@ class TrashGC:
             logger.warning("trash GC: %s", outcome.reason)
             return outcome
 
-        # Acquire LOCK_EX on <journal>.lock for the check + unlink window.
-        # Step 4 will reuse this same lock for the atomic-rename of
-        # directories.
+        # Phase 1 (under LOCK_EX): in-flight check + unlink-or-rename.
+        # ``_decide_under_lock`` returns either a final outcome OR a
+        # staging path that phase 2 must rmtree without holding the lock.
+        # Lock-hold scope is bounded by one rename syscall in the
+        # directory case — §3.3 atomic-rename pivot.
         if _HAS_FCNTL:
             with _locked(self.journal_path, fcntl.LOCK_EX):
-                return self._delete_file_locked(path)
-        return self._delete_file_locked(path)  # pragma: no cover - Windows
+                outcome, staging = self._decide_under_lock(path)
+        else:  # pragma: no cover - Windows
+            outcome, staging = self._decide_under_lock(path)
+
+        # Phase 2 (UNLOCKED): rmtree the staging dir if phase 1 renamed
+        # one. Concurrent writers can proceed during the rmtree.
+        if staging is not None:
+            return self._rmtree_unlocked(path, staging)
+        # Phase 1 produced a final outcome.
+        assert outcome is not None
+        return outcome
 
     def _is_inside_trash(self, path: Path) -> bool:
         """Return True iff *path*'s LEXICAL absolute form is inside ``self.trash_dir``.
@@ -266,19 +280,24 @@ class TrashGC:
             return False
         return True
 
-    def _delete_file_locked(self, path: Path) -> TrashDeleteOutcome:
-        """Body of ``safe_delete`` for files/symlinks; runs under ``LOCK_EX``.
+    def _decide_under_lock(self, path: Path) -> tuple[TrashDeleteOutcome | None, Path | None]:
+        """Phase 1 of ``safe_delete``; runs while holding ``LOCK_EX``.
 
-        Sequence per §3.2 steps 3–5: in-flight check → lexists →
-        unlink. Step 4 will branch here on ``path.is_dir() and not
-        path.is_symlink()`` to dispatch to the directory rename helper.
+        Returns ``(outcome, None)`` if the deletion can be fully
+        decided under the lock (file/symlink path, or any error/skip
+        case), or ``(None, staging_path)`` if the directory was
+        successfully renamed to a staging path that must be rmtree'd
+        WITHOUT the lock held (§3.3 atomic-rename pivot).
+
+        Returning a tuple is uglier than two separate paths but keeps
+        the lock acquisition site (in :meth:`safe_delete`) the single
+        source of truth for "what runs under the lock."
         """
         # Unlocked predicate: we ALREADY hold LOCK_EX on the lock file.
-        # Calling is_path_in_flight() here would re-acquire LOCK_SH on a
-        # different fd of the same inode and deadlock against our own
-        # LOCK_EX. The shared helper avoids that by accepting pre-loaded
-        # entries — we read them inline (also no lock needed under our
-        # held LOCK_EX).
+        # Calling is_path_in_flight() here would re-acquire LOCK_SH on
+        # a different fd of the same inode and deadlock against our own
+        # LOCK_EX. The shared helper accepts pre-loaded entries; we
+        # read them inline (also no lock needed under our held LOCK_EX).
         entries = _read_journal(self.journal_path)
         if _path_in_flight_from_entries(path, entries):
             outcome = TrashDeleteOutcome(
@@ -290,7 +309,7 @@ class TrashGC:
                 ),
             )
             logger.info("trash GC: %s", outcome.reason)
-            return outcome
+            return outcome, None
 
         # ``lexists`` so dangling symlinks count as present.
         if not os.path.lexists(path):
@@ -300,8 +319,27 @@ class TrashGC:
                 reason=f"path {path} did not exist at deletion time",
             )
             logger.debug("trash GC: %s", outcome.reason)
-            return outcome
+            return outcome, None
 
+        # Dispatch on path type:
+        #   - Symlink (incl. links to directories) → unlink (lock-held).
+        #   - Regular file → unlink (lock-held).
+        #   - Real directory → atomic rename to staging (lock-held);
+        #     rmtree happens UNLOCKED in phase 2.
+        # ``Path.is_dir()`` returns True for symlinks-to-directories,
+        # so we explicitly check ``is_symlink()`` first to keep symlinks
+        # on the unlink path (load-bearing — see
+        # ``test_does_not_follow_symlink_to_directory``).
+        if path.is_symlink() or not path.is_dir():
+            return self._unlink_under_lock(path), None
+        return self._rename_dir_under_lock(path)
+
+    def _unlink_under_lock(self, path: Path) -> TrashDeleteOutcome:
+        """Unlink a file/symlink while holding ``LOCK_EX``.
+
+        Maps OSError variants per §5.1: FileNotFoundError →
+        idempotent MISSING; other OSError → PERMISSION_ERROR.
+        """
         try:
             path.unlink()
         except FileNotFoundError:
@@ -324,11 +362,79 @@ class TrashGC:
             )
             logger.warning("trash GC: %s", outcome.reason, exc_info=True)
             return outcome
-
         outcome = TrashDeleteOutcome(
             result=TrashDeleteResult.DELETED,
             path=path,
             reason=f"unlinked {path}",
+        )
+        logger.debug("trash GC: %s", outcome.reason)
+        return outcome
+
+    def _rename_dir_under_lock(self, path: Path) -> tuple[TrashDeleteOutcome | None, Path | None]:
+        """Atomically rename a directory to a staging path (§3.3 step 6).
+
+        Returns:
+            ``(None, staging)`` on success — phase 2 ``rmtree`` is the
+            caller's responsibility (and runs UNLOCKED).
+            ``(outcome, None)`` on rename failure: PERMISSION_ERROR
+            with the OSError populated; the original path is still in
+            place because the rename never landed.
+
+        The staging path lives inside ``self.trash_dir`` so the rename
+        is single-filesystem (no EXDEV failure mode). The
+        ``.pending-delete-<uuid>`` namespace is GC-owned: no other
+        writer touches paths with that prefix, so the unlocked rmtree
+        in phase 2 cannot race anyone.
+        """
+        staging = self.trash_dir / f".pending-delete-{uuid.uuid4().hex}"
+        try:
+            os.rename(path, staging)
+        except OSError as exc:
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.PERMISSION_ERROR,
+                path=path,
+                reason=f"rename of {path} to staging {staging.name} raised: {exc}",
+                error=exc,
+            )
+            logger.warning("trash GC: %s", outcome.reason, exc_info=True)
+            return outcome, None
+        # Lock will release in safe_delete; phase 2 owns the rmtree.
+        return None, staging
+
+    def _rmtree_unlocked(self, original_path: Path, staging: Path) -> TrashDeleteOutcome:
+        """Phase 2: ``rmtree`` the staging dir WITHOUT holding the lock (§3.3).
+
+        Spec §5.1 outcomes for the directory case after a successful
+        rename:
+
+        - ``rmtree`` succeeds → ``DELETED`` (clean).
+        - ``rmtree`` raises → ``DELETED_WITH_STAGING_FAILURE``: the
+          user's ``original_path`` is gone (rename succeeded under
+          lock), but the orphan staging dir survives. Next-init eager
+          recovery (§3.4) cleans it on the next :class:`TrashGC`
+          construction. The error is surfaced so operators correlate
+          partial-state outcomes with the underlying failure.
+        """
+        try:
+            shutil.rmtree(staging)
+        except OSError as exc:
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.DELETED_WITH_STAGING_FAILURE,
+                path=original_path,
+                reason=(
+                    f"renamed {original_path} to staging {staging.name} "
+                    f"under lock, but unlocked rmtree raised: {exc}. "
+                    "Orphan staging dir will be cleaned by next TrashGC "
+                    "construction's init recovery."
+                ),
+                error=exc,
+            )
+            logger.warning("trash GC: %s", outcome.reason, exc_info=True)
+            return outcome
+        outcome = TrashDeleteOutcome(
+            result=TrashDeleteResult.DELETED,
+            path=original_path,
+            reason=f"renamed {original_path} to staging and rmtree'd",
         )
         logger.debug("trash GC: %s", outcome.reason)
         return outcome
