@@ -5,8 +5,8 @@ Replaces the legacy argparse ``dedupe`` command with a sub-app
 providing ``scan``, ``resolve``, and ``report`` commands.
 
 Output format is selected via ``--format={rich|json|plain}`` and routed
-through the :class:`cli.dedupe_renderer.Renderer` Protocol — see
-``docs/internal/D-storage-design.md`` (issue #157, Epic D / D4).
+through the :class:`cli.dedupe_renderer.Renderer` Protocol (issue #157,
+Epic D / D4).
 """
 
 from __future__ import annotations
@@ -33,6 +33,20 @@ dedupe_app = typer.Typer(
 )
 
 _FORMAT_HELP = "Output format: rich (default), json, plain"
+
+
+def _validate_format(value: str) -> str:
+    """Typer callback: convert ``ValueError`` from :func:`make_renderer` into ``BadParameter``.
+
+    Without this the user sees an unhandled ``ValueError`` traceback for
+    ``--format=xml`` instead of a Typer/Click usage error with the
+    accepted alternatives listed.
+    """
+    try:
+        make_renderer(value)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    return value.lower()
 
 
 def _get_detector() -> Any:
@@ -129,6 +143,7 @@ def scan(
         "-f",
         help=_FORMAT_HELP,
         case_sensitive=False,
+        callback=_validate_format,
     ),
 ) -> None:
     """Scan a directory and display duplicate file groups."""
@@ -190,24 +205,29 @@ def resolve(
         "-f",
         help=_FORMAT_HELP,
         case_sensitive=False,
+        callback=_validate_format,
     ),
 ) -> None:
     """Scan and resolve duplicates using a strategy."""
     directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
     renderer: Renderer = make_renderer(output_format)
-    renderer.begin("resolve")
     # #170: any `resolve` that will actually traverse hidden files (either via
     # ``--include-hidden`` OR because the scan root itself is a hidden dir
     # like ``~/.ssh``) requires an explicit credential-risk confirmation.
     # ``--yes`` / ``--no-interactive`` still honour their usual semantics via
     # ``confirm_action``. User-cancellation exits with code 1 so shell scripts
     # and ``&&`` chains can distinguish "aborted" from "no duplicates found".
+    #
+    # Confirmation runs BEFORE ``renderer.begin()`` so an aborted
+    # ``--format=json`` invocation prints only the plain "Aborted."
+    # message to stderr and emits no envelope at all (consumers piping
+    # to ``jq`` won't get a stub envelope claiming a command was run).
     if _hidden_files_will_be_scanned(
         directory, include_hidden=include_hidden
     ) and not confirm_action(_HIDDEN_RESOLVE_WARNING, default=False):
         renderer.render_message("warning", "Aborted.")
-        renderer.end()
         raise typer.Exit(code=1)
+    renderer.begin("resolve")
     detector = _get_detector()
     options = _build_scan_options(
         directory,
@@ -279,6 +299,7 @@ def report(
         "-f",
         help=_FORMAT_HELP,
         case_sensitive=False,
+        callback=_validate_format,
     ),
 ) -> None:
     """Scan and display a summary report of duplicates."""

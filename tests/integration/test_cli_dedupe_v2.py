@@ -144,7 +144,13 @@ class TestScanCommand:
         assert "No duplicates" in result.output
 
     def test_scan_json_no_duplicates_exits_zero(self, tmp_path: Path) -> None:
-        """No duplicates path exits 0 even with --json (early exit before JSON render)."""
+        """No duplicates path exits 0 with ``--format json``.
+
+        ``scan`` calls ``renderer.end()`` before ``typer.Exit()`` on the
+        no-duplicates branch, so ``JsonRenderer`` still flushes a v1
+        envelope (with an empty ``groups`` array, after the fix that
+        always emits the documented schema keys).
+        """
         src = tmp_path / "files"
         src.mkdir()
         (src / "solo.txt").write_text("x")
@@ -508,3 +514,70 @@ class TestPlainFormat:
         # Plain summary
         assert "removed_count:" in result.output
         assert "dry_run: true" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Review-feedback regressions on PR #206 (Copilot)
+# ---------------------------------------------------------------------------
+
+
+class TestFormatFlagValidation:
+    """``--format`` rejects invalid values via ``typer.BadParameter``."""
+
+    def test_invalid_format_emits_typer_usage_error(self, tmp_path: Path) -> None:
+        src = tmp_path / "files"
+        src.mkdir()
+
+        result = runner.invoke(dedupe_app, ["scan", str(src), "--format", "xml"])
+
+        # Typer surfaces BadParameter as exit code 2 (usage error), with
+        # the error message naming the accepted alternatives.
+        assert result.exit_code == 2
+        # The accepted formats appear in the error message
+        out = (result.stderr or "") + (result.output or "")
+        assert "rich" in out
+        assert "json" in out
+        assert "plain" in out
+
+
+class TestResolveAbortNoEnvelope:
+    """When the hidden-file gate aborts ``resolve``, JSON envelope must NOT be emitted.
+
+    Otherwise consumers piping ``--format json | jq`` see a stub envelope
+    claiming the command ran. CodeRabbit / Copilot flagged this on PR #206.
+    """
+
+    def test_aborted_resolve_json_emits_no_envelope_on_stdout(self, tmp_path: Path) -> None:
+        # Create a hidden directory so the resolve gate fires
+        hidden = tmp_path / ".secrets"
+        hidden.mkdir()
+        (hidden / "a.txt").write_text("x")
+
+        # Decline the prompt (input "n\n")
+        result = runner.invoke(
+            dedupe_app,
+            ["resolve", str(hidden), "--strategy", "oldest", "--format", "json"],
+            input="n\n",
+        )
+
+        # Aborted with exit code 1
+        assert result.exit_code == 1
+        # No JSON envelope on stdout (the only thing on stdout/stderr is
+        # the "Aborted." message routed through render_message → stderr).
+        # CliRunner merges streams; the merged output must NOT parse as
+        # a v1 envelope tagged "resolve".
+        import json as _json
+
+        # Try to find a JSON object in output; if found, must NOT be a
+        # resolve envelope.
+        output = result.output
+        brace_idx = output.find("{")
+        if brace_idx != -1:
+            try:
+                envelope = _json.loads(output[brace_idx:])
+                assert envelope.get("command") != "resolve", (
+                    "Aborted resolve must not emit a JSON envelope"
+                )
+            except _json.JSONDecodeError:
+                # Non-JSON output is fine — it just means no envelope.
+                pass

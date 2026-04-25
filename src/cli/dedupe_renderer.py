@@ -260,19 +260,22 @@ class JsonRenderer:
         self._began = True
 
     def end(self) -> None:
-        """Flush the envelope to stdout. No-op if :meth:`begin` wasn't called."""
+        """Flush the envelope to stdout. No-op if :meth:`begin` wasn't called.
+
+        Emits a stable v1 shape: ``groups`` / ``actions`` / ``summary``
+        are always present (possibly empty) so consumers can rely on
+        ``jq '.groups[]'`` / ``jq '.summary'`` not erroring on
+        empty-result runs.
+        """
         if not self._began:
             return
         envelope: dict[str, Any] = {
             "version": 1,
             "command": self._command,
+            "groups": self._groups_payload,
+            "actions": self._actions,
+            "summary": self._summary,
         }
-        if self._groups_payload:
-            envelope["groups"] = self._groups_payload
-        if self._actions:
-            envelope["actions"] = self._actions
-        if self._summary:
-            envelope["summary"] = self._summary
         json.dump(envelope, self._stream)
         # Reset for potential reuse.
         self._began = False
@@ -388,12 +391,22 @@ class PlainRenderer:
         path: Path,
         error: str | None = None,
     ) -> None:
-        """Emit a resolve action as ``ACTION: path[: error]``."""
+        """Emit a resolve action as ``ACTION: path[: error]``.
+
+        Validates ``action`` against the ``ResolveAction`` literal set so
+        unknown values raise instead of silently emitting garbage. When
+        ``action == "error"`` and no message was supplied, emits a stable
+        ``"<unknown error>"`` placeholder rather than the literal string
+        ``"None"``.
+        """
         if action == "error":
-            self._write(f"error: {path}: {error}")
-        else:
-            # 'removed' / 'would_remove'
+            self._write(f"error: {path}: {error if error is not None else '<unknown error>'}")
+        elif action in ("removed", "would_remove"):
             self._write(f"{action}: {path}")
+        else:
+            raise ValueError(
+                f"Unknown resolve action {action!r}; expected one of: would_remove, removed, error"
+            )
 
     def render_resolve_summary(self, removed_count: int, dry_run: bool) -> None:
         """Emit summary as ``key: value`` lines."""

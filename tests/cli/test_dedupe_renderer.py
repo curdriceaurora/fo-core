@@ -2,12 +2,14 @@
 
 Issue #157 / Epic D / D4 Renderer extraction.
 
-Test contract (from `docs/internal/D-storage-design.md` §2.4):
+Test contract:
 - ``make_renderer("invalid")`` raises ``ValueError`` listing accepted formats.
 - ``RichRenderer`` writes through a Rich Console (we capture via ``StringIO``).
 - ``JsonRenderer`` produces a single JSON envelope at ``end()``, with the
-  ``version: 1`` schema (NOT ``schema``: see spec §2.1 — ``$schema`` is
-  conventionally a URI, so reusing it for an integer indicator misleads).
+  ``version: 1`` schema (NOT ``schema``: ``$schema`` is conventionally a
+  URI, so reusing it for an integer indicator misleads). The envelope
+  always includes ``groups`` / ``actions`` / ``summary`` keys (possibly
+  empty) so consumers can rely on a stable shape.
 - ``PlainRenderer`` produces line-oriented output suitable for piping to ``awk``.
 - All three handle every method on the protocol; no method silently no-ops in
   ways that hide a bug (begin/end pairing matters for JsonRenderer).
@@ -250,6 +252,27 @@ class TestJsonRenderer:
         envelope = json.loads(out)
         assert envelope["version"] == 1
         assert envelope["command"] == "scan"
+
+    def test_envelope_always_includes_v1_schema_keys(self) -> None:
+        """Empty run still emits ``groups`` / ``actions`` / ``summary``.
+
+        Consumers piping ``--format json | jq '.summary'`` shouldn't have
+        to special-case empty-result runs; the v1 envelope is documented
+        as having a stable shape. CodeRabbit flagged the original
+        conditional-omission behavior on PR #206.
+        """
+        r, buf = self._renderer()
+        r.begin("scan")
+        # No render_* calls — empty run
+        r.end()
+        envelope = json.loads(buf.getvalue())
+        assert envelope == {
+            "version": 1,
+            "command": "scan",
+            "groups": [],
+            "actions": [],
+            "summary": {},
+        }
 
     def test_envelope_schema_for_scan(self, tmp_path: Path) -> None:
         r, buf = self._renderer()
