@@ -731,8 +731,6 @@ class TestSafeDeleteDirectory:
         is DELETED_WITH_STAGING_FAILURE, original path is gone (rename
         succeeded under lock), the orphan staging dir survives in
         trash_dir for the next-init recovery to clean."""
-        import shutil
-
         from undo.trash_gc import TrashDeleteResult, TrashGC
 
         trash = tmp_path / "trash"
@@ -841,3 +839,321 @@ class TestSafeDeleteDirectory:
         TrashGC(trash, journal_path=tmp_path / "j")
         orphans_after = [p for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
         assert orphans_after == [], f"next-init recovery must clean orphans; left {orphans_after}"
+
+
+# ---------------------------------------------------------------------------
+# Race + coordination + lock-hygiene (§6.2, §6.3)
+# ---------------------------------------------------------------------------
+
+
+class TestSafeDeleteRaceCoordination:
+    """Spec §6.2 — concurrent-actor tests that validate the LOCK_EX
+    contract holds against writers, against other GCs, and across the
+    atomic-rename / unlocked-rmtree boundary.
+
+    These tests use real threads + real fcntl. They depend on POSIX
+    flock semantics: LOCK_EX requires no other lock; LOCK_SH blocks
+    while LOCK_EX is held; LOCK_EX waits for any LOCK_SH to drop.
+    """
+
+    def test_safe_delete_blocks_while_writer_holds_lock_sh(self, tmp_path: Path) -> None:
+        """A reader holding ``LOCK_SH`` on ``<journal>.lock`` makes
+        ``safe_delete``'s ``LOCK_EX`` acquire wait. Mirrors the
+        equivalent ``is_path_in_flight`` test from #201."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX flock semantics")
+        import fcntl
+        import threading
+
+        from undo.durable_move import _append_journal, _lock_path
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "blocked.txt"
+        target.write_text("ready")
+        journal = tmp_path / "move.journal"
+        # Pre-populate so the lock file exists for the holder's open().
+        _append_journal(journal, {"op": "move", "src": "/x", "dst": "/y", "state": "done"})
+        gc = TrashGC(trash, journal_path=journal)
+
+        # Hold LOCK_SH on the lock file from the main thread.
+        holder = open(_lock_path(journal), "a", encoding="utf-8")
+        fcntl.flock(holder.fileno(), fcntl.LOCK_SH)
+
+        gc_done = threading.Event()
+        outcome_holder: list[object] = [None]
+
+        def _gc_worker() -> None:
+            try:
+                outcome_holder[0] = gc.safe_delete(target)
+            finally:
+                gc_done.set()
+
+        gc_thread = threading.Thread(target=_gc_worker)
+        gc_thread.start()
+
+        # GC should be blocked while we hold LOCK_SH.
+        gc_done.wait(timeout=0.5)
+        try:
+            assert not gc_done.is_set(), "GC's LOCK_EX must wait while a reader holds LOCK_SH"
+            assert target.exists(), "file must not be deleted while GC is blocked"
+        finally:
+            # Release LOCK_SH so GC can finish.
+            fcntl.flock(holder.fileno(), fcntl.LOCK_UN)
+            holder.close()
+
+        gc_thread.join(timeout=5.0)
+        assert gc_done.is_set(), "GC must complete after LOCK_SH released"
+        assert outcome_holder[0] is not None
+        assert outcome_holder[0].result is TrashDeleteResult.DELETED  # type: ignore[attr-defined]
+
+    def test_two_concurrent_safe_deletes_serialize(self, tmp_path: Path) -> None:
+        """Two threads call ``safe_delete`` on the same trash file.
+        Expected: one returns DELETED, the other returns MISSING (the
+        racing call saw the file gone after acquiring its own LOCK_EX).
+        Proves LOCK_EX serialization works between two GC processes."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX flock semantics")
+        import threading
+
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "racy.txt"
+        target.write_text("only one wins")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        results: list[object] = []
+        results_lock = threading.Lock()
+
+        def _worker() -> None:
+            r = gc.safe_delete(target)
+            with results_lock:
+                results.append(r)
+
+        threads = [threading.Thread(target=_worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5.0)
+
+        assert len(results) == 2, f"both workers must complete; got {results}"
+        outcome_results = sorted(
+            r.result
+            for r in results  # type: ignore[attr-defined]
+        )
+        # One DELETED + one MISSING — exact set since LOCK_EX serializes.
+        assert outcome_results == sorted([TrashDeleteResult.DELETED, TrashDeleteResult.MISSING]), (
+            f"expected exactly one DELETED + one MISSING; got {outcome_results}. "
+            "If both DELETED, LOCK_EX is not serializing — design is broken."
+        )
+        assert not target.exists()
+
+    def test_safe_delete_directory_lock_hold_bounded_by_rename(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Load-bearing test for the §3.3 atomic-rename pivot: the
+        slow ``rmtree`` of the staging dir does NOT pin LOCK_EX. A
+        concurrent writer's ``_append_journal`` (which needs its own
+        LOCK_EX) must complete in roughly rename-time, NOT after the
+        rmtree finishes.
+
+        Without this property, the entire purpose of the design's
+        round-2 pivot would be unverified.
+        """
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX flock semantics")
+        import shutil
+        import threading
+        import time
+
+        from undo.durable_move import _append_journal
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "big_dir"
+        target.mkdir()
+        for i in range(5):
+            (target / f"f{i}.txt").write_text("data")
+        journal = tmp_path / "move.journal"
+        gc = TrashGC(trash, journal_path=journal)
+
+        # Make rmtree take a noticeable amount of time — 0.3s is far
+        # longer than a rename syscall (microseconds) so any wall-clock
+        # comparison resolves cleanly without flaking on slow CI.
+        rmtree_sleep_seconds = 0.3
+        real_rmtree = shutil.rmtree
+
+        def slow_rmtree(path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            time.sleep(rmtree_sleep_seconds)
+            return real_rmtree(path, *args, **kwargs)
+
+        monkeypatch.setattr("undo.trash_gc.shutil.rmtree", slow_rmtree)
+
+        gc_done = threading.Event()
+        gc_outcome: list[object] = [None]
+        rename_done = threading.Event()
+
+        # Hook os.rename to set rename_done immediately after the GC's
+        # rename returns — that's when the lock is conceptually "about
+        # to be released."
+        real_rename = __import__("os").rename
+
+        def signaling_rename(src, dst):  # type: ignore[no-untyped-def]
+            real_rename(src, dst)
+            rename_done.set()
+
+        monkeypatch.setattr("undo.trash_gc.os.rename", signaling_rename)
+
+        writer_outcome: dict[str, float] = {}
+
+        def _gc_worker() -> None:
+            gc_outcome[0] = gc.safe_delete(target)
+            gc_done.set()
+
+        def _writer_worker() -> None:
+            # Wait until the GC has crossed the rename boundary; THEN
+            # measure how long _append_journal takes. If the lock is
+            # still held during rmtree, this append blocks for
+            # ~rmtree_sleep_seconds. If the lock was released right
+            # after rename (the contract), the append completes
+            # immediately.
+            rename_done.wait(timeout=2.0)
+            t0 = time.perf_counter()
+            _append_journal(
+                journal,
+                {"op": "move", "src": "/x", "dst": "/y", "state": "done"},
+            )
+            writer_outcome["elapsed"] = time.perf_counter() - t0
+
+        gc_thread = threading.Thread(target=_gc_worker)
+        writer_thread = threading.Thread(target=_writer_worker)
+        gc_thread.start()
+        writer_thread.start()
+        gc_thread.join(timeout=5.0)
+        writer_thread.join(timeout=5.0)
+
+        assert gc_done.is_set()
+        assert gc_outcome[0].result is TrashDeleteResult.DELETED  # type: ignore[attr-defined]
+        # The writer's append should have completed in MUCH less time
+        # than the rmtree's 0.3s sleep — only possible if the lock was
+        # released after rename, before rmtree.
+        assert "elapsed" in writer_outcome
+        assert writer_outcome["elapsed"] < rmtree_sleep_seconds / 2, (
+            f"writer append took {writer_outcome['elapsed']:.3f}s — must "
+            f"finish in well under rmtree's {rmtree_sleep_seconds}s sleep. "
+            "If this fails, the lock is being held during rmtree and the "
+            "atomic-rename pivot is not delivering its promised contract."
+        )
+
+
+class TestSafeDeleteLockHygiene:
+    """Spec §6.3: the lock context manager releases on every exit
+    path — including exceptions raised inside the body. A leaked
+    LOCK_EX would block all subsequent journal writes and reads."""
+
+    def test_safe_delete_releases_lock_on_unlink_exception(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When the unlink raises, LOCK_EX must still release so a
+        subsequent reader can proceed."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX flock semantics")
+        import fcntl
+
+        from undo.durable_move import _lock_path
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "explosive.txt"
+        target.write_text("x")
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        real_unlink = Path.unlink
+
+        def boom_unlink(self: Path, *a: object, **k: object) -> None:
+            if self == target:
+                raise OSError(13, "boom")
+            return real_unlink(self, *a, **k)
+
+        monkeypatch.setattr(Path, "unlink", boom_unlink)
+
+        outcome = gc.safe_delete(target)
+        assert outcome.result is TrashDeleteResult.PERMISSION_ERROR
+
+        # Subsequent LOCK_EX acquire on the same lock file must not
+        # block — proving the previous LOCK_EX was released.
+        lockf = open(_lock_path(tmp_path / "j"), "a", encoding="utf-8")
+        try:
+            fcntl.flock(lockf.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pytest.fail("LOCK_EX leaked from previous safe_delete call")
+        else:
+            fcntl.flock(lockf.fileno(), fcntl.LOCK_UN)
+        finally:
+            lockf.close()
+
+    def test_safe_delete_releases_lock_on_rename_exception(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Same as above but for the directory case: rename raises →
+        lock still releases."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX flock semantics")
+        import fcntl
+
+        from undo.durable_move import _lock_path
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "explosive_dir"
+        target.mkdir()
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        def boom_rename(src: object, dst: object) -> None:
+            raise OSError(13, "rename boom")
+
+        monkeypatch.setattr("undo.trash_gc.os.rename", boom_rename)
+
+        outcome = gc.safe_delete(target)
+        assert outcome.result is TrashDeleteResult.PERMISSION_ERROR
+
+        lockf = open(_lock_path(tmp_path / "j"), "a", encoding="utf-8")
+        try:
+            fcntl.flock(lockf.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pytest.fail("LOCK_EX leaked from previous safe_delete call")
+        else:
+            fcntl.flock(lockf.fileno(), fcntl.LOCK_UN)
+        finally:
+            lockf.close()
+
+    def test_safe_delete_outside_trash_does_not_acquire_lock(self, tmp_path: Path) -> None:
+        """Spec §3.1: out-of-bounds rejection happens BEFORE lock
+        acquisition. After an OUTSIDE_TRASH outcome, the lock file
+        should not exist (we never opened it)."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX flock semantics")
+        from undo.durable_move import _lock_path
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        outside = tmp_path / "neighbour.txt"
+        outside.write_text("safe")
+        journal = tmp_path / "j"
+        gc = TrashGC(trash, journal_path=journal)
+
+        outcome = gc.safe_delete(outside)
+        assert outcome.result is TrashDeleteResult.OUTSIDE_TRASH
+
+        # The lock file should not exist — no attempt to acquire it
+        # was made, so _locked never opened/created it.
+        assert not _lock_path(journal).exists(), (
+            "out-of-bounds rejection must skip lock acquisition entirely"
+        )
