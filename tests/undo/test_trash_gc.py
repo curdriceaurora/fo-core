@@ -525,9 +525,7 @@ class TestSafeDeleteFileFastPath:
             "outside-trash file MUST NOT be touched after symlink-parent escape"
         )
 
-    def test_returns_outside_trash_for_symlink_loop_in_parent(
-        self, tmp_path: Path
-    ) -> None:
+    def test_returns_outside_trash_for_symlink_loop_in_parent(self, tmp_path: Path) -> None:
         """Codex P2 liBe: ``Path.resolve(strict=False)`` raises
         ``RuntimeError`` (not ``OSError``) on symlink loops. A path
         whose parent contains a self-referential symlink loop
