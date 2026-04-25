@@ -243,19 +243,23 @@ class TrashGC:
         """
         # §4.1: out-of-bounds rejection BEFORE acquiring the lock.
         if not self._is_inside_trash(path):
-            outcome = TrashDeleteOutcome(
+            outside = TrashDeleteOutcome(
                 result=TrashDeleteResult.OUTSIDE_TRASH,
                 path=path,
                 reason=(f"path {path} resolves outside the configured trash root {self.trash_dir}"),
             )
-            logger.warning("trash GC: %s", outcome.reason)
-            return outcome
+            logger.warning("trash GC: %s", outside.reason)
+            return outside
 
         # Phase 1 (under LOCK_EX): in-flight check + unlink-or-rename.
         # ``_decide_under_lock`` returns either a final outcome OR a
         # staging path that phase 2 must rmtree without holding the lock.
         # Lock-hold scope is bounded by one rename syscall in the
         # directory case — §3.3 atomic-rename pivot.
+        # Explicit annotations: mypy strict mode requires the union types
+        # (the helper returns a 2-tuple of optionals).
+        outcome: TrashDeleteOutcome | None
+        staging: Path | None
         if _HAS_FCNTL:
             with _locked(self.journal_path, fcntl.LOCK_EX):
                 outcome, staging = self._decide_under_lock(path)
@@ -271,18 +275,63 @@ class TrashGC:
         return outcome
 
     def _is_inside_trash(self, path: Path) -> bool:
-        """Return True iff *path*'s LEXICAL absolute form is inside ``self.trash_dir``.
+        """Return True iff *path*'s containment is provably inside ``self.trash_dir``.
 
-        Uses ``os.path.abspath`` + ``relative_to`` — explicitly NOT
-        ``Path.resolve()``. ``resolve`` follows symlinks; for trash
-        deletion we want to delete the LINK itself, not its target,
-        so the containment check must look at the lexical path inside
-        ``trash_dir`` (the link IS in trash) rather than the symlink's
-        target (which can be anywhere). ``abspath`` still collapses
-        ``..`` so a ``trash/../neighbour`` traversal attempt is caught.
+        Two-part check, both required:
+
+        1. **Lexical absolute path** must be inside ``trash_dir``
+           (catches ``../neighbour`` traversal attempts). Uses
+           ``os.path.abspath``, NOT ``Path.resolve()``, because for
+           trash deletion the LEAF can legitimately be a symlink (we
+           delete the link, not the target).
+
+        2. **The PARENT's resolved path** must also be inside
+           ``trash_dir`` (catches the codex lfNO symlinked-parent
+           escape: ``trash/escape_link/secret`` where ``escape_link``
+           is a symlink in trash pointing OUTSIDE trash). Without this
+           check, lexical containment alone is insufficient — the
+           subsequent ``unlink``/``rename`` syscalls follow
+           intermediate symlinks and operate on files outside the
+           configured trash root. We resolve only the PARENT (not the
+           leaf) so a symlink leaf still passes — that's the legitimate
+           case for symlink trash entries.
+
+        ``Path.resolve(strict=False)`` returns the resolved path even
+        if intermediate components are missing. If the parent doesn't
+        exist on disk, the lexical check carries the load and we trust
+        that the subsequent ``lexists`` call produces ``MISSING``.
         """
+
+        # Wrap ``abspath`` in ``normcase`` for symmetry with
+        # ``durable_move._normalized_path_str``: on Windows, paths
+        # differing only in case (``c:\trash`` vs ``C:\Trash``) are the
+        # same file but produce different lexical strings; the in-flight
+        # check normalizes case, so the containment check must too or
+        # the two predicates can disagree on Windows. ``normcase`` is a
+        # no-op on POSIX. Coderabbit lgMf.
+        def _norm(p: Path) -> Path:
+            return Path(os.path.normcase(os.path.abspath(p)))
+
+        allowed = _norm(self.trash_dir)
+        # Part 1: lexical containment.
         try:
-            Path(os.path.abspath(path)).relative_to(Path(os.path.abspath(self.trash_dir)))
+            _norm(path).relative_to(allowed)
+        except ValueError:
+            return False
+        # Part 2: parent's symlink-resolved path must also be inside
+        # — catches the codex lfNO symlinked-parent escape. Only the
+        # parent — the leaf can legitimately be a symlink.
+        try:
+            resolved_parent = path.parent.resolve(strict=False)
+        except OSError:
+            # Permissions or other resolve error — be conservative and
+            # treat as outside. Better to return OUTSIDE_TRASH than to
+            # let a syscall on an unresolvable parent escape.
+            return False
+        try:
+            Path(os.path.normcase(resolved_parent)).relative_to(
+                _norm(self.trash_dir.resolve(strict=False))
+            )
         except ValueError:
             return False
         return True
@@ -383,9 +432,13 @@ class TrashGC:
         Returns:
             ``(None, staging)`` on success — phase 2 ``rmtree`` is the
             caller's responsibility (and runs UNLOCKED).
-            ``(outcome, None)`` on rename failure: PERMISSION_ERROR
-            with the OSError populated; the original path is still in
-            place because the rename never landed.
+            ``(MISSING outcome, None)`` if the source vanished between
+            ``lexists`` and ``rename`` (idempotent race; same contract
+            as the file path's FileNotFoundError → MISSING mapping).
+            Codex P2 lfNP.
+            ``(PERMISSION_ERROR outcome, None)`` on any other rename
+            ``OSError``; original path still in place because the
+            rename never landed.
 
         The staging path lives inside ``self.trash_dir`` so the rename
         is single-filesystem (no EXDEV failure mode). The
@@ -396,6 +449,18 @@ class TrashGC:
         staging = self.trash_dir / f".pending-delete-{uuid.uuid4().hex}"
         try:
             os.rename(path, staging)
+        except FileNotFoundError:
+            # §5.1 idempotency: a concurrent deleter / cleaner raced us
+            # between lexists and rename. Same end state we'd report
+            # if lexists had returned False — MISSING, not
+            # PERMISSION_ERROR. Mirrors ``_unlink_under_lock``.
+            outcome = TrashDeleteOutcome(
+                result=TrashDeleteResult.MISSING,
+                path=path,
+                reason=f"path {path} vanished between lexists and rename",
+            )
+            logger.debug("trash GC: %s", outcome.reason)
+            return outcome, None
         except OSError as exc:
             outcome = TrashDeleteOutcome(
                 result=TrashDeleteResult.PERMISSION_ERROR,

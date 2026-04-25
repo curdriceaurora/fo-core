@@ -39,11 +39,11 @@ predicate + side-effect responsibilities).
 ```python
 # src/undo/trash_gc.py
 
-from enum import Enum
+from enum import StrEnum
 from dataclasses import dataclass
 from pathlib import Path
 
-class TrashDeleteResult(str, Enum):
+class TrashDeleteResult(StrEnum):
     DELETED = "deleted"                          # path removed cleanly
     DELETED_WITH_STAGING_FAILURE = "deleted_with_staging_failure"
     # ^ directory case only: the user's path is gone (atomic rename succeeded
@@ -198,38 +198,60 @@ seconds on a large trash directory.
 
 ### 4.1 `OUTSIDE_TRASH` rejection
 
-`safe_delete` MUST refuse paths whose lexical absolute form is outside
-`self.trash_dir`. Without this guard, an attacker (or a logic bug elsewhere)
-could pass `../../etc/passwd` and have GC delete it.
+`safe_delete` MUST refuse paths whose containment cannot be proven inside
+`self.trash_dir`. Two checks are required, both load-bearing:
 
-**Use `os.path.abspath` here, NOT `Path.resolve()`.** `resolve()` follows
-symlinks, which is wrong for trash deletion: we want to delete the LINK
-ITSELF, not its target, so the containment check must look at the lexical
-path inside `trash_dir` (the link IS in trash) rather than the symlink
-target (which can legitimately point outside trash). `abspath` still
-collapses `..` so a `trash/../neighbour` traversal attempt is caught.
+**Part 1 — lexical containment of the full path.**
+Use `os.path.abspath` (NOT `Path.resolve()`). `resolve()` follows
+symlinks; for trash deletion the LEAF can legitimately be a symlink
+(we delete the link, not the target), so the lexical check must
+preserve the as-given path. `abspath` still collapses `..` so a
+`trash/../neighbour` traversal is caught.
+
+**Part 2 — resolved containment of the PARENT.**
+The parent's symlink-resolved path must also be inside `trash_dir`
+(codex P1 lfNO). Without this, lexical containment alone is
+insufficient: a path like `<trash>/escape_link/secret` where
+`escape_link` is a symlink in trash pointing OUTSIDE trash passes
+part 1 (lexically `<trash>/escape_link/secret` is inside), but the
+subsequent `unlink`/`rename` syscalls follow the intermediate
+symlink and operate on `secret` outside trash. Resolving only the
+PARENT (not the leaf) catches the escape while still allowing
+symlink leaves.
 
 ```python
 allowed = Path(os.path.abspath(self.trash_dir))
-requested = Path(os.path.abspath(path))
+# Part 1: lexical containment.
 try:
-    requested.relative_to(allowed)
+    Path(os.path.abspath(path)).relative_to(allowed)
 except ValueError:
-    return TrashDeleteOutcome(
-        result=TrashDeleteResult.OUTSIDE_TRASH,
-        path=path,
-        reason=f"path {path} is outside the configured trash root {allowed}",
-    )
+    return False
+# Part 2: parent's symlink-resolved path must also be inside.
+try:
+    parent_resolved = path.parent.resolve(strict=False)
+except OSError:
+    return False  # unresolvable parent — be conservative
+try:
+    parent_resolved.relative_to(allowed.resolve(strict=False))
+except ValueError:
+    return False
+return True
 ```
 
-This runs BEFORE the lock acquisition — a path that's clearly out of bounds
+Runs BEFORE the lock acquisition — a path that's clearly out of bounds
 shouldn't even start the lock dance.
 
-The `test_returns_deleted_for_dangling_symlink` test is the load-bearing
-regression test for this rule: a dangling symlink in trash whose target
-points outside trash MUST be deletable. With `Path.resolve()` it would be
-rejected as `OUTSIDE_TRASH`; with `os.path.abspath` it correctly stays
-inside.
+Load-bearing regression tests:
+
+- `test_returns_deleted_for_dangling_symlink` — dangling symlink at
+  the LEAF (whose target is outside trash) MUST be deletable. With
+  `Path.resolve()` instead of `os.path.abspath` for the full path it
+  would be rejected. The leaf is allowed; only parent-symlink escape
+  is rejected.
+- `test_returns_outside_trash_for_symlinked_parent_escape` — symlink
+  in trash pointing OUTSIDE trash + a path of the form `<symlink>/leaf`
+  MUST be rejected, with the outside file untouched. Without part 2
+  the lexical check passes and the syscall escapes.
 
 ### 4.2 Symlink handling
 

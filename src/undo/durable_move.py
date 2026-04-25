@@ -46,6 +46,30 @@ in the journal if it was updated (we append rather than rewrite for
 crash safety — the sweep reads the LAST state for each (src, dst)
 pair). The sweep truncates the journal once it finishes, so
 steady-state size is bounded.
+
+Cross-module consumers of underscore-prefixed helpers
+-----------------------------------------------------
+
+The leading underscore on ``_HAS_FCNTL``, ``_locked``,
+``_path_in_flight_from_entries``, and ``_read_journal`` signals
+*module-private*, but :class:`undo.trash_gc.TrashGC` is an authorized
+consumer of all four (CodeRabbit lgMd). The contract:
+
+- ``_locked`` / ``_HAS_FCNTL`` — TrashGC re-uses the lock-file
+  coordination so its ``LOCK_EX`` mutually-excludes with this
+  module's writers. Renaming or relocating these MUST update TrashGC
+  in the same change.
+- ``_read_journal`` + ``_path_in_flight_from_entries`` — TrashGC
+  reads + checks under its already-held ``LOCK_EX`` (the public
+  ``is_path_in_flight`` would deadlock on its own LOCK_SH). The
+  predicate's collapse rule (§3.1 operation identity) is canonical
+  for both this module's ``is_path_in_flight`` and TrashGC's
+  ``safe_delete`` — any bug fix must mirror to both call sites.
+
+Promoting the four to a non-underscored API (e.g. into a shared
+``undo._journal_lock`` module) is documented future work; today
+the underscore-private + cross-module-consumer pattern is the
+agreed contract.
 """
 
 from __future__ import annotations

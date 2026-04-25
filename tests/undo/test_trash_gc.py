@@ -483,6 +483,48 @@ class TestSafeDeleteFileFastPath:
         assert outcome.result is TrashDeleteResult.OUTSIDE_TRASH
         assert outside.read_text() == "must not delete", "out-of-bounds path MUST NOT be touched"
 
+    def test_returns_outside_trash_for_symlinked_parent_escape(self, tmp_path: Path) -> None:
+        """Codex P1 lfNO: an INTERMEDIATE symlink in the path that points
+        OUTSIDE trash must be rejected. Lexical ``abspath`` containment
+        alone passes ``trash/escape_link/secret`` when ``escape_link``
+        is a symlink in trash pointing at an outside directory — but
+        ``unlink``/``rename`` then follow the symlink and operate on
+        files outside the trash root.
+
+        Fix: also verify ``path.parent.resolve()`` is inside trash, so
+        any intermediate-symlink escape is caught while the leaf
+        component (which can legitimately be a symlink) is still
+        allowed."""
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        outside_dir = tmp_path / "outside"
+        outside_dir.mkdir()
+        secret = outside_dir / "passwd"
+        secret.write_text("must not delete")
+
+        # A symlink IN trash that points at an OUTSIDE directory.
+        escape_link = trash / "escape_link"
+        escape_link.symlink_to(outside_dir)
+
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        # Lexically this looks like trash/escape_link/passwd — but the
+        # parent's symlink target is outside trash. Must be rejected.
+        result_path = escape_link / "passwd"
+        outcome = gc.safe_delete(result_path)
+
+        assert outcome.result is TrashDeleteResult.OUTSIDE_TRASH, (
+            f"intermediate symlink that escapes trash must be rejected; got {outcome.result}"
+        )
+        # Most importantly: the file outside trash must be intact.
+        assert secret.read_text() == "must not delete", (
+            "outside-trash file MUST NOT be touched after symlink-parent escape"
+        )
+
     def test_returns_outside_trash_for_traversal_attempt(self, tmp_path: Path) -> None:
         """A path containing .. that resolves outside trash root →
         OUTSIDE_TRASH. Validates the resolve()-then-relative_to()
@@ -750,6 +792,38 @@ class TestSafeDeleteDirectory:
         leftover = [p.name for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
         assert leftover == []
 
+    def test_directory_filenotfound_during_rename_maps_to_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex P2 lfNP: ``os.rename`` raises ``FileNotFoundError``
+        (source vanished between lexists and rename — a benign race
+        with another deleter) → outcome MISSING, not PERMISSION_ERROR.
+        Mirrors the file-path idempotency contract from §5.1."""
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        target = trash / "racy_dir"
+        target.mkdir()
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        def vanishing_rename(src: object, dst: object) -> None:
+            # Simulate the file vanishing between lexists() and rename().
+            raise FileNotFoundError(2, "vanished between lexists and rename")
+
+        monkeypatch.setattr("undo.trash_gc.os.rename", vanishing_rename)
+
+        outcome = gc.safe_delete(target)
+
+        assert outcome.result is TrashDeleteResult.MISSING, (
+            "FileNotFoundError on rename (idempotency case) must map to "
+            "MISSING, not PERMISSION_ERROR — same contract as the file path"
+        )
+        assert outcome.error is None
+        # No staging dir created either (rename never succeeded).
+        leftover = [p.name for p in trash.iterdir() if p.name.startswith(".pending-delete-")]
+        assert leftover == []
+
     def test_directory_returns_partial_failure_when_rmtree_fails(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -1007,15 +1081,20 @@ class TestSafeDeleteRaceCoordination:
         journal = tmp_path / "move.journal"
         gc = TrashGC(trash, journal_path=journal)
 
-        # Make rmtree take a noticeable amount of time — 0.3s is far
-        # longer than a rename syscall (microseconds) so any wall-clock
-        # comparison resolves cleanly without flaking on slow CI.
-        rmtree_sleep_seconds = 0.3
+        # Make rmtree take a noticeable amount of time. CodeRabbit lgMn:
+        # use 1.0s (not 0.3s) so even heavily-loaded CI runners have a
+        # comfortable gap — the test is RELATIVE (writer-elapsed vs
+        # rmtree-elapsed measured in the same run), not absolute.
+        rmtree_sleep_seconds = 1.0
         real_rmtree = shutil.rmtree
+        rmtree_outcome: dict[str, float] = {}
 
         def slow_rmtree(path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            t0 = time.perf_counter()
             time.sleep(rmtree_sleep_seconds)
-            return real_rmtree(path, *args, **kwargs)
+            result = real_rmtree(path, *args, **kwargs)
+            rmtree_outcome["elapsed"] = time.perf_counter() - t0
+            return result
 
         monkeypatch.setattr("undo.trash_gc.shutil.rmtree", slow_rmtree)
 
@@ -1047,7 +1126,7 @@ class TestSafeDeleteRaceCoordination:
             # ~rmtree_sleep_seconds. If the lock was released right
             # after rename (the contract), the append completes
             # immediately.
-            rename_done.wait(timeout=2.0)
+            rename_done.wait(timeout=5.0)
             t0 = time.perf_counter()
             _append_journal(
                 journal,
@@ -1059,20 +1138,26 @@ class TestSafeDeleteRaceCoordination:
         writer_thread = threading.Thread(target=_writer_worker)
         gc_thread.start()
         writer_thread.start()
-        gc_thread.join(timeout=5.0)
-        writer_thread.join(timeout=5.0)
+        gc_thread.join(timeout=10.0)
+        writer_thread.join(timeout=10.0)
 
         assert gc_done.is_set()
         assert gc_outcome[0].result is TrashDeleteResult.DELETED  # type: ignore[attr-defined]
-        # The writer's append should have completed in MUCH less time
-        # than the rmtree's 0.3s sleep — only possible if the lock was
-        # released after rename, before rmtree.
-        assert "elapsed" in writer_outcome
-        assert writer_outcome["elapsed"] < rmtree_sleep_seconds / 2, (
-            f"writer append took {writer_outcome['elapsed']:.3f}s — must "
-            f"finish in well under rmtree's {rmtree_sleep_seconds}s sleep. "
-            "If this fails, the lock is being held during rmtree and the "
-            "atomic-rename pivot is not delivering its promised contract."
+        # CodeRabbit lgMn: relative comparison in the same run, NOT a
+        # hardcoded absolute threshold. The contract is "writer
+        # finishes in << rmtree time"; we assert writer elapsed is at
+        # most 25% of rmtree elapsed. That's a 4× gap to absorb runner
+        # load spikes while still distinguishing "lock released after
+        # rename" (microseconds) from "lock held during rmtree" (~1s).
+        assert "elapsed" in writer_outcome and "elapsed" in rmtree_outcome
+        ratio = writer_outcome["elapsed"] / rmtree_outcome["elapsed"]
+        assert ratio < 0.25, (
+            f"writer append took {writer_outcome['elapsed']:.3f}s vs rmtree's "
+            f"{rmtree_outcome['elapsed']:.3f}s (ratio={ratio:.3f}); "
+            "must be <0.25× to prove the lock was released after rename, "
+            "BEFORE rmtree. If this fails, the lock is held during rmtree "
+            "and the §3.3 atomic-rename pivot is not delivering its "
+            "promised contract."
         )
 
 
