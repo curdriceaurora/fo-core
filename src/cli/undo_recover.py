@@ -6,13 +6,18 @@ the planned recovery actions as a table for operator visibility.
 
 Critical: this command is read-only. It calls only the planner — never
 the executor. The next CLI start (which runs ``sweep``) is what actually
-performs the planned actions.
+performs the planned actions. ``main_callback`` skips the startup sweep
+when ``recover`` is the invoked subcommand to preserve this contract
+(codex lCbV / coderabbit lDDy).
 
 Exit-code contract:
 
-- ``0`` if the plan contains no retained / actionable entries (i.e. all
-  verbs are ``drop``).
-- ``1`` if any non-``drop`` action would be taken so scripts can detect
+- ``0`` if no actionable entries (no ``retain`` / ``unlink_src_then_drop``
+  / ``drop_tmp_then_drop`` rows). Operator-visible WARNING-level drops
+  (e.g. stranded ``dir_move started`` per §5.3) DO appear in the
+  rendered table but don't bump the exit code — sweep would just drop
+  them, no recovery action runs.
+- ``1`` if any actionable verb is planned, so scripts can detect
   "needs cleanup".
 
 The §5.1 STARTED disambiguation tier (pre-replace / post-replace /
@@ -53,7 +58,10 @@ def recover_command(
         verbose: Enable DEBUG-level logging for troubleshooting.
 
     Returns:
-        Exit code per §8.2: ``0`` if no actionable entries, ``1`` if any.
+        Exit code per §8.2: ``1`` if any actionable verb is planned
+        (``retain`` / ``unlink_src_then_drop`` / ``drop_tmp_then_drop``),
+        ``0`` otherwise — including when the only visible rows are
+        WARNING-level ``drop``s like stranded ``dir_move started``.
     """
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
@@ -67,13 +75,20 @@ def recover_command(
 
     plan = plan_recovery_actions(entries)
     actionable = [a for a in plan if a.verb in _ACTIONABLE_VERBS]
+    # CodeRabbit lDD3: also surface ``drop`` rows the planner flagged at
+    # WARNING level (e.g. stranded ``dir_move started`` per §5.3 — the
+    # entry IS dropped because sweep can't safely retry, but the operator
+    # needs to know on-disk state may need inspection). Exit code stays
+    # 0 for these because there's no recovery action sweep would take —
+    # they're operator-visibility rows, not "needs cleanup" rows.
+    visible = [a for a in plan if a.verb in _ACTIONABLE_VERBS or a.log_level >= logging.WARNING]
 
-    if not actionable:
+    if not visible:
         print(f"no retained entries in {journal_path} ({len(plan)} dropped — already finished)")
         return 0
 
-    _render_plan_table(journal_path, plan, actionable)
-    return 1
+    _render_plan_table(journal_path, plan, visible)
+    return 1 if actionable else 0
 
 
 def _render_plan_table(
@@ -113,10 +128,12 @@ def _render_plan_table(
 
 
 def _decorate_reason(action: _PlannedAction) -> str:
-    """Annotate the planner's reason with the §5.1 disambiguation tier
-    for v2 ``move started`` rows so operators see WHY sweep would take
-    the chosen verb (pre-replace tmp orphan vs. post-replace src-only
-    cleanup).
+    """Annotate the planner's reason with the §5.1 disambiguation tier.
+
+    For v2 ``move started`` rows the prefix tells operators WHY sweep
+    would take the chosen verb (pre-replace tmp orphan vs. post-replace
+    src-only cleanup). v1 records get a ``[v1-ambiguous]`` prefix.
+    Any other op/state pair returns the planner's reason unchanged.
     """
     e = action.entry
     if e.op != "move" or e.state != "started":

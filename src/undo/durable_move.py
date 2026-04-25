@@ -832,16 +832,36 @@ def _plan_one(
                         "unlinking orphan tmp, src remains canonical"
                     ),
                 )
-            # Post-replace crash: tmp consumed by ``os.replace``; dst is
-            # complete. Same finishing step as the COPIED row — unlink src.
+            # Tmp absent — usually post-replace, but only safe to unlink
+            # src if dst actually exists. Codex P1 lCbU: tmp-absent is
+            # NOT proof that ``os.replace`` ran; tmp could also have been
+            # cleaned out-of-band by an operator. If dst is also missing,
+            # src is the canonical copy and unlinking it is data loss.
+            # Mirror the codex hGWW guard from the COPIED row.
+            if not fs_observer(entry.dst):
+                return _PlannedAction(
+                    identity=identity,
+                    entry=entry,
+                    verb="retain",
+                    reason=(
+                        f"started entry {entry.src} -> {entry.dst} (tmp "
+                        f"{entry.tmp_path} absent, dst absent) — cannot prove "
+                        "post-replace; unlinking src would destroy the last "
+                        "remaining copy. Retaining for operator inspection."
+                    ),
+                    log_level=logging.WARNING,
+                )
+            # Post-replace crash confirmed: tmp absent + dst present means
+            # ``os.replace`` consumed tmp into dst. Same finishing step as
+            # the COPIED row — unlink src.
             return _PlannedAction(
                 identity=identity,
                 entry=entry,
                 verb="unlink_src_then_drop",
                 reason=(
                     f"started entry {entry.src} -> {entry.dst} (tmp "
-                    f"{entry.tmp_path} absent) — post-replace crash; "
-                    "finishing by unlinking src"
+                    f"{entry.tmp_path} absent, dst present) — post-replace "
+                    "crash; finishing by unlinking src"
                 ),
             )
         # v1 fallback: no tmp_path metadata to disambiguate.
@@ -884,12 +904,21 @@ def _plan_one(
             verb="drop",
             reason=f"done entry {entry.src} -> {entry.dst}; nothing to do",
         )
-    # Known op with unrecognized state — drop with warning. Same as PR #197.
+    # §5.1 "known-op unknown state": retain + warn. Codex / coderabbit
+    # PRRT_kwDOR_Rkws59lDD8: dropping the entry would lose the recovery
+    # record AND let ``is_path_in_flight()`` stop protecting the path —
+    # even though a newer binary that knows the new state may still need
+    # it. Retaining is the safe default; the operator inspects the
+    # warning and either upgrades the binary or hand-resolves the entry.
     return _PlannedAction(
         identity=identity,
         entry=entry,
-        verb="drop",
-        reason=f"unknown state {entry.state!r} for op {entry.op!r}; dropping",
+        verb="retain",
+        reason=(
+            f"unknown state {entry.state!r} for op {entry.op!r}; retaining "
+            "so a newer binary can resolve and is_path_in_flight() keeps "
+            "protecting the path"
+        ),
         log_level=logging.WARNING,
     )
 

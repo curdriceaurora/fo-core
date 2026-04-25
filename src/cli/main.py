@@ -103,23 +103,31 @@ def main_callback(
     # the on-disk state is coherent before the user's intent executes.
     # Failures here are logged + swallowed — a sweep error is never
     # worth crashing the CLI over; the next run will retry.
-    try:
-        _durable_move_sweep(_default_journal_path())
-    except Exception:
-        # Coderabbit PRRT_kwDOR_Rkws59fzVf: log at WARNING, not DEBUG.
-        # Most users don't run with debug verbosity, so a permanently
-        # unreadable journal (permission denied, corrupted JSONL) would
-        # silently accumulate unrecovered entries across every
-        # invocation with zero operator signal. WARNING surfaces the
-        # problem without impacting normal runs (the journal is
-        # missing/empty on the common path and ``sweep`` fast-exits
-        # before hitting any of these error paths).
-        logging.getLogger(__name__).warning(
-            "durable_move sweep at CLI startup failed; "
-            "interrupted-move recovery may be stuck. Inspect %s",
-            _default_journal_path(),
-            exc_info=True,
-        )
+    #
+    # F7.1 / codex lCbV / coderabbit lDDy: SKIP the startup sweep when
+    # the user is invoking ``fo recover``. ``recover`` is the read-only
+    # preview of what sweep would do; running sweep first would mutate
+    # state (unlink, compact) before the preview ran and then report
+    # "no retained entries" — breaking the read-only contract and
+    # making the preview unreliable.
+    if ctx.invoked_subcommand != "recover":
+        try:
+            _durable_move_sweep(_default_journal_path())
+        except Exception:
+            # Coderabbit PRRT_kwDOR_Rkws59fzVf: log at WARNING, not DEBUG.
+            # Most users don't run with debug verbosity, so a permanently
+            # unreadable journal (permission denied, corrupted JSONL) would
+            # silently accumulate unrecovered entries across every
+            # invocation with zero operator signal. WARNING surfaces the
+            # problem without impacting normal runs (the journal is
+            # missing/empty on the common path and ``sweep`` fast-exits
+            # before hitting any of these error paths).
+            logging.getLogger(__name__).warning(
+                "durable_move sweep at CLI startup failed; "
+                "interrupted-move recovery may be stuck. Inspect %s",
+                _default_journal_path(),
+                exc_info=True,
+            )
 
     set_flags(yes=yes, no_interactive=no_interactive)
 

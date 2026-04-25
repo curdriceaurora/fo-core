@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-pytestmark = [pytest.mark.unit, pytest.mark.ci]
+pytestmark = [pytest.mark.unit, pytest.mark.ci, pytest.mark.integration]
 
 
 # ---------------------------------------------------------------------------
@@ -232,15 +232,22 @@ class TestRecoverCommand:
     def test_recover_v2_started_tmp_absent_renders_post_replace_tier(
         self, tmp_path: Path, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """v2 ``move started`` with ``tmp_path`` absent → planner
-        emits ``unlink_src_then_drop``, reason indicates post-replace
-        tier so operators understand the rationale."""
+        """v2 ``move started`` with ``tmp_path`` absent + dst PRESENT
+        → planner emits ``unlink_src_then_drop`` (post-replace
+        confirmed by dst's presence), reason indicates post-replace
+        tier so operators understand the rationale.
+
+        Codex lCbU dst-presence guard: tmp absent alone is not proof
+        of post-replace. dst present is what makes the
+        unlink_src_then_drop verb safe.
+        """
         from cli.main import app
 
         src = tmp_path / "src.txt"
         dst = tmp_path / "dst.txt"
-        # tmp absent (post-replace crash: replace consumed it).
         src.write_text("post-replace src")
+        # dst present — proof that os.replace consumed tmp into dst.
+        dst.write_text("post-replace dst (replace consumed tmp)")
         journal = tmp_path / "move.journal"
         _write_journal_lines(
             journal,
@@ -262,6 +269,83 @@ class TestRecoverCommand:
         assert result.exit_code == 1, result.output
         assert "unlink_src_then_drop" in result.output, result.output
         assert "post-replace" in result.output.lower(), result.output
+
+    def test_recover_skips_startup_sweep(
+        self, tmp_path: Path, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex P1 lCbV / coderabbit lDDy: ``main_callback`` runs
+        startup sweep before any command. ``fo recover`` is the
+        read-only preview of what sweep would do — running sweep
+        FIRST would mutate state (unlink, compact) and then the
+        preview would report "no retained entries". The startup sweep
+        MUST be skipped for the recover subcommand.
+        """
+        from cli.main import app
+
+        # Pre-populate a journal that sweep would compact (a done entry).
+        journal = tmp_path / "move.journal"
+        _write_journal_lines(journal, [{"op": "move", "src": "/x", "dst": "/y", "state": "done"}])
+        monkeypatch.setattr("undo._journal.default_journal_path", lambda: journal)
+
+        # Instrument sweep so we can prove it's NOT called by the
+        # recover invocation. The startup sweep targets the default
+        # journal path — also patched above — so we'd see the call here
+        # if it fired.
+        sweep_calls: list[Path] = []
+        from undo import durable_move as dm_mod
+
+        real_sweep = dm_mod.sweep
+
+        def tracking_sweep(j: Path) -> None:
+            sweep_calls.append(j)
+            real_sweep(j)
+
+        monkeypatch.setattr("cli.main._durable_move_sweep", tracking_sweep)
+
+        result = runner.invoke(app, ["recover"])
+        assert result.exit_code == 0, result.output
+        assert sweep_calls == [], (
+            f"recover MUST skip startup sweep (read-only contract); "
+            f"observed sweep calls: {sweep_calls}"
+        )
+
+    def test_recover_surfaces_warning_drops(
+        self, tmp_path: Path, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CodeRabbit lDD3: ``dir_move started`` entries are dropped
+        (sweep can't safely retry shutil.move) but flagged WARNING
+        because operators need to inspect on-disk state. The recover
+        preview MUST show these rows even though their verb is
+        ``drop`` — otherwise the command this PR adds for operator
+        visibility doesn't surface the case it most needs to.
+
+        Exit code stays 0 because there's no recovery action sweep
+        will take — these are operator-visibility rows, not
+        "needs cleanup" rows.
+        """
+        from cli.main import app
+
+        journal = tmp_path / "move.journal"
+        _write_journal_lines(
+            journal,
+            [
+                {
+                    "op": "dir_move",
+                    "src": str(tmp_path / "src_dir"),
+                    "dst": str(tmp_path / "dst_dir"),
+                    "state": "started",
+                }
+            ],
+        )
+        monkeypatch.setattr("undo._journal.default_journal_path", lambda: journal)
+
+        result = runner.invoke(app, ["recover"])
+        # Stranded dir_move is operator-visible but not actionable —
+        # exit 0 (no sweep verb would actually run).
+        assert result.exit_code == 0, result.output
+        # The row must still appear in the rendered preview.
+        assert "dir_move" in result.output, result.output
+        assert "drop" in result.output, result.output
 
     def test_recover_does_not_mutate_disk(
         self,

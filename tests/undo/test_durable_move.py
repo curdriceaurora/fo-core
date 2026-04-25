@@ -2459,9 +2459,17 @@ class TestPlanRecoveryActions:
             ("move", "copied", False, "retain"),
             ("move", "done", True, "drop"),
             ("move", "done", False, "drop"),
-            ("move", "unknown_state", True, "drop"),
+            # §5.1 row "known-op unknown state" applies to ``move``: retain
+            # + warn so a future binary that knows the new state can still
+            # resolve the entry, and is_path_in_flight() keeps protecting
+            # the path. CodeRabbit PRRT_kwDOR_Rkws59lDD8.
+            ("move", "unknown_state", True, "retain"),
             ("dir_move", "started", True, "drop"),
             ("dir_move", "done", True, "drop"),
+            # dir_move overrides the generic unknown-state retain because
+            # §5.3 makes dir_move coordination-only — sweep can't safely
+            # retry shutil.move regardless of state, so dropping releases
+            # the in-flight marker.
             ("dir_move", "unknown_state", True, "drop"),
             ("future_op", "started", True, "retain"),  # unknown op retain
             ("future_op", "done", True, "retain"),  # unknown op retain
@@ -2835,10 +2843,16 @@ class TestStartedTmpPathDisambiguation:
 
     def test_planner_v2_started_tmp_absent_unlinks_src(self) -> None:
         """§5.1 row: v2 ``move started`` + ``lexists(tmp_path) == False``
-        ⇒ post-replace crash. ``os.replace`` consumed tmp into dst;
-        the only thing left is to unlink src. Verb:
-        ``unlink_src_then_drop`` (same as the COPIED row — sweep
-        finishes by removing the now-redundant source)."""
+        + ``lexists(dst) == True`` ⇒ post-replace crash confirmed.
+        ``os.replace`` consumed tmp into dst; the only thing left is to
+        unlink src. Verb: ``unlink_src_then_drop`` (same as the COPIED
+        row — sweep finishes by removing the now-redundant source).
+
+        The dst-present check is the codex lCbU data-loss guard: tmp
+        absent alone is NOT proof that replace ran. See
+        ``test_planner_v2_started_tmp_absent_dst_absent_retains`` for
+        the negative case.
+        """
         from undo.durable_move import _JournalEntry, plan_recovery_actions
 
         entry = _JournalEntry(
@@ -2850,8 +2864,68 @@ class TestStartedTmpPathDisambiguation:
             op_id="op-post",
             tmp_path="/path/to/.b.42.tmp",
         )
-        # fs_observer reports tmp absent (replace consumed it).
+
+        # fs_observer: tmp absent, dst PRESENT (the proof of post-replace).
+        def fs(p: str) -> bool:
+            return p == "/b"
+
+        plan = plan_recovery_actions([entry], fs_observer=fs)
+        assert len(plan) == 1
+        assert plan[0].verb == "unlink_src_then_drop"
+
+    def test_planner_v2_started_tmp_absent_dst_absent_retains(self) -> None:
+        """Codex P1 PRRT_kwDOR_Rkws59lCbU: when v2 STARTED has tmp absent
+        AND dst also absent, sweep MUST NOT plan ``unlink_src_then_drop``
+        — that would destroy the last remaining copy on disk if dst was
+        cleaned out-of-band after a crash. Mirrors the codex hGWW
+        dst-presence guard on the COPIED row.
+
+        Rationale: tmp absent is NOT proof that ``os.replace`` ran. Tmp
+        could also be absent if an operator manually cleaned it. If dst
+        is then also absent, src is the canonical copy — unlinking it
+        is data loss. Retain instead so the next sweep / operator can
+        resolve.
+        """
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entry = _JournalEntry(
+            op="move",
+            src="/a",
+            dst="/b",
+            state="started",
+            schema=2,
+            op_id="op-x",
+            tmp_path="/path/to/.b.42.tmp",
+        )
+        # fs_observer: BOTH tmp and dst absent.
         plan = plan_recovery_actions([entry], fs_observer=lambda _p: False)
+        assert len(plan) == 1
+        assert plan[0].verb == "retain", (
+            f"v2 STARTED + tmp absent + dst absent must retain (data-loss guard); "
+            f"got {plan[0].verb}"
+        )
+
+    def test_planner_v2_started_tmp_absent_dst_present_unlinks_src(self) -> None:
+        """The post-replace branch only fires when dst is actually
+        present — that's the proof ``os.replace`` consumed tmp. With
+        tmp absent + dst present, ``unlink_src_then_drop`` is safe."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entry = _JournalEntry(
+            op="move",
+            src="/a",
+            dst="/b",
+            state="started",
+            schema=2,
+            op_id="op-x",
+            tmp_path="/path/to/.b.42.tmp",
+        )
+
+        # fs_observer: tmp absent, dst present.
+        def fs(p: str) -> bool:
+            return p == "/b"
+
+        plan = plan_recovery_actions([entry], fs_observer=fs)
         assert len(plan) == 1
         assert plan[0].verb == "unlink_src_then_drop"
 
