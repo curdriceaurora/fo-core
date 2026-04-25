@@ -84,9 +84,17 @@ class TestDedupeScan:
         groups = {"abc123": _make_group(files)}
         mock_det.get_duplicate_groups.return_value = groups
 
-        result = runner.invoke(app, ["dedupe", "scan", str(tmp_path), "--json"])
+        result = runner.invoke(app, ["dedupe", "scan", str(tmp_path), "--format", "json"])
         assert result.exit_code == 0
         assert "abc123" in result.output
+        # Envelope is valid JSON with the documented schema
+        import json as _json
+
+        envelope = _json.loads(result.output)
+        assert envelope["version"] == 1
+        assert envelope["command"] == "scan"
+        assert len(envelope["groups"]) == 1
+        assert envelope["groups"][0]["hash"] == "abc123"
 
     @patch("cli.dedupe_v2._get_detector")
     def test_scan_with_options(self, mock_get_det: MagicMock, tmp_path: Path) -> None:
@@ -223,9 +231,16 @@ class TestDedupeReport:
         }
         mock_det.get_duplicate_groups.return_value = {}
 
-        result = runner.invoke(app, ["dedupe", "report", str(tmp_path), "--json"])
+        result = runner.invoke(app, ["dedupe", "report", str(tmp_path), "--format", "json"])
         assert result.exit_code == 0
         assert "50" in result.output
+        import json as _json
+
+        envelope = _json.loads(result.output)
+        assert envelope["version"] == 1
+        assert envelope["command"] == "report"
+        assert envelope["summary"]["total_files"] == 50
+        assert envelope["summary"]["duplicate_files"] == 5
 
 
 # ---------------------------------------------------------------------------
