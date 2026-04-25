@@ -188,3 +188,151 @@ class TestTrashGCConstructor:
         journal = tmp_path / "j"
         with pytest.raises(TypeError):
             TrashGC(trash, journal)  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Init-time orphan recovery (§3.4, §6.3a)
+# ---------------------------------------------------------------------------
+
+
+class TestTrashGCInitRecovery:
+    """Step 2: ``TrashGC.__init__`` eagerly cleans
+    ``<trash_dir>/.pending-delete-*`` orphan staging dirs left by prior
+    crashed ``safe_delete`` calls (rename succeeded but the unlocked
+    rmtree didn't run / didn't finish).
+
+    Lockless — these names are GC-owned and isolated from the user's
+    path namespace. No journal coordination needed because the original
+    paths were already isolated by the rename.
+    """
+
+    def test_init_cleans_orphan_pending_delete_entries(self, tmp_path: Path) -> None:
+        """Spec §3.4: pre-seed two .pending-delete-* orphans (each with
+        nested content); construct TrashGC; both gone."""
+        from undo.trash_gc import TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        orphan_a = trash / ".pending-delete-aaaa"
+        orphan_b = trash / ".pending-delete-bbbb"
+        for orphan in (orphan_a, orphan_b):
+            orphan.mkdir()
+            (orphan / "leftover.txt").write_text("from a prior crash")
+        # A normal trash entry that must NOT be touched.
+        normal = trash / "normal_entry.txt"
+        normal.write_text("regular trash content")
+
+        TrashGC(trash)
+
+        assert not orphan_a.exists(), "orphan A must be cleaned by init recovery"
+        assert not orphan_b.exists(), "orphan B must be cleaned by init recovery"
+        assert normal.read_text() == "regular trash content", (
+            "normal trash entries MUST NOT be touched by init recovery"
+        )
+
+    def test_init_skips_cleanup_for_unrelated_dotfiles(self, tmp_path: Path) -> None:
+        """The prefix match is exactly ``.pending-delete-`` plus at
+        least one suffix character. Other dotfiles (.gitkeep,
+        .DS_Store) and prefix-collision-prone names (.pending-delete
+        with no suffix, .pending-deleted-x with a different stem) MUST
+        NOT be deleted."""
+        from undo.trash_gc import TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        # Things that MUST survive init recovery.
+        survivors = [
+            trash / ".gitkeep",
+            trash / ".DS_Store",
+            trash / ".pending-delete",  # no suffix — not a GC orphan
+            trash / ".pending-deleted-x",  # different prefix
+        ]
+        for f in survivors:
+            f.write_text("must survive")
+
+        TrashGC(trash)
+
+        for f in survivors:
+            assert f.exists(), f"unrelated dotfile {f.name} must not be deleted"
+
+    def test_init_continues_when_one_orphan_rmtree_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A failure on one orphan must not skip the others. The
+        failing orphan is logged at WARNING and left for the next
+        construction to retry."""
+        import shutil
+
+        from undo.trash_gc import TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        good = trash / ".pending-delete-good"
+        bad = trash / ".pending-delete-bad"
+        good.mkdir()
+        bad.mkdir()
+        (good / "x").write_text("ok")
+        (bad / "x").write_text("ok")
+
+        real_rmtree = shutil.rmtree
+
+        def selective_failing_rmtree(path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if str(path).endswith(".pending-delete-bad"):
+                raise OSError(13, "simulated permission denied")
+            return real_rmtree(path, *args, **kwargs)
+
+        monkeypatch.setattr("undo.trash_gc.shutil.rmtree", selective_failing_rmtree)
+
+        TrashGC(trash)
+
+        assert not good.exists(), "good orphan must still be cleaned"
+        assert bad.exists(), "failing orphan must survive for next-init retry"
+
+    def test_init_aggregated_log_line_emitted(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Spec §5.3: aggregate ``trash GC init recovery: N orphans
+        cleaned, M failed`` line at INFO so operators can spot a
+        stuck-orphan pattern without scanning every DEBUG line."""
+        from undo.trash_gc import TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        for i in range(3):
+            o = trash / f".pending-delete-{i:04d}"
+            o.mkdir()
+
+        with caplog.at_level("INFO", logger="undo.trash_gc"):
+            TrashGC(trash)
+
+        agg_lines = [
+            r.getMessage()
+            for r in caplog.records
+            if r.levelname == "INFO"
+            and r.name == "undo.trash_gc"
+            and "init recovery" in r.getMessage()
+        ]
+        assert agg_lines, (
+            f"expected an INFO 'init recovery' aggregate line; got "
+            f"{[r.getMessage() for r in caplog.records]}"
+        )
+        msg = agg_lines[0]
+        # Exact format the spec promised — "3 orphans cleaned, 0 failed".
+        assert "3" in msg and "cleaned" in msg
+        assert "0" in msg and "failed" in msg
+
+    def test_init_handles_missing_trash_dir(self, tmp_path: Path) -> None:
+        """``trash_dir`` doesn't exist on construction; init must not
+        raise (creates the directory, scan finds zero entries, no
+        recovery work)."""
+        from undo.trash_gc import TrashGC
+
+        trash = tmp_path / "trash" / "nested" / "deep"
+        assert not trash.exists()
+
+        # Constructor must not raise.
+        gc = TrashGC(trash)
+
+        assert gc.trash_dir.is_dir()
+        # No orphans existed to clean — no .pending-delete-* entries left.
+        assert list(trash.iterdir()) == []

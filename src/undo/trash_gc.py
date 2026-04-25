@@ -23,11 +23,20 @@ Spec: ``docs/internal/F8-1-trash-gc-design.md``.
 
 from __future__ import annotations
 
+import logging
+import shutil
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 from undo import _journal
+
+logger = logging.getLogger(__name__)
+
+# Spec §3.3 / §3.4: GC-owned staging name prefix. The hyphen is part of
+# the prefix so .pending-delete (no suffix) and .pending-deleted-x
+# (different stem) are NOT recovered. Tests in §6.3a guard the boundary.
+_STAGING_PREFIX = ".pending-delete-"
 
 
 class TrashDeleteResult(StrEnum):
@@ -132,13 +141,60 @@ class TrashGC:
         *,
         journal_path: Path | None = None,
     ) -> None:
-        """Configure the GC and ensure the trash directory exists.
+        """Configure the GC, ensure trash_dir exists, and recover orphan staging dirs.
 
-        Step 2 will add eager orphan-recovery here (scan ``trash_dir``
-        for ``.pending-delete-*`` entries and rmtree them).
+        Recovery is intentionally lockless: ``.pending-delete-*`` names
+        are GC-owned and isolated from the user's path namespace by
+        construction, so no journal coordination is required to clean
+        them. Per-orphan failures are logged at WARNING and the loop
+        continues so one stuck entry doesn't block recovery of the rest.
         """
         self.trash_dir: Path = trash_dir
         self.trash_dir.mkdir(parents=True, exist_ok=True)
         self.journal_path: Path = (
             journal_path if journal_path is not None else _journal.default_journal_path()
         )
+        self._recover_orphans()
+
+    def _recover_orphans(self) -> None:
+        """Scan ``self.trash_dir`` for ``.pending-delete-*`` orphans and rmtree them.
+
+        Spec §3.4 / §6.3a contract. Boundary rule: the entry name must
+        START WITH ``.pending-delete-`` AND have at least one character
+        after the prefix — that excludes ``.pending-delete`` (no
+        suffix) and unrelated names like ``.pending-deleted-x``.
+
+        Failures are logged at WARNING with ``exc_info=True`` and
+        counted; the aggregate INFO line at the end summarizes
+        ``cleaned`` vs ``failed`` so operators can spot a stuck-orphan
+        pattern without reading every DEBUG line.
+        """
+        cleaned = 0
+        failed = 0
+        for entry in self.trash_dir.iterdir():
+            name = entry.name
+            if not name.startswith(_STAGING_PREFIX):
+                continue
+            if len(name) == len(_STAGING_PREFIX):
+                # Exact match for ".pending-delete" — no UUID suffix,
+                # not a GC-emitted orphan.
+                continue
+            try:
+                shutil.rmtree(entry)
+            except OSError as exc:
+                logger.warning(
+                    "trash GC init recovery: failed to clean orphan %s: %s",
+                    entry,
+                    exc,
+                    exc_info=True,
+                )
+                failed += 1
+                continue
+            logger.debug("trash GC init recovery: cleaned orphan %s", entry)
+            cleaned += 1
+        if cleaned or failed:
+            logger.info(
+                "trash GC init recovery: %d orphans cleaned, %d failed",
+                cleaned,
+                failed,
+            )
