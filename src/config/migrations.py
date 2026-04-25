@@ -89,15 +89,27 @@ def _version_key(version: str) -> tuple[int, ...]:
     ordering holds. Non-numeric components fall back to 0 so
     malformed versions don't crash — migration walker treats them
     as very old and warns.
+
+    Codex PRRT_kwDOR_Rkws59hp2C: trailing-zero components are
+    trimmed so semantically-equivalent versions like ``"1.0"`` and
+    ``"1.0.0"`` compare equal (``(1,) == (1,)``). Without this,
+    a ``"1.0.0"`` on-disk version against a current ``"1.0"`` would
+    sort as "newer", triggering future-version warnings and
+    bypassing migrations. Mid-stream zeros are preserved so
+    ``"1.0.1"`` → ``(1, 0, 1)`` still orders above ``"1.0"`` →
+    ``(1,)``. The all-zero case ``"0.0.0"`` collapses to ``(0,)``.
     """
     try:
-        return tuple(int(part) for part in version.split("."))
+        components = tuple(int(part) for part in version.split("."))
     except ValueError:
         logger.warning(
             "Non-numeric config version %r; treating as 0.0 for ordering",
             version,
         )
         return (0,)
+    while len(components) > 1 and components[-1] == 0:
+        components = components[:-1]
+    return components
 
 
 def compare_versions(a: str, b: str) -> int:

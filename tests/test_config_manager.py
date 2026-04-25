@@ -609,8 +609,57 @@ class TestConfigSchemaVersion:
         from config.migrations import compare_versions
 
         # Non-numeric components should not raise.
-        assert compare_versions("abc", "1.0") < 0  # (0,) < (1, 0)
+        assert compare_versions("abc", "1.0") < 0  # (0,) < (1,)
         assert compare_versions("1.0", "abc") > 0
+
+    def test_version_key_trims_trailing_zeros(self) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59hp2C / round-9 MIG-7:
+        semantically-equivalent versions must produce identical
+        ``_version_key`` tuples. Otherwise ``"1.0.0"`` against
+        current ``"1.0"`` would sort as "newer", triggering
+        future-version warnings and bypassing migrations.
+
+        Mid-stream zeros are preserved so ``"1.0.1"`` still orders
+        above ``"1.0"``. The all-zero case ``"0.0.0"`` collapses to
+        a single ``(0,)``.
+        """
+        from config.migrations import _version_key
+
+        # Equivalent dotted forms collapse to the same tuple.
+        assert _version_key("1.0") == _version_key("1.0.0") == _version_key("1.0.0.0")
+        assert _version_key("2") == _version_key("2.0") == _version_key("2.0.0")
+        # Mid-stream zeros preserved.
+        assert _version_key("1.0.1") == (1, 0, 1)
+        assert _version_key("1.0.1") > _version_key("1.0")
+        assert _version_key("1.0") < _version_key("1.0.1")
+        # All-zero collapses to a single (0,) — matches the malformed-
+        # version fallback so they sort identically as "very old".
+        assert _version_key("0") == (0,)
+        assert _version_key("0.0") == (0,)
+        assert _version_key("0.0.0") == (0,)
+        # Numeric ordering still beats string ordering.
+        assert _version_key("2.0") < _version_key("10.0")
+
+    def test_migrate_equivalent_versions_short_circuit(self) -> None:
+        """Round-9 MIG-2: migrate_to_current's short-circuit must use
+        the numeric ``_version_key`` so versions that differ as
+        strings but match numerically (``"1.0"`` vs ``"1.0.0"``) skip
+        the chain walk and return data unchanged. Without this guard,
+        a registry without a key for the from_version would log a
+        false-positive gap warning instead.
+        """
+        from config.migrations import migrate_to_current
+
+        data: dict[str, object] = {"key": "value"}
+        # Different strings, identical numeric meaning.
+        result = migrate_to_current(data, from_version="1.0", to_version="1.0.0")
+        assert result is data, (
+            "numerically-equivalent versions must short-circuit "
+            "(round-9 MIG-2 / coderabbit hgCI follow-up)"
+        )
+        # Symmetric direction.
+        result2 = migrate_to_current(data, from_version="1.0.0", to_version="1.0")
+        assert result2 is data
 
     def test_migration_walker_stops_on_registry_gap(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Codex P2 PRRT_kwDOR_Rkws59hdFY: when the registry has a

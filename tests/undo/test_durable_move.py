@@ -72,6 +72,39 @@ class TestDurableMoveSameDevice:
         if journal.exists():
             assert journal.read_text().strip() == ""
 
+    def test_same_device_preserves_symlink_identity(self, tmp_path: Path) -> None:
+        """Round-9 INV-2b: same-device move of a symlink must leave a
+        symlink at dst — NOT dereference and copy the target's bytes.
+        ``os.replace`` already does this natively on POSIX (symlinks
+        are first-class file-system entities to ``rename(2)``); this
+        test locks down the contract so a future refactor that
+        accidentally adds a ``stat`` follow before the rename can't
+        regress it without breaking the test.
+
+        Companion to ``test_cross_device_preserves_symlink_identity``
+        which covers the EXDEV branch.
+        """
+        if os.name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.durable_move import durable_move
+
+        target = tmp_path / "target.txt"
+        target.write_text("target bytes")
+        src = tmp_path / "link.txt"
+        src.symlink_to(target)
+        dst = tmp_path / "moved-link.txt"
+        journal = tmp_path / "move.journal"
+
+        durable_move(src, dst, journal=journal)
+
+        assert dst.is_symlink(), (
+            "same-device move of a symlink must land a symlink at dst "
+            "(round-9 INV-2b — locks down the os.replace contract)"
+        )
+        assert os.readlink(dst) == str(target)
+        assert not src.is_symlink() and not src.exists()
+        assert target.read_text() == "target bytes"
+
     def test_preserves_file_contents_and_permissions(self, tmp_path: Path) -> None:
         """File contents + mode bits survive the move (pre-F7 behavior
         via ``shutil.move``)."""
@@ -887,8 +920,43 @@ class TestDurableMoveFailureModes:
 
         monkeypatch.chdir(tmp_path)
         # ``./sub/../target.txt`` should collapse to ``<tmp_path>/target.txt``.
+        # ``os.path.normcase`` is a no-op on POSIX (where this test runs),
+        # so we assert against the exact ``str(tmp_path / "target.txt")``.
+        # On Windows the assertion uses normcase on both sides.
         result = _normalized_path_str(Path("./sub/../target.txt"))
-        assert result == str(tmp_path / "target.txt"), result
+        expected = os.path.normcase(str(tmp_path / "target.txt"))
+        assert result == expected, result
+
+    def test_normalized_path_case_folds_on_windows(self) -> None:
+        """Codex P2 PRRT_kwDOR_Rkws59hp2G: ``_normalized_path_str``
+        applies ``os.path.normcase`` so Windows case-insensitive
+        paths normalize identically. Without this, a journal entry
+        recorded for ``C:\\foo`` and a query for ``c:\\foo`` would
+        miss each other and trash GC could delete a path that an
+        active rollback move depended on.
+
+        On POSIX, ``os.path.normcase`` is the identity function — we
+        verify that contract here so the call is safe on all
+        platforms. The Windows case-fold itself is exercised by
+        construction of the helper (the call is unconditional).
+        """
+        from undo.durable_move import _normalized_path_str
+
+        # POSIX no-op contract: a mixed-case path normalizes to itself.
+        if os.name != "nt":
+            mixed = _normalized_path_str(Path("/Tmp/MixedCase/File.TXT"))
+            assert mixed == "/Tmp/MixedCase/File.TXT", (
+                "os.path.normcase must be a no-op on POSIX so the wrapper "
+                "doesn't break case-sensitive paths"
+            )
+        else:  # pragma: no cover - exercised on Windows CI only
+            # Windows: case-fold to lowercase + normalize separators.
+            mixed_a = _normalized_path_str(Path("C:/Foo/Bar.txt"))
+            mixed_b = _normalized_path_str(Path("c:/foo/BAR.TXT"))
+            assert mixed_a == mixed_b, (
+                "Windows case-insensitive paths must normalize identically "
+                "(codex hp2G); journal lookups depend on it"
+            )
 
     def test_directory_source_raises_is_a_directory(self, tmp_path: Path) -> None:
         """Coderabbit PRRT_kwDOR_Rkws59fzVo: directory inputs must be

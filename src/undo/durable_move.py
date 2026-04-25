@@ -84,7 +84,7 @@ class _JournalEntry:
 
 
 def _normalized_path_str(path: Path) -> str:
-    """Canonicalize *path* for journal storage + comparison.
+    r"""Canonicalize *path* for journal storage + comparison.
 
     Uses ``os.path.abspath`` — resolves relative paths to absolute
     and collapses ``..``/``.`` segments, but does NOT follow symlinks.
@@ -93,11 +93,20 @@ def _normalized_path_str(path: Path) -> str:
     symlink itself, ``sweep`` must unlink that symlink on recovery —
     not the target it happened to point at.
 
-    Coderabbit PRRT_kwDOR_Rkws59fzVv: this same canonicalization
+    Wrapped in ``os.path.normcase`` so Windows case-insensitive
+    paths compare correctly (codex PRRT_kwDOR_Rkws59hp2G): without
+    this, ``C:\foo`` and ``c:\foo`` are the same file but different
+    journal strings, so :func:`is_path_in_flight` would miss
+    in-flight entries and trash GC could delete a path that an
+    active rollback move depended on. ``normcase`` is a no-op on
+    POSIX (where the case + separator forms are already canonical),
+    so this change has no observable effect on Linux/macOS.
+
+    Coderabbit PRRT_kwDOR_Rkws59fzVv: the same canonicalization
     makes equivalent paths (relative vs absolute, redundant ``..``,
     Windows case) compare as equal in :func:`is_path_in_flight`.
     """
-    return os.path.abspath(os.fspath(path))
+    return os.path.normcase(os.path.abspath(os.fspath(path)))
 
 
 def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
