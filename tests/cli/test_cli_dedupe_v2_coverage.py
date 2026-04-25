@@ -63,9 +63,7 @@ class TestDedupeScan:
         mock_detector.get_duplicate_groups.return_value = {"abc123": group}
 
         with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
-            result = runner.invoke(
-                dedupe_app, ["scan", str(tmp_path), "--format", "json"]
-            )
+            result = runner.invoke(dedupe_app, ["scan", str(tmp_path), "--format", "json"])
 
         assert result.exit_code == 0
         # Output is a valid JSON envelope with the documented schema
@@ -205,9 +203,7 @@ class TestDedupeReport:
         mock_detector.get_statistics.return_value = {"total_files": 10}
 
         with patch("cli.dedupe_v2._get_detector", return_value=mock_detector):
-            result = runner.invoke(
-                dedupe_app, ["report", str(tmp_path), "--format", "json"]
-            )
+            result = runner.invoke(dedupe_app, ["report", str(tmp_path), "--format", "json"])
 
         assert result.exit_code == 0
         import json as _json

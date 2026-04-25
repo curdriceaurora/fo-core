@@ -243,9 +243,7 @@ def resolve(
         else:
             # Manual: show the group, skip automatic resolution
             renderer.render_groups({hash_val: group})
-            renderer.render_message(
-                "warning", "Manual mode — skipping automatic resolution."
-            )
+            renderer.render_message("warning", "Manual mode — skipping automatic resolution.")
             continue
 
         to_remove = [f for f in files if f.path != keep.path]
