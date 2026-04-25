@@ -13,12 +13,18 @@ only for an atomic rename into a staging path (``.pending-delete-<uuid>``);
 the slow ``rmtree`` runs unlocked, so concurrent writers are blocked for
 microseconds regardless of trash subtree size.
 
-Step 1 lands the public types and constructor surface only — the
-``safe_delete`` body lands in steps 3-4, and init-time orphan recovery
-in step 2. The tiered approach lets reviewers validate the API contract
-before any locking or filesystem mutation lands.
+Public surface (see :class:`TrashGC` for details):
 
-Spec: ``docs/internal/F8-1-trash-gc-design.md``.
+- ``TrashGC(trash_dir, *, journal_path=None)`` — constructor; eagerly
+  cleans ``.pending-delete-*`` orphans from prior crashed deletions.
+- ``TrashGC.safe_delete(path) -> TrashDeleteOutcome`` — single race-safe
+  deletion entry point covering files, symlinks (incl. dangling and
+  symlinks to directories), and directories.
+- ``TrashDeleteResult`` (StrEnum, six variants) and
+  ``TrashDeleteOutcome`` (frozen dataclass) — public outcome types.
+
+Spec + operator reference: ``docs/internal/F8-1-trash-gc-design.md`` and
+``docs/internal/F8-1-trash-gc.md``.
 """
 
 from __future__ import annotations
@@ -129,9 +135,11 @@ class TrashGC:
     and the deletion under one ``LOCK_EX`` on ``<journal>.lock``,
     closing the check-then-delete TOCTOU window.
 
-    Step 1 (this commit): public types + constructor surface only.
-    The ``safe_delete`` body and the eager init-time orphan recovery
-    land in subsequent steps per the spec §7 implementation order.
+    For directories, the lock is held only for an atomic ``os.rename``
+    into a ``.pending-delete-<uuid>`` staging path; the slow
+    ``shutil.rmtree`` runs unlocked. The construction also eagerly
+    cleans any orphan staging directories left by prior crashed
+    deletions (§3.4 of the design spec).
 
     Args:
         trash_dir: Configured trash directory. ALL paths passed to
@@ -215,12 +223,11 @@ class TrashGC:
     def safe_delete(self, path: Path) -> TrashDeleteOutcome:
         """Delete *path* from trash with race-safe coordination (§3.2 / §3.3).
 
-        Step 3 implements the file/symlink fast path: validate path is
-        inside ``trash_dir`` → acquire ``LOCK_EX`` on ``<journal>.lock``
-        → check ``is_path_in_flight`` → ``lexists`` → ``unlink`` (file
-        / symlink) OR atomic ``rename`` to ``.pending-delete-<uuid>``
-        (directory) → release ``LOCK_EX`` → unlocked ``rmtree`` of the
-        staging dir for the directory case.
+        Sequence: validate path is inside ``trash_dir`` → acquire
+        ``LOCK_EX`` on ``<journal>.lock`` → check ``is_path_in_flight``
+        → ``lexists`` → ``unlink`` (file / symlink) OR atomic ``rename``
+        to ``.pending-delete-<uuid>`` (directory) → release ``LOCK_EX``
+        → unlocked ``rmtree`` of the staging dir for the directory case.
 
         Symlinks (including dangling and symlinks to directories) are
         always unlinked, NEVER walked into — see

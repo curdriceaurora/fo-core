@@ -1,9 +1,24 @@
 """F8.1 tests for ``src/undo/trash_gc.py`` (issue #202).
 
-Step 1 covers types + constructor only — the locking dance,
-init-time orphan recovery, and the actual ``safe_delete`` body land in
-subsequent steps. These tests assert the public API surface so reviewers
-can validate the contract before any filesystem mutation lands.
+Test classes mirror the design-spec sections:
+
+- :class:`TestTrashDeleteResult` / :class:`TestTrashDeleteOutcome` —
+  public outcome types (§2 / §5.1).
+- :class:`TestTrashGCConstructor` — constructor surface (§2).
+- :class:`TestTrashGCInitRecovery` — eager init-time orphan recovery
+  (§3.4 / §6.3a).
+- :class:`TestSafeDeleteFileFastPath` — file / symlink branch (§3.2 /
+  §6.1).
+- :class:`TestSafeDeleteDirectory` — directory atomic-rename branch
+  (§3.3 / §6.1).
+- :class:`TestSafeDeleteRaceCoordination` — concurrent-actor tests
+  (§6.2), including the load-bearing
+  ``test_safe_delete_directory_lock_hold_bounded_by_rename`` that
+  validates the §3.3 atomic-rename pivot.
+- :class:`TestSafeDeleteLockHygiene` — lock-released-on-exception
+  guarantees (§6.3).
+- :class:`TestTrashGCRollbackIntegration` — composition with
+  ``RollbackExecutor`` (§6.4).
 
 Spec reference: ``docs/internal/F8-1-trash-gc-design.md``.
 """
@@ -107,7 +122,16 @@ class TestTrashDeleteOutcome:
         assert outcome.error is exc
 
     def test_outcome_is_frozen(self) -> None:
-        """Frozen dataclass — caller mutation is rejected at runtime."""
+        """Frozen dataclass — caller mutation raises ``FrozenInstanceError``.
+
+        Codex finding (T1/T4): the original ``pytest.raises((AttributeError,
+        Exception))`` was trivially satisfied by any exception, so the test
+        provided no real signal. Pinning to ``FrozenInstanceError`` (the
+        documented behavior of ``@dataclass(frozen=True)``) makes the test
+        fail loudly if the dataclass loses its ``frozen=True`` decorator.
+        """
+        import dataclasses
+
         from undo.trash_gc import TrashDeleteOutcome, TrashDeleteResult
 
         outcome = TrashDeleteOutcome(
@@ -115,7 +139,7 @@ class TestTrashDeleteOutcome:
             path=Path("/p"),
             reason="ok",
         )
-        with pytest.raises((AttributeError, Exception)):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             outcome.result = TrashDeleteResult.MISSING  # type: ignore[misc]
 
 
@@ -127,9 +151,11 @@ class TestTrashDeleteOutcome:
 class TestTrashGCConstructor:
     """Spec §2: ``TrashGC(trash_dir, *, journal_path=None)``.
 
-    Step 1 only validates the constructor surface — eager init-time
-    orphan recovery (§3.4) lands in step 2; ``safe_delete`` lands in
-    steps 3 (file/symlink) and 4 (directory).
+    Validates the constructor surface (parameter handling, default
+    journal-path resolution, trash-dir creation). Init-time orphan
+    recovery is exercised separately by :class:`TestTrashGCInitRecovery`;
+    ``safe_delete`` is exercised by the file/symlink and directory test
+    classes.
     """
 
     def test_constructor_stores_trash_dir(self, tmp_path: Path) -> None:

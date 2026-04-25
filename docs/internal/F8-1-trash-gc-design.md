@@ -198,14 +198,20 @@ seconds on a large trash directory.
 
 ### 4.1 `OUTSIDE_TRASH` rejection
 
-`safe_delete` MUST refuse paths that resolve outside `self.trash_dir`. Without
-this guard, an attacker (or a logic bug elsewhere) could pass `../../etc/passwd`
-and have GC delete it. Implementation mirrors the F4 path-validation pattern
-already used elsewhere in the codebase:
+`safe_delete` MUST refuse paths whose lexical absolute form is outside
+`self.trash_dir`. Without this guard, an attacker (or a logic bug elsewhere)
+could pass `../../etc/passwd` and have GC delete it.
+
+**Use `os.path.abspath` here, NOT `Path.resolve()`.** `resolve()` follows
+symlinks, which is wrong for trash deletion: we want to delete the LINK
+ITSELF, not its target, so the containment check must look at the lexical
+path inside `trash_dir` (the link IS in trash) rather than the symlink
+target (which can legitimately point outside trash). `abspath` still
+collapses `..` so a `trash/../neighbour` traversal attempt is caught.
 
 ```python
-allowed = self.trash_dir.resolve()
-requested = path.resolve()
+allowed = Path(os.path.abspath(self.trash_dir))
+requested = Path(os.path.abspath(path))
 try:
     requested.relative_to(allowed)
 except ValueError:
@@ -218,6 +224,12 @@ except ValueError:
 
 This runs BEFORE the lock acquisition — a path that's clearly out of bounds
 shouldn't even start the lock dance.
+
+The `test_returns_deleted_for_dangling_symlink` test is the load-bearing
+regression test for this rule: a dangling symlink in trash whose target
+points outside trash MUST be deletable. With `Path.resolve()` it would be
+rejected as `OUTSIDE_TRASH`; with `os.path.abspath` it correctly stays
+inside.
 
 ### 4.2 Symlink handling
 
