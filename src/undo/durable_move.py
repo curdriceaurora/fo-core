@@ -1252,6 +1252,35 @@ def _parse_one_journal_line(line: str) -> _JournalEntry | None:
     )
 
 
+def read_journal_under_shared_lock(journal: Path) -> list[_JournalEntry]:
+    """Public reader for ``fo recover`` and other read-only consumers (§8.2).
+
+    Acquires ``LOCK_SH`` on ``<journal>.lock`` (per §6.5) so the read
+    blocks while any writer or compaction holds ``LOCK_EX``, and
+    returns parsed entries. Missing or empty journal → empty list
+    (no-op — the caller treats it as "nothing to recover").
+
+    Distinct from :func:`is_path_in_flight` which collapses to the
+    latest state per identity for membership queries; this returns
+    raw entries so callers can pass them straight to
+    :func:`plan_recovery_actions`.
+
+    On non-POSIX (Windows, no ``fcntl``), falls back to an unlocked
+    read consistent with the module docstring's single-CLI-invocation
+    invariant.
+    """
+    journal = Path(journal)
+    if not journal.exists():
+        return []
+    if _HAS_FCNTL:
+        try:
+            with _locked(journal, fcntl.LOCK_SH), open(journal, encoding="utf-8") as fh:
+                return _parse_journal_text(fh.read())
+        except FileNotFoundError:  # pragma: no cover - exists()→open() race
+            return []
+    return _read_journal(journal)  # pragma: no cover - Windows-only path
+
+
 def is_path_in_flight(path: Path, *, journal: Path) -> bool:
     """Return True iff *path* is the src or dst of an uncompleted move.
 
