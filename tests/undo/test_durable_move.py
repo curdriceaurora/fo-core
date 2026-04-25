@@ -1661,6 +1661,279 @@ class TestIsPathInFlightSharedLock:
 
 
 # ---------------------------------------------------------------------------
+# F7.1 journal schema v2 — parser + rejection-rule coverage
+# (tracks #201, docs/internal/F7-1-journal-protocol-design.md §4, §9.1)
+# ---------------------------------------------------------------------------
+
+
+class TestJournalSchemaV2Parser:
+    """F7.1 step 1: parser accepts v1 and v2 records, preserves unknown-op
+    raw lines, and rejects each §4.1 malformed case with a WARNING log.
+    """
+
+    def test_v1_record_no_schema_field_accepted(self, tmp_path: Path) -> None:
+        """A v1 record (no ``schema`` field) must still parse — PR #197
+        back-compat. The resulting entry has ``schema == 1``, ``op_id is
+        None``, ``tmp_path is None``."""
+        from undo.durable_move import _parse_journal_text
+
+        line = json.dumps({"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+        entries = _parse_journal_text(line + "\n")
+
+        assert len(entries) == 1
+        e = entries[0]
+        assert e.op == "move"
+        assert e.src == "/a"
+        assert e.dst == "/b"
+        assert e.state == "done"
+        assert e.schema == 1
+        assert e.op_id is None
+        assert e.tmp_path is None
+
+    def test_v2_known_op_record_round_trips(self, tmp_path: Path) -> None:
+        """v2 record with all known-op fields round-trips through parse →
+        serialize → parse and preserves every field."""
+        from undo.durable_move import _parse_journal_text, _serialize_entry
+
+        src = str(tmp_path / "source.txt")
+        dst = str(tmp_path / "dest.txt")
+        tmp = str(tmp_path / "tmp-file.tmp")
+        src_line = json.dumps(
+            {
+                "schema": 2,
+                "op": "move",
+                "op_id": "abc123",
+                "src": src,
+                "dst": dst,
+                "state": "started",
+                "tmp_path": tmp,
+                "ts": 1714000000.5,
+                "host_pid": 12345,
+            }
+        )
+        parsed = _parse_journal_text(src_line + "\n")
+        assert len(parsed) == 1
+        e = parsed[0]
+        assert e.schema == 2
+        assert e.op_id == "abc123"
+        assert e.tmp_path == tmp
+        assert e.ts == 1714000000.5
+        assert e.host_pid == 12345
+
+        # Re-parse the serialized form — must produce an identical entry.
+        reparsed = _parse_journal_text(_serialize_entry(e) + "\n")
+        assert len(reparsed) == 1
+        assert reparsed[0] == e
+
+    def test_non_object_json_rejected(self, tmp_path: Path) -> None:
+        """§4.1 rule 2 (codex iy4w): JSON that parses but isn't an object
+        (null, list, scalar, string) is logged + skipped, not AttributeError.
+        Covers BOTH ``_parse_journal_text`` AND ``_read_journal`` — the
+        round-8 fix missed ``_read_journal`` per the #201 body."""
+        from undo.durable_move import _parse_journal_text, _read_journal
+
+        corrupt = "\n".join(
+            [
+                "null",
+                "[]",
+                '"bare string"',
+                "42",
+                json.dumps({"op": "move", "src": "/a", "dst": "/b", "state": "done"}),
+            ]
+        )
+        journal = tmp_path / "corrupt.journal"
+        journal.write_text(corrupt + "\n")
+
+        # Parser via text: 4 rejects + 1 accept.
+        via_text = _parse_journal_text(corrupt)
+        assert len(via_text) == 1
+        assert via_text[0].op == "move"
+
+        # Parser via file: same contract, no AttributeError from the
+        # pre-F7.1 _read_journal missing-dict-guard bug.
+        via_file = _read_journal(journal)
+        assert len(via_file) == 1
+        assert via_file[0].op == "move"
+
+    def test_missing_required_field_rejected(self) -> None:
+        """§4.1 rule 3: missing op/src/dst/state logged + skipped."""
+        from undo.durable_move import _parse_journal_text
+
+        corrupt = "\n".join(
+            [
+                json.dumps({"op": "move"}),  # missing src, dst, state
+                json.dumps({"src": "/a", "dst": "/b", "state": "done"}),  # missing op
+                json.dumps({"op": "move", "src": "/a"}),  # missing dst, state
+                json.dumps({"op": "move", "src": "/a", "dst": "/b", "state": "done"}),  # ok
+            ]
+        )
+        entries = _parse_journal_text(corrupt + "\n")
+        assert len(entries) == 1
+        assert entries[0].op == "move"
+
+    def test_oversized_line_rejected(self) -> None:
+        """§4.1 rule 7: line >64 KiB rejected to prevent pathological payloads."""
+        from undo.durable_move import _parse_journal_text
+
+        good = json.dumps({"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+        huge = json.dumps(
+            {
+                "op": "move",
+                "src": "/a",
+                "dst": "/b",
+                "state": "done",
+                "_padding": "x" * (65 * 1024),
+            }
+        )
+        entries = _parse_journal_text(huge + "\n" + good + "\n")
+        assert len(entries) == 1
+        assert entries[0].src == "/a"
+
+    def test_v2_known_op_missing_op_id_rejected(self) -> None:
+        """§4.1 rule 8: v2 writer always emits op_id; a known-op v2 record
+        missing it is corrupt/external input and MUST be rejected (not
+        silently collapsed with v1 identity)."""
+        from undo.durable_move import _parse_journal_text
+
+        corrupt = json.dumps(
+            {
+                "schema": 2,
+                "op": "move",
+                # op_id missing — parse-time reject
+                "src": "/a",
+                "dst": "/b",
+                "state": "done",
+            }
+        )
+        ok = json.dumps(
+            {
+                "schema": 2,
+                "op": "move",
+                "op_id": "legit",
+                "src": "/c",
+                "dst": "/d",
+                "state": "done",
+            }
+        )
+        entries = _parse_journal_text(corrupt + "\n" + ok + "\n")
+        assert len(entries) == 1
+        assert entries[0].op_id == "legit"
+
+    def test_v2_move_started_missing_tmp_path_rejected(self) -> None:
+        """§4.1 rule 9: v2 ``move started`` without ``tmp_path`` is
+        rejected — the tmp-exists invariant (§7.1) depends on every
+        such record carrying the field. Without it sweep could
+        misinfer post-replace and unlink src (data loss)."""
+        from undo.durable_move import _parse_journal_text
+
+        corrupt = json.dumps(
+            {
+                "schema": 2,
+                "op": "move",
+                "op_id": "abc",
+                "src": "/a",
+                "dst": "/b",
+                "state": "started",
+                # tmp_path missing — parse-time reject for v2 move started
+            }
+        )
+        # Same record but copied/done — no tmp_path required.
+        ok_copied = json.dumps(
+            {
+                "schema": 2,
+                "op": "move",
+                "op_id": "def",
+                "src": "/c",
+                "dst": "/d",
+                "state": "copied",
+            }
+        )
+        entries = _parse_journal_text(corrupt + "\n" + ok_copied + "\n")
+        assert len(entries) == 1
+        assert entries[0].state == "copied"
+
+    def test_unknown_op_preserves_raw_line(self) -> None:
+        """§4.2: unknown-op records preserve the FULL raw JSON line on
+        ``_raw`` so compaction re-serializes them verbatim. A future
+        binary with a handler for the op receives all fields the writer
+        persisted, NOT just the v2 parser's known core."""
+        from undo.durable_move import _parse_journal_text, _serialize_entry
+
+        future_record = {
+            "schema": 3,
+            "op": "future_copy",
+            "op_id": "xyz",
+            "src": "/a",
+            "dst": "/b",
+            "state": "started",
+            "future_field_1": "content-hash-abc",
+            "future_field_2": {"nested": [1, 2, 3]},
+        }
+        raw_line = json.dumps(future_record)
+        entries = _parse_journal_text(raw_line + "\n")
+
+        assert len(entries) == 1
+        e = entries[0]
+        assert e.op == "future_copy"
+        assert e._raw == raw_line
+
+        # Compaction writes the entry back — must equal the original
+        # raw line, NOT a v2-projected subset.
+        serialized = _serialize_entry(e)
+        # Allow for whitespace/key-ordering differences via re-parse.
+        assert json.loads(serialized) == future_record
+
+    def test_known_op_unknown_future_field_ignored(self) -> None:
+        """§4.2: for KNOWN ops, extra JSON fields are ignored (no _raw).
+        Those ops have a stable schema we control; extras are noise."""
+        from undo.durable_move import _parse_journal_text
+
+        line = json.dumps(
+            {
+                "schema": 2,
+                "op": "move",
+                "op_id": "abc",
+                "src": "/a",
+                "dst": "/b",
+                "state": "done",
+                "experimental_field": "should-be-dropped",
+            }
+        )
+        entries = _parse_journal_text(line + "\n")
+        assert len(entries) == 1
+        # Known-op entries don't retain _raw — field is a clean None.
+        assert entries[0]._raw is None
+
+    def test_malformed_json_still_rejected(self) -> None:
+        """§4.1 rule 1: JSON parse errors logged + skipped (pre-F7.1
+        behavior preserved)."""
+        from undo.durable_move import _parse_journal_text
+
+        corrupt = "\n".join(
+            [
+                "not json at all",
+                "{broken",
+                json.dumps({"op": "move", "src": "/a", "dst": "/b", "state": "done"}),
+            ]
+        )
+        entries = _parse_journal_text(corrupt + "\n")
+        assert len(entries) == 1
+
+    def test_hash16_is_stable(self) -> None:
+        """``_hash16`` (§3.1 rule 4) is stable: same input → same output.
+        Used for unknown-op collapse-key identity so future ops don't
+        silently conflate."""
+        from undo.durable_move import _hash16
+
+        raw = '{"op":"future","op_id":"x","src":"/a","dst":"/b","state":"done"}'
+        h = _hash16(raw)
+        assert len(h) == 16
+        assert _hash16(raw) == h  # deterministic
+        # Different content → different hash.
+        assert _hash16(raw.replace('"done"', '"started"')) != h
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

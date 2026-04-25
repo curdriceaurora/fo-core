@@ -51,6 +51,7 @@ steady-state size is bounded.
 from __future__ import annotations
 
 import errno
+import hashlib
 import json
 import logging
 import os
@@ -83,14 +84,58 @@ OP_DIR_MOVE = "dir_move"
 _KNOWN_OPS = frozenset({OP_MOVE, OP_DIR_MOVE})
 
 
+_MAX_JOURNAL_LINE_BYTES = 64 * 1024
+"""§4.1 rule 7: cap on a single journal line in bytes. Lines above this are
+rejected at parse time to prevent pathological payload-size attacks. 64 KiB
+leaves ample headroom above realistic path lengths plus the v2 envelope."""
+
+
+def _hash16(raw: str) -> str:
+    """Return the first 16 hex chars of ``sha256(raw)``.
+
+    §3.1 rule 4: used for unknown-op collapse-key identity so semantically-
+    distinct future records don't silently conflate when collapsed by this
+    binary's v2 parser (which doesn't understand their additional fields).
+    16 hex = 64 bits of identity — ample for the per-journal record counts
+    the protocol expects (≤ dozens).
+    """
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
 @dataclass(frozen=True)
 class _JournalEntry:
-    """A parsed journal row."""
+    """A parsed journal row.
+
+    F7.1 schema v2 (see ``docs/internal/F7-1-journal-protocol-design.md`` §2):
+
+    - ``schema``: 1 for legacy PR #197 records (no ``schema`` field on disk),
+      2 for records this binary writes. Writers always emit 2; parsers accept
+      both for back-compat.
+    - ``op_id``: unique per-invocation UUID (v2 only). ``None`` on v1 records.
+      v2 known-op records MUST carry ``op_id`` — parse-time rejected otherwise
+      per §4.1 rule 8.
+    - ``tmp_path``: absolute path of the EXDEV copy's tmp file/symlink. Only
+      populated on v2 ``op=move state=started`` records; ``None`` elsewhere.
+      The §7.1 tmp-exists invariant requires it on every such record —
+      parse-time rejected otherwise per §4.1 rule 9.
+    - ``ts``/``host_pid``: diagnostic metadata written by v2 writers, never
+      consulted by the protocol itself (PID reuse makes ``host_pid`` unsafe
+      for liveness checks per F2).
+    - ``_raw``: for unknown-op records ONLY — the full JSON line as read,
+      preserved so compaction re-serializes verbatim (§4.2). Known-op entries
+      keep ``_raw = None``; the serializer reconstructs from fields.
+    """
 
     op: str
     src: str
     dst: str
     state: str
+    schema: int = 1
+    op_id: str | None = None
+    tmp_path: str | None = None
+    ts: float | None = None
+    host_pid: int | None = None
+    _raw: str | None = None
 
 
 def _normalized_path_str(path: Path) -> str:
@@ -492,40 +537,222 @@ def _reconcile_entries(entries: list[_JournalEntry]) -> list[_JournalEntry]:
 
 
 def _serialize_entry(e: _JournalEntry) -> str:
-    """JSON-serialize a journal entry for write-back."""
-    return json.dumps({"op": e.op, "src": e.src, "dst": e.dst, "state": e.state})
+    """JSON-serialize a journal entry for write-back.
+
+    F7.1 §4.2: unknown-op entries are re-serialized VERBATIM from ``_raw``
+    so a future binary with a handler for the op receives every field the
+    writer persisted — NOT just the v2 parser's known core. Known-op entries
+    reconstruct from fields.
+
+    v2 entries (``schema == 2``) emit the extended v2 envelope; v1 entries
+    (``schema == 1``, PR #197 back-compat) emit the legacy 4-field form so
+    round-trip identity holds across a compaction.
+    """
+    # Unknown op: verbatim round-trip via the captured raw line.
+    if e._raw is not None:
+        return e._raw
+    if e.schema == 1:
+        return json.dumps({"op": e.op, "src": e.src, "dst": e.dst, "state": e.state})
+    # v2 envelope. Omit diagnostic fields when None so we don't bloat the
+    # journal; the parser treats missing diagnostic fields as None on read.
+    payload: dict[str, object] = {
+        "schema": e.schema,
+        "op": e.op,
+        "op_id": e.op_id,
+        "src": e.src,
+        "dst": e.dst,
+        "state": e.state,
+    }
+    if e.tmp_path is not None:
+        payload["tmp_path"] = e.tmp_path
+    if e.ts is not None:
+        payload["ts"] = e.ts
+    if e.host_pid is not None:
+        payload["host_pid"] = e.host_pid
+    return json.dumps(payload)
 
 
 def _parse_journal_text(text: str) -> list[_JournalEntry]:
     """Parse JSONL journal text into typed entries.
 
-    Mirrors :func:`_read_journal` but works on an already-read string
-    so ``_sweep_locked_body`` can use the locked fd's read.
+    Applies the §4.1 rejection rules — every malformed line is logged +
+    skipped; no input can cause the parser to raise. v1 records
+    (``schema`` absent) and v2 records (``schema == 2``) both accepted.
+    Unknown-op entries retain their full raw JSON line on ``_raw`` per
+    §4.2 for verbatim forward-compat.
     """
     entries: list[_JournalEntry] = []
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line:
             continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            logger.warning("sweep: dropping unparsable journal line: %r", line)
-            continue
-        op = data.get("op")
-        src = data.get("src")
-        dst = data.get("dst")
-        state = data.get("state")
-        if not (
-            isinstance(op, str)
-            and isinstance(src, str)
-            and isinstance(dst, str)
-            and isinstance(state, str)
-        ):
-            logger.warning("sweep: dropping malformed journal entry: %r", data)
-            continue
-        entries.append(_JournalEntry(op=op, src=src, dst=dst, state=state))
+        entry = _parse_one_journal_line(line)
+        if entry is not None:
+            entries.append(entry)
     return entries
+
+
+class _ParseReject(Exception):
+    """Internal sentinel: a field validator rejected the line.
+
+    Validators raise this with the line already logged so the top-level
+    parser can ``except _ParseReject: return None`` without nested
+    logging concerns. Not exposed outside the module.
+    """
+
+
+def _reject(msg: str, *args: object, line: str) -> _ParseReject:
+    """Log a rejection reason + truncated line and return a sentinel exception.
+
+    Keeps every rejection site one-liner-ish so
+    :func:`_parse_one_journal_line` stays within the cyclomatic budget. The
+    caller raises the returned value so control flow stays explicit.
+    """
+    logger.warning(msg + ": %r", *args, line[:200])
+    return _ParseReject()
+
+
+def _validate_core_fields(data: dict, line: str) -> tuple[str, str, str, str]:
+    """§4.1 rules 3 + 4: op/src/dst/state present and string-typed."""
+    op = data.get("op")
+    src = data.get("src")
+    dst = data.get("dst")
+    state = data.get("state")
+    if not (
+        isinstance(op, str)
+        and isinstance(src, str)
+        and isinstance(dst, str)
+        and isinstance(state, str)
+    ):
+        raise _reject("sweep: dropping malformed journal entry", line=line)
+    return op, src, dst, state
+
+
+def _validate_schema(data: dict, line: str) -> int:
+    """§4.1 rule 6: schema is absent (→ 1) or a positive int."""
+    schema_raw = data.get("schema")
+    if schema_raw is None:
+        return 1
+    if isinstance(schema_raw, bool) or not isinstance(schema_raw, int) or schema_raw < 1:
+        raise _reject("sweep: dropping entry with invalid schema %r", schema_raw, line=line)
+    return schema_raw
+
+
+def _validate_op_id(data: dict, line: str) -> str | None:
+    """Parse ``op_id``. None if absent, string if typed, rejection otherwise."""
+    raw = data.get("op_id")
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return raw
+    raise _reject("sweep: dropping entry with non-string op_id %r", raw, line=line)
+
+
+def _validate_tmp_path(data: dict, line: str) -> str | None:
+    """Parse ``tmp_path``. None if absent, string if typed, rejection otherwise."""
+    raw = data.get("tmp_path")
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        return raw
+    raise _reject("sweep: dropping entry with non-string tmp_path %r", raw, line=line)
+
+
+def _validate_ts(data: dict, line: str) -> float | None:
+    """Parse diagnostic ``ts``. None/float; reject bool (bool is int subclass)."""
+    raw = data.get("ts")
+    if raw is None:
+        return None
+    if isinstance(raw, bool):
+        raise _reject("sweep: dropping entry with bool ts", line=line)
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    raise _reject("sweep: dropping entry with non-numeric ts %r", raw, line=line)
+
+
+def _validate_host_pid(data: dict, line: str) -> int | None:
+    """Parse diagnostic ``host_pid``. None/int; reject bool."""
+    raw = data.get("host_pid")
+    if raw is None:
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise _reject("sweep: dropping entry with non-int host_pid %r", raw, line=line)
+    return raw
+
+
+def _parse_one_journal_line(line: str) -> _JournalEntry | None:
+    """Parse a single stripped journal line per §4.1 rejection rules.
+
+    Returns ``None`` (and logs WARNING) on any rejection case. Returns a
+    typed :class:`_JournalEntry` on success. Rejection sites delegate
+    to per-field ``_validate_*`` helpers to keep this function within
+    the project's cyclomatic complexity budget.
+    """
+    # §4.1 rule 7: oversized line cap (measured in bytes so UTF-8 payloads
+    # can't slip past via multi-byte characters).
+    encoded = line.encode("utf-8")
+    if len(encoded) > _MAX_JOURNAL_LINE_BYTES:
+        logger.warning(
+            "sweep: dropping oversized journal line (%d bytes > %d cap): %r",
+            len(encoded),
+            _MAX_JOURNAL_LINE_BYTES,
+            line[:200],
+        )
+        return None
+    # §4.1 rule 1: JSON parse error.
+    try:
+        data = json.loads(line)
+    except json.JSONDecodeError:
+        logger.warning("sweep: dropping unparsable journal line: %r", line[:200])
+        return None
+    # §4.1 rule 2 (codex iy4w): valid JSON but not an object.
+    if not isinstance(data, dict):
+        logger.warning(
+            "sweep: dropping non-object journal line (got %s): %r",
+            type(data).__name__,
+            line[:200],
+        )
+        return None
+    # Per-field validation via helpers — each raises _ParseReject with the
+    # line already logged.
+    try:
+        op, src, dst, state = _validate_core_fields(data, line)
+        schema = _validate_schema(data, line)
+        if schema == 1 and op not in _KNOWN_OPS:
+            raise _reject(
+                "sweep: dropping v1 entry with unknown op %r (v1 records must be in %s)",
+                op,
+                sorted(_KNOWN_OPS),
+                line=line,
+            )
+        op_id = _validate_op_id(data, line)
+        if schema == 2 and op in _KNOWN_OPS and op_id is None:
+            raise _reject("sweep: dropping v2 known-op entry missing op_id", line=line)
+        tmp_path = _validate_tmp_path(data, line)
+        if schema == 2 and op == OP_MOVE and state == STATE_STARTED and tmp_path is None:
+            raise _reject(
+                "sweep: dropping v2 move-started entry missing tmp_path (§7.1 invariant)",
+                line=line,
+            )
+        ts = _validate_ts(data, line)
+        host_pid = _validate_host_pid(data, line)
+    except _ParseReject:
+        return None
+    # §4.2: unknown ops retain the raw line verbatim for forward-compat.
+    # Known ops drop extra fields silently.
+    raw_for_unknown_op = line if op not in _KNOWN_OPS else None
+    return _JournalEntry(
+        op=op,
+        src=src,
+        dst=dst,
+        state=state,
+        schema=schema,
+        op_id=op_id,
+        tmp_path=tmp_path,
+        ts=ts,
+        host_pid=host_pid,
+        _raw=raw_for_unknown_op,
+    )
 
 
 def _complete_or_rollback(entry: _JournalEntry) -> bool:
@@ -802,32 +1029,15 @@ def _append_journal(journal: Path, payload: Mapping[str, object]) -> None:
 
 
 def _read_journal(journal: Path) -> list[_JournalEntry]:
-    """Parse the JSONL journal into typed entries. Missing/empty → []."""
+    """Parse the JSONL journal into typed entries. Missing/empty → [].
+
+    F7.1 consolidation: previously duplicated the parse body from
+    :func:`_parse_journal_text`, which caused the round-8 ``isinstance(data,
+    dict)`` fix to be applied to only one of the two parsers (codex iy4w
+    flagged this in the #201 body — "the same pattern appears in
+    ``_read_journal``"). Now a thin wrapper over the shared parser so the
+    §4.1 rejection rules cover both call sites.
+    """
     if not journal.exists():
         return []
-    entries: list[_JournalEntry] = []
-    for line in journal.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            logger.warning("sweep: dropping unparsable journal line: %r", line)
-            continue
-        # Only ``op: "move"`` entries are produced today; future ops
-        # can land in the same journal without disturbing callers.
-        op = data.get("op")
-        src = data.get("src")
-        dst = data.get("dst")
-        state = data.get("state")
-        if not (
-            isinstance(op, str)
-            and isinstance(src, str)
-            and isinstance(dst, str)
-            and isinstance(state, str)
-        ):
-            logger.warning("sweep: dropping malformed journal entry: %r", data)
-            continue
-        entries.append(_JournalEntry(op=op, src=src, dst=dst, state=state))
-    return entries
+    return _parse_journal_text(journal.read_text())
