@@ -547,15 +547,35 @@ class _PlannedAction:
     log_level: int = logging.DEBUG
 
 
-def _identity_pr197(entry: _JournalEntry) -> tuple:
-    """PR #197 collapse key — placeholder pending the step-3 swap.
+def _identity(entry: _JournalEntry) -> tuple:
+    """Operation identity for collapse-key reduction (§3.1).
 
-    Returns ``(src, dst)`` so same paths in different ops overwrite each
-    other (the codex iy4u bug); step 3 replaces this with the op_id-aware
-    §3.1 identity rule. Kept as a named function so the swap is a
-    one-line change at the call site.
+    Three rules in order:
+
+    1. v2 known-op record (``schema == 2``, op ∈ ``_KNOWN_OPS``,
+       ``op_id`` present): identity is ``("v2", op, op_id)`` — a single
+       invocation; different retries of the same move stay distinct.
+       The parser enforces ``op_id`` presence (§4.1 rule 8) so a v2
+       known-op entry without ``op_id`` never reaches this point.
+    2. v1 known-op record (no ``schema`` field on disk): identity is
+       ``("v1", op, src, dst)`` — path-keyed fallback matching PR #197
+       behavior. The ``"v1"`` discriminator means a v1 record cannot
+       collapse with a v2 record sharing the same ``(op, src, dst)``,
+       so v2's stronger identity is never silently downgraded.
+    3. Unknown op: identity is ``("unknown", op, _hash16(_raw))`` —
+       hashed from the full raw line so semantically-distinct future
+       records (with fields our parser doesn't understand) don't
+       conflate. The parser captures ``_raw`` for unknown ops via
+       §4.2; a defensive ``or ""`` covers the ``_raw is None`` case
+       a hand-constructed test entry might create.
+
+    Closes codex iy4u (same-path different-op masking) per #201.
     """
-    return (entry.src, entry.dst)
+    if entry.op in _KNOWN_OPS:
+        if entry.schema == 2 and entry.op_id is not None:
+            return ("v2", entry.op, entry.op_id)
+        return ("v1", entry.op, entry.src, entry.dst)
+    return ("unknown", entry.op, _hash16(entry._raw or ""))
 
 
 def plan_recovery_actions(
@@ -593,7 +613,7 @@ def plan_recovery_actions(
     """
     latest: dict[tuple, _JournalEntry] = {}
     for entry in entries:
-        latest[_identity_pr197(entry)] = entry
+        latest[_identity(entry)] = entry
     plan: list[_PlannedAction] = []
     for identity, entry in latest.items():
         plan.append(_plan_one(identity, entry, fs_observer))

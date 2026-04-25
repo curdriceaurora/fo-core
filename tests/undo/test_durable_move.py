@@ -2066,11 +2066,13 @@ class TestPlanRecoveryActions:
                 f"expected verb={expected}, got {plan[0].verb}"
             )
 
-    def test_planner_collapses_entries_preserves_pr197_behavior(self) -> None:
-        """Step 2 preserves PR #197's ``(src, dst)`` collapse key — same
-        paths in different ops DO still mask each other (bug codex iy4u).
-        Step 3 will fix this by keying on op+op_id as well. This test
-        documents that step 2 is a refactor, not a behavior change."""
+    def test_planner_collapse_key_separates_ops(self) -> None:
+        """Step 3 / codex iy4u: collapse key includes ``op`` so same paths
+        in different ops cannot mask each other. The pre-fix behavior
+        (PR #197 step 2) was: ``dir_move done`` would overwrite ``move
+        started``, dropping the move's recovery metadata. Now both
+        identities survive the collapse and produce independent plans.
+        """
         from undo.durable_move import _JournalEntry, plan_recovery_actions
 
         entries = [
@@ -2079,11 +2081,138 @@ class TestPlanRecoveryActions:
             _JournalEntry(op="dir_move", src="/a", dst="/b", state="done"),
         ]
         plan = plan_recovery_actions(entries, fs_observer=lambda _p: False)
-        # Step 2 uses PR #197's path-only key, so the latest entry wins —
-        # which is the dir_move done. Move's started record is masked.
+        # Two identities now: move (retained as ambiguous) + dir_move
+        # (collapses to done, dropped).
+        assert len(plan) == 2
+        verb_by_op = {a.entry.op: a.verb for a in plan}
+        assert verb_by_op["move"] == "retain"
+        assert verb_by_op["dir_move"] == "drop"
+
+    def test_planner_collapse_key_separates_v2_op_ids(self) -> None:
+        """§3.1 rule 1: v2 ``(op, op_id)`` identity. Two retries of the
+        same move with different op_ids stay distinct so a superseding
+        retry's ``done`` cannot erase an older retained ``started``."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        # Same paths, same op, different op_id → distinct identities.
+        entries = [
+            _JournalEntry(
+                op="move",
+                src="/a",
+                dst="/b",
+                state="started",
+                schema=2,
+                op_id="attempt-1",
+                tmp_path="/a.tmp",
+            ),
+            _JournalEntry(
+                op="move",
+                src="/a",
+                dst="/b",
+                state="done",
+                schema=2,
+                op_id="attempt-2",
+            ),
+        ]
+        plan = plan_recovery_actions(entries, fs_observer=lambda _p: False)
+        assert len(plan) == 2
+        # Both identities present; attempt-1's recovery metadata survives.
+        op_ids = {a.entry.op_id for a in plan}
+        assert op_ids == {"attempt-1", "attempt-2"}
+
+    def test_planner_collapse_key_v2_progression_collapses_same_op_id(self) -> None:
+        """§3.2: within a single op_id, states progress and collapse —
+        a later ``done`` for the SAME op_id supersedes earlier
+        started/copied entries (the legitimate collapse case)."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entries = [
+            _JournalEntry(
+                op="move",
+                src="/a",
+                dst="/b",
+                state="started",
+                schema=2,
+                op_id="single",
+                tmp_path="/a.tmp",
+            ),
+            _JournalEntry(
+                op="move",
+                src="/a",
+                dst="/b",
+                state="copied",
+                schema=2,
+                op_id="single",
+            ),
+            _JournalEntry(
+                op="move",
+                src="/a",
+                dst="/b",
+                state="done",
+                schema=2,
+                op_id="single",
+            ),
+        ]
+        plan = plan_recovery_actions(entries, fs_observer=lambda _p: True)
+        # Single identity collapses to the latest state: done → drop.
         assert len(plan) == 1
-        assert plan[0].entry.op == "dir_move"
         assert plan[0].entry.state == "done"
+        assert plan[0].verb == "drop"
+
+    def test_planner_collapse_key_v1_v2_never_collide(self) -> None:
+        """§3.1 ``v1`` / ``v2`` discriminator: a v1 record and a v2
+        record with the same ``(op, src, dst)`` get distinct identities,
+        so v2 cannot mask v1 retain metadata or vice-versa."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entries = [
+            # v1 record — no op_id, no schema.
+            _JournalEntry(op="move", src="/a", dst="/b", state="copied"),
+            # v2 record — explicit op_id.
+            _JournalEntry(
+                op="move",
+                src="/a",
+                dst="/b",
+                state="copied",
+                schema=2,
+                op_id="abc",
+            ),
+        ]
+        plan = plan_recovery_actions(entries, fs_observer=lambda _p: True)
+        assert len(plan) == 2
+
+    def test_planner_collapse_key_unknown_op_uses_raw_hash(self) -> None:
+        """§3.1 rule 4: unknown-op identity uses ``_hash16(_raw)`` so
+        future ops with semantically-distinct payloads don't conflate.
+        Two unknown-op entries with the same paths but different raw
+        lines produce distinct identities and BOTH retain."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entries = [
+            _JournalEntry(
+                op="future_copy",
+                src="/a",
+                dst="/b",
+                state="started",
+                schema=3,
+                _raw='{"schema":3,"op":"future_copy","src":"/a","dst":"/b","state":"started","content_hash":"aaa"}',
+            ),
+            _JournalEntry(
+                op="future_copy",
+                src="/a",
+                dst="/b",
+                state="started",
+                schema=3,
+                _raw='{"schema":3,"op":"future_copy","src":"/a","dst":"/b","state":"started","content_hash":"bbb"}',
+            ),
+        ]
+        plan = plan_recovery_actions(entries, fs_observer=lambda _p: False)
+        # Both records survive — _hash16 differs per raw payload, so the
+        # collapse key separates them. A future binary's handler decides
+        # via its own field semantics.
+        assert len(plan) == 2
+        for action in plan:
+            assert action.verb == "retain"
 
     def test_executor_applies_unlink_src_then_drop(self, tmp_path: Path) -> None:
         """Executor's ``unlink_src_then_drop`` verb: unlinks src, fsyncs
