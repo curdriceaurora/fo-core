@@ -102,7 +102,7 @@ class TestScanCommand:
         assert "duplicate" in result.output.lower()
 
     def test_scan_json_output(self, tmp_path: Path) -> None:
-        """--json flag produces a JSON array of duplicate groups."""
+        """``--format json`` produces a v1 JSON envelope with the groups array."""
         src = tmp_path / "files"
         src.mkdir()
 
@@ -113,17 +113,21 @@ class TestScanCommand:
         detector = _make_detector_with_groups({hash_val: group})
 
         with patch("cli.dedupe_v2._get_detector", return_value=detector):
-            result = runner.invoke(dedupe_app, ["scan", str(src), "--json"])
+            result = runner.invoke(dedupe_app, ["scan", str(src), "--format", "json"])
 
         assert result.exit_code == 0
+        # Locate the JSON envelope object in stdout (Rich status spinner output
+        # may precede it as ANSI cursor motion when running under a real
+        # terminal; CliRunner strips the spinner, but be defensive).
         output = result.output
-        start = output.find("[")
-        parsed = json.loads(output[start:])
-        assert isinstance(parsed, list)
-        assert len(parsed) == 1
-        assert parsed[0]["hash"] == hash_val
-        assert parsed[0]["count"] == 2
-        assert parsed[0]["wasted_space"] == 2048
+        start = output.find("{")
+        envelope = json.loads(output[start:])
+        assert envelope["version"] == 1
+        assert envelope["command"] == "scan"
+        assert len(envelope["groups"]) == 1
+        assert envelope["groups"][0]["hash"] == hash_val
+        assert envelope["groups"][0]["count"] == 2
+        assert envelope["groups"][0]["wasted_space"] == 2048
 
     def test_scan_no_duplicates_found(self, tmp_path: Path) -> None:
         """Empty duplicate groups exits 0 with informational message."""
@@ -148,7 +152,7 @@ class TestScanCommand:
         detector = _make_detector_with_groups({})
 
         with patch("cli.dedupe_v2._get_detector", return_value=detector):
-            result = runner.invoke(dedupe_app, ["scan", str(src), "--json"])
+            result = runner.invoke(dedupe_app, ["scan", str(src), "--format", "json"])
 
         assert result.exit_code == 0
         assert "No duplicates" in result.output
@@ -335,7 +339,7 @@ class TestReportCommand:
         assert "20" in result.output  # total files scanned
 
     def test_report_json_output(self, tmp_path: Path) -> None:
-        """--json flag produces valid JSON of statistics."""
+        """``--format json`` on ``report`` produces a v1 envelope with summary."""
         src = tmp_path / "files"
         src.mkdir()
 
@@ -351,14 +355,17 @@ class TestReportCommand:
         detector = _make_detector_with_groups({hash_val: group}, stats=stats)
 
         with patch("cli.dedupe_v2._get_detector", return_value=detector):
-            result = runner.invoke(dedupe_app, ["report", str(src), "--json"])
+            result = runner.invoke(dedupe_app, ["report", str(src), "--format", "json"])
 
         assert result.exit_code == 0
         output = result.output
         start = output.find("{")
-        parsed = json.loads(output[start:])
-        assert parsed["total_files"] == 8
-        assert parsed["duplicate_files"] == 2
+        envelope = json.loads(output[start:])
+        assert envelope["version"] == 1
+        assert envelope["command"] == "report"
+        assert envelope["summary"]["total_files"] == 8
+        assert envelope["summary"]["duplicate_files"] == 2
+        assert envelope["summary"]["duplicate_groups"] == 1
 
     def test_report_wasted_space_formatted(self, tmp_path: Path) -> None:
         """Report table shows human-readable wasted space."""
