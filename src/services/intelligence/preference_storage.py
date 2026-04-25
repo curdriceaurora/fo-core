@@ -485,6 +485,18 @@ class SqlitePreferenceStorage:
         finding on PR #207).
         """
         with self._lock:
+            # Persistence check FIRST — if the row is absent we raise
+            # without mutating the dataclass or bumping the application
+            # counters (Codex P2 on PR #207). Otherwise a failed call
+            # would still corrupt in-memory state and ``get_statistics``
+            # would report applications that never reached the DB.
+            row = self._db.get_preference(preference.preference_type.value, preference.key)
+            if row is None:
+                raise KeyError(
+                    f"No persisted preference for ({preference.preference_type.value}, "
+                    f"{preference.key!r}); call save_preference first."
+                )
+
             now = datetime.now(UTC)
             if success:
                 preference.metadata.confidence = min(0.98, preference.metadata.confidence + 0.05)
@@ -494,14 +506,6 @@ class SqlitePreferenceStorage:
                 preference.metadata.confidence = max(0.1, preference.metadata.confidence - 0.1)
                 self._failed_applications += 1
             preference.metadata.updated = now
-
-            # Locate the row by (type, key) and update confidence + last_used_at + updated_at.
-            row = self._db.get_preference(preference.preference_type.value, preference.key)
-            if row is None:
-                raise KeyError(
-                    f"No persisted preference for ({preference.preference_type.value}, "
-                    f"{preference.key!r}); call save_preference first."
-                )
             conn = self._db.get_connection()
             conn.execute(
                 """
@@ -627,7 +631,14 @@ class SqlitePreferenceStorage:
             }
 
     def export_data(self) -> dict[str, Any]:
-        """Serialize SQLite contents to the same export shape as InMemoryPreferenceStorage."""
+        """Serialize SQLite contents to the same export shape as InMemoryPreferenceStorage.
+
+        Includes the in-memory ``successful_applications`` /
+        ``failed_applications`` counters in the ``statistics`` block so
+        an export → import round-trip preserves them (Codex P2 on PR
+        #207 — the manager's ``get_preference_stats()`` only knows
+        about persisted DB columns).
+        """
         with self._lock:
             conn = self._db.get_connection()
             cur = conn.execute("SELECT * FROM preferences")
@@ -641,10 +652,14 @@ class SqlitePreferenceStorage:
             cur = conn.execute("SELECT * FROM corrections ORDER BY timestamp ASC")
             corrections = [self._row_to_correction(dict(r)).to_dict() for r in cur.fetchall()]
 
+            statistics = dict(self._db.get_preference_stats())
+            statistics["successful_applications"] = self._successful_applications
+            statistics["failed_applications"] = self._failed_applications
+
             return {
                 "preferences": preferences,
                 "corrections": corrections,
-                "statistics": self._db.get_preference_stats(),
+                "statistics": statistics,
                 "exported_at": datetime.now(UTC).isoformat(),
             }
 

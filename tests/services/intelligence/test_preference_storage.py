@@ -754,3 +754,72 @@ class TestImportDataResetsApplicationCounters:
             stats = storage.get_statistics()
             assert stats["successful_applications"] == 7
             assert stats["failed_applications"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Third-cycle review fixes (PR #207, Codex 20:07Z re-review)
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateConfidenceErrorAtomicity:
+    """``update_preference_confidence`` is atomic w.r.t. side-effects on error.
+
+    A failed call (no backing row) must NOT mutate ``preference.metadata``
+    or bump ``_successful_applications`` / ``_failed_applications`` —
+    the persistence check now runs FIRST (Codex P2 on PR #207).
+    """
+
+    def test_update_on_unsaved_pref_does_not_mutate_dataclass(self, tmp_path: Path) -> None:
+        with SqlitePreferenceStorage(tmp_path / "p.db") as storage:
+            pref = _make_preference(confidence=0.5)
+            original_confidence = pref.metadata.confidence
+            original_last_used = pref.metadata.last_used
+
+            with pytest.raises(KeyError):
+                storage.update_preference_confidence(pref, success=True)
+
+            # Dataclass is unchanged — no mutation before the raise
+            assert pref.metadata.confidence == original_confidence
+            assert pref.metadata.last_used == original_last_used
+
+    def test_update_on_unsaved_pref_does_not_bump_counters(self, tmp_path: Path) -> None:
+        with SqlitePreferenceStorage(tmp_path / "p.db") as storage:
+            pref_unsaved = _make_preference(key="ghost")
+            pref_saved = _make_preference(key="real")
+            storage.save_preference(pref_saved)
+
+            # First do a real success so counter is at 1
+            storage.update_preference_confidence(pref_saved, success=True)
+            assert storage.get_statistics()["successful_applications"] == 1
+
+            # Now attempt update on the unsaved one — must not bump
+            with pytest.raises(KeyError):
+                storage.update_preference_confidence(pref_unsaved, success=True)
+
+            # Counter unchanged
+            assert storage.get_statistics()["successful_applications"] == 1
+
+
+class TestExportPreservesApplicationCounters:
+    """``export_data`` includes in-memory application counters (Codex P2 on PR #207)."""
+
+    def test_export_round_trip_preserves_application_counters_in_sqlite(
+        self, tmp_path: Path
+    ) -> None:
+        with SqlitePreferenceStorage(tmp_path / "p1.db") as src_storage:
+            pref = _make_preference()
+            src_storage.save_preference(pref)
+            src_storage.update_preference_confidence(pref, success=True)
+            src_storage.update_preference_confidence(pref, success=True)
+            src_storage.update_preference_confidence(pref, success=False)
+            assert src_storage.get_statistics()["successful_applications"] == 2
+            assert src_storage.get_statistics()["failed_applications"] == 1
+
+            snapshot = src_storage.export_data()
+
+        # Import into a fresh storage and verify counters survived
+        with SqlitePreferenceStorage(tmp_path / "p2.db") as dst_storage:
+            dst_storage.import_data(snapshot)
+            stats = dst_storage.get_statistics()
+            assert stats["successful_applications"] == 2
+            assert stats["failed_applications"] == 1
