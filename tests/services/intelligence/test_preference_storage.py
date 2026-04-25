@@ -38,7 +38,7 @@ from services.intelligence.preference_tracker import (
 if TYPE_CHECKING:
     pass
 
-pytestmark = [pytest.mark.unit, pytest.mark.ci]
+pytestmark = [pytest.mark.unit, pytest.mark.ci, pytest.mark.integration]
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,10 @@ pytestmark = [pytest.mark.unit, pytest.mark.ci]
 def _make_preference(
     preference_type: PreferenceType = PreferenceType.FOLDER_MAPPING,
     key: str = "file_move|.pdf|Documents",
-    value: str | dict[str, str] = "/home/user/Documents",
+    # Default ``value`` is a generic relative-string folder name (not ``/home/...``)
+    # so the G2 hardcoded-path rail (which scans test files for ``/home/`` /
+    # ``/tmp/`` / ``/Users/`` literals) stays clean.
+    value: str | dict[str, str] = "Documents",
     confidence: float = 0.5,
     frequency: int = 1,
 ) -> Preference:
