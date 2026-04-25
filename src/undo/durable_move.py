@@ -46,6 +46,30 @@ in the journal if it was updated (we append rather than rewrite for
 crash safety — the sweep reads the LAST state for each (src, dst)
 pair). The sweep truncates the journal once it finishes, so
 steady-state size is bounded.
+
+Cross-module consumers of underscore-prefixed helpers
+-----------------------------------------------------
+
+The leading underscore on ``_HAS_FCNTL``, ``_locked``,
+``_path_in_flight_from_entries``, and ``_read_journal`` signals
+*module-private*, but :class:`undo.trash_gc.TrashGC` is an authorized
+consumer of all four (CodeRabbit lgMd). The contract:
+
+- ``_locked`` / ``_HAS_FCNTL`` — TrashGC reuses the lock-file
+  coordination so its ``LOCK_EX`` mutually-excludes with this
+  module's writers. Renaming or relocating these MUST update TrashGC
+  in the same change.
+- ``_read_journal`` + ``_path_in_flight_from_entries`` — TrashGC
+  reads + checks under its already-held ``LOCK_EX`` (the public
+  ``is_path_in_flight`` would deadlock on its own LOCK_SH). The
+  predicate's collapse rule (§3.1 operation identity) is canonical
+  for both this module's ``is_path_in_flight`` and TrashGC's
+  ``safe_delete`` — any bug fix must mirror to both call sites.
+
+Promoting the four to a non-underscored API (e.g. into a shared
+``undo._journal_lock`` module) is documented future work; today
+the underscore-private + cross-module-consumer pattern is the
+agreed contract.
 """
 
 from __future__ import annotations
@@ -1365,6 +1389,22 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
         # Windows: fall back to unlocked read; relies on the single-
         # CLI-invocation invariant per the module docstring.
         entries = _read_journal(journal)
+    return _path_in_flight_from_entries(path, entries)
+
+
+def _path_in_flight_from_entries(path: Path, entries: list[_JournalEntry]) -> bool:
+    """Lock-free predicate: is *path* the src or dst of an active move?
+
+    Extracted from :func:`is_path_in_flight` so callers that ALREADY
+    hold the journal lock (e.g. F8.1 ``TrashGC.safe_delete`` under
+    ``LOCK_EX``) can run the same membership check without re-acquiring
+    ``LOCK_SH`` on the same lock file (which would deadlock on a
+    different fd against the held LOCK_EX on the inode).
+
+    The collapse rule is identical to :func:`is_path_in_flight`: §3.1
+    operation identity, NOT path-keyed reduction. Any bug fix to one
+    must mirror to the other — this function is the canonical predicate.
+    """
     if not entries:
         return False
     # Normalize the query path the same way writers do so the compare
@@ -1372,11 +1412,7 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
     path_str = _normalized_path_str(path)
     # §3.1: collapse by the operation identity ("v2"/op/op_id, "v1"/op/src/dst,
     # or "unknown"/op/_hash16) — same key the planner uses. Path-keyed collapse
-    # would re-introduce the codex iy4u masking bug for F8 trash-GC: e.g. a
-    # ``move /a /b started`` followed by an unrelated ``dir_move /a /b done``
-    # would let the dir_move done supersede the move started under
-    # ``(src, dst)`` reduction, and ``is_path_in_flight(/a)`` would falsely
-    # return False during the move's copy → replace window.
+    # would re-introduce the codex iy4u masking bug for F8 trash-GC.
     latest: dict[_OpIdentity, _JournalEntry] = {}
     for entry in entries:
         latest[_identity(entry)] = entry
