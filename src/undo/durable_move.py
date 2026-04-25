@@ -61,7 +61,7 @@ import tempfile
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from utils.atomic_io import fsync_directory
 from utils.atomic_write import append_durable
@@ -79,6 +79,11 @@ except ImportError:  # pragma: no cover - Windows
     _HAS_FCNTL = False
 
 logger = logging.getLogger(__name__)
+
+# Heterogeneous collapse-identity tuple. Three shapes per §3.1:
+# ``("v2", op, op_id)`` / ``("v1", op, src, dst)`` / ``("unknown", op, _hash16)``.
+# ``tuple[object, ...]`` captures the variability without losing strictness.
+_OpIdentity = tuple[object, ...]
 
 
 # Journal state constants. Exposed so callers (and tests) can assert
@@ -524,42 +529,127 @@ def sweep(journal: Path) -> None:
     # and the unlocked sweep body runs (single-CLI-invocation invariant
     # per the module docstring).
     if _HAS_FCNTL:
-        try:
-            with _locked(journal, fcntl.LOCK_EX), open(journal, "r+") as fh:
+        with _locked(journal, fcntl.LOCK_EX):
+            try:
+                fh = open(journal, "r+")
+            except FileNotFoundError:
+                # Journal disappeared between ``exists()`` and ``open()`` —
+                # nothing to sweep. Narrow scope: don't swallow OSError
+                # raised by the body (e.g. ``os.replace`` failures during
+                # compaction must propagate so callers can react).
+                return
+            try:
                 _sweep_locked_body(journal, fh)
-            return
-        except OSError:
-            # ``OSError`` on open can happen if the journal disappeared
-            # between ``exists()`` and ``open()`` — fall through to the
-            # unlocked path which handles the missing-file case.
-            pass
+            finally:
+                fh.close()
+        return
     _sweep_unlocked_body(journal)
 
 
+_MAX_JOURNAL_SIZE_BYTES = 16 * 1024 * 1024
+"""§6.6 size cap. Journals above this are skipped during compaction with
+a WARNING. Steady-state journals are bounded by the in-flight count
+(currently ≤1 per CLI invocation), so this is belt-and-suspenders against
+pathological growth (a misconfigured retry loop, an external writer,
+etc.). 16 MiB is well above the realistic ceiling."""
+
+
 def _sweep_locked_body(journal: Path, fh) -> None:  # type: ignore[no-untyped-def]
-    """Sweep body executed while holding an exclusive flock on ``fh``.
+    """Sweep body executed while holding an exclusive flock on the lock file.
+
+    Coderabbit round-10 / step-5 atomic compaction (§6.2): retained
+    entries are written to ``<journal>.<pid>.compact.tmp`` then
+    ``os.replace``'d into the journal path. A crash mid-compaction
+    leaves either the OLD journal intact (if the replace hadn't
+    happened) or the NEW journal complete (if it had). No
+    truncated-with-pending-entries window.
 
     The ``journal`` path is carried through for diagnostic logging
-    (coderabbit PRRT_kwDOR_Rkws59hgCS) — it parallels the
-    ``_sweep_unlocked_body(journal)`` signature and gives debug log
-    lines the journal location when the sweep retains entries.
+    (coderabbit PRRT_kwDOR_Rkws59hgCS) and now also for the compact-
+    tmp file path; ``fh`` is the journal-file fd opened by the caller
+    for the read step. Writes go through the compact-tmp + replace
+    path, NOT through ``fh``.
     """
     fh.seek(0)
-    entries = _parse_journal_text(fh.read())
+    journal_text = fh.read()
+    # §6.6 size cap — skip compaction with a WARNING.
+    if len(journal_text.encode("utf-8")) > _MAX_JOURNAL_SIZE_BYTES:
+        logger.warning(
+            "sweep: skipping compaction — journal %s exceeds size cap (%d bytes > %d). "
+            "Steady-state journals should be bounded by in-flight count; "
+            "investigate runaway append behavior.",
+            journal,
+            len(journal_text.encode("utf-8")),
+            _MAX_JOURNAL_SIZE_BYTES,
+        )
+        return
+    entries = _parse_journal_text(journal_text)
     if not entries:
         return
     retained = _reconcile_entries(entries)
-    fh.seek(0)
-    fh.truncate()
-    if retained:
-        fh.write("\n".join(_serialize_entry(e) for e in retained) + "\n")
-        logger.debug(
-            "sweep: retained %d unreconciled entries in %s",
-            len(retained),
-            journal,
-        )
-    fh.flush()
-    os.fsync(fh.fileno())
+    if not retained and not journal_text.strip():
+        # Already empty + nothing to write.
+        return
+    _atomic_compact_journal(journal, retained)
+
+
+def _atomic_compact_journal(journal: Path, retained: list[_JournalEntry]) -> None:
+    """Replace *journal* atomically with the serialized *retained* entries.
+
+    §6.2 algorithm:
+
+    1. Write to ``<journal>.<pid>.compact.tmp`` via ``open("x")`` so a
+       stale tmp from a prior crashed sweep is detected.
+    2. ``write + flush + fsync(tmp_fd)``.
+    3. ``fsync_directory(journal.parent)`` — durable tmp dir entry.
+    4. ``os.replace(tmp, journal)`` — atomic.
+    5. ``fsync_directory(journal.parent)`` — durable replace.
+
+    On stale-tmp ``FileExistsError`` (§6.4), unlinks the stale and
+    retries once. Two failures in a row indicates a permissions
+    pathology that sweep shouldn't paper over — re-raise.
+
+    Caller must hold the ``<journal>.lock`` ``LOCK_EX`` (i.e. only
+    invoke from inside ``_sweep_locked_body`` or another locked
+    context).
+    """
+    tmp = journal.with_name(f"{journal.name}.{os.getpid()}.compact.tmp")
+    payload = "\n".join(_serialize_entry(e) for e in retained)
+    if payload:
+        payload += "\n"
+    try:
+        _write_compact_tmp(tmp, payload)
+    except FileExistsError:
+        # §6.4: stale tmp from prior crashed sweep — unlink + retry once.
+        logger.warning("sweep: removing stale compact-tmp %s and retrying once", tmp)
+        with contextlib.suppress(FileNotFoundError):
+            tmp.unlink()
+        _write_compact_tmp(tmp, payload)
+    fsync_directory(journal)
+    os.replace(tmp, journal)
+    fsync_directory(journal)
+    logger.debug(
+        "sweep: compacted %s — %d retained entr%s",
+        journal,
+        len(retained),
+        "y" if len(retained) == 1 else "ies",
+    )
+
+
+def _write_compact_tmp(tmp: Path, payload: str) -> None:
+    """Open ``tmp`` exclusively (``open("x")``), write *payload*, fsync, close.
+
+    Extracted for reuse by the §6.4 stale-tmp retry. Raises
+    ``FileExistsError`` if the tmp already exists — caller decides
+    whether to clean and retry.
+    """
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    try:
+        if payload:
+            os.write(fd, payload.encode("utf-8"))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def _sweep_unlocked_body(journal: Path) -> None:
@@ -599,14 +689,14 @@ class _PlannedAction:
     planner and executes. No "report-only mode" branch can drift.
     """
 
-    identity: tuple
+    identity: _OpIdentity
     entry: _JournalEntry
     verb: _PlannedVerb
     reason: str
     log_level: int = logging.DEBUG
 
 
-def _identity(entry: _JournalEntry) -> tuple:
+def _identity(entry: _JournalEntry) -> _OpIdentity:
     """Operation identity for collapse-key reduction (§3.1).
 
     Three rules in order:
@@ -670,7 +760,7 @@ def plan_recovery_actions(
         recovery state table covers the full row matrix that step 6 +
         future steps will fill in.
     """
-    latest: dict[tuple, _JournalEntry] = {}
+    latest: dict[_OpIdentity, _JournalEntry] = {}
     for entry in entries:
         latest[_identity(entry)] = entry
     plan: list[_PlannedAction] = []
@@ -680,7 +770,7 @@ def plan_recovery_actions(
 
 
 def _plan_one(
-    identity: tuple,
+    identity: _OpIdentity,
     entry: _JournalEntry,
     fs_observer: Callable[[str], bool],
 ) -> _PlannedAction:
@@ -945,7 +1035,7 @@ def _reject(msg: str, *args: object, line: str) -> _ParseReject:
     return _ParseReject()
 
 
-def _validate_core_fields(data: dict, line: str) -> tuple[str, str, str, str]:
+def _validate_core_fields(data: dict[str, Any], line: str) -> tuple[str, str, str, str]:
     """§4.1 rules 3 + 4: op/src/dst/state present and string-typed."""
     op = data.get("op")
     src = data.get("src")
@@ -961,17 +1051,17 @@ def _validate_core_fields(data: dict, line: str) -> tuple[str, str, str, str]:
     return op, src, dst, state
 
 
-def _validate_schema(data: dict, line: str) -> int:
+def _validate_schema(data: dict[str, Any], line: str) -> int:
     """§4.1 rule 6: schema is absent (→ 1) or a positive int."""
     schema_raw = data.get("schema")
     if schema_raw is None:
         return 1
     if isinstance(schema_raw, bool) or not isinstance(schema_raw, int) or schema_raw < 1:
         raise _reject("sweep: dropping entry with invalid schema %r", schema_raw, line=line)
-    return schema_raw
+    return int(schema_raw)
 
 
-def _validate_op_id(data: dict, line: str) -> str | None:
+def _validate_op_id(data: dict[str, Any], line: str) -> str | None:
     """Parse ``op_id``. None if absent, string if typed, rejection otherwise."""
     raw = data.get("op_id")
     if raw is None:
@@ -981,7 +1071,7 @@ def _validate_op_id(data: dict, line: str) -> str | None:
     raise _reject("sweep: dropping entry with non-string op_id %r", raw, line=line)
 
 
-def _validate_tmp_path(data: dict, line: str) -> str | None:
+def _validate_tmp_path(data: dict[str, Any], line: str) -> str | None:
     """Parse ``tmp_path``. None if absent, string if typed, rejection otherwise."""
     raw = data.get("tmp_path")
     if raw is None:
@@ -991,7 +1081,7 @@ def _validate_tmp_path(data: dict, line: str) -> str | None:
     raise _reject("sweep: dropping entry with non-string tmp_path %r", raw, line=line)
 
 
-def _validate_ts(data: dict, line: str) -> float | None:
+def _validate_ts(data: dict[str, Any], line: str) -> float | None:
     """Parse diagnostic ``ts``. None/float; reject bool (bool is int subclass)."""
     raw = data.get("ts")
     if raw is None:
@@ -1003,14 +1093,14 @@ def _validate_ts(data: dict, line: str) -> float | None:
     raise _reject("sweep: dropping entry with non-numeric ts %r", raw, line=line)
 
 
-def _validate_host_pid(data: dict, line: str) -> int | None:
+def _validate_host_pid(data: dict[str, Any], line: str) -> int | None:
     """Parse diagnostic ``host_pid``. None/int; reject bool."""
     raw = data.get("host_pid")
     if raw is None:
         return None
     if isinstance(raw, bool) or not isinstance(raw, int):
         raise _reject("sweep: dropping entry with non-int host_pid %r", raw, line=line)
-    return raw
+    return int(raw)
 
 
 def _parse_one_journal_line(line: str) -> _JournalEntry | None:

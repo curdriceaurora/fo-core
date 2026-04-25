@@ -1949,6 +1949,184 @@ class TestJournalSchemaV2Parser:
 
 
 # ---------------------------------------------------------------------------
+# F7.1 step 5: atomic journal compaction
+# (tracks #201, docs/internal/F7-1-journal-protocol-design.md §6.2–6.6)
+# ---------------------------------------------------------------------------
+
+
+class TestAtomicCompaction:
+    """Step 5 / coderabbit round-10 major: sweep no longer truncates the
+    live journal. Instead it writes retained entries to a compact-tmp,
+    fsyncs, then ``os.replace``s the journal — atomic on POSIX. A
+    crash mid-compaction leaves either the OLD journal intact OR the
+    NEW journal complete; never a zero-bytes-with-pending-entries state.
+    """
+
+    def test_compaction_replaces_journal_via_tmp_not_truncate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Sweep with retained entries must use ``os.replace`` (the
+        compact-tmp path), not ``fh.truncate`` on the live journal."""
+        from undo.durable_move import _append_journal, sweep
+
+        journal = tmp_path / "move.journal"
+        # Two entries: one will be retained (copied + dst missing), one will be
+        # dropped (done).
+        src_keep = tmp_path / "kept-src.txt"
+        src_keep.write_text("x")
+        dst_missing = tmp_path / "missing-dst.txt"  # deliberately absent
+        _append_journal(
+            journal,
+            {"op": "move", "src": str(src_keep), "dst": str(dst_missing), "state": "copied"},
+        )
+        _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+
+        # Track os.replace calls — must be invoked at least once with
+        # the compact-tmp → journal swap.
+        replace_calls: list[tuple[str, str]] = []
+        real_replace = os.replace
+
+        def tracking_replace(src, dst):  # type: ignore[no-untyped-def]
+            replace_calls.append((str(src), str(dst)))
+            return real_replace(src, dst)
+
+        monkeypatch.setattr("undo.durable_move.os.replace", tracking_replace)
+
+        # Inode change is the observable proof of replace (vs in-place
+        # truncate, which would preserve inode).
+        journal_inode_before = journal.stat().st_ino
+
+        sweep(journal)
+
+        replace_targets = [dst for _src, dst in replace_calls]
+        assert str(journal) in replace_targets, (
+            f"sweep must os.replace the journal as part of compaction; "
+            f"replace calls were: {replace_calls}"
+        )
+        assert journal.stat().st_ino != journal_inode_before, (
+            "journal inode must change post-compaction (proof of os.replace, not in-place truncate)"
+        )
+        from undo.durable_move import _read_journal
+
+        entries = _read_journal(journal)
+        assert len(entries) == 1
+        assert entries[0].src == str(src_keep)
+
+    def test_compaction_crash_mid_replace_preserves_journal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Step 5 crash safety: if ``os.replace`` raises (simulated
+        mid-compaction crash), the original journal content survives
+        intact — no zero-bytes-with-pending-entries window."""
+        from undo.durable_move import _append_journal, sweep
+
+        journal = tmp_path / "move.journal"
+        src_keep = tmp_path / "src.txt"
+        src_keep.write_text("x")
+        dst_missing = tmp_path / "missing.txt"
+        _append_journal(
+            journal,
+            {"op": "move", "src": str(src_keep), "dst": str(dst_missing), "state": "copied"},
+        )
+        _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+        original_content = journal.read_text()
+        original_lines = [line for line in original_content.splitlines() if line]
+        assert len(original_lines) == 2
+
+        # Simulate crash: os.replace raises mid-compaction.
+        def failing_replace(src, dst):  # type: ignore[no-untyped-def]
+            raise OSError(28, "simulated disk full mid-replace")
+
+        monkeypatch.setattr("undo.durable_move.os.replace", failing_replace)
+
+        with pytest.raises(OSError, match="simulated"):
+            sweep(journal)
+
+        # Journal content unchanged — both original entries survive.
+        post_crash = journal.read_text()
+        assert post_crash == original_content, (
+            "crash mid-replace must preserve the journal exactly; "
+            "the compact-tmp + os.replace pattern guarantees no "
+            "zero-bytes-with-pending-entries window"
+        )
+
+    def test_compaction_stale_tmp_from_prior_crashed_sweep(self, tmp_path: Path) -> None:
+        """§6.4: if a prior crashed sweep left a compact-tmp on disk,
+        the next sweep removes it once and retries."""
+        from undo.durable_move import _append_journal, sweep
+
+        journal = tmp_path / "move.journal"
+        src_keep = tmp_path / "kept.txt"
+        src_keep.write_text("x")
+        dst_missing = tmp_path / "missing.txt"
+        _append_journal(
+            journal,
+            {"op": "move", "src": str(src_keep), "dst": str(dst_missing), "state": "copied"},
+        )
+
+        # Simulate stale tmp from a prior crashed sweep — same path the
+        # current sweep would generate.
+        stale_tmp = tmp_path / f"move.journal.{os.getpid()}.compact.tmp"
+        stale_tmp.write_text("garbage from a prior crash\n")
+        assert stale_tmp.exists()
+
+        # Sweep must succeed despite the stale tmp.
+        sweep(journal)
+        assert not stale_tmp.exists(), "sweep must clean up stale compact-tmp"
+
+    def test_compaction_size_cap_skips_oversized_journal(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """§6.6: journals >16 MiB trigger a WARNING and skip
+        compaction (belt-and-suspenders; steady-state journals are
+        bounded by in-flight count). Sweep returns early without
+        rewriting."""
+        from undo.durable_move import sweep
+
+        journal = tmp_path / "move.journal"
+        # Build a journal whose total size exceeds the 16 MiB cap.
+        entry_template = json.dumps(
+            {
+                "op": "move",
+                "src": "/a",
+                "dst": "/b",
+                "state": "done",
+                "_padding": "x" * 4096,
+            }
+        )
+        # Each entry ~4 KiB; 4500 entries ~18 MiB.
+        with open(journal, "w") as fh:
+            for _ in range(4500):
+                fh.write(entry_template + "\n")
+        size_before = journal.stat().st_size
+        assert size_before > 16 * 1024 * 1024
+
+        with caplog.at_level("WARNING", logger="undo.durable_move"):
+            sweep(journal)
+
+        # Journal still oversized (sweep skipped compaction).
+        assert journal.stat().st_size == size_before
+        msgs = [r.getMessage() for r in caplog.records]
+        assert any("size cap" in m.lower() for m in msgs), f"expected size-cap WARNING; got {msgs}"
+
+    def test_compaction_empty_retained_clears_journal(self, tmp_path: Path) -> None:
+        """When sweep reconciles every entry to drop, the journal is
+        cleared (truncated to empty via the compact-tmp + replace path,
+        not in-place truncation)."""
+        from undo.durable_move import _append_journal, sweep
+
+        journal = tmp_path / "move.journal"
+        _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+        _append_journal(journal, {"op": "move", "src": "/c", "dst": "/d", "state": "done"})
+
+        sweep(journal)
+
+        # Journal exists but is empty.
+        assert journal.exists()
+        assert journal.read_text().strip() == ""
+
+
+# ---------------------------------------------------------------------------
 # F7.1 step 4: lock-file extraction
 # (tracks #201, docs/internal/F7-1-journal-protocol-design.md §6.1, §6.5)
 # ---------------------------------------------------------------------------
