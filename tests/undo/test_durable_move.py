@@ -1306,22 +1306,31 @@ class TestAppendJournalFlockCoordination:
 
     def test_append_journal_blocks_while_sweep_holds_flock(self, tmp_path: Path) -> None:
         """Core invariant: an ``_append_journal`` call issued while
-        sweep (or any other holder) has ``LOCK_EX`` on the journal
-        blocks until the lock is released. Proves the appender
+        sweep (or any other holder) has ``LOCK_EX`` on the journal's
+        lock file blocks until the lock is released. Proves the appender
         respects the same advisory lock sweep uses.
+
+        Step 4 update: lock subject is ``<journal>.lock`` (stable
+        inode), not ``<journal>`` itself. Pre-step-4 this test held
+        ``LOCK_EX`` on the journal file directly.
         """
         fcntl = pytest.importorskip("fcntl")
         import threading
         import time
 
-        from undo.durable_move import _append_journal
+        from undo.durable_move import _append_journal, _lock_path
 
         journal = tmp_path / "move.journal"
-        journal.write_text("")  # create so the held-open fd has an inode
+        # Pre-create empty journal + empty lock file. Journal stays
+        # empty so the downstream "exactly 1 appended line" assertion
+        # holds; lock file gets the held LOCK_EX below.
+        journal.write_text("")
+        lock = _lock_path(journal)
+        lock.touch()
 
-        # Acquire LOCK_EX in the main thread — mimics sweep holding
-        # the journal during its read-modify-truncate cycle.
-        holder = open(journal, "r+", encoding="utf-8")
+        # Acquire LOCK_EX on the LOCK FILE in the main thread — mimics
+        # sweep holding the lock during its read-modify-write cycle.
+        holder = open(lock, "r+", encoding="utf-8")
         fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
 
         # ``appender_entered`` is set IMMEDIATELY before the
@@ -1611,21 +1620,27 @@ class TestIsPathInFlightSharedLock:
     """
 
     def test_is_path_in_flight_blocks_while_writer_holds_lock_ex(self, tmp_path: Path) -> None:
-        """Hold ``LOCK_EX`` from main thread; the reader thread's
-        ``is_path_in_flight`` call must block until the lock is
-        released."""
+        """Hold ``LOCK_EX`` on the LOCK FILE from main thread; the
+        reader thread's ``is_path_in_flight`` call must block until
+        the lock is released.
+
+        Step 4 update: lock subject is ``<journal>.lock`` (stable
+        inode), not ``<journal>`` itself. Pre-step-4 this test held
+        ``LOCK_EX`` on the journal file directly — that no longer
+        coordinates with readers/writers under the new protocol.
+        """
         fcntl = pytest.importorskip("fcntl")
         import threading
 
-        from undo.durable_move import _append_journal, is_path_in_flight
+        from undo.durable_move import _append_journal, _lock_path, is_path_in_flight
 
         journal = tmp_path / "move.journal"
-        # Pre-populate so the file exists for the reader's open().
+        # Pre-populate so the lock file exists for the holder's open().
         _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
 
-        # Hold LOCK_EX from the main thread (simulates an active
-        # _append_journal mid-write).
-        holder = open(journal, "a", encoding="utf-8")
+        # Hold LOCK_EX on the LOCK FILE from the main thread (simulates
+        # an active _append_journal mid-write).
+        holder = open(_lock_path(journal), "a", encoding="utf-8")
         fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
 
         reader_entered = threading.Event()
@@ -1931,6 +1946,189 @@ class TestJournalSchemaV2Parser:
         assert _hash16(raw) == h  # deterministic
         # Different content → different hash.
         assert _hash16(raw.replace('"done"', '"started"')) != h
+
+
+# ---------------------------------------------------------------------------
+# F7.1 step 4: lock-file extraction
+# (tracks #201, docs/internal/F7-1-journal-protocol-design.md §6.1, §6.5)
+# ---------------------------------------------------------------------------
+
+
+class TestJournalLockFile:
+    """Step 4 / round-1 review blocking fix: all flock operations acquire
+    on a sibling ``<journal>.lock`` file with a stable inode, NOT on
+    ``<journal>`` directly. Required for step 5's atomic compaction —
+    ``os.replace`` on the journal must not invalidate locks held by
+    concurrent appenders.
+    """
+
+    def test_lock_path_alongside_journal(self, tmp_path: Path) -> None:
+        """The lock subject is ``<journal>.lock`` in the same directory."""
+        from undo.durable_move import _lock_path
+
+        journal = tmp_path / "move.journal"
+        assert _lock_path(journal) == tmp_path / "move.journal.lock"
+
+    def test_append_creates_lock_file_at_stable_path(self, tmp_path: Path) -> None:
+        """First append creates both the journal AND the lock file. The
+        lock file is then NEVER unlinked or replaced by normal protocol
+        operations."""
+        pytest.importorskip("fcntl")
+        from undo.durable_move import _append_journal, _lock_path
+
+        journal = tmp_path / "move.journal"
+        lock = _lock_path(journal)
+
+        _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+
+        assert journal.exists()
+        assert lock.exists()
+        # Capture the lock file's inode — subsequent operations must
+        # preserve it (the round-1 review blocking concern).
+        lock_inode_before = lock.stat().st_ino
+
+        # Several more appends + a sweep — lock inode must not change.
+        _append_journal(journal, {"op": "move", "src": "/c", "dst": "/d", "state": "done"})
+        from undo.durable_move import sweep
+
+        sweep(journal)
+
+        assert lock.exists(), "lock file must persist across protocol ops"
+        assert lock.stat().st_ino == lock_inode_before, (
+            "lock file inode must be stable across appends + sweep — "
+            "if it changes, concurrent flock holders lose coordination "
+            "(round-1 review blocking concern)"
+        )
+
+    def test_append_blocks_while_lock_ex_held_on_lock_file(self, tmp_path: Path) -> None:
+        """Acquiring ``LOCK_EX`` on ``<journal>.lock`` (NOT on
+        ``<journal>``) blocks ``_append_journal``. Proves the appender
+        coordinates on the new lock file."""
+        fcntl = pytest.importorskip("fcntl")
+        import threading
+
+        from undo.durable_move import _append_journal, _lock_path
+
+        journal = tmp_path / "move.journal"
+        # Pre-populate so the lock file exists.
+        _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+        lock = _lock_path(journal)
+
+        # Hold LOCK_EX on the lock file from the main thread.
+        holder = open(lock, "r+", encoding="utf-8")
+        fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
+
+        appender_entered = threading.Event()
+        append_done = threading.Event()
+
+        def _appender() -> None:
+            appender_entered.set()
+            try:
+                _append_journal(journal, {"op": "move", "src": "/x", "dst": "/y", "state": "done"})
+            finally:
+                append_done.set()
+
+        t = threading.Thread(target=_appender, daemon=True)
+        t.start()
+
+        assert appender_entered.wait(timeout=5.0), "appender never scheduled"
+        # Appender must block on the lock file's LOCK_EX.
+        assert not append_done.wait(timeout=0.5), (
+            "_append_journal must block while LOCK_EX is held on the lock "
+            "file (step-4 lock-file extraction)"
+        )
+
+        # Release; appender completes.
+        fcntl.flock(holder.fileno(), fcntl.LOCK_UN)
+        holder.close()
+        assert append_done.wait(timeout=5.0)
+        t.join(timeout=2)
+
+    def test_is_path_in_flight_blocks_on_lock_file_lock_ex(self, tmp_path: Path) -> None:
+        """Reader takes ``LOCK_SH`` on the lock file; LOCK_EX held on
+        the lock file blocks the reader. Same plumbing as step 4 for
+        the appender."""
+        fcntl = pytest.importorskip("fcntl")
+        import threading
+
+        from undo.durable_move import _append_journal, _lock_path, is_path_in_flight
+
+        journal = tmp_path / "move.journal"
+        _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+        lock = _lock_path(journal)
+
+        holder = open(lock, "r+", encoding="utf-8")
+        fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
+
+        reader_done = threading.Event()
+        result: list[bool | None] = [None]
+
+        def _reader() -> None:
+            try:
+                result[0] = is_path_in_flight(Path("/x"), journal=journal)
+            finally:
+                reader_done.set()
+
+        t = threading.Thread(target=_reader, daemon=True)
+        t.start()
+
+        assert not reader_done.wait(timeout=0.5), (
+            "is_path_in_flight must block while LOCK_EX held on lock file"
+        )
+        fcntl.flock(holder.fileno(), fcntl.LOCK_UN)
+        holder.close()
+        assert reader_done.wait(timeout=5.0)
+        t.join(timeout=2)
+        assert result[0] is False
+
+    def test_replace_journal_under_held_lock_does_not_break_appender(self, tmp_path: Path) -> None:
+        """Round-1 review blocking case: a sweep that would
+        ``os.replace`` the journal underneath a held lock MUST NOT
+        invalidate concurrent appenders' coordination. With the lock
+        on a separate ``<journal>.lock`` file (whose inode never
+        changes), an appender that holds LOCK_EX on the lock file is
+        unaffected by an inode swap on the journal itself.
+
+        This test simulates the dangerous sequence:
+            1. Appender T1 acquires LOCK_EX on the lock file (mid-write).
+            2. Compaction (T2) `os.replace`s the journal with a new inode.
+            3. T1 writes to its (still-open) journal fd — but if step 4
+               had been done correctly, T1's append should land in the
+               *new* journal because the appender opens via the journal
+               path on each call (subsequent appender T3 is the proxy).
+            4. T3 (a fresh appender) appends after the swap — must land
+               in the new journal.
+
+        Step 4 only proves the lock subject is independent of the
+        journal inode. Step 5's atomic compaction will exercise the
+        full os.replace path.
+        """
+        pytest.importorskip("fcntl")
+        from undo.durable_move import _append_journal, _lock_path, _read_journal
+
+        journal = tmp_path / "move.journal"
+        _append_journal(journal, {"op": "move", "src": "/a", "dst": "/b", "state": "done"})
+        lock = _lock_path(journal)
+        original_lock_inode = lock.stat().st_ino
+
+        # Simulate compaction: write a new file, os.replace the journal.
+        new_journal_content = (
+            json.dumps({"op": "move", "src": "/c", "dst": "/d", "state": "done"}) + "\n"
+        )
+        new_tmp = tmp_path / "move.journal.compact.tmp"
+        new_tmp.write_text(new_journal_content)
+        os.replace(new_tmp, journal)
+
+        # Lock file's inode must not have changed — it's a separate file.
+        assert lock.stat().st_ino == original_lock_inode
+
+        # New appender works against the new journal inode + same lock file.
+        _append_journal(journal, {"op": "move", "src": "/e", "dst": "/f", "state": "done"})
+
+        # Journal contains the post-replace content + the new append.
+        entries = _read_journal(journal)
+        srcs = {e.src for e in entries}
+        assert "/c" in srcs and "/e" in srcs
 
 
 # ---------------------------------------------------------------------------

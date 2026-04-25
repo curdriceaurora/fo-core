@@ -50,6 +50,7 @@ steady-state size is bounded.
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import hashlib
 import json
@@ -57,13 +58,25 @@ import logging
 import os
 import shutil
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from utils.atomic_io import fsync_directory
 from utils.atomic_write import append_durable
+
+# F9 top-level optional import: ``fcntl`` is POSIX-only. Wrapped in a
+# try/except so the module imports cleanly on Windows; functions that
+# actually need flock check ``_HAS_FCNTL`` and fall back to the unlocked
+# path with the single-CLI-invocation invariant from the module docstring.
+try:
+    import fcntl
+
+    _HAS_FCNTL = True
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+    _HAS_FCNTL = False
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +176,61 @@ def _normalized_path_str(path: Path) -> str:
     Windows case) compare as equal in :func:`is_path_in_flight`.
     """
     return os.path.normcase(os.path.abspath(os.fspath(path)))
+
+
+_LOCK_SUFFIX = ".lock"
+
+
+def _lock_path(journal: Path) -> Path:
+    """Return the sibling lock-file path for *journal* (§6.1).
+
+    All ``fcntl.flock`` operations in the protocol acquire on this
+    file rather than on ``journal`` directly. The lock file:
+
+    - Is created on first need by :func:`_locked` (zero-byte).
+    - Is **never replaced or unlinked** during normal protocol ops, so
+      its inode is stable across compactions that ``os.replace`` the
+      journal.
+    - Carries no data — only its inode exists as a flock target.
+
+    This is the round-1 review blocking fix: locking the journal
+    directly meant a compaction's ``os.replace`` could leave a
+    concurrent appender holding a lock on the now-unlinked old inode,
+    causing its append to land in an unreachable file.
+    """
+    return journal.with_name(journal.name + _LOCK_SUFFIX)
+
+
+@contextlib.contextmanager
+def _locked(journal: Path, mode: int) -> Iterator[object | None]:
+    """Acquire ``fcntl.flock(mode)`` on the journal's lock file.
+
+    POSIX-only. On Windows or when ``fcntl`` is unavailable, yields
+    ``None`` and runs the body unlocked — relies on the
+    single-CLI-invocation invariant per the module docstring.
+
+    Ensures ``<journal>.parent`` exists and creates the lock file
+    (zero-byte) if absent. The lock file's directory entry is durable
+    immediately because flock acquisition won't proceed past the OS
+    page cache; in practice the lock's role is purely coordination
+    so durability isn't a correctness concern.
+    """
+    if not _HAS_FCNTL:  # pragma: no cover - Windows
+        yield None
+        return
+    journal.parent.mkdir(parents=True, exist_ok=True)
+    lock = _lock_path(journal)
+    # ``open(..., "a")`` creates the file if absent without truncating
+    # it — keeps a stable inode across all callers.
+    fh = open(lock, "a", encoding="utf-8")
+    try:
+        fcntl.flock(fh.fileno(), mode)
+        try:
+            yield fh
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    finally:
+        fh.close()
 
 
 def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
@@ -448,31 +516,22 @@ def sweep(journal: Path) -> None:
     if not journal.exists():
         return
 
-    # Coderabbit PRRT_kwDOR_Rkws59fzVp: hold an exclusive
-    # ``fcntl.flock`` on the journal for the whole read-modify-write.
-    # Without it, a concurrent ``fo`` invocation that appends a
-    # ``started`` entry between the read and the rewrite would have
-    # its entry silently wiped by the truncate. ``fcntl.flock`` is
-    # POSIX-only; on Windows we fall back to the pre-lock read-modify-
-    # write path and rely on the "single CLI invocation" invariant
-    # documented at the module level.
-    if os.name != "nt":
+    # Coordinate via ``<journal>.lock`` (§6.1, step 4): the lock subject
+    # is a stable-inode sibling file, NEVER replaced by sweep. Locking
+    # the journal directly would let a future compaction's ``os.replace``
+    # invalidate concurrent appenders' locks. ``fcntl.flock`` is
+    # POSIX-only; on Windows ``_locked`` yields without coordinating
+    # and the unlocked sweep body runs (single-CLI-invocation invariant
+    # per the module docstring).
+    if _HAS_FCNTL:
         try:
-            import fcntl
-
-            with open(journal, "r+") as fh:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-                try:
-                    _sweep_locked_body(journal, fh)
-                finally:
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            with _locked(journal, fcntl.LOCK_EX), open(journal, "r+") as fh:
+                _sweep_locked_body(journal, fh)
             return
-        except (ImportError, OSError):
-            # ``ImportError``: fcntl unavailable (shouldn't happen on
-            # POSIX but defensive). ``OSError`` on open can happen if
-            # the journal disappeared between ``exists`` and
-            # ``open`` — fall through to the unlocked path which
-            # handles the missing-file case.
+        except OSError:
+            # ``OSError`` on open can happen if the journal disappeared
+            # between ``exists()`` and ``open()`` — fall through to the
+            # unlocked path which handles the missing-file case.
             pass
     _sweep_unlocked_body(journal)
 
@@ -1066,26 +1125,21 @@ def is_path_in_flight(path: Path, *, journal: Path) -> bool:
     if not journal.exists():
         return False
 
+    # Coordinate via ``<journal>.lock`` (§6.1, step 4) — same lock as
+    # writers. ``LOCK_SH`` blocks while any ``LOCK_EX`` is held by an
+    # appender or compaction, so the reader never observes a journal
+    # state mid-write (the F8 GC race protection).
     entries: list[_JournalEntry] = []
-    if os.name != "nt":
+    if _HAS_FCNTL:
         try:
-            import fcntl
-        except ImportError:  # pragma: no cover - POSIX ships fcntl
-            fcntl = None  # type: ignore[assignment]
-        if fcntl is not None:
-            try:
-                with open(journal, encoding="utf-8") as fh:
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_SH)
-                    try:
-                        entries = _parse_journal_text(fh.read())
-                    finally:
-                        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-            except FileNotFoundError:  # pragma: no cover - exists()→open() race
-                # Journal disappeared between exists() and open() —
-                # treat the same as missing-journal. No coordination
-                # needed since no writer can touch a deleted file.
-                return False
-    if not entries and os.name == "nt":  # pragma: no cover - Windows-only
+            with _locked(journal, fcntl.LOCK_SH), open(journal, encoding="utf-8") as fh:
+                entries = _parse_journal_text(fh.read())
+        except FileNotFoundError:  # pragma: no cover - exists()→open() race
+            # Journal disappeared between exists() and open() — treat
+            # the same as missing-journal. No coordination needed since
+            # no writer can touch a deleted file.
+            return False
+    else:  # pragma: no cover - Windows-only
         # Windows: fall back to unlocked read; relies on the single-
         # CLI-invocation invariant per the module docstring.
         entries = _read_journal(journal)
@@ -1130,23 +1184,19 @@ def _append_journal(journal: Path, payload: Mapping[str, object]) -> None:
     invocation" invariant; Windows sweep uses the unlocked body too.
     """
     journal.parent.mkdir(parents=True, exist_ok=True)
-    if os.name != "nt":
-        try:
-            import fcntl
-        except ImportError:  # pragma: no cover - POSIX ships fcntl
-            fcntl = None  # type: ignore[assignment]
-        if fcntl is not None:
-            line = json.dumps(payload) + "\n"
-            with open(journal, "a", encoding="utf-8") as fh:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-                try:
-                    fh.write(line)
-                    fh.flush()
-                    os.fsync(fh.fileno())
-                finally:
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-            fsync_directory(journal)
-            return
+    # Coordinate via ``<journal>.lock`` (§6.1, step 4): same lock as
+    # sweep + readers. The journal file itself may be replaced by a
+    # future compaction (step 5); the lock file's stable inode means
+    # this appender's lock acquisition coordinates with that
+    # compaction without depending on the journal inode.
+    if _HAS_FCNTL:
+        line = json.dumps(payload) + "\n"
+        with _locked(journal, fcntl.LOCK_EX), open(journal, "a", encoding="utf-8") as fh:
+            fh.write(line)
+            fh.flush()
+            os.fsync(fh.fileno())
+        fsync_directory(journal)
+        return
     append_durable(journal, json.dumps(payload))
 
 
