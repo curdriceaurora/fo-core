@@ -402,3 +402,109 @@ class TestReportCommand:
 
         assert result.exit_code == 0
         assert "0" in result.output  # 0 duplicate groups
+
+
+# ---------------------------------------------------------------------------
+# Plain format integration smokes (D4 — push dedupe_renderer.py integration
+# coverage above the per-module floor; PlainRenderer code paths aren't
+# covered by the JSON-format and Rich-default tests above).
+# ---------------------------------------------------------------------------
+
+
+class TestPlainFormat:
+    """Smoke tests for ``--format plain`` across all three commands."""
+
+    def test_scan_plain_emits_hash_prefixed_groups(self, tmp_path: Path) -> None:
+        src = tmp_path / "files"
+        src.mkdir()
+        hash_val = "deadbeef" * 8
+        fm1 = _make_file_metadata(src / "x.txt", size=512)
+        fm2 = _make_file_metadata(src / "y.txt", size=512)
+        group = _make_group(hash_val, [fm1, fm2])
+        detector = _make_detector_with_groups({hash_val: group})
+
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
+            result = runner.invoke(dedupe_app, ["scan", str(src), "--format", "plain"])
+
+        assert result.exit_code == 0
+        # Header line: "Found 1 duplicate groups."
+        assert "Found 1 duplicate groups" in result.output
+        # Hash header + indented file lines (TAB-separated)
+        assert hash_val in result.output
+        assert "x.txt" in result.output
+        assert "y.txt" in result.output
+        # No Rich table characters
+        assert "│" not in result.output
+        assert "─" not in result.output
+
+    def test_scan_plain_no_duplicates(self, tmp_path: Path) -> None:
+        src = tmp_path / "files"
+        src.mkdir()
+        detector = _make_detector_with_groups({})
+
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
+            result = runner.invoke(dedupe_app, ["scan", str(src), "--format", "plain"])
+
+        assert result.exit_code == 0
+        # PlainRenderer.render_message emits "level: text" lines
+        assert "success: No duplicates found" in result.output
+
+    def test_report_plain_key_value_lines(self, tmp_path: Path) -> None:
+        src = tmp_path / "files"
+        src.mkdir()
+        hash_val = "11" * 32
+        fm1 = _make_file_metadata(src / "a.txt", size=1024)
+        fm2 = _make_file_metadata(src / "b.txt", size=1024)
+        group = _make_group(hash_val, [fm1, fm2])
+        detector = _make_detector_with_groups(
+            {hash_val: group},
+            stats={"total_files": 5, "duplicate_files": 2, "wasted_space": 1024},
+        )
+
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
+            result = runner.invoke(dedupe_app, ["report", str(src), "--format", "plain"])
+
+        assert result.exit_code == 0
+        out = result.output
+        assert "total_files: 5" in out
+        assert "duplicate_files: 2" in out
+        assert "duplicate_groups: 1" in out
+        # No Rich table characters in plain output
+        assert "│" not in out
+
+    def test_resolve_plain_dry_run_emits_would_remove(self, tmp_path: Path) -> None:
+        src = tmp_path / "files"
+        src.mkdir()
+        # Real files so the resolve flow exercises the action emit path
+        a = src / "older.txt"
+        b = src / "newer.txt"
+        a.write_text("dup")
+        b.write_text("dup")
+
+        # Mock the detector to return our two files as duplicates with
+        # distinct mtimes so 'oldest' picks deterministically.
+        fm1 = _make_file_metadata(a, size=3, modified_time=datetime(2024, 1, 1, tzinfo=UTC))
+        fm2 = _make_file_metadata(b, size=3, modified_time=datetime(2024, 6, 1, tzinfo=UTC))
+        group = _make_group("dup" * 21, [fm1, fm2])
+        detector = _make_detector_with_groups({"dup" * 21: group})
+
+        with patch("cli.dedupe_v2._get_detector", return_value=detector):
+            result = runner.invoke(
+                dedupe_app,
+                [
+                    "resolve",
+                    str(src),
+                    "--strategy",
+                    "oldest",
+                    "--dry-run",
+                    "--format",
+                    "plain",
+                ],
+            )
+
+        assert result.exit_code == 0
+        # Plain resolve action: "would_remove: <path>"
+        assert "would_remove" in result.output
+        # Plain summary
+        assert "removed_count:" in result.output
+        assert "dry_run: true" in result.output
