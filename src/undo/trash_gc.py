@@ -323,10 +323,13 @@ class TrashGC:
         # parent — the leaf can legitimately be a symlink.
         try:
             resolved_parent = path.parent.resolve(strict=False)
-        except OSError:
-            # Permissions or other resolve error — be conservative and
-            # treat as outside. Better to return OUTSIDE_TRASH than to
-            # let a syscall on an unresolvable parent escape.
+        except (OSError, RuntimeError):
+            # ``OSError`` covers permissions/IO errors; ``RuntimeError``
+            # is what ``Path.resolve`` raises on symlink loops (codex P2
+            # liBe). Be conservative on either: a path whose parent we
+            # can't resolve cleanly is treated as outside trash so the
+            # outcome stays inside the documented contract instead of
+            # propagating a raw exception out of safe_delete.
             return False
         try:
             Path(os.path.normcase(resolved_parent)).relative_to(

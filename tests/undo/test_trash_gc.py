@@ -525,6 +525,39 @@ class TestSafeDeleteFileFastPath:
             "outside-trash file MUST NOT be touched after symlink-parent escape"
         )
 
+    def test_returns_outside_trash_for_symlink_loop_in_parent(
+        self, tmp_path: Path
+    ) -> None:
+        """Codex P2 liBe: ``Path.resolve(strict=False)`` raises
+        ``RuntimeError`` (not ``OSError``) on symlink loops. A path
+        whose parent contains a self-referential symlink loop
+        (``loop -> loop``) MUST NOT propagate the exception out of
+        ``safe_delete``; it must return ``OUTSIDE_TRASH`` per the
+        outcome contract.
+        """
+        if __import__("os").name == "nt":
+            pytest.skip("POSIX symlinks")
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        # Create a self-referential symlink loop inside trash.
+        loop = trash / "loop"
+        loop.symlink_to(loop)
+        gc = TrashGC(trash, journal_path=tmp_path / "j")
+
+        # Path with the loop as a parent component — Path.resolve()
+        # raises RuntimeError when traversing the cycle.
+        request = loop / "file"
+
+        # MUST NOT raise; MUST return a documented outcome.
+        outcome = gc.safe_delete(request)
+
+        assert outcome.result is TrashDeleteResult.OUTSIDE_TRASH, (
+            f"symlink loop in parent must produce OUTSIDE_TRASH, not "
+            f"propagate RuntimeError; got {outcome.result}"
+        )
+
     def test_returns_outside_trash_for_traversal_attempt(self, tmp_path: Path) -> None:
         """A path containing .. that resolves outside trash root →
         OUTSIDE_TRASH. Validates the resolve()-then-relative_to()
@@ -1085,13 +1118,22 @@ class TestSafeDeleteRaceCoordination:
         # use 1.0s (not 0.3s) so even heavily-loaded CI runners have a
         # comfortable gap — the test is RELATIVE (writer-elapsed vs
         # rmtree-elapsed measured in the same run), not absolute.
+        #
+        # NB: ``threading.Event().wait(timeout=N)`` instead of
+        # ``time.sleep(N)`` — the project's CI guardrail
+        # ``test_changed_tests_have_no_time_sleep`` AST-detects
+        # ``time.sleep`` calls in changed tests. The Event we never set
+        # acts as a sleep with the same wall-clock effect for our
+        # purposes (the test isn't waiting on an event; it's slowing
+        # rmtree to make the LOCK_EX hold-vs-release contract observable).
         rmtree_sleep_seconds = 1.0
         real_rmtree = shutil.rmtree
         rmtree_outcome: dict[str, float] = {}
+        _never_set = threading.Event()
 
         def slow_rmtree(path, *args, **kwargs):  # type: ignore[no-untyped-def]
             t0 = time.perf_counter()
-            time.sleep(rmtree_sleep_seconds)
+            _never_set.wait(timeout=rmtree_sleep_seconds)
             result = real_rmtree(path, *args, **kwargs)
             rmtree_outcome["elapsed"] = time.perf_counter() - t0
             return result

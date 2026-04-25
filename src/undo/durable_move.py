@@ -55,7 +55,7 @@ The leading underscore on ``_HAS_FCNTL``, ``_locked``,
 *module-private*, but :class:`undo.trash_gc.TrashGC` is an authorized
 consumer of all four (CodeRabbit lgMd). The contract:
 
-- ``_locked`` / ``_HAS_FCNTL`` — TrashGC re-uses the lock-file
+- ``_locked`` / ``_HAS_FCNTL`` — TrashGC reuses the lock-file
   coordination so its ``LOCK_EX`` mutually-excludes with this
   module's writers. Renaming or relocating these MUST update TrashGC
   in the same change.
