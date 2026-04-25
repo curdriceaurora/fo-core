@@ -57,9 +57,10 @@ import logging
 import os
 import shutil
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from utils.atomic_io import fsync_directory
 from utils.atomic_write import append_durable
@@ -519,21 +520,274 @@ def _sweep_unlocked_body(journal: Path) -> None:
         journal.write_text("")
 
 
-def _reconcile_entries(entries: list[_JournalEntry]) -> list[_JournalEntry]:
-    """Collapse entries to latest state per (src, dst) and reconcile.
+_PlannedVerb = Literal[
+    "drop",
+    "retain",
+    "unlink_src_then_drop",
+]
+"""Step 2: closed verb set per §5.1 PR #197 subset. Step 6 will add
+``drop_tmp_then_drop`` for the v2 STARTED-with-tmp_path-present row."""
 
-    Returns the subset of entries that still need retry after
-    ``_complete_or_rollback`` — i.e. the ones whose cleanup raised
-    a transient ``OSError``.
+
+@dataclass(frozen=True)
+class _PlannedAction:
+    """A single sweep decision + the entry it applies to.
+
+    Produced by :func:`plan_recovery_actions` (pure, no mutation), executed
+    by :func:`_apply_planned_actions`. Round-3 spec §8.1: keeping these
+    separate means ``fo undo recover`` and sweep agree on what would
+    happen — the CLI calls the planner and renders; sweep calls the
+    planner and executes. No "report-only mode" branch can drift.
     """
-    latest: dict[tuple[str, str], _JournalEntry] = {}
+
+    identity: tuple
+    entry: _JournalEntry
+    verb: _PlannedVerb
+    reason: str
+    log_level: int = logging.DEBUG
+
+
+def _identity_pr197(entry: _JournalEntry) -> tuple:
+    """PR #197 collapse key — placeholder pending the step-3 swap.
+
+    Returns ``(src, dst)`` so same paths in different ops overwrite each
+    other (the codex iy4u bug); step 3 replaces this with the op_id-aware
+    §3.1 identity rule. Kept as a named function so the swap is a
+    one-line change at the call site.
+    """
+    return (entry.src, entry.dst)
+
+
+def plan_recovery_actions(
+    entries: list[_JournalEntry],
+    fs_observer: Callable[[str], bool] = os.path.lexists,
+) -> list[_PlannedAction]:
+    """Pure planner: decide what sweep would do for each retained entry.
+
+    Round-3 design §8.1: this function performs ZERO disk mutation. It
+    collapses ``entries`` by the §3.1 identity (step 2 uses PR #197's
+    ``(src, dst)``; step 3 will swap in op_id-aware identity), observes
+    on-disk state via ``fs_observer`` (defaults to ``os.path.lexists``;
+    tests stub for deterministic table coverage), and returns a list of
+    :class:`_PlannedAction` that :func:`_apply_planned_actions` then
+    executes.
+
+    Both sweep and ``fo undo recover`` (step 8) call this function with
+    the same inputs — sweep proceeds to the executor, the CLI just
+    renders. That keeps "what sweep would do" and "what the CLI shows"
+    bit-identical.
+
+    Args:
+        entries: parsed journal entries (from
+            :func:`_parse_journal_text` or :func:`_read_journal`).
+        fs_observer: callable taking a path string and returning whether
+            the path exists. Defaults to ``os.path.lexists`` so dangling
+            symlinks count as "present" (matches PR #197 round-6 codex
+            hGWW guard).
+
+    Returns:
+        One :class:`_PlannedAction` per collapsed identity, in iteration
+        order. Verb selection mirrors PR #197 step-2 behavior; the §5.1
+        recovery state table covers the full row matrix that step 6 +
+        future steps will fill in.
+    """
+    latest: dict[tuple, _JournalEntry] = {}
     for entry in entries:
-        latest[(entry.src, entry.dst)] = entry
+        latest[_identity_pr197(entry)] = entry
+    plan: list[_PlannedAction] = []
+    for identity, entry in latest.items():
+        plan.append(_plan_one(identity, entry, fs_observer))
+    return plan
+
+
+def _plan_one(
+    identity: tuple,
+    entry: _JournalEntry,
+    fs_observer: Callable[[str], bool],
+) -> _PlannedAction:
+    """Decision matrix for a single collapsed entry.
+
+    PR #197 step-2 subset of §5.1. Step 6 will extend the ``move started``
+    row to consult ``fs_observer(entry.tmp_path)`` for disambiguation.
+    """
+    # Unknown op: future binary's handler owns it; preserve raw payload
+    # via _raw (already captured by the parser per §4.2).
+    if entry.op not in _KNOWN_OPS:
+        return _PlannedAction(
+            identity=identity,
+            entry=entry,
+            verb="retain",
+            reason=(
+                f"unknown op {entry.op!r} (state={entry.state!r}); waiting for "
+                f"a binary that knows this op. Known ops: {sorted(_KNOWN_OPS)}"
+            ),
+            log_level=logging.WARNING,
+        )
+    # dir_move: coordination-only (round-10). Sweep can't safely retry
+    # shutil.move; drop in any state. WARN if state != done so operator
+    # knows on-disk state may need inspection.
+    if entry.op == OP_DIR_MOVE:
+        if entry.state == STATE_DONE:
+            return _PlannedAction(
+                identity=identity,
+                entry=entry,
+                verb="drop",
+                reason="dir_move done — coordination complete",
+            )
+        return _PlannedAction(
+            identity=identity,
+            entry=entry,
+            verb="drop",
+            reason=(
+                f"dir_move entry {entry.src} -> {entry.dst} in state "
+                f"{entry.state!r} — directory moves are non-atomic; "
+                f"on-disk state needs operator inspection. Dropping "
+                f"entry to release the in-flight marker."
+            ),
+            log_level=logging.WARNING,
+        )
+    # entry.op == OP_MOVE — the F7 atomic/durable single-file path.
+    if entry.state == STATE_STARTED:
+        # PR #197 step-2 behavior: ambiguous, retain. Step 6 will
+        # disambiguate via fs_observer(entry.tmp_path).
+        return _PlannedAction(
+            identity=identity,
+            entry=entry,
+            verb="retain",
+            reason=(
+                f"started entry {entry.src} -> {entry.dst} is ambiguous "
+                "(crash in copy→replace window); cannot reconcile without "
+                "content comparison — operator or retry must resolve"
+            ),
+            log_level=logging.WARNING,
+        )
+    if entry.state == STATE_COPIED:
+        # Codex hGWW: dst-presence guard. Missing dst means out-of-band
+        # cleanup happened between the journal write and now; unlinking
+        # src would destroy the last copy.
+        if not fs_observer(entry.dst):
+            return _PlannedAction(
+                identity=identity,
+                entry=entry,
+                verb="retain",
+                reason=(
+                    f"copied entry {entry.src} -> {entry.dst} — dst is missing; "
+                    "unlinking src would destroy the last remaining copy"
+                ),
+                log_level=logging.WARNING,
+            )
+        return _PlannedAction(
+            identity=identity,
+            entry=entry,
+            verb="unlink_src_then_drop",
+            reason=f"copied entry {entry.src} -> {entry.dst}; finishing by unlinking src",
+        )
+    if entry.state == STATE_DONE:
+        return _PlannedAction(
+            identity=identity,
+            entry=entry,
+            verb="drop",
+            reason=f"done entry {entry.src} -> {entry.dst}; nothing to do",
+        )
+    # Known op with unrecognized state — drop with warning. Same as PR #197.
+    return _PlannedAction(
+        identity=identity,
+        entry=entry,
+        verb="drop",
+        reason=f"unknown state {entry.state!r} for op {entry.op!r}; dropping",
+        log_level=logging.WARNING,
+    )
+
+
+def _apply_planned_actions(plan: list[_PlannedAction]) -> list[_JournalEntry]:
+    """Execute each :class:`_PlannedAction`, returning the retained entries.
+
+    Round-3 §8.1: companion to :func:`plan_recovery_actions`. The planner
+    decided WHAT to do; this function does it. Mutations are confined
+    here so the planner stays pure and the CLI/sweep parity contract
+    holds.
+
+    Verbs:
+
+    - ``drop``: log at the planner-chosen level, drop the entry.
+    - ``retain``: log at the planner-chosen level, keep the entry.
+    - ``unlink_src_then_drop``: unlink src + fsync(src.parent), then drop.
+      ``FileNotFoundError`` on unlink is swallowed (already gone). Other
+      ``OSError`` falls back to retain — the next sweep retries
+      (codex fwMK + PR #197 round-5).
+
+    Step 6 will add ``drop_tmp_then_drop`` for the v2 STARTED-tmp-present
+    row.
+    """
     retained: list[_JournalEntry] = []
-    for entry in latest.values():
-        if not _complete_or_rollback(entry):
-            retained.append(entry)
+    for action in plan:
+        if action.log_level >= logging.WARNING or action.log_level >= logging.INFO:
+            logger.log(action.log_level, "sweep: %s", action.reason)
+        if action.verb == "retain":
+            retained.append(action.entry)
+            continue
+        if action.verb == "drop":
+            continue
+        if action.verb == "unlink_src_then_drop":
+            if not _execute_unlink_src(action.entry):
+                retained.append(action.entry)
+            continue
+        # Defensive: an unknown verb is a programming error, not an
+        # input concern — log and retain so we don't silently swallow it.
+        logger.error(
+            "sweep: unknown planned verb %r on entry %r; retaining defensively",
+            action.verb,
+            action.entry,
+        )
+        retained.append(action.entry)
     return retained
+
+
+def _execute_unlink_src(entry: _JournalEntry) -> bool:
+    """Unlink ``entry.src`` and fsync ``src.parent``.
+
+    Returns True on success (entry should drop), False on transient
+    ``OSError`` (entry should retain). Extracted from
+    :func:`_apply_planned_actions` for testability and to keep the
+    executor's main loop within the cyclomatic budget.
+    """
+    src = Path(entry.src)
+    try:
+        src.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        logger.warning(
+            "sweep: failed to unlink source after copied state %s: %s",
+            src,
+            exc,
+            exc_info=True,
+        )
+        return False
+    # Codex P2 PRRT_kwDOR_Rkws59hT9b: fsync src.parent so the unlink
+    # is crash-durable BEFORE sweep truncates this entry out of the
+    # journal. fsync OSError on unusual FS is non-fatal — the unlink
+    # already succeeded.
+    try:
+        fsync_directory(src)
+    except OSError as exc:
+        logger.debug(
+            "sweep: fsync of src.parent after unlink failed: %s",
+            exc,
+            exc_info=True,
+        )
+    return True
+
+
+def _reconcile_entries(entries: list[_JournalEntry]) -> list[_JournalEntry]:
+    """Plan + execute reconciliation in one call.
+
+    Thin wrapper preserving the existing sweep call site. The work is
+    split between :func:`plan_recovery_actions` (pure decision) and
+    :func:`_apply_planned_actions` (mutation). Step 8's ``fo undo
+    recover`` calls just the planner.
+    """
+    return _apply_planned_actions(plan_recovery_actions(entries))
 
 
 def _serialize_entry(e: _JournalEntry) -> str:
@@ -753,158 +1007,6 @@ def _parse_one_journal_line(line: str) -> _JournalEntry | None:
         host_pid=host_pid,
         _raw=raw_for_unknown_op,
     )
-
-
-def _complete_or_rollback(entry: _JournalEntry) -> bool:
-    """Act on a single journal entry based on its state.
-
-    Returns:
-        ``True`` if the entry was successfully reconciled (or was
-        already ``done``) and can be dropped from the journal.
-        ``False`` if a transient error (usually ``OSError``) left the
-        state unresolved — caller must retain the entry so the next
-        sweep can retry.
-    """
-    # Codex P2 PRRT_kwDOR_Rkws59hdFb: the journal is shared across
-    # operation types — the module docstring reserves ``op`` for
-    # future ``"copy"``, ``"symlink"``, etc. Sweep only knows how to
-    # reconcile the ops in ``_KNOWN_OPS``; for anything else, acting
-    # on ``entry.state`` with move semantics (e.g. ``src.unlink()``
-    # in the ``copied`` branch) would cause data loss on a downgrade
-    # from a binary that wrote the newer op. Retain the entry so a
-    # future binary with the right handler can process it.
-    if entry.op not in _KNOWN_OPS:
-        logger.warning(
-            "sweep: retaining journal entry with unknown op %r (state=%r); "
-            "this sweep binary only knows %s, will leave for a handler "
-            "that understands the op.",
-            entry.op,
-            entry.state,
-            sorted(_KNOWN_OPS),
-        )
-        return False
-
-    src = Path(entry.src)
-    dst = Path(entry.dst)
-
-    # ``dir_move`` (round-10): coordination-only entries. Sweep cannot
-    # safely retry shutil.move (non-atomic, non-idempotent), so any
-    # state other than ``done`` indicates a crashed move that needs
-    # operator inspection. Drop the entry either way — keeping it
-    # around would just keep the path marked in-flight forever and
-    # block GC.
-    if entry.op == OP_DIR_MOVE:
-        if entry.state != STATE_DONE:
-            logger.warning(
-                "sweep: dir_move entry %s -> %s in state %r — directory "
-                "moves are non-atomic; on-disk state needs operator "
-                "inspection. Dropping entry to release the in-flight marker.",
-                src,
-                dst,
-                entry.state,
-            )
-        return True  # drop
-
-    # entry.op == OP_MOVE — the F7 atomic/durable single-file path.
-    if entry.state == STATE_STARTED:
-        # Codex P1 PRRT_kwDOR_Rkws59gbdD + PRRT_kwDOR_Rkws59g2Ex:
-        # ``started`` is an AMBIGUOUS state, not a "move never
-        # committed" state. The EXDEV path logs ``started`` before
-        # the copy and does NOT log ``copied`` until AFTER
-        # ``os.replace``, so a crash anywhere in this window leaves
-        # a ``started`` record with one of three possible on-disk
-        # realities:
-        #
-        #   (a) crash before os.replace: src intact, dst pristine
-        #       (pre-existing file OR absent). Retry is safe.
-        #   (b) crash during or after os.replace but before the
-        #       ``copied`` log fsyncs: dst has the NEW content, src
-        #       still exists. A naive retry would double-copy; the
-        #       correct recovery is "unlink src" (i.e. complete the
-        #       ``copied`` semantics).
-        #   (c) same as (b) but os.replace was atomic and the tmp
-        #       already got cleaned — indistinguishable from (b)
-        #       without content comparison.
-        #
-        # We cannot safely disambiguate (a) from (b) without
-        # introducing a new journal state or storing tmp_path in the
-        # record (future F7.1). For now the SAFE reconciliation is:
-        # do NOT unlink dst (which would destroy a legitimate
-        # pre-existing file in case (a)) and do NOT unlink src
-        # (which would cause data loss in case (a) where dst was
-        # never replaced), and RETAIN the entry so the next sweep /
-        # operator sees it. Dropping the entry would lose all retry
-        # metadata and potentially leave both src+dst on disk forever.
-        logger.warning(
-            "sweep: retaining ambiguous started entry %s -> %s "
-            "(crash occurred in the copy→replace window; cannot safely "
-            "reconcile without content comparison — operator or retry "
-            "must resolve)",
-            src,
-            dst,
-        )
-        return False  # retain for next sweep / manual reconciliation
-    elif entry.state == STATE_COPIED:
-        # Codex P1 PRRT_kwDOR_Rkws59hGWW: verify dst still exists
-        # before unlinking src. A crash-and-recovery window can leave
-        # the journal with a ``copied`` record while an out-of-band
-        # actor (operator cleanup, another process, backup restore)
-        # removed dst between the journal write and this sweep. Blind
-        # ``src.unlink()`` in that state destroys the last remaining
-        # copy — a data-loss path. ``os.path.lexists`` is used
-        # (instead of ``dst.exists()``) so a dangling-symlink dst
-        # still counts as "present" — the symlink itself is a first-
-        # class file-system entity we committed to on os.replace.
-        if not os.path.lexists(dst):
-            logger.warning(
-                "sweep: retaining copied entry %s -> %s — dst is missing; "
-                "unlinking src would destroy the last remaining copy. "
-                "Operator or retry must reconcile.",
-                src,
-                dst,
-            )
-            return False
-        try:
-            src.unlink()
-        except FileNotFoundError:
-            pass
-        except OSError as exc:
-            logger.warning(
-                "sweep: failed to unlink source after copied state %s: %s",
-                src,
-                exc,
-                exc_info=True,
-            )
-            return False
-        # Codex P2 PRRT_kwDOR_Rkws59hT9b: fsync ``src.parent`` so the
-        # unlink is crash-durable BEFORE sweep truncates this entry
-        # out of the journal. Parallel to the in-line post-unlink
-        # fsync in ``_durable_cross_device_move`` (gnah). Without
-        # this, a power loss between the unlink and the journal
-        # truncate could let ``src`` reappear on reboot while sweep
-        # has already dropped the record — no retry metadata, no way
-        # to know there's a phantom file to clean up.
-        try:
-            fsync_directory(src)
-        except OSError as exc:
-            # fsync itself can raise on unusual filesystems. Log but
-            # don't fail the reconciliation — the unlink itself
-            # succeeded and sweep's next pass would notice if the
-            # dir entry wasn't persisted.
-            logger.debug(
-                "sweep: fsync of src.parent after unlink failed: %s",
-                exc,
-                exc_info=True,
-            )
-    elif entry.state == STATE_DONE:
-        # Nothing to do — operation completed before the crash (or
-        # before the last journal flush).
-        pass
-    else:
-        logger.warning("sweep: unknown journal state %r for entry %r", entry.state, entry)
-        # Unknown states are dropped rather than retained — retrying
-        # an unrecognized entry won't change anything.
-    return True
 
 
 def is_path_in_flight(path: Path, *, journal: Path) -> bool:

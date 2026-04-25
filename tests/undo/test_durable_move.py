@@ -1934,6 +1934,257 @@ class TestJournalSchemaV2Parser:
 
 
 # ---------------------------------------------------------------------------
+# F7.1 step 2: pure planner `plan_recovery_actions`
+# (tracks #201, docs/internal/F7-1-journal-protocol-design.md §8.1, §9)
+# ---------------------------------------------------------------------------
+
+
+class TestPlanRecoveryActions:
+    """Planner is pure: computes a list of :class:`_PlannedAction` from a
+    list of :class:`_JournalEntry` + an optional ``fs_observer``, with zero
+    disk mutation. Sweep's ``_apply_planned_actions`` executor performs the
+    mutations. Step 2 preserves PR #197 behavior; step 3 changes the collapse
+    key; step 6 adds tmp_path disambiguation.
+    """
+
+    def test_planner_is_pure_no_disk_mutation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Planning on a journal containing a COPIED entry with dst present
+        on disk MUST NOT unlink src during the plan step. The planner is
+        pure; mutations happen only in the executor."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("must not be unlinked by planner")
+        dst.write_text("complete destination")
+
+        # Instrument Path.unlink and fsync_directory — if the planner
+        # touches either, the test fails.
+        calls: list[tuple[str, object]] = []
+        real_unlink = Path.unlink
+
+        def tracking_unlink(self: Path, *a: object, **k: object) -> None:
+            calls.append(("unlink", self))
+            return real_unlink(self, *a, **k)
+
+        monkeypatch.setattr(Path, "unlink", tracking_unlink)
+        monkeypatch.setattr(
+            "undo.durable_move.fsync_directory",
+            lambda p: calls.append(("fsync", p)),
+        )
+
+        entries = [
+            _JournalEntry(op="move", src=str(src), dst=str(dst), state="copied"),
+        ]
+        plan = plan_recovery_actions(entries)
+
+        assert calls == [], (
+            f"planner must not mutate disk (§8.1 pure-planner contract); observed: {calls}"
+        )
+        assert len(plan) == 1
+        # Planner decided "unlink src, drop entry" based on the real
+        # lexists(dst) observation — but DIDN'T execute yet.
+        assert plan[0].verb == "unlink_src_then_drop"
+        # src is still on disk — executor hasn't run.
+        assert src.read_text() == "must not be unlinked by planner"
+
+    def test_planner_deterministic(self, tmp_path: Path) -> None:
+        """Given the same inputs + fs_observer, planner returns the same plan
+        twice. Required by the §8.1 CLI/sweep parity contract."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        src = tmp_path / "s.txt"
+        dst = tmp_path / "d.txt"
+        src.write_text("x")
+        dst.write_text("y")
+        entries = [
+            _JournalEntry(op="move", src=str(src), dst=str(dst), state="copied"),
+            _JournalEntry(
+                op="dir_move",
+                src=str(tmp_path / "dir_a"),
+                dst=str(tmp_path / "dir_b"),
+                state="started",
+            ),
+            _JournalEntry(op="move", src="/x", dst="/y", state="done"),
+        ]
+        plan1 = plan_recovery_actions(entries)
+        plan2 = plan_recovery_actions(entries)
+        assert plan1 == plan2
+
+    def test_planner_fs_observer_stub(self) -> None:
+        """Planner accepts a custom ``fs_observer`` so tests can exercise
+        the §5.1 recovery-state-table rows without setting up real files.
+        This is also what ``fo undo recover`` uses for the "what WOULD
+        sweep do" preview."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entries = [
+            _JournalEntry(op="move", src="/a", dst="/b", state="copied"),
+        ]
+        # fs_observer says dst does NOT exist → §5.1 COPIED+dst-missing row → retain.
+        plan = plan_recovery_actions(entries, fs_observer=lambda _p: False)
+        assert len(plan) == 1
+        assert plan[0].verb == "retain"
+
+        # Same entry but fs_observer says dst exists → unlink_src_then_drop.
+        plan_present = plan_recovery_actions(entries, fs_observer=lambda _p: True)
+        assert plan_present[0].verb == "unlink_src_then_drop"
+
+    def test_planner_verb_matrix(self) -> None:
+        """PR #197 behavior at step 2: each (op, state, dst-present)
+        combination produces the expected verb. Table mirrors the
+        pre-step-6 subset of §5.1."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        # (op, state, dst_present) -> expected verb
+        cases: list[tuple[str, str, bool, str]] = [
+            ("move", "started", True, "retain"),
+            ("move", "started", False, "retain"),
+            ("move", "copied", True, "unlink_src_then_drop"),
+            ("move", "copied", False, "retain"),
+            ("move", "done", True, "drop"),
+            ("move", "done", False, "drop"),
+            ("move", "unknown_state", True, "drop"),
+            ("dir_move", "started", True, "drop"),
+            ("dir_move", "done", True, "drop"),
+            ("dir_move", "unknown_state", True, "drop"),
+            ("future_op", "started", True, "retain"),  # unknown op retain
+            ("future_op", "done", True, "retain"),  # unknown op retain
+        ]
+        for op, state, dst_present, expected in cases:
+            entries = [_JournalEntry(op=op, src="/s", dst="/d", state=state)]
+            # Bind dst_present at lambda-creation time so each iteration
+            # captures its own value (B023).
+            plan = plan_recovery_actions(
+                entries, fs_observer=lambda _p, present=dst_present: present
+            )
+            assert len(plan) == 1
+            assert plan[0].verb == expected, (
+                f"op={op} state={state} dst_present={dst_present}: "
+                f"expected verb={expected}, got {plan[0].verb}"
+            )
+
+    def test_planner_collapses_entries_preserves_pr197_behavior(self) -> None:
+        """Step 2 preserves PR #197's ``(src, dst)`` collapse key — same
+        paths in different ops DO still mask each other (bug codex iy4u).
+        Step 3 will fix this by keying on op+op_id as well. This test
+        documents that step 2 is a refactor, not a behavior change."""
+        from undo.durable_move import _JournalEntry, plan_recovery_actions
+
+        entries = [
+            _JournalEntry(op="move", src="/a", dst="/b", state="started"),
+            _JournalEntry(op="dir_move", src="/a", dst="/b", state="started"),
+            _JournalEntry(op="dir_move", src="/a", dst="/b", state="done"),
+        ]
+        plan = plan_recovery_actions(entries, fs_observer=lambda _p: False)
+        # Step 2 uses PR #197's path-only key, so the latest entry wins —
+        # which is the dir_move done. Move's started record is masked.
+        assert len(plan) == 1
+        assert plan[0].entry.op == "dir_move"
+        assert plan[0].entry.state == "done"
+
+    def test_executor_applies_unlink_src_then_drop(self, tmp_path: Path) -> None:
+        """Executor's ``unlink_src_then_drop`` verb: unlinks src, fsyncs
+        src.parent, returns empty retained list."""
+        from undo.durable_move import (
+            _apply_planned_actions,
+            _JournalEntry,
+            plan_recovery_actions,
+        )
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("leftover")
+        dst.write_text("complete")
+        entries = [_JournalEntry(op="move", src=str(src), dst=str(dst), state="copied")]
+        plan = plan_recovery_actions(entries)
+        retained = _apply_planned_actions(plan)
+
+        assert retained == []  # dropped
+        assert not src.exists()  # unlinked
+        assert dst.read_text() == "complete"  # untouched
+
+    def test_executor_retain_does_not_mutate(self, tmp_path: Path) -> None:
+        """Executor's ``retain`` verb: no disk mutation, entry returned
+        in retained list."""
+        from undo.durable_move import (
+            _apply_planned_actions,
+            _JournalEntry,
+            plan_recovery_actions,
+        )
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"  # deliberately absent → COPIED retains
+        src.write_text("must survive")
+        entry = _JournalEntry(op="move", src=str(src), dst=str(dst), state="copied")
+        plan = plan_recovery_actions([entry])
+        retained = _apply_planned_actions(plan)
+
+        assert retained == [entry]
+        assert src.read_text() == "must survive"
+        assert not dst.exists()
+
+    def test_executor_drop_does_not_mutate(self, tmp_path: Path) -> None:
+        """Executor's ``drop`` verb: no disk mutation, entry dropped."""
+        from undo.durable_move import (
+            _apply_planned_actions,
+            _JournalEntry,
+            plan_recovery_actions,
+        )
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("untouched")
+        dst.write_text("untouched")
+        entry = _JournalEntry(op="move", src=str(src), dst=str(dst), state="done")
+        plan = plan_recovery_actions([entry])
+        retained = _apply_planned_actions(plan)
+
+        assert retained == []
+        assert src.read_text() == "untouched"
+        assert dst.read_text() == "untouched"
+
+    def test_executor_os_error_on_unlink_retains(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Preserves PR #197 round-5 behavior: OSError during unlink_src
+        retains the entry (transient permission / lock is retry-eligible).
+        The PLANNER produces ``unlink_src_then_drop`` optimistically; the
+        EXECUTOR downgrades to retain when the unlink raises."""
+        from undo.durable_move import (
+            _apply_planned_actions,
+            _JournalEntry,
+            plan_recovery_actions,
+        )
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_text("x")
+        dst.write_text("y")
+        entry = _JournalEntry(op="move", src=str(src), dst=str(dst), state="copied")
+        plan = plan_recovery_actions([entry])
+        assert plan[0].verb == "unlink_src_then_drop"
+
+        real_unlink = Path.unlink
+
+        def failing_unlink(self: Path, *a: object, **k: object) -> None:
+            if str(self) == str(src):
+                raise OSError(13, "simulated permission denied")
+            return real_unlink(self, *a, **k)
+
+        monkeypatch.setattr(Path, "unlink", failing_unlink)
+
+        retained = _apply_planned_actions(plan)
+        assert retained == [entry], (
+            "transient OSError on unlink must fall back to retain so the "
+            "next sweep can retry (codex fwMK, PR #197 round-5)"
+        )
+        assert src.exists()  # unlink raised → src survives
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
