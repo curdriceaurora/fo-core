@@ -881,18 +881,14 @@ def test_known_drift_modules_enforced_when_in_ci(
     assert "FAIL" in captured
 
 
-def test_load_known_drift_modules_returns_empty_for_missing_section(
-    tmp_path: Path,
-) -> None:
+def test_load_known_drift_modules_returns_empty_for_missing_section() -> None:
     """_load_known_drift_modules returns {} when section is absent."""
     module = _load_module()
     baseline: dict = {"modules": {}}
     assert module._load_known_drift_modules(baseline) == {}
 
 
-def test_load_known_drift_modules_returns_empty_for_malformed_section(
-    tmp_path: Path,
-) -> None:
+def test_load_known_drift_modules_returns_empty_for_malformed_section() -> None:
     """_load_known_drift_modules returns {} when section or modules key is malformed."""
     module = _load_module()
     assert module._load_known_drift_modules({"known_local_drift": "not-a-dict"}) == {}
