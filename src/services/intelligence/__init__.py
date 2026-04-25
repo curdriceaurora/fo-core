@@ -25,6 +25,11 @@ from services.intelligence.pattern_extractor import (
     PatternElement,
 )
 from services.intelligence.pattern_learner import PatternLearner
+from services.intelligence.preference_storage import (
+    InMemoryPreferenceStorage,
+    PreferenceStorage,
+    SqlitePreferenceStorage,
+)
 from services.intelligence.preference_store import (
     DirectoryPreference,
     PreferenceStore,
@@ -65,6 +70,9 @@ __all__ = [
     "track_file_move",
     "track_file_rename",
     "track_category_change",
+    "PreferenceStorage",
+    "InMemoryPreferenceStorage",
+    "SqlitePreferenceStorage",
     "PreferenceStore",
     "DirectoryPreference",
     "SchemaVersion",

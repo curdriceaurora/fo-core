@@ -367,3 +367,46 @@ class TestPreferenceDBConnection:
 
     def test_close_does_not_raise(self, db: PreferenceDatabaseManager) -> None:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# D5: PreferenceTracker(storage=SqlitePreferenceStorage(...)) end-to-end
+# ---------------------------------------------------------------------------
+
+
+class TestTrackerWithSqliteStorage:
+    """Smoke test: tracker with the SQLite backend persists corrections + extracted preferences."""
+
+    def test_track_correction_round_trip_through_sqlite(self, tmp_path: Path) -> None:
+        from services.intelligence.preference_storage import SqlitePreferenceStorage
+        from services.intelligence.preference_tracker import (
+            CorrectionType,
+            PreferenceTracker,
+            PreferenceType,
+        )
+
+        db_path = tmp_path / "prefs.db"
+        storage = SqlitePreferenceStorage(db_path)
+        tracker = PreferenceTracker(storage=storage)
+
+        src = tmp_path / "report.pdf"
+        dst = tmp_path / "Documents" / "report.pdf"
+        tracker.track_correction(
+            source=src,
+            destination=dst,
+            correction_type=CorrectionType.FILE_MOVE,
+        )
+
+        # The correction landed in SQLite via the tracker's storage layer
+        recent = tracker.get_recent_corrections(limit=10)
+        assert len(recent) == 1
+        assert recent[0].source == src
+        assert recent[0].destination == dst
+        assert recent[0].correction_type == CorrectionType.FILE_MOVE
+
+        # The extracted FOLDER_MAPPING preference is also retrievable
+        prefs = tracker.get_all_preferences(PreferenceType.FOLDER_MAPPING)
+        assert len(prefs) == 1
+        assert prefs[0].context.get("source_extension") == ".pdf"
+
+        storage.close()
