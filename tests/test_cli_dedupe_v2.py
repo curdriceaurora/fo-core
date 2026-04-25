@@ -98,9 +98,10 @@ class TestDedupeScan:
             "cli.dedupe_v2._get_detector",
             return_value=mock_detector_with_groups,
         ):
-            result = runner.invoke(dedupe_app, ["scan", str(tmp_path), "--json"])
+            # PR #206: ``--json`` was replaced by ``--format json`` (Renderer
+            # protocol extraction). Output is now a v1 envelope.
+            result = runner.invoke(dedupe_app, ["scan", str(tmp_path), "--format", "json"])
         assert result.exit_code == 0
-        # Should be valid JSON (somewhere in the output)
         assert "abc123" in result.output
 
 
@@ -155,25 +156,15 @@ class TestDedupeReport:
             "cli.dedupe_v2._get_detector",
             return_value=mock_detector,
         ):
-            result = runner.invoke(dedupe_app, ["report", str(tmp_path), "--json"])
+            # PR #206: ``--json`` was replaced by ``--format json``.
+            result = runner.invoke(
+                dedupe_app, ["report", str(tmp_path), "--format", "json"]
+            )
         assert result.exit_code == 0
 
 
-@pytest.mark.unit
-class TestFormatSize:
-    """Test _format_size helper."""
-
-    def test_bytes(self) -> None:
-        from cli.dedupe_v2 import _format_size
-
-        assert _format_size(100) == "100 B"
-
-    def test_kilobytes(self) -> None:
-        from cli.dedupe_v2 import _format_size
-
-        assert "KB" in _format_size(2048)
-
-    def test_zero(self) -> None:
-        from cli.dedupe_v2 import _format_size
-
-        assert _format_size(0) == "0 B"
+# ``TestFormatSize`` removed in PR #206: ``_format_size`` was extracted into
+# ``cli.dedupe_renderer`` as a private helper of the Renderer Protocol.
+# Direct unit tests for size formatting now live in
+# ``tests/cli/test_dedupe_renderer.py`` (the rendered Rich/JSON/Plain output
+# asserts ``"KB"``, ``"MB"``, etc. via the renderer surface).
