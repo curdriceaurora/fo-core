@@ -50,6 +50,7 @@ class VectorIndex:
         self._embedder = DocumentEmbedder()
         self._analyzer = SemanticAnalyzer(threshold=max(similarity_threshold, 0.0))
         self._paths: list[Path] = []
+        # _matrix shape: (n_docs, n_features)
         self._matrix: NDArray[Any] | None = None  # pyre-ignore[11]: NDArray optional dep
 
     # ------------------------------------------------------------------
