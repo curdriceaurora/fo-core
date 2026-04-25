@@ -1157,3 +1157,119 @@ class TestSafeDeleteLockHygiene:
         assert not _lock_path(journal).exists(), (
             "out-of-bounds rejection must skip lock acquisition entirely"
         )
+
+
+# ---------------------------------------------------------------------------
+# Integration with RollbackExecutor (§6.4)
+# ---------------------------------------------------------------------------
+
+
+class TestTrashGCRollbackIntegration:
+    """Spec §6.4: ``TrashGC`` and ``RollbackExecutor`` compose without
+    surprise when they share the same ``trash_dir`` and journal.
+
+    Specifically: after ``safe_delete`` removes a trash entry,
+    ``RollbackExecutor.rollback_delete`` for the same operation should
+    fail through the standard "trash entry missing" path — no new
+    failure mode introduced by the GC API.
+    """
+
+    def test_rollback_after_safe_delete_sees_missing_path(self, tmp_path: Path) -> None:
+        """``safe_delete`` removes a trash file; then attempting to
+        rollback the operation that put it there returns False (no
+        exception, no surprise) — same end state as if the trash
+        entry had been deleted by any other path."""
+        from datetime import UTC, datetime
+
+        from history.models import (
+            Operation,
+            OperationStatus,
+            OperationType,
+        )
+        from undo.rollback import RollbackExecutor
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+        from undo.validator import OperationValidator
+
+        # Shared trash + shared journal so all three coordinate.
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        journal = tmp_path / "move.journal"
+        validator = OperationValidator(trash_dir=trash, journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+        gc = TrashGC(trash, journal_path=journal)
+
+        # Simulate the trash-entry layout that _move_to_trash creates:
+        # trash_dir / <op_id> / <filename>.
+        op_id = 42
+        original_src = tmp_path / "user_file.txt"
+        trash_op_dir = trash / str(op_id)
+        trash_op_dir.mkdir()
+        trash_entry = trash_op_dir / "user_file.txt"
+        trash_entry.write_text("trashed content")
+
+        # GC removes the entry via the new race-safe API.
+        outcome = gc.safe_delete(trash_entry)
+        assert outcome.result is TrashDeleteResult.DELETED
+        assert not trash_entry.exists()
+
+        # Rollback the original delete operation: it should fail through
+        # the standard missing-trash-entry path. ``can_proceed`` from
+        # the validator should already say False because the trash entry
+        # is gone — proving the predicate sees the GC's effect.
+        op = Operation(
+            id=op_id,
+            operation_type=OperationType.DELETE,
+            timestamp=datetime.now(UTC),
+            source_path=original_src,
+            destination_path=None,
+            status=OperationStatus.COMPLETED,
+        )
+        result = executor.rollback_delete(op)
+        # Standard contract: rollback_delete returns False (not raise)
+        # when the trash entry is missing. No new failure mode from GC.
+        assert result is False
+
+    def test_safe_delete_skipped_during_active_rollback(self, tmp_path: Path) -> None:
+        """If a rollback writes a ``move started`` entry to the journal
+        (durable_move's normal flow), TrashGC.safe_delete on a path
+        that's the dst of that move MUST return SKIPPED_IN_FLIGHT.
+
+        This is the cross-system race-protection the whole F8 design
+        existed to prevent — proving it works when both APIs share a
+        journal."""
+        from undo.durable_move import _append_journal
+        from undo.trash_gc import TrashDeleteResult, TrashGC
+        from undo.validator import OperationValidator
+
+        trash = tmp_path / "trash"
+        trash.mkdir()
+        journal = tmp_path / "move.journal"
+        # OperationValidator constructed with the same journal — same
+        # default RollbackExecutor would use.
+        OperationValidator(trash_dir=trash, journal_path=journal)
+        gc = TrashGC(trash, journal_path=journal)
+
+        # A trash entry that's the destination of an in-flight rollback
+        # restore (the dangerous race the F8 design prevents).
+        target = trash / "42" / "restoring.txt"
+        target.parent.mkdir()
+        target.write_text("contents being restored")
+        # Rollback's restore: durable_move writes started; the trash
+        # entry IS the src here (rollback moves trash → original).
+        _append_journal(
+            journal,
+            {
+                "op": "move",
+                "src": str(target),
+                "dst": str(tmp_path / "restored.txt"),
+                "state": "started",
+            },
+        )
+
+        outcome = gc.safe_delete(target)
+        assert outcome.result is TrashDeleteResult.SKIPPED_IN_FLIGHT, (
+            "GC must NOT delete a trash entry that an active rollback "
+            "is currently restoring — this is the entire F8 race the "
+            "predicate-then-API was designed to prevent"
+        )
+        assert target.read_text() == "contents being restored"
