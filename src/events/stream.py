@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 try:
-    import redis
+    import redis  # pyre-ignore[21]: optional dep; absent when redis extra not installed
 except ImportError:  # pragma: no cover
     redis = None  # type: ignore[assignment]
 

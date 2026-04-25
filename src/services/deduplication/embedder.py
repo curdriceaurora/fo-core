@@ -11,8 +11,11 @@ import threading
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-from numpy.typing import NDArray
+try:
+    import numpy as np  # pyre-ignore[21]: optional dep; absent when dedup-text extra not installed
+    from numpy.typing import NDArray  # pyre-ignore[21]
+except ImportError as exc:  # pragma: no cover
+    raise ImportError("Install with: pip install 'fo-core[dedup-text]'") from exc
 
 from utils.atomic_write import atomic_write_with
 
@@ -66,7 +69,9 @@ class DocumentEmbedder:
         self.is_fitted = False
 
         # Cache for embeddings {document_hash: embedding}
-        self.embedding_cache: dict[str, NDArray[Any]] = {}
+        self.embedding_cache: dict[  # pyre-ignore[11]: NDArray from optional numpy dep
+            str, NDArray[Any]
+        ] = {}
         self._cache_lock = threading.Lock()
 
         # Load cache if available

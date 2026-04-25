@@ -31,9 +31,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import numpy as np
+try:
+    import numpy as np  # pyre-ignore[21]: optional dep; absent when search extra not installed
+    from numpy.typing import NDArray  # pyre-ignore[21]
+except ImportError as exc:  # pragma: no cover
+    raise ImportError("Install with: pip install 'fo-core[search]'") from exc
 from loguru import logger
-from numpy.typing import NDArray
 
 from interfaces.search import EmbeddingCacheProtocol
 
@@ -52,7 +55,7 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _array_to_blob(arr: NDArray[Any]) -> bytes:
+def _array_to_blob(arr: NDArray[Any]) -> bytes:  # pyre-ignore[11]: NDArray from optional numpy dep
     buf = io.BytesIO()
     np.save(buf, arr, allow_pickle=False)
     return buf.getvalue()
