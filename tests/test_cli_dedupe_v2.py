@@ -157,9 +157,7 @@ class TestDedupeReport:
             return_value=mock_detector,
         ):
             # PR #206: ``--json`` was replaced by ``--format json``.
-            result = runner.invoke(
-                dedupe_app, ["report", str(tmp_path), "--format", "json"]
-            )
+            result = runner.invoke(dedupe_app, ["report", str(tmp_path), "--format", "json"])
         assert result.exit_code == 0
 
 
