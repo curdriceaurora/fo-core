@@ -397,47 +397,60 @@ class SqlitePreferenceStorage:
         self.close()
 
     def save_preference(self, preference: Preference) -> None:
-        """Upsert ``preference`` honoring metadata timestamps and frequency.
+        """Upsert ``preference`` with full metadata fidelity.
 
-        The underlying ``PreferenceDatabaseManager.add_preference``
-        always stamps ``created_at`` / ``updated_at`` as "now" AND its
-        ``ON CONFLICT … DO UPDATE`` clause increments ``frequency`` on
-        every save (which would silently bump the dataclass's value on
-        re-save flows like ``get_preference`` writing back ``last_used``).
-        We follow up with a raw UPDATE that restores the timestamps AND
-        the dataclass's ``frequency`` so save_preference is idempotent
-        for the same ``preference`` instance. (Per Codex P2 + Copilot
-        findings on PR #207.)
+        Bypasses ``PreferenceDatabaseManager.add_preference``'s
+        ``ON CONFLICT … DO UPDATE SET frequency = frequency + 1`` clause
+        in favor of an explicit ``INSERT … ON CONFLICT … DO UPDATE``
+        that takes ALL field values from the dataclass. This gives the
+        caller full control:
+
+        - Frequency is set to ``preference.metadata.frequency`` exactly
+          (idempotent for re-saves like ``get_preference``'s ``last_used``
+          write-back, where the caller didn't intend to bump frequency).
+        - Multi-writer atomicity is the caller's responsibility (the
+          ``PreferenceTracker._tracker_lock`` makes single-process
+          writes atomic; cross-process concurrent writers can lose
+          increments — this matches the in-memory backend's behavior
+          and is documented as a known limitation for D5).
+        - All metadata timestamps round-trip without the manager
+          stamping ``now``.
+
+        Per Codex P1+P2 + CodeRabbit + Copilot findings on PR #207.
         """
         with self._lock:
-            self._db.add_preference(
-                preference_type=preference.preference_type.value,
-                key=preference.key,
-                value=_encode_pref_value(preference.value),
-                confidence=preference.metadata.confidence,
-                frequency=preference.metadata.frequency,
-                source=preference.metadata.source,
-                context=preference.context if preference.context else None,
-            )
-            # Restore dataclass timestamps + frequency (manager wrote
-            # `now` and may have bumped frequency on the conflict path).
             conn = self._db.get_connection()
+            context_json = json.dumps(preference.context) if preference.context else None
+            last_used_at = (
+                _iso_z(preference.metadata.last_used) if preference.metadata.last_used else None
+            )
             conn.execute(
                 """
-                UPDATE preferences
-                SET created_at = ?, updated_at = ?, last_used_at = ?,
-                    frequency = ?
-                WHERE preference_type = ? AND key = ?
+                INSERT INTO preferences (
+                    preference_type, key, value, confidence, frequency,
+                    created_at, updated_at, last_used_at, source, context
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(preference_type, key) DO UPDATE SET
+                    value = excluded.value,
+                    confidence = excluded.confidence,
+                    frequency = excluded.frequency,
+                    created_at = excluded.created_at,
+                    updated_at = excluded.updated_at,
+                    last_used_at = excluded.last_used_at,
+                    source = excluded.source,
+                    context = excluded.context
                 """,
                 (
-                    _iso_z(preference.metadata.created),
-                    _iso_z(preference.metadata.updated),
-                    _iso_z(preference.metadata.last_used)
-                    if preference.metadata.last_used
-                    else None,
-                    preference.metadata.frequency,
                     preference.preference_type.value,
                     preference.key,
+                    _encode_pref_value(preference.value),
+                    preference.metadata.confidence,
+                    preference.metadata.frequency,
+                    _iso_z(preference.metadata.created),
+                    _iso_z(preference.metadata.updated),
+                    last_used_at,
+                    preference.metadata.source,
+                    context_json,
                 ),
             )
 
@@ -642,6 +655,12 @@ class SqlitePreferenceStorage:
         so a mid-loop insert failure rolls everything back instead of
         leaving the storage in a half-wiped state. (CodeRabbit finding
         on PR #207.)
+
+        Also resets the in-process success/failure application counters
+        and hydrates them from ``data["statistics"]`` if present —
+        otherwise stale counts from the storage instance's pre-import
+        history would survive into the imported state and contaminate
+        ``get_statistics()`` output. (Codex P2 on PR #207.)
         """
         with self._lock, self._db.transaction():
             conn = self._db.get_connection()
@@ -663,6 +682,12 @@ class SqlitePreferenceStorage:
                         context=corr_data.get("context", {}),
                     )
                 )
+
+            # Reset application counters; re-hydrate from snapshot's
+            # statistics block if it provides them.
+            stats = data.get("statistics", {})
+            self._successful_applications = stats.get("successful_applications", 0)
+            self._failed_applications = stats.get("failed_applications", 0)
 
     @staticmethod
     def _row_to_correction(row: dict[str, Any]) -> Correction:

@@ -687,3 +687,70 @@ class TestLastUsedPersistedThroughTracker:
             assert re_fetched[0].metadata.last_used >= t0
         finally:
             storage.close()
+
+
+# ---------------------------------------------------------------------------
+# Second-cycle review fixes (PR #207, Codex post-fix re-review)
+# ---------------------------------------------------------------------------
+
+
+class TestSavePreferenceIdempotentFrequency:
+    """``save_preference`` doesn't auto-bump frequency on re-save (Codex P1 follow-up)."""
+
+    def test_resave_preserves_frequency_in_sqlite(self, tmp_path: Path) -> None:
+        with SqlitePreferenceStorage(tmp_path / "p.db") as storage:
+            now = datetime(2026, 1, 15, 10, 30, tzinfo=UTC)
+            pref = Preference(
+                preference_type=PreferenceType.FOLDER_MAPPING,
+                key="file_move|.pdf|Documents",
+                value="Documents",
+                metadata=PreferenceMetadata(created=now, updated=now, confidence=0.5, frequency=11),
+                context={"source_extension": ".pdf"},
+            )
+            storage.save_preference(pref)
+
+            # Re-save without changing dataclass — e.g., what get_preference
+            # does after mutating last_used. Frequency must NOT bump.
+            storage.save_preference(pref)
+            storage.save_preference(pref)
+
+            recovered = storage.find_preferences(PreferenceType.FOLDER_MAPPING)
+            assert len(recovered) == 1
+            assert recovered[0].metadata.frequency == 11
+
+
+class TestImportDataResetsApplicationCounters:
+    """``import_data`` resets success/failure counters (Codex P2 follow-up)."""
+
+    def test_import_clears_stale_application_counts_for_sqlite(self, tmp_path: Path) -> None:
+        with SqlitePreferenceStorage(tmp_path / "p.db") as storage:
+            # Build up some pre-import application history
+            pref = _make_preference()
+            storage.save_preference(pref)
+            storage.update_preference_confidence(pref, success=True)
+            storage.update_preference_confidence(pref, success=False)
+            stats = storage.get_statistics()
+            assert stats["successful_applications"] == 1
+            assert stats["failed_applications"] == 1
+
+            # Import a snapshot with NO statistics block — counters must reset
+            storage.import_data({"preferences": {}, "corrections": []})
+            stats = storage.get_statistics()
+            assert stats["successful_applications"] == 0
+            assert stats["failed_applications"] == 0
+
+    def test_import_hydrates_application_counts_from_snapshot(self, tmp_path: Path) -> None:
+        with SqlitePreferenceStorage(tmp_path / "p.db") as storage:
+            storage.import_data(
+                {
+                    "preferences": {},
+                    "corrections": [],
+                    "statistics": {
+                        "successful_applications": 7,
+                        "failed_applications": 3,
+                    },
+                }
+            )
+            stats = storage.get_statistics()
+            assert stats["successful_applications"] == 7
+            assert stats["failed_applications"] == 3
