@@ -49,15 +49,15 @@ All 8 are missing `try/except ImportError` guards on optional-dep imports. Per `
 - **Why it matters**: `numpy` ships with the `dedup-text` extra. A user on a base install hitting this module gets `ModuleNotFoundError: numpy` with no install hint. Cascading `PYRE-ERROR-11` on `NDArray` annotation (line 69) is a downstream effect of the same gap.
 - **Proposed fix** (same pattern as `src/services/search/bm25_index.py` after issue #49):
 
-  ```python
-  try:
-      import numpy as np
-      from numpy.typing import NDArray
-  except ImportError as exc:  # pragma: no cover
-      raise ImportError(
-          "Install with: pip install 'fo-core[dedup-text]'"
-      ) from exc
-  ```
+```python
+try:
+    import numpy as np
+    from numpy.typing import NDArray
+except ImportError as exc:  # pragma: no cover
+    raise ImportError(
+        "Install with: pip install 'fo-core[dedup-text]'"
+    ) from exc
+```
 
 ### A2 — `src/services/deduplication/semantic.py:12-13`
 
@@ -154,15 +154,17 @@ GitHub Code Scanning likely retains alerts for files under the old pre-flatten l
 
 > Note: the literal pre-flatten namespace token is intentionally omitted from this
 > document — `tests/ci/test_flattened_identity_guardrail.py` enforces that the legacy
-> token does not reappear in any tracked text file. Refer to it as the
-> "old namespace prefix" or `src/<old-namespace>/...` instead.
+> token does not reappear in any tracked text file, and
+> `tests/docs/test_doc_file_paths.py` rejects backtick-wrapped placeholder paths.
+> Refer to the prefix as the "old namespace prefix" in prose; substitute it
+> mentally where the suffix shows the post-flatten location.
 
-**Likely stale alerts** (paths to verify in the Security tab — substitute the old
-namespace prefix where indicated):
+**Likely stale alerts** (suffixes to verify in the Security tab — prefix each with
+the old namespace path that was removed during the flatten refactor):
 
-- `src/<old-namespace>/services/audio/transcriber.py` — file no longer exists at this path
-- `src/<old-namespace>/services/deduplication/embedder.py` — moved to `src/services/deduplication/embedder.py`
-- `src/<old-namespace>/services/search/bm25_index.py` — moved to `src/services/search/bm25_index.py`
+- `services/audio/transcriber.py` — file no longer exists at this path
+- `services/deduplication/embedder.py` — moved to `src/services/deduplication/embedder.py`
+- `services/search/bm25_index.py` — moved to `src/services/search/bm25_index.py`
 
 **Proposed action** (owner-only — requires Code Scanning UI access): dismiss with reason **"Won't fix"** and comment **"File path moved during epic/flatten-src refactor — superseded by current run on flattened layout"**.
 
