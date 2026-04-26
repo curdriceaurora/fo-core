@@ -1,8 +1,5 @@
 """Integration tests for cli/copilot.py.
 
-Coverage target: copilot.py = 100% (per
-``scripts/coverage/integration_module_floor_baseline.json``).
-
 Originally part of ``test_cli_dedupe_removal_copilot.py``; that file was
 removed in PR #205 alongside the legacy ``cli/dedupe_removal.py`` module.
 The copilot tests are independent — they exercise ``cli/copilot.py`` via
