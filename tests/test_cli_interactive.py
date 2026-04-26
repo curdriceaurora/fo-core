@@ -109,6 +109,7 @@ class TestConfirmAction:
 
 @pytest.mark.unit
 @pytest.mark.integration
+@pytest.mark.ci
 class TestPromptChoice:
     """Tests for prompt_choice."""
 
