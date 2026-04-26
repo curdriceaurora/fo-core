@@ -57,6 +57,12 @@ class TestPatternDetection:
             "assert mock.called == True",
             "assert mock.called  # trailing comment",
             "    assert mock.method.called is True",
+            # Codex r218 — parenthesised forms must also match
+            "assert (mock.method.called)",
+            "    assert (mock.method.called)",
+            "assert (mock.method.called) is True",
+            "assert (mock.method.called) == True",
+            "assert ( mock.method.called )",  # whitespace inside parens
         ],
     )
     def test_matches_forbidden(self, line: str) -> None:

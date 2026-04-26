@@ -51,13 +51,21 @@ _TESTS_DIR = _ROOT / "tests"
 # ``assert mock.called == 3`` (that's a count check, T3 allows under
 # noqa).  The precise allowed shapes are bare attribute, `is True`, and
 # `== True`.
+#
+# The expression itself may be parenthesised — `assert (mock.called)` is
+# common when the chain is long enough to wrap, and `(...) is True` is
+# also common.  The regex therefore accepts an optional balanced pair
+# of parens around the ``<chain>.called`` portion (codex r218).
 _PATTERN = re.compile(
-    r"""^\s*assert\s+      # leading 'assert'
-        [\w.]+\.called      # <chain>.called
-        \s*                # optional ws
-        (?:is\s+True|==\s*True)?  # optional truth comparison
-        \s*                # trailing ws
-        (?:\#.*)?          # optional trailing comment
+    r"""^\s*assert\s+               # leading 'assert'
+        (?:                          # one of:
+            [\w.]+\.called           #   <chain>.called  (no parens)
+          | \(\s*[\w.]+\.called\s*\) #   ( <chain>.called )  (parens)
+        )
+        \s*                          # optional ws
+        (?:is\s+True|==\s*True)?     # optional truth comparison
+        \s*                          # trailing ws
+        (?:\#.*)?                    # optional trailing comment
         $""",
     re.VERBOSE,
 )
