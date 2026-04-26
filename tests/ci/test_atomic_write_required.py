@@ -59,10 +59,12 @@ class TestForbiddenModes:
 
     @pytest.mark.parametrize("mode", ["w", "wb", "a", "ab", "w+", "wb+", "a+", "ab+"])
     def test_write_modes_in_set(self, mode: str) -> None:
+        """Write modes in set."""
         assert mode in _FORBIDDEN_MODES
 
     @pytest.mark.parametrize("mode", ["r", "rb", "r+", "rb+"])
     def test_read_modes_not_in_set(self, mode: str) -> None:
+        """Read modes not in set."""
         assert mode not in _FORBIDDEN_MODES
 
 
@@ -75,12 +77,15 @@ class TestAllowlist:
     """Files that own the atomic-write primitives are exempt."""
 
     def test_atomic_write_module_is_allowlisted(self) -> None:
+        """Atomic write module is allowlisted."""
         assert "src/utils/atomic_write.py" in _ALLOWLISTED_FILES
 
     def test_atomic_io_module_is_allowlisted(self) -> None:
+        """Atomic io module is allowlisted."""
         assert "src/utils/atomic_io.py" in _ALLOWLISTED_FILES
 
     def test_arbitrary_src_file_is_not_allowlisted(self) -> None:
+        """Arbitrary src file is not allowlisted."""
         assert "src/services/intelligence/preference_store.py" not in _ALLOWLISTED_FILES
 
 
@@ -93,12 +98,14 @@ class TestMarkerWindow:
     """Markers inside the ±N-line window around the call line are recognised."""
 
     def test_marker_on_call_line_is_recognised(self) -> None:
+        """Marker on call line is recognised."""
         lines = ['p.write_text("x")  # atomic-write: ok — user output']
         assert _has_opt_out_in_window(lines, call_line=1)
 
     def test_marker_on_line_above_is_recognised(self) -> None:
         # New placement (codex r219 + diff-coverage fix): a standalone
         # comment line immediately above the call is accepted.
+        """Marker on line above is recognised."""
         lines = [
             "# atomic-write: ok — manual temp+replace",
             'p.write_text("x")',
@@ -107,6 +114,7 @@ class TestMarkerWindow:
 
     def test_marker_on_closing_paren_line_is_recognised(self) -> None:
         # ruff format splits long calls; marker may land on the )-line.
+        """Marker on closing paren line is recognised."""
         lines = [
             "p.write_text(",
             '    "payload"',
@@ -115,6 +123,7 @@ class TestMarkerWindow:
         assert _has_opt_out_in_window(lines, call_line=1)
 
     def test_marker_too_far_above_is_not_recognised(self) -> None:
+        """Marker too far above is not recognised."""
         lines = [
             "# atomic-write: ok",
             "x = 1",
@@ -126,6 +135,7 @@ class TestMarkerWindow:
         assert not _has_opt_out_in_window(lines, call_line=6)
 
     def test_marker_too_far_below_is_not_recognised(self) -> None:
+        """Marker too far below is not recognised."""
         lines = ['p.write_text("x")'] + ["x = 1"] * 10 + ["# atomic-write: ok"]
         assert not _has_opt_out_in_window(lines, call_line=1)
 
@@ -139,14 +149,17 @@ class TestWriteTextAndBytes:
     """Both ``Path.write_text`` and ``Path.write_bytes`` are flagged."""
 
     def test_unmarked_write_text_is_flagged(self, tmp_path: Path) -> None:
+        """Unmarked write text is flagged."""
         target = _synth(tmp_path, 'p.write_text("payload")\n')
         assert len(find_violations(target)) == 1
 
     def test_unmarked_write_bytes_is_flagged(self, tmp_path: Path) -> None:
+        """Unmarked write bytes is flagged."""
         target = _synth(tmp_path, 'p.write_bytes(b"\\x00")\n')
         assert len(find_violations(target)) == 1
 
     def test_marked_write_text_is_not_flagged(self, tmp_path: Path) -> None:
+        """Marked write text is not flagged."""
         target = _synth(
             tmp_path,
             'p.write_text("payload")  # atomic-write: ok — manual temp+replace\n',
@@ -155,6 +168,7 @@ class TestWriteTextAndBytes:
 
     def test_write_text_with_marker_above_is_not_flagged(self, tmp_path: Path) -> None:
         # New placement: marker on the line immediately above the call.
+        """Write text with marker above is not flagged."""
         target = _synth(
             tmp_path,
             '# atomic-write: ok — manual temp+replace\np.write_text("payload")\n',
@@ -167,16 +181,19 @@ class TestOpenCalls:
 
     @pytest.mark.parametrize("mode", ["w", "wb", "a", "ab"])
     def test_write_modes_are_flagged(self, mode: str, tmp_path: Path) -> None:
+        """Write modes are flagged."""
         target = _synth(tmp_path, f'with open(p, "{mode}") as f:\n    f.write("x")\n')
         assert len(find_violations(target)) == 1
 
     @pytest.mark.parametrize("mode", ["r", "rb"])
     def test_read_modes_are_not_flagged(self, mode: str, tmp_path: Path) -> None:
         # T10 negative case: same call shape, read mode → not flagged.
+        """Read modes are not flagged."""
         target = _synth(tmp_path, f'with open(p, "{mode}") as f:\n    f.read()\n')
         assert find_violations(target) == []
 
     def test_mode_keyword_argument_is_recognised(self, tmp_path: Path) -> None:
+        """Mode keyword argument is recognised."""
         target = _synth(tmp_path, 'with open(p, mode="w") as f:\n    f.write("x")\n')
         assert len(find_violations(target)) == 1
 
@@ -185,6 +202,7 @@ class TestOpenCalls:
         # ``)`` so this shape silently bypassed the rail. The AST detector
         # walks the call structure and sees the mode regardless of how
         # nested the path expression is.
+        """Open with nested call in first arg is flagged."""
         target = _synth(
             tmp_path,
             'with open(Path(name).with_suffix(".json"), "w") as f:\n    f.write("x")\n',
@@ -194,6 +212,7 @@ class TestOpenCalls:
     def test_method_named_open_is_not_flagged(self, tmp_path: Path) -> None:
         # T10 negative case: ``self.open(...)`` is a method call, not the
         # builtin. The AST detector matches only ``ast.Name(id='open')``.
+        """Method named open is not flagged."""
         target = _synth(tmp_path, 'self.open(p, "w")\n')
         assert find_violations(target) == []
 
@@ -201,6 +220,7 @@ class TestOpenCalls:
         # The mode is a variable reference; we can't statically determine
         # if it's a write or read mode, so we conservatively skip rather
         # than false-flag. ``mode`` could be either.
+        """Dynamic mode is not flagged."""
         target = _synth(tmp_path, "with open(p, mode) as f:\n    pass\n")
         assert find_violations(target) == []
 
@@ -214,6 +234,7 @@ class TestStringLiteralFalsePositives:
     """
 
     def test_open_inside_string_literal_not_flagged(self, tmp_path: Path) -> None:
+        """Open inside string literal not flagged."""
         target = _synth(
             tmp_path,
             "logger.debug(\"open(path, 'w')\")\n",
@@ -221,6 +242,7 @@ class TestStringLiteralFalsePositives:
         assert find_violations(target) == []
 
     def test_write_text_inside_string_literal_not_flagged(self, tmp_path: Path) -> None:
+        """Write text inside string literal not flagged."""
         target = _synth(
             tmp_path,
             'message = "use path.write_text(content) for atomic writes"\n',
@@ -228,6 +250,7 @@ class TestStringLiteralFalsePositives:
         assert find_violations(target) == []
 
     def test_open_in_docstring_not_flagged(self, tmp_path: Path) -> None:
+        """Open in docstring not flagged."""
         target = _synth(
             tmp_path,
             '"""Module docstring.\n\nExample::\n\n    open(p, "w")\n"""\n',
@@ -239,6 +262,7 @@ class TestMultilineOpen:
     """``open()`` calls split across lines by ruff format are still detected."""
 
     def test_multiline_open_without_marker_is_flagged(self, tmp_path: Path) -> None:
+        """Multiline open without marker is flagged."""
         target = _synth(
             tmp_path,
             'with open(\n    p,\n    "w",\n) as f:\n    f.write("x")\n',
@@ -246,6 +270,7 @@ class TestMultilineOpen:
         assert len(find_violations(target)) == 1
 
     def test_multiline_open_marker_on_closing_paren_is_not_flagged(self, tmp_path: Path) -> None:
+        """Multiline open marker on closing paren is not flagged."""
         target = _synth(
             tmp_path,
             'with open(\n    p,\n    "w",\n) as f:  # atomic-write: ok — user output\n'
@@ -254,6 +279,7 @@ class TestMultilineOpen:
         assert find_violations(target) == []
 
     def test_multiline_open_marker_above_is_not_flagged(self, tmp_path: Path) -> None:
+        """Multiline open marker above is not flagged."""
         target = _synth(
             tmp_path,
             "# atomic-write: ok — user output\n"
@@ -266,6 +292,7 @@ class TestSyntaxError:
     """A file that fails to parse yields zero violations (rail bows out)."""
 
     def test_syntax_error_yields_no_violations(self, tmp_path: Path) -> None:
+        """Syntax error yields no violations."""
         target = _synth(tmp_path, "def broken(\n")
         assert find_violations(target) == []
 
@@ -279,6 +306,7 @@ class TestFullSuite:
     """The rail must pass against the live ``src/`` tree."""
 
     def test_no_unmarked_violations_on_current_tree(self) -> None:
+        """No unmarked violations on current tree."""
         result = subprocess.run(
             [sys.executable, str(_SCRIPT)],
             capture_output=True,

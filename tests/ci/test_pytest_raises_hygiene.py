@@ -66,6 +66,7 @@ class TestIsPytestRaises:
         ],
     )
     def test_recognises_pytest_raises(self, source: str) -> None:
+        """Recognises pytest raises."""
         with_node = _parse_with(source)
         assert any(_is_pytest_raises(item) for item in with_node.items)
 
@@ -80,6 +81,7 @@ class TestIsPytestRaises:
         ],
     )
     def test_rejects_non_pytest_raises(self, source: str) -> None:
+        """Rejects non pytest raises."""
         with_node = _parse_with(source)
         assert not any(_is_pytest_raises(item) for item in with_node.items)
 
@@ -98,12 +100,14 @@ class TestIsMockAssertion:
     )
     def test_recognises_mock_call(self, name: str) -> None:
         # Form A: mock.X.assert_called*(...)
+        """Recognises mock call."""
         source = f"mock.method.{name}()"
         stmt = ast.parse(source).body[0]
         assert _is_mock_assertion(stmt)
 
     def test_recognises_assert_called_attribute(self) -> None:
         # Form B: assert mock.X.called
+        """Recognises assert called attribute."""
         stmt = ast.parse("assert mock.method.called").body[0]
         assert _is_mock_assertion(stmt)
 
@@ -120,6 +124,7 @@ class TestIsMockAssertion:
         ],
     )
     def test_rejects_non_mock_assertion(self, source: str) -> None:
+        """Rejects non mock assertion."""
         stmt = ast.parse(source).body[0]
         assert not _is_mock_assertion(stmt)
 
@@ -133,6 +138,7 @@ class TestViolationsInBlock:
     """Body-level scan must flag unreachable mock assertions only."""
 
     def test_flags_assertion_after_top_level_raise(self) -> None:
+        """Flags assertion after top level raise."""
         with_node = _parse_with(
             """
             with pytest.raises(ValueError):
@@ -144,6 +150,7 @@ class TestViolationsInBlock:
         assert len(violations) == 1
 
     def test_flags_assert_called_attribute_after_raise(self) -> None:
+        """Flags assert called attribute after raise."""
         with_node = _parse_with(
             """
             with pytest.raises(ValueError):
@@ -156,6 +163,7 @@ class TestViolationsInBlock:
 
     def test_no_flag_when_assertion_precedes_raise(self) -> None:
         # Statement appears BEFORE raise — reachable; not flagged.
+        """No flag when assertion precedes raise."""
         with_node = _parse_with(
             """
             with pytest.raises(ValueError):
@@ -167,6 +175,7 @@ class TestViolationsInBlock:
 
     def test_no_flag_when_no_top_level_raise(self) -> None:
         # No raise at top level; mock assertion is reachable.
+        """No flag when no top level raise."""
         with_node = _parse_with(
             """
             with pytest.raises(ValueError):
@@ -179,6 +188,7 @@ class TestViolationsInBlock:
     def test_no_flag_when_raise_is_nested_in_if(self) -> None:
         # T10 negative case: conditional raise; trailing assertion is
         # reachable when the condition is False.
+        """No flag when raise is nested in if."""
         with_node = _parse_with(
             """
             with pytest.raises(ValueError):
@@ -192,6 +202,7 @@ class TestViolationsInBlock:
     def test_no_flag_when_raise_is_nested_in_try(self) -> None:
         # T10 negative case: raise inside try doesn't terminate the
         # outer block (the except may catch and the body continues).
+        """No flag when raise is nested in try."""
         with_node = _parse_with(
             """
             with pytest.raises(ValueError):
@@ -220,11 +231,13 @@ class TestFindViolationsSynthetic:
     """End-to-end checks against tmp_path test files."""
 
     def _write(self, tmp_path: Path, content: str) -> Path:
+        """Write."""
         target = tmp_path / "test_synth.py"
         target.write_text(dedent(content))
         return target
 
     def test_unreachable_mock_assertion_is_flagged(self, tmp_path: Path) -> None:
+        """Unreachable mock assertion is flagged."""
         target = self._write(
             tmp_path,
             """
@@ -242,6 +255,7 @@ class TestFindViolationsSynthetic:
 
     def test_correctly_placed_assertion_is_not_flagged(self, tmp_path: Path) -> None:
         # T10 negative: assertion AFTER the with-block exits is correct.
+        """Correctly placed assertion is not flagged."""
         target = self._write(
             tmp_path,
             """
@@ -256,6 +270,7 @@ class TestFindViolationsSynthetic:
         assert find_violations(target) == []
 
     def test_assert_called_attribute_after_raise_is_flagged(self, tmp_path: Path) -> None:
+        """Assert called attribute after raise is flagged."""
         target = self._write(
             tmp_path,
             """
@@ -274,6 +289,7 @@ class TestFindViolationsSynthetic:
     def test_pytest_warns_does_not_trigger(self, tmp_path: Path) -> None:
         # T10 negative case: same with-statement shape but pytest.warns,
         # not pytest.raises. Must not flag.
+        """Pytest warns does not trigger."""
         target = self._write(
             tmp_path,
             """
@@ -296,6 +312,7 @@ class TestFindViolationsSynthetic:
         # only walked the outer body and missed this. The fixed detector
         # walks every nested statement-list within the pytest.raises
         # subtree.
+        """Nested with block with raise then mock assertion is flagged."""
         target = self._write(
             tmp_path,
             """
@@ -317,6 +334,7 @@ class TestFindViolationsSynthetic:
         # The raise is at top level of the if-body (not the outer
         # pytest.raises body), so the immediate-body-only scan would
         # miss it. After the fix, the rail walks into the if-body too.
+        """Nested if with raise then assertion is flagged."""
         target = self._write(
             tmp_path,
             """
@@ -336,6 +354,7 @@ class TestFindViolationsSynthetic:
         # T10 negative case: the nested def starts a new scope; its body
         # is not executed at the pytest.raises call site. The detector
         # must NOT descend into function definitions.
+        """Assertion inside nested function def is not flagged."""
         target = self._write(
             tmp_path,
             """
@@ -360,6 +379,7 @@ class TestFindViolationsSynthetic:
         # only matches the canonical form. False negatives are accepted
         # for false-positive immunity (the canonical form is what the
         # codebase uses everywhere — see existing 11 noqa-PT012 sites).
+        """Mocked pytest raises via alias is not flagged."""
         target = self._write(
             tmp_path,
             """
@@ -383,6 +403,7 @@ class TestFullSuite:
     """The rail must pass against the live ``tests/`` tree (preventive)."""
 
     def test_no_violations_on_current_tree(self) -> None:
+        """No violations on current tree."""
         result = subprocess.run(
             [sys.executable, str(_SCRIPT)],
             capture_output=True,

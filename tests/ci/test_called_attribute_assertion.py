@@ -66,6 +66,7 @@ class TestPatternDetection:
         ],
     )
     def test_matches_forbidden(self, line: str) -> None:
+        """Matches forbidden."""
         assert _PATTERN.match(line) is not None
 
     @pytest.mark.parametrize(
@@ -84,6 +85,7 @@ class TestPatternDetection:
         ],
     )
     def test_does_not_match_legitimate(self, line: str) -> None:
+        """Does not match legitimate."""
         assert _PATTERN.match(line) is None
 
 
@@ -99,6 +101,7 @@ class TestOptOutMarker:
         ],
     )
     def test_recognises_opt_out(self, line: str) -> None:
+        """Recognises opt out."""
         assert _has_opt_out(line)
 
     @pytest.mark.parametrize(
@@ -110,6 +113,7 @@ class TestOptOutMarker:
         ],
     )
     def test_rejects_non_canonical(self, line: str) -> None:
+        """Rejects non canonical."""
         assert not _has_opt_out(line)
 
 
@@ -124,6 +128,7 @@ class TestCommentLines:
         ],
     )
     def test_comment_lines_are_skipped(self, line: str) -> None:
+        """Comment lines are skipped."""
         assert _is_comment_line(line)
 
 
@@ -136,16 +141,19 @@ class TestFindViolationsSynthetic:
     """End-to-end checks against tmp_path test files."""
 
     def _write(self, tmp_path: Path, content: str) -> Path:
+        """Write."""
         target = tmp_path / "test_synth.py"
         target.write_text(content)
         return target
 
     def test_unmarked_assertion_is_flagged(self, tmp_path: Path) -> None:
+        """Unmarked assertion is flagged."""
         target = self._write(tmp_path, "assert mock.method.called\n")
         violations = find_violations(target)
         assert len(violations) == 1
 
     def test_marked_assertion_is_not_flagged(self, tmp_path: Path) -> None:
+        """Marked assertion is not flagged."""
         target = self._write(
             tmp_path, "assert mock.method.called  # noqa: T3 reason: legacy test\n"
         )
@@ -153,16 +161,19 @@ class TestFindViolationsSynthetic:
 
     def test_method_form_is_not_flagged(self, tmp_path: Path) -> None:
         # Canonical fix — the method call form. Not flagged.
+        """Method form is not flagged."""
         target = self._write(tmp_path, "mock.method.assert_called()\n")
         assert find_violations(target) == []
 
     def test_comment_with_forbidden_text_not_flagged(self, tmp_path: Path) -> None:
+        """Comment with forbidden text not flagged."""
         target = self._write(tmp_path, "# example: assert mock.called\n")
         assert find_violations(target) == []
 
     def test_count_comparison_not_flagged(self, tmp_path: Path) -> None:
         # T10 negative case: ``call_count`` checks are out of scope for this
         # narrow rail (full T3 covers them under code review, not here).
+        """Count comparison not flagged."""
         target = self._write(tmp_path, "assert mock.call_count >= 1\n")
         assert find_violations(target) == []
 
@@ -170,6 +181,7 @@ class TestFindViolationsSynthetic:
         # Fixtures embedded in docstrings (common in tests/ci/test_*.py
         # rails that demonstrate the forbidden pattern in dedent blocks)
         # must not false-flag.
+        """Inside triple quoted docstring not flagged."""
         target = self._write(
             tmp_path,
             '"""Example fixture:\n\n    assert mock.method.called\n"""\n',
@@ -186,6 +198,7 @@ class TestFullSuite:
     """The rail must pass against the live ``tests/`` tree."""
 
     def test_no_violations_on_current_tree(self) -> None:
+        """No violations on current tree."""
         result = subprocess.run(
             [sys.executable, str(_SCRIPT)],
             capture_output=True,

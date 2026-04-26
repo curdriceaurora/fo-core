@@ -1191,6 +1191,33 @@ class TestSuggestionFeedback:
         assert "stats" in data
         assert "exported_at" in data
 
+    def test_export_feedback_logs_and_reraises_on_oserror(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """When the output write fails (e.g. permission denied), the error is logged and reraised.
+
+        Covers the try/except wrap added in the PR-#219 review cycle so the
+        caller sees the failure with context rather than a bare propagation.
+        """
+        from unittest.mock import patch
+
+        from services.suggestion_feedback import SuggestionFeedback
+
+        fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")
+        fb.record_action(self._make_suggestion(), "accepted")
+        out = tmp_path / "denied.json"
+
+        with (
+            caplog.at_level("ERROR"),
+            patch(
+                "services.suggestion_feedback.open",
+                side_effect=OSError("permission denied"),
+            ),
+            pytest.raises(OSError, match="permission denied"),
+        ):
+            fb.export_feedback(out)
+        assert any("Failed to export feedback" in r.message for r in caplog.records)
+
     def test_feedback_entry_serialization(self) -> None:
         from models.suggestion_types import SuggestionType
         from services.suggestion_feedback import FeedbackEntry
