@@ -175,8 +175,8 @@ class TestTextModelStreaming:
     def test_guarded_iterator_stopiteration_fires_callback(self) -> None:
         on_close = MagicMock()
         it = _GuardedIterator(iter(["x"]), on_close)
-        with pytest.raises(StopIteration):  # noqa: PT012 — second next() raises after first consumes; both calls required
-            next(it)
+        next(it)
+        with pytest.raises(StopIteration):
             next(it)
         on_close.assert_called()
 
