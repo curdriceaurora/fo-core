@@ -164,9 +164,9 @@ class TestPidRecord:
     def test_read_pid_record_legacy_integer_format(
         self, pid_manager: PidFileManager, pid_file: Path
     ) -> None:
-        """Legacy PID files (written by ``write_pid``, which is text-only)
-        still parse — create_time is None, caller falls back to
-        pid-only liveness check."""
+        """Legacy text-only PID files (plain integer, no JSON record)
+        still parse — create_time is None, and is_running falls back to
+        the pid-only liveness check."""
         pid_file.write_text(str(os.getpid()))
         record = pid_manager.read_pid_record(pid_file)
         assert record is not None

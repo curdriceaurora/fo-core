@@ -556,5 +556,8 @@ class TestBuildRetrieverHiddenFiles:
                     assert all("settings config data" not in d for d in docs_list), (
                         "Hidden file should be excluded from corpus"
                     )
-        except ImportError:
+        except (ImportError, AttributeError):
+            # AttributeError occurs when optional search deps (numpy/rank_bm25)
+            # are absent: services.search.__init__ sets HybridRetriever=None and
+            # never imports the submodule, so patch() can't resolve the target.
             pytest.skip("Search dependencies not installed")
