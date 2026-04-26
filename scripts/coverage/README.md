@@ -15,6 +15,30 @@ This makes coverage improvements durable and prevents hidden regressions in low-
 - `integration_module_floor_baseline.json`: baseline module floors.
 - `../check_module_coverage_floor.py`: checker invoked by `.github/workflows/ci.yml`.
 
+## Known local drift
+
+Some modules measure slightly lower locally than in CI because their branch
+coverage depends on which optional extras are installed.  These modules are
+listed in the `known_local_drift.modules` section of the baseline JSON.
+
+When `check_module_coverage_floor.py` runs **without** the `CI` environment
+variable set to `true`, it skips the floor check for those modules and prints a
+`NOTE:` line explaining why.  CI (where `CI=true` is always set by GitHub
+Actions) continues to enforce the full floors.
+
+To add a new module to the allowlist:
+
+```json
+"known_local_drift": {
+  "modules": {
+    "src/path/to/module.py": "one-line reason why coverage differs by env"
+  }
+}
+```
+
+Only use this for genuine environment-specific drift (platform branches,
+optional-dep import guards).  Do **not** use it to hide coverage regressions.
+
 ## How to ratchet floors upward
 
 ### Single command (recommended)

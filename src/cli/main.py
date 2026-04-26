@@ -5,6 +5,7 @@ Provides the unified entry point with all commands and sub-apps.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, cast
 
@@ -26,6 +27,8 @@ from cli.state import CLIState, _get_state
 from cli.suggest import suggest_app
 from cli.update import update_app
 from cli.utilities import analyze, search
+from undo._journal import default_journal_path as _default_journal_path
+from undo.durable_move import sweep as _durable_move_sweep
 
 console = Console()
 
@@ -94,6 +97,37 @@ def main_callback(
     # exception args. Installed at the CLI entry point so the filter exists
     # before any command runs.
     install_on_root()
+
+    # F7 (hardening roadmap #159): sweep any interrupted durable_move
+    # operations from a prior crashed run. Runs before any command so
+    # the on-disk state is coherent before the user's intent executes.
+    # Failures here are logged + swallowed — a sweep error is never
+    # worth crashing the CLI over; the next run will retry.
+    #
+    # F7.1 / codex lCbV / coderabbit lDDy: SKIP the startup sweep when
+    # the user is invoking ``fo recover``. ``recover`` is the read-only
+    # preview of what sweep would do; running sweep first would mutate
+    # state (unlink, compact) before the preview ran and then report
+    # "no retained entries" — breaking the read-only contract and
+    # making the preview unreliable.
+    if ctx.invoked_subcommand != "recover":
+        try:
+            _durable_move_sweep(_default_journal_path())
+        except Exception:
+            # Coderabbit PRRT_kwDOR_Rkws59fzVf: log at WARNING, not DEBUG.
+            # Most users don't run with debug verbosity, so a permanently
+            # unreadable journal (permission denied, corrupted JSONL) would
+            # silently accumulate unrecovered entries across every
+            # invocation with zero operator signal. WARNING surfaces the
+            # problem without impacting normal runs (the journal is
+            # missing/empty on the common path and ``sweep`` fast-exits
+            # before hitting any of these error paths).
+            logging.getLogger(__name__).warning(
+                "durable_move sweep at CLI startup failed; "
+                "interrupted-move recovery may be stuck. Inspect %s",
+                _default_journal_path(),
+                exc_info=True,
+            )
 
     set_flags(yes=yes, no_interactive=no_interactive)
 
@@ -221,6 +255,28 @@ def history(
         stats=stats,
         verbose=verbose or _get_state().verbose,
     )
+    raise typer.Exit(code=code)
+
+
+@app.command()
+def recover(  # noqa: G3 (--journal is a read-only path; defaults to system state dir)
+    journal: Path | None = typer.Option(
+        None,
+        help="Override path to durable_move.journal (defaults to the user state dir).",
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
+) -> None:
+    """Preview pending durable_move recovery actions without executing them.
+
+    F7.1 §8.2: reads the journal under ``LOCK_SH``, calls the pure
+    :func:`plan_recovery_actions` planner, and prints the planned
+    sweep verbs + reasons. Exits 0 if nothing actionable, 1 if any
+    recovery work would be performed (so scripts can detect a stuck
+    journal without invoking sweep itself).
+    """
+    from cli.undo_recover import recover_command as _recover
+
+    code = _recover(journal=journal, verbose=verbose or _get_state().verbose)
     raise typer.Exit(code=code)
 
 
