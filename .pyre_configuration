@@ -1,12 +1,5 @@
 {
   "source_directories": [
     "src"
-  ],
-  "ignore_all_errors": [
-    "src/core/backend_detector.py",
-    "src/core/hardware_profile.py",
-    "src/core/organizer.py",
-    "src/core/setup_wizard.py",
-    "src/core/types.py"
   ]
 }

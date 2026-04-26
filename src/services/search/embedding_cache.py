@@ -35,7 +35,12 @@ try:
     import numpy as np  # pyre-ignore[21]: optional dep; absent when search extra not installed
     from numpy.typing import NDArray  # pyre-ignore[21]
 except ImportError as exc:  # pragma: no cover
-    raise ImportError("Install with: pip install 'fo-core[search]'") from exc
+    # Keep the literal "numpy" in the message so default-install boundary checks
+    # can recognise this as a numpy-related ImportError (consistent with the
+    # services/deduplication/__init__.py guard pattern).
+    raise ImportError(
+        "numpy is required for embedding cache; install with: pip install 'fo-core[search]'"
+    ) from exc
 from loguru import logger
 
 from interfaces.search import EmbeddingCacheProtocol

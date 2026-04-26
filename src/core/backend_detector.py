@@ -4,6 +4,8 @@ Detects installed AI backends (Ollama, local GGUF models, MLX) and
 queries available models for the setup wizard.
 """
 
+# pyre-ignore-all-errors[35]: Pyre 0.9.25 mis-flags dataclass/ClassVar field
+# annotations when `from __future__ import annotations` is in use.
 from __future__ import annotations
 
 import json

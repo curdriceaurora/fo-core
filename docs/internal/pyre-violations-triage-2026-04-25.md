@@ -12,7 +12,7 @@
 | **APPLY** (worth fixing) | 8 | Optional-dep import guards (F9 alignment) |
 | **SUPPRESS** (false positive) | 39 | 37 are a single Pyre 0.9.25 limitation across 5 files |
 | **DEFER** (real but architectural) | 2 | Both touch typed-callable boundaries |
-| **DISMISS** (stale path) | 3 | Open Code Scanning alerts under removed `src/file_organizer/…` paths |
+| **DISMISS** (stale path) | 3 | Open Code Scanning alerts under the removed pre-flatten namespace paths (see DISMISS section) |
 
 **Headline**: signal-to-noise is poor. **0** of the 52 findings indicate an F4 SECURITY_VULN, S1–S6 search-pattern, or runtime-correctness defect in the current code. The recent path-guard / log-redaction / lifecycle hardening work (commits `c18e7ca`, `5c9e16d`, `9d87575`, `27b115f`, `eb53f5c`) covers the security territory Pyre type-check cannot detect anyway. Pyre runs without Pysa taint configuration, so this scan is type-only — not security taint analysis.
 
@@ -140,17 +140,23 @@ record._fo_redacted = _RECORD_REDACTED_SENTINEL  # pyre-ignore[16]
 
 ## DISMISS — Stale Code Scanning Alerts
 
-GitHub Code Scanning likely retains alerts for files under the old `src/file_organizer/…` layout (the source tree was flattened to top-level `src/cli/`, `src/core/`, `src/services/` etc. before the workflow was restored on 2026-04-23). The fresh local run does not produce any alerts under those paths, confirming they are stale.
+GitHub Code Scanning likely retains alerts for files under the old pre-flatten layout (the source tree was flattened to top-level `src/cli/`, `src/core/`, `src/services/` etc. before the workflow was restored on 2026-04-23). The fresh local run does not produce any alerts under those paths, confirming they are stale.
 
-**Likely stale alerts** (paths to verify in the Security tab):
+> Note: the literal pre-flatten namespace token is intentionally omitted from this
+> document — `tests/ci/test_flattened_identity_guardrail.py` enforces that the legacy
+> token does not reappear in any tracked text file. Refer to it as the
+> "old namespace prefix" or `src/<old-namespace>/...` instead.
 
-- `src/file_organizer/services/audio/transcriber.py` — file no longer exists at this path
-- `src/file_organizer/services/deduplication/embedder.py` — moved to `src/services/deduplication/embedder.py`
-- `src/file_organizer/services/search/bm25_index.py` — moved to `src/services/search/bm25_index.py`
+**Likely stale alerts** (paths to verify in the Security tab — substitute the old
+namespace prefix where indicated):
 
-**Proposed action** (owner-only — requires Code Scanning UI access): dismiss with reason **"Won't fix"** and comment **"File path moved during epic/flatten-src-fo refactor — superseded by current run on flattened layout"**.
+- `src/<old-namespace>/services/audio/transcriber.py` — file no longer exists at this path
+- `src/<old-namespace>/services/deduplication/embedder.py` — moved to `src/services/deduplication/embedder.py`
+- `src/<old-namespace>/services/search/bm25_index.py` — moved to `src/services/search/bm25_index.py`
 
-The exact alert numbers depend on whatever GitHub Code Scanning shows after the next workflow run — recommend dismissing in bulk based on the path prefix `src/file_organizer/`.
+**Proposed action** (owner-only — requires Code Scanning UI access): dismiss with reason **"Won't fix"** and comment **"File path moved during epic/flatten-src refactor — superseded by current run on flattened layout"**.
+
+The exact alert numbers depend on whatever GitHub Code Scanning shows after the next workflow run — recommend dismissing in bulk based on the old namespace path prefix.
 
 ---
 

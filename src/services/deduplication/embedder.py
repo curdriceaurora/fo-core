@@ -15,7 +15,12 @@ try:
     import numpy as np  # pyre-ignore[21]: optional dep; absent when dedup-text extra not installed
     from numpy.typing import NDArray  # pyre-ignore[21]
 except ImportError as exc:  # pragma: no cover
-    raise ImportError("Install with: pip install 'fo-core[dedup-text]'") from exc
+    # Keep the literal "numpy" in the message so services/deduplication/__init__.py
+    # recognises this as a numpy-related ImportError and falls back to no-text mode
+    # in default installs that lack the dedup-text extra.
+    raise ImportError(
+        "numpy is required for document embeddings; install with: pip install 'fo-core[dedup-text]'"
+    ) from exc
 
 from utils.atomic_write import atomic_write_with
 
