@@ -408,6 +408,6 @@ class UpdateInstaller:
         try:
             resp = httpx.get(url, follow_redirects=True, timeout=15.0)
             resp.raise_for_status()
-            return resp.text
+            return resp.text  # type: ignore[no-any-return]
         except Exception:
             return ""

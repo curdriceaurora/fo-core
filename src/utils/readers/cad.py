@@ -356,6 +356,6 @@ def read_cad_file(file_path: str | Path, **kwargs: object) -> str:
 
     reader = cad_readers.get(ext)
     if reader:
-        return reader(file_path, **kwargs)
+        return reader(file_path, **kwargs)  # type: ignore[operator,no-any-return]
     else:
         raise FileReadError(f"Unsupported CAD file format: {ext}")

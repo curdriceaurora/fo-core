@@ -388,7 +388,7 @@ class EnhancedEPUBReader:
         for tag in ["h1", "h2", "h3", "title"]:
             heading = soup.find(tag)
             if heading and heading.get_text(strip=True):
-                return heading.get_text(strip=True)
+                return heading.get_text(strip=True)  # type: ignore[no-any-return]
 
         # Fall back to filename
         if hasattr(item, "file_name"):

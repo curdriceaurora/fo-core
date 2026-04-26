@@ -58,7 +58,7 @@ def confirm_action(message: str, *, default: bool = False) -> bool:
         return True
     if _no_interactive:
         return default
-    return Confirm.ask(message, default=default)
+    return Confirm.ask(message, default=default)  # type: ignore[no-any-return]
 
 
 def prompt_directory(message: str = "Enter directory path") -> Path:
@@ -99,8 +99,8 @@ def prompt_choice(
     if _no_interactive and default is not None:
         return default
     if default is not None:
-        return Prompt.ask(message, choices=list(choices), default=default)
-    return Prompt.ask(message, choices=list(choices))
+        return Prompt.ask(message, choices=list(choices), default=default)  # type: ignore[no-any-return]
+    return Prompt.ask(message, choices=list(choices))  # type: ignore[no-any-return]
 
 
 def create_progress() -> Progress:

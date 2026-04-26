@@ -284,6 +284,10 @@ module = [
     "utils.readers.cad",
     "events.stream",
     "services.deduplication.extractor",
+    "watcher.monitor",
+    "watcher.handler",
+    "methodologies.para.detection.heuristics",
+    "utils.epub_enhanced",
 ]
 warn_unused_ignores = false
 

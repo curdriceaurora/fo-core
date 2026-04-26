@@ -130,7 +130,7 @@ def get_image_dimensions(image_path: Path) -> tuple[int, int] | None:
     """
     try:
         with Image.open(image_path) as img:
-            return img.size
+            return img.size  # type: ignore[no-any-return]
     except (OSError, ValueError) as e:
         logger.warning(f"Could not get dimensions for {image_path}: {e}")
         return None
@@ -147,7 +147,7 @@ def get_image_format(image_path: Path) -> str | None:
     """
     try:
         with Image.open(image_path) as img:
-            return img.format
+            return img.format  # type: ignore[no-any-return]
     except (OSError, ValueError) as e:
         logger.warning(f"Could not determine format for {image_path}: {e}")
         return None
