@@ -106,8 +106,64 @@ def _violations_in_block(body: list[ast.stmt]) -> list[ast.stmt]:
     return found
 
 
+def _iter_statement_blocks(node: ast.AST) -> list[list[ast.stmt]]:
+    """Yield every ``list[ast.stmt]`` directly attached to *node*.
+
+    Excludes nested function / class / lambda scopes — a ``raise`` followed
+    by a mock assertion inside a nested function definition is a different
+    control-flow context (the function body is not executed at the
+    pytest.raises call site, so no unreachable-code claim applies).
+    """
+    blocks: list[list[ast.stmt]] = []
+    if isinstance(node, ast.With | ast.AsyncWith):
+        blocks.append(node.body)
+    elif isinstance(node, ast.For | ast.AsyncFor | ast.While):
+        blocks.append(node.body)
+        blocks.append(node.orelse)
+    elif isinstance(node, ast.If):
+        blocks.append(node.body)
+        blocks.append(node.orelse)
+    elif isinstance(node, ast.Try):
+        blocks.append(node.body)
+        blocks.append(node.orelse)
+        blocks.append(node.finalbody)
+        for handler in node.handlers:
+            blocks.append(handler.body)
+    return blocks
+
+
+def _walk_pytest_raises_body(root: ast.With) -> list[list[ast.stmt]]:
+    """Yield every statement-list reachable from *root* without entering a new scope.
+
+    The traversal includes ``root.body`` itself plus the body of every nested
+    ``with`` / ``if`` / ``for`` / ``while`` / ``try`` block inside it. Function /
+    class / lambda definitions are not descended — those open new control-flow
+    scopes whose statements are not reachable as part of the ``pytest.raises``
+    call site.
+    """
+    blocks: list[list[ast.stmt]] = [root.body]
+    stack: list[ast.AST] = [*root.body]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
+            continue
+        for block in _iter_statement_blocks(node):
+            blocks.append(block)
+            stack.extend(block)
+    return blocks
+
+
 def find_violations(path: Path) -> list[tuple[int, str]]:
-    """Return [(line_number, source_line_excerpt)] for each unreachable mock assertion."""
+    """Return [(line_number, source_line_excerpt)] for each unreachable mock assertion.
+
+    Walks every ``with pytest.raises(...):`` block and checks every nested
+    statement-list inside it (including bodies of inner ``with`` / ``if`` /
+    ``for`` / ``try`` blocks). A mock assertion appearing after a top-level
+    ``raise`` *within the same block* is flagged — this catches the common
+    context-manager pattern ``with pytest.raises(...): with mgr() as m:
+    ...; raise; m.cleanup.assert_called_once()`` that the immediate-body-only
+    scan missed (codex r217).
+    """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except (OSError, SyntaxError, UnicodeDecodeError):
@@ -118,12 +174,13 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
             continue
         if not any(_is_pytest_raises(item) for item in node.items):
             continue
-        for stmt in _violations_in_block(node.body):
-            try:
-                line = ast.unparse(stmt)
-            except (AttributeError, ValueError):
-                line = f"<line {stmt.lineno}>"
-            violations.append((stmt.lineno, line))
+        for block in _walk_pytest_raises_body(node):
+            for stmt in _violations_in_block(block):
+                try:
+                    line = ast.unparse(stmt)
+                except (AttributeError, ValueError):
+                    line = f"<line {stmt.lineno}>"
+                violations.append((stmt.lineno, line))
     return violations
 
 

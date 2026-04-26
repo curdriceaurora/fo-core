@@ -284,6 +284,73 @@ class TestFindViolationsSynthetic:
         )
         assert find_violations(target) == []
 
+    def test_nested_with_block_with_raise_then_mock_assertion_is_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        # Codex r217 false-negative case: the raise + mock assertion are
+        # both inside an inner ``with manager() as m:`` block nested under
+        # the outer ``with pytest.raises(...):``. The pre-fix detector
+        # only walked the outer body and missed this. The fixed detector
+        # walks every nested statement-list within the pytest.raises
+        # subtree.
+        target = self._write(
+            tmp_path,
+            """
+            import pytest
+
+            def test_x():
+                with pytest.raises(ValueError):  # noqa: PT012
+                    with manager() as m:
+                        do_setup()
+                        raise ValueError()
+                        m.cleanup.assert_called_once()
+            """,
+        )
+        violations = find_violations(target)
+        assert len(violations) == 1
+        assert "assert_called_once" in violations[0][1]
+
+    def test_nested_if_with_raise_then_assertion_is_flagged(self, tmp_path: Path) -> None:
+        # The raise is at top level of the if-body (not the outer
+        # pytest.raises body), so the immediate-body-only scan would
+        # miss it. After the fix, the rail walks into the if-body too.
+        target = self._write(
+            tmp_path,
+            """
+            import pytest
+
+            def test_x():
+                with pytest.raises(ValueError):  # noqa: PT012
+                    if True:
+                        raise ValueError()
+                        mock.method.assert_called_once()
+            """,
+        )
+        violations = find_violations(target)
+        assert len(violations) == 1
+
+    def test_assertion_inside_nested_function_def_is_not_flagged(self, tmp_path: Path) -> None:
+        # T10 negative case: the nested def starts a new scope; its body
+        # is not executed at the pytest.raises call site. The detector
+        # must NOT descend into function definitions.
+        target = self._write(
+            tmp_path,
+            """
+            import pytest
+
+            def test_x():
+                with pytest.raises(ValueError):
+                    raise ValueError()
+
+                    def helper():
+                        mock.method.assert_called_once()
+            """,
+        )
+        # The raise + def are at top level of the pytest.raises body. The
+        # def itself is not a mock assertion, and we don't descend into
+        # its body. So no violations.
+        assert find_violations(target) == []
+
     def test_mocked_pytest_raises_via_alias_is_not_flagged(self, tmp_path: Path) -> None:
         # T10 negative case: an aliased import doesn't match the
         # ``pytest.raises`` attribute pattern. Conservative: detector
