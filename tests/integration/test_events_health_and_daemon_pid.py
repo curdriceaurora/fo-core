@@ -339,16 +339,12 @@ class TestPidFileManager:
         assert data["pid"] == os.getpid()
 
     def test_write_pid_record_creates_parent_dirs(self, tmp_path: Path) -> None:
-        import json
-
         from daemon.pid import PidFileManager
 
         mgr = PidFileManager()
         nested = tmp_path / "a" / "b" / "daemon.pid"
         mgr.write_pid_record(nested)
         assert nested.exists()
-        record = json.loads(nested.read_text())
-        assert record["pid"] == os.getpid()
 
     def test_read_pid_returns_int_when_file_exists(self, tmp_path: Path) -> None:
         from daemon.pid import PidFileManager
@@ -410,15 +406,12 @@ class TestPidFileManager:
         assert mgr.is_running(tmp_path / "ghost.pid") is False
 
     def test_is_running_false_for_dead_pid(self, tmp_path: Path) -> None:
-        from unittest.mock import patch
-
         from daemon.pid import PidFileManager
 
         mgr = PidFileManager()
         pid_file = tmp_path / "daemon.pid"
         pid_file.write_text("99999999")
-        with patch("daemon.pid.psutil.pid_exists", return_value=False):
-            result = mgr.is_running(pid_file)
+        result = mgr.is_running(pid_file)
         assert result is False
 
 
