@@ -248,7 +248,7 @@ When documenting a single number, use the gate that matches the context:
 strategy:
   matrix:
     os: [ubuntu-latest, windows-latest, macos-latest]
-    python-version: ["3.9", "3.10", "3.11", "3.12"]
+    python-version: ["3.11", "3.12", "3.13"]
 ```
 
 **Good**:
@@ -258,7 +258,7 @@ strategy:
 strategy:
   matrix:
     os: ${{ github.event_name == 'pull_request' && '["ubuntu-latest"]' || '["ubuntu-latest", "windows-latest", "macos-latest"]' }}
-    python-version: ${{ github.event_name == 'pull_request' && '["3.11"]' || '["3.9", "3.10", "3.11", "3.12"]' }}
+    python-version: ${{ github.event_name == 'pull_request' && '["3.11"]' || '["3.11", "3.12", "3.13"]' }}
 
 # GOOD — cache dependencies
 - uses: actions/cache@v3

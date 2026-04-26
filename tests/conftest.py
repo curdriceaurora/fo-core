@@ -74,11 +74,11 @@ skip_below_py312 = pytest.mark.skipif(
 def ensure_default_event_loop(request: pytest.FixtureRequest) -> None:
     """Ensure sync tests can instantiate asyncio-bound widgets across Python versions.
 
-    Some Textual widgets allocate ``asyncio.Lock`` during ``__init__``. On Python 3.9,
-    after async tests run, the default loop policy can be left with no current loop
-    in the main thread, which raises ``RuntimeError`` for later sync widget tests.
-    This fixture gives each sync test an explicit default loop; async tests use
-    ``pytest-asyncio``/``anyio`` loop management and are skipped here.
+    Some Textual widgets allocate ``asyncio.Lock`` during ``__init__``. After async
+    tests run, the default loop policy can be left with no current loop in the main
+    thread, which raises ``RuntimeError`` for later sync widget tests. This fixture
+    gives each sync test an explicit default loop; async tests use
+    ``pytest-asyncio`` / ``anyio`` loop management and are skipped here.
     """
     if request.node.get_closest_marker("asyncio") or request.node.get_closest_marker("anyio"):
         yield
