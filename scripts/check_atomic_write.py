@@ -183,29 +183,59 @@ def _is_open_call(node: ast.Call) -> bool:
     return False
 
 
-def _extract_mode_string(node: ast.Call) -> str | None:
-    """Return the mode string passed to ``open(path, mode)`` if statically known.
+_MODE_CHARS = frozenset("rwaxbt+")
 
-    Two call shapes:
 
-    - Builtin ``open(path, mode, ...)``: the mode is the second positional
-      argument (``args[1]``).
-    - Method ``<obj>.open(mode, ...)`` (e.g. ``Path("x").open("w")``): the
-      receiver is implicit, so the mode is the *first* positional argument
-      (``args[0]``).
+def _looks_like_mode_literal(value: object) -> bool:
+    """True if *value* is a string that plausibly is a Python ``open()`` mode.
 
-    The ``mode=`` keyword form works for both shapes.
-
-    Returns ``None`` if the mode is dynamic (variable, computed, etc.) — a
-    dynamic mode could be a write or read; we conservatively skip rather
-    than false-flag.
+    A Python mode string is short (1-4 chars) and consists of characters
+    drawn from ``rwaxbt+`` with exactly one of the primary action chars
+    ``rwax``. This rejects things that happen to be string Constants but
+    are clearly file paths (``"write.log"`` has ``.`` and ``l``, ``o``,
+    ``g``) — important because attribute-style calls like
+    ``tarfile.open("write.log", "wb")`` have the path at args[0] and the
+    mode at args[1], while ``Path("x").open("w")`` has the mode at
+    args[0]. The strict pattern lets us check BOTH positions safely.
     """
-    is_method = isinstance(node.func, ast.Attribute)
-    mode_pos = 0 if is_method else 1
-    if len(node.args) > mode_pos:
-        mode_arg = node.args[mode_pos]
-        if isinstance(mode_arg, ast.Constant) and isinstance(mode_arg.value, str):
-            return mode_arg.value
+    if not isinstance(value, str):
+        return False
+    if not 1 <= len(value) <= 4:
+        return False
+    if not all(c in _MODE_CHARS for c in value):
+        return False
+    primary_chars = sum(1 for c in value if c in "rwax")
+    return primary_chars == 1
+
+
+def _extract_mode_string(node: ast.Call) -> str | None:
+    """Return the mode string passed to ``open()`` if statically known.
+
+    Three call shapes the rail must handle:
+
+    - Builtin ``open(path, mode, ...)``: mode at ``args[1]``.
+    - Module-level ``<module>.open(path, mode, ...)`` such as
+      ``tarfile.open(path, "w")`` or ``gzip.open(path, "wb")``:
+      mode at ``args[1]`` (codex r219 #6 thread).
+    - Instance-method ``<obj>.open(mode, ...)`` such as
+      ``Path("x").open("w")``: mode at ``args[0]``.
+
+    From the AST alone we cannot tell whether an attribute call is a
+    module-level function or an instance method — so we check both
+    positions and pick the FIRST argument that looks like a real Python
+    mode literal (``_looks_like_mode_literal``). The strict pattern
+    (length ≤ 4, characters drawn from ``rwaxbt+``, exactly one primary
+    action char) keeps file-path strings from being mistaken for modes.
+
+    The ``mode=`` keyword form works for every shape.
+
+    Returns ``None`` if no statically-known mode is present — a dynamic
+    mode (variable, computed, etc.) could be a write or read; we skip
+    rather than false-flag.
+    """
+    for arg in node.args[:2]:
+        if isinstance(arg, ast.Constant) and _looks_like_mode_literal(arg.value):
+            return arg.value
     for kw in node.keywords:
         if kw.arg == "mode":
             if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):

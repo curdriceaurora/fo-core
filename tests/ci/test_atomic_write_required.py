@@ -303,6 +303,45 @@ class TestOpenCalls:
         target = _synth(tmp_path, 'Path("out.json").open()\n')
         assert find_violations(target) == []
 
+    def test_module_level_attribute_open_with_path_at_args0_is_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        """Codex r219 #6: ``tarfile.open(path, "w")`` and ``gzip.open(path, "wb")``.
+
+        These are module-level functions called via attribute access. The
+        path is at args[0] and the mode is at args[1] — same positional
+        layout as the builtin ``open(path, mode)``. The detector must NOT
+        treat args[0] (the path) as the mode.
+        """
+        target = _synth(
+            tmp_path,
+            'tarfile.open(p, "w")\ngzip.open(p, "wb")\n',
+        )
+        assert len(find_violations(target)) == 2
+
+    def test_module_level_attribute_open_with_string_path_not_misread_as_mode(
+        self, tmp_path: Path
+    ) -> None:
+        """T10 negative: ``tarfile.open("write.log", "wb")``.
+
+        Codex r219 #6 regression case: with a literal string path that
+        happens to contain the letter ``w``, the detector must still pick
+        the real mode out of args[1], not misread args[0] as a mode.
+        Strict mode-literal pattern (``[rwaxbt+]{1,4}`` with exactly one
+        primary action char) ensures ``"write.log"`` is rejected as a
+        candidate mode.
+        """
+        target = _synth(tmp_path, 'tarfile.open("write.log", "wb")\n')
+        violations = find_violations(target)
+        assert len(violations) == 1
+        # The violation should be on the call line itself (line 1), not
+        # silently dropped by the path being misread as a mode.
+
+    def test_module_level_attribute_open_read_mode_not_flagged(self, tmp_path: Path) -> None:
+        """``tarfile.open(path, "r")`` is a read; not flagged."""
+        target = _synth(tmp_path, 'tarfile.open(p, "r")\n')
+        assert find_violations(target) == []
+
     def test_dynamic_mode_is_not_flagged(self, tmp_path: Path) -> None:
         # The mode is a variable reference; we can't statically determine
         # if it's a write or read mode, so we conservatively skip rather
