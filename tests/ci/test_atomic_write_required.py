@@ -35,6 +35,7 @@ sys.path.insert(0, str(_FO_ROOT / "scripts"))
 from check_atomic_write import (  # noqa: E402
     _ALLOWLISTED_FILES,
     _FORBIDDEN_MODES,
+    _collect_marker_comment_lines,
     _has_opt_out_in_window,
     find_violations,
 )
@@ -95,49 +96,61 @@ class TestAllowlist:
 
 
 class TestMarkerWindow:
-    """Markers inside the ±N-line window around the call line are recognised."""
+    """Markers inside the -2 / +6 line window around the call line are recognised.
+
+    Each test sets up a synthetic source string, runs it through
+    ``_collect_marker_comment_lines`` (which tokenises and only collects real
+    comment-token markers), then asks ``_has_opt_out_in_window`` whether the
+    call line falls inside any marker's window.
+    """
+
+    def _check(self, source: str, call_line: int) -> bool:
+        """Return ``_has_opt_out_in_window`` result for *source* at *call_line*."""
+        lines = source.splitlines()
+        marker_lines = _collect_marker_comment_lines(source)
+        return _has_opt_out_in_window(marker_lines, call_line, len(lines))
 
     def test_marker_on_call_line_is_recognised(self) -> None:
         """Marker on call line is recognised."""
-        lines = ['p.write_text("x")  # atomic-write: ok — user output']
-        assert _has_opt_out_in_window(lines, call_line=1)
+        source = 'p.write_text("x")  # atomic-write: ok — user output\n'
+        assert self._check(source, call_line=1)
 
     def test_marker_on_line_above_is_recognised(self) -> None:
-        # New placement (codex r219 + diff-coverage fix): a standalone
-        # comment line immediately above the call is accepted.
-        """Marker on line above is recognised."""
-        lines = [
-            "# atomic-write: ok — manual temp+replace",
-            'p.write_text("x")',
-        ]
-        assert _has_opt_out_in_window(lines, call_line=2)
+        """Standalone comment line immediately above the call is accepted (codex r219 + diff-coverage fix)."""
+        source = '# atomic-write: ok — manual temp+replace\np.write_text("x")\n'
+        assert self._check(source, call_line=2)
 
     def test_marker_on_closing_paren_line_is_recognised(self) -> None:
-        # ruff format splits long calls; marker may land on the )-line.
-        """Marker on closing paren line is recognised."""
-        lines = [
-            "p.write_text(",
-            '    "payload"',
-            ")  # atomic-write: ok — user output",
-        ]
-        assert _has_opt_out_in_window(lines, call_line=1)
+        """ruff format splits long calls; marker may land on the )-line."""
+        source = 'p.write_text(\n    "payload"\n)  # atomic-write: ok — user output\n'
+        assert self._check(source, call_line=1)
 
     def test_marker_too_far_above_is_not_recognised(self) -> None:
         """Marker too far above is not recognised."""
-        lines = [
-            "# atomic-write: ok",
-            "x = 1",
-            "x = 2",
-            "x = 3",
-            "x = 4",
-            'p.write_text("x")',
-        ]
-        assert not _has_opt_out_in_window(lines, call_line=6)
+        source = "# atomic-write: ok\nx = 1\nx = 2\nx = 3\nx = 4\np.write_text('x')\n"
+        assert not self._check(source, call_line=6)
 
     def test_marker_too_far_below_is_not_recognised(self) -> None:
         """Marker too far below is not recognised."""
-        lines = ['p.write_text("x")'] + ["x = 1"] * 10 + ["# atomic-write: ok"]
-        assert not _has_opt_out_in_window(lines, call_line=1)
+        source = "p.write_text('x')\n" + ("x = 1\n" * 10) + "# atomic-write: ok\n"
+        assert not self._check(source, call_line=1)
+
+    def test_marker_inside_string_literal_is_ignored(self) -> None:
+        """Marker text inside a string literal must NOT exempt a real call.
+
+        CodeRabbit r219 #2: the previous regex-on-raw-lines marker check
+        treated ``msg = "# atomic-write: ok"`` as an opt-out, which would
+        let any forbidden write within the window through. The tokeniser
+        only emits ``COMMENT`` tokens for real comments, so the string
+        literal is filtered out.
+        """
+        source = 'msg = "# atomic-write: ok — bypass attempt"\np.write_text("payload")\n'
+        assert not self._check(source, call_line=2)
+
+    def test_marker_inside_string_literal_does_not_match_via_collector(self) -> None:
+        """``_collect_marker_comment_lines`` ignores string literals containing the marker."""
+        source = 'msg = "# atomic-write: ok"\n'
+        assert _collect_marker_comment_lines(source) == set()
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +253,23 @@ class TestStringLiteralFalsePositives:
             "logger.debug(\"open(path, 'w')\")\n",
         )
         assert find_violations(target) == []
+
+    def test_marker_inside_string_literal_does_not_exempt_real_call(self, tmp_path: Path) -> None:
+        """End-to-end CodeRabbit r219 case: a real write call within window of a string-literal marker IS flagged.
+
+        Before the tokeniser fix, ``msg = "# atomic-write: ok"`` near a real
+        ``open(p, "w")`` would silently exempt the write. The tokeniser-based
+        marker collector ignores string literals, so the rail correctly flags
+        the write.
+        """
+        target = _synth(
+            tmp_path,
+            'msg = "# atomic-write: ok — bypass attempt"\n'
+            'with open(p, "w") as f:\n'
+            '    f.write("data")\n',
+        )
+        violations = find_violations(target)
+        assert len(violations) == 1
 
     def test_write_text_inside_string_literal_not_flagged(self, tmp_path: Path) -> None:
         """Write text inside string literal not flagged."""

@@ -359,12 +359,12 @@ class AnalyticsService:
             import json
 
             # atomic-write: ok — user output (one-shot CLI export)
-            with open(output_path, "w") as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(dashboard.to_dict(), f, indent=2)
 
         elif format == "text":
             # atomic-write: ok — user output (one-shot CLI export)
-            with open(output_path, "w") as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(self._format_dashboard_text(dashboard))
 
         else:

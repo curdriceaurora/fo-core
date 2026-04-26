@@ -8,22 +8,27 @@ suite (``atomic_write_text``, ``atomic_write_bytes``, ``atomic_write_with``,
 ``append_durable``) and converted 19+ call sites to crash-safe writes.
 
 This rail blocks regressions: any ``Path.write_text``, ``Path.write_bytes``,
-or ``open(p, "w"|"wb"|"a"|"ab")`` call in ``src/`` that is NOT marked with an
-explicit ``# atomic-write: ok — <reason>`` opt-out comment is flagged.
+or ``open(p, mode)`` call in ``src/`` whose mode is one of
+``w``, ``wb``, ``a``, ``ab``, ``w+``, ``wb+``, ``a+``, ``ab+`` and which is
+NOT marked with an explicit ``# atomic-write: ok — <reason>`` opt-out comment
+is flagged.
 
 Detection
 ---------
 AST-based. Walks every Python source file in ``src/`` looking for:
 
 - ``<expr>.write_text(...)`` / ``<expr>.write_bytes(...)`` calls.
-- ``open(...)`` calls where the mode argument is a string literal matching
-  ``w``, ``wb``, ``a``, or ``ab``. The mode may be the second positional
-  argument or a ``mode=`` keyword. The first argument can be any expression
+- ``open(...)`` calls where the mode argument is a string literal in the
+  ``_FORBIDDEN_MODES`` set. The mode may be the second positional argument
+  or a ``mode=`` keyword. The first argument can be any expression
   (including nested calls like ``open(Path(name).with_suffix('.json'), 'w')``
-  — codex r219).
+  — codex r219 #1).
 
 String-literal forbidden patterns are NOT matched (e.g.
-``logger.debug("open(path, 'w')")`` is a string, not a call — codex r219).
+``logger.debug("open(path, 'w')")`` is a string, not a call — codex r219 #2).
+The opt-out marker is matched against tokenised comments only, so a
+string-literal containing the marker text (``msg = "# atomic-write: ok"``)
+cannot bypass the rail (CodeRabbit r219).
 
 Scope
 -----
@@ -34,16 +39,18 @@ Scope
 
 Opt-out marker
 --------------
-Add ``# atomic-write: ok — <one-line-reason>`` somewhere within ±6 lines of
-the call.  Three placements are accepted:
+Add ``# atomic-write: ok — <one-line-reason>`` somewhere in the
+``-2 / +6`` line window around the call line (2 lines above through 6 lines
+below — see ``_MARKER_WINDOW_ABOVE`` / ``_MARKER_WINDOW_BELOW``). Three
+placements are accepted:
 
 - Trailing comment on the call line itself.
 - Trailing comment on the closing-paren line of a multi-line call (ruff
-  format frequently splits long calls).
-- Standalone comment line on the line(s) immediately above the call. This
-  placement avoids modifying the call line itself, which keeps the
-  diff-coverage gate from flagging the (already-uncovered) call line as a
-  newly-changed-but-uncovered line.
+  format frequently splits long calls — covered by the +6 lookahead).
+- Standalone comment line on the line(s) immediately above the call (covered
+  by the -2 lookback). This placement avoids modifying the call line itself,
+  which keeps the diff-coverage gate from flagging the (already-uncovered)
+  call line as a newly-changed-but-uncovered line.
 
 Reason categories that are accepted as legitimate non-atomic writes:
 
@@ -65,8 +72,10 @@ Exit 1 = violations found. Offending lines are printed to stderr.
 from __future__ import annotations
 
 import ast
+import io
 import re
 import sys
+import tokenize
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -137,17 +146,41 @@ def _is_forbidden_open(node: ast.Call) -> bool:
     return mode is not None and mode in _FORBIDDEN_MODES
 
 
-def _has_opt_out_in_window(lines: list[str], call_line: int) -> bool:
-    """True if any line in the marker window contains ``# atomic-write: ok``.
+def _collect_marker_comment_lines(source: str) -> set[int]:
+    """Return the 1-based line numbers of every Python comment carrying the marker.
+
+    Tokenises *source* and only inspects ``tokenize.COMMENT`` tokens — string
+    literals containing ``# atomic-write: ok`` (e.g. ``msg = "# atomic-write: ok"``)
+    are NOT comments and therefore cannot exempt a real write call (CodeRabbit
+    r219 #2 — bypass-via-string-literal).
+
+    Falls back to an empty set on tokenise failure (e.g. an unterminated
+    string literal in a syntactically broken file). The caller's AST parse
+    will already have failed in that case, so no violations are reported
+    either way.
+    """
+    marker_lines: set[int] = set()
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+            if tok.type == tokenize.COMMENT and _OPT_OUT_RE.search(tok.string):
+                marker_lines.add(tok.start[0])
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return set()
+    return marker_lines
+
+
+def _has_opt_out_in_window(marker_lines: set[int], call_line: int, total_lines: int) -> bool:
+    """True if any *marker_lines* entry falls inside the call's marker window.
 
     *call_line* is 1-based. The window covers ``call_line - _MARKER_WINDOW_ABOVE``
     through ``call_line + _MARKER_WINDOW_BELOW`` (inclusive), clamped to the
-    file bounds.
+    file bounds. *marker_lines* is the set returned by
+    ``_collect_marker_comment_lines`` — only real comment tokens.
     """
     start = max(1, call_line - _MARKER_WINDOW_ABOVE)
-    end = min(len(lines), call_line + _MARKER_WINDOW_BELOW)
+    end = min(total_lines, call_line + _MARKER_WINDOW_BELOW)
     for lineno in range(start, end + 1):
-        if _OPT_OUT_RE.search(lines[lineno - 1]):
+        if lineno in marker_lines:
             return True
     return False
 
@@ -187,13 +220,14 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
         return []
 
     lines = source.splitlines()
+    marker_lines = _collect_marker_comment_lines(source)
     violations: list[tuple[int, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         if not (_is_write_text_or_bytes(node) or _is_forbidden_open(node)):
             continue
-        if _has_opt_out_in_window(lines, node.lineno):
+        if _has_opt_out_in_window(marker_lines, node.lineno, len(lines)):
             continue
         violations.append((node.lineno, _line_excerpt(lines, node.lineno)))
     return violations
@@ -219,7 +253,8 @@ def main() -> int:
         "helper or opt-out marker. Use one of:\n"
         "  - utils.atomic_write.atomic_write_text / atomic_write_bytes / atomic_write_with\n"
         "  - utils.atomic_write.append_durable (for journal/log appends)\n"
-        "Or, for legitimate non-atomic writes, place a comment within ±6 lines:\n"
+        "Or, for legitimate non-atomic writes, place a comment in the -2 / +6\n"
+        "line window around the call:\n"
         "  # atomic-write: ok — <reason>\n"
         "Accepted reasons: user output, manual temp+replace, pid file, journal append.\n",
         file=sys.stderr,
