@@ -37,6 +37,17 @@ Save complete output to file for reference.
 6. **Scope is frozen at this point**: If new comments arrive while you're fixing, complete the current batch and treat new findings as a separate PR review cycle
 7. Example: "Found 5 issues: #1 (thread-ID-1) mock mismatch, #2 (thread-ID-2) weak assertion..."
 
+### 1C: Identify Out-of-Diff Threads
+
+After extracting all threads, cross-reference each thread's `path` against the PR's file list (from `get_files`). Any thread whose `path` is **not** in that set is an **out-of-diff thread** — it is anchored to a file the PR did not change.
+
+Out-of-diff threads are commonly `is_outdated=True` (file was in an intermediate commit then removed), but they are NOT automatically dismissed. For each out-of-diff thread, explicitly decide:
+
+- **SKIP** — the concern is addressed elsewhere in this PR's diff (e.g., the fix landed in a different file). Reply to explain.
+- **DEFER-to-issue** — the concern applies to the unchanged file in its current state. Create a GitHub issue, reply with the link. The file will need a follow-up PR.
+
+Do not assume `is_outdated=True` means the finding is irrelevant — the underlying code concern may still be valid in the current file, even if the diff position no longer exists.
+
 ---
 
 ## Step 2: Verify Each Finding Against Current Code
@@ -66,6 +77,12 @@ For each comment, decide what action to take using this decision matrix:
 - Create GitHub issue with exact details from reviewer's comment
 - Reply to reviewer: "Valid point, created issue #XXX for this"
 - Don't include in current PR
+
+**OUT-OF-DIFF** (special case, from Step 1C)
+- Thread `path` is not in the PR's file list
+- Sub-cases:
+  - Concern addressed elsewhere in this PR's diff → SKIP (reply explaining where)
+  - Concern still applies to the unchanged file → DEFER-to-issue (create issue + reply)
 
 ### Verification Process
 
