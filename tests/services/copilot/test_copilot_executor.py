@@ -545,19 +545,23 @@ class TestBuildRetrieverHiddenFiles:
         (hidden_dir / "settings.txt").write_text("settings config data")
 
         executor = CommandExecutor()
+        # Probe importability first so the skip is scoped to the setup path only.
+        # When numpy/rank_bm25 are absent, services.search.__init__ suppresses the
+        # ImportError and never registers hybrid_retriever as a submodule, causing
+        # patch() to raise AttributeError.  Importing the module directly raises
+        # ImportError instead, which is the correct signal to skip.
         try:
-            with patch("services.search.hybrid_retriever.HybridRetriever") as mock_cls:
-                mock_instance = mock_cls.return_value
-                mock_instance.index.return_value = None
-                executor._build_retriever_for_root(tmp_path)
-                if mock_instance.index.called:
-                    args = mock_instance.index.call_args[0]
-                    docs_list = args[0]
-                    assert all("settings config data" not in d for d in docs_list), (
-                        "Hidden file should be excluded from corpus"
-                    )
-        except (ImportError, AttributeError):
-            # AttributeError occurs when optional search deps (numpy/rank_bm25)
-            # are absent: services.search.__init__ sets HybridRetriever=None and
-            # never imports the submodule, so patch() can't resolve the target.
+            import services.search.hybrid_retriever  # noqa: F401
+        except ImportError:
             pytest.skip("Search dependencies not installed")
+
+        with patch("services.search.hybrid_retriever.HybridRetriever") as mock_cls:
+            mock_instance = mock_cls.return_value
+            mock_instance.index.return_value = None
+            executor._build_retriever_for_root(tmp_path)
+            if mock_instance.index.called:
+                args = mock_instance.index.call_args[0]
+                docs_list = args[0]
+                assert all("settings config data" not in d for d in docs_list), (
+                    "Hidden file should be excluded from corpus"
+                )
