@@ -85,14 +85,28 @@ def _has_opt_out(line: str) -> bool:
 
 
 def find_violations(path: Path) -> list[tuple[int, str]]:
-    """Return [(line_number, line_text)] for each unexempted match."""
+    """Return [(line_number, line_text)] for each unexempted match.
+
+    Tracks triple-quoted string blocks so that fixtures embedded in
+    docstrings (notably ``tests/ci/test_*.py`` rails that demonstrate
+    the forbidden pattern inside ``dedent('''...''')`` blocks) don't
+    false-flag. The check is heuristic — counts ``\"\"\"`` / ``'''``
+    toggles per line.
+    """
     violations: list[tuple[int, str]] = []
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return violations
 
+    in_triple_quote = False
     for lineno, raw in enumerate(text.splitlines(), start=1):
+        triple_count = raw.count('"""') + raw.count("'''")
+        if triple_count % 2 == 1:
+            in_triple_quote = not in_triple_quote
+            continue
+        if in_triple_quote:
+            continue
         if _is_comment_line(raw):
             continue
         if not _PATTERN.match(raw):

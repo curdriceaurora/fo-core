@@ -166,6 +166,16 @@ class TestFindViolationsSynthetic:
         target = self._write(tmp_path, "assert mock.call_count >= 1\n")
         assert find_violations(target) == []
 
+    def test_inside_triple_quoted_docstring_not_flagged(self, tmp_path: Path) -> None:
+        # Fixtures embedded in docstrings (common in tests/ci/test_*.py
+        # rails that demonstrate the forbidden pattern in dedent blocks)
+        # must not false-flag.
+        target = self._write(
+            tmp_path,
+            '"""Example fixture:\n\n    assert mock.method.called\n"""\n',
+        )
+        assert find_violations(target) == []
+
 
 # ---------------------------------------------------------------------------
 # Full-suite assertion: zero violations on the live tree
