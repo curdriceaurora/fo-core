@@ -273,11 +273,11 @@ module = [
 ]
 ignore_errors = true
 
-# Optional-dep modules and modules with stubs that vary by mypy version:
-# mutagen, ezdxf, redis stubs only available when extras installed; Rich/httpx/
-# Pillow/bs4 stubs improved in mypy ≥1.20 so type:ignore comments added for
-# 1.19.x become "unused" in CI.  Disable warn_unused_ignores per-module so both
-# CI (mypy ~1.20, no extras) and local pre-commit (mypy 1.19.1, with extras) pass.
+# Optional-dep modules: mutagen, ezdxf, redis stubs are only available when
+# the corresponding extras are installed (audio, cad, cloud).  Without the extra,
+# the type: ignore comments that suppress attr-defined / assignment errors become
+# "unused" and trigger warn_unused_ignores.  Disable that check per-module so
+# both CI (no extras) and local dev (with extras) pass mypy cleanly.
 [[tool.mypy.overrides]]
 module = [
     "services.audio.metadata_extractor",
@@ -288,11 +288,6 @@ module = [
     "watcher.handler",
     "methodologies.para.detection.heuristics",
     "utils.epub_enhanced",
-    "cli.dedupe_renderer",
-    "cli.interactive",
-    "services.deduplication.image_utils",
-    "updater.installer",
-    "utils.readers",
 ]
 warn_unused_ignores = false
 

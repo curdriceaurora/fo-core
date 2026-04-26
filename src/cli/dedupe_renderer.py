@@ -122,8 +122,7 @@ def _validate_level(level: str) -> MessageLevel:
         raise ValueError(
             f"Unknown message level {level!r}; expected one of: " + ", ".join(_VALID_LEVELS)
         )
-    # mypy does not narrow ``str`` to ``MessageLevel`` from a runtime
-    # ``in tuple[Literal, ...]`` check, so suppress the return-value error.
+    # After the membership check above, mypy narrows ``level`` to the Literal.
     return level  # type: ignore[return-value]
 
 
