@@ -196,7 +196,9 @@ class ProfileManager:
 
             # Write to temporary file first (atomic write)
             temp_file = profile_path.parent / f"{profile_path.name}.tmp"
-            with open(temp_file, "w", encoding="utf-8") as f:
+            with open(
+                temp_file, "w", encoding="utf-8"
+            ) as f:  # atomic-write: ok — manual temp+replace pattern (line 203)
                 json.dump(profile.to_dict(), f, indent=2, ensure_ascii=False)
 
             # Atomic rename
@@ -265,7 +267,9 @@ class ProfileManager:
         try:
             # Write to temporary file first (atomic write)
             temp_file = self.active_profile_file.parent / f"{self.active_profile_file.name}.tmp"
-            with open(temp_file, "w", encoding="utf-8") as f:
+            with open(
+                temp_file, "w", encoding="utf-8"
+            ) as f:  # atomic-write: ok — manual temp+replace pattern (line 272)
                 f.write(profile_name)
 
             # Atomic rename

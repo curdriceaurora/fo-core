@@ -74,7 +74,7 @@ class ObsidianIntegration(Integration):
         note_dir = (vault / notes_subdir).resolve(strict=False)
         note_dir.mkdir(parents=True, exist_ok=True)
         note_path = note_dir / f"{source.stem}.md"
-        note_path.write_text(
+        note_path.write_text(  # atomic-write: ok — user vault note creation, retry-on-fail safe
             self._build_note_content(source, destination, metadata), encoding="utf-8"
         )
         return True

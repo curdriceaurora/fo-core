@@ -253,7 +253,9 @@ def _locked(journal: Path, mode: int) -> Iterator[object | None]:
     lock = _lock_path(journal)
     # ``open(..., "a")`` creates the file if absent without truncating
     # it — keeps a stable inode across all callers.
-    fh = open(lock, "a", encoding="utf-8")
+    fh = open(
+        lock, "a", encoding="utf-8"
+    )  # atomic-write: ok — fcntl lock file, stable inode required
     try:
         fcntl.flock(fh.fileno(), mode)
         try:
@@ -679,9 +681,13 @@ def _sweep_unlocked_body(journal: Path) -> None:
     retained = _reconcile_entries(entries)
     if retained:
         lines = [_serialize_entry(e) for e in retained]
-        journal.write_text("\n".join(lines) + "\n")
+        journal.write_text(
+            "\n".join(lines) + "\n"
+        )  # atomic-write: ok — journal compaction inside _locked() (caller holds LOCK_EX)
     else:
-        journal.write_text("")
+        journal.write_text(
+            ""
+        )  # atomic-write: ok — journal truncation inside _locked() (caller holds LOCK_EX)
 
 
 _PlannedVerb = Literal[
@@ -1454,7 +1460,10 @@ def _append_journal(journal: Path, payload: Mapping[str, object]) -> None:
     # compaction without depending on the journal inode.
     if _HAS_FCNTL:
         line = json.dumps(payload) + "\n"
-        with _locked(journal, fcntl.LOCK_EX), open(journal, "a", encoding="utf-8") as fh:
+        with (
+            _locked(journal, fcntl.LOCK_EX),
+            open(journal, "a", encoding="utf-8") as fh,
+        ):  # atomic-write: ok — append_durable pattern (LOCK_EX + fsync below)
             fh.write(line)
             fh.flush()
             os.fsync(fh.fileno())

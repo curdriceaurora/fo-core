@@ -617,7 +617,9 @@ class EnhancedEPUBReader:
             output_path = output_dir / f"{epub_path.stem}_cover.{ext}"
 
             # Save cover
-            with open(output_path, "wb") as f:
+            with open(
+                output_path, "wb"
+            ) as f:  # atomic-write: ok — user output (one-shot extraction)
                 f.write(cover_data)
 
             logger.info(f"Extracted cover to: {output_path}")

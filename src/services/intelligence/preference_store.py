@@ -282,7 +282,9 @@ class PreferenceStore:
 
                 # Write to temporary file first (atomic write)
                 temp_file = self.storage_path / f"{self.DEFAULT_FILENAME}.tmp"
-                with open(temp_file, "w", encoding="utf-8") as f:
+                with open(
+                    temp_file, "w", encoding="utf-8"
+                ) as f:  # atomic-write: ok — manual temp+replace pattern (line 293)
                     json.dump(self._preferences, f, indent=2, ensure_ascii=False)
 
                 # Create backup of existing file before overwriting
@@ -482,7 +484,9 @@ class PreferenceStore:
                 output_path = Path(output_path)
                 output_path.parent.mkdir(parents=True, exist_ok=True)
 
-                with open(output_path, "w", encoding="utf-8") as f:
+                with open(
+                    output_path, "w", encoding="utf-8"
+                ) as f:  # atomic-write: ok — user output (one-shot CLI export)
                     json.dump(self._preferences, f, indent=2, ensure_ascii=False)
 
                 return True
