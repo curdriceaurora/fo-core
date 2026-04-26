@@ -10,6 +10,13 @@
     "new_module_min_percent": 71.9,
     "tolerance_percent": 0.5
   },
+  "known_local_drift": {
+    "description": "Modules that consistently measure 0.5-1 pp lower locally than in CI (Ubuntu [dev,search]) due to optional-dependency environment differences. The floor checker skips these modules when the CI env-var is absent; CI still enforces the full floors.",
+    "modules": {
+      "src/optimization/memory_profiler.py": "Platform-specific branches (_get_rss /proc vs resource fallback) reachable only on Linux or macOS respectively; full branch coverage requires both platforms in the same run.",
+      "src/services/deduplication/image_dedup.py": "imagededup optional import guard: the except ImportError branch is covered only when the dedup-image extra is absent (CI), not when it is installed (local [all])."
+    }
+  },
   "modules": {
     "src/__init__.py": 100.0,
     "src/_compat.py": 100.0,
