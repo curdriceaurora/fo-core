@@ -1,107 +1,148 @@
 # fo-core
 
-> Streamlined CLI file organizer powered by local AI. Ollama-first, no cloud required.
+> Local AI file organizer. Point it at a directory — it categorizes and moves your files using a model running on your own machine. No cloud, no API key, no data leaving your computer.
 
-## What it does
+[![CI](https://github.com/curdriceaurora/fo-core/actions/workflows/ci.yml/badge.svg)](https://github.com/curdriceaurora/fo-core/actions/workflows/ci.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-2.0.0--alpha.3-orange)](CHANGELOG.md)
 
-Point it at a directory, and it uses local AI to categorize and organize your files into a clean folder structure.
+---
 
-```bash
-fo organize ~/Downloads ~/Organized --dry-run   # preview first
-fo organize ~/Downloads ~/Organized              # do it
-fo undo                                          # changed your mind
-```
+## Prerequisites
+
+1. **Python 3.11 or later** — check with `python3 --version`
+2. **Ollama** — install from [ollama.ai](https://ollama.ai), then start it:
+
+   ```bash
+   ollama serve
+   ```
+
+---
 
 ## Install
 
 ```bash
-pip install -e .
+pip install fo-core
+```
 
-# Pull AI models
+Then pull the default AI models (first-time only, ~4 GB total):
+
+```bash
 ollama pull qwen2.5:3b-instruct-q4_K_M
 ollama pull qwen2.5vl:7b-q4_K_M
 ```
 
-All document parsers (PDF, DOCX, XLSX, PPTX, EPUB) are included by default. No extras needed for core use.
+Verify everything is connected:
 
-## CLI Commands
+```bash
+fo doctor
+```
 
+---
+
+## Quick Start
+
+```bash
+# Preview what would happen — no files are moved
+fo organize ~/Downloads ~/Organized --dry-run
+
+# Run it for real
+fo organize ~/Downloads ~/Organized
+
+# Changed your mind?
+fo undo
 ```
-fo organize [DIR] [OUTPUT]    Organize files using AI categorization
-fo preview [DIR]              Dry-run preview
-fo search [QUERY]             Full-text search across files
-fo analyze [DIR]              File statistics and analysis
-fo dedupe                     Find and remove duplicates
-fo suggest                    AI-powered organization suggestions
-fo autotag                    Auto-tag files based on content
-fo copilot                    Natural-language assistant
-fo rules                      Manage organization rules (YAML)
-fo config                     Show/set configuration
-fo doctor                     Check Ollama connection and deps
-fo daemon start|stop          Background file watcher
-fo undo / redo / history      Operation history
-fo model                      Model selection
-fo profile                    Hardware profiling
-fo benchmark                  Performance benchmarks
-fo setup                      Interactive setup wizard
-fo version                    Show version
-```
+
+---
+
+## Commands
+
+| Command | What it does |
+|---------|--------------|
+| `fo organize [SRC] [DEST]` | Organize files using AI categorization |
+| `fo preview [SRC]` | Dry-run preview without moving files |
+| `fo search [QUERY]` | Full-text search across files |
+| `fo analyze [DIR]` | File statistics and analysis |
+| `fo dedupe` | Find and remove duplicate files |
+| `fo suggest` | AI-powered organization suggestions |
+| `fo autotag` | Auto-tag files based on content |
+| `fo copilot` | Natural-language assistant |
+| `fo rules` | Manage organization rules (YAML) |
+| `fo config show\|set` | View or update configuration |
+| `fo doctor` | Check Ollama connection and installed deps |
+| `fo daemon start\|stop` | Background file watcher |
+| `fo undo / redo / history` | Operation history and rollback |
+| `fo model` | Select or inspect AI models |
+| `fo benchmark` | Performance benchmarks |
+| `fo setup` | Interactive setup wizard |
+
+Full flag documentation: [docs/cli-reference.md](docs/cli-reference.md)
+
+---
 
 ## AI Providers
 
-**Default**: Ollama (local, private, no API key needed)
+**Default**: Ollama — runs entirely on your machine, no API key needed.
 
-Optional cloud providers via extras:
+Cloud providers are optional extras:
 
-| Provider | Install | Models |
-|----------|---------|--------|
-| OpenAI-compatible | `pip install -e ".[cloud]"` | OpenAI, LM Studio, vLLM, Groq |
-| Anthropic Claude | `pip install -e ".[claude]"` | Claude (text + vision) |
-| llama.cpp | `pip install -e ".[llama]"` | GGUF models, no Ollama needed |
-| MLX (Apple Silicon) | `pip install -e ".[mlx]"` | MLX-optimized models |
+| Provider | Install | Works with |
+|----------|---------|------------|
+| OpenAI-compatible | `pip install "fo-core[cloud]"` | OpenAI, LM Studio, vLLM, Groq |
+| Anthropic Claude | `pip install "fo-core[claude]"` | Claude text + vision models |
+| llama.cpp | `pip install "fo-core[llama]"` | GGUF models — no Ollama required |
+| MLX (Apple Silicon) | `pip install "fo-core[mlx]"` | MLX-optimized local models |
+
+---
 
 ## Optional Feature Packs
 
-| Pack | Install | What it adds |
-|------|---------|-------------|
-| Media | `pip install -e ".[media]"` | Audio transcription + video scene detection |
-| Dedup text | `pip install -e ".[dedup-text]"` | TF-IDF/cosine text deduplication |
-| Dedup image | `pip install -e ".[dedup-image]"` | Image similarity deduplication |
-| Scientific | `pip install -e ".[scientific]"` | HDF5, NetCDF, MATLAB formats |
-| CAD | `pip install -e ".[cad]"` | DXF/DWG support |
-| Search | `pip install -e ".[search]"` | BM25 + vector search |
-| All | `pip install -e ".[all]"` | Everything above |
+Core file types (PDF, DOCX, XLSX, PPTX, EPUB, ZIP, RAR) work out of the box. Install extras for additional capabilities:
 
-## Under the Hood
+| Pack | Install | Adds |
+|------|---------|------|
+| `media` | `pip install "fo-core[media]"` | Audio transcription, video scene detection |
+| `dedup-text` | `pip install "fo-core[dedup-text]"` | TF-IDF/cosine text deduplication |
+| `dedup-image` | `pip install "fo-core[dedup-image]"` | Image similarity deduplication |
+| `scientific` | `pip install "fo-core[scientific]"` | HDF5, NetCDF, MATLAB formats |
+| `cad` | `pip install "fo-core[cad]"` | DXF/DWG CAD files |
+| `search` | `pip install "fo-core[search]"` | BM25 + vector search |
+| `all` | `pip install "fo-core[all]"` | All of the above |
 
-fo-core keeps the full engine from [Local-File-Organizer](https://github.com/curdriceaurora/Local-File-Organizer) with the UI surfaces stripped:
-
-- **4-stage pipeline**: preprocess, analyze (AI), postprocess, write
-- **PARA + Johnny Decimal**: Built-in organizational methodologies
-- **Intelligence**: Pattern learning, preference tracking, smart suggestions
-- **Auto-tagging**: Content-aware tag recommendations
-- **Deduplication**: Content-hash + semantic duplicate detection
-- **Copilot**: Natural-language conversation engine (CLI)
-- **Daemon**: Background file watching with configurable rules
-- **Undo/Redo**: Full operation history with rollback
+---
 
 ## Configuration
 
-Config lives in `~/.config/fo/config.yaml`. Override with `FO_CONFIG` env var.
+Config lives in `~/.config/fo/config.yaml`. Override the location with the `FO_CONFIG` environment variable.
 
 ```bash
-fo config show          # view current config
-fo config set key val   # update a setting
-fo doctor               # verify setup
+fo config show              # view all settings
+fo config set text_model qwen2.5:3b-instruct-q4_K_M
+fo config set provider ollama
 ```
 
-## Development
+Full configuration reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
 
-```bash
-pip install -e ".[dev]"
-pytest
-ruff check src/
-```
+---
+
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [Getting Started](docs/getting-started.md) | Installation options, first run, platform notes |
+| [CLI Reference](docs/cli-reference.md) | Every command and flag |
+| [Configuration](docs/CONFIGURATION.md) | All config keys explained |
+| [FAQ](docs/faq.md) | Common questions and troubleshooting |
+| [Troubleshooting](docs/troubleshooting.md) | Diagnosing connection and model issues |
+
+---
+
+## Contributing / Development
+
+See [DEVELOPER.md](DEVELOPER.md) for architecture, local setup, testing, and contribution guidelines.
+
+---
 
 ## License
 
