@@ -37,6 +37,7 @@ from check_atomic_write import (  # noqa: E402
     _FORBIDDEN_MODES,
     _collect_marker_comment_lines,
     _has_opt_out_in_window,
+    _mode_is_forbidden,
     find_violations,
 )
 
@@ -56,17 +57,51 @@ def _synth(tmp_path: Path, content: str) -> Path:
 
 
 class TestForbiddenModes:
-    """The mode set defines what counts as a write/append open()."""
+    """The mode-classifier flags every write/append/exclusive-create form."""
+
+    @pytest.mark.parametrize(
+        "mode",
+        [
+            # Canonical forms enumerated in _FORBIDDEN_MODES
+            "w",
+            "wb",
+            "wt",
+            "a",
+            "ab",
+            "at",
+            "x",
+            "xb",
+            "xt",
+            "w+",
+            "wb+",
+            "w+b",
+            "a+",
+            "ab+",
+            "a+b",
+            "x+",
+            # Codex r219 #3 — alias / mixed-flag forms that bypassed the
+            # original literal set.
+            "wt+",
+            "w+t",
+            "at+",
+            "a+t",
+            "xb+",
+            "x+b",
+        ],
+    )
+    def test_write_modes_classified_forbidden(self, mode: str) -> None:
+        """Every write/append/exclusive form must be classified forbidden."""
+        assert _mode_is_forbidden(mode)
+
+    @pytest.mark.parametrize("mode", ["r", "rb", "rt", "r+", "rb+", "r+b", "rt+", "r+t"])
+    def test_read_modes_classified_allowed(self, mode: str) -> None:
+        """Pure read modes (no w/a/x) must be classified allowed."""
+        assert not _mode_is_forbidden(mode)
 
     @pytest.mark.parametrize("mode", ["w", "wb", "a", "ab", "w+", "wb+", "a+", "ab+"])
-    def test_write_modes_in_set(self, mode: str) -> None:
-        """Write modes in set."""
+    def test_canonical_modes_in_legacy_set(self, mode: str) -> None:
+        """The legacy ``_FORBIDDEN_MODES`` set still contains the canonical strings."""
         assert mode in _FORBIDDEN_MODES
-
-    @pytest.mark.parametrize("mode", ["r", "rb", "r+", "rb+"])
-    def test_read_modes_not_in_set(self, mode: str) -> None:
-        """Read modes not in set."""
-        assert mode not in _FORBIDDEN_MODES
 
 
 # ---------------------------------------------------------------------------
@@ -192,9 +227,36 @@ class TestWriteTextAndBytes:
 class TestOpenCalls:
     """``open()`` is flagged only for write/append modes."""
 
-    @pytest.mark.parametrize("mode", ["w", "wb", "a", "ab"])
+    @pytest.mark.parametrize(
+        "mode",
+        [
+            "w",
+            "wb",
+            "wt",
+            "a",
+            "ab",
+            "at",
+            "x",
+            "xb",
+            "xt",
+            "w+",
+            "wb+",
+            "w+b",
+            "wt+",
+            "w+t",
+            "a+",
+            "ab+",
+            "a+b",
+            "x+",
+            "xb+",
+        ],
+    )
     def test_write_modes_are_flagged(self, mode: str, tmp_path: Path) -> None:
-        """Write modes are flagged."""
+        """Every write/append/exclusive mode (including alias forms) is flagged.
+
+        Codex r219 #3: the previous literal-set check silently let
+        ``"wt"``, ``"at"``, ``"w+b"``, ``"a+t"``, etc. bypass the rail.
+        """
         target = _synth(tmp_path, f'with open(p, "{mode}") as f:\n    f.write("x")\n')
         assert len(find_violations(target)) == 1
 

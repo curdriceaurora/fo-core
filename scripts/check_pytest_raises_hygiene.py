@@ -132,37 +132,54 @@ def _iter_statement_blocks(node: ast.AST) -> list[list[ast.stmt]]:
     return blocks
 
 
-def _walk_pytest_raises_body(root: ast.With) -> list[list[ast.stmt]]:
-    """Yield every statement-list reachable from *root* without entering a new scope.
+_NEW_SCOPE_TYPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
 
-    The traversal includes ``root.body`` itself plus the body of every nested
-    ``with`` / ``if`` / ``for`` / ``while`` / ``try`` block inside it. Function /
-    class / lambda definitions are not descended — those open new control-flow
-    scopes whose statements are not reachable as part of the ``pytest.raises``
-    call site.
+
+def _walk_unreachable_mock_assertions(
+    body: list[ast.stmt], parent_unreachable: bool
+) -> list[ast.stmt]:
+    """Return mock-assertion statements that are unreachable in *body*.
+
+    Reachability is propagated across nested blocks (codex r219 #4): once a
+    top-level ``ast.Raise`` is seen in *body*, every subsequent statement —
+    including its nested ``if`` / ``for`` / ``while`` / ``try`` / ``with``
+    bodies — is unreachable. Mock assertions found in those statements are
+    flagged regardless of how deeply nested they are.
+
+    Function / class / lambda definitions are NOT descended: a ``raise``
+    in the enclosing pytest.raises body doesn't make a *defined-but-not-yet-
+    called* function body unreachable. Those open new control-flow scopes
+    not exercised at the pytest.raises call site.
+
+    *parent_unreachable* propagates from a caller block whose own
+    top-level ``Raise`` already fired before the nested scope was entered.
     """
-    blocks: list[list[ast.stmt]] = [root.body]
-    stack: list[ast.AST] = [*root.body]
-    while stack:
-        node = stack.pop()
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
-            continue
-        for block in _iter_statement_blocks(node):
-            blocks.append(block)
-            stack.extend(block)
-    return blocks
+    found: list[ast.stmt] = []
+    seen_raise = False
+    for stmt in body:
+        unreachable = parent_unreachable or seen_raise
+        if unreachable and _is_mock_assertion(stmt):
+            found.append(stmt)
+        if not isinstance(stmt, _NEW_SCOPE_TYPES):
+            for nested in _iter_statement_blocks(stmt):
+                found.extend(
+                    _walk_unreachable_mock_assertions(nested, parent_unreachable=unreachable)
+                )
+        if isinstance(stmt, ast.Raise):
+            seen_raise = True
+    return found
 
 
 def find_violations(path: Path) -> list[tuple[int, str]]:
     """Return [(line_number, source_line_excerpt)] for each unreachable mock assertion.
 
-    Walks every ``with pytest.raises(...):`` block and checks every nested
-    statement-list inside it (including bodies of inner ``with`` / ``if`` /
-    ``for`` / ``try`` blocks). A mock assertion appearing after a top-level
-    ``raise`` *within the same block* is flagged — this catches the common
-    context-manager pattern ``with pytest.raises(...): with mgr() as m:
-    ...; raise; m.cleanup.assert_called_once()`` that the immediate-body-only
-    scan missed (codex r217).
+    Walks every ``with pytest.raises(...):`` block. Reachability is
+    propagated across all nested blocks via
+    ``_walk_unreachable_mock_assertions`` — a top-level ``raise`` makes
+    everything below it (including statements inside nested ``if`` /
+    ``for`` / ``while`` / ``try`` / ``with`` bodies) unreachable, so a
+    mock assertion buried under those nested constructs is still flagged
+    (codex r219 #4).
     """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -174,13 +191,12 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
             continue
         if not any(_is_pytest_raises(item) for item in node.items):
             continue
-        for block in _walk_pytest_raises_body(node):
-            for stmt in _violations_in_block(block):
-                try:
-                    line = ast.unparse(stmt)
-                except (AttributeError, ValueError):
-                    line = f"<line {stmt.lineno}>"
-                violations.append((stmt.lineno, line))
+        for stmt in _walk_unreachable_mock_assertions(node.body, parent_unreachable=False):
+            try:
+                line = ast.unparse(stmt)
+            except (AttributeError, ValueError):
+                line = f"<line {stmt.lineno}>"
+            violations.append((stmt.lineno, line))
     return violations
 
 

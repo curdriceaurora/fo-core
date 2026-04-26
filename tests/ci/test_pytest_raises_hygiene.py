@@ -350,6 +350,83 @@ class TestFindViolationsSynthetic:
         violations = find_violations(target)
         assert len(violations) == 1
 
+    def test_top_level_raise_then_nested_if_assertion_is_flagged(self, tmp_path: Path) -> None:
+        """Codex r219 #4: top-level ``raise`` followed by nested ``if`` body.
+
+        ``raise ValueError(); if True: mock.method.assert_called_once()`` —
+        the nested assertion is unreachable because the outer-block raise
+        terminates control flow before the if is evaluated. The previous
+        per-block walker reset ``seen_raise`` and missed this; the
+        reachability propagator now flags it.
+        """
+        target = self._write(
+            tmp_path,
+            """
+            import pytest
+
+            def test_x():
+                with pytest.raises(ValueError):
+                    raise ValueError()
+                    if True:
+                        mock.method.assert_called_once()
+            """,
+        )
+        violations = find_violations(target)
+        assert len(violations) == 1
+        assert "assert_called_once" in violations[0][1]
+
+    def test_top_level_raise_then_nested_for_assertion_is_flagged(self, tmp_path: Path) -> None:
+        """Same case as the if-nested test but with a ``for`` loop body."""
+        target = self._write(
+            tmp_path,
+            """
+            import pytest
+
+            def test_x():
+                with pytest.raises(ValueError):
+                    raise ValueError()
+                    for x in items:
+                        mock.method.assert_called_once()
+            """,
+        )
+        assert len(find_violations(target)) == 1
+
+    def test_top_level_raise_then_nested_with_assertion_is_flagged(self, tmp_path: Path) -> None:
+        """Top-level raise followed by nested ``with`` body."""
+        target = self._write(
+            tmp_path,
+            """
+            import pytest
+
+            def test_x():
+                with pytest.raises(ValueError):
+                    raise ValueError()
+                    with manager() as m:
+                        m.cleanup.assert_called_once()
+            """,
+        )
+        assert len(find_violations(target)) == 1
+
+    def test_conditional_raise_does_not_make_subsequent_unreachable(self, tmp_path: Path) -> None:
+        """T10 negative case: a conditional raise leaves the subsequent assertion reachable."""
+        target = self._write(
+            tmp_path,
+            """
+            import pytest
+
+            def test_x():
+                with pytest.raises(ValueError):
+                    if condition:
+                        raise ValueError()
+                    if True:
+                        mock.method.assert_called_once()
+            """,
+        )
+        # The outer-block ``if`` is not a top-level raise — the second if's
+        # body is reachable when ``condition`` is False, so the assertion
+        # is reachable.
+        assert find_violations(target) == []
+
     def test_assertion_inside_nested_function_def_is_not_flagged(self, tmp_path: Path) -> None:
         # T10 negative case: the nested def starts a new scope; its body
         # is not executed at the pytest.raises call site. The detector

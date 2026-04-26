@@ -90,9 +90,69 @@ _ALLOWLISTED_FILES = frozenset(
     }
 )
 
-# Modes that constitute a forbidden write/append.  Read modes (``r``,
-# ``rb``, etc.) are not forbidden.
-_FORBIDDEN_MODES: frozenset[str] = frozenset({"w", "wb", "a", "ab", "w+", "wb+", "a+", "ab+"})
+# Characters that signal a write/append/exclusive-create mode in
+# ``open(path, mode)``.  Python ``open`` modes are character flags whose
+# order doesn't matter (``"wb"`` == ``"bw"``, ``"w+b"`` == ``"wb+"``,
+# etc.) and which can include ``b``/``t``/``+`` flags. Any mode string
+# containing ``w``, ``a``, or ``x`` opens the file for writing in a way
+# that requires atomicity:
+#
+# - ``w``/``w+`` truncate the file before writing.
+# - ``a``/``a+`` append, but a torn-write at the end is still observable.
+# - ``x``/``x+`` create-or-fail; a torn write leaves a partial file the
+#   next ``x`` open will refuse.
+#
+# Pure read modes (``r``, ``rb``, ``rt``, ``r+`` — read+write WITHOUT
+# truncation, file must exist) are not in scope.  ``r+`` does write, but
+# a crash leaves the original file modified-in-place rather than torn,
+# which is a different concern from the rail's truncate/append target.
+#
+# Codex r219 #3: the previous literal set ``{"w", "wb", "a", "ab", ...}``
+# missed valid aliases like ``"wt"``, ``"at"``, ``"w+b"``, ``"a+t"``.
+# Character-based detection covers every order/flag combination.
+_FORBIDDEN_MODE_CHARS: frozenset[str] = frozenset("wax")
+
+
+def _mode_is_forbidden(mode: str) -> bool:
+    """True if *mode* opens for writing/appending/exclusive-create.
+
+    Order-and-flag-independent: ``"wb"``, ``"bw"``, ``"w+b"``, ``"wt+"``
+    all map to forbidden because each contains ``w``. Pure-read modes
+    (``"r"``, ``"rb"``, ``"r+"``) contain no character in
+    ``_FORBIDDEN_MODE_CHARS`` and are allowed.
+    """
+    return any(c in _FORBIDDEN_MODE_CHARS for c in mode)
+
+
+# Backwards-compat: tests historically asserted membership in this set.
+# Keep it as the explicit canonical-string enumeration; runtime detection
+# uses _mode_is_forbidden, which is strictly more permissive.
+_FORBIDDEN_MODES: frozenset[str] = frozenset(
+    {
+        "w",
+        "wb",
+        "wt",
+        "a",
+        "ab",
+        "at",
+        "x",
+        "xb",
+        "xt",
+        "w+",
+        "wb+",
+        "w+b",
+        "wt+",
+        "w+t",
+        "a+",
+        "ab+",
+        "a+b",
+        "at+",
+        "a+t",
+        "x+",
+        "xb+",
+        "x+b",
+    }
+)
 
 # Opt-out marker.  Searched for in trailing comments AND on standalone
 # comment lines within the configured window (see ``_MARKER_WINDOW``).
@@ -143,7 +203,7 @@ def _is_forbidden_open(node: ast.Call) -> bool:
     if not _is_open_call(node):
         return False
     mode = _extract_mode_string(node)
-    return mode is not None and mode in _FORBIDDEN_MODES
+    return mode is not None and _mode_is_forbidden(mode)
 
 
 def _collect_marker_comment_lines(source: str) -> set[int]:
