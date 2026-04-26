@@ -69,14 +69,22 @@ class ObsidianIntegration(Integration):
         target_dir.mkdir(parents=True, exist_ok=True)
         destination = target_dir / source.name
 
-        shutil.copy2(source, destination)
-
         note_dir = (vault / notes_subdir).resolve(strict=False)
         note_dir.mkdir(parents=True, exist_ok=True)
         note_path = note_dir / f"{source.stem}.md"
-        note_path.write_text(  # atomic-write: ok — user vault note creation, retry-on-fail safe
-            self._build_note_content(source, destination, metadata), encoding="utf-8"
-        )
+
+        # send_file's contract is bool (success / failure). Wrap the two
+        # external writes — attachment copy and note creation — so an OSError
+        # surfaces as `return False` rather than escaping the bool contract.
+        try:
+            shutil.copy2(source, destination)
+            # atomic-write: ok — user vault note creation, retry-on-fail safe
+            note_path.write_text(
+                self._build_note_content(source, destination, metadata),
+                encoding="utf-8",
+            )
+        except OSError:
+            return False
         return True
 
     async def get_status(self) -> IntegrationStatus:

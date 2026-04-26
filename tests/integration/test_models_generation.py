@@ -178,7 +178,7 @@ class TestTextModelStreaming:
         next(it)
         with pytest.raises(StopIteration):
             next(it)
-        on_close.assert_called()
+        on_close.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

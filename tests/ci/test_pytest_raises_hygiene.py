@@ -202,9 +202,12 @@ class TestViolationsInBlock:
                 mock.method.assert_called_once()
             """
         )
-        # The outer raise IS still inside an except branch — the rail
-        # treats only top-level raises as terminating, so this stays
-        # un-flagged. Conservative is the right default for a rail.
+        # Neither ``raise`` is at the with-body's top level (both are
+        # nested inside ``try``/``except``). ``_violations_in_block``
+        # only inspects direct children, so without a top-level
+        # ``Raise`` the trailing assertion is treated as reachable.
+        # Conservative is the right default for this body-level helper;
+        # nested traversal happens in ``find_violations``.
         assert _violations_in_block(with_node.body) == []
 
 

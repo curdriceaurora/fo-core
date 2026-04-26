@@ -353,9 +353,8 @@ class SceneDetector:
 
         output_path = Path(output_path)
 
-        with open(
-            output_path, "w", newline=""
-        ) as f:  # atomic-write: ok — user output (one-shot CLI export)
+        # atomic-write: ok — user output (one-shot CLI export)
+        with open(output_path, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
                 [

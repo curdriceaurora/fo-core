@@ -115,7 +115,8 @@ class HistoryExporter:
 
         # Write to file
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w") as f:  # atomic-write: ok — user output (one-shot CLI export)
+        # atomic-write: ok — user output (one-shot CLI export)
+        with open(output_path, "w") as f:
             json.dump(export_data, f, indent=2)
 
         logger.info(f"Exported {len(operations)} operations to {output_path}")
@@ -201,9 +202,8 @@ class HistoryExporter:
 
         # Write to CSV
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(
-            output_path, "w", newline=""
-        ) as f:  # atomic-write: ok — user output (one-shot CLI export)
+        # atomic-write: ok — user output (one-shot CLI export)
+        with open(output_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=columns)
             writer.writeheader()
 
@@ -268,9 +268,8 @@ class HistoryExporter:
 
         # Write to CSV
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(
-            output_path, "w", newline=""
-        ) as f:  # atomic-write: ok — user output (one-shot CLI export)
+        # atomic-write: ok — user output (one-shot CLI export)
+        with open(output_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=columns)
             writer.writeheader()
 
@@ -340,7 +339,8 @@ class HistoryExporter:
 
         # Write to file
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w") as f:  # atomic-write: ok — user output (one-shot CLI export)
+        # atomic-write: ok — user output (one-shot CLI export)
+        with open(output_path, "w") as f:
             json.dump(stats, f, indent=2)
 
         logger.info(f"Exported statistics to {output_path}")

@@ -6,9 +6,14 @@ PRs #176, #195, #197, #203, #204. Any new ``Path.write_text``,
 either use the ``utils.atomic_write`` helpers or carry an explicit
 ``# atomic-write: ok — <reason>`` opt-out comment.
 
+The detector is AST-based (codex r219 #1 + #2) — regex-on-raw-lines failed
+to handle nested parentheses in ``open(Path(name).with_suffix('.json'), 'w')``
+and false-flagged forbidden patterns inside string literals.
+
 T10 predicate negative-case backfill: every exemption category has a positive
 test (the rail flags the surface shape) AND a negative test (the rail does
-NOT flag when the marker / file allowlist applies).
+NOT flag when the marker / file allowlist applies / the pattern is inside a
+string literal).
 """
 
 from __future__ import annotations
@@ -29,118 +34,36 @@ _SCRIPT = _FO_ROOT / "scripts" / "check_atomic_write.py"
 sys.path.insert(0, str(_FO_ROOT / "scripts"))
 from check_atomic_write import (  # noqa: E402
     _ALLOWLISTED_FILES,
-    _has_opt_out,
-    _is_comment_line,
-    _is_in_docstring_or_string,
-    _matches_forbidden,
+    _FORBIDDEN_MODES,
+    _has_opt_out_in_window,
     find_violations,
 )
 
+
+def _synth(tmp_path: Path, content: str) -> Path:
+    """Write *content* to a synthetic Python file under ``tmp_path/src/x/mod.py``."""
+    src = tmp_path / "src" / "x"
+    src.mkdir(parents=True)
+    target = src / "mod.py"
+    target.write_text(content)
+    return target
+
+
 # ---------------------------------------------------------------------------
-# Unit tests: forbidden-pattern detection
+# Unit tests: forbidden mode set
 # ---------------------------------------------------------------------------
 
 
-class TestPatternDetection:
-    """The pattern set must match the four forbidden write forms."""
+class TestForbiddenModes:
+    """The mode set defines what counts as a write/append open()."""
 
-    @pytest.mark.parametrize(
-        "line",
-        [
-            'path.write_text("data")',
-            'p.write_bytes(b"\\x00\\x01")',
-            'with open(p, "w") as f:',
-            'with open(p, "wb") as f:',
-            'with open(p, "a") as f:',
-            'with open(p, "ab") as f:',
-            "fh = open(lock, 'a', encoding='utf-8')",
-            'open(target, "w", encoding="utf-8")',
-        ],
-    )
-    def test_matches_forbidden(self, line: str) -> None:
-        assert _matches_forbidden(line)
+    @pytest.mark.parametrize("mode", ["w", "wb", "a", "ab", "w+", "wb+", "a+", "ab+"])
+    def test_write_modes_in_set(self, mode: str) -> None:
+        assert mode in _FORBIDDEN_MODES
 
-    @pytest.mark.parametrize(
-        "line",
-        [
-            # Read modes are not flagged (T10 negative cases)
-            'with open(p, "r") as f:',
-            'with open(p, "rb") as f:',
-            "data = path.read_text()",
-            "data = path.read_bytes()",
-            # Method-name false friends — must not match
-            "rewrite_text(payload)",
-            "writer.writeheader()",
-            # Fragment in identifier — not a write call
-            "open_writer = make_writer()",
-        ],
-    )
-    def test_does_not_match_non_write(self, line: str) -> None:
-        assert not _matches_forbidden(line)
-
-
-class TestOptOutMarker:
-    """The opt-out marker must be detected only in its canonical form."""
-
-    @pytest.mark.parametrize(
-        "line",
-        [
-            'path.write_text("x")  # atomic-write: ok',
-            'path.write_text("x")  # atomic-write: ok — user output',
-            'path.write_text("x")  # atomic-write:  ok',  # extra space
-            'path.write_text("x")  # atomic-write: ok (legacy single-shot)',
-        ],
-    )
-    def test_recognizes_opt_out(self, line: str) -> None:
-        assert _has_opt_out(line)
-
-    @pytest.mark.parametrize(
-        "line",
-        [
-            # Marker variations that must NOT count (typos / wrong prefix)
-            'path.write_text("x")  # atomic-write fine',
-            'path.write_text("x")  # atomic_write: ok',  # underscore not hyphen
-            'path.write_text("x")  # ok — atomic write',
-            'path.write_text("x")',  # no marker at all
-        ],
-    )
-    def test_rejects_non_canonical(self, line: str) -> None:
-        assert not _has_opt_out(line)
-
-    def test_marker_inside_string_literal_is_rejected(self) -> None:
-        # A marker that appears only inside a string literal must not count as
-        # an opt-out; only a bare trailing comment satisfies the rule.
-        assert not _has_opt_out('path.write_text("# atomic-write: ok — user output")')
-
-
-class TestCommentAndDocstringHeuristics:
-    """Comments and docstrings must not trip the rail."""
-
-    @pytest.mark.parametrize(
-        "line",
-        [
-            "# path.write_text('foo')",
-            "    # historically used path.write_text",
-        ],
-    )
-    def test_comment_lines_are_skipped(self, line: str) -> None:
-        assert _is_comment_line(line)
-
-    def test_non_comment_with_inline_comment_is_not_a_comment_line(self) -> None:
-        # The whole line isn't a comment, just trailing portion.
-        assert not _is_comment_line("path.write_text('x')  # note")
-
-    @pytest.mark.parametrize(
-        "line",
-        [
-            '"""Example: path.write_text("data")"""',
-            "'''Example: open(p, \"w\")'''",
-            '"""docstring start',
-            "'''docstring start",
-        ],
-    )
-    def test_docstring_or_string_lines_are_skipped(self, line: str) -> None:
-        assert _is_in_docstring_or_string(line)
+    @pytest.mark.parametrize("mode", ["r", "rb", "r+", "rb+"])
+    def test_read_modes_not_in_set(self, mode: str) -> None:
+        assert mode not in _FORBIDDEN_MODES
 
 
 # ---------------------------------------------------------------------------
@@ -162,107 +85,189 @@ class TestAllowlist:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: find_violations on synthetic files
+# Unit tests: marker window detection
 # ---------------------------------------------------------------------------
 
 
-class TestFindViolationsSynthetic:
-    """End-to-end checks against tmp_path source files."""
+class TestMarkerWindow:
+    """Markers inside the ±N-line window around the call line are recognised."""
 
-    def _write(self, tmp_path: Path, content: str) -> Path:
-        # Mirror the path layout the detector expects so any future
-        # path-relative checks still resolve correctly.
-        src = tmp_path / "src" / "x"
-        src.mkdir(parents=True)
-        target = src / "mod.py"
-        target.write_text(content)
-        return target
+    def test_marker_on_call_line_is_recognised(self) -> None:
+        lines = ['p.write_text("x")  # atomic-write: ok — user output']
+        assert _has_opt_out_in_window(lines, call_line=1)
+
+    def test_marker_on_line_above_is_recognised(self) -> None:
+        # New placement (codex r219 + diff-coverage fix): a standalone
+        # comment line immediately above the call is accepted.
+        lines = [
+            "# atomic-write: ok — manual temp+replace",
+            'p.write_text("x")',
+        ]
+        assert _has_opt_out_in_window(lines, call_line=2)
+
+    def test_marker_on_closing_paren_line_is_recognised(self) -> None:
+        # ruff format splits long calls; marker may land on the )-line.
+        lines = [
+            "p.write_text(",
+            '    "payload"',
+            ")  # atomic-write: ok — user output",
+        ]
+        assert _has_opt_out_in_window(lines, call_line=1)
+
+    def test_marker_too_far_above_is_not_recognised(self) -> None:
+        lines = [
+            "# atomic-write: ok",
+            "x = 1",
+            "x = 2",
+            "x = 3",
+            "x = 4",
+            'p.write_text("x")',
+        ]
+        assert not _has_opt_out_in_window(lines, call_line=6)
+
+    def test_marker_too_far_below_is_not_recognised(self) -> None:
+        lines = ['p.write_text("x")'] + ["x = 1"] * 10 + ["# atomic-write: ok"]
+        assert not _has_opt_out_in_window(lines, call_line=1)
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: AST-based detection on synthetic files
+# ---------------------------------------------------------------------------
+
+
+class TestWriteTextAndBytes:
+    """Both ``Path.write_text`` and ``Path.write_bytes`` are flagged."""
 
     def test_unmarked_write_text_is_flagged(self, tmp_path: Path) -> None:
-        target = self._write(tmp_path, 'p.write_text("payload")\n')
-        violations = find_violations(target)
-        assert len(violations) == 1
-        assert "write_text" in violations[0][1]
+        target = _synth(tmp_path, 'p.write_text("payload")\n')
+        assert len(find_violations(target)) == 1
+
+    def test_unmarked_write_bytes_is_flagged(self, tmp_path: Path) -> None:
+        target = _synth(tmp_path, 'p.write_bytes(b"\\x00")\n')
+        assert len(find_violations(target)) == 1
 
     def test_marked_write_text_is_not_flagged(self, tmp_path: Path) -> None:
-        target = self._write(
+        target = _synth(
             tmp_path,
             'p.write_text("payload")  # atomic-write: ok — manual temp+replace\n',
         )
         assert find_violations(target) == []
 
-    def test_unmarked_open_w_is_flagged(self, tmp_path: Path) -> None:
-        target = self._write(tmp_path, 'with open(p, "w") as f:\n    f.write("x")\n')
-        violations = find_violations(target)
-        assert len(violations) == 1
-
-    def test_marked_open_w_is_not_flagged(self, tmp_path: Path) -> None:
-        target = self._write(
+    def test_write_text_with_marker_above_is_not_flagged(self, tmp_path: Path) -> None:
+        # New placement: marker on the line immediately above the call.
+        target = _synth(
             tmp_path,
-            'with open(p, "w") as f:  # atomic-write: ok — user output\n    f.write("x")\n',
+            '# atomic-write: ok — manual temp+replace\np.write_text("payload")\n',
         )
         assert find_violations(target) == []
 
-    def test_open_read_mode_is_not_flagged(self, tmp_path: Path) -> None:
-        # T10 negative case: the same surface (open with mode str) must
-        # not flag for read modes.
-        target = self._write(tmp_path, 'with open(p, "r") as f:\n    data = f.read()\n')
+
+class TestOpenCalls:
+    """``open()`` is flagged only for write/append modes."""
+
+    @pytest.mark.parametrize("mode", ["w", "wb", "a", "ab"])
+    def test_write_modes_are_flagged(self, mode: str, tmp_path: Path) -> None:
+        target = _synth(tmp_path, f'with open(p, "{mode}") as f:\n    f.write("x")\n')
+        assert len(find_violations(target)) == 1
+
+    @pytest.mark.parametrize("mode", ["r", "rb"])
+    def test_read_modes_are_not_flagged(self, mode: str, tmp_path: Path) -> None:
+        # T10 negative case: same call shape, read mode → not flagged.
+        target = _synth(tmp_path, f'with open(p, "{mode}") as f:\n    f.read()\n')
         assert find_violations(target) == []
 
-    def test_marker_on_following_line_is_not_flagged(self, tmp_path: Path) -> None:
-        # ruff format frequently splits long calls across lines, leaving the
-        # # atomic-write: ok comment on the closing-paren line. The detector
-        # must scan a lookahead window forward.
-        target = self._write(
+    def test_mode_keyword_argument_is_recognised(self, tmp_path: Path) -> None:
+        target = _synth(tmp_path, 'with open(p, mode="w") as f:\n    f.write("x")\n')
+        assert len(find_violations(target)) == 1
+
+    def test_open_with_nested_call_in_first_arg_is_flagged(self, tmp_path: Path) -> None:
+        # Codex r219 #1 — the regex-based predecessor stopped at the first
+        # ``)`` so this shape silently bypassed the rail. The AST detector
+        # walks the call structure and sees the mode regardless of how
+        # nested the path expression is.
+        target = _synth(
             tmp_path,
-            'p.write_text(\n    "payload"\n)  # atomic-write: ok — manual temp+replace\n',
+            'with open(Path(name).with_suffix(".json"), "w") as f:\n    f.write("x")\n',
+        )
+        assert len(find_violations(target)) == 1
+
+    def test_method_named_open_is_not_flagged(self, tmp_path: Path) -> None:
+        # T10 negative case: ``self.open(...)`` is a method call, not the
+        # builtin. The AST detector matches only ``ast.Name(id='open')``.
+        target = _synth(tmp_path, 'self.open(p, "w")\n')
+        assert find_violations(target) == []
+
+    def test_dynamic_mode_is_not_flagged(self, tmp_path: Path) -> None:
+        # The mode is a variable reference; we can't statically determine
+        # if it's a write or read mode, so we conservatively skip rather
+        # than false-flag. ``mode`` could be either.
+        target = _synth(tmp_path, "with open(p, mode) as f:\n    pass\n")
+        assert find_violations(target) == []
+
+
+class TestStringLiteralFalsePositives:
+    """Forbidden patterns inside string literals must NOT be flagged.
+
+    Codex r219 #2: regex-on-raw-lines flagged ``logger.debug("open(path, 'w')")``
+    even though the ``open(...)`` is inside a string literal, not a real
+    call. The AST detector only matches actual ``ast.Call`` nodes.
+    """
+
+    def test_open_inside_string_literal_not_flagged(self, tmp_path: Path) -> None:
+        target = _synth(
+            tmp_path,
+            "logger.debug(\"open(path, 'w')\")\n",
         )
         assert find_violations(target) == []
 
-    def test_marker_too_far_after_call_is_still_flagged(self, tmp_path: Path) -> None:
-        # The lookahead is bounded; a marker many lines later does not
-        # silently exempt the call (T10 negative case for the lookahead).
-        body = 'p.write_text("payload")\n' + ("x = 1\n" * 10) + "# atomic-write: ok\n"
-        target = self._write(tmp_path, body)
-        violations = find_violations(target)
-        assert len(violations) == 1
-
-    def test_docstring_example_is_not_flagged(self, tmp_path: Path) -> None:
-        # Triple-quoted block containing a forbidden pattern must not trip.
-        target = self._write(
+    def test_write_text_inside_string_literal_not_flagged(self, tmp_path: Path) -> None:
+        target = _synth(
             tmp_path,
-            '"""Module docstring.\n\nExample::\n\n    p.write_text("foo")\n"""\n',
+            'message = "use path.write_text(content) for atomic writes"\n',
         )
         assert find_violations(target) == []
+
+    def test_open_in_docstring_not_flagged(self, tmp_path: Path) -> None:
+        target = _synth(
+            tmp_path,
+            '"""Module docstring.\n\nExample::\n\n    open(p, "w")\n"""\n',
+        )
+        assert find_violations(target) == []
+
+
+class TestMultilineOpen:
+    """``open()`` calls split across lines by ruff format are still detected."""
 
     def test_multiline_open_without_marker_is_flagged(self, tmp_path: Path) -> None:
-        # open( on one line, mode string on the next — no marker anywhere.
-        target = self._write(
+        target = _synth(
             tmp_path,
             'with open(\n    p,\n    "w",\n) as f:\n    f.write("x")\n',
         )
-        violations = find_violations(target)
-        assert len(violations) == 1
+        assert len(find_violations(target)) == 1
 
     def test_multiline_open_marker_on_closing_paren_is_not_flagged(self, tmp_path: Path) -> None:
-        # Cover the common ruff-formatted multiline open() shape where the
-        # call starts on one line, the mode string is on a later line, and the
-        # opt-out marker sits on the closing-paren line.
-        target = self._write(
+        target = _synth(
             tmp_path,
-            'with open(\n    p,\n    "w",\n) as f:  # atomic-write: ok — user output\n    f.write("x")\n',
+            'with open(\n    p,\n    "w",\n) as f:  # atomic-write: ok — user output\n'
+            '    f.write("x")\n',
         )
         assert find_violations(target) == []
 
-    def test_multiline_open_in_string_literal_not_flagged_via_opt_out(self, tmp_path: Path) -> None:
-        # Marker embedded inside a string literal on the open( line must not
-        # exempt the call; the opt-out must appear in an actual comment.
-        target = self._write(
+    def test_multiline_open_marker_above_is_not_flagged(self, tmp_path: Path) -> None:
+        target = _synth(
             tmp_path,
-            'with open(\n    p,\n    "w",\n) as f:\n    f.write("# atomic-write: ok")\n',
+            "# atomic-write: ok — user output\n"
+            'with open(\n    p,\n    "w",\n) as f:\n    f.write("x")\n',
         )
-        violations = find_violations(target)
-        assert len(violations) == 1
+        assert find_violations(target) == []
+
+
+class TestSyntaxError:
+    """A file that fails to parse yields zero violations (rail bows out)."""
+
+    def test_syntax_error_yields_no_violations(self, tmp_path: Path) -> None:
+        target = _synth(tmp_path, "def broken(\n")
+        assert find_violations(target) == []
 
 
 # ---------------------------------------------------------------------------

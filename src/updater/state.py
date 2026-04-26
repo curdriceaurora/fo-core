@@ -80,9 +80,8 @@ class UpdateStateStore:
         )
         temp_path = self._state_path.with_suffix(".tmp")
         try:
-            with open(
-                temp_path, "w", encoding="utf-8"
-            ) as f:  # atomic-write: ok — manual temp+replace pattern (lines 81-88)
+            # atomic-write: ok — manual temp+replace pattern (lines 81-88)
+            with open(temp_path, "w", encoding="utf-8") as f:
                 f.write(payload)
                 f.flush()
                 os.fsync(f.fileno())

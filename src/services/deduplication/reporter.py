@@ -99,9 +99,8 @@ class StorageReporter:
             output_path: Output CSV file path
         """
         try:
-            with open(
-                output_path, "w", newline="", encoding="utf-8"
-            ) as f:  # atomic-write: ok — user output (one-shot CLI export)
+            # atomic-write: ok — user output (one-shot CLI export)
+            with open(output_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
 
                 # Header
@@ -143,9 +142,8 @@ class StorageReporter:
             output_path: Output JSON file path
         """
         try:
-            with open(
-                output_path, "w", encoding="utf-8"
-            ) as f:  # atomic-write: ok — user output (one-shot CLI export)
+            # atomic-write: ok — user output (one-shot CLI export)
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(duplicate_results, f, indent=2, default=str)
 
             logger.info(f"Exported duplicate report to {output_path}")

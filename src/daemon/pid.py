@@ -84,9 +84,8 @@ class PidFileManager:
         pid = pid if pid is not None else os.getpid()
 
         pid_file.parent.mkdir(parents=True, exist_ok=True)
-        pid_file.write_text(
-            str(pid)
-        )  # atomic-write: ok — pid file (single-writer via daemon lifecycle)
+        # atomic-write: ok — pid file (single-writer via daemon lifecycle)
+        pid_file.write_text(str(pid))
         logger.debug("Wrote PID %d to %s", pid, pid_file)
 
     def read_pid(self, pid_file: Path) -> int | None:
