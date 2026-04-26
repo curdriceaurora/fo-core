@@ -45,7 +45,7 @@ class TestRedisConnectionError:
 
     def test_not_caught_by_value_error(self):
         """RedisConnectionError is not a subtype of ValueError."""
-        with pytest.raises(RedisConnectionError):
+        with pytest.raises(RedisConnectionError):  # noqa: PT012 — verifies inner except does not catch
             try:
                 raise RedisConnectionError("oops")
             except ValueError:

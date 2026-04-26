@@ -589,7 +589,7 @@ class TestRedisStreamManagerContextManager:
         mock_client.ping.return_value = True
         mock_redis_module.Redis.from_url.return_value = mock_client
 
-        with pytest.raises(ValueError, match="test error"):
+        with pytest.raises(ValueError, match="test error"):  # noqa: PT012 — context-manager exit semantics under exception
             with RedisStreamManager() as manager:
                 assert manager.is_connected is True
                 raise ValueError("test error")

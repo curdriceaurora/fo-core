@@ -253,7 +253,7 @@ class TestTextModelStreaming:
             yield "x"
 
         gi = _GuardedIterator(gen(), lambda: fired.append(True))
-        with pytest.raises(StopIteration):
+        with pytest.raises(StopIteration):  # noqa: PT012 — second next() raises after first consumes; both calls required
             next(gi)
             next(gi)
         assert fired == [True]
