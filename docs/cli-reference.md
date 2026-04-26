@@ -349,6 +349,34 @@ fo history --stats
 
 ---
 
+### `recover`
+
+Preview pending `durable_move` recovery actions without executing them.
+
+Reads the F7.1 durable-move journal under a shared file lock, runs the pure
+recovery planner, and prints the planned sweep verbs and reasons. Exits 0 if
+nothing actionable; exits 1 if any recovery work would be performed (so shell
+scripts can detect a stuck journal without invoking the sweep itself).
+
+**Usage:**
+
+```bash
+fo recover [OPTIONS]
+```
+
+**Options:**
+- `--journal PATH` — Override path to `durable_move.journal` (defaults to the user state dir)
+- `--verbose, -v` — Verbose output
+
+**Examples:**
+
+```bash
+fo recover
+fo recover --journal /tmp/journal.bin --verbose
+```
+
+---
+
 ### `analytics`
 
 Display storage analytics dashboard.

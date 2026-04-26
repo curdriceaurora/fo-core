@@ -9,6 +9,27 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+# F6 (hardening roadmap #159): single source of truth for the config
+# schema version. Bump this when introducing a breaking change to the
+# serialized shape (new required field, renamed field, type change on
+# an existing field), and register a corresponding migration in
+# ``src/config/migrations.py::MIGRATIONS`` so existing ``config.yaml``
+# files upgrade cleanly on next load. ``AppConfig.version`` defaults
+# to this constant — bumping the constant means ``AppConfig()`` starts
+# reporting the new version, and ``ConfigManager.save`` always stamps
+# it into the output regardless of the in-memory object's version.
+CURRENT_SCHEMA_VERSION = "1.0"
+
+# Legacy baseline for pre-F6 ``config.yaml`` files — those written
+# before the version field existed, or with ``version: null``. They
+# correspond semantically to schema 1.0 (the version in effect when
+# the field was added). Keeping this as a SEPARATE constant from
+# ``CURRENT_SCHEMA_VERSION`` means a future bump to 2.0 correctly
+# routes unversioned configs through the 1.0→2.0 migration instead
+# of silently skipping it (codex P2 PRRT_kwDOR_Rkws59fwMM). Never
+# change this — new baselines introduce new constants.
+LEGACY_CONFIG_VERSION = "1.0"
+
 
 @dataclass
 class ModelPreset:
@@ -74,7 +95,7 @@ class AppConfig:
     """
 
     profile_name: str = "default"
-    version: str = "1.0"
+    version: str = CURRENT_SCHEMA_VERSION
     default_methodology: str = "none"
     setup_completed: bool = False
     models: ModelPreset = field(default_factory=ModelPreset)

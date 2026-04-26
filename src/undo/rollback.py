@@ -12,6 +12,8 @@ from pathlib import Path
 
 from history.models import Operation, OperationType
 
+from ._journal import default_journal_path
+from .durable_move import directory_move, durable_move
 from .models import RollbackResult
 from .validator import OperationValidator
 
@@ -25,14 +27,70 @@ class RollbackExecutor:
     to undo or redo file operations.
     """
 
-    def __init__(self, validator: OperationValidator | None = None):
+    def __init__(
+        self,
+        validator: OperationValidator | None = None,
+        journal_path: Path | None = None,
+    ) -> None:
         """Initialize rollback executor.
 
         Args:
-            validator: Operation validator
+            validator: Operation validator.
+            journal_path: F7 durable-move journal location. When
+                omitted, inherits the validator's ``journal_path``
+                so write (durable_move) and read
+                (``is_trash_safe_to_delete``) coordinate on the same
+                file; falls back to :func:`default_journal_path` only
+                when no validator-configured value is available. Tests
+                pass a per-test ``tmp_path`` to isolate from the real
+                user journal.
         """
         self.validator = validator or OperationValidator()
         self.trash_dir = self.validator.trash_dir
+        # Codex P2 PRRT_kwDOR_Rkws59hGWY: if the caller injects a
+        # validator with a custom ``journal_path`` (typical in tests
+        # and in any multi-tenant setup) but omits ``journal_path``
+        # here, we MUST reuse the validator's path. Using the
+        # default instead splits write/read: durable_move would write
+        # entries to the default journal while
+        # ``is_trash_safe_to_delete`` reads the validator's — a path
+        # flagged in-flight in one would appear safe in the other,
+        # reintroducing the F8 GC-vs-restore race.
+        if journal_path is not None:
+            self.journal_path = journal_path
+        else:
+            validator_journal = getattr(self.validator, "journal_path", None)
+            self.journal_path = (
+                validator_journal if validator_journal is not None else default_journal_path()
+            )
+
+    def _move(self, src: Path, dst: Path) -> None:
+        """Move *src* to *dst* with a file-vs-directory dispatch.
+
+        Files and symlinks go through :func:`durable_move`
+        (atomic same-device, journalled+durable EXDEV);
+        non-symlink directories go through :func:`directory_move`
+        (non-atomic ``shutil.move`` wrapped with started/done
+        journal entries so concurrent F8 trash GC sees them as
+        in-flight).
+
+        Codex PRRT_kwDOR_Rkws59hT9a (round-7) + coderabbit round-10:
+        :func:`durable_move` rejects non-symlink directories up
+        front with ``IsADirectoryError`` (it is file-only by design
+        — atomic directory recovery is F7's intentional non-goal).
+        Round-10's :func:`directory_move` adds the F8 coordination
+        layer that was previously missing — the bare
+        ``shutil.move`` call did not write to the journal, so
+        :func:`is_path_in_flight` returned False during a directory
+        restore and trash GC could delete the path mid-move.
+        Symlinks still route through :func:`durable_move` because
+        ``shutil.move`` would dereference them and copy target
+        bytes instead of preserving the link.
+        """
+        if src.is_dir() and not src.is_symlink():
+            directory_move(src, dst, journal=self.journal_path)
+        else:
+            durable_move(src, dst, journal=self.journal_path)
 
     def rollback_operation(self, operation: Operation) -> bool:
         """Rollback a single operation (undo).
@@ -100,14 +158,19 @@ class RollbackExecutor:
         source = operation.source_path
         destination = operation.destination_path
 
+        if destination is None:
+            logger.error(f"Cannot rollback move operation {operation.id}: no destination path")
+            return False
+
         logger.info(f"Rolling back move: {destination} -> {source}")
 
         try:
-            # Ensure parent directory exists
-            source.parent.mkdir(parents=True, exist_ok=True)
-
-            # Move file back
-            shutil.move(str(destination), str(source))
+            # F7: durable_move replaces ``shutil.move`` for files;
+            # ``_move`` dispatches to ``shutil.move`` for directories
+            # (codex PRRT_kwDOR_Rkws59hT9a). Atomic on same device;
+            # EXDEV path journals each step so a crash mid-move leaves
+            # recoverable state. The helper creates dst's parent.
+            self._move(destination, source)
 
             logger.info(f"Successfully rolled back move operation {operation.id}")
             return True
@@ -162,11 +225,16 @@ class RollbackExecutor:
         logger.info(f"Rolling back delete: restoring {original_path} from trash")
 
         try:
-            # Ensure parent directory exists
-            original_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Restore from trash
-            shutil.move(str(trash_path), str(original_path))
+            # F7: durable_move for trash→original restore, routed
+            # through ``_move`` so directory entries in trash (created
+            # by ``_move_to_trash``'s shutil.move fallback) restore
+            # correctly — durable_move is file-only and would reject
+            # directories with IsADirectoryError (codex
+            # PRRT_kwDOR_Rkws59hT9a). Pairs with F8's trash GC race
+            # protection: once the move lands in the journal the GC
+            # validator detects the in-progress restore and avoids
+            # deleting the trash path mid-move.
+            self._move(trash_path, original_path)
 
             # Clean up trash directory for this operation
             if trash_path.parent.name == str(operation.id):
@@ -250,11 +318,11 @@ class RollbackExecutor:
         logger.info(f"Redoing move: {source} -> {destination}")
 
         try:
-            # Ensure parent directory exists
-            destination.parent.mkdir(parents=True, exist_ok=True)
-
-            # Move file
-            shutil.move(str(source), str(destination))
+            # F7: ``_move`` for redo. Same reasoning as
+            # rollback_move — atomic same-device, journalled EXDEV
+            # for files, shutil fallback for directories (codex
+            # PRRT_kwDOR_Rkws59hT9a).
+            self._move(source, destination)
 
             logger.info(f"Successfully redid move operation {operation.id}")
             return True
@@ -462,9 +530,12 @@ class RollbackExecutor:
 
         trash_dir.mkdir(parents=True, exist_ok=True)
 
-        # Move to trash
+        # F7: durable_move for files, shutil.move fallback for
+        # directories — delegated to ``_move`` so every mover in this
+        # class shares the same file-vs-directory dispatch (codex
+        # PRRT_kwDOR_Rkws59hT9a). Symlinks route as files.
         trash_path = trash_dir / file_path.name
-        shutil.move(str(file_path), str(trash_path))
+        self._move(file_path, trash_path)
 
         logger.debug(f"Moved {file_path} to trash: {trash_path}")
         return trash_path
