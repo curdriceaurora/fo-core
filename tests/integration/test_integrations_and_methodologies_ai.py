@@ -451,6 +451,7 @@ class TestObsidianIntegration:
         result = _run(integration.send_file(str(tmp_path / "missing.txt")))
         assert result is False
 
+    @pytest.mark.ci
     def test_send_file_returns_false_on_copy_oserror(self, tmp_path: Path) -> None:
         """When ``shutil.copy2`` raises OSError, ``send_file`` returns False instead of leaking."""
         from unittest.mock import patch
@@ -478,6 +479,7 @@ class TestObsidianIntegration:
             result = _run(integration.send_file(str(source)))
         assert result is False
 
+    @pytest.mark.ci
     def test_send_file_returns_false_on_note_write_oserror(self, tmp_path: Path) -> None:
         """When ``note_path.write_text`` raises OSError, ``send_file`` returns False."""
         from unittest.mock import patch

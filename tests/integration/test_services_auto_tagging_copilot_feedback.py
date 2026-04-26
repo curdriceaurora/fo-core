@@ -1191,6 +1191,7 @@ class TestSuggestionFeedback:
         assert "stats" in data
         assert "exported_at" in data
 
+    @pytest.mark.ci
     def test_export_feedback_logs_and_reraises_on_oserror(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
