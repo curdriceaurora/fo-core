@@ -31,7 +31,6 @@ def pid_file(tmp_path: Path) -> Path:
     return tmp_path / "test_daemon.pid"
 
 
-
 @pytest.mark.unit
 class TestReadPid:
     """Tests for PidFileManager.read_pid."""

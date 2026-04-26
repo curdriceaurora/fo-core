@@ -230,11 +230,13 @@ Use the dedicated script that automates the entire thread resolution process:
 ### Quick Start: Three Usage Patterns
 
 **Pattern 1: Resolve without replies**
+
 ```bash
 .claude/scripts/resolve-pr-threads.sh 627
 ```
 
 **Pattern 2: Resolve with replies from JSON**
+
 ```bash
 # Create replies.json with your responses
 cat > replies.json << 'EOF'
@@ -248,6 +250,7 @@ EOF
 ```
 
 **Pattern 3: Preview before executing (dry-run)**
+
 ```bash
 .claude/scripts/resolve-pr-threads.sh 627 --replies replies.json --dry-run
 ```
