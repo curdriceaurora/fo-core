@@ -356,6 +356,6 @@ def read_cad_file(file_path: str | Path, **kwargs: object) -> str:
 
     reader = cad_readers.get(ext)
     if reader:
-        return reader(file_path, **kwargs)  # type: ignore[operator,no-any-return]
+        return reader(file_path, **kwargs)  # type: ignore[operator,no-any-return]  # Union dict value; see pyproject.toml [[tool.mypy.overrides]]
     else:
         raise FileReadError(f"Unsupported CAD file format: {ext}")
