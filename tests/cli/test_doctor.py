@@ -318,7 +318,8 @@ class TestDisplayRecommendations:
         with patch("cli.doctor.is_group_installed", return_value=True):
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
-                # Should print a table
+                # T3: control-flow only — Rich Table args are renderable objects whose
+                # content varies by extension count and theme; payload-pinning is brittle.
                 mock_console.print.assert_called()
 
     def test_display_with_missing_group(self):
@@ -328,6 +329,7 @@ class TestDisplayRecommendations:
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
+                # T3: control-flow only — see test_display_with_installed_group.
                 mock_console.print.assert_called()
 
     def test_display_multiple_groups(self):
@@ -337,6 +339,7 @@ class TestDisplayRecommendations:
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
+                # T3: control-flow only — see test_display_with_installed_group.
                 mock_console.print.assert_called()
 
     def test_display_with_prerequisites(self):
@@ -347,6 +350,7 @@ class TestDisplayRecommendations:
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
+                # T3: control-flow only — see test_display_with_installed_group.
                 mock_console.print.assert_called()
 
 
@@ -545,10 +549,9 @@ class TestDoctorCommand:
                 doctor(path=tmp_path, install=False, json_output=True)
 
             assert exc_info.value.exit_code == 0
-            # Should output JSON
-            mock_echo.assert_called()
             import json
 
+            # Payload-precise: call_args access already implicitly asserts the mock was called.
             output = json.loads(mock_echo.call_args[0][0])
             assert output["files_found"] == 0
             assert output["detected_groups"] == []
@@ -615,8 +618,10 @@ class TestDoctorCommand:
                         # Doctor function completes normally after installation
                         doctor(path=tmp_path, install=True, json_output=False)
 
-                        # Should have attempted installation
-                        mock_run.assert_called()
+                        assert mock_run.call_count >= 1
+                        cmd = mock_run.call_args[0][0]
+                        assert "pip" in cmd
+                        assert "install" in cmd
 
     def test_compound_extension_detection(self, tmp_path):
         # Test that compound extensions are properly detected
@@ -1213,7 +1218,9 @@ class TestInstallGroupsOrdering:
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
-                # Just verify it was called without error (sorting happens internally)
+                # T3: control-flow only — this test guards against crash-on-render for
+                # multiple groups; alphabetical order is verified by
+                # TestInstallGroups.test_alphabetical_installation_order using install_order.
                 mock_console.print.assert_called()
 
 
