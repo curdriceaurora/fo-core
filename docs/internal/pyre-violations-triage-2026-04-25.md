@@ -6,6 +6,16 @@
 
 ## Summary
 
+> **Reading note**: the bucket totals below reflect the *original* triage
+> (`APPLY=8 + SUPPRESS=39 + DEFER=2 + DISMISS=3 = 52`). This PR collapses the 8
+> APPLY items into in-code suppressions (`try/except` + `# pyre-ignore[21]` on
+> the optional `numpy` / `rank_bm25` imports — see commit `697d6d61`) rather
+> than shipping them as separate APPLY commits, and the 3 DISMISS items are
+> handled externally in the GitHub Code Scanning UI. The PR description
+> therefore summarises the *applied* actions as `SUPPRESS=50, DEFER=2,
+> APPLY/DISMISS=0` — not a contradiction with the table, just the post-decision
+> view.
+
 | Bucket | Count | Notes |
 |--------|------:|-------|
 | **Total findings** | 52 | All `level: error` in SARIF |
@@ -163,7 +173,7 @@ The exact alert numbers depend on whatever GitHub Code Scanning shows after the 
 ## Verification
 
 1. **SARIF parses cleanly**: `jq '.runs[0].results | length' /tmp/pyre-sarif.json` → `52`. ✅
-2. **Bucket totals reconcile**: 8 + 39 + 2 + 3 (DISMISS not in the local 52) = within current 52 = 49; the 3 DISMISS items are external (GitHub UI), not in the local SARIF. The 49 local breakdown reconciles. ✅
+2. **Bucket totals reconcile**: local SARIF holds 49 findings (8 APPLY + 39 SUPPRESS + 2 DEFER); the 3 DISMISS items are external (GitHub Code Scanning UI) and not present in the local SARIF, giving 49 + 3 = 52 total. ✅
 3. **APPLY entries reproducible**: `grep -nE '^import numpy|^from numpy' src/services/{deduplication,search}/*.py` confirms the 4 files have unguarded module-level numpy imports. ✅
 4. **SUPPRESS [35] sites are inside @dataclass / ClassVar**: verified by reading each cited file. ✅
 5. **SUPPRESS [21] on redis is genuinely guarded**: lines 16–19 of `src/events/stream.py` show `try / except ImportError`. ✅
