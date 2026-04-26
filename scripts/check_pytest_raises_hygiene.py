@@ -123,7 +123,10 @@ def _iter_statement_blocks(node: ast.AST) -> list[list[ast.stmt]]:
     elif isinstance(node, ast.If):
         blocks.append(node.body)
         blocks.append(node.orelse)
-    elif isinstance(node, ast.Try):
+    elif isinstance(node, ast.Try | ast.TryStar):
+        # ``ast.TryStar`` (Python 3.11+) covers ``try/except*`` PEP 654
+        # exception-group handlers; same body/orelse/finalbody/handlers
+        # structure as ``ast.Try``, so the same iteration logic applies.
         blocks.append(node.body)
         blocks.append(node.orelse)
         blocks.append(node.finalbody)

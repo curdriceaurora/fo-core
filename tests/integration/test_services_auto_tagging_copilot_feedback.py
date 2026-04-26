@@ -1200,8 +1200,6 @@ class TestSuggestionFeedback:
         Covers the try/except wrap added in the PR-#219 review cycle so the
         caller sees the failure with context rather than a bare propagation.
         """
-        from unittest.mock import patch
-
         from services.suggestion_feedback import SuggestionFeedback
 
         fb = SuggestionFeedback(feedback_file=tmp_path / "feedback.json")

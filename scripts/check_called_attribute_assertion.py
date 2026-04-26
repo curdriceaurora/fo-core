@@ -98,12 +98,20 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assert):
             continue
-        if _is_called_attribute_assertion(node):
-            lineno = node.lineno
-            if 0 < lineno <= len(lines):
-                line_text = lines[lineno - 1]
-                if not _has_opt_out(line_text):
-                    violations.append((lineno, line_text.rstrip()))
+        if not _is_called_attribute_assertion(node):
+            continue
+        start = node.lineno
+        end = getattr(node, "end_lineno", None) or start
+        # CodeRabbit r219: a ``# noqa: T3`` placed on the closing-paren
+        # line of a multi-line ``assert (\n    mock.called\n)`` form is
+        # a natural, ruff-format-friendly placement.  Scan every line
+        # the assert spans so the opt-out works for that placement too.
+        if any(
+            0 < ln <= len(lines) and _has_opt_out(lines[ln - 1]) for ln in range(start, end + 1)
+        ):
+            continue
+        if 0 < start <= len(lines):
+            violations.append((start, lines[start - 1].rstrip()))
 
     return sorted(violations)
 

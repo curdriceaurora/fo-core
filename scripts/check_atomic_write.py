@@ -216,24 +216,37 @@ def _extract_mode_string(node: ast.Call) -> str | None:
     - Builtin ``open(path, mode, ...)``: mode at ``args[1]``.
     - Module-level ``<module>.open(path, mode, ...)`` such as
       ``tarfile.open(path, "w")`` or ``gzip.open(path, "wb")``:
-      mode at ``args[1]`` (codex r219 #6 thread).
+      mode at ``args[1]``.
     - Instance-method ``<obj>.open(mode, ...)`` such as
       ``Path("x").open("w")``: mode at ``args[0]``.
 
-    From the AST alone we cannot tell whether an attribute call is a
-    module-level function or an instance method — so we check both
-    positions and pick the FIRST argument that looks like a real Python
-    mode literal (``_looks_like_mode_literal``). The strict pattern
-    (length ≤ 4, characters drawn from ``rwaxbt+``, exactly one primary
-    action char) keeps file-path strings from being mistaken for modes.
+    Disambiguation strategy (codex r219 #7):
 
-    The ``mode=`` keyword form works for every shape.
+    1. If the call has 2+ positional args, prefer ``args[1]`` — that's
+       the mode position for the builtin / module-level shapes (the
+       majority case). This avoids the false-negative
+       ``open("r", "w")`` (where the previous "first-matching-wins"
+       returned ``"r"``) and the false-positive ``open("a", "r")``.
+    2. Fall back to ``args[0]`` if it's a literal mode — this handles
+       the instance-method shape ``Path("x").open("w")`` where there's
+       only one positional arg, or where ``args[1]`` is a non-mode
+       value like a buffering int.
+    3. Finally check the ``mode=`` keyword.
+
+    The strict ``_looks_like_mode_literal`` pattern (length ≤ 4,
+    characters from ``rwaxbt+``, exactly one primary action char) keeps
+    file-path strings like ``"write.log"`` from being mistaken for modes.
 
     Returns ``None`` if no statically-known mode is present — a dynamic
     mode (variable, computed, etc.) could be a write or read; we skip
     rather than false-flag.
     """
-    for arg in node.args[:2]:
+    if len(node.args) >= 2:
+        arg = node.args[1]
+        if isinstance(arg, ast.Constant) and _looks_like_mode_literal(arg.value):
+            return arg.value
+    if len(node.args) >= 1:
+        arg = node.args[0]
         if isinstance(arg, ast.Constant) and _looks_like_mode_literal(arg.value):
             return arg.value
     for kw in node.keywords:

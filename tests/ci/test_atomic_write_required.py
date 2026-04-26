@@ -342,6 +342,33 @@ class TestOpenCalls:
         target = _synth(tmp_path, 'tarfile.open(p, "r")\n')
         assert find_violations(target) == []
 
+    def test_open_with_mode_like_path_string_at_args0_uses_args1(self, tmp_path: Path) -> None:
+        """Codex r219 #7: ``open("r", "w")`` — args[0] looks like read but real mode is "w" at args[1].
+
+        Previous "first-matching-wins" returned ``"r"`` (read) and silently
+        let the write through. The position-priority logic (args[1] before
+        args[0] when both are present) returns ``"w"`` and flags it.
+        """
+        target = _synth(tmp_path, 'open("r", "w")\n')
+        assert len(find_violations(target)) == 1
+
+    def test_open_with_append_like_path_and_read_mode_not_falsely_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        """Codex r219 #7: ``open("a", "r")`` — args[0] is path ``"a"``, args[1] ``"r"`` is the mode.
+
+        The position priority avoids the false-positive that
+        "first-matching-wins" produced when args[0] looked like an
+        append-mode literal.
+        """
+        target = _synth(tmp_path, 'open("a", "r")\n')
+        assert find_violations(target) == []
+
+    def test_path_open_with_buffering_positional_still_extracts_mode(self, tmp_path: Path) -> None:
+        """``Path("x").open("w", -1)`` — args[1] (buffering) isn't a mode; fall back to args[0]."""
+        target = _synth(tmp_path, 'Path("x").open("w", -1)\n')
+        assert len(find_violations(target)) == 1
+
     def test_dynamic_mode_is_not_flagged(self, tmp_path: Path) -> None:
         # The mode is a variable reference; we can't statically determine
         # if it's a write or read mode, so we conservatively skip rather

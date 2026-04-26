@@ -230,6 +230,31 @@ class TestFindViolationsSynthetic:
         )
         assert find_violations(target) == []
 
+    def test_marked_multiline_assertion_on_closing_paren_is_not_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        """CodeRabbit r219: ``# noqa: T3`` on closing-paren of multi-line assert exempts the site.
+
+        Without scanning ``node.lineno..node.end_lineno`` the marker on
+        the ``)`` line is silently ignored and the multi-line opt-out
+        becomes unusable. The fix scans every line the assert spans.
+        """
+        target = _synth(
+            tmp_path,
+            "assert (\n    mock.method.called\n)  # noqa: T3 reason: legacy multi-line\n",
+        )
+        assert find_violations(target) == []
+
+    def test_marked_multiline_assertion_on_opening_paren_is_not_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        """``# noqa: T3`` on the assert line of a multi-line assert exempts the site."""
+        target = _synth(
+            tmp_path,
+            "assert (  # noqa: T3 reason: legacy\n    mock.method.called\n)\n",
+        )
+        assert find_violations(target) == []
+
     def test_syntax_error_yields_no_violations(self, tmp_path: Path) -> None:
         """A file that fails to parse yields zero violations."""
         target = _synth(tmp_path, "def broken(\n")

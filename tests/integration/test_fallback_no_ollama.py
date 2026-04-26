@@ -175,16 +175,28 @@ class TestFallbackDoesNotCrash:
         ):
             organizer.organize(source_dir, output_dir)
 
-        # AI processing paths were called with actual file lists (not fallback)
-        mock_text.assert_called()
-        # Verify files were passed (text_files call + cad_files call)
+        # AI processing paths were called with EXACT routed payloads (not just
+        # invocation count). The source_dir fixture creates one file of each
+        # fallback-supported type, so we know precisely which files should
+        # land in each branch.  See lines 32-39 above for the file roster.
         all_text_args = [call.args[0] for call in mock_text.call_args_list]
-        all_text_files = [f for batch in all_text_args for f in batch]
-        assert len(all_text_files) > 0, "AI text processing received no files"
+        all_text_files = {f for batch in all_text_args for f in batch}
+        expected_text_files = {
+            source_dir / "report.txt",
+            source_dir / "invoice.pdf",
+            source_dir / "budget.xlsx",
+            source_dir / "slides.pptx",
+            source_dir / "data.csv",
+            source_dir / "book.epub",
+            source_dir / "part.dwg",
+        }
+        assert all_text_files == expected_text_files, (
+            f"AI text processing received wrong files: "
+            f"missing={expected_text_files - all_text_files}, "
+            f"unexpected={all_text_files - expected_text_files}"
+        )
 
-        mock_image.assert_called_once()
-        image_args = mock_image.call_args.args[0]
-        assert len(image_args) == 1, f"Expected 1 image file, got {len(image_args)}"
+        mock_image.assert_called_once_with([source_dir / "photo.jpg"])
 
         # Fallback must NOT have been used when Ollama recovered
         mock_fallback.assert_not_called()
