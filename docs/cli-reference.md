@@ -1,6 +1,6 @@
 # File Organizer CLI Reference
 
-All commands are available via `fo` or the short alias `fo`.
+All commands are available via the `fo` command.
 
 ## Global Options
 
@@ -97,7 +97,7 @@ fo preview INPUT_DIR
 
 ```bash
 fo preview ~/Downloads
-fo preview ~/Downloads
+fo preview ~/Downloads --no-vision
 ```
 
 ---
@@ -931,121 +931,6 @@ fo suggest patterns ~/Projects
 
 ---
 
-### `marketplace` — Plugin Marketplace
-
-Browse and manage plugins from the marketplace.
-
-#### `marketplace list`
-
-List available plugins.
-
-```bash
-fo marketplace list [OPTIONS]
-```
-
-Options:
-- `--page, -p INTEGER` — Page number (default: 1)
-- `--per-page INTEGER` — Results per page (default: 20)
-- `--category, -c TEXT` — Filter by category
-- `--tag, -t TEXT` — Filter by tag (repeatable)
-
-#### `marketplace search`
-
-Search the marketplace.
-
-```bash
-fo marketplace search QUERY [OPTIONS]
-```
-
-#### `marketplace info`
-
-Show details for a specific plugin.
-
-```bash
-fo marketplace info PLUGIN_NAME
-```
-
-**Arguments:**
-- `NAME` — Plugin name
-
-#### `marketplace install`
-
-Install a plugin.
-
-```bash
-fo marketplace install PLUGIN_NAME [--version VERSION]
-```
-
-**Arguments:**
-- `NAME` — Plugin to install
-
-#### `marketplace uninstall`
-
-Remove an installed plugin.
-
-```bash
-fo marketplace uninstall PLUGIN_NAME
-```
-
-**Arguments:**
-- `NAME` — Plugin to uninstall
-
-#### `marketplace review`
-
-Add or update a review for a plugin.
-
-```bash
-fo marketplace review PLUGIN_NAME [OPTIONS]
-```
-
-Arguments:
-- `PLUGIN_NAME` — Name of the plugin to review
-
-Options:
-- `--user TEXT` — Reviewer ID (required)
-- `--rating INTEGER` — Rating from 1 to 5 (required)
-- `--title TEXT` — Review title (required)
-- `--content TEXT` — Review text (required)
-
-**Examples:**
-
-```bash
-fo marketplace review awesome-plugin \
-  --user john_doe \
-  --rating 5 \
-  --title "Great plugin!" \
-  --content "This plugin has saved me hours of work!"
-```
-
-#### `marketplace installed`
-
-List installed plugins.
-
-```bash
-fo marketplace installed
-```
-
-#### `marketplace updates`
-
-Check for plugin updates.
-
-```bash
-fo marketplace updates
-```
-
-#### `marketplace update`
-
-Update a specific plugin.
-
-```bash
-fo marketplace update PLUGIN_NAME
-```
-
-**Arguments:**
-- `NAME` — Plugin to update
-
----
-
 ### `update` — Application Updates
 
 Manage application updates.
@@ -1361,21 +1246,6 @@ fo autotag apply ~/Documents/report.pdf finance quarterly
 fo autotag popular --limit 10
 fo autotag recent --days 7
 fo autotag batch ~/Documents --pattern "*.pdf" --json
-```
-
----
-
-## Short Alias
-
-Use `fo` as a short alias for `fo`:
-
-```bash
-fo organize ~/Downloads ~/Organized
-fo search "*.pdf" ~/Documents
-fo analyze ~/Documents/report.pdf
-fo copilot chat
-fo dedupe scan ~/Pictures
-fo autotag suggest ~/Documents
 ```
 
 ---
