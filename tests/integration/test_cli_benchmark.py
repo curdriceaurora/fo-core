@@ -755,7 +755,7 @@ class TestResolveProcessedCount:
         from cli.benchmark import _resolve_processed_count
 
         console = MagicMock()
-        with pytest.raises(SystemExit) as excinfo:
+        with pytest.raises(SystemExit) as excinfo:  # noqa: PT012 — re-raising typer.Exit as SystemExit requires try/except body
             try:
                 _resolve_processed_count([1, 2, 3], warmup=0, suite="io", console=console)
             except typer.Exit as e:

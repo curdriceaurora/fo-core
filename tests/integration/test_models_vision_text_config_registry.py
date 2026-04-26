@@ -253,8 +253,8 @@ class TestTextModelStreaming:
             yield "x"
 
         gi = _GuardedIterator(gen(), lambda: fired.append(True))
+        next(gi)
         with pytest.raises(StopIteration):
-            next(gi)
             next(gi)
         assert fired == [True]
 

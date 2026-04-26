@@ -229,7 +229,7 @@ class TestOperationTransaction:
 
     def test_auto_rollback_on_exception(self, history: OperationHistory) -> None:
         txn_id = None
-        with pytest.raises(ValueError, match="test error"):
+        with pytest.raises(ValueError, match="test error"):  # noqa: PT012 — transaction rollback on exception requires multi-stmt body
             with OperationTransaction(history) as txn:
                 txn.log_move(Path("/src/a.txt"), Path("/dst/a.txt"))
                 txn_id = txn.get_transaction_id()
@@ -308,7 +308,7 @@ class TestOperationTransaction:
 
         txn1_id = txn1.get_transaction_id()
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError):  # noqa: PT012 — transaction rollback test requires multi-stmt body
             with OperationTransaction(history) as txn2:
                 txn2.log_move(Path("/s2.txt"), Path("/d2.txt"))
                 raise RuntimeError("abort txn2")

@@ -86,7 +86,7 @@ class TestDatabaseManagerBranches:
     def test_transaction_context_exception_rolls_back(self, tmp_path: Path) -> None:
         """Exception inside db.transaction() triggers rollback (lines 186-189)."""
         db = _make_db(tmp_path)
-        with pytest.raises(RuntimeError, match="deliberate"):
+        with pytest.raises(RuntimeError, match="deliberate"):  # noqa: PT012 — db.transaction rollback requires multi-stmt body
             with db.transaction() as conn:
                 conn.execute(
                     "INSERT INTO operations (operation_type, source_path, timestamp, status)"

@@ -99,7 +99,7 @@ class TestDocumentEmbedderInit:
                 "sklearn.feature_extraction.text": None,
             },
         ):
-            with pytest.raises(ImportError, match="scikit-learn"):
+            with pytest.raises(ImportError, match="scikit-learn"):  # noqa: PT012 — importlib.reload + instantiation must run inside the patched sys.modules
                 # Force reimport
                 import importlib
 

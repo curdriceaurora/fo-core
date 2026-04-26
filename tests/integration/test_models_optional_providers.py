@@ -270,29 +270,25 @@ class TestLlamaCppTextModelMocked:
         from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/models/bad.gguf")
-        with (
-            patch(
-                "models.llama_cpp_text_model.Llama",
-                side_effect=OSError("file not found"),
-            ),
-            pytest.raises(RuntimeError, match="Could not load GGUF model"),
+        with patch(
+            "models.llama_cpp_text_model.Llama",
+            side_effect=OSError("file not found"),
         ):
             model = LlamaCppTextModel(config)
-            model.initialize()
+            with pytest.raises(RuntimeError, match="Could not load GGUF model"):
+                model.initialize()
 
     def test_initialize_wraps_value_error(self) -> None:
         from models.llama_cpp_text_model import LlamaCppTextModel
 
         config = LlamaCppTextModel.get_default_config("/models/bad.gguf")
-        with (
-            patch(
-                "models.llama_cpp_text_model.Llama",
-                side_effect=ValueError("invalid params"),
-            ),
-            pytest.raises(RuntimeError, match="Could not load GGUF model"),
+        with patch(
+            "models.llama_cpp_text_model.Llama",
+            side_effect=ValueError("invalid params"),
         ):
             model = LlamaCppTextModel(config)
-            model.initialize()
+            with pytest.raises(RuntimeError, match="Could not load GGUF model"):
+                model.initialize()
 
     def test_generate_returns_stripped_text(self) -> None:
         model = _make_llama_model_mocked()
@@ -526,43 +522,37 @@ class TestMLXTextModelMocked:
         from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config("bad/path")
-        with (
-            patch(
-                "models.mlx_text_model.mlx_load",
-                side_effect=OSError("cannot load"),
-            ),
-            pytest.raises(RuntimeError, match="Could not load MLX model"),
+        with patch(
+            "models.mlx_text_model.mlx_load",
+            side_effect=OSError("cannot load"),
         ):
             model = MLXTextModel(config)
-            model.initialize()
+            with pytest.raises(RuntimeError, match="Could not load MLX model"):
+                model.initialize()
 
     def test_initialize_raises_if_load_returns_non_tuple(self) -> None:
         from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config("some/model")
-        with (
-            patch(
-                "models.mlx_text_model.mlx_load",
-                return_value="not_a_tuple",
-            ),
-            pytest.raises(RuntimeError, match="unexpected value"),
+        with patch(
+            "models.mlx_text_model.mlx_load",
+            return_value="not_a_tuple",
         ):
             model = MLXTextModel(config)
-            model.initialize()
+            with pytest.raises(RuntimeError, match="unexpected value"):
+                model.initialize()
 
     def test_initialize_raises_if_load_returns_single_element_tuple(self) -> None:
         from models.mlx_text_model import MLXTextModel
 
         config = MLXTextModel.get_default_config("some/model")
-        with (
-            patch(
-                "models.mlx_text_model.mlx_load",
-                return_value=(MagicMock(),),
-            ),
-            pytest.raises(RuntimeError, match="unexpected value"),
+        with patch(
+            "models.mlx_text_model.mlx_load",
+            return_value=(MagicMock(),),
         ):
             model = MLXTextModel(config)
-            model.initialize()
+            with pytest.raises(RuntimeError, match="unexpected value"):
+                model.initialize()
 
     def test_generate_returns_stripped_text(self) -> None:
         model = _make_mlx_model_mocked()

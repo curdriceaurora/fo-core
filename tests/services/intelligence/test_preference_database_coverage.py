@@ -77,7 +77,7 @@ class TestTransaction:
         assert pref is not None
 
     def test_transaction_rollback_on_error(self, db):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError):  # noqa: PT012 — db.transaction rollback requires multi-stmt body
             with db.transaction() as conn:
                 conn.execute(
                     "INSERT INTO preferences "
