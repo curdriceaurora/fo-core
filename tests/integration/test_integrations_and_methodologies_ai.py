@@ -451,6 +451,62 @@ class TestObsidianIntegration:
         result = _run(integration.send_file(str(tmp_path / "missing.txt")))
         assert result is False
 
+    @pytest.mark.ci
+    def test_send_file_returns_false_on_copy_oserror(self, tmp_path: Path) -> None:
+        """When ``shutil.copy2`` raises OSError, ``send_file`` returns False instead of leaking."""
+        from unittest.mock import patch
+
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
+
+        vault = tmp_path / "vault"
+        vault.mkdir()
+        source = tmp_path / "report.txt"
+        source.write_text("data", encoding="utf-8")
+
+        config = IntegrationConfig(
+            name="obsidian",
+            integration_type=IntegrationType.DESKTOP_APP,
+            settings={"vault_path": str(vault)},
+        )
+        integration = ObsidianIntegration(config)
+        _run(integration.connect())
+
+        with patch(
+            "integrations.obsidian.shutil.copy2",
+            side_effect=OSError("disk full"),
+        ):
+            result = _run(integration.send_file(str(source)))
+        assert result is False
+
+    @pytest.mark.ci
+    def test_send_file_returns_false_on_note_write_oserror(self, tmp_path: Path) -> None:
+        """When ``note_path.write_text`` raises OSError, ``send_file`` returns False."""
+        from unittest.mock import patch
+
+        from integrations.base import IntegrationConfig, IntegrationType
+        from integrations.obsidian import ObsidianIntegration
+
+        vault = tmp_path / "vault"
+        vault.mkdir()
+        source = tmp_path / "report.txt"
+        source.write_text("data", encoding="utf-8")
+
+        config = IntegrationConfig(
+            name="obsidian",
+            integration_type=IntegrationType.DESKTOP_APP,
+            settings={"vault_path": str(vault)},
+        )
+        integration = ObsidianIntegration(config)
+        _run(integration.connect())
+
+        with patch(
+            "pathlib.Path.write_text",
+            side_effect=OSError("permission denied"),
+        ):
+            result = _run(integration.send_file(str(source)))
+        assert result is False
+
     def test_get_status_reflects_vault_state(self, tmp_path: Path) -> None:
         from integrations.base import IntegrationConfig, IntegrationType
         from integrations.obsidian import ObsidianIntegration

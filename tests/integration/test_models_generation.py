@@ -175,10 +175,10 @@ class TestTextModelStreaming:
     def test_guarded_iterator_stopiteration_fires_callback(self) -> None:
         on_close = MagicMock()
         it = _GuardedIterator(iter(["x"]), on_close)
+        next(it)
         with pytest.raises(StopIteration):
             next(it)
-            next(it)
-        on_close.assert_called()
+        on_close.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

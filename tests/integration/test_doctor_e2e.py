@@ -349,7 +349,7 @@ class TestDoctorInstallation:
                     result = runner.invoke(app, ["doctor", str(audio_files_dir), "--install"])
                     assert result.exit_code == 0
                     # Should have called subprocess to install
-                    assert mock_run.called
+                    mock_run.assert_called()
 
     def test_install_with_yes_flag_auto_confirms(
         self, audio_files_dir: Path, monkeypatch: pytest.MonkeyPatch
@@ -363,7 +363,7 @@ class TestDoctorInstallation:
                 result = runner.invoke(app, ["--yes", "doctor", str(audio_files_dir), "--install"])
                 # Should succeed without prompting
                 assert result.exit_code == 0
-                assert mock_run.called
+                mock_run.assert_called()
 
     def test_install_with_dry_run_flag(self, audio_files_dir: Path) -> None:
         """Global --dry-run flag prevents actual installation."""
@@ -676,7 +676,7 @@ class TestDoctorEndToEndWorkflows:
                 with patch("subprocess.run", return_value=mock_result) as mock_run:
                     result = runner.invoke(app, ["doctor", str(mixed_media_dir), "--install"])
                     assert result.exit_code == 0
-                    assert mock_run.called
+                    mock_run.assert_called()
 
     def test_ci_automation_workflow(self, audio_files_dir: Path) -> None:
         """Simulate CI/automation usage with --dry-run and --json flags."""

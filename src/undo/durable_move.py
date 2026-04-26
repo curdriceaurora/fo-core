@@ -90,7 +90,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from utils.atomic_io import fsync_directory
-from utils.atomic_write import append_durable
+from utils.atomic_write import append_durable, atomic_write_with
 
 # F9 top-level optional import: ``fcntl`` is POSIX-only. Wrapped in a
 # try/except so the module imports cleanly on Windows; functions that
@@ -253,6 +253,7 @@ def _locked(journal: Path, mode: int) -> Iterator[object | None]:
     lock = _lock_path(journal)
     # ``open(..., "a")`` creates the file if absent without truncating
     # it — keeps a stable inode across all callers.
+    # atomic-write: ok — fcntl lock file, stable inode required
     fh = open(lock, "a", encoding="utf-8")
     try:
         fcntl.flock(fh.fileno(), mode)
@@ -677,11 +678,15 @@ def _sweep_unlocked_body(journal: Path) -> None:
     if not entries:
         return
     retained = _reconcile_entries(entries)
-    if retained:
-        lines = [_serialize_entry(e) for e in retained]
-        journal.write_text("\n".join(lines) + "\n")
-    else:
-        journal.write_text("")
+    # The unlocked path (no fcntl, e.g. Windows) cannot rely on advisory
+    # locking, so we use the atomic temp-file + os.replace primitive to
+    # guarantee a crashed compaction never leaves a half-written journal.
+    # CodeRabbit r219 caught the previous in-place ``Path.write_text`` here
+    # which could truncate-then-fail and corrupt recovery state.
+    payload = "\n".join(_serialize_entry(e) for e in retained)
+    if payload:
+        payload += "\n"
+    atomic_write_with(journal, lambda fh: fh.write(payload), mode="w")
 
 
 _PlannedVerb = Literal[
@@ -1454,7 +1459,11 @@ def _append_journal(journal: Path, payload: Mapping[str, object]) -> None:
     # compaction without depending on the journal inode.
     if _HAS_FCNTL:
         line = json.dumps(payload) + "\n"
-        with _locked(journal, fcntl.LOCK_EX), open(journal, "a", encoding="utf-8") as fh:
+        with (
+            _locked(journal, fcntl.LOCK_EX),
+            # atomic-write: ok — append_durable pattern (LOCK_EX + fsync below)
+            open(journal, "a", encoding="utf-8") as fh,
+        ):
             fh.write(line)
             fh.flush()
             os.fsync(fh.fileno())

@@ -77,6 +77,7 @@ class ProfileExporter:
 
             # Write to temporary file first (atomic write)
             temp_file = file_path.parent / f"{file_path.name}.tmp"
+            # atomic-write: ok — manual temp+replace pattern
             with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)
 
@@ -167,6 +168,7 @@ class ProfileExporter:
 
             # Write to temporary file first (atomic write)
             temp_file = file_path.parent / f"{file_path.name}.tmp"
+            # atomic-write: ok — manual temp+replace pattern
             with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)
 

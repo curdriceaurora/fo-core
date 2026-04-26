@@ -46,7 +46,7 @@ class TestGetCurrentProviderUnknownValue:
         with patch("config.provider_env.logger.warning") as mock_warn:
             get_current_provider()
 
-        assert mock_warn.called
+        mock_warn.assert_called()
         # Warning message should mention the unrecognised value
         call_args = mock_warn.call_args_list[0]
         assert "bogus" in str(call_args) or "FO_PROVIDER" in str(call_args)

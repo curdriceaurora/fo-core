@@ -253,7 +253,7 @@ class TestPreferenceDatabaseTransaction:
         """Exception inside transaction() triggers rollback (lines 239-243)."""
         db = _make_db(tmp_path)
 
-        with pytest.raises(ValueError, match="tx_fail"):
+        with pytest.raises(ValueError, match="tx_fail"):  # noqa: PT012 — db.transaction rollback requires multi-stmt body
             with db.transaction() as conn:
                 conn.execute(
                     "INSERT INTO preferences "

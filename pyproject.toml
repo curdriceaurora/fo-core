@@ -217,6 +217,9 @@ select = [
     "D",   # pydocstyle (google convention)
     "RUF100",  # stale noqa comments
     "DTZ",  # datetime timezone rules (DTZ001-DTZ007, DTZ011-DTZ012)
+    "PT012",  # pytest-raises-with-multiple-statements
+    "PT017",  # assertion-in-except-block (use pytest.raises with `as` capture)
+    "PT022",  # pytest-useless-yield-fixture
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)

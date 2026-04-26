@@ -99,6 +99,7 @@ class StorageReporter:
             output_path: Output CSV file path
         """
         try:
+            # atomic-write: ok — user output (one-shot CLI export)
             with open(output_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
 
@@ -141,6 +142,7 @@ class StorageReporter:
             output_path: Output JSON file path
         """
         try:
+            # atomic-write: ok — user output (one-shot CLI export)
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(duplicate_results, f, indent=2, default=str)
 

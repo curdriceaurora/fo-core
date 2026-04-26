@@ -93,6 +93,48 @@ repos:
         pass_filenames: false
 
       # ----------------------------------------------------------------
+      # Atomic-write rail: persistent file writes in src/ must use the
+      # utils.atomic_write helpers (or carry an explicit
+      # `# atomic-write: ok — <reason>` opt-out comment). Blocks
+      # regressions of the F3 / Epic B.atomic hardening (PRs #176, #195,
+      # #197, #203, #204).  See .claude/rules/feature-generation-patterns.md
+      # F3 and tests/ci/test_atomic_write_required.py for the rail body.
+      # ----------------------------------------------------------------
+      - id: atomic-write-required
+        name: persistent writes in src/ must be atomic
+        entry: python3 scripts/check_atomic_write.py
+        language: system
+        pass_filenames: false
+        files: ^src/.*\.py$
+
+      # ----------------------------------------------------------------
+      # pytest.raises hygiene: no mock assertion after `raise` inside the
+      # block (the assertion is unreachable). Closes the gap left when
+      # PT012 is suppressed via `# noqa: PT012` for legitimate
+      # multi-statement bodies. See tests/ci/test_pytest_raises_hygiene.py.
+      # ----------------------------------------------------------------
+      - id: pytest-raises-hygiene
+        name: no mock assertion after raise in pytest.raises blocks
+        entry: python3 scripts/check_pytest_raises_hygiene.py
+        language: system
+        pass_filenames: false
+        files: ^tests/.*\.py$
+
+      # ----------------------------------------------------------------
+      # T3-narrow: ban `assert <mock>.called` attribute-style assertion.
+      # The canonical mock-library equivalent is `<mock>.assert_called()`
+      # (one extra char, more discoverable, consistent with the rest of
+      # the suite). See .claude/rules/test-generation-patterns.md T3 and
+      # tests/ci/test_called_attribute_assertion.py.
+      # ----------------------------------------------------------------
+      - id: t3-no-bare-called-assertion
+        name: no `assert <mock>.called` (use `.assert_called()` instead)
+        entry: python3 scripts/check_called_attribute_assertion.py
+        language: system
+        pass_filenames: false
+        files: ^tests/.*\.py$
+
+      # ----------------------------------------------------------------
       # G2: No f-strings in logger calls (single or double quote)
       # Matches: logger.debug(f"..."), logger.info(f'...'),
       #          logger.exception( f"..."), etc.
