@@ -559,9 +559,9 @@ class TestBuildRetrieverHiddenFiles:
             mock_instance = mock_cls.return_value
             mock_instance.index.return_value = None
             executor._build_retriever_for_root(tmp_path)
-            if mock_instance.index.called:
-                args = mock_instance.index.call_args[0]
-                docs_list = args[0]
-                assert all("settings config data" not in d for d in docs_list), (
-                    "Hidden file should be excluded from corpus"
-                )
+            mock_instance.index.assert_called_once()
+            args = mock_instance.index.call_args[0]
+            docs_list = args[0]
+            assert all("settings config data" not in d for d in docs_list), (
+                "Hidden file should be excluded from corpus"
+            )

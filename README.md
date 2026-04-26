@@ -1,6 +1,6 @@
 # fo-core
 
-> Local AI file organizer. Point it at a directory — it categorizes and moves your files using a model running on your own machine. No cloud, no API key, no data leaving your computer.
+> Local AI file organizer. Point it at a directory — it categorizes and moves your files using a model running on your own machine. **Local by default**: Ollama runs on-device, no API key required. Cloud providers are optional extras.
 
 [![CI](https://github.com/curdriceaurora/fo-core/actions/workflows/ci.yml/badge.svg)](https://github.com/curdriceaurora/fo-core/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
@@ -33,10 +33,10 @@ ollama pull qwen2.5:3b-instruct-q4_K_M
 ollama pull qwen2.5vl:7b-q4_K_M
 ```
 
-Verify everything is connected:
+Verify optional deps for your files:
 
 ```bash
-fo doctor
+fo doctor ~/Downloads
 ```
 
 ---
@@ -70,7 +70,7 @@ fo undo
 | `fo copilot` | Natural-language assistant |
 | `fo rules` | Manage organization rules (YAML) |
 | `fo config show\|set` | View or update configuration |
-| `fo doctor` | Check Ollama connection and installed deps |
+| `fo doctor [DIR]` | Scan a directory and recommend optional deps |
 | `fo daemon start\|stop` | Background file watcher |
 | `fo undo / redo / history` | Operation history and rollback |
 | `fo model` | Select or inspect AI models |
@@ -98,7 +98,7 @@ Cloud providers are optional extras:
 
 ## Optional Feature Packs
 
-Core file types (PDF, DOCX, XLSX, PPTX, EPUB, ZIP, RAR) work out of the box. Install extras for additional capabilities:
+Core file types (PDF, DOCX, XLSX, PPTX, EPUB, ZIP) work out of the box. RAR also works but requires a system-level `unrar` or `unar` binary. Install extras for additional capabilities:
 
 | Pack | Install | Adds |
 |------|---------|------|

@@ -32,10 +32,10 @@ pre-commit install                 # sets up git hooks
 ollama pull qwen2.5:3b-instruct-q4_K_M
 ollama pull qwen2.5vl:7b-q4_K_M
 
-fo doctor                          # verify everything is wired up
+fo doctor ~/Downloads               # scan a directory to check optional deps
 ```
 
-> **Note**: CI installs `.[dev,search]`. If you're working on search-related code, also run `pip install -e ".[search]"`.
+> **Note**: The CI test jobs (`test-ci`, `test-full`) install `.[dev,search]`. The `type-check` and `lint` jobs install only `.[dev]`. If you're working on search-related code, also run `pip install -e ".[search]"` locally.
 
 ---
 
@@ -112,12 +112,17 @@ pytest tests/ -m "ci" -k "search or retriever"
 
 | Marker | Use |
 |--------|-----|
-| `ci` | Runs on every PR |
-| `unit` | Pure unit tests, no I/O |
-| `integration` | Requires Ollama running |
-| `benchmark` | Excluded from PR suite |
-| `smoke` | Minimal sanity checks |
-| `e2e` | Full end-to-end, excluded from PR suite |
+| `ci` | Runs on every PR (the CI validation subset) |
+| `unit` | Unit tests |
+| `integration` | Integration tests |
+| `smoke` | Fast pre-commit validation (<30s total) |
+| `e2e` | End-to-end tests against real file trees (no Ollama required) |
+| `benchmark` | Performance benchmarks — excluded from PR suite; run with `--benchmark-only` |
+| `slow` | Slow tests — deselect with `-m "not slow"` |
+| `no_ollama` | Tests that verify fallback behavior when Ollama is unavailable |
+| `regression` | Full regression runs |
+| `asyncio` | Async tests (requires pytest-asyncio) |
+| `playwright` | Browser-based E2E tests (requires `playwright install chromium`) |
 
 ### Pre-PR validation
 
@@ -143,11 +148,13 @@ CI enforces all three. The pre-commit hooks run ruff and mypy automatically on c
 
 ### Coverage gates
 
-| Gate | Threshold | When |
-|------|-----------|------|
-| Unit (local `pytest`) | 95% line | Every run |
-| PR diff coverage | 80% line | PRs with ≤75 changed files |
-| Main branch push | 93% line | Merges to main |
+| Gate | Threshold | When | Source |
+|------|-----------|------|--------|
+| Unit (local `pytest`) | 95% line | Every run | `pyproject.toml` `cov-fail-under` |
+| PR diff coverage | 80% line | PRs with ≤75 changed files | `ci.yml` diff-cover step |
+| Main branch push | 93% line | Merges to main | `ci.yml` coverage-gate job |
+| Integration | 71.9% line+branch | Merges to main | `ci.yml` test-integration job |
+| Docstring | 95% | Merges to main | `ci.yml` interrogate check |
 
 ---
 
