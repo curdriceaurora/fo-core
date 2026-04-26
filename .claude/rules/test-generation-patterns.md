@@ -143,6 +143,37 @@ def test_sends_notification(self, mock_notifier):
     )
 ```
 
+### Mechanical sub-rail (T3 narrow): `assert <mock>.called` is banned
+
+The full T3 surface (call-count comparisons, payload-free `assert_called()`)
+has many legitimate uses (logger spies, control-flow probes), so a strict
+rail would be too noisy. But the **`assert <mock>.<attr>.called` attribute-
+lookup form** has zero legitimate uses — the canonical mock-library
+equivalent `<mock>.<attr>.assert_called()` is one extra character, more
+discoverable in IDEs (it's a documented method, not a flag attribute),
+and consistent with the rest of the test suite's assertion style.
+
+**Bad**:
+
+```python
+assert mock_console.print.called
+assert mock.method.called is True
+assert mock.method.called == True
+```
+
+**Good**:
+
+```python
+mock_console.print.assert_called()
+mock.method.assert_called()
+```
+
+**Mechanical rail**: `scripts/check_called_attribute_assertion.py` —
+regex detector with `# noqa: T3` opt-out for the rare case where the
+attribute access is intentional (e.g. testing the mock library itself).
+Wider T3 (call-count, payload-free `_with`-less calls) remains
+code-review-enforced.
+
 ---
 
 ## Pattern T4: TAUTOLOGICAL_DISJUNCTION
