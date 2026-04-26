@@ -6,6 +6,15 @@
 
 ## Summary
 
+> **Reading note**: the bucket totals below reflect the *original* triage
+> (`APPLY=8 + SUPPRESS=39 + DEFER=2 + DISMISS=3 = 52`). PR #210 collapses the 8
+> APPLY items into in-code suppressions (`try/except` + `# pyre-ignore[21]` on
+> the optional `numpy` / `rank_bm25` imports) rather than shipping them as
+> separate APPLY commits, and the 3 DISMISS items are handled externally in
+> the GitHub Code Scanning UI. PR #210's description therefore summarises the
+> *applied* actions as `SUPPRESS=50, DEFER=2, APPLY/DISMISS=0` — not a
+> contradiction with the table, just the post-decision view.
+
 | Bucket | Count | Notes |
 |--------|------:|-------|
 | **Total findings** | 52 | All `level: error` in SARIF |
@@ -39,15 +48,15 @@ All 8 are missing `try/except ImportError` guards on optional-dep imports. Per `
 - **Why it matters**: `numpy` ships with the `dedup-text` extra. A user on a base install hitting this module gets `ModuleNotFoundError: numpy` with no install hint. Cascading `PYRE-ERROR-11` on `NDArray` annotation (line 69) is a downstream effect of the same gap.
 - **Proposed fix** (same pattern as `src/services/search/bm25_index.py` after issue #49):
 
-  ```python
-  try:
-      import numpy as np
-      from numpy.typing import NDArray
-  except ImportError as exc:  # pragma: no cover
-      raise ImportError(
-          "Install with: pip install 'fo-core[dedup-text]'"
-      ) from exc
-  ```
+```python
+try:
+    import numpy as np
+    from numpy.typing import NDArray
+except ImportError as exc:  # pragma: no cover
+    raise ImportError(
+        "Install with: pip install 'fo-core[dedup-text]'"
+    ) from exc
+```
 
 ### A2 — `src/services/deduplication/semantic.py:12-13`
 
@@ -144,15 +153,17 @@ GitHub Code Scanning likely retains alerts for files under the old pre-flatten l
 
 > Note: the literal pre-flatten namespace token is intentionally omitted from this
 > document — `tests/ci/test_flattened_identity_guardrail.py` enforces that the legacy
-> token does not reappear in any tracked text file. Refer to it as the
-> "old namespace prefix" or `src/<old-namespace>/...` instead.
+> token does not reappear in any tracked text file, and
+> `tests/docs/test_doc_file_paths.py` rejects backtick-wrapped placeholder paths.
+> Refer to the prefix as the "old namespace prefix" in prose; substitute it
+> mentally where the suffix shows the post-flatten location.
 
-**Likely stale alerts** (paths to verify in the Security tab — substitute the old
-namespace prefix where indicated):
+**Likely stale alerts** (suffixes to verify in the Security tab — prefix each with
+the old namespace path that was removed during the flatten refactor):
 
-- `src/<old-namespace>/services/audio/transcriber.py` — file no longer exists at this path
-- `src/<old-namespace>/services/deduplication/embedder.py` — moved to `src/services/deduplication/embedder.py`
-- `src/<old-namespace>/services/search/bm25_index.py` — moved to `src/services/search/bm25_index.py`
+- `services/audio/transcriber.py` — file no longer exists at this path
+- `services/deduplication/embedder.py` — moved to `src/services/deduplication/embedder.py`
+- `services/search/bm25_index.py` — moved to `src/services/search/bm25_index.py`
 
 **Proposed action** (owner-only — requires Code Scanning UI access): dismiss with reason **"Won't fix"** and comment **"File path moved during epic/flatten-src refactor — superseded by current run on flattened layout"**.
 
@@ -163,7 +174,7 @@ The exact alert numbers depend on whatever GitHub Code Scanning shows after the 
 ## Verification
 
 1. **SARIF parses cleanly**: `jq '.runs[0].results | length' /tmp/pyre-sarif.json` → `52`. ✅
-2. **Bucket totals reconcile**: 8 + 39 + 2 + 3 (DISMISS not in the local 52) = within current 52 = 49; the 3 DISMISS items are external (GitHub UI), not in the local SARIF. The 49 local breakdown reconciles. ✅
+2. **Bucket totals reconcile**: local SARIF holds 49 findings (8 APPLY + 39 SUPPRESS + 2 DEFER); the 3 DISMISS items are external (GitHub Code Scanning UI) and not present in the local SARIF, giving 49 + 3 = 52 total. ✅
 3. **APPLY entries reproducible**: `grep -nE '^import numpy|^from numpy' src/services/{deduplication,search}/*.py` confirms the 4 files have unguarded module-level numpy imports. ✅
 4. **SUPPRESS [35] sites are inside @dataclass / ClassVar**: verified by reading each cited file. ✅
 5. **SUPPRESS [21] on redis is genuinely guarded**: lines 16–19 of `src/events/stream.py` show `try / except ImportError`. ✅
