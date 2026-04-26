@@ -319,7 +319,7 @@ class TestDisplayRecommendations:
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
                 # Should print a table
-                assert mock_console.print.called
+                mock_console.print.assert_called()
 
     def test_display_with_missing_group(self):
         extension_counts = {".mp3": 5}
@@ -328,7 +328,7 @@ class TestDisplayRecommendations:
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
-                assert mock_console.print.called
+                mock_console.print.assert_called()
 
     def test_display_multiple_groups(self):
         extension_counts = {".mp3": 5, ".mp4": 3, ".pdf": 2}
@@ -337,7 +337,7 @@ class TestDisplayRecommendations:
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
-                assert mock_console.print.called
+                mock_console.print.assert_called()
 
     def test_display_with_prerequisites(self):
         extension_counts = {".mp3": 5}
@@ -347,7 +347,7 @@ class TestDisplayRecommendations:
         with patch("cli.doctor.is_group_installed", return_value=False):
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
-                assert mock_console.print.called
+                mock_console.print.assert_called()
 
 
 # ============================================================================
@@ -546,7 +546,7 @@ class TestDoctorCommand:
 
             assert exc_info.value.exit_code == 0
             # Should output JSON
-            assert mock_echo.called
+            mock_echo.assert_called()
             import json
 
             output = json.loads(mock_echo.call_args[0][0])
@@ -616,7 +616,7 @@ class TestDoctorCommand:
                         doctor(path=tmp_path, install=True, json_output=False)
 
                         # Should have attempted installation
-                        assert mock_run.called
+                        mock_run.assert_called()
 
     def test_compound_extension_detection(self, tmp_path):
         # Test that compound extensions are properly detected
@@ -1214,7 +1214,7 @@ class TestInstallGroupsOrdering:
             with patch("cli.doctor.console") as mock_console:
                 display_recommendations(extension_counts, detected_groups)
                 # Just verify it was called without error (sorting happens internally)
-                assert mock_console.print.called
+                mock_console.print.assert_called()
 
 
 @pytest.mark.unit

@@ -289,7 +289,7 @@ class TestPipelineOrchestratorStagedProcessing:
         f = tmp_path / "file.txt"
         f.write_text("hello")
         result = orch.process_file(f)
-        assert stage.process.called
+        stage.process.assert_called()
         assert result.success is True
 
     def test_stage_returning_none_marks_failure(self, tmp_path: Path) -> None:
