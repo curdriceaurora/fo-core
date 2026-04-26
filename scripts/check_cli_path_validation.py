@@ -71,6 +71,9 @@ def _is_path_annotation(node: ast.expr | None) -> bool:
         # Union form: ``Path | None``, ``Path | str``, etc.
         return _is_path_annotation(node.left) or _is_path_annotation(node.right)
     if isinstance(node, ast.Subscript):
+        if isinstance(node.value, ast.Name) and node.value.id == "Annotated":
+            if isinstance(node.slice, ast.Tuple) and node.slice.elts:
+                return _is_path_annotation(node.slice.elts[0])
         # ``Optional[Path]``, ``list[Path]`` — recurse into the slice.
         return _is_path_annotation(node.slice)
     return False
@@ -121,6 +124,9 @@ def _collect_validator_call_targets(body: list[ast.stmt]) -> set[str]:
                 for arg in node.args:
                     if isinstance(arg, ast.Name):
                         targets.add(arg.id)
+                for kw in node.keywords:
+                    if isinstance(kw.value, ast.Name):
+                        targets.add(kw.value.id)
             self.generic_visit(node)
 
         # Nested scopes are NOT part of the command body's execution
@@ -210,7 +216,7 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
             if arg.arg not in validated:
                 violations.append((func.lineno, func.name, arg.arg))
 
-    return violations
+    return sorted(violations)
 
 
 def main() -> int:

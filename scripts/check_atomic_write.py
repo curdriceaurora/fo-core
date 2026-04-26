@@ -174,21 +174,36 @@ def _is_write_text_or_bytes(node: ast.Call) -> bool:
 
 
 def _is_open_call(node: ast.Call) -> bool:
-    """True if *node* is ``open(...)`` (the bare builtin, not ``<obj>.open(...)``)."""
+    """True if *node* is ``open(...)`` or ``<obj>.open(...)``."""
     func = node.func
-    return isinstance(func, ast.Name) and func.id == "open"
+    if isinstance(func, ast.Name) and func.id == "open":
+        return True
+    if isinstance(func, ast.Attribute) and func.attr == "open":
+        return True
+    return False
 
 
 def _extract_mode_string(node: ast.Call) -> str | None:
     """Return the mode string passed to ``open(path, mode)`` if statically known.
 
-    Handles both the positional second argument and the ``mode=`` keyword.
+    Two call shapes:
+
+    - Builtin ``open(path, mode, ...)``: the mode is the second positional
+      argument (``args[1]``).
+    - Method ``<obj>.open(mode, ...)`` (e.g. ``Path("x").open("w")``): the
+      receiver is implicit, so the mode is the *first* positional argument
+      (``args[0]``).
+
+    The ``mode=`` keyword form works for both shapes.
+
     Returns ``None`` if the mode is dynamic (variable, computed, etc.) — a
     dynamic mode could be a write or read; we conservatively skip rather
     than false-flag.
     """
-    if len(node.args) >= 2:
-        mode_arg = node.args[1]
+    is_method = isinstance(node.func, ast.Attribute)
+    mode_pos = 0 if is_method else 1
+    if len(node.args) > mode_pos:
+        mode_arg = node.args[mode_pos]
         if isinstance(mode_arg, ast.Constant) and isinstance(mode_arg.value, str):
             return mode_arg.value
     for kw in node.keywords:
@@ -290,7 +305,7 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
         if _has_opt_out_in_window(marker_lines, node.lineno, len(lines)):
             continue
         violations.append((node.lineno, _line_excerpt(lines, node.lineno)))
-    return violations
+    return sorted(violations)
 
 
 def _iter_src_files() -> list[Path]:

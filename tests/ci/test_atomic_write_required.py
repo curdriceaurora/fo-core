@@ -284,11 +284,23 @@ class TestOpenCalls:
         )
         assert len(find_violations(target)) == 1
 
-    def test_method_named_open_is_not_flagged(self, tmp_path: Path) -> None:
-        # T10 negative case: ``self.open(...)`` is a method call, not the
-        # builtin. The AST detector matches only ``ast.Name(id='open')``.
-        """Method named open is not flagged."""
-        target = _synth(tmp_path, 'self.open(p, "w")\n')
+    def test_method_call_open_with_write_mode_is_flagged(self, tmp_path: Path) -> None:
+        """Codex r219 #5: ``Path("out.json").open("w")`` is also a forbidden write.
+
+        The detector now matches both ``open(...)`` (builtin Name) and
+        ``<obj>.open(...)`` (Attribute call). Bare-method bypass closed.
+        """
+        target = _synth(tmp_path, 'Path("out.json").open("w")\n')
+        assert len(find_violations(target)) == 1
+
+    def test_method_call_open_with_read_mode_is_not_flagged(self, tmp_path: Path) -> None:
+        """T10 negative: a method-style ``open()`` with a read mode stays unflagged."""
+        target = _synth(tmp_path, 'Path("out.json").open("r")\n')
+        assert find_violations(target) == []
+
+    def test_method_call_open_without_mode_is_not_flagged(self, tmp_path: Path) -> None:
+        """T10 negative: a method-style ``open()`` with no mode arg defaults to read; not flagged."""
+        target = _synth(tmp_path, 'Path("out.json").open()\n')
         assert find_violations(target) == []
 
     def test_dynamic_mode_is_not_flagged(self, tmp_path: Path) -> None:

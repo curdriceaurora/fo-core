@@ -37,6 +37,7 @@ Exit 1 = violations found. Offending lines are printed to stderr.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -44,39 +45,8 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parent.parent
 _TESTS_DIR = _ROOT / "tests"
 
-# Match `assert <chain>.called` optionally followed by ` is True` or ` == True`.
-# Anchored to end-of-line (modulo trailing comment / whitespace) so we
-# don't catch substring uses like ``assert obj.called_once_with(x)``
-# (that's a Mock method, not the attribute) or comparisons like
-# ``assert mock.called == 3`` (that's a count check, T3 allows under
-# noqa).  The precise allowed shapes are bare attribute, `is True`, and
-# `== True`.
-#
-# The expression itself may be parenthesised — `assert (mock.called)` is
-# common when the chain is long enough to wrap, and `(...) is True` is
-# also common.  The regex therefore accepts an optional balanced pair
-# of parens around the ``<chain>.called`` portion (codex r218).
-_PATTERN = re.compile(
-    r"""^\s*assert\s+               # leading 'assert'
-        (?:                          # one of:
-            [\w.]+\.called           #   <chain>.called  (no parens)
-          | \(\s*[\w.]+\.called\s*\) #   ( <chain>.called )  (parens)
-        )
-        \s*                          # optional ws
-        (?:is\s+True|==\s*True)?     # optional truth comparison
-        \s*                          # trailing ws
-        (?:\#.*)?                    # optional trailing comment
-        $""",
-    re.VERBOSE,
-)
-
 # Opt-out marker. Matched anywhere in the trailing comment.
 _NOQA_RE = re.compile(r"#\s*noqa:\s*T3\b")
-
-
-def _is_comment_line(line: str) -> bool:
-    """True if the line (after whitespace) starts with ``#``."""
-    return line.lstrip().startswith("#")
 
 
 def _has_opt_out(line: str) -> bool:
@@ -84,14 +54,33 @@ def _has_opt_out(line: str) -> bool:
     return bool(_NOQA_RE.search(line))
 
 
+def _is_called_attribute_assertion(node: ast.Assert) -> bool:
+    """True if *node* is an `assert <expr>.called` or similar."""
+    test = node.test
+    # Case 1: assert mock.called
+    if isinstance(test, ast.Attribute) and test.attr == "called":
+        return True
+
+    # Case 2: assert mock.called is True  OR  assert mock.called == True
+    if isinstance(test, ast.Compare):
+        if len(test.ops) == 1 and len(test.comparators) == 1:
+            left = test.left
+            op = test.ops[0]
+            right = test.comparators[0]
+
+            if isinstance(left, ast.Attribute) and left.attr == "called":
+                if isinstance(op, (ast.Is, ast.Eq)):
+                    if isinstance(right, ast.Constant) and right.value is True:
+                        return True
+
+    return False
+
+
 def find_violations(path: Path) -> list[tuple[int, str]]:
     """Return [(line_number, line_text)] for each unexempted match.
 
-    Tracks triple-quoted string blocks so that fixtures embedded in
-    docstrings (notably ``tests/ci/test_*.py`` rails that demonstrate
-    the forbidden pattern inside ``dedent('''...''')`` blocks) don't
-    false-flag. The check is heuristic — counts ``\"\"\"`` / ``'''``
-    toggles per line.
+    Uses AST parsing to accurately find assertions and avoid false positives
+    inside strings, docstrings, or multi-statement lines.
     """
     violations: list[tuple[int, str]] = []
     try:
@@ -99,22 +88,24 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
     except (OSError, UnicodeDecodeError):
         return violations
 
-    in_triple_quote = False
-    for lineno, raw in enumerate(text.splitlines(), start=1):
-        triple_count = raw.count('"""') + raw.count("'''")
-        if triple_count % 2 == 1:
-            in_triple_quote = not in_triple_quote
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return violations
+
+    lines = text.splitlines()
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assert):
             continue
-        if in_triple_quote:
-            continue
-        if _is_comment_line(raw):
-            continue
-        if not _PATTERN.match(raw):
-            continue
-        if _has_opt_out(raw):
-            continue
-        violations.append((lineno, raw.rstrip()))
-    return violations
+        if _is_called_attribute_assertion(node):
+            lineno = node.lineno
+            if 0 < lineno <= len(lines):
+                line_text = lines[lineno - 1]
+                if not _has_opt_out(line_text):
+                    violations.append((lineno, line_text.rstrip()))
+
+    return sorted(violations)
 
 
 def _iter_test_files() -> list[Path]:

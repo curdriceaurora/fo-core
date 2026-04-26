@@ -197,7 +197,7 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
             except (AttributeError, ValueError):
                 line = f"<line {stmt.lineno}>"
             violations.append((stmt.lineno, line))
-    return violations
+    return sorted(violations)
 
 
 def _iter_test_files() -> list[Path]:
