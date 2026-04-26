@@ -241,18 +241,23 @@ def _extract_mode_string(node: ast.Call) -> str | None:
     mode (variable, computed, etc.) could be a write or read; we skip
     rather than false-flag.
     """
+    # 1. args[1] — builtin / module-level positional shape: open(path, mode)
     if len(node.args) >= 2:
         arg = node.args[1]
         if isinstance(arg, ast.Constant) and _looks_like_mode_literal(arg.value):
             return arg.value
-    if len(node.args) >= 1:
-        arg = node.args[0]
-        if isinstance(arg, ast.Constant) and _looks_like_mode_literal(arg.value):
-            return arg.value
+    # 2. mode= keyword — explicit mode beats any args[0] fallback
+    #    (codex r219 #8: `open("a", mode="r")` was misread as `"a"` because
+    #    the args[0] fallback fired before the kwarg scan).
     for kw in node.keywords:
         if kw.arg == "mode":
             if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
                 return kw.value.value
+    # 3. args[0] — instance-method shape: Path("x").open(mode)
+    if len(node.args) >= 1:
+        arg = node.args[0]
+        if isinstance(arg, ast.Constant) and _looks_like_mode_literal(arg.value):
+            return arg.value
     return None
 
 

@@ -38,19 +38,52 @@ Exit 1 = violations found. Offending lines are printed to stderr.
 from __future__ import annotations
 
 import ast
+import io
 import re
 import sys
+import tokenize
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
 _TESTS_DIR = _ROOT / "tests"
 
-# Opt-out marker. Matched anywhere in the trailing comment.
+# Opt-out marker. Searched against tokenised ``COMMENT`` tokens only —
+# never against raw line text — so a marker text inside a string literal
+# (``assert mock.called, "# noqa: T3"``) cannot bypass the rail (codex
+# r219 #9).
 _NOQA_RE = re.compile(r"#\s*noqa:\s*T3\b")
 
 
+def _collect_noqa_comment_lines(source: str) -> set[int]:
+    """Return the 1-based line numbers of every ``# noqa: T3`` *comment* token.
+
+    Tokenises *source* and only inspects ``tokenize.COMMENT`` tokens —
+    string literals containing the marker text (e.g.
+    ``assert mock.called, "# noqa: T3"``) are NOT comments and therefore
+    cannot exempt a real assertion (codex r219 #9 — bypass-via-string-literal).
+
+    Falls back to an empty set on tokenise failure (e.g. an unterminated
+    string literal in a syntactically broken file). The caller's AST
+    parse will already have failed in that case, so no violations are
+    reported either way.
+    """
+    marker_lines: set[int] = set()
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+            if tok.type == tokenize.COMMENT and _NOQA_RE.search(tok.string):
+                marker_lines.add(tok.start[0])
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return set()
+    return marker_lines
+
+
 def _has_opt_out(line: str) -> bool:
-    """True if the line contains a ``# noqa: T3`` marker."""
+    """True if the line contains a ``# noqa: T3`` marker (raw-text fallback for unit tests).
+
+    The runtime detector uses ``_collect_noqa_comment_lines`` (token-based)
+    to avoid bypass via string literals; this helper is preserved for
+    direct unit tests of the marker regex.
+    """
     return bool(_NOQA_RE.search(line))
 
 
@@ -94,6 +127,9 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
         return violations
 
     lines = text.splitlines()
+    # Token-aware marker collection — string literals containing the
+    # marker text cannot exempt a real assertion (codex r219 #9).
+    noqa_lines = _collect_noqa_comment_lines(text)
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assert):
@@ -106,9 +142,7 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
         # line of a multi-line ``assert (\n    mock.called\n)`` form is
         # a natural, ruff-format-friendly placement.  Scan every line
         # the assert spans so the opt-out works for that placement too.
-        if any(
-            0 < ln <= len(lines) and _has_opt_out(lines[ln - 1]) for ln in range(start, end + 1)
-        ):
+        if any(ln in noqa_lines for ln in range(start, end + 1)):
             continue
         if 0 < start <= len(lines):
             violations.append((start, lines[start - 1].rstrip()))

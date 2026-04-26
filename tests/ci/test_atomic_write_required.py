@@ -369,6 +369,21 @@ class TestOpenCalls:
         target = _synth(tmp_path, 'Path("x").open("w", -1)\n')
         assert len(find_violations(target)) == 1
 
+    def test_mode_kwarg_overrides_args0_path_literal(self, tmp_path: Path) -> None:
+        """Codex r219 #8: ``open("a", mode="r")`` — kwarg wins over args[0] fallback.
+
+        Round-5's args[0] fallback fired before the kwarg scan, so
+        ``open("a", mode="r")`` returned ``"a"`` (false-positive write flag).
+        Reordered: args[1] → kwarg → args[0].
+        """
+        target = _synth(tmp_path, 'open("a", mode="r")\n')
+        assert find_violations(target) == []
+
+    def test_module_level_open_mode_kwarg_overrides_args0_literal(self, tmp_path: Path) -> None:
+        """Codex r219 #8: ``tarfile.open("r", mode="w")`` — kwarg wins; flagged correctly."""
+        target = _synth(tmp_path, 'tarfile.open("r", mode="w")\n')
+        assert len(find_violations(target)) == 1
+
     def test_dynamic_mode_is_not_flagged(self, tmp_path: Path) -> None:
         # The mode is a variable reference; we can't statically determine
         # if it's a write or read mode, so we conservatively skip rather

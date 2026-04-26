@@ -230,6 +230,30 @@ class TestFindViolationsSynthetic:
         )
         assert find_violations(target) == []
 
+    def test_noqa_inside_assertion_message_string_does_not_exempt(self, tmp_path: Path) -> None:
+        """Codex r219 #9: ``assert mock.called, "# noqa: T3"`` must NOT bypass.
+
+        The previous raw-line marker check treated the string-literal
+        message as a comment.  Token-based collection only emits real
+        ``COMMENT`` tokens, so the string-literal marker is ignored and
+        the assertion is correctly flagged.
+        """
+        target = _synth(
+            tmp_path,
+            'assert mock.method.called, "# noqa: T3"\n',
+        )
+        assert len(find_violations(target)) == 1
+
+    def test_noqa_inside_string_literal_near_assertion_does_not_exempt(
+        self, tmp_path: Path
+    ) -> None:
+        """A nearby string literal containing the marker must not exempt the assertion."""
+        target = _synth(
+            tmp_path,
+            'msg = "# noqa: T3"\nassert mock.method.called\n',
+        )
+        assert len(find_violations(target)) == 1
+
     def test_marked_multiline_assertion_on_closing_paren_is_not_flagged(
         self, tmp_path: Path
     ) -> None:
