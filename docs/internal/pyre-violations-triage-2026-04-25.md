@@ -7,14 +7,13 @@
 ## Summary
 
 > **Reading note**: the bucket totals below reflect the *original* triage
-> (`APPLY=8 + SUPPRESS=39 + DEFER=2 + DISMISS=3 = 52`). This PR collapses the 8
+> (`APPLY=8 + SUPPRESS=39 + DEFER=2 + DISMISS=3 = 52`). PR #210 collapses the 8
 > APPLY items into in-code suppressions (`try/except` + `# pyre-ignore[21]` on
-> the optional `numpy` / `rank_bm25` imports — see commit `697d6d61`) rather
-> than shipping them as separate APPLY commits, and the 3 DISMISS items are
-> handled externally in the GitHub Code Scanning UI. The PR description
-> therefore summarises the *applied* actions as `SUPPRESS=50, DEFER=2,
-> APPLY/DISMISS=0` — not a contradiction with the table, just the post-decision
-> view.
+> the optional `numpy` / `rank_bm25` imports) rather than shipping them as
+> separate APPLY commits, and the 3 DISMISS items are handled externally in
+> the GitHub Code Scanning UI. PR #210's description therefore summarises the
+> *applied* actions as `SUPPRESS=50, DEFER=2, APPLY/DISMISS=0` — not a
+> contradiction with the table, just the post-decision view.
 
 | Bucket | Count | Notes |
 |--------|------:|-------|
