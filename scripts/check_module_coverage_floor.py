@@ -43,6 +43,37 @@ from pathlib import Path
 from typing import Any
 
 ANSI_RE = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+
+
+def _is_ci() -> bool:
+    """Return True when running inside a CI environment (CI env-var is 'true').
+
+    GitHub Actions (and most other CI platforms) automatically set ``CI=true``.
+    Local developer shells typically leave this variable unset.
+    """
+    return os.environ.get("CI", "").strip().lower() == "true"
+
+
+def _load_known_drift_modules(baseline: dict[str, Any]) -> dict[str, str]:
+    """Extract the known-local-drift module map from the baseline document.
+
+    The ``known_local_drift`` section lists modules whose coverage consistently
+    measures lower locally than in CI due to optional-dependency environment
+    differences.  The floor checker skips these modules when not in CI.
+
+    Returns:
+        Dict mapping module path -> reason string.
+        Empty dict when the section is absent or structurally invalid.
+    """
+    section = baseline.get("known_local_drift")
+    if not isinstance(section, dict):
+        return {}
+    modules = section.get("modules")
+    if not isinstance(modules, dict):
+        return {}
+    return {k: str(v) for k, v in modules.items() if isinstance(k, str)}
+
+
 ROW_RE = re.compile(
     r"(src/\S+)\s+"  # module path
     r"(\d+)\s+"  # stmts
@@ -452,6 +483,25 @@ def main() -> int:
     except (TypeError, ValueError) as exc:
         print(f"ERROR: invalid module floor value in baseline: {exc}")
         return 2
+
+    # When not in CI, skip modules with known local drift to avoid false-positive
+    # floor failures caused by optional-dependency environment differences.
+    # CI always enforces the full floors (CI env-var is set to 'true' by GitHub Actions).
+    if not _is_ci():
+        known_drift = _load_known_drift_modules(baseline)
+        skipped = [m for m in baseline_modules if m in known_drift]
+        if skipped:
+            print(
+                f"NOTE: skipping {len(skipped)} module(s) with known local drift "
+                "(CI env-var not set — full floors enforced in CI):"
+            )
+            for m in sorted(skipped):
+                print(f"  - {m}: {known_drift[m]}")
+            baseline_modules = {k: v for k, v in baseline_modules.items() if k not in known_drift}
+            # Also drop drift modules from the report so evaluate() does not treat
+            # them as "new" modules and apply new_module_min — that would re-trigger
+            # the very floor failures the allowlist is meant to suppress locally.
+            report_modules = {k: v for k, v in report_modules.items() if k not in known_drift}
 
     regressions, low_new_modules, missing_from_report = evaluate(
         report_modules,

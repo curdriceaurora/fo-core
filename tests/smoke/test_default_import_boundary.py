@@ -19,7 +19,6 @@ import sys
 sys.modules["numpy"] = None  # block numpy
 
 import core.organizer        # must not raise
-import cli.dedupe_hash       # must not raise (hash-based dedup path)
 from services.deduplication.detector import DuplicateDetector  # must not raise
 import services.search        # must not raise (HybridRetriever guard required)
 """

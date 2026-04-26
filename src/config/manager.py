@@ -24,8 +24,15 @@ from typing import Any
 
 import yaml
 
+from config.migrations import compare_versions, migrate_to_current
 from config.path_manager import get_config_dir
-from config.schema import AppConfig, ModelPreset, UpdateSettings
+from config.schema import (
+    CURRENT_SCHEMA_VERSION,
+    LEGACY_CONFIG_VERSION,
+    AppConfig,
+    ModelPreset,
+    UpdateSettings,
+)
 from models.base import DeviceType, ModelConfig, ModelType
 from utils.atomic_write import atomic_write_text
 
@@ -105,6 +112,55 @@ class ConfigManager:
         if not isinstance(data, dict):
             logger.debug("Profile '%s' not found, using defaults", profile)
             return AppConfig(profile_name=profile)
+
+        # F6 (hardening roadmap #159): version-bump handling.
+        # Migrate old versions forward; WARN loudly on future/unknown
+        # versions so operators know the config may have fields this
+        # binary can't round-trip. Migration errors fall back to
+        # defaults rather than crashing the CLI at startup — we'd
+        # rather a user's customizations be lost to fresh defaults
+        # than have ``fo`` fail to start at all.
+        # Codex P2 PRRT_kwDOR_Rkws59fwMM: missing/null ``version`` is
+        # an UNVERSIONED / pre-F6 config. Classify as
+        # ``LEGACY_CONFIG_VERSION`` (frozen 1.0 baseline), NOT as
+        # ``CURRENT_SCHEMA_VERSION``. A future bump to 2.0 would
+        # otherwise silently skip migrations for these files, losing
+        # any fields renamed in the 1.0→2.0 transition.
+        raw_version = data.get("version", LEGACY_CONFIG_VERSION)
+        disk_version = str(raw_version) if raw_version is not None else LEGACY_CONFIG_VERSION
+        if disk_version != CURRENT_SCHEMA_VERSION:
+            # Use numeric compare: ``"10.0" > "2.0"`` must be True.
+            if compare_versions(disk_version, CURRENT_SCHEMA_VERSION) > 0:
+                logger.warning(
+                    "Config file version %s is newer than this build's "
+                    "schema version %s. Loading best-effort; fields "
+                    "introduced in the newer schema may be dropped. "
+                    "Consider upgrading fo to keep settings lossless.",
+                    disk_version,
+                    CURRENT_SCHEMA_VERSION,
+                )
+            else:
+                logger.info(
+                    "Migrating config from version %s to %s",
+                    disk_version,
+                    CURRENT_SCHEMA_VERSION,
+                )
+                try:
+                    data = migrate_to_current(
+                        data,
+                        from_version=disk_version,
+                        to_version=CURRENT_SCHEMA_VERSION,
+                    )
+                except Exception:
+                    logger.error(
+                        "Config migration from %s to %s failed; "
+                        "falling back to defaults. The on-disk file is "
+                        "left untouched — your previous config is safe.",
+                        disk_version,
+                        CURRENT_SCHEMA_VERSION,
+                        exc_info=True,
+                    )
+                    return AppConfig(profile_name=profile)
 
         return self._dict_to_config(data, profile)
 
@@ -361,9 +417,16 @@ class ConfigManager:
 
     @staticmethod
     def _config_to_dict(config: AppConfig) -> dict[str, Any]:
-        """Serialize an AppConfig to a plain dict for YAML output."""
+        """Serialize an AppConfig to a plain dict for YAML output.
+
+        F6: always stamps :data:`CURRENT_SCHEMA_VERSION` into the
+        serialized record rather than the in-memory ``config.version``
+        field. After a successful migration, the migrated data needs
+        to be written back with the NEW version stamp so the next
+        load doesn't re-trigger migration on already-migrated data.
+        """
         data: dict[str, Any] = {
-            "version": config.version,
+            "version": CURRENT_SCHEMA_VERSION,
             "default_methodology": config.default_methodology,
             "setup_completed": config.setup_completed,
             "models": asdict(config.models),
@@ -409,7 +472,7 @@ class ConfigManager:
 
         return AppConfig(
             profile_name=profile,
-            version=data.get("version", "1.0"),
+            version=data.get("version", CURRENT_SCHEMA_VERSION),
             default_methodology=data.get("default_methodology", "none"),
             setup_completed=data.get("setup_completed", False),
             models=models,
