@@ -895,6 +895,62 @@ def test_load_known_drift_modules_returns_empty_for_malformed_section() -> None:
     assert module._load_known_drift_modules({"known_local_drift": {"modules": 42}}) == {}
 
 
+def test_known_drift_module_below_new_module_min_still_skipped_when_not_in_ci(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Regression: drift modules must be removed from report_modules too.
+
+    Filtering only baseline_modules leaves the drift module in report_modules,
+    which causes evaluate() to treat it as a "new" module and apply
+    new_module_min — re-triggering the very floor failure the allowlist is meant
+    to suppress. Reproduce by setting the actual coverage below new_module_min
+    (71.9%) and asserting the run still passes outside CI.
+    """
+    module = _load_module()
+    monkeypatch.delenv("CI", raising=False)
+
+    report = tmp_path / "report.txt"
+    _write_report(
+        report,
+        [
+            # 60% — below new_module_min (71.9%) and below the 82% floor
+            "src/optimization/memory_profiler.py  100  40  40  3  60%",
+            "src/cli/update.py  100  5  40  2  95%",
+        ],
+    )
+
+    baseline = _make_baseline_with_drift(
+        tmp_path,
+        {
+            "src/optimization/memory_profiler.py": 82.0,
+            "src/cli/update.py": 90.0,
+        },
+    )
+
+    rc = _run_main(
+        module,
+        monkeypatch,
+        [
+            "--report-path",
+            str(report),
+            "--baseline-path",
+            str(baseline),
+            "--repo-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert rc == 0
+    captured = capsys.readouterr().out
+    assert "NOTE:" in captured
+    assert "src/optimization/memory_profiler.py" in captured
+    # Must not be flagged in the low-new-module failure section
+    assert "New modules below required minimum" not in captured
+    assert "PASS" in captured
+
+
 def test_known_drift_both_drift_modules_skipped_when_not_in_ci(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

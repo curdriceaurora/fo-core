@@ -72,6 +72,8 @@ def _load_known_drift_modules(baseline: dict[str, Any]) -> dict[str, str]:
     if not isinstance(modules, dict):
         return {}
     return {k: str(v) for k, v in modules.items() if isinstance(k, str)}
+
+
 ROW_RE = re.compile(
     r"(src/\S+)\s+"  # module path
     r"(\d+)\s+"  # stmts
@@ -496,6 +498,10 @@ def main() -> int:
             for m in sorted(skipped):
                 print(f"  - {m}: {known_drift[m]}")
             baseline_modules = {k: v for k, v in baseline_modules.items() if k not in known_drift}
+            # Also drop drift modules from the report so evaluate() does not treat
+            # them as "new" modules and apply new_module_min — that would re-trigger
+            # the very floor failures the allowlist is meant to suppress locally.
+            report_modules = {k: v for k, v in report_modules.items() if k not in known_drift}
 
     regressions, low_new_modules, missing_from_report = evaluate(
         report_modules,
