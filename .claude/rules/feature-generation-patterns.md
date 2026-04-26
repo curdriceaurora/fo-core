@@ -126,6 +126,28 @@ with self._lock:
       concurrent CI job truncates the file; downstream tooling then reads garbage.
 - [ ] `@lru_cache` on a function reading env vars? → Remove cache
 
+**Mechanical rail**: The atomic-write requirement for persistent state in
+`src/` is enforced by the `atomic-write-required` pre-commit hook
+(`scripts/check_atomic_write.py`) and the corresponding semantic guardrail
+(`tests/ci/test_atomic_write_required.py`). Any `Path.write_text`,
+`Path.write_bytes`, or `open(p, "w"|"wb"|"a"|"ab")` call in `src/` must
+either use one of the `utils.atomic_write` helpers (`atomic_write_text`,
+`atomic_write_bytes`, `atomic_write_with`, `append_durable`) or carry an
+explicit opt-out comment. Accepted opt-out reasons:
+
+| Reason | When to use |
+|--------|-------------|
+| `# atomic-write: ok — manual temp+replace pattern` | Site already uses `tempfile.NamedTemporaryFile` + `os.replace()` (or equivalent `temp_path.replace()` / `temp_file.replace()`). Migration to the helper is a follow-up clean-up. |
+| `# atomic-write: ok — user output` | One-shot CLI export to a user-supplied path. Atomicity isn't required because the user retries on failure (e.g. `fo history export`, deduplication report, analytics dashboard). |
+| `# atomic-write: ok — pid file (single-writer via daemon lifecycle)` | PID file owned by exactly one daemon process; atomicity comes from the daemon-lifecycle invariant, not the write call. |
+| `# atomic-write: ok — fcntl lock file, stable inode required` | Lock file opened in append mode so its inode stays stable across callers; truncate-on-write would break the locking protocol. |
+| `# atomic-write: ok — append_durable pattern (LOCK_EX + fsync below)` | Journal-style append inside a `LOCK_EX` block with explicit `fsync` after the write. |
+| `# atomic-write: ok — journal compaction inside _locked() (caller holds LOCK_EX)` | Whole-journal rewrite under exclusive lock. |
+| `# atomic-write: ok — one-shot migration backup, retry-on-fail safe` | Migration backup written before destructive operation; rerun-safe. |
+
+Files that *implement* the atomic-write primitives are exempt at the file level:
+`src/utils/atomic_write.py`, `src/utils/atomic_io.py`.
+
 ---
 
 ## Pattern F4: SECURITY_VULN — 74 findings (highest-frequency)

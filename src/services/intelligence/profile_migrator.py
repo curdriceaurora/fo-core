@@ -273,7 +273,9 @@ class ProfileMigrator:
             backup_path = backup_dir / f"{backup_name}.json"
 
             # Write backup
-            with open(backup_path, "w", encoding="utf-8") as f:
+            with open(
+                backup_path, "w", encoding="utf-8"
+            ) as f:  # atomic-write: ok — one-shot migration backup, retry-on-fail safe
                 json.dump(profile.to_dict(), f, indent=2, ensure_ascii=False)
 
             print(f"Created migration backup: {backup_path}")

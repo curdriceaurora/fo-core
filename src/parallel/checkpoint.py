@@ -150,7 +150,9 @@ class CheckpointManager:
         # Atomic write: write to temp file, fsync, rename, then fsync directory
         temp_path = path.with_suffix(".tmp")
         try:
-            with open(temp_path, "w", encoding="utf-8") as f:
+            with open(
+                temp_path, "w", encoding="utf-8"
+            ) as f:  # atomic-write: ok — manual temp+replace pattern (lines 151-158)
                 f.write(json.dumps(data, indent=2, default=str))
                 f.flush()
                 os.fsync(f.fileno())

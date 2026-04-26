@@ -93,6 +93,21 @@ repos:
         pass_filenames: false
 
       # ----------------------------------------------------------------
+      # Atomic-write rail: persistent file writes in src/ must use the
+      # utils.atomic_write helpers (or carry an explicit
+      # `# atomic-write: ok — <reason>` opt-out comment). Blocks
+      # regressions of the F3 / Epic B.atomic hardening (PRs #176, #195,
+      # #197, #203, #204).  See .claude/rules/feature-generation-patterns.md
+      # F3 and tests/ci/test_atomic_write_required.py for the rail body.
+      # ----------------------------------------------------------------
+      - id: atomic-write-required
+        name: persistent writes in src/ must be atomic
+        entry: python3 scripts/check_atomic_write.py
+        language: system
+        pass_filenames: false
+        files: ^src/.*\.py$
+
+      # ----------------------------------------------------------------
       # G2: No f-strings in logger calls (single or double quote)
       # Matches: logger.debug(f"..."), logger.info(f'...'),
       #          logger.exception( f"..."), etc.

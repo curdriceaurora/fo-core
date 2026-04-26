@@ -83,10 +83,10 @@ class WorkflowIntegration(Integration):
         alfred_path = output_dir / f"alfred-{stem}-{stamp}.json"
         raycast_path = output_dir / f"raycast-{stem}-{stamp}.json"
 
-        alfred_path.write_text(
+        alfred_path.write_text(  # atomic-write: ok — user output (launcher workflow file)
             json.dumps(alfred, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-        raycast_path.write_text(
+        raycast_path.write_text(  # atomic-write: ok — user output (launcher workflow file)
             json.dumps(raycast, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         return True

@@ -390,7 +390,7 @@ class SuggestionFeedback:
             "exported_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
-        with open(output_file, "w") as f:
+        with open(output_file, "w") as f:  # atomic-write: ok — user output (one-shot CLI export)
             json.dump(data, f, indent=2)
 
         logger.info(f"Exported feedback to {output_file}")
