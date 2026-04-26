@@ -78,9 +78,7 @@ class TestMigrationBackupSystem:
         )
 
     @pytest.fixture
-    def migration_manager(
-        self, config: PARAConfig, tmp_path: Path
-    ) -> PARAMigrationManager:
+    def migration_manager(self, config: PARAConfig, tmp_path: Path) -> PARAMigrationManager:
         """Create migration manager instance with isolated backup root."""
         manager = PARAMigrationManager(config)
         # Override backup_root to use tmp_path so parallel tests don't collide
@@ -437,9 +435,7 @@ class TestMigrationManagerEdgeCases:
         )
 
     @pytest.fixture
-    def migration_manager(
-        self, config: PARAConfig, tmp_path: Path
-    ) -> PARAMigrationManager:
+    def migration_manager(self, config: PARAConfig, tmp_path: Path) -> PARAMigrationManager:
         """Create migration manager instance with isolated backup root."""
         manager = PARAMigrationManager(config)
         manager.backup_root = tmp_path / "migration-backups"

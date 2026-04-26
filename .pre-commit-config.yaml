@@ -108,6 +108,19 @@ repos:
         files: ^src/.*\.py$
 
       # ----------------------------------------------------------------
+      # pytest.raises hygiene: no mock assertion after `raise` inside the
+      # block (the assertion is unreachable). Closes the gap left when
+      # PT012 is suppressed via `# noqa: PT012` for legitimate
+      # multi-statement bodies. See tests/ci/test_pytest_raises_hygiene.py.
+      # ----------------------------------------------------------------
+      - id: pytest-raises-hygiene
+        name: no mock assertion after raise in pytest.raises blocks
+        entry: python3 scripts/check_pytest_raises_hygiene.py
+        language: system
+        pass_filenames: false
+        files: ^tests/.*\.py$
+
+      # ----------------------------------------------------------------
       # G2: No f-strings in logger calls (single or double quote)
       # Matches: logger.debug(f"..."), logger.info(f'...'),
       #          logger.exception( f"..."), etc.
