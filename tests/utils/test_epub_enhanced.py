@@ -247,6 +247,7 @@ class TestEnhancedEPUBReader:
         assert reader._word_to_number("tenth") == 10
         assert reader._word_to_number("eleventh") is None  # Not in map
 
+    @pytest.mark.ci
     @patch("utils.epub_enhanced.BeautifulSoup")
     def test_extract_chapter_title(self, mock_bs):
         """Test extracting chapter title from HTML."""

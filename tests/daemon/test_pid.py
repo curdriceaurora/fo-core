@@ -32,42 +32,6 @@ def pid_file(tmp_path: Path) -> Path:
 
 
 @pytest.mark.unit
-class TestWritePid:
-    """Tests for PidFileManager.write_pid."""
-
-    def test_write_current_pid(self, pid_manager: PidFileManager, pid_file: Path) -> None:
-        """write_pid writes the current PID by default."""
-        pid_manager.write_pid(pid_file)
-
-        assert pid_file.exists()
-        content = pid_file.read_text().strip()
-        assert int(content) == os.getpid()
-
-    def test_write_specific_pid(self, pid_manager: PidFileManager, pid_file: Path) -> None:
-        """write_pid writes the provided PID when given."""
-        pid_manager.write_pid(pid_file, pid=12345)
-
-        content = pid_file.read_text().strip()
-        assert content == "12345"
-
-    def test_write_creates_parent_directories(
-        self, pid_manager: PidFileManager, tmp_path: Path
-    ) -> None:
-        """write_pid creates parent directories if missing."""
-        nested = tmp_path / "a" / "b" / "c" / "daemon.pid"
-        pid_manager.write_pid(nested)
-
-        assert nested.exists()
-
-    def test_write_overwrites_existing(self, pid_manager: PidFileManager, pid_file: Path) -> None:
-        """write_pid overwrites an existing PID file."""
-        pid_manager.write_pid(pid_file, pid=111)
-        pid_manager.write_pid(pid_file, pid=222)
-
-        assert pid_manager.read_pid(pid_file) == 222
-
-
-@pytest.mark.unit
 class TestReadPid:
     """Tests for PidFileManager.read_pid."""
 
@@ -125,7 +89,7 @@ class TestIsRunning:
 
     def test_current_process_is_running(self, pid_manager: PidFileManager, pid_file: Path) -> None:
         """is_running returns True for the current process."""
-        pid_manager.write_pid(pid_file)
+        pid_manager.write_pid_record(pid_file)
         assert pid_manager.is_running(pid_file) is True
 
     def test_nonexistent_file_not_running(
@@ -200,9 +164,9 @@ class TestPidRecord:
     def test_read_pid_record_legacy_integer_format(
         self, pid_manager: PidFileManager, pid_file: Path
     ) -> None:
-        """Legacy PID files (written by ``write_pid``, which is text-only)
-        still parse — create_time is None, caller falls back to
-        pid-only liveness check."""
+        """Legacy text-only PID files (plain integer, no JSON record)
+        still parse — create_time is None, and is_running falls back to
+        the pid-only liveness check."""
         pid_file.write_text(str(os.getpid()))
         record = pid_manager.read_pid_record(pid_file)
         assert record is not None

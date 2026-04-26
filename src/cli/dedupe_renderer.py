@@ -122,8 +122,9 @@ def _validate_level(level: str) -> MessageLevel:
         raise ValueError(
             f"Unknown message level {level!r}; expected one of: " + ", ".join(_VALID_LEVELS)
         )
-    # After the membership check above, mypy narrows ``level`` to the Literal.
-    return level
+    # mypy does not narrow ``str`` to ``MessageLevel`` from a runtime
+    # ``in tuple[Literal, ...]`` check, so suppress the return-value error.
+    return level  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +157,7 @@ class RichRenderer:
 
     def status(self, message: str) -> _StatusCtx:
         """Return Rich's :meth:`Console.status` spinner as a context manager."""
-        return self._console.status(message)
+        return self._console.status(message)  # type: ignore[no-any-return]
 
     def render_groups_header(self, count: int) -> None:
         """Emit ``Found N duplicate groups`` as a Rich-styled line."""

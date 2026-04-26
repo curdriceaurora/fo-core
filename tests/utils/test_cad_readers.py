@@ -290,6 +290,7 @@ def test_read_cad_file_dxf(sample_dxf_file: Path) -> None:
     assert len(result) > 0
 
 
+@pytest.mark.ci
 def test_read_cad_file_step(sample_step_file: Path) -> None:
     """Test CAD dispatcher with STEP file."""
     result = read_cad_file(sample_step_file)
@@ -298,6 +299,7 @@ def test_read_cad_file_step(sample_step_file: Path) -> None:
     assert "STEP" in result
 
 
+@pytest.mark.ci
 def test_read_cad_file_iges(sample_iges_file: Path) -> None:
     """Test CAD dispatcher with IGES file."""
     result = read_cad_file(sample_iges_file)

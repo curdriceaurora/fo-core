@@ -7,9 +7,9 @@ Covers:
   HEALTHY/DEGRADED/UNHEALTHY thresholds), check_all (bus only, bus+discovery),
   get_history, clear_history (single/all), _resolve_status, _record ring buffer,
   repr
-- PidFileManager: write_pid (current pid, explicit pid), read_pid (exists,
-  missing, empty, invalid), remove_pid (exists, missing), is_running
-  (current process, dead pid, missing file)
+- PidFileManager: write_pid_record, read_pid (exists, missing, empty,
+  invalid), remove_pid (exists, missing), is_running (current process,
+  dead pid, missing file)
 """
 
 from __future__ import annotations
@@ -325,46 +325,37 @@ class TestHealthCheckerResolveStatus:
 
 
 class TestPidFileManager:
-    def test_write_pid_uses_current_process_by_default(self, tmp_path: Path) -> None:
+    def test_write_pid_record_uses_current_process_by_default(self, tmp_path: Path) -> None:
+        import json
+
         from daemon.pid import PidFileManager
 
         mgr = PidFileManager()
         pid_file = tmp_path / "daemon.pid"
-        mgr.write_pid(pid_file)
+        record = mgr.write_pid_record(pid_file)
         assert pid_file.exists()
-        content = pid_file.read_text().strip()
-        assert int(content) == os.getpid()
+        assert record.pid == os.getpid()
+        data = json.loads(pid_file.read_text())
+        assert data["pid"] == os.getpid()
 
-    def test_write_pid_uses_explicit_pid(self, tmp_path: Path) -> None:
-        from daemon.pid import PidFileManager
+    def test_write_pid_record_creates_parent_dirs(self, tmp_path: Path) -> None:
+        import json
 
-        mgr = PidFileManager()
-        pid_file = tmp_path / "daemon.pid"
-        mgr.write_pid(pid_file, pid=12345)
-        assert pid_file.read_text().strip() == "12345"
-
-    def test_write_pid_creates_parent_dirs(self, tmp_path: Path) -> None:
         from daemon.pid import PidFileManager
 
         mgr = PidFileManager()
         nested = tmp_path / "a" / "b" / "daemon.pid"
-        mgr.write_pid(nested)
+        mgr.write_pid_record(nested)
         assert nested.exists()
-
-    def test_write_pid_accepts_string_path(self, tmp_path: Path) -> None:
-        from daemon.pid import PidFileManager
-
-        mgr = PidFileManager()
-        pid_file = tmp_path / "daemon.pid"
-        mgr.write_pid(str(pid_file))
-        assert pid_file.exists()
+        record = json.loads(nested.read_text())
+        assert record["pid"] == os.getpid()
 
     def test_read_pid_returns_int_when_file_exists(self, tmp_path: Path) -> None:
         from daemon.pid import PidFileManager
 
         mgr = PidFileManager()
         pid_file = tmp_path / "daemon.pid"
-        mgr.write_pid(pid_file, pid=9999)
+        pid_file.write_text("9999")
         assert mgr.read_pid(pid_file) == 9999
 
     def test_read_pid_returns_none_when_missing(self, tmp_path: Path) -> None:
@@ -394,7 +385,7 @@ class TestPidFileManager:
 
         mgr = PidFileManager()
         pid_file = tmp_path / "daemon.pid"
-        mgr.write_pid(pid_file)
+        pid_file.write_text(str(os.getpid()))
         assert mgr.remove_pid(pid_file) is True
         assert not pid_file.exists()
 
@@ -409,7 +400,7 @@ class TestPidFileManager:
 
         mgr = PidFileManager()
         pid_file = tmp_path / "daemon.pid"
-        mgr.write_pid(pid_file)  # writes current PID
+        mgr.write_pid_record(pid_file)
         assert mgr.is_running(pid_file) is True
 
     def test_is_running_false_when_file_missing(self, tmp_path: Path) -> None:
@@ -425,8 +416,8 @@ class TestPidFileManager:
 
         mgr = PidFileManager()
         pid_file = tmp_path / "daemon.pid"
-        mgr.write_pid(pid_file, pid=99999999)
-        with patch("daemon.pid.os.kill", side_effect=ProcessLookupError):
+        pid_file.write_text("99999999")
+        with patch("daemon.pid.psutil.pid_exists", return_value=False):
             result = mgr.is_running(pid_file)
         assert result is False
 

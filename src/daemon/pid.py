@@ -61,32 +61,11 @@ class PidFileManager:
 
     Example:
         >>> manager = PidFileManager()
-        >>> pid_path = Path("/tmp/daemon.pid")
-        >>> manager.write_pid(pid_path)
+        >>> pid_path = Path("/run/daemon.pid")
+        >>> manager.write_pid_record(pid_path)
         >>> assert manager.is_running(pid_path)
         >>> manager.remove_pid(pid_path)
     """
-
-    def write_pid(self, pid_file: Path, pid: int | None = None) -> None:
-        """Write the current (or specified) process ID to a PID file.
-
-        Creates parent directories if they do not exist. Overwrites
-        any existing PID file at the same path.
-
-        Args:
-            pid_file: Path where the PID file will be written.
-            pid: Process ID to write. Defaults to the current process.
-
-        Raises:
-            OSError: If the file cannot be written.
-        """
-        pid_file = Path(pid_file)
-        pid = pid if pid is not None else os.getpid()
-
-        pid_file.parent.mkdir(parents=True, exist_ok=True)
-        # atomic-write: ok — pid file (single-writer via daemon lifecycle)
-        pid_file.write_text(str(pid))
-        logger.debug("Wrote PID %d to %s", pid, pid_file)
 
     def read_pid(self, pid_file: Path) -> int | None:
         """Read the process ID from a PID file.
@@ -138,10 +117,8 @@ class PidFileManager:
     def write_pid_record(self, pid_file: Path, pid: int | None = None) -> PidRecord:
         """Write a PID + process-start-time record to *pid_file*.
 
-        F2 (hardening roadmap #159): unlike :meth:`write_pid`, this
-        records the process's start time so :meth:`is_running` can
-        detect PID recycling. Use this method for new daemons; the
-        legacy :meth:`write_pid` remains for backward compat.
+        F2 (hardening roadmap #159): records the process's start time
+        so :meth:`is_running` can detect PID recycling.
 
         Args:
             pid_file: Path where the record will be written.

@@ -153,7 +153,7 @@ def read_file(file_path: str | Path, **kwargs: object) -> str | None:
         for extensions, reader in readers.items():
             if check_ext in extensions:
                 try:
-                    return reader(file_path, **kwargs)
+                    return reader(file_path, **kwargs)  # type: ignore[operator,no-any-return]
                 except Exception as e:  # Intentional catch-all: delegates to many reader impls
                     logger.error(f"Error reading {file_path.name}: {e}")
                     raise
