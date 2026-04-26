@@ -244,9 +244,7 @@ class TestFindViolationsSynthetic:
         violations = find_violations(target)
         assert len(violations) == 1
 
-    def test_multiline_open_marker_on_closing_paren_is_not_flagged(
-        self, tmp_path: Path
-    ) -> None:
+    def test_multiline_open_marker_on_closing_paren_is_not_flagged(self, tmp_path: Path) -> None:
         # Cover the common ruff-formatted multiline open() shape where the
         # call starts on one line, the mode string is on a later line, and the
         # opt-out marker sits on the closing-paren line.
@@ -256,9 +254,7 @@ class TestFindViolationsSynthetic:
         )
         assert find_violations(target) == []
 
-    def test_multiline_open_in_string_literal_not_flagged_via_opt_out(
-        self, tmp_path: Path
-    ) -> None:
+    def test_multiline_open_in_string_literal_not_flagged_via_opt_out(self, tmp_path: Path) -> None:
         # Marker embedded inside a string literal on the open( line must not
         # exempt the call; the opt-out must appear in an actual comment.
         target = self._write(

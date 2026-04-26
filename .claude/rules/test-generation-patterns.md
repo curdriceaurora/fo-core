@@ -638,6 +638,53 @@ Automatable: a grep guardrail bans this pattern outright (see `tests/ci/test_tes
 
 ---
 
+## Pattern T15: MOCK_ASSERTION_AFTER_RAISE_IN_PYTEST_RAISES
+
+**What it is**: A mock assertion (`mock.X.assert_called*(...)` or
+`assert mock.X.called`) placed AFTER a top-level `raise` inside a
+`with pytest.raises(...):` block. The `raise` terminates control flow,
+so the mock assertion is unreachable — but reads as a real check.
+
+PR-A's PT012 catches multi-statement `pytest.raises` blocks generally,
+but is silenced inside the 11 sites that carry `# noqa: PT012` for
+legitimately multi-statement bodies (transaction rollback,
+context-manager exit semantics, `try/except` subclass-non-catching,
+etc.). T15 closes that hole with a targeted AST rail.
+
+**Bad**:
+
+```python
+with pytest.raises(ValueError):  # noqa: PT012 — context-manager exit semantics
+    with manager() as m:
+        do_setup()
+        raise ValueError("boom")
+        m.cleanup.assert_called_once()  # UNREACHABLE — never executes
+```
+
+**Good**:
+
+```python
+# Move the mock assertion AFTER the with-block exits.
+with pytest.raises(ValueError):  # noqa: PT012 — context-manager exit semantics
+    with manager() as m:
+        do_setup()
+        raise ValueError("boom")
+m.cleanup.assert_called_once()  # exit-on-exception verified here
+```
+
+**Pre-generation check**: After writing a `pytest.raises` block, ask:
+*"Is anything below the `raise` inside this block? If yes — those statements
+won't run. Move them outside the `with` (where they execute after the
+exception propagates) or delete them."*
+
+**Mechanical rail**: `scripts/check_pytest_raises_hygiene.py` — AST visitor
+that flags any mock assertion (recognised method names + bare
+`assert <mock>.called`) appearing after a top-level `raise` inside a
+`with pytest.raises(...):` block. Conservative: only top-level `raise`
+counts as terminating, so conditional / nested raises don't false-flag.
+
+---
+
 ## Rule of Thumb
 
 For every assertion, ask:
@@ -654,5 +701,6 @@ For every assertion, ask:
 11. **T12**: "Snapshotted shared state? Make sure teardown actually restores the snapshot (including sub-module keys)."
 12. **T13**: "Hardcoded path string in test data? Use `tmp_path` instead."
 13. **T14**: "`(_ for _ in ()).throw(...)` — never. Use a named function or `MagicMock(side_effect=...)`."
+14. **T15**: "Anything after a top-level `raise` inside a `with pytest.raises(...):`? Move it outside the block — it's unreachable."
 
 **Last audited PR**: #140 (PR review cycle 2026-03-21 to 2026-04-21)
