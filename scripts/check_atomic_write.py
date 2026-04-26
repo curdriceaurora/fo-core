@@ -55,9 +55,10 @@ _ALLOWLISTED_FILES = frozenset(
 )
 
 # Forbidden write patterns: Path.write_text(, Path.write_bytes(,
-# open(<...>, "w"|"wb"|"a"|"ab")
-# Matches are line-based; multi-line ``open()`` calls are rare in practice
-# and can be marked with the opt-out on the line containing the mode string.
+# open(<...>, "w"|"wb"|"a"|"ab").  Single-line forms are matched by
+# _PATTERNS; multi-line ``open()`` calls (where the mode string is on a
+# subsequent line) are detected by _OPEN_RE + _WRITE_MODE_RE in
+# find_violations().
 _PATTERNS = (
     re.compile(r"\.write_text\("),
     re.compile(r"\.write_bytes\("),
@@ -65,8 +66,15 @@ _PATTERNS = (
     re.compile(r"""\bopen\([^)]*['"]a[b]?['"]"""),
 )
 
-# Opt-out marker. Anchored to the trailing comment so a marker embedded
-# inside a string literal earlier on the line doesn't satisfy the rule.
+# Used to detect the *start* of a multi-line open() call.
+_OPEN_RE = re.compile(r"\bopen\(")
+# Matches a write/append mode string used in the lookahead window for
+# multi-line open() detection.
+_WRITE_MODE_RE = re.compile(r"""['"](?:w[ba]?|a[b]?)['"]""")
+
+# Opt-out marker.  Checked against the *comment portion* of the line only
+# (see _comment_portion) so a marker embedded inside a string literal does
+# not incorrectly satisfy the rule.
 _OPT_OUT_RE = re.compile(r"#\s*atomic-write:\s*ok\b")
 
 
@@ -75,9 +83,35 @@ def _is_comment_line(line: str) -> bool:
     return line.lstrip().startswith("#")
 
 
+def _comment_portion(line: str) -> str:
+    """Return everything from the first ``#`` that is outside a string literal.
+
+    Walks *line* left-to-right tracking single- and double-quoted string state
+    (including backslash escapes) and returns the substring starting at the
+    first ``#`` that falls outside any quote. Returns ``""`` when no such
+    ``#`` exists.
+    """
+    in_str: str | None = None
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if in_str:
+            if ch == "\\":
+                i += 2  # skip escaped character
+                continue
+            if ch == in_str:
+                in_str = None
+        elif ch in ('"', "'"):
+            in_str = ch
+        elif ch == "#":
+            return line[i:]
+        i += 1
+    return ""
+
+
 def _has_opt_out(line: str) -> bool:
-    """True if the line contains the ``# atomic-write: ok`` marker."""
-    return bool(_OPT_OUT_RE.search(line))
+    """True if the line's trailing comment contains the ``# atomic-write: ok`` marker."""
+    return bool(_OPT_OUT_RE.search(_comment_portion(line)))
 
 
 def _is_in_docstring_or_string(line: str) -> bool:
@@ -145,7 +179,15 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
         if in_triple_quote:
             continue
         if not _matches_forbidden(raw):
-            continue
+            # Also detect multi-line open() calls: ``open(`` on one line,
+            # mode string on a subsequent line (ruff format splits long
+            # argument lists). Scan the next _MARKER_LOOKAHEAD lines for a
+            # write/append mode string.
+            if not _OPEN_RE.search(raw):
+                continue
+            rest = lines[idx + 1 : idx + _MARKER_LOOKAHEAD]
+            if not any(_WRITE_MODE_RE.search(ln) for ln in rest):
+                continue
         if _is_comment_line(raw):
             continue
         if _is_in_docstring_or_string(raw):

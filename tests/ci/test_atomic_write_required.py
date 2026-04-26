@@ -107,6 +107,11 @@ class TestOptOutMarker:
     def test_rejects_non_canonical(self, line: str) -> None:
         assert not _has_opt_out(line)
 
+    def test_marker_inside_string_literal_is_rejected(self) -> None:
+        # A marker that appears only inside a string literal must not count as
+        # an opt-out; only a bare trailing comment satisfies the rule.
+        assert not _has_opt_out('path.write_text("# atomic-write: ok — user output")')
+
 
 class TestCommentAndDocstringHeuristics:
     """Comments and docstrings must not trip the rail."""
@@ -229,6 +234,39 @@ class TestFindViolationsSynthetic:
             '"""Module docstring.\n\nExample::\n\n    p.write_text("foo")\n"""\n',
         )
         assert find_violations(target) == []
+
+    def test_multiline_open_without_marker_is_flagged(self, tmp_path: Path) -> None:
+        # open( on one line, mode string on the next — no marker anywhere.
+        target = self._write(
+            tmp_path,
+            'with open(\n    p,\n    "w",\n) as f:\n    f.write("x")\n',
+        )
+        violations = find_violations(target)
+        assert len(violations) == 1
+
+    def test_multiline_open_marker_on_closing_paren_is_not_flagged(
+        self, tmp_path: Path
+    ) -> None:
+        # Cover the common ruff-formatted multiline open() shape where the
+        # call starts on one line, the mode string is on a later line, and the
+        # opt-out marker sits on the closing-paren line.
+        target = self._write(
+            tmp_path,
+            'with open(\n    p,\n    "w",\n) as f:  # atomic-write: ok — user output\n    f.write("x")\n',
+        )
+        assert find_violations(target) == []
+
+    def test_multiline_open_in_string_literal_not_flagged_via_opt_out(
+        self, tmp_path: Path
+    ) -> None:
+        # Marker embedded inside a string literal on the open( line must not
+        # exempt the call; the opt-out must appear in an actual comment.
+        target = self._write(
+            tmp_path,
+            'with open(\n    p,\n    "w",\n) as f:\n    f.write("# atomic-write: ok")\n',
+        )
+        violations = find_violations(target)
+        assert len(violations) == 1
 
 
 # ---------------------------------------------------------------------------
