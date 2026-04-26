@@ -69,7 +69,7 @@ fo undo
 | `fo autotag` | Auto-tag files based on content |
 | `fo copilot` | Natural-language assistant |
 | `fo rules` | Manage organization rules (YAML) |
-| `fo config show\|set` | View or update configuration |
+| `fo config show\|list\|edit` | View or update configuration |
 | `fo doctor [DIR]` | Scan a directory and recommend optional deps |
 | `fo daemon start\|stop` | Background file watcher |
 | `fo undo / redo / history` | Operation history and rollback |
@@ -117,9 +117,9 @@ Core file types (PDF, DOCX, XLSX, PPTX, EPUB, ZIP) work out of the box. RAR also
 Config lives in `~/.config/fo/config.yaml`. Override the location with the `FO_CONFIG` environment variable.
 
 ```bash
-fo config show              # view all settings
-fo config set text_model qwen2.5:3b-instruct-q4_K_M
-fo config set provider ollama
+fo config show                                           # view all settings
+fo config edit --text-model qwen2.5:3b-instruct-q4_K_M  # change text model
+fo config edit --device auto                             # change device
 ```
 
 Full configuration reference: [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
