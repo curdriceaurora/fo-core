@@ -9,8 +9,16 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-from numpy.typing import NDArray
+try:
+    import numpy as np  # pyre-ignore[21]: optional dep; absent when dedup-text extra not installed
+    from numpy.typing import NDArray  # pyre-ignore[21]
+except ImportError as exc:  # pragma: no cover
+    # Keep the literal "numpy" in the message so services/deduplication/__init__.py
+    # recognises this as a numpy-related ImportError and falls back to no-text mode
+    # in default installs that lack the dedup-text extra.
+    raise ImportError(
+        "numpy is required for semantic similarity; install with: pip install 'fo-core[dedup-text]'"
+    ) from exc
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +42,11 @@ class SemanticAnalyzer:
         self.threshold = threshold
         logger.info(f"SemanticAnalyzer initialized with threshold={threshold}")
 
-    def compute_similarity(self, doc1_vector: NDArray[Any], doc2_vector: NDArray[Any]) -> float:
+    def compute_similarity(
+        self,
+        doc1_vector: NDArray[Any],  # pyre-ignore[11]: NDArray from optional numpy dep
+        doc2_vector: NDArray[Any],
+    ) -> float:
         """Compute cosine similarity between two document vectors.
 
         Args:

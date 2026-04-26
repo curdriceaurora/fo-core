@@ -6,6 +6,8 @@ Extends ``optimization.resource_monitor`` (NVIDIA-only) with Apple
 MPS and AMD ROCm detection.
 """
 
+# pyre-ignore-all-errors[35]: Pyre 0.9.25 mis-flags dataclass/ClassVar field
+# annotations when `from __future__ import annotations` is in use.
 from __future__ import annotations
 
 import os

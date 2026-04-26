@@ -13,10 +13,12 @@ the class remains usable in environments without a running Ollama instance.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
-from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray  # pyre-ignore[21]: optional dep via search extra
 
 from services.deduplication.embedder import DocumentEmbedder
 from services.deduplication.semantic import SemanticAnalyzer
@@ -48,7 +50,8 @@ class VectorIndex:
         self._embedder = DocumentEmbedder()
         self._analyzer = SemanticAnalyzer(threshold=max(similarity_threshold, 0.0))
         self._paths: list[Path] = []
-        self._matrix: NDArray[Any] | None = None  # shape (n_docs, n_features)
+        # _matrix shape: (n_docs, n_features)
+        self._matrix: NDArray[Any] | None = None  # pyre-ignore[11]: NDArray optional dep
 
     # ------------------------------------------------------------------
     # IndexProtocol

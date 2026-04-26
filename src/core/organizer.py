@@ -10,6 +10,8 @@ delegates to extracted modules for specific concerns:
 - ``core.display``: Rich UI output (progress, summary, tables)
 """
 
+# pyre-ignore-all-errors[35]: Pyre 0.9.25 mis-flags dataclass/ClassVar field
+# annotations when `from __future__ import annotations` is in use.
 from __future__ import annotations
 
 import hashlib

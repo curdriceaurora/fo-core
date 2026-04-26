@@ -327,7 +327,7 @@ class CredentialRedactingFilter(logging.Filter):
         # idempotent on already-bracketed ``[REDACTED]`` values. Uses the
         # module-level sentinel (see comment at the top of ``filter``) so
         # external callers can't forge the idempotency marker.
-        record._fo_redacted = _RECORD_REDACTED_SENTINEL
+        record._fo_redacted = _RECORD_REDACTED_SENTINEL  # pyre-ignore[16]: intentional dynamic attr — idempotency sentinel
         return True
 
 
