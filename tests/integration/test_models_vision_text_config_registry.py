@@ -1228,11 +1228,11 @@ class TestPathManagerClass:
         assert pm.cache_dir is not None
         assert pm.metadata_dir is not None
 
-    def test_config_file_is_json(self) -> None:
+    def test_config_file_is_yaml(self) -> None:
         from config.path_manager import PathManager
 
         pm = PathManager()
-        assert pm.config_file.name == "config.json"
+        assert pm.config_file.name == "config.yaml"
         assert pm.config_file.parent == pm.config_dir
 
     def test_preferences_file_is_json(self) -> None:

@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from config.path_manager import PathManager, get_canonical_paths
 
 
@@ -64,6 +66,7 @@ def test_path_manager_creates_directories(tmp_path: Path):
             assert mock_mkdir.call_count >= 3
 
 
+@pytest.mark.ci
 def test_path_manager_provides_specific_paths(tmp_path: Path):
     """PathManager should provide specific file paths"""
     with patch.dict(os.environ, {"HOME": str(tmp_path / "user")}):
