@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire `AudioModel.generate()` (currently `NotImplementedError`) to the existing `services.audio.transcriber.AudioTranscriber`, and add an opt-in transcription smoke pass to `fo benchmark --suite audio` so the `[media]` extra delivers what its README description claims.
+**Goal:** Wire `AudioModel.generate()` (currently `NotImplementedError`) to the existing `services.audio.transcriber.AudioTranscriber`, and add an opt-in transcription smoke pass to `fo benchmark run --suite audio` so the `[media]` extra delivers what its README description claims.
 
 **Architecture:** `AudioModel` becomes a thin adapter over `services.audio.transcriber.AudioTranscriber`. The transcriber is instantiated in `AudioModel.__init__` (cheap — model weights load lazily on first `transcribe()`). `generate(prompt)` treats `prompt` as the audio file path, calls `transcriber.transcribe(path)`, and returns `result.text`. Lifecycle hooks (`_enter_generate` / `_exit_generate`) come from `BaseModel`. Benchmark gains a `--transcribe-smoke` flag that transcribes exactly one candidate file (smallest first) so the smoke test cost is bounded.
 
@@ -838,7 +838,7 @@ Expected: all PASS. Pay attention to any test asserting the exact set of fields 
 ```bash
 git add src/cli/benchmark.py tests/cli/test_benchmark_audio_transcribe.py
 git commit -m "$(cat <<'EOF'
-feat(benchmark): add --transcribe-smoke flag for fo benchmark --suite audio
+feat(benchmark): add --transcribe-smoke flag for fo benchmark run --suite audio
 
 Runs AudioModel.generate() on one candidate file when the flag is set.
 Off by default to keep default benchmark runs fast. Required for the
@@ -873,7 +873,7 @@ In `README.md`, change the Media row of the Optional Feature Packs table from:
 to:
 
 ```markdown
-| Media | `pip install -e ".[media]"` | Audio transcription (faster-whisper) + video scene detection. Exercise via `fo benchmark --suite audio --transcribe-smoke`. |
+| Media | `pip install -e ".[media]"` | Audio transcription (faster-whisper) + video scene detection. Exercise via `fo benchmark run --suite audio --transcribe-smoke`. |
 ```
 
 - [ ] **Step 3: Update pyproject.toml**
@@ -883,7 +883,7 @@ In `pyproject.toml`, locate the comment immediately above `media = [...]` and up
 ```toml
 # Optional: audio transcription (faster-whisper) and video scene detection.
 # Audio is exposed via the AudioModel class and exercised by
-# `fo benchmark --suite audio --transcribe-smoke`. Video scene detection
+# `fo benchmark run --suite audio --transcribe-smoke`. Video scene detection
 # is invoked by services/video/scene_detector.py callers.
 media = [
     "faster-whisper~=1.0",
@@ -956,7 +956,7 @@ Closes Step 2A of the alpha → beta path documented in
 
 - `AudioModel.generate()` now wraps `services.audio.transcriber.AudioTranscriber`
   instead of raising `NotImplementedError`.
-- `fo benchmark --suite audio --transcribe-smoke` runs an end-to-end
+- `fo benchmark run --suite audio --transcribe-smoke` runs an end-to-end
   transcription smoke pass on one candidate file. Default benchmark runs
   remain fast.
 - README and pyproject's `[media]` description updated to match wired surface.
@@ -968,7 +968,7 @@ Closes Step 2A of the alpha → beta path documented in
       end-to-end test with generated silent WAV passes
 - [ ] `pytest tests/cli/test_benchmark_audio_transcribe.py -v` —
       smoke flag invokes `AudioModel.generate` exactly once
-- [ ] Manual: `fo benchmark --suite audio --transcribe-smoke --input <dir>` on
+- [ ] Manual: `fo benchmark run --suite audio --transcribe-smoke --input <dir>` on
       a directory with two audio files; output reports `transcription_smoke_passed=True`
 EOF
 )"
@@ -985,7 +985,7 @@ Per `.claude/rules/pr-monitoring-protocol.md`, monitor PR until merge. Re-arm CI
 After this plan executes and merges:
 
 - `AudioModel.generate()` returns transcribed text for a real audio file. Confirmed by `tests/integration/test_audio_model_integration.py`.
-- `fo benchmark --suite audio --transcribe-smoke` succeeds end-to-end on a sample file with `[media]` installed. Confirmed by `tests/cli/test_benchmark_audio_transcribe.py` and a manual run.
+- `fo benchmark run --suite audio --transcribe-smoke` succeeds end-to-end on a sample file with `[media]` installed. Confirmed by `tests/cli/test_benchmark_audio_transcribe.py` and a manual run.
 - README and `pyproject.toml` describe what actually ships. Confirmed by Task 10.
 - No reachable `NotImplementedError` from a documented surface. Confirmed: `grep -rn "NotImplementedError" src/models/audio_model.py` returns no matches after Task 5.
 

@@ -30,23 +30,31 @@ These items must all be true to bump the classifier from `3 - Alpha` to
 
 - [ ] **Audio works end-to-end.** `AudioModel.generate()` in
       `src/models/audio_model.py` (currently raises `NotImplementedError`) is
-      wired to the existing transcriber code. `fo benchmark --suite audio`
+      wired to the existing transcriber code. `fo benchmark run --suite audio`
       succeeds on a sample audio file with the `[media]` extra installed. The
       `[media]` extra description in `pyproject.toml` and the README's
       Optional Feature Packs table accurately describe what ships.
-- [ ] **Integration coverage floors.** Global integration coverage ≥ 75%
-      (currently 71.9%). Per-module floor ≥ 70% on every module currently
-      below it in
-      `scripts/coverage/integration_module_floor_baseline.json`. The nine
-      modules below 70% as of this writing are: `services/search/__init__.py`
-      (38%), `utils/epub_enhanced.py` (55%), `daemon/service.py` (57%),
-      `services/deduplication/__init__.py` (60%),
-      `services/intelligence/profile_migrator.py` (60%),
-      `methodologies/johnny_decimal/adapters.py` (67%),
-      `services/intelligence/profile_merger.py` (67%),
-      `core/hardware_profile.py` (68%),
-      `methodologies/johnny_decimal/numbering.py` (68%). Search and daemon are
-      the highest-risk and the tallest hills.
+- [ ] **Integration coverage floors.** This is a **target floor** that must
+      be reached before the classifier flips, not a value already enforced.
+      Currently the project enforces a global floor of **71.9%** via
+      `policy.new_module_min_percent` in
+      `scripts/coverage/integration_module_floor_baseline.json` (line 10).
+      Beta entry requires ratcheting that to ≥ 75% globally and ≥ 70%
+      per-module on every module currently below it. As of the
+      2026-04-23 baseline (`scripts/coverage/integration_module_floor_baseline.json`),
+      the nine modules below 70% are:
+      `src/services/search/__init__.py` (38.0%, baseline line 260),
+      `src/utils/epub_enhanced.py` (55.0%, line 291),
+      `src/daemon/service.py` (57.0%, line 69),
+      `src/services/deduplication/__init__.py` (60.0%, line 225),
+      `src/services/intelligence/profile_migrator.py` (60.0%, line 255),
+      `src/methodologies/johnny_decimal/adapters.py` (67.0%, line 108),
+      `src/services/intelligence/profile_merger.py` (67.0%, line 254),
+      `src/core/hardware_profile.py` (68.0%, line 59),
+      `src/methodologies/johnny_decimal/numbering.py` (68.0%, line 113).
+      Search and daemon are the highest-risk and the tallest hills. The
+      Step 4 plan in `docs/superpowers/plans/2026-04-27-integration-coverage-lift-step-4.md`
+      executes the lift.
 - [ ] **Daemon smoke test in CI** exercising `start → watch → stop → status`
       and recovery after `SIGTERM`. The test runs in the integration job and
       blocks merge on failure.
