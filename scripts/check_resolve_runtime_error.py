@@ -66,9 +66,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 _SRC_DIR = _ROOT / "src"
 
 # Allowlisted path prefixes (POSIX, relative to _ROOT).
-_ALLOWLISTED_PREFIXES: tuple[str, ...] = (
-    "src/utils/",
-)
+_ALLOWLISTED_PREFIXES: tuple[str, ...] = ("src/utils/",)
 # Allowlisted exact paths (POSIX, relative to _ROOT).
 _ALLOWLISTED_EXACT: frozenset[str] = frozenset(
     {
@@ -77,9 +75,7 @@ _ALLOWLISTED_EXACT: frozenset[str] = frozenset(
 )
 
 # Exception names that cover RuntimeError transitively.
-_COVERING_NAMES: frozenset[str] = frozenset(
-    {"RuntimeError", "Exception", "BaseException"}
-)
+_COVERING_NAMES: frozenset[str] = frozenset({"RuntimeError", "Exception", "BaseException"})
 
 # Opt-out marker. Only real comment tokens are matched (tokenize-based).
 _OPT_OUT_RE = re.compile(r"#\s*noqa:\s*F11-resolve\b")
@@ -110,7 +106,7 @@ def _exc_type_covers_runtime_error(node: ast.expr) -> bool:
     return False
 
 
-def _try_covers_runtime_error(try_node: ast.Try) -> bool:
+def _try_covers_runtime_error(try_node: ast.Try | ast.TryStar) -> bool:
     """True if *try_node*'s except clauses cover ``RuntimeError`` or use bare except."""
     for handler in try_node.handlers:
         if handler.type is None:
@@ -160,13 +156,13 @@ class _ResolveGuardVisitor(ast.NodeVisitor):
     """Walk an AST tracking try-nesting to find unguarded ``.resolve()`` calls."""
 
     def __init__(self, source: str) -> None:
-        self._try_stack: list[ast.Try] = []
+        self._try_stack: list[ast.Try | ast.TryStar] = []
         self._violations: list[tuple[int, str]] = []
         marker_lines = _collect_marker_comment_lines(source)
         self._marker_lines = marker_lines
         self._source_lines = source.splitlines()
 
-    def visit_Try(self, node: ast.Try) -> None:
+    def visit_Try(self, node: ast.Try | ast.TryStar) -> None:  # type: ignore[override]
         # Push this node so nested calls see it as the innermost enclosing try.
         self._try_stack.append(node)
         # Walk only the protected *body* — handlers/orelse/finalbody are
@@ -182,12 +178,29 @@ class _ResolveGuardVisitor(ast.NodeVisitor):
         for stmt in node.finalbody:
             self.visit(stmt)
 
+    # Python 3.11+: handle try/except* the same way as try/except.
+    visit_TryStar = visit_Try
+
+    def _visit_nested_scope(self, node: ast.AST) -> None:
+        # Functions and classes declared inside a try body execute outside that
+        # try's runtime scope — clear the stack so .resolve() calls inside them
+        # are not falsely treated as protected by the outer try.
+        saved = self._try_stack
+        self._try_stack = []
+        self.generic_visit(node)
+        self._try_stack = saved
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_nested_scope(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_nested_scope(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_nested_scope(node)
+
     def visit_Call(self, node: ast.Call) -> None:
-        if (
-            isinstance(node.func, ast.Attribute)
-            and node.func.attr == "resolve"
-            and self._try_stack
-        ):
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "resolve" and self._try_stack:
             innermost = self._try_stack[-1]
             if not _try_covers_runtime_error(innermost):
                 if not _has_opt_out_in_window(self._marker_lines, node.lineno):
