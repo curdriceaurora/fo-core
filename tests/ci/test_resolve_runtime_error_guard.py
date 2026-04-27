@@ -513,7 +513,7 @@ class TestEdgeCases:
         target = _synth(tmp_path, "def f(\n")
         assert find_violations(target) == []
 
-    def test_non_path_resolve_call_in_try_not_flagged(self, tmp_path: Path) -> None:
+    def test_non_path_resolve_call_in_try_is_flagged(self, tmp_path: Path) -> None:
         """T10 negative: a ``.resolve()`` call on a non-Path object is still flagged
         because the rail is conservative (it cannot know the receiver type)."""
         target = _synth(
