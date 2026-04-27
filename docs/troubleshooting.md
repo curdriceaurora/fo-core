@@ -464,53 +464,6 @@ cat error.log
 fo analyze video.mp4 --verbose
 ```
 
-## Plugin/Extension Errors
-
-### Plugin Load Failed
-
-**Error**: `ImportError: Cannot load plugin` or "Plugin not found"
-
-**Cause**: Plugin is not installed, has incompatible version, or has missing dependencies.
-
-**Solution**:
-
-```bash
-# List available plugins in the marketplace
-fo marketplace list
-
-# Search for a specific plugin
-fo marketplace search <keyword>
-
-# Install a plugin
-fo marketplace install <plugin-name>
-
-# Check plugin details
-fo marketplace info <plugin-name>
-
-# List installed plugins
-fo marketplace installed
-```
-
-### Plugin Configuration Error
-
-**Error**: `ValueError: Invalid plugin configuration` or plugin crashes during execution
-
-**Cause**: Plugin configuration file has invalid values or required settings are missing.
-
-**Solution**:
-
-```bash
-# Check plugin details for configuration requirements
-fo marketplace info <plugin-name>
-
-# Check for available updates
-fo marketplace updates
-
-# Reinstall the plugin
-fo marketplace uninstall <plugin-name>
-fo marketplace install <plugin-name>
-```
-
 ## Archive Processing Errors
 
 ### Cannot Extract Archive
