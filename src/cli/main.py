@@ -69,7 +69,16 @@ def main_callback(
         help="Show the application version and exit.",
     ),
 ) -> None:
-    """Global options applied to all commands."""
+    """
+    Initialize global CLI state and perform startup bookkeeping.
+    
+    Sets ctx.obj to a CLIState containing the provided flags (with CLIState.no_interactive set to the inverse of `interactive`), installs the credential-redacting log filter on the root logger, and runs a durable-move recovery sweep on the default journal to clean up interrupted operations. The startup sweep is skipped when the invoked subcommand is "recover"; if the sweep raises an exception it is logged at WARNING and execution continues.
+    
+    Parameters:
+        ctx (typer.Context): Typer invocation context used to store CLIState.
+        interactive (bool): If False, stored state will set `no_interactive=True`.
+        version_flag (bool): Eager version callback value (accepted and ignored here).
+    """
     _ = version_flag
     ctx.obj = CLIState(
         verbose=verbose,
@@ -144,7 +153,14 @@ def version() -> None:
 def hardware_info(
     json_out: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
-    """Detect and display hardware capabilities."""
+    """
+    Print the current machine's hardware profile to the console.
+    
+    If `json_out` is True or the global CLI state requests JSON output, prints the profile as structured JSON; otherwise prints a human-readable summary of detected hardware and recommendations.
+    
+    Parameters:
+        json_out (bool): Force JSON formatted output when True.
+    """
     from core.hardware_profile import detect_hardware
 
     profile = detect_hardware()
@@ -185,7 +201,15 @@ def undo(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without executing."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
 ) -> None:
-    """Undo file operations."""
+    """
+    Undo previously recorded file operations.
+    
+    Parameters:
+        operation_id: Specific operation ID to target for undo; if omitted, other filters or recent operations may be considered.
+        transaction_id: Transaction ID to target for undo; if provided, undoes operations within that transaction.
+        dry_run: If true, show the actions that would be performed without making changes.
+        verbose: If true, emit more detailed output during the undo process.
+    """
     from cli.undo_redo import undo_command as _undo
 
     code = _undo(
@@ -203,7 +227,14 @@ def redo(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without executing."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
 ) -> None:
-    """Redo file operations."""
+    """
+    Redo previously recorded file operations.
+    
+    Parameters:
+    	operation_id (int | None): Specific operation ID to redo; if omitted, the command will select the default/recent operation.
+    	dry_run (bool): Preview actions without making changes; local flag is merged with global dry-run state.
+    	verbose (bool): Enable verbose output; local flag is merged with global verbose state.
+    """
     from cli.undo_redo import redo_command as _redo
 
     code = _redo(
@@ -243,13 +274,13 @@ def recover(  # noqa: G3 (--journal is a read-only path; defaults to system stat
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
 ) -> None:
-    """Preview pending durable_move recovery actions without executing them.
-
-    F7.1 §8.2: reads the journal under ``LOCK_SH``, calls the pure
-    :func:`plan_recovery_actions` planner, and prints the planned
-    sweep verbs + reasons. Exits 0 if nothing actionable, 1 if any
-    recovery work would be performed (so scripts can detect a stuck
-    journal without invoking sweep itself).
+    """
+    Preview pending durable_move recovery actions without executing them.
+    
+    Exits with status 0 if no recovery work would be performed, 1 if recovery actions are planned (so callers can detect a stuck journal).
+    
+    Parameters:
+        journal (Path | None): Optional override path to the durable_move.journal file (defaults to the user's state directory).
     """
     from cli.undo_recover import recover_command as _recover
 
@@ -307,7 +338,11 @@ def _register_profile_command() -> None:
 
 
 def main() -> None:
-    """Entry point for ``fo`` / ``fo`` console scripts."""
+    """
+    Run the fo command-line application.
+    
+    Registers the deferred profile command and invokes the Typer app. If the user interrupts (Ctrl+C), prints a cancellation message and exits with status 130. If a broken pipe occurs, silences stdout and exits with status 0.
+    """
     _register_profile_command()
     import os
     import sys

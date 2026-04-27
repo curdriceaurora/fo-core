@@ -119,7 +119,15 @@ class TestGlobalOptions:
 
 
 def _make_manager(config_dir):
-    """Helper to create a ConfigManager pointing at a temp dir."""
+    """
+    Create a ConfigManager configured to use the given directory.
+    
+    Parameters:
+        config_dir (str | pathlib.Path): Path to the directory that the ConfigManager should use for configuration files.
+    
+    Returns:
+        ConfigManager: An instance of ConfigManager configured to operate on `config_dir`.
+    """
     from config import ConfigManager
 
     return ConfigManager(config_dir)
@@ -160,6 +168,11 @@ class TestMainEntryPoint:
             mock_exit.assert_called_once_with(0)
 
     def test_lazy_loading_prevents_heavy_imports(self) -> None:
+        """
+        Verifies that importing `cli.main.app` does not cause heavyweight optional modules to be loaded.
+        
+        Runs a separate Python process that imports `cli.main.app` and fails the test if any of the modules `sqlalchemy`, `pydantic`, or `watchdog` are present in that process's `sys.modules`.
+        """
         import subprocess
         import sys
 

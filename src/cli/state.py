@@ -22,10 +22,13 @@ class CLIState:
 
 
 def _get_state() -> CLIState:
-    """Return the CLIState from the active typer context, or defaults.
-
-    Falls back to a default CLIState() when called outside a typer
-    invocation (e.g. direct function calls in unit tests).
+    """
+    Retrieve the active CLIState from the current Typer/Click context or a new default instance.
+    
+    If a Click/Typer context is present and its `obj` is a `CLIState`, that instance is returned; otherwise a fresh `CLIState()` is returned (e.g., when called outside a CLI invocation such as in unit tests).
+    
+    Returns:
+        CLIState: the active CLIState from the context, or a default `CLIState` instance when no applicable context exists.
     """
     import click
 

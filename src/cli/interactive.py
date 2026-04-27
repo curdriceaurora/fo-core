@@ -26,17 +26,18 @@ console = Console()
 
 
 def confirm_action(message: str, *, default: bool = False) -> bool:
-    """Ask the user for confirmation.
-
-    Returns ``True`` immediately when ``--yes`` is active.  Returns
-    *default* when ``--no-interactive`` is active.
-
-    Args:
-        message: Prompt text.
-        default: Default answer if non-interactive.
-
+    """
+    Ask the user to confirm an action.
+    
+    If the global CLI state has `yes` enabled, automatically confirms and returns True.
+    If `no_interactive` is enabled, returns the provided `default` without prompting.
+    
+    Parameters:
+        message (str): Prompt text shown to the user.
+        default (bool): Value returned when non-interactive mode is active.
+    
     Returns:
-        ``True`` if the user confirmed (or auto-confirmed).
+        bool: `True` if the action is confirmed, `False` otherwise.
     """
     if _get_state().yes:
         return True
@@ -70,15 +71,18 @@ def prompt_choice(
     *,
     default: str | None = None,
 ) -> str:
-    """Prompt the user to pick from a list of choices.
-
-    Args:
-        message: Prompt text.
-        choices: Allowed values.
-        default: Preselected value.
-
+    """
+    Prompt the user to select one value from a list of allowed choices.
+    
+    If the global CLI state has `no_interactive` enabled and `default` is provided, returns `default` without prompting.
+    
+    Parameters:
+        message (str): Text displayed to the user when prompting.
+        choices (Sequence[str]): Permitted choice strings shown to the user.
+        default (str | None): Value returned automatically in non-interactive mode or used as the prompt's default.
+    
     Returns:
-        The chosen string.
+        The chosen string from `choices`.
     """
     if _get_state().no_interactive and default is not None:
         return default

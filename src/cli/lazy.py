@@ -37,7 +37,14 @@ class LazyCommandProxy(click.Group):
         self._real_cmd: click.Command | None = None
 
     def _load(self) -> click.Command:
-        """Load the underlying command from the module."""
+        """
+        Load and return the Click command or group referenced by this proxy, caching the result for subsequent calls.
+        
+        If the referenced attribute is a `typer.Typer`, it is converted to a Click group; otherwise the attribute is treated as a `click.Command` and returned as-is.
+        
+        Returns:
+            click.Command: The resolved Click command or group.
+        """
         if self._real_cmd is None:
             module = importlib.import_module(self.module_name)
             obj = getattr(module, self.attr_name)
@@ -48,26 +55,62 @@ class LazyCommandProxy(click.Group):
         return self._real_cmd
 
     def invoke(self, ctx: click.Context) -> typing.Any:
-        """Proxy invoke to the actual command."""
+        """
+        Invoke the proxied command using the provided Click context.
+        
+        Parameters:
+            ctx (click.Context): The Click context to pass to the underlying command.
+        
+        Returns:
+            typing.Any: The value returned by the underlying command's `invoke` call.
+        """
         return self._load().invoke(ctx)
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
-        """Proxy parse_args to the actual command."""
+        """
+        Delegate argument parsing to the lazily loaded command.
+        
+        Parameters:
+            ctx (click.Context): Invocation context passed through to the real command.
+            args (list[str]): The argument list to parse.
+        
+        Returns:
+            list[str]: The list of remaining/unconsumed arguments after parsing.
+        """
         return self._load().parse_args(ctx, args)
 
     def get_params(self, ctx: click.Context) -> list[click.Parameter]:
-        """Proxy get_params to the actual command."""
+        """
+        Delegate parameter retrieval to the lazily-loaded command.
+        
+        Returns:
+            list[click.Parameter]: The parameters defined by the underlying command.
+        """
         return self._load().get_params(ctx)
 
     def list_commands(self, ctx: click.Context) -> list[str]:
-        """Proxy list_commands to the actual command if it's a group."""
+        """
+        Return the subcommand names from the loaded command when that command implements a group interface.
+        
+        Returns:
+            list[str]: The subcommand names provided by the loaded command, or an empty list if the loaded command does not provide `list_commands`.
+        """
         cmd = self._load()
         if hasattr(cmd, "list_commands"):
             return typing.cast("list[str]", cmd.list_commands(ctx))
         return []
 
     def get_command(self, ctx: click.Context, name: str) -> click.Command | None:
-        """Proxy get_command to the actual command if it's a group."""
+        """
+        Delegate retrieval of a subcommand to the loaded command when that command exposes `get_command`.
+        
+        Parameters:
+            ctx (click.Context): Invocation context used for command lookup.
+            name (str): Name of the subcommand to retrieve.
+        
+        Returns:
+            click.Command | None: The resolved subcommand if found, `None` otherwise.
+        """
         cmd = self._load()
         if hasattr(cmd, "get_command"):
             return typing.cast("click.Command | None", cmd.get_command(ctx, name))
@@ -78,13 +121,30 @@ class LazyTyperGroup(typer.core.TyperGroup):
     """A TyperGroup that integrates with LazyCommandProxy for deferred loading."""
 
     def list_commands(self, ctx: click.Context) -> list[str]:
-        """List standard commands and lazy commands."""
+        """
+        Return a combined list of available command names including lazy-registered commands.
+        
+        Returns:
+            list[str]: Sorted list of unique command names exposed by this group.
+        """
         rv = super().list_commands(ctx)
         rv.extend(LAZY_COMMANDS.keys())
         return sorted(set(rv))
 
     def get_command(self, ctx: click.Context, name: str) -> click.Command | None:
-        """Return a LazyCommandProxy for lazy commands, otherwise standard get_command."""
+        """
+        Resolve a command by name, returning a LazyCommandProxy for entries registered in LAZY_COMMANDS.
+        
+        If `name` is present in LAZY_COMMANDS, a LazyCommandProxy configured with the registered
+        module, attribute, and help text is returned; otherwise the base class resolution is used.
+        
+        Parameters:
+            ctx (click.Context): The Click context for command resolution.
+            name (str): The command name to resolve; if this name exists in LAZY_COMMANDS a proxy is returned.
+        
+        Returns:
+            click.Command | None: A `LazyCommandProxy` or other `click.Command` when found, `None` if no command matches.
+        """
         if name in LAZY_COMMANDS:
             module_name, attr_name, help_text = LAZY_COMMANDS[name]
             return LazyCommandProxy(name, module_name, attr_name, help_text)
