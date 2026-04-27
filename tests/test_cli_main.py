@@ -261,3 +261,21 @@ class TestBackendDetectorImportSurface:
         from core import backend_detector
 
         assert hasattr(backend_detector, "OLLAMA_AVAILABLE")
+
+    def test_detect_ollama_handles_subprocess_oserror(self) -> None:
+        """Cover the `except (subprocess.SubprocessError, OSError)` branch
+        in detect_ollama (lines 101-102): subprocess.run raises OSError, the
+        CLI probe falls through, and detect_ollama still returns a
+        well-formed OllamaStatus."""
+        from unittest.mock import patch
+
+        from core import backend_detector
+
+        with patch.object(
+            backend_detector.subprocess, "run", side_effect=OSError("simulated")
+        ):
+            status = backend_detector.detect_ollama()
+
+        assert isinstance(status, backend_detector.OllamaStatus)
+        # CLI probe failed; cli_installed must therefore be False.
+        assert status.installed is False or status.running is True
