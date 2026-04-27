@@ -103,6 +103,12 @@ pytest
 ruff check src/
 ```
 
+## Releases
+
+Currently `2.0.0-alpha.3`. The criteria for promoting to beta and the contract
+with public pre-release testers are documented in
+[docs/release/beta-criteria.md](docs/release/beta-criteria.md).
+
 ## License
 
 MIT OR Apache-2.0
