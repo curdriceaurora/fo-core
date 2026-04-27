@@ -110,7 +110,7 @@ class PathManager:
     @property
     def config_file(self) -> Path:
         """Main configuration file path."""
-        return self.config_dir / "config.json"
+        return self.config_dir / "config.yaml"
 
     @property
     def preferences_file(self) -> Path:
