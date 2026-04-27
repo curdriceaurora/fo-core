@@ -205,6 +205,15 @@ class _ResolveGuardVisitor(ast.NodeVisitor):
     # No visit_ClassDef: class bodies execute immediately in the enclosing scope,
     # so generic_visit (the default) correctly inherits the current try-stack.
 
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        # Lambda argument defaults execute in the enclosing scope.
+        self.visit(node.args)
+        # Lambda body executes later, outside the enclosing try's scope.
+        saved = self._try_stack
+        self._try_stack = []
+        self.visit(node.body)
+        self._try_stack = saved
+
     def visit_Call(self, node: ast.Call) -> None:
         if isinstance(node.func, ast.Attribute) and node.func.attr == "resolve" and self._try_stack:
             innermost = self._try_stack[-1]
