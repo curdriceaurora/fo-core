@@ -335,7 +335,7 @@ class TrashGC:
             Path(os.path.normcase(resolved_parent)).relative_to(
                 _norm(self.trash_dir.resolve(strict=False))
             )
-        except ValueError:
+        except (ValueError, RuntimeError, OSError):
             return False
         return True
 

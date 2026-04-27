@@ -736,7 +736,7 @@ class AIHeuristic(Heuristic):
         try:
             st = file_path.stat()
             return str(file_path.resolve()), st.st_mtime_ns, st.st_size
-        except OSError:
+        except (OSError, RuntimeError):
             return None
 
     def _extract_content(self, file_path: Path, metadata: dict[str, Any] | None) -> str:
