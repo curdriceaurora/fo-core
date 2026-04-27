@@ -341,7 +341,11 @@ class TestAudioModelGenerate:
         model.initialize()
 
         fake_audio = tmp_path / "sample.wav"
-        fake_audio.touch()  # transcriber is mocked; existence check still runs
+        # No need to actually create the file: patching
+        # `model._transcriber.transcribe` replaces AudioTranscriber.transcribe
+        # entirely, including its `audio_path.exists()` check at
+        # src/services/audio/transcriber.py:212. We pass the path through to
+        # verify generate() forwards it correctly.
 
         fake_result = MagicMock()
         fake_result.text = "hello world"

@@ -83,17 +83,16 @@ def _make_realistic_config() -> AppConfig:
 @pytest.mark.integration
 class TestConfigRoundTrip:
     def test_save_load_round_trip_at_current_version(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
-        # Point ConfigManager at a tmp dir so we don't touch the real ~/.config/fo
-        monkeypatch.setattr("config.manager.DEFAULT_CONFIG_DIR", tmp_path)
-
+        # Inject config_dir explicitly so the test is isolated from
+        # DEFAULT_CONFIG_DIR and the FO_CONFIG env var (which would
+        # otherwise take precedence per src/config/manager.py:62-65).
         original = _make_realistic_config()
-        manager = ConfigManager()
-        manager.save(original)
+        ConfigManager(config_dir=tmp_path).save(original)
 
-        # Read back via the public API
-        roundtripped = ConfigManager().load()
+        # Read back via a fresh manager pointing at the same tmp dir
+        roundtripped = ConfigManager(config_dir=tmp_path).load()
 
         # The round-tripped config must equal the original on every field
         assert asdict(roundtripped) == asdict(original)
@@ -143,18 +142,18 @@ class TestConfigCrossVersionRoundTrip:
         """
         from config.migrations import MIGRATIONS, Migration
 
-        monkeypatch.setattr("config.manager.DEFAULT_CONFIG_DIR", tmp_path)
-
-        # Save with the current binary
+        # Save with the current binary, injecting config_dir explicitly so the
+        # test is isolated from DEFAULT_CONFIG_DIR and the FO_CONFIG env var.
         original = _make_realistic_config()
-        ConfigManager().save(original)
+        manager = ConfigManager(config_dir=tmp_path)
+        manager.save(original)
 
         # Mutate the file's version to a synthetic past version, register a
         # no-op migration to current. This simulates a future beta whose
         # binary knows how to migrate from "0.9" to "1.0" — except for us
         # the migration is identity, proving "no fields dropped" when the
         # only schema delta is "version bumped".
-        config_file = tmp_path / "config.yaml"
+        config_file = manager.config_path
         with config_file.open("r") as f:
             data = yaml.safe_load(f)
         data["version"] = "0.9"
@@ -171,7 +170,7 @@ class TestConfigCrossVersionRoundTrip:
             Migration(to_version=CURRENT_SCHEMA_VERSION, transform=_identity_migration),
         )
 
-        loaded = ConfigManager().load()
+        loaded = ConfigManager(config_dir=tmp_path).load()
 
         # Every field except `version` round-trips identically. `version`
         # is updated to current after the migration (correct behavior).
@@ -215,7 +214,6 @@ Append:
     def test_future_version_loads_best_effort_with_warning(
         self,
         tmp_path: Path,
-        monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """If a user opts back into alpha after running beta, the alpha binary
@@ -223,12 +221,11 @@ Append:
         best-effort with a WARNING. This test pins that contract."""
         import logging
 
-        monkeypatch.setattr("config.manager.DEFAULT_CONFIG_DIR", tmp_path)
-
         original = _make_realistic_config()
-        ConfigManager().save(original)
+        manager = ConfigManager(config_dir=tmp_path)
+        manager.save(original)
 
-        config_file = tmp_path / "config.yaml"
+        config_file = manager.config_path
         with config_file.open("r") as f:
             data = yaml.safe_load(f)
         data["version"] = "99.0"  # synthetic future
@@ -236,7 +233,7 @@ Append:
             yaml.safe_dump(data, f)
 
         with caplog.at_level(logging.WARNING):
-            loaded = ConfigManager().load()
+            loaded = ConfigManager(config_dir=tmp_path).load()
 
         # Loaded best-effort: known fields preserved
         assert loaded.profile_name == original.profile_name

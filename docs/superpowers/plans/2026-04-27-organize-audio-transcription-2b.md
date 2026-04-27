@@ -56,18 +56,18 @@ Note the line numbers; subsequent tasks reference them.
 ## Task 2: Extend `ProcessedFile` to optionally carry a transcript
 
 **Files:**
-- Read: `src/core/types.py` (or wherever `ProcessedFile` is defined — `grep -rn "class ProcessedFile" src/`)
-- Modify: that file
+- Modify: `src/services/text_processor.py` (the `ProcessedFile` dataclass at line 23)
+- Test: `tests/services/test_processed_file_transcript_field.py`
 
-- [ ] **Step 1: Locate `ProcessedFile`**
+The `ProcessedFile` dataclass (verified in `src/services/text_processor.py:22-32`)
+currently has fields `file_path: Path`, `description: str`, `folder_name: str`,
+`filename: str`, plus optional `original_content`, `processing_time`, and
+`error`. We add a new optional `transcript: str | None = None` field. Existing
+consumers continue to work because the new field has a default value.
 
-```bash
-grep -rn "class ProcessedFile" src/
-```
+- [ ] **Step 1: Write a failing test**
 
-- [ ] **Step 2: Write a failing test**
-
-Create `tests/test_processed_file_transcript_field.py`:
+Create `tests/services/test_processed_file_transcript_field.py`:
 
 ```python
 """Test that ProcessedFile carries an optional transcript field."""
@@ -77,45 +77,73 @@ import pytest
 
 
 @pytest.mark.unit
-def test_processed_file_has_optional_transcript_field() -> None:
-    from core.types import ProcessedFile  # adjust if located elsewhere
+def test_processed_file_default_transcript_is_none(tmp_path: Path) -> None:
+    from services.text_processor import ProcessedFile
 
     pf = ProcessedFile(
-        path=Path("/tmp/x.mp3"),
-        category="music",
-        transcript=None,  # NEW field
+        file_path=tmp_path / "x.mp3",
+        description="A short audio clip",
+        folder_name="Audio",
+        filename="x.mp3",
     )
     assert pf.transcript is None
 
-    pf2 = ProcessedFile(
-        path=Path("/tmp/podcast.mp3"),
-        category="news",
+
+@pytest.mark.unit
+def test_processed_file_accepts_transcript(tmp_path: Path) -> None:
+    from services.text_processor import ProcessedFile
+
+    pf = ProcessedFile(
+        file_path=tmp_path / "podcast.mp3",
+        description="News podcast",
+        folder_name="News",
+        filename="podcast.mp3",
         transcript="Hello and welcome to the news",
     )
-    assert pf2.transcript == "Hello and welcome to the news"
+    assert pf.transcript == "Hello and welcome to the news"
 ```
 
-- [ ] **Step 3: Run — expected failure if `transcript` does not exist**
+- [ ] **Step 2: Run — expected failure**
 
 ```bash
-pytest tests/test_processed_file_transcript_field.py -v
+pytest tests/services/test_processed_file_transcript_field.py -v
 ```
 
-Expected: FAIL.
+Expected: FAIL — `TypeError: ProcessedFile.__init__() got an unexpected keyword argument 'transcript'`.
 
-- [ ] **Step 4: Add `transcript: str | None = None` to `ProcessedFile`**
+- [ ] **Step 3: Add the field**
 
-Edit the dataclass to add `transcript: str | None = None` as the last field. Other consumers continue to work because the field has a default.
+In `src/services/text_processor.py`, modify the `ProcessedFile` dataclass
+(currently at lines 22-32):
 
-- [ ] **Step 5: Run — expected pass**
+```python
+@dataclass
+class ProcessedFile:
+    """Result of file processing."""
+
+    file_path: Path
+    description: str
+    folder_name: str
+    filename: str
+    original_content: str | None = None
+    processing_time: float = 0.0
+    error: str | None = None
+    transcript: str | None = None  # NEW: populated for audio files when --transcribe-audio is set
+```
+
+- [ ] **Step 4: Run — expected pass**
+
+```bash
+pytest tests/services/test_processed_file_transcript_field.py -v
+```
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/core/types.py tests/test_processed_file_transcript_field.py
-git commit -m "feat(types): add optional transcript field to ProcessedFile"
+git add src/services/text_processor.py tests/services/test_processed_file_transcript_field.py
+git commit -m "feat(text_processor): add optional transcript field to ProcessedFile"
 ```
 
 ---
@@ -226,17 +254,30 @@ def process_audio_files(
                 logger.warning("transcription failed for %s: %s", file_path, exc)
                 transcript = None
 
+        description, folder_name, filename = _categorize_audio(
+            file_path, metadata, transcript=transcript
+        )
         results.append(
             ProcessedFile(
-                path=file_path,
-                category=_category_from_audio(metadata, transcript=transcript),
+                file_path=file_path,
+                description=description,
+                folder_name=folder_name,
+                filename=filename,
                 transcript=transcript,
             )
         )
     return results
 ```
 
-(Add `_category_from_audio` as a helper that uses transcript if non-empty, else falls back to the existing metadata-only categorization.)
+Add `_categorize_audio(file_path, metadata, *, transcript)` as a private helper
+that returns the `(description, folder_name, filename)` triple. When `transcript`
+is non-empty it uses the transcript content to derive a richer description and
+folder name (mirroring how `_process_text_files` uses extracted text); otherwise
+it falls back to metadata-only categorization (filename + extension + duration
+bucket) — the existing behavior. Read the existing pattern in
+`src/core/dispatcher.py:process_audio_files` and copy its categorization
+contract verbatim into the metadata-only branch so behavior is preserved when
+`transcribe_audio` is off.
 
 - [ ] **Step 4: Run — expected pass**
 

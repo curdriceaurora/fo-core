@@ -241,9 +241,9 @@ Insert at the top of `CHANGELOG.md` (above the existing alpha entries):
 ````markdown
 ## [2.0.0-beta.1] — YYYY-MM-DD
 
-First public-pre-release beta. The PyPI classifier moves from
-`3 - Alpha` to `4 - Beta` and the auto-updater's pre-release channel is
-open: opt in with `fo update --pre-release`.
+First public pre-release beta. The PyPI classifier moves from
+`3 - Alpha` to `4 - Beta` and the first release is tagged on the
+auto-updater's pre-release surface — see "How to opt in" below.
 
 See `docs/release/beta-criteria.md` for the full beta-tester contract, the
 schema-frozen promise, and the rollback path.
@@ -270,16 +270,19 @@ schema-frozen promise, and the rollback path.
 ### How to opt in
 
 ```bash
-fo update --pre-release
-fo update install
+fo update check --pre      # see the latest pre-release if any
+fo update install --pre    # download and install it
 ```
+
+There is no persistent channel state; the `--pre` flag applies per-invocation.
 
 ### How to roll back to alpha
 
 ```bash
 pip install 'fo-core==2.0.0-alpha.3'
-fo update --no-pre-release
 ```
+
+Drop the `--pre` flag on subsequent `fo update` calls to stay on stable.
 ````
 
 (Replace `YYYY-MM-DD` with the actual release date when running this task.)
@@ -296,8 +299,8 @@ From:
 
 To:
 
-> Currently `2.0.0-beta.1`. The auto-updater's public pre-release channel is
-> open — opt in with `fo update --pre-release`. See
+> Currently `2.0.0-beta.1`. Pre-release versions are surfaced to anyone who
+> passes `--pre` to `fo update check` / `fo update install`. See
 > `[docs/release/beta-criteria.md](docs/release/beta-criteria.md)` for the
 > beta-tester contract, the schema-frozen compatibility promise, and the
 > rollback path.
@@ -360,8 +363,8 @@ docs/release/beta-criteria.md §2 audited before this bump; evidence
 attached in the PR body.
 
 The schema is frozen at 1.0 across the beta line; alpha.3 configs
-read cleanly under beta.1. Public pre-release channel is open
-(`fo update --pre-release`).
+read cleanly under beta.1. Pre-release versions are surfaced via
+`fo update check --pre` / `fo update install --pre`.
 EOF
 )"
 ```
@@ -397,7 +400,7 @@ gh release create 2.0.0-beta.1 \
     --prerelease
 ```
 
-The `--prerelease` flag is critical — it puts the release on the pre-release channel that `fo update --pre-release` consumes, NOT the stable channel.
+`gh release create`'s `--prerelease` flag (one word, gh's spelling) is critical — it tags the GitHub Release as pre-release so `fo update check --pre` / `fo update install --pre` (the auto-updater's `--pre` flag, two words in `fo`'s spelling) surface it instead of the stable feed.
 
 - [ ] **Step 4: Smoke-test the published release**
 
@@ -423,7 +426,7 @@ After this plan executes:
 
 - `pip show fo-core | grep Status` reports `Status: 4 - Beta`.
 - `fo --version` reports `2.0.0-beta.1`.
-- `fo update --pre-release` then `fo update check` finds the new release.
+- `fo update check --pre` finds the new pre-release.
 - The Beta bug-report template appears in the issue creation flow.
 - `tests/ci/test_release_metadata.py` is green (and will block any future bump that forgets to update the classifier).
 

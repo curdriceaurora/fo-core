@@ -521,16 +521,36 @@ def test_config_edit_invalid_device_includes_valid_values(
 
 - [ ] **Step 4: Replace bare validation messages with the helper**
 
-For each match found in step 1, swap from a bare error to:
+`config_cli.py` already defines authoritative validation sets at the top of the
+file — verified via `grep -n "_VALID_DEVICES\|_VALID_METHODOLOGIES" src/cli/config_cli.py`:
+
+```python
+# src/cli/config_cli.py:62-63 (existing constants — do not duplicate)
+_VALID_DEVICES = {"auto", "cpu", "cuda", "mps", "metal"}
+_VALID_METHODOLOGIES = {"none", "para", "jd"}
+```
+
+For each validation site found in step 1, swap from a bare error to a call
+that pulls from those constants directly (so a future addition of `"rocm"`
+to `_VALID_DEVICES` propagates to the error message automatically without a
+separate edit):
 
 ```python
 from utils.cli_errors import format_validation_error
 ...
-console.print(f"[red]{format_validation_error(field='device', value=device, valid_values=['auto', 'cpu', 'cuda', 'mps'])}[/red]")
+console.print(
+    f"[red]{format_validation_error(field='device', value=device, valid_values=sorted(_VALID_DEVICES))}[/red]"
+)
 raise typer.Exit(code=1)
 ```
 
-Repeat for `methodology` (`['none', 'para', 'jd']`), `framework` (`['ollama', 'llama_cpp', 'mlx', 'openai', 'claude']`), and any other enum-shaped fields validated in config_cli.
+For `methodology`, use `sorted(_VALID_METHODOLOGIES)` similarly. If you find a
+`framework` validation site that needs the same treatment but no
+`_VALID_FRAMEWORKS` constant exists yet, define it next to the others
+(`_VALID_FRAMEWORKS = {"ollama", "llama_cpp", "mlx", "openai", "claude"}`)
+in the same commit so all three follow the same pattern. **Never inline
+literal lists in the error-message call** — that's the anti-pattern this
+fix is closing.
 
 - [ ] **Step 5: Run — expected pass**
 

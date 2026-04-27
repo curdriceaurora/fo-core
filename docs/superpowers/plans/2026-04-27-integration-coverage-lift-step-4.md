@@ -27,19 +27,29 @@ Plan conventions: see [2A plan](2026-04-27-audio-model-wiring-2a.md) "Convention
 
 ## The 9 modules and their groups
 
+Module paths use the `src/` prefix to match the keys in
+`scripts/coverage/integration_module_floor_baseline.json`. The "Current"
+column quotes the value recorded in that file as of the writing of this plan
+(2026-04-23 baseline); the "Target" column is this plan's proposed ratchet
+floor — these values are not yet present in the baseline.
+
 | Group | Module | Current | Target |
 |---|---|---|---|
-| **G1 Search** | `services/search/__init__.py` | 38% | 70% |
-| **G2 Daemon** | `daemon/service.py` | 57% | 70% |
-| **G3 Dedup/Intelligence** | `services/deduplication/__init__.py` | 60% | 70% |
-| | `services/intelligence/profile_migrator.py` | 60% | 70% |
-| | `services/intelligence/profile_merger.py` | 67% | 70% |
-| **G4 Methodology (JD)** | `methodologies/johnny_decimal/adapters.py` | 67% | 70% |
-| | `methodologies/johnny_decimal/numbering.py` | 68% | 70% |
-| **G5 Misc** | `core/hardware_profile.py` | 68% | 70% |
-| | `utils/epub_enhanced.py` | 55% | 70% |
+| **G1 Search** | `src/services/search/__init__.py` | 38% | 70% |
+| **G2 Daemon** | `src/daemon/service.py` | 57% | 70% |
+| **G3 Dedup/Intelligence** | `src/services/deduplication/__init__.py` | 60% | 70% |
+| | `src/services/intelligence/profile_migrator.py` | 60% | 70% |
+| | `src/services/intelligence/profile_merger.py` | 67% | 70% |
+| **G4 Methodology (JD)** | `src/methodologies/johnny_decimal/adapters.py` | 67% | 70% |
+| | `src/methodologies/johnny_decimal/numbering.py` | 68% | 70% |
+| **G5 Misc** | `src/core/hardware_profile.py` | 68% | 70% |
+| | `src/utils/epub_enhanced.py` | 55% | 70% |
 
 Each group is a separate PR. Within a group, modules share test fixtures.
+
+The global integration floor is currently set by `policy.new_module_min_percent`
+in the same baseline file (71.9% as of writing); the proposed ≥75% target also
+becomes a ratchet rather than a value already enforced.
 
 ---
 

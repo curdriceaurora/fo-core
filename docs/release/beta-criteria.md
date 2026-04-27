@@ -7,9 +7,10 @@ beta, and the contract between the project and public pre-release testers.
 
 fo-core's beta is a low-ceremony label. The transition consists of two
 mechanical changes: bumping the PyPI classifier from `Development Status :: 3 -
-Alpha` to `Development Status :: 4 - Beta` (in `pyproject.toml`), and opening
-the auto-updater's public pre-release channel (`fo update --pre-release`,
-already wired in `src/cli/update.py`).
+Alpha` to `Development Status :: 4 - Beta` (in `pyproject.toml`), and tagging
+the first release on the auto-updater's pre-release surface (the `--pre` flag
+on `fo update check` / `fo update install`, already wired in
+`src/cli/update.py`).
 
 Beta is **not** a feature freeze. Development continues normally, and new
 commands, flags, dependencies, or methodologies may land in any beta point
@@ -27,12 +28,12 @@ contract in §3.
 These items must all be true to bump the classifier from `3 - Alpha` to
 `4 - Beta` and cut `2.0.0-beta.1`.
 
-- [ ] **Audio works end-to-end.** `AudioModel.generate()` (currently raises
-      `NotImplementedError` at `src/models/audio_model.py:53`) is wired to the
-      existing transcriber code. `fo benchmark --suite audio` succeeds on a
-      sample audio file with the `[media]` extra installed. The `[media]` extra
-      description in `pyproject.toml` and the README's Optional Feature Packs
-      table accurately describe what ships.
+- [ ] **Audio works end-to-end.** `AudioModel.generate()` in
+      `src/models/audio_model.py` (currently raises `NotImplementedError`) is
+      wired to the existing transcriber code. `fo benchmark --suite audio`
+      succeeds on a sample audio file with the `[media]` extra installed. The
+      `[media]` extra description in `pyproject.toml` and the README's
+      Optional Feature Packs table accurately describe what ships.
 - [ ] **Integration coverage floors.** Global integration coverage ≥ 75%
       (currently 71.9%). Per-module floor ≥ 70% on every module currently
       below it in
@@ -57,11 +58,15 @@ These items must all be true to bump the classifier from `3 - Alpha` to
       and works as described. No `NotImplementedError` is reachable from a
       documented surface. README, `docs/cli-reference.md`, and
       `docs/USER_GUIDE.md` all match what the code does.
-- [ ] **Schema-stability test** in CI that writes a config with one
-      `AppConfig` version, reads it back with another, and asserts equality.
-      Parameterized over the last alpha and a synthetic future beta to exercise
-      both the alpha → beta boundary and the beta.X → beta.Y guarantee in §3.
-      `AppConfig` stays at version `1.0` for the duration of beta.
+- [ ] **Schema-stability test suite** in CI covering both the alpha → beta
+      boundary and the beta.X → beta.Y guarantee in §3, including
+      synthetic future-version handling. The plan in
+      `docs/superpowers/plans/2026-04-27-config-schema-stability-test-2c.md`
+      implements this as three CI tests
+      (`test_save_load_round_trip_at_current_version`,
+      `test_synthetic_future_version_preserves_known_fields`,
+      `test_future_version_loads_best_effort_with_warning`). `AppConfig` stays
+      at version `1.0` for the duration of beta.
 - [ ] **Bug-report template exists** at `.github/ISSUE_TEMPLATE/beta-bug.md`,
       requesting `fo --debug <command>` output, the `fo doctor` summary,
       OS/version, and reproduction steps.
@@ -87,19 +92,21 @@ point releases.
 
 ### Opting in
 
+The auto-updater surfaces pre-release versions when you pass the `--pre` flag.
+There is no persistent channel state — the flag applies per-invocation:
+
 ```bash
-fo update --pre-release   # switch your update channel to the beta line
-fo update check           # the auto-updater will now offer beta releases
+fo update check --pre      # see the latest pre-release if any
+fo update install --pre    # download and install it
 ```
 
-Once opted in, `fo update install` will pull the latest beta point release.
-
-### Rolling back
+To stay on stable: just don't pass `--pre`. To pin a specific older version:
 
 ```bash
 pip install 'fo-core==2.0.0-alpha.3'   # or whatever stable version you prefer
-fo update --no-pre-release             # leave the pre-release channel
 ```
+
+### Rolling back
 
 Because the schema is frozen across the beta line (§3), rolling back to alpha
 may require deleting your config if you started fresh on beta. Rolling between
