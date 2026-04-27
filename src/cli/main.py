@@ -69,11 +69,10 @@ def main_callback(
         help="Show the application version and exit.",
     ),
 ) -> None:
-    """
-    Initialize global CLI state and perform startup bookkeeping.
-    
+    """Initialize global CLI state and perform startup bookkeeping.
+
     Sets ctx.obj to a CLIState containing the provided flags (with CLIState.no_interactive set to the inverse of `interactive`), installs the credential-redacting log filter on the root logger, and runs a durable-move recovery sweep on the default journal to clean up interrupted operations. The startup sweep is skipped when the invoked subcommand is "recover"; if the sweep raises an exception it is logged at WARNING and execution continues.
-    
+
     Parameters:
         ctx (typer.Context): Typer invocation context used to store CLIState.
         interactive (bool): If False, stored state will set `no_interactive=True`.
@@ -153,11 +152,10 @@ def version() -> None:
 def hardware_info(
     json_out: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
-    """
-    Print the current machine's hardware profile to the console.
-    
+    """Print the current machine's hardware profile to the console.
+
     If `json_out` is True or the global CLI state requests JSON output, prints the profile as structured JSON; otherwise prints a human-readable summary of detected hardware and recommendations.
-    
+
     Parameters:
         json_out (bool): Force JSON formatted output when True.
     """
@@ -201,9 +199,8 @@ def undo(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without executing."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
 ) -> None:
-    """
-    Undo previously recorded file operations.
-    
+    """Undo previously recorded file operations.
+
     Parameters:
         operation_id: Specific operation ID to target for undo; if omitted, other filters or recent operations may be considered.
         transaction_id: Transaction ID to target for undo; if provided, undoes operations within that transaction.
@@ -227,13 +224,12 @@ def redo(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without executing."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
 ) -> None:
-    """
-    Redo previously recorded file operations.
-    
+    """Redo previously recorded file operations.
+
     Parameters:
-    	operation_id (int | None): Specific operation ID to redo; if omitted, the command will select the default/recent operation.
-    	dry_run (bool): Preview actions without making changes; local flag is merged with global dry-run state.
-    	verbose (bool): Enable verbose output; local flag is merged with global verbose state.
+        operation_id (int | None): Specific operation ID to redo; if omitted, the command will select the default/recent operation.
+        dry_run (bool): Preview actions without making changes; local flag is merged with global dry-run state.
+        verbose (bool): Enable verbose output; local flag is merged with global verbose state.
     """
     from cli.undo_redo import redo_command as _redo
 
@@ -274,11 +270,10 @@ def recover(  # noqa: G3 (--journal is a read-only path; defaults to system stat
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
 ) -> None:
-    """
-    Preview pending durable_move recovery actions without executing them.
-    
+    """Preview pending durable_move recovery actions without executing them.
+
     Exits with status 0 if no recovery work would be performed, 1 if recovery actions are planned (so callers can detect a stuck journal).
-    
+
     Parameters:
         journal (Path | None): Optional override path to the durable_move.journal file (defaults to the user's state directory).
     """
@@ -338,9 +333,8 @@ def _register_profile_command() -> None:
 
 
 def main() -> None:
-    """
-    Run the fo command-line application.
-    
+    """Run the fo command-line application.
+
     Registers the deferred profile command and invokes the Typer app. If the user interrupts (Ctrl+C), prints a cancellation message and exits with status 130. If a broken pipe occurs, silences stdout and exits with status 0.
     """
     _register_profile_command()

@@ -22,11 +22,10 @@ class CLIState:
 
 
 def _get_state() -> CLIState:
-    """
-    Retrieve the active CLIState from the current Typer/Click context or a new default instance.
-    
+    """Retrieve the active CLIState from the current Typer/Click context or a new default instance.
+
     If a Click/Typer context is present and its `obj` is a `CLIState`, that instance is returned; otherwise a fresh `CLIState()` is returned (e.g., when called outside a CLI invocation such as in unit tests).
-    
+
     Returns:
         CLIState: the active CLIState from the context, or a default `CLIState` instance when no applicable context exists.
     """

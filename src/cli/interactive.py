@@ -26,16 +26,15 @@ console = Console()
 
 
 def confirm_action(message: str, *, default: bool = False) -> bool:
-    """
-    Ask the user to confirm an action.
-    
+    """Ask the user to confirm an action.
+
     If the global CLI state has `yes` enabled, automatically confirms and returns True.
     If `no_interactive` is enabled, returns the provided `default` without prompting.
-    
+
     Parameters:
         message (str): Prompt text shown to the user.
         default (bool): Value returned when non-interactive mode is active.
-    
+
     Returns:
         bool: `True` if the action is confirmed, `False` otherwise.
     """
@@ -71,16 +70,15 @@ def prompt_choice(
     *,
     default: str | None = None,
 ) -> str:
-    """
-    Prompt the user to select one value from a list of allowed choices.
-    
+    """Prompt the user to select one value from a list of allowed choices.
+
     If the global CLI state has `no_interactive` enabled and `default` is provided, returns `default` without prompting.
-    
+
     Parameters:
         message (str): Text displayed to the user when prompting.
         choices (Sequence[str]): Permitted choice strings shown to the user.
         default (str | None): Value returned automatically in non-interactive mode or used as the prompt's default.
-    
+
     Returns:
         The chosen string from `choices`.
     """
