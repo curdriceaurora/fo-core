@@ -252,7 +252,7 @@ schema-frozen promise, and the rollback path.
 
 - Audio transcription is wired end-to-end. `fo organize --transcribe-audio`
   uses faster-whisper to categorize audio files by transcript content;
-  `fo benchmark --suite audio --transcribe-smoke` exercises the full path.
+  `fo benchmark run --suite audio --transcribe-smoke` exercises the full path.
 - Global `--debug` flag surfaces tracebacks for bug reports.
 - First-run setup gate now consistently blocks all non-allowlisted commands.
 - Config validation errors include valid-values lists and "did you mean"
@@ -424,7 +424,9 @@ Per the project's communication conventions (which I don't presume — leave thi
 
 After this plan executes:
 
-- `pip show fo-core | grep Status` reports `Status: 4 - Beta`.
+- `pip show --verbose fo-core | grep "Development Status"` reports
+  `Development Status :: 4 - Beta`. (Plain `pip show` does not include
+  classifiers in its output; the `--verbose` flag is required.)
 - `fo --version` reports `2.0.0-beta.1`.
 - `fo update check --pre` finds the new pre-release.
 - The Beta bug-report template appears in the issue creation flow.

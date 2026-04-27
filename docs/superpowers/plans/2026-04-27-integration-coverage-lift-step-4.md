@@ -196,7 +196,7 @@ Follow the Group Workflow Template Steps 3–5.
 @pytest.mark.integration
 class TestDaemonSmoke:
     def test_start_watch_stop_status_cycle(self, tmp_path: Path) -> None:
-        # Use subprocess.Popen to launch `fo daemon start --watch <tmp_path>`
+        # Use subprocess.Popen to launch `fo daemon start --watch-dir <tmp_path>`
         # then `fo daemon status` should show running, then `fo daemon stop`
         # cleanly terminates. Drop a file in tmp_path mid-cycle to verify
         # the watcher is live.

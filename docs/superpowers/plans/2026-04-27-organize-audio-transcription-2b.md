@@ -610,7 +610,7 @@ git commit -m "test(organize): e2e --transcribe-audio with generated silent WAV"
 Replace the `[media]` row with:
 
 ```markdown
-| Media | `pip install -e ".[media]"` | Audio transcription (faster-whisper) + video scene detection. Use `fo organize --transcribe-audio` to categorize audio by transcript content, or `fo benchmark --suite audio --transcribe-smoke` to verify the install. |
+| Media | `pip install -e ".[media]"` | Audio transcription (faster-whisper) + video scene detection. Use `fo organize --transcribe-audio` to categorize audio by transcript content, or `fo benchmark run --suite audio --transcribe-smoke` to verify the install. |
 ```
 
 - [ ] **Step 2: Add a User Guide section**
