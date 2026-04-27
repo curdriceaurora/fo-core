@@ -271,9 +271,7 @@ class TestBackendDetectorImportSurface:
 
         from core import backend_detector
 
-        with patch.object(
-            backend_detector.subprocess, "run", side_effect=OSError("simulated")
-        ):
+        with patch.object(backend_detector.subprocess, "run", side_effect=OSError("simulated")):
             status = backend_detector.detect_ollama()
 
         assert isinstance(status, backend_detector.OllamaStatus)
