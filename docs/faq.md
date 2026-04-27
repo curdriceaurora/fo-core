@@ -122,7 +122,7 @@ Solutions:
 
 ```bash
 fo config show          # View current config
-fo config edit          # Edit configuration interactively
+fo config edit          # Edit configuration via command-line flags
 fo doctor .             # Verify setup
 ```
 
