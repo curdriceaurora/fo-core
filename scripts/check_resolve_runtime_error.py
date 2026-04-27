@@ -181,23 +181,29 @@ class _ResolveGuardVisitor(ast.NodeVisitor):
     # Python 3.11+: handle try/except* the same way as try/except.
     visit_TryStar = visit_Try
 
-    def _visit_nested_scope(self, node: ast.AST) -> None:
-        # Functions and classes declared inside a try body execute outside that
-        # try's runtime scope — clear the stack so .resolve() calls inside them
-        # are not falsely treated as protected by the outer try.
+    def _visit_function_def(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        # Decorators and argument defaults execute in the *enclosing* scope, so
+        # they are still protected by the current try-stack.
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        self.visit(node.args)
+        if node.returns is not None:
+            self.visit(node.returns)
+        # The function body executes later, outside the enclosing try's scope.
         saved = self._try_stack
         self._try_stack = []
-        self.generic_visit(node)
+        for stmt in node.body:
+            self.visit(stmt)
         self._try_stack = saved
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        self._visit_nested_scope(node)
+        self._visit_function_def(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self._visit_nested_scope(node)
+        self._visit_function_def(node)
 
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        self._visit_nested_scope(node)
+    # No visit_ClassDef: class bodies execute immediately in the enclosing scope,
+    # so generic_visit (the default) correctly inherits the current try-stack.
 
     def visit_Call(self, node: ast.Call) -> None:
         if isinstance(node.func, ast.Attribute) and node.func.attr == "resolve" and self._try_stack:
