@@ -105,8 +105,8 @@ PR title: `test(coverage): lift <group> integration coverage to ≥70%`
 
 ## Group G1: Search (single module, biggest lift)
 
-**Module:** `src/services/search/__init__.py`  
-**Current:** 38%  
+**Module:** `src/services/search/__init__.py`
+**Current:** 38%
 **Target:** 70%
 
 ### G1 — Task 1: Map the uncovered surface
@@ -164,8 +164,8 @@ Follow the Group Workflow Template Steps 3–5.
 
 ## Group G2: Daemon
 
-**Module:** `src/daemon/service.py`  
-**Current:** 57%  
+**Module:** `src/daemon/service.py`
+**Current:** 57%
 **Target:** 70%
 
 ### G2 — Task 1: Map uncovered surface

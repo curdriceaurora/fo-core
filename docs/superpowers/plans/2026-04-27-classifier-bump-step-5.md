@@ -245,9 +245,8 @@ First public-pre-release beta. The PyPI classifier moves from
 `3 - Alpha` to `4 - Beta` and the auto-updater's pre-release channel is
 open: opt in with `fo update --pre-release`.
 
-See [docs/release/beta-criteria.md](docs/release/beta-criteria.md) for the
-full beta-tester contract, the schema-frozen promise, and the rollback
-path.
+See `docs/release/beta-criteria.md` for the full beta-tester contract, the
+schema-frozen promise, and the rollback path.
 
 ### What's new since 2.0.0-alpha.3
 
@@ -289,21 +288,24 @@ fo update --no-pre-release
 
 Change `README.md` (the "Releases" section near the bottom) from:
 
-```markdown
-Currently `2.0.0-alpha.3`. The criteria for promoting to beta and the contract
-with public pre-release testers are documented in
-[docs/release/beta-criteria.md](docs/release/beta-criteria.md).
-```
+From:
 
-to:
+> Currently `2.0.0-alpha.3`. The criteria for promoting to beta and the
+> contract with public pre-release testers are documented in
+> `[docs/release/beta-criteria.md](docs/release/beta-criteria.md)`.
 
-```markdown
-Currently `2.0.0-beta.1`. The auto-updater's public pre-release channel is open
-— opt in with `fo update --pre-release`. See
-[docs/release/beta-criteria.md](docs/release/beta-criteria.md) for the
-beta-tester contract, the schema-frozen compatibility promise, and the
-rollback path.
-```
+To:
+
+> Currently `2.0.0-beta.1`. The auto-updater's public pre-release channel is
+> open — opt in with `fo update --pre-release`. See
+> `[docs/release/beta-criteria.md](docs/release/beta-criteria.md)` for the
+> beta-tester contract, the schema-frozen compatibility promise, and the
+> rollback path.
+
+(The `[text](url)` markdown-link syntax above is shown inside backticks so
+the plan's own link checker doesn't try to resolve it from this file's
+directory; when you edit `README.md`, drop the surrounding backticks so the
+syntax becomes a real clickable link.)
 
 - [ ] **Step 5: Fix README CLI command list to match actual surface**
 

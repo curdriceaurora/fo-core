@@ -948,7 +948,7 @@ gh pr create --title "feat(audio_model): wire generate() to faster-whisper + ben
 ## Summary
 
 Closes Step 2A of the alpha → beta path documented in
-[docs/release/beta-criteria.md](docs/release/beta-criteria.md).
+`docs/release/beta-criteria.md`.
 
 - `AudioModel.generate()` now wraps `services.audio.transcriber.AudioTranscriber`
   instead of raising `NotImplementedError`.
@@ -986,7 +986,7 @@ After this plan executes and merges:
 - No reachable `NotImplementedError` from a documented surface. Confirmed: `grep -rn "NotImplementedError" src/models/audio_model.py` returns no matches after Task 5.
 
 This satisfies the first row of the §2 entry checklist in
-[docs/release/beta-criteria.md](docs/release/beta-criteria.md). The remaining
+[docs/release/beta-criteria.md](../../release/beta-criteria.md). The remaining
 rows (coverage floors, daemon smoke test, `--debug` flag, doc-honesty pass,
 schema-stability test, bug-report template) are addressed by later steps in
 the master plan.
