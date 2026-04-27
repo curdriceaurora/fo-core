@@ -75,9 +75,7 @@ class TestExcTypeCoverage:
     def test_base_exception_name_is_covering(self) -> None:
         import ast
 
-        node = (
-            ast.parse("try:\n    pass\nexcept BaseException:\n    pass").body[0].handlers[0].type
-        )
+        node = ast.parse("try:\n    pass\nexcept BaseException:\n    pass").body[0].handlers[0].type
         assert _exc_type_covers_runtime_error(node)
 
     def test_tuple_with_runtime_error_is_covering(self) -> None:
@@ -136,10 +134,9 @@ class TestTryCoverage:
     def test_tuple_handler_with_runtime_error_covers(self) -> None:
         import ast
 
-        try_node = (
-            ast.parse("try:\n    pass\nexcept (ValueError, RuntimeError, OSError):\n    pass")
-            .body[0]
-        )
+        try_node = ast.parse(
+            "try:\n    pass\nexcept (ValueError, RuntimeError, OSError):\n    pass"
+        ).body[0]
         assert _try_covers_runtime_error(try_node)
 
     def test_os_error_only_handler_does_not_cover(self) -> None:
@@ -580,6 +577,4 @@ class TestRepoScanClean:
             capture_output=True,
             text=True,
         )
-        assert result.returncode == 0, (
-            "F11-resolve violations found in src/:\n" + result.stderr
-        )
+        assert result.returncode == 0, "F11-resolve violations found in src/:\n" + result.stderr
