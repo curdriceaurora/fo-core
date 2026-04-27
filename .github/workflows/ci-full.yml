@@ -42,10 +42,16 @@ jobs:
             pip install -e ".[dev,search]"
             pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
       - name: Run full test suite
+        # tests/extras/ is the canary suite for ci-extras.yml; those tests use
+        # hard imports (cv2, torch, imagededup) and intentionally fail — not skip —
+        # when the corresponding extra is absent. CI Full installs only [dev,search],
+        # so collecting tests/extras/ here produces ModuleNotFoundError at setup.
+        # Each extra is exercised by ci-extras.yml with the right install.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pytest tests/ \
+            --ignore=tests/extras \
             -m "not benchmark and not e2e" \
             --strict-markers \
             -n auto \
@@ -117,7 +123,9 @@ jobs:
           command: pip install -e ".[dev,search]"
       - name: Run tests
         # CI Full's cross-platform contract: validate the portable ci/smoke subset on macOS.
-        run: pytest tests/ --strict-markers --timeout=30 -n=auto --dist=loadgroup --override-ini="addopts=" -m "ci or smoke"
+        # tests/extras/ is owned by ci-extras.yml; its smoke canaries hard-import optional deps
+        # (cv2, torch, imagededup) that aren't installed in [dev,search], so they collide with -m "smoke".
+        run: pytest tests/ --ignore=tests/extras --strict-markers --timeout=30 -n=auto --dist=loadgroup --override-ini="addopts=" -m "ci or smoke"
 
   test-windows:
     name: Test Windows (Python 3.12)
@@ -150,4 +158,6 @@ jobs:
         # ProactorEventLoop IOCP teardown race: fixed in tests/conftest.py via
         # SelectorEventLoop on win32 (see ensure_default_event_loop fixture).
         # The 20-minute job timeout provides a sufficient hard cap.
-        run: pytest tests/ --strict-markers --override-ini="addopts=" -m "ci or smoke"
+        # tests/extras/ is owned by ci-extras.yml; its smoke canaries hard-import optional deps
+        # (cv2, torch, imagededup) that aren't installed in [dev,search], so they collide with -m "smoke".
+        run: pytest tests/ --ignore=tests/extras --strict-markers --override-ini="addopts=" -m "ci or smoke"
