@@ -123,3 +123,55 @@ def _make_manager(config_dir):
     from config import ConfigManager
 
     return ConfigManager(config_dir)
+
+
+@pytest.mark.unit
+class TestMainEntryPoint:
+    """Tests for the main() entry point exception handling."""
+
+    def test_keyboard_interrupt_handled_gracefully(self) -> None:
+        from unittest.mock import patch
+
+        from cli.main import main
+
+        with (
+            patch("cli.main._register_profile_command"),
+            patch("cli.main.app", side_effect=KeyboardInterrupt()),
+            patch("sys.exit") as mock_exit,
+            patch("cli.main.console.print") as mock_print,
+        ):
+            main()
+            mock_print.assert_called_with("\n[red]Operation cancelled by user.[/red]")
+            mock_exit.assert_called_once_with(130)
+
+    def test_broken_pipe_handled_gracefully(self) -> None:
+        from unittest.mock import patch
+
+        from cli.main import main
+
+        with (
+            patch("cli.main._register_profile_command"),
+            patch("cli.main.app", side_effect=BrokenPipeError()),
+            patch("sys.exit") as mock_exit,
+            patch("os.open"),
+            patch("os.dup2"),
+        ):
+            main()
+            mock_exit.assert_called_once_with(0)
+
+    def test_lazy_loading_prevents_heavy_imports(self) -> None:
+        import subprocess
+        import sys
+
+        code = (
+            "import sys\n"
+            "from cli.main import app\n"
+            "heavy_modules = ['sqlalchemy', 'pydantic', 'watchdog']\n"
+            "loaded = [m for m in heavy_modules if m in sys.modules]\n"
+            "if loaded:\n"
+            "    print(','.join(loaded))\n"
+            "    sys.exit(1)\n"
+            "sys.exit(0)\n"
+        )
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        assert result.returncode == 0, f"Heavy modules loaded: {result.stdout}"

@@ -1,0 +1,91 @@
+"""Lazy loading infrastructure for Typer to improve CLI startup latency."""
+
+from __future__ import annotations
+
+import importlib
+import typing
+
+import click
+import typer
+import typer.core
+import typer.main
+
+# Mapping of command/group name -> (module_path, attribute_name, short_help)
+LAZY_COMMANDS: dict[str, tuple[str, str, str]] = {
+    "config": ("cli.config_cli", "config_app", "Manage configuration and profiles."),
+    "model": ("cli.models_cli", "model_app", "Manage AI models."),
+    "autotag": ("cli.autotag_v2", "autotag_app", "Automatically tag files."),
+    "benchmark": ("cli.benchmark", "benchmark_app", "Run performance benchmarks."),
+    "copilot": ("cli.copilot", "copilot_app", "AI assistant for file operations."),
+    "daemon": ("cli.daemon", "daemon_app", "Run the background file watcher."),
+    "dedupe": ("cli.dedupe_v2", "dedupe_app", "Find and manage duplicate files."),
+    "rules": ("cli.rules", "rules_app", "Manage automated organization rules."),
+    "setup": ("cli.setup", "setup_app", "Initial configuration wizard."),
+    "suggest": ("cli.suggest", "suggest_app", "Get AI suggestions for files."),
+    "update": ("cli.update", "update_app", "Update the application."),
+}
+
+
+class LazyCommandProxy(click.Group):
+    """A proxy for a click Group that defers importing its module."""
+
+    def __init__(self, name: str, module_name: str, attr_name: str, help_text: str):
+        """Initialize the proxy with the target module and command name."""
+        super().__init__(name, help=help_text)
+        self.module_name = module_name
+        self.attr_name = attr_name
+        self._real_cmd: click.Command | None = None
+
+    def _load(self) -> click.Command:
+        """Load the underlying command from the module."""
+        if self._real_cmd is None:
+            module = importlib.import_module(self.module_name)
+            obj = getattr(module, self.attr_name)
+            if isinstance(obj, typer.Typer):
+                self._real_cmd = typer.main.get_group(obj)
+            else:
+                self._real_cmd = typing.cast(click.Command, obj)
+        return self._real_cmd
+
+    def invoke(self, ctx: click.Context) -> typing.Any:
+        """Proxy invoke to the actual command."""
+        return self._load().invoke(ctx)
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        """Proxy parse_args to the actual command."""
+        return self._load().parse_args(ctx, args)
+
+    def get_params(self, ctx: click.Context) -> list[click.Parameter]:
+        """Proxy get_params to the actual command."""
+        return self._load().get_params(ctx)
+
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        """Proxy list_commands to the actual command if it's a group."""
+        cmd = self._load()
+        if hasattr(cmd, "list_commands"):
+            return typing.cast("list[str]", cmd.list_commands(ctx))
+        return []
+
+    def get_command(self, ctx: click.Context, name: str) -> click.Command | None:
+        """Proxy get_command to the actual command if it's a group."""
+        cmd = self._load()
+        if hasattr(cmd, "get_command"):
+            return typing.cast("click.Command | None", cmd.get_command(ctx, name))
+        return None
+
+
+class LazyTyperGroup(typer.core.TyperGroup):
+    """A TyperGroup that integrates with LazyCommandProxy for deferred loading."""
+
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        """List standard commands and lazy commands."""
+        rv = super().list_commands(ctx)
+        rv.extend(LAZY_COMMANDS.keys())
+        return sorted(set(rv))
+
+    def get_command(self, ctx: click.Context, name: str) -> click.Command | None:
+        """Return a LazyCommandProxy for lazy commands, otherwise standard get_command."""
+        if name in LAZY_COMMANDS:
+            module_name, attr_name, help_text = LAZY_COMMANDS[name]
+            return LazyCommandProxy(name, module_name, attr_name, help_text)
+        return super().get_command(ctx, name)

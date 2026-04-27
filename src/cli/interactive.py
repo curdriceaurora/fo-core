@@ -20,25 +20,9 @@ from rich.progress import (
 )
 from rich.prompt import Confirm, Prompt
 
-# Module-level flags set by main_callback in main.py
-_yes: bool = False
-_no_interactive: bool = False
+from cli.state import _get_state
 
 console = Console()
-
-
-def set_flags(*, yes: bool = False, no_interactive: bool = False) -> None:
-    """Update the module-level interactive flags.
-
-    Called by ``main_callback()`` during CLI startup.
-
-    Args:
-        yes: If ``True``, auto-confirm all prompts.
-        no_interactive: If ``True``, skip all interactive prompts.
-    """
-    global _yes, _no_interactive
-    _yes = yes
-    _no_interactive = no_interactive
 
 
 def confirm_action(message: str, *, default: bool = False) -> bool:
@@ -54,9 +38,9 @@ def confirm_action(message: str, *, default: bool = False) -> bool:
     Returns:
         ``True`` if the user confirmed (or auto-confirmed).
     """
-    if _yes:
+    if _get_state().yes:
         return True
-    if _no_interactive:
+    if _get_state().no_interactive:
         return default
     return Confirm.ask(message, default=default)
 
@@ -96,7 +80,7 @@ def prompt_choice(
     Returns:
         The chosen string.
     """
-    if _no_interactive and default is not None:
+    if _get_state().no_interactive and default is not None:
         return default
     if default is not None:
         return Prompt.ask(message, choices=list(choices), default=default)

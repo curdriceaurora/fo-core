@@ -12,20 +12,10 @@ from typing import Any, cast
 import typer
 from rich.console import Console
 
-from cli.autotag_v2 import autotag_app
-from cli.benchmark import benchmark_app
-from cli.config_cli import config_app
-from cli.copilot import copilot_app
-from cli.daemon import daemon_app
-from cli.dedupe_v2 import dedupe_app
 from cli.doctor import doctor
-from cli.models_cli import model_app
+from cli.lazy import LazyTyperGroup
 from cli.organize import organize, preview
-from cli.rules import rules_app
-from cli.setup import setup_app
-from cli.state import CLIState, _get_state
-from cli.suggest import suggest_app
-from cli.update import update_app
+from cli.state import CLIState, _get_state, _merge_flag
 from cli.utilities import analyze, search
 from undo._journal import default_journal_path as _default_journal_path
 from undo.durable_move import sweep as _durable_move_sweep
@@ -42,6 +32,7 @@ app = typer.Typer(
     help="AI-powered local file management with privacy-first architecture.",
     no_args_is_help=True,
     rich_markup_mode=cast(Any, "rich"),
+    cls=LazyTyperGroup,
 )
 
 # ---------------------------------------------------------------------------
@@ -66,12 +57,13 @@ def main_callback(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without executing."),
     json_output: bool = typer.Option(False, "--json", help="Output results as JSON."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Auto-confirm all prompts."),
-    no_interactive: bool = typer.Option(
-        False, "--no-interactive", help="Disable interactive prompts."
+    interactive: bool = typer.Option(
+        True, "--interactive/--no-interactive", help="Toggle interactive prompts."
     ),
     version_flag: bool = typer.Option(
         False,
         "--version",
+        "-V",
         callback=_version_callback,
         is_eager=True,
         help="Show the application version and exit.",
@@ -84,10 +76,9 @@ def main_callback(
         dry_run=dry_run,
         json_output=json_output,
         yes=yes,
-        no_interactive=no_interactive,
+        no_interactive=not interactive,
     )
 
-    from cli.interactive import set_flags
     from utils.log_redact import install_on_root
 
     # A.creds: attach the credential-redacting log filter to the root logger
@@ -129,8 +120,6 @@ def main_callback(
                 exc_info=True,
             )
 
-    set_flags(yes=yes, no_interactive=no_interactive)
-
 
 # ---------------------------------------------------------------------------
 # Top-level commands (registered from sub-modules)
@@ -161,9 +150,7 @@ def hardware_info(
     profile = detect_hardware()
 
     if json_out or _get_state().json_output:
-        import json
-
-        console.print_json(json.dumps(profile.to_dict()))
+        console.print_json(data=profile.to_dict())
     else:
         console.print("[bold]Hardware Profile[/bold]")
         console.print(f"  GPU type:            {profile.gpu_type.value}")
@@ -183,17 +170,7 @@ def hardware_info(
 # Sub-apps (config, model, and third-party integrations)
 # ---------------------------------------------------------------------------
 
-app.add_typer(config_app, name="config")
-app.add_typer(model_app, name="model")
-app.add_typer(autotag_app, name="autotag")
-app.add_typer(benchmark_app, name="benchmark")
-app.add_typer(copilot_app, name="copilot")
-app.add_typer(daemon_app, name="daemon")
-app.add_typer(dedupe_app, name="dedupe")
-app.add_typer(rules_app, name="rules")
-app.add_typer(setup_app, name="setup")
-app.add_typer(suggest_app, name="suggest")
-app.add_typer(update_app, name="update")
+# Sub-apps are loaded lazily via cli.lazy.LazyTyperGroup
 
 
 # ---------------------------------------------------------------------------
@@ -214,10 +191,10 @@ def undo(
     code = _undo(
         operation_id=operation_id,
         transaction_id=transaction_id,
-        dry_run=dry_run or _get_state().dry_run,
-        verbose=verbose or _get_state().verbose,
+        dry_run=_merge_flag(dry_run, _get_state().dry_run),
+        verbose=_merge_flag(verbose, _get_state().verbose),
     )
-    raise typer.Exit(code=code)
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 @app.command()
@@ -231,10 +208,10 @@ def redo(
 
     code = _redo(
         operation_id=operation_id,
-        dry_run=dry_run or _get_state().dry_run,
-        verbose=verbose or _get_state().verbose,
+        dry_run=_merge_flag(dry_run, _get_state().dry_run),
+        verbose=_merge_flag(verbose, _get_state().verbose),
     )
-    raise typer.Exit(code=code)
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 @app.command()
@@ -253,9 +230,9 @@ def history(
         operation_type=operation_type,
         status=status,
         stats=stats,
-        verbose=verbose or _get_state().verbose,
+        verbose=_merge_flag(verbose, _get_state().verbose),
     )
-    raise typer.Exit(code=code)
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 @app.command()
@@ -276,8 +253,8 @@ def recover(  # noqa: G3 (--journal is a read-only path; defaults to system stat
     """
     from cli.undo_recover import recover_command as _recover
 
-    code = _recover(journal=journal, verbose=verbose or _get_state().verbose)
-    raise typer.Exit(code=code)
+    code = _recover(journal=journal, verbose=_merge_flag(verbose, _get_state().verbose))
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 @app.command()
@@ -295,11 +272,11 @@ def analytics(
         # handing the string back to the Click-compat analytics_command.
         directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
         args.append(str(directory))
-    if verbose or _get_state().verbose:
+    if _merge_flag(verbose, _get_state().verbose):
         args.append("--verbose")
 
     code = analytics_command(args)
-    raise typer.Exit(code=code)
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +309,18 @@ def _register_profile_command() -> None:
 def main() -> None:
     """Entry point for ``fo`` / ``fo`` console scripts."""
     _register_profile_command()
-    app()
+    import os
+    import sys
+
+    try:
+        app()
+    except KeyboardInterrupt:
+        console.print("\n[red]Operation cancelled by user.[/red]")
+        sys.exit(130)
+    except BrokenPipeError:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        sys.exit(0)
 
 
 if __name__ == "__main__":

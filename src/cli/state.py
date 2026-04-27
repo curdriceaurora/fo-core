@@ -33,3 +33,8 @@ def _get_state() -> CLIState:
     if ctx is not None and isinstance(ctx.obj, CLIState):
         return ctx.obj
     return CLIState()
+
+
+def _merge_flag(local_flag: bool, global_flag: bool) -> bool:
+    """Merge a command-local boolean flag with its global CLIState equivalent."""
+    return local_flag or global_flag

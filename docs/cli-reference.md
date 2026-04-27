@@ -12,8 +12,9 @@ These options apply to every command and may be passed before or after the comma
 | `--dry-run` | | Preview changes without executing |
 | `--json` | | Output results as JSON |
 | `--yes` | `-y` | Auto-confirm all prompts |
-| `--no-interactive` | | Disable interactive prompts |
+| `--interactive / --no-interactive` | | Toggle interactive prompts |
 | `--help` | | Show help and exit |
+| `--version` | `-V` | Show version and exit |
 
 ---
 
