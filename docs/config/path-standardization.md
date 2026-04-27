@@ -22,7 +22,7 @@ state_dir = path_manager.state_dir            # ~/.local/state/fo (XDG_STATE_HOM
 cache_dir = path_manager.cache_dir            # data_dir/cache
 
 # Access specific files
-config_file = path_manager.config_file        # config_dir/config.json
+config_file = path_manager.config_file        # config_dir/config.yaml
 preferences_file = path_manager.preferences_file  # config_dir/preferences.json
 history_db = path_manager.history_db          # data_dir/history/operations.db
 undo_redo_db = path_manager.undo_redo_db      # state_dir/undo-redo.db
