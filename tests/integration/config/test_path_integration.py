@@ -14,7 +14,7 @@ def test_path_manager_initialization():
 
     # Config dir may not exist until ensure_directories() is called
     assert isinstance(path_manager.config_dir, Path)
-    assert path_manager.config_file.name == "config.json"
+    assert path_manager.config_file.name == "config.yaml"
 
 
 def test_path_manager_directory_creation(tmp_path):

@@ -22,7 +22,7 @@ state_dir = path_manager.state_dir            # ~/.local/state/fo (XDG_STATE_HOM
 cache_dir = path_manager.cache_dir            # data_dir/cache
 
 # Access specific files
-config_file = path_manager.config_file        # config_dir/config.json
+config_file = path_manager.config_file        # config_dir/config.yaml
 preferences_file = path_manager.preferences_file  # config_dir/preferences.json
 history_db = path_manager.history_db          # data_dir/history/operations.db
 undo_redo_db = path_manager.undo_redo_db      # state_dir/undo-redo.db
@@ -58,10 +58,10 @@ fo-core automatically migrates from legacy paths:
 2. **Migration**: Files are copied to new XDG-compliant locations
 3. **Backup**: Original files are preserved with timestamp suffix (e.g., `.backup.20260227_143022_123456`)
 
-To manually trigger migration:
+To verify your configuration after migration:
 
 ```bash
-fo config migrate --from-legacy
+fo config show
 ```
 
 ### For Developers
@@ -199,14 +199,8 @@ fo daemon start
 Verify your path configuration:
 
 ```bash
-# Show current paths
-fo config paths
-
-# Show path debug info
-fo config paths --verbose
-
-# Show migration status
-fo config migration-status
+# Show current configuration (includes active paths)
+fo config show
 ```
 
 ## Troubleshooting

@@ -122,8 +122,8 @@ Solutions:
 
 ```bash
 fo config show          # View current config
-fo config set key val   # Update a setting
-fo doctor               # Verify setup
+fo config edit          # Edit configuration via command-line flags
+fo doctor .             # Verify setup
 ```
 
 Config file lives at `~/.config/fo/config.yaml`.
@@ -149,7 +149,7 @@ ollama serve
 
 Verify: `curl http://localhost:11434/api/version`
 
-Run diagnostics: `fo doctor`
+Run diagnostics: `fo doctor .`
 
 ### Out of memory
 
