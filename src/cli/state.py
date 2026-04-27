@@ -22,10 +22,12 @@ class CLIState:
 
 
 def _get_state() -> CLIState:
-    """Return the CLIState from the active typer context, or defaults.
+    """Retrieve the active CLIState from the current Typer/Click context or a new default instance.
 
-    Falls back to a default CLIState() when called outside a typer
-    invocation (e.g. direct function calls in unit tests).
+    If a Click/Typer context is present and its `obj` is a `CLIState`, that instance is returned; otherwise a fresh `CLIState()` is returned (e.g., when called outside a CLI invocation such as in unit tests).
+
+    Returns:
+        CLIState: the active CLIState from the context, or a default `CLIState` instance when no applicable context exists.
     """
     import click
 
@@ -33,3 +35,8 @@ def _get_state() -> CLIState:
     if ctx is not None and isinstance(ctx.obj, CLIState):
         return ctx.obj
     return CLIState()
+
+
+def _merge_flag(local_flag: bool, global_flag: bool) -> bool:
+    """Merge a command-local boolean flag with its global CLIState equivalent."""
+    return local_flag or global_flag

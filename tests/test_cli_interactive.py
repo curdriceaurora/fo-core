@@ -58,49 +58,32 @@ class TestCompletion:
 
 @pytest.mark.unit
 @pytest.mark.integration
-class TestInteractiveFlags:
-    """Tests for interactive module flag management."""
-
-    def test_set_flags(self) -> None:
-        from cli import interactive
-
-        interactive.set_flags(yes=True, no_interactive=False)
-        assert interactive._yes is True
-        assert interactive._no_interactive is False
-
-        interactive.set_flags(yes=False, no_interactive=True)
-        assert interactive._yes is False
-        assert interactive._no_interactive is True
-
-        # Reset
-        interactive.set_flags(yes=False, no_interactive=False)
-
-
-@pytest.mark.unit
-@pytest.mark.integration
 class TestConfirmAction:
     """Tests for confirm_action."""
 
     def test_auto_confirm_with_yes(self) -> None:
         from cli import interactive
+        from cli.state import CLIState
 
-        interactive.set_flags(yes=True)
-        assert interactive.confirm_action("Delete?") is True
-        interactive.set_flags(yes=False)
+        with patch.object(interactive, "_get_state", return_value=CLIState(yes=True)):
+            assert interactive.confirm_action("Delete?") is True
 
     def test_returns_default_when_no_interactive(self) -> None:
         from cli import interactive
+        from cli.state import CLIState
 
-        interactive.set_flags(no_interactive=True)
-        assert interactive.confirm_action("Do?", default=False) is False
-        assert interactive.confirm_action("Do?", default=True) is True
-        interactive.set_flags(no_interactive=False)
+        with patch.object(interactive, "_get_state", return_value=CLIState(no_interactive=True)):
+            assert interactive.confirm_action("Do?", default=False) is False
+            assert interactive.confirm_action("Do?", default=True) is True
 
     def test_prompts_user_normally(self) -> None:
         from cli import interactive
+        from cli.state import CLIState
 
-        interactive.set_flags(yes=False, no_interactive=False)
-        with patch.object(interactive, "Confirm") as mock_confirm:
+        with (
+            patch.object(interactive, "_get_state", return_value=CLIState()),
+            patch.object(interactive, "Confirm") as mock_confirm,
+        ):
             mock_confirm.ask.return_value = True
             result = interactive.confirm_action("Proceed?")
             assert result is True
@@ -115,17 +98,20 @@ class TestPromptChoice:
 
     def test_returns_default_when_no_interactive(self) -> None:
         from cli import interactive
+        from cli.state import CLIState
 
-        interactive.set_flags(no_interactive=True)
-        result = interactive.prompt_choice("Pick", ["a", "b", "c"], default="b")
-        assert result == "b"
-        interactive.set_flags(no_interactive=False)
+        with patch.object(interactive, "_get_state", return_value=CLIState(no_interactive=True)):
+            result = interactive.prompt_choice("Pick", ["a", "b", "c"], default="b")
+            assert result == "b"
 
     def test_prompts_with_default_in_interactive_mode(self) -> None:
         from cli import interactive
+        from cli.state import CLIState
 
-        interactive.set_flags(yes=False, no_interactive=False)
-        with patch.object(interactive, "Prompt") as mock_prompt:
+        with (
+            patch.object(interactive, "_get_state", return_value=CLIState()),
+            patch.object(interactive, "Prompt") as mock_prompt,
+        ):
             mock_prompt.ask.return_value = "a"
             result = interactive.prompt_choice("Pick", ["a", "b"], default="a")
             assert result == "a"
@@ -135,9 +121,12 @@ class TestPromptChoice:
 
     def test_prompts_without_default_in_interactive_mode(self) -> None:
         from cli import interactive
+        from cli.state import CLIState
 
-        interactive.set_flags(yes=False, no_interactive=False)
-        with patch.object(interactive, "Prompt") as mock_prompt:
+        with (
+            patch.object(interactive, "_get_state", return_value=CLIState()),
+            patch.object(interactive, "Prompt") as mock_prompt,
+        ):
             mock_prompt.ask.return_value = "b"
             result = interactive.prompt_choice("Pick", ["a", "b"], default=None)
             assert result == "b"

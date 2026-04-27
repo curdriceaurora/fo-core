@@ -6,26 +6,19 @@ Provides the unified entry point with all commands and sub-apps.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from pathlib import Path
 from typing import Any, cast
 
+import click
 import typer
 from rich.console import Console
 
-from cli.autotag_v2 import autotag_app
-from cli.benchmark import benchmark_app
-from cli.config_cli import config_app
-from cli.copilot import copilot_app
-from cli.daemon import daemon_app
-from cli.dedupe_v2 import dedupe_app
 from cli.doctor import doctor
-from cli.models_cli import model_app
+from cli.lazy import LazyTyperGroup
 from cli.organize import organize, preview
-from cli.rules import rules_app
-from cli.setup import setup_app
-from cli.state import CLIState, _get_state
-from cli.suggest import suggest_app
-from cli.update import update_app
+from cli.state import CLIState, _get_state, _merge_flag
 from cli.utilities import analyze, search
 from undo._journal import default_journal_path as _default_journal_path
 from undo.durable_move import sweep as _durable_move_sweep
@@ -42,6 +35,7 @@ app = typer.Typer(
     help="AI-powered local file management with privacy-first architecture.",
     no_args_is_help=True,
     rich_markup_mode=cast(Any, "rich"),
+    cls=LazyTyperGroup,
 )
 
 # ---------------------------------------------------------------------------
@@ -66,28 +60,36 @@ def main_callback(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without executing."),
     json_output: bool = typer.Option(False, "--json", help="Output results as JSON."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Auto-confirm all prompts."),
-    no_interactive: bool = typer.Option(
-        False, "--no-interactive", help="Disable interactive prompts."
+    interactive: bool = typer.Option(
+        True, "--interactive/--no-interactive", help="Toggle interactive prompts."
     ),
     version_flag: bool = typer.Option(
         False,
         "--version",
+        "-V",
         callback=_version_callback,
         is_eager=True,
         help="Show the application version and exit.",
     ),
 ) -> None:
-    """Global options applied to all commands."""
+    """Initialize global CLI state and perform startup bookkeeping.
+
+    Sets ctx.obj to a CLIState containing the provided flags (with CLIState.no_interactive set to the inverse of `interactive`), installs the credential-redacting log filter on the root logger, and runs a durable-move recovery sweep on the default journal to clean up interrupted operations. The startup sweep is skipped when the invoked subcommand is "recover"; if the sweep raises an exception it is logged at WARNING and execution continues.
+
+    Parameters:
+        ctx (typer.Context): Typer invocation context used to store CLIState.
+        interactive (bool): If False, stored state will set `no_interactive=True`.
+        version_flag (bool): Eager version callback value (accepted and ignored here).
+    """
     _ = version_flag
     ctx.obj = CLIState(
         verbose=verbose,
         dry_run=dry_run,
         json_output=json_output,
         yes=yes,
-        no_interactive=no_interactive,
+        no_interactive=not interactive,
     )
 
-    from cli.interactive import set_flags
     from utils.log_redact import install_on_root
 
     # A.creds: attach the credential-redacting log filter to the root logger
@@ -129,8 +131,6 @@ def main_callback(
                 exc_info=True,
             )
 
-    set_flags(yes=yes, no_interactive=no_interactive)
-
 
 # ---------------------------------------------------------------------------
 # Top-level commands (registered from sub-modules)
@@ -155,15 +155,19 @@ def version() -> None:
 def hardware_info(
     json_out: bool = typer.Option(False, "--json", help="Output as JSON."),
 ) -> None:
-    """Detect and display hardware capabilities."""
+    """Print the current machine's hardware profile to the console.
+
+    If `json_out` is True or the global CLI state requests JSON output, prints the profile as structured JSON; otherwise prints a human-readable summary of detected hardware and recommendations.
+
+    Parameters:
+        json_out (bool): Force JSON formatted output when True.
+    """
     from core.hardware_profile import detect_hardware
 
     profile = detect_hardware()
 
     if json_out or _get_state().json_output:
-        import json
-
-        console.print_json(json.dumps(profile.to_dict()))
+        console.print_json(data=profile.to_dict())
     else:
         console.print("[bold]Hardware Profile[/bold]")
         console.print(f"  GPU type:            {profile.gpu_type.value}")
@@ -183,17 +187,7 @@ def hardware_info(
 # Sub-apps (config, model, and third-party integrations)
 # ---------------------------------------------------------------------------
 
-app.add_typer(config_app, name="config")
-app.add_typer(model_app, name="model")
-app.add_typer(autotag_app, name="autotag")
-app.add_typer(benchmark_app, name="benchmark")
-app.add_typer(copilot_app, name="copilot")
-app.add_typer(daemon_app, name="daemon")
-app.add_typer(dedupe_app, name="dedupe")
-app.add_typer(rules_app, name="rules")
-app.add_typer(setup_app, name="setup")
-app.add_typer(suggest_app, name="suggest")
-app.add_typer(update_app, name="update")
+# Sub-apps are loaded lazily via cli.lazy.LazyTyperGroup
 
 
 # ---------------------------------------------------------------------------
@@ -208,16 +202,23 @@ def undo(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without executing."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
 ) -> None:
-    """Undo file operations."""
+    """Undo previously recorded file operations.
+
+    Parameters:
+        operation_id: Specific operation ID to target for undo; if omitted, other filters or recent operations may be considered.
+        transaction_id: Transaction ID to target for undo; if provided, undoes operations within that transaction.
+        dry_run: If true, show the actions that would be performed without making changes.
+        verbose: If true, emit more detailed output during the undo process.
+    """
     from cli.undo_redo import undo_command as _undo
 
     code = _undo(
         operation_id=operation_id,
         transaction_id=transaction_id,
-        dry_run=dry_run or _get_state().dry_run,
-        verbose=verbose or _get_state().verbose,
+        dry_run=_merge_flag(dry_run, _get_state().dry_run),
+        verbose=_merge_flag(verbose, _get_state().verbose),
     )
-    raise typer.Exit(code=code)
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 @app.command()
@@ -226,15 +227,21 @@ def redo(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview without executing."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output."),
 ) -> None:
-    """Redo file operations."""
+    """Redo previously recorded file operations.
+
+    Parameters:
+        operation_id (int | None): Specific operation ID to redo; if omitted, the command will select the default/recent operation.
+        dry_run (bool): Preview actions without making changes; local flag is merged with global dry-run state.
+        verbose (bool): Enable verbose output; local flag is merged with global verbose state.
+    """
     from cli.undo_redo import redo_command as _redo
 
     code = _redo(
         operation_id=operation_id,
-        dry_run=dry_run or _get_state().dry_run,
-        verbose=verbose or _get_state().verbose,
+        dry_run=_merge_flag(dry_run, _get_state().dry_run),
+        verbose=_merge_flag(verbose, _get_state().verbose),
     )
-    raise typer.Exit(code=code)
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 @app.command()
@@ -253,9 +260,9 @@ def history(
         operation_type=operation_type,
         status=status,
         stats=stats,
-        verbose=verbose or _get_state().verbose,
+        verbose=_merge_flag(verbose, _get_state().verbose),
     )
-    raise typer.Exit(code=code)
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 @app.command()
@@ -268,16 +275,15 @@ def recover(  # noqa: G3 (--journal is a read-only path; defaults to system stat
 ) -> None:
     """Preview pending durable_move recovery actions without executing them.
 
-    F7.1 §8.2: reads the journal under ``LOCK_SH``, calls the pure
-    :func:`plan_recovery_actions` planner, and prints the planned
-    sweep verbs + reasons. Exits 0 if nothing actionable, 1 if any
-    recovery work would be performed (so scripts can detect a stuck
-    journal without invoking sweep itself).
+    Exits with status 0 if no recovery work would be performed, 1 if recovery actions are planned (so callers can detect a stuck journal).
+
+    Parameters:
+        journal (Path | None): Optional override path to the durable_move.journal file (defaults to the user's state directory).
     """
     from cli.undo_recover import recover_command as _recover
 
-    code = _recover(journal=journal, verbose=verbose or _get_state().verbose)
-    raise typer.Exit(code=code)
+    code = _recover(journal=journal, verbose=_merge_flag(verbose, _get_state().verbose))
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 @app.command()
@@ -295,11 +301,11 @@ def analytics(
         # handing the string back to the Click-compat analytics_command.
         directory = resolve_cli_path(directory, must_exist=True, must_be_dir=True)
         args.append(str(directory))
-    if verbose or _get_state().verbose:
+    if _merge_flag(verbose, _get_state().verbose):
         args.append("--verbose")
 
     code = analytics_command(args)
-    raise typer.Exit(code=code)
+    raise typer.Exit(code=code if code is not None else 1)
 
 
 # ---------------------------------------------------------------------------
@@ -330,9 +336,50 @@ def _register_profile_command() -> None:
 
 
 def main() -> None:
-    """Entry point for ``fo`` / ``fo`` console scripts."""
+    """Run the fo command-line application.
+
+    Registers the deferred profile command and invokes the Typer app with
+    ``standalone_mode=False`` so that ``KeyboardInterrupt`` and
+    ``BrokenPipeError`` propagate out of Click for our handlers to see — under
+    Click's default standalone mode the framework catches both internally and
+    our outer ``except`` clauses would never fire (codex review on PR #230).
+
+    Exit codes:
+        130 — user pressed Ctrl+C (POSIX SIGINT).
+          0 — stdout consumer closed the pipe (e.g. ``fo ... | head``).
+        Other typer/click exits propagate their own ``exit_code``.
+    """
     _register_profile_command()
-    app()
+
+    try:
+        app(standalone_mode=False)
+    except (KeyboardInterrupt, click.exceptions.Abort):
+        # Click converts KeyboardInterrupt → click.Abort under
+        # standalone_mode=False; the bare KeyboardInterrupt branch covers
+        # any direct raise (and the unit-test mock path).
+        console.print("\n[red]Operation cancelled by user.[/red]")
+        sys.exit(130)
+    except click.exceptions.UsageError as e:
+        # Mimic Click's standalone-mode behavior: print the usage message
+        # to stderr and exit with the typed exit code.
+        e.show()
+        sys.exit(e.exit_code)
+    except click.exceptions.Exit as e:
+        # `typer.Exit(code=N)` round-trips through this branch.
+        sys.exit(e.exit_code)
+    except BrokenPipeError:
+        # Stdout consumer closed the pipe (canonical: `fo ... | head`).
+        # Redirect both stdout and stderr to /dev/null so the interpreter's
+        # final flush during shutdown does not raise another BrokenPipeError
+        # and noise the terminal — this is the standard CLI pattern (git,
+        # grep, etc. all behave this way).
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        try:
+            os.dup2(devnull, sys.stdout.fileno())
+            os.dup2(devnull, sys.stderr.fileno())
+        finally:
+            os.close(devnull)
+        sys.exit(0)
 
 
 if __name__ == "__main__":
