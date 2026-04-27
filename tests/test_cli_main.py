@@ -155,6 +155,45 @@ class TestMainEntryPoint:
             mock_print.assert_called_with("\n[red]Operation cancelled by user.[/red]")
             mock_exit.assert_called_once_with(130)
 
+    def test_click_abort_handled_gracefully(self) -> None:
+        """Under standalone_mode=False, Click converts KeyboardInterrupt
+        into click.exceptions.Abort and re-raises. Our outer handler must
+        catch that as the user-cancellation path."""
+        from unittest.mock import patch
+
+        import click
+
+        from cli.main import main
+
+        with (
+            patch("cli.main._register_profile_command"),
+            patch("cli.main.app", side_effect=click.exceptions.Abort()),
+            patch("sys.exit") as mock_exit,
+            patch("cli.main.console.print") as mock_print,
+        ):
+            main()
+            mock_print.assert_called_with("\n[red]Operation cancelled by user.[/red]")
+            mock_exit.assert_called_once_with(130)
+
+    def test_typer_exit_propagates_with_code(self) -> None:
+        """typer.Exit(code=N) is click.exceptions.Exit; main() must
+        propagate the exit_code to sys.exit (otherwise commands that
+        deliberately exit non-zero get clobbered to 0 under
+        standalone_mode=False)."""
+        from unittest.mock import patch
+
+        import click
+
+        from cli.main import main
+
+        with (
+            patch("cli.main._register_profile_command"),
+            patch("cli.main.app", side_effect=click.exceptions.Exit(code=2)),
+            patch("sys.exit") as mock_exit,
+        ):
+            main()
+            mock_exit.assert_called_once_with(2)
+
     def test_broken_pipe_handled_gracefully(self) -> None:
         from unittest.mock import patch
 
@@ -164,11 +203,14 @@ class TestMainEntryPoint:
             patch("cli.main._register_profile_command"),
             patch("cli.main.app", side_effect=BrokenPipeError()),
             patch("sys.exit") as mock_exit,
-            patch("os.open"),
-            patch("os.dup2"),
+            patch("cli.main.os.open"),
+            patch("cli.main.os.dup2"),
+            patch("cli.main.os.close") as mock_close,
         ):
             main()
             mock_exit.assert_called_once_with(0)
+            # Handler must close the devnull fd (try/finally guarantee).
+            mock_close.assert_called_once()
 
     def test_lazy_loading_prevents_heavy_imports(self) -> None:
         """
@@ -189,8 +231,17 @@ class TestMainEntryPoint:
             "    sys.exit(1)\n"
             "sys.exit(0)\n"
         )
-        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-        assert result.returncode == 0, f"Heavy modules loaded: {result.stdout}"
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        assert result.returncode == 0, (
+            f"Heavy modules loaded or import failed: "
+            f"stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
 
 
 @pytest.mark.unit

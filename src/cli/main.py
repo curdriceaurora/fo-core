@@ -6,9 +6,12 @@ Provides the unified entry point with all commands and sub-apps.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from pathlib import Path
 from typing import Any, cast
 
+import click
 import typer
 from rich.console import Console
 
@@ -335,20 +338,47 @@ def _register_profile_command() -> None:
 def main() -> None:
     """Run the fo command-line application.
 
-    Registers the deferred profile command and invokes the Typer app. If the user interrupts (Ctrl+C), prints a cancellation message and exits with status 130. If a broken pipe occurs, silences stdout and exits with status 0.
+    Registers the deferred profile command and invokes the Typer app with
+    ``standalone_mode=False`` so that ``KeyboardInterrupt`` and
+    ``BrokenPipeError`` propagate out of Click for our handlers to see — under
+    Click's default standalone mode the framework catches both internally and
+    our outer ``except`` clauses would never fire (codex review on PR #230).
+
+    Exit codes:
+        130 — user pressed Ctrl+C (POSIX SIGINT).
+          0 — stdout consumer closed the pipe (e.g. ``fo ... | head``).
+        Other typer/click exits propagate their own ``exit_code``.
     """
     _register_profile_command()
-    import os
-    import sys
 
     try:
-        app()
-    except KeyboardInterrupt:
+        app(standalone_mode=False)
+    except (KeyboardInterrupt, click.exceptions.Abort):
+        # Click converts KeyboardInterrupt → click.Abort under
+        # standalone_mode=False; the bare KeyboardInterrupt branch covers
+        # any direct raise (and the unit-test mock path).
         console.print("\n[red]Operation cancelled by user.[/red]")
         sys.exit(130)
+    except click.exceptions.UsageError as e:
+        # Mimic Click's standalone-mode behavior: print the usage message
+        # to stderr and exit with the typed exit code.
+        e.show()
+        sys.exit(e.exit_code)
+    except click.exceptions.Exit as e:
+        # `typer.Exit(code=N)` round-trips through this branch.
+        sys.exit(e.exit_code)
     except BrokenPipeError:
+        # Stdout consumer closed the pipe (canonical: `fo ... | head`).
+        # Redirect both stdout and stderr to /dev/null so the interpreter's
+        # final flush during shutdown does not raise another BrokenPipeError
+        # and noise the terminal — this is the standard CLI pattern (git,
+        # grep, etc. all behave this way).
         devnull = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull, sys.stdout.fileno())
+        try:
+            os.dup2(devnull, sys.stdout.fileno())
+            os.dup2(devnull, sys.stderr.fileno())
+        finally:
+            os.close(devnull)
         sys.exit(0)
 
 

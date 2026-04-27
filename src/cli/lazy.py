@@ -29,7 +29,7 @@ LAZY_COMMANDS: dict[str, tuple[str, str, str]] = {
 class LazyCommandProxy(click.Group):
     """A proxy for a click Group that defers importing its module."""
 
-    def __init__(self, name: str, module_name: str, attr_name: str, help_text: str):
+    def __init__(self, name: str, module_name: str, attr_name: str, help_text: str) -> None:
         """Initialize the proxy with the target module and command name."""
         super().__init__(name, help=help_text)
         self.module_name = module_name

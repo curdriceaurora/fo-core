@@ -38,9 +38,10 @@ def confirm_action(message: str, *, default: bool = False) -> bool:
     Returns:
         bool: `True` if the action is confirmed, `False` otherwise.
     """
-    if _get_state().yes:
+    state = _get_state()
+    if state.yes:
         return True
-    if _get_state().no_interactive:
+    if state.no_interactive:
         return default
     return Confirm.ask(message, default=default)
 
