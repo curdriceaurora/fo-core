@@ -58,6 +58,44 @@ paired tests were removed to keep this document aligned with the active codebase
 If equivalent checks are reintroduced, document the canonical ownership again in
 this file and add corresponding `tests/ci/` coverage in the same change.
 
+## F11-resolve Rail
+
+The F11-resolve rail (issue #216) blocks regressions of the symlink-loop
+defence pattern from PRs #168, #173, and #195. `Path.resolve()` raises
+`RuntimeError` on Python < 3.13 for symlink loops and `OSError` on Python >=
+3.13. Any `.resolve()` call found inside a `try` block whose `except` clauses
+do not cover `RuntimeError` (directly, via `Exception`, or via a bare
+`except`) is flagged.
+
+| Enforcement layer | Location | When it fires |
+|-------------------|----------|---------------|
+| CI backstop | `tests/ci/test_resolve_runtime_error_guard.py` | On every CI run (full scan of `src/`) |
+
+Detection logic lives in `scripts/check_resolve_runtime_error.py`.
+
+**Allowlist:**
+
+- `src/utils/**` — utility helpers and ops scripts
+- `src/cli/path_validation.py` — the canonical resolve wrapper (already handles both exceptions)
+
+**Opt-out:** add `# noqa: F11-resolve — <reason>` on or up to two lines above the `.resolve()` call.
+
+**Fix pattern:**
+
+```python
+# BAD — RuntimeError on symlink loops escapes the try (Python < 3.13)
+try:
+    real = entry.resolve()
+except OSError:
+    ...
+
+# GOOD — explicit handling for both Python versions
+try:
+    real = entry.resolve()
+except (ValueError, RuntimeError, OSError):
+    ...
+```
+
 ## Search Guardrail Rule Index
 
 Issue `#869` adds corpus-safety checks for the search service. These are
