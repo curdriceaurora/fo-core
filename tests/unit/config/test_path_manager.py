@@ -69,7 +69,7 @@ def test_path_manager_provides_specific_paths(tmp_path: Path):
     with patch.dict(os.environ, {"HOME": str(tmp_path / "user")}):
         manager = PathManager()
 
-        assert str(manager.config_file).endswith("config.json")
+        assert str(manager.config_file).endswith("config.yaml")
         assert str(manager.preferences_file).endswith("preferences.json")
         assert str(manager.history_db).endswith("operations.db")
         assert str(manager.undo_redo_db).endswith("undo-redo.db")
