@@ -62,6 +62,15 @@ class TestAudioModelLifecycle:
         model.initialize()
         assert model.is_initialized is True
 
+    def test_cleanup_unloads_transcriber(self) -> None:
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
+        model = AudioModel(config)
+        model.initialize()
+        with patch.object(model._transcriber, "unload_model") as mock_unload:
+            model.cleanup()
+        mock_unload.assert_called_once()
+        assert model.is_initialized is False
+
 
 @pytest.mark.unit
 class TestAudioModelGenerate:

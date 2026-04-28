@@ -90,9 +90,10 @@ class AudioModel(BaseModel):
             self._exit_generate()
 
     def cleanup(self) -> None:
-        """Cleanup model resources."""
+        """Cleanup model resources. Unloads the underlying Whisper model."""
         logger.debug("Cleaning up audio model")
         with self._lifecycle_lock:
+            self._transcriber.unload_model()
             self._initialized = False
 
     @staticmethod
