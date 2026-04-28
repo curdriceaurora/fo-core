@@ -89,3 +89,37 @@ class TestAudioModelGenerate:
         # First positional arg is the audio path
         called_path = mock_transcribe.call_args.args[0]
         assert Path(called_path) == fake_audio
+
+
+@pytest.mark.unit
+class TestAudioModelGenerateErrors:
+    def test_generate_before_initialize_raises_runtime_error(
+        self, tmp_path: Path
+    ) -> None:
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
+        model = AudioModel(config)
+        # Note: not calling initialize()
+        fake_audio = tmp_path / "sample.wav"
+        fake_audio.touch()
+        with pytest.raises(RuntimeError, match="not initialized"):
+            model.generate(str(fake_audio))
+
+    def test_generate_after_shutdown_raises_runtime_error(
+        self, tmp_path: Path
+    ) -> None:
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
+        model = AudioModel(config)
+        model.initialize()
+        model.safe_cleanup()  # marks _shutting_down
+        fake_audio = tmp_path / "sample.wav"
+        fake_audio.touch()
+        with pytest.raises(RuntimeError, match="shutting down"):
+            model.generate(str(fake_audio))
+
+    def test_generate_propagates_filenotfound(self, tmp_path: Path) -> None:
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
+        model = AudioModel(config)
+        model.initialize()
+        missing = tmp_path / "does-not-exist.wav"
+        with pytest.raises(FileNotFoundError):
+            model.generate(str(missing))
