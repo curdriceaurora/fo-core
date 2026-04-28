@@ -113,8 +113,9 @@ jobs:
           max_attempts: 3
           retry_on: error
           command: |
+            set -euo pipefail
             python -m pip install --upgrade pip
-            pip install pip-audit pyyaml packaging
+            python -m pip install pip-audit pyyaml packaging
       - name: Audit dependencies (.[all])
         # `.[all]` pulls torch / opencv / faster-whisper / etc. — expect this
         # step to be slower than the base audit. The retry wrapper also guards
