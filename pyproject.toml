@@ -44,7 +44,7 @@ dependencies = [
     "snowballstemmer>=2.2.0",   # Lightweight stemming (no NLTK data download required)
     "striprtf>=0.0.26,<1",      # RTF file text extraction
     "tinytag~=2.2",             # Lightweight audio metadata fallback
-    "py7zr>=0.20.0,<1",         # 7Z archive support
+    "py7zr>=0.20.0,<2",         # 7Z archive support
     "pypdf~=6.10",              # PDF text extraction fallback
     "rarfile~=4.1",             # RAR archive support (requires unrar tool)
 
