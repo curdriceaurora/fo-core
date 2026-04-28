@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
@@ -9,7 +10,7 @@ from loguru import logger
 from models.base import BaseModel, ModelConfig, ModelType
 
 if TYPE_CHECKING:
-    from services.audio.transcriber import AudioTranscriber, ModelSize
+    from services.audio.transcriber import AudioTranscriber, ModelSize, TranscriptionOptions
 
 
 # F9-allowed lazy-import helper: services.audio.transcriber lives under
@@ -63,19 +64,30 @@ class AudioModel(BaseModel):
         super().initialize()
 
     def generate(self, prompt: str, **kwargs: Any) -> str:
-        """Transcribe audio (not implemented yet).
+        """Transcribe an audio file.
 
         Args:
-            prompt: Audio file path
-            **kwargs: Additional parameters
+            prompt: Path to the audio file (treated as a filesystem path).
+            **kwargs: Reserved for future per-call options. Currently ignored.
 
         Returns:
-            Transcribed text
+            Transcribed text. May be the empty string for silent or
+            unintelligible audio.
 
         Raises:
-            NotImplementedError: Audio processing not implemented yet
+            FileNotFoundError: If ``prompt`` does not name an existing file.
+            ImportError: If the ``[media]`` extra is not installed
+                (faster-whisper missing).
+            RuntimeError: If the model is shutting down or not initialized.
         """
-        raise NotImplementedError("Audio processing will be implemented in Phase 3")
+        self._enter_generate()
+        try:
+            _, _, TranscriptionOptions = _audio_transcriber_classes()
+            options = TranscriptionOptions()
+            result = self._transcriber.transcribe(Path(prompt), options=options)
+            return result.text
+        finally:
+            self._exit_generate()
 
     def cleanup(self) -> None:
         """Cleanup model resources."""

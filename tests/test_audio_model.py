@@ -61,3 +61,31 @@ class TestAudioModelLifecycle:
         assert model.is_initialized is False
         model.initialize()
         assert model.is_initialized is True
+
+
+@pytest.mark.unit
+class TestAudioModelGenerate:
+    def test_generate_returns_transcription_text(self, tmp_path: Path) -> None:
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
+        model = AudioModel(config)
+        model.initialize()
+
+        fake_audio = tmp_path / "sample.wav"
+        # No need to actually create the file: patching
+        # `model._transcriber.transcribe` replaces AudioTranscriber.transcribe
+        # entirely, including its `audio_path.exists()` check at
+        # src/services/audio/transcriber.py:212. We pass the path through to
+        # verify generate() forwards it correctly.
+
+        fake_result = MagicMock()
+        fake_result.text = "hello world"
+        with patch.object(
+            model._transcriber, "transcribe", return_value=fake_result
+        ) as mock_transcribe:
+            output = model.generate(str(fake_audio))
+
+        assert output == "hello world"
+        mock_transcribe.assert_called_once()
+        # First positional arg is the audio path
+        called_path = mock_transcribe.call_args.args[0]
+        assert Path(called_path) == fake_audio
