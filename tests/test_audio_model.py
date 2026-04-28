@@ -18,3 +18,22 @@ class TestAudioModelInit:
         model = AudioModel(config)
         assert model._transcriber is not None
         assert hasattr(model._transcriber, "transcribe")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "name,expected_value",
+    [
+        ("base", "base"),
+        ("whisper-base", "base"),
+        ("tiny", "tiny"),
+        ("Whisper-Large-V3", "large-v3"),
+        ("nonsense-model-name", "base"),  # falls back to BASE
+    ],
+)
+def test_resolve_model_size_maps_to_valid_size(
+    name: str, expected_value: str
+) -> None:
+    from models.audio_model import _resolve_model_size
+
+    assert _resolve_model_size(name).value == expected_value
