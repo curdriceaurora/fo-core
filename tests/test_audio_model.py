@@ -37,3 +37,17 @@ def test_resolve_model_size_maps_to_valid_size(
     from models.audio_model import _resolve_model_size
 
     assert _resolve_model_size(name).value == expected_value
+
+
+@pytest.mark.unit
+def test_default_config_resolves_to_valid_model_size() -> None:
+    from models.audio_model import _resolve_model_size
+
+    config = AudioModel.get_default_config()
+    size = _resolve_model_size(config.name)
+    # Must be one of the real ModelSize values (not the silent BASE fallback
+    # that hides unrecognized names).
+    assert (
+        size.value == config.name
+        or size.value == config.name.replace("whisper-", "")
+    )

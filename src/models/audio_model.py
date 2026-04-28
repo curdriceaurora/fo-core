@@ -85,10 +85,11 @@ class AudioModel(BaseModel):
             self._initialized = False
 
     @staticmethod
-    def get_default_config(
-        model_name: str = "distil-whisper-large-v3",
-    ) -> ModelConfig:
+    def get_default_config(model_name: str = "base") -> ModelConfig:
         """Get default configuration for audio model.
+
+        Default is faster-whisper ``"base"`` (~150 MB, multilingual). Override
+        via ``model_name`` for ``"tiny"``, ``"small"``, ``"large-v3"``, etc.
 
         Args:
             model_name: Name of the audio model
