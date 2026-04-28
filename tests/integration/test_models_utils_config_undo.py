@@ -199,21 +199,6 @@ class TestAudioModelConstructor:
             AudioModel(config)
 
 
-class TestAudioModelConstructor:
-    def test_init_rejects_non_audio_model_type(self) -> None:
-        # AudioModel.__init__ guards against being constructed with a non-
-        # AUDIO ModelConfig — this pinned the "Expected AUDIO model type"
-        # ValueError. Covers the otherwise-unreached raise at
-        # src/models/audio_model.py:60 (the only integration-coverage gap
-        # post-Step-2A; happy paths all use ModelType.AUDIO).
-        from models.audio_model import AudioModel
-        from models.base import ModelConfig, ModelType
-
-        bad_config = ModelConfig(name="base", model_type=ModelType.TEXT)
-        with pytest.raises(ValueError, match="Expected AUDIO model type"):
-            AudioModel(bad_config)
-
-
 class TestAudioModelInitialize:
     def test_initialize_sets_initialized_flag(self) -> None:
         from models.audio_model import AudioModel
@@ -264,6 +249,33 @@ class TestAudioModelGenerate:
 
         with pytest.raises(RuntimeError, match="not initialized"):
             model.generate("prompt", temperature=0.5, max_tokens=100)
+
+    def test_generate_returns_transcription_text_with_mocked_transcriber(
+        self, tmp_path: Path
+    ) -> None:
+        # Covers the generate() success-path body (lines through
+        # _audio_transcriber_classes / TranscriptionOptions / transcribe /
+        # _exit_generate). Mocked transcriber so this runs even when the
+        # [media] extra isn't installed in the integration runner — the
+        # real-whisper end-to-end test in test_audio_model_integration.py
+        # skips without [media], so this test fills the coverage gap.
+        from models.audio_model import AudioModel
+        from models.base import ModelConfig, ModelType
+
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
+        model = AudioModel(config)
+        model.initialize()
+
+        fake_audio = tmp_path / "sample.wav"
+        fake_result = MagicMock()
+        fake_result.text = "hello integration"
+        with patch.object(
+            model._transcriber, "transcribe", return_value=fake_result
+        ) as mock_transcribe:
+            output = model.generate(str(fake_audio))
+
+        assert output == "hello integration"
+        mock_transcribe.assert_called_once()
 
 
 class TestAudioModelCleanup:
