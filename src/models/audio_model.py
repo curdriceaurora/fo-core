@@ -21,29 +21,35 @@ if TYPE_CHECKING:
 # "cannot import name 'TextModel' from partially initialized module 'models'".
 # Deferring the import to first call breaks the cycle: by the time AudioModel
 # is constructed, both packages are fully loaded.
-def _audio_transcriber_classes() -> tuple[type, type, type]:
+def _audio_transcriber_classes() -> (
+    tuple[
+        type["AudioTranscriber"],
+        type["ModelSize"],
+        type["TranscriptionOptions"],
+    ]
+):
     """Return ``(AudioTranscriber, ModelSize, TranscriptionOptions)`` lazily."""
     from services.audio.transcriber import (
-        AudioTranscriber,
-        ModelSize,
-        TranscriptionOptions,
+        AudioTranscriber as _AudioTranscriber,
+        ModelSize as _ModelSize,
+        TranscriptionOptions as _TranscriptionOptions,
     )
-    return AudioTranscriber, ModelSize, TranscriptionOptions
+    return _AudioTranscriber, _ModelSize, _TranscriptionOptions
 
 
-def _resolve_model_size(name: str) -> ModelSize:
+def _resolve_model_size(name: str) -> "ModelSize":
     """Map a ``ModelConfig.name`` to a faster-whisper ``ModelSize``.
 
     Accepts forms like ``"base"``, ``"whisper-base"``, ``"Whisper_Large-V3"``.
     Falls back to ``ModelSize.BASE`` for unknown names — keeps the call live
     rather than crashing on a config typo.
     """
-    _, ModelSize, _ = _audio_transcriber_classes()
+    _, ModelSizeCls, _ = _audio_transcriber_classes()
     normalized = name.lower().replace("whisper-", "").replace("_", "-")
-    for size in ModelSize:
+    for size in ModelSizeCls:
         if size.value == normalized:
             return size
-    return ModelSize.BASE
+    return ModelSizeCls.BASE
 
 
 class AudioModel(BaseModel):

@@ -9,6 +9,7 @@ regression flagging.
 from __future__ import annotations
 
 import contextlib
+import functools
 import io
 import json
 import logging
@@ -26,7 +27,8 @@ import typer
 
 from cli.path_validation import resolve_cli_path
 from core.path_guard import safe_walk
-from models.base import ModelType
+from models.audio_model import AudioModel
+from models.base import ModelConfig, ModelType
 
 if TYPE_CHECKING:
     from services.audio.metadata_extractor import AudioMetadata
@@ -91,6 +93,7 @@ class _SuiteIterationOutcome:
 
     processed_count: int
     used_synthetic_audio_metadata: bool = False
+    transcription_smoke_passed: bool = False
 
 
 class _SuiteRunner(TypedDict):
@@ -497,8 +500,16 @@ def _synthesized_audio_metadata(file_path: Path) -> AudioMetadata:
     )
 
 
-def _run_audio_suite(files: list[Path]) -> _SuiteIterationOutcome:
-    """Benchmark audio metadata + classification path."""
+def _run_audio_suite(
+    files: list[Path],
+    transcribe_smoke: bool = False,
+) -> _SuiteIterationOutcome:
+    """Benchmark audio metadata + classification path.
+
+    With ``transcribe_smoke=True``, additionally runs ``AudioModel.generate()``
+    on the first candidate file to prove end-to-end transcription works.
+    Counted as a single smoke pass; not a per-file benchmark.
+    """
     candidates = _suite_candidates(files, _AUDIO_EXTENSIONS, fallback_to_all=False)
     if not candidates:
         typer.echo("Warning: no audio files found; falling back to IO-only benchmark.", err=True)
@@ -519,9 +530,28 @@ def _run_audio_suite(files: list[Path]) -> _SuiteIterationOutcome:
         except Exception as exc:
             raise RuntimeError(f"Audio benchmark runner failed for {file_path}: {exc}") from exc
         _ = classifier.classify(metadata)
+
+    transcription_smoke_passed = False
+    if transcribe_smoke:
+        try:
+            config = ModelConfig(name="tiny", model_type=ModelType.AUDIO)
+            model = AudioModel(config)
+            model.initialize()
+            try:
+                _ = model.generate(str(candidates[0]))
+                transcription_smoke_passed = True
+            finally:
+                model.safe_cleanup()
+        except ImportError as exc:
+            typer.echo(
+                f"Warning: --transcribe-smoke requires [media] extra: {exc}",
+                err=True,
+            )
+
     return _SuiteIterationOutcome(
         processed_count=len(candidates),
         used_synthetic_audio_metadata=used_synthetic_metadata,
+        transcription_smoke_passed=transcription_smoke_passed,
     )
 
 
@@ -982,6 +1012,16 @@ def run(
         "--compare",
         help="Path to baseline JSON file for regression comparison.",
     ),
+    transcribe_smoke: bool = typer.Option(
+        False,
+        "--transcribe-smoke",
+        help=(
+            "Run AudioModel.generate() on one candidate file as an "
+            "end-to-end smoke test. Only meaningful with --suite audio. "
+            "Requires the [media] extra. Off by default to keep "
+            "benchmark runs fast."
+        ),
+    ),
 ) -> None:
     """Run a performance benchmark with statistical output.
 
@@ -1020,6 +1060,8 @@ def run(
         raise typer.Exit(code=1)
     runner = suite_spec["run"]
     classifier = suite_spec["classify"]
+    if suite == "audio" and transcribe_smoke:
+        runner = functools.partial(_run_audio_suite, transcribe_smoke=True)
 
     if not files:
         if json_output:
