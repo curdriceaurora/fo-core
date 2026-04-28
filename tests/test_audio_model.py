@@ -1,53 +1,20 @@
-"""Tests for AudioModel class - Phase 3 placeholder."""
+"""Unit tests for AudioModel — wires services.audio.transcriber."""
 
 from __future__ import annotations
 
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-# Note: AudioModel is a Phase 3 placeholder
-# Tests document expected behavior for when implemented
+from models.audio_model import AudioModel
+from models.base import ModelConfig, ModelType
 
 
 @pytest.mark.unit
-class TestAudioModelPlaceholder:
-    """Test AudioModel Phase 3 placeholder."""
-
-    def test_audio_model_exists(self):
-        """Test that AudioModel class exists."""
-        try:
-            from models.audio_model import AudioModel
-
-            assert AudioModel is not None
-        except ImportError:
-            pytest.skip("AudioModel not yet implemented (Phase 3)")
-
-    def test_audio_model_init(self):
-        """Test AudioModel initialization."""
-        try:
-            from models.audio_model import AudioModel
-            from models.base import ModelConfig, ModelType
-
-            config = ModelConfig(
-                name="whisper-base",
-                model_type=ModelType.AUDIO,
-            )
-            model = AudioModel(config)
-            assert model is not None
-        except (ImportError, NotImplementedError):
-            pytest.skip("AudioModel not yet fully implemented (Phase 3)")
-
-    def test_audio_model_config_validation(self):
-        """Test that AudioModel validates configuration."""
-        try:
-            from models.audio_model import AudioModel
-            from models.base import ModelConfig, ModelType
-
-            config = ModelConfig(
-                name="whisper-base",
-                model_type=ModelType.AUDIO,
-                framework="faster-whisper",
-            )
-            model = AudioModel(config)
-            assert model.config.model_type == ModelType.AUDIO
-        except (ImportError, NotImplementedError):
-            pytest.skip("AudioModel not yet fully implemented (Phase 3)")
+class TestAudioModelInit:
+    def test_init_creates_transcriber_attribute(self) -> None:
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
+        model = AudioModel(config)
+        assert model._transcriber is not None
+        assert hasattr(model._transcriber, "transcribe")
