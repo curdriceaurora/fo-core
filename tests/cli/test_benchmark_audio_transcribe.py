@@ -15,6 +15,7 @@ from cli.benchmark import (
     _bind_transcribe_smoke,
     _exit_if_transcribe_smoke_failed,
     _run_audio_suite,
+    _validate_transcribe_smoke_preconditions,
 )
 from cli.main import app
 
@@ -60,6 +61,37 @@ class TestBindTranscribeSmoke:
         assert result is not sentinel
         assert getattr(result, "func", None) is _run_audio_suite
         assert result.keywords == {"transcribe_smoke": True}
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestValidateTranscribeSmokePreconditions:
+    """Direct coverage of the empty-input / no-audio-candidates fail-fast
+    helper. Both paths used to short-circuit the benchmark before the
+    smoke-failure exit guard ran, exiting 0 with no verification done."""
+
+    def test_passes_silently_when_smoke_off(self, tmp_path: Path) -> None:
+        # No raise even with empty file list when smoke is off.
+        _validate_transcribe_smoke_preconditions([], transcribe_smoke=False)
+
+    def test_passes_when_smoke_on_and_audio_candidate_present(
+        self, tmp_path: Path
+    ) -> None:
+        audio = tmp_path / "a.wav"
+        audio.touch()
+        _validate_transcribe_smoke_preconditions([audio], transcribe_smoke=True)
+
+    def test_raises_when_smoke_on_and_no_files(self) -> None:
+        with pytest.raises(typer.BadParameter, match="empty"):
+            _validate_transcribe_smoke_preconditions([], transcribe_smoke=True)
+
+    def test_raises_when_smoke_on_but_no_audio_candidates(
+        self, tmp_path: Path
+    ) -> None:
+        text_file = tmp_path / "x.txt"
+        text_file.touch()
+        with pytest.raises(typer.BadParameter, match="audio file"):
+            _validate_transcribe_smoke_preconditions([text_file], transcribe_smoke=True)
 
 
 @pytest.mark.unit

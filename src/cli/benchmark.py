@@ -736,6 +736,34 @@ def _bind_transcribe_smoke(
     return runner
 
 
+def _validate_transcribe_smoke_preconditions(
+    files: list[Path], *, transcribe_smoke: bool
+) -> None:
+    """Fail fast when ``--transcribe-smoke`` can't possibly run end-to-end.
+
+    Otherwise the empty-input and no-audio-candidates paths short-circuit
+    the benchmark before the smoke check fires, but ``run()`` still exits 0 —
+    a false-positive verification signal for CI/scripts that key off exit
+    code.
+
+    Raises ``typer.BadParameter`` when ``transcribe_smoke`` is set and either
+    ``files`` is empty (no input at all) or the input has no audio candidates.
+    """
+    if not transcribe_smoke:
+        return
+    if not files:
+        raise typer.BadParameter(
+            "--transcribe-smoke requires at least one input file; the input "
+            "directory is empty."
+        )
+    audio_candidates = _suite_candidates(files, _AUDIO_EXTENSIONS, fallback_to_all=False)
+    if not audio_candidates:
+        raise typer.BadParameter(
+            "--transcribe-smoke requires at least one audio file in the input; "
+            "none were found."
+        )
+
+
 def _exit_if_transcribe_smoke_failed(console: Any, degradation_reasons: Sequence[str]) -> None:
     """Exit non-zero when ``--transcribe-smoke`` ran but no smoke completed.
 
@@ -1121,6 +1149,10 @@ def run(
     runner = suite_spec["run"]
     classifier = suite_spec["classify"]
     runner = _bind_transcribe_smoke(runner, suite=suite, transcribe_smoke=transcribe_smoke)
+    # Block the empty-input and no-audio-candidates paths from short-circuiting
+    # past the smoke-failure exit guard, which would otherwise cause
+    # `--transcribe-smoke` to exit 0 without verifying anything.
+    _validate_transcribe_smoke_preconditions(files, transcribe_smoke=transcribe_smoke)
 
     if not files:
         if json_output:

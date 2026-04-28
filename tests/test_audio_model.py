@@ -29,6 +29,25 @@ class TestAudioModelInit:
         with pytest.raises(ValueError, match="Expected AUDIO model type"):
             AudioModel(bad_config)
 
+    def test_init_coerces_mps_device_to_cpu(self) -> None:
+        # CTranslate2 (the engine under faster-whisper) doesn't support MPS.
+        # AudioModel must coerce DeviceType.MPS to CPU rather than letting
+        # it hit the engine and crash with an opaque "unsupported device"
+        # error. Match the behavior of AudioTranscriber._detect_device's
+        # auto-fallback on Apple Silicon.
+        from models.base import DeviceType
+
+        config = ModelConfig(
+            name="base", model_type=ModelType.AUDIO, device=DeviceType.MPS
+        )
+        model = AudioModel(config)
+
+        # The transcriber must see "cpu", not "mps", so it doesn't blow up
+        # downstream. (The warning emitted via loguru is observable
+        # interactively; capturing it under caplog requires a loguru sink
+        # fixture which the project doesn't currently expose.)
+        assert model._transcriber.device == "cpu"
+
 
 @pytest.mark.unit
 @pytest.mark.ci

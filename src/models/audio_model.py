@@ -72,9 +72,22 @@ class AudioModel(BaseModel):
         # ModelConfig), so we can read `.value` directly. The previous
         # `if config.device else "auto"` form had an unreachable else arm
         # under strict typing.
+        device = config.device.value
+        # CTranslate2 (the engine under faster-whisper) does not support
+        # MPS — passing it through would crash later at transcription time
+        # with an opaque "unsupported device mps" error. Coerce to CPU here
+        # to match `AudioTranscriber._detect_device`'s auto-fallback
+        # behavior on Apple Silicon, with a loud log so callers explicitly
+        # passing DeviceType.MPS don't wonder why the backend changed.
+        if device == "mps":
+            logger.warning(
+                "AudioModel: requested device=MPS is not supported by CTranslate2; "
+                "falling back to CPU."
+            )
+            device = "cpu"
         self._transcriber = AudioTranscriber(
             model_size=_resolve_model_size(config.name),
-            device=config.device.value,
+            device=device,
         )
 
     def initialize(self) -> None:
