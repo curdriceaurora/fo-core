@@ -37,9 +37,7 @@ class TestAudioModelInit:
         # auto-fallback on Apple Silicon.
         from models.base import DeviceType
 
-        config = ModelConfig(
-            name="base", model_type=ModelType.AUDIO, device=DeviceType.MPS
-        )
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO, device=DeviceType.MPS)
         model = AudioModel(config)
 
         # The transcriber must see "cpu", not "mps", so it doesn't blow up

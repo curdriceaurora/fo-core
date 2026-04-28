@@ -736,9 +736,7 @@ def _bind_transcribe_smoke(
     return runner
 
 
-def _validate_transcribe_smoke_preconditions(
-    files: list[Path], *, transcribe_smoke: bool
-) -> None:
+def _validate_transcribe_smoke_preconditions(files: list[Path], *, transcribe_smoke: bool) -> None:
     """Fail fast when ``--transcribe-smoke`` can't possibly run end-to-end.
 
     Otherwise the empty-input and no-audio-candidates paths short-circuit
@@ -753,14 +751,12 @@ def _validate_transcribe_smoke_preconditions(
         return
     if not files:
         raise typer.BadParameter(
-            "--transcribe-smoke requires at least one input file; the input "
-            "directory is empty."
+            "--transcribe-smoke requires at least one input file; the input directory is empty."
         )
     audio_candidates = _suite_candidates(files, _AUDIO_EXTENSIONS, fallback_to_all=False)
     if not audio_candidates:
         raise typer.BadParameter(
-            "--transcribe-smoke requires at least one audio file in the input; "
-            "none were found."
+            "--transcribe-smoke requires at least one audio file in the input; none were found."
         )
 
 

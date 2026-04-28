@@ -74,9 +74,7 @@ class TestValidateTranscribeSmokePreconditions:
         # No raise even with empty file list when smoke is off.
         _validate_transcribe_smoke_preconditions([], transcribe_smoke=False)
 
-    def test_passes_when_smoke_on_and_audio_candidate_present(
-        self, tmp_path: Path
-    ) -> None:
+    def test_passes_when_smoke_on_and_audio_candidate_present(self, tmp_path: Path) -> None:
         audio = tmp_path / "a.wav"
         audio.touch()
         _validate_transcribe_smoke_preconditions([audio], transcribe_smoke=True)
@@ -85,9 +83,7 @@ class TestValidateTranscribeSmokePreconditions:
         with pytest.raises(typer.BadParameter, match="empty"):
             _validate_transcribe_smoke_preconditions([], transcribe_smoke=True)
 
-    def test_raises_when_smoke_on_but_no_audio_candidates(
-        self, tmp_path: Path
-    ) -> None:
+    def test_raises_when_smoke_on_but_no_audio_candidates(self, tmp_path: Path) -> None:
         text_file = tmp_path / "x.txt"
         text_file.touch()
         with pytest.raises(typer.BadParameter, match="audio file"):

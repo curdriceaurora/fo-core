@@ -210,6 +210,22 @@ class TestAudioModelInitialize:
 
         assert model._initialized is True
 
+    def test_init_coerces_mps_device_to_cpu(self) -> None:
+        # CTranslate2 doesn't support MPS — AudioModel must coerce
+        # DeviceType.MPS to CPU at construction time. Without this branch
+        # being covered in the integration suite, the per-module floor
+        # for src/models/audio_model.py drops below 100%.
+        from models.audio_model import AudioModel
+        from models.base import DeviceType, ModelConfig, ModelType
+
+        config = ModelConfig(
+            name="test-audio",
+            model_type=ModelType.AUDIO,
+            device=DeviceType.MPS,
+        )
+        model = AudioModel(config)
+        assert model._transcriber.device == "cpu"
+
     def test_initialize_completes_without_error(self) -> None:
         from models.audio_model import AudioModel
         from models.base import ModelConfig, ModelType
