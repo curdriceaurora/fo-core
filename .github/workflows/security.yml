@@ -101,12 +101,20 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install pip-audit + gate deps
+        # Upgrade pip first so both matrix variants (ubuntu-latest +
+        # macos-latest) audit the same pip version. Without the explicit
+        # upgrade, the GitHub-hosted runner's bundled pip drifted between
+        # OSes (ubuntu-latest installed pip 26.1, macos-latest stayed on
+        # the cached 26.0.1), producing platform-asymmetric pip-audit
+        # output and breaking the gate's allowlist accounting.
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
         with:
           timeout_minutes: 5
           max_attempts: 3
           retry_on: error
-          command: pip install pip-audit pyyaml packaging
+          command: |
+            python -m pip install --upgrade pip
+            pip install pip-audit pyyaml packaging
       - name: Audit dependencies (.[all])
         # `.[all]` pulls torch / opencv / faster-whisper / etc. — expect this
         # step to be slower than the base audit. The retry wrapper also guards
