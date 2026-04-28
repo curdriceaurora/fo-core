@@ -760,21 +760,36 @@ def _validate_transcribe_smoke_preconditions(files: list[Path], *, transcribe_sm
         )
 
 
-def _exit_if_transcribe_smoke_failed(console: Any, degradation_reasons: Sequence[str]) -> None:
+def _exit_if_transcribe_smoke_failed(
+    console: Any,
+    degradation_reasons: Sequence[str],
+    *,
+    json_output: bool = False,
+) -> None:
     """Exit non-zero when ``--transcribe-smoke`` ran but no smoke completed.
 
     Requested but couldn't run end-to-end (typically because the ``[media]``
     extra is missing). The benchmark output is already emitted by the time
     this fires, so JSON/human consumers see the degradation classification;
     this just propagates the failure to the shell exit code.
+
+    When ``json_output`` is true, the failure notice is routed to stderr so
+    the JSON document already on stdout stays machine-parseable.
     """
-    if "audio-transcribe-smoke-skipped" in degradation_reasons:
-        console.print(
-            "[red]Error: --transcribe-smoke was requested but could not run "
-            "end-to-end (see warnings above). Install the [media] extra "
-            '(`pip install -e ".[media]"`) and retry.[/red]',
-        )
-        raise typer.Exit(code=1)
+    if "audio-transcribe-smoke-skipped" not in degradation_reasons:
+        return
+    error_msg = (
+        "[red]Error: --transcribe-smoke was requested but could not run "
+        "end-to-end (see warnings above). Install the [media] extra "
+        '(`pip install -e ".[media]"`) and retry.[/red]'
+    )
+    if json_output:
+        from rich.console import Console
+
+        Console(stderr=True).print(error_msg)
+    else:
+        console.print(error_msg)
+    raise typer.Exit(code=1)
 
 
 def _classify_audio_suite(
@@ -901,6 +916,40 @@ def _check_baseline_profile_compatibility(
     return warning
 
 
+def _check_baseline_smoke_compatibility(
+    baseline: dict[str, Any],
+    *,
+    transcribe_smoke: bool,
+    console: Any,
+    json_output: bool,
+) -> str | None:
+    """Validate that current and baseline runs used the same smoke mode.
+
+    A smoke run adds an ``AudioModel.generate()`` call per iteration and
+    skews the per-iteration timings. Comparing a smoke run against a
+    non-smoke baseline (or vice versa) yields misleading regression signals
+    for non-equivalent workloads.
+
+    Returns a warning string when the baseline's ``transcribe_smoke`` flag
+    differs from the current run, otherwise ``None``. Treats a missing
+    field on the baseline as ``False`` since older baselines predate the
+    flag.
+    """
+    baseline_smoke = bool(baseline.get("transcribe_smoke", False))
+    if baseline_smoke == transcribe_smoke:
+        return None
+
+    warning = (
+        "Baseline smoke-mode mismatch "
+        f"(baseline transcribe_smoke={baseline_smoke}, current={transcribe_smoke}). "
+        "Smoke runs add an AudioModel.generate() call per iteration; the "
+        "comparison may show misleading regressions or improvements."
+    )
+    if not json_output:
+        console.print(f"[yellow]{warning}[/yellow]")
+    return warning
+
+
 def _execute_suite_iteration(
     *,
     runner: Callable[[list[Path]], _SuiteIterationOutcome],
@@ -1010,6 +1059,7 @@ def _maybe_attach_comparison_output(
     output: dict[str, Any],
     compare_path: Path | None,
     suite: str,
+    transcribe_smoke: bool,
     console: Any,
     json_output: bool,
 ) -> dict[str, Any]:
@@ -1028,10 +1078,18 @@ def _maybe_attach_comparison_output(
         console=console,
         json_output=json_output,
     )
+    smoke_warning = _check_baseline_smoke_compatibility(
+        baseline,
+        transcribe_smoke=transcribe_smoke,
+        console=console,
+        json_output=json_output,
+    )
     comp = compare_results(output, baseline)
     output["comparison"] = comp
     if profile_warning is not None:
         output["comparison_profile_warning"] = profile_warning
+    if smoke_warning is not None:
+        output["comparison_smoke_warning"] = smoke_warning
     return output
 
 
@@ -1170,6 +1228,7 @@ def run(
                 output=empty_output,
                 compare_path=compare_path,
                 suite=suite,
+                transcribe_smoke=transcribe_smoke,
                 console=console,
                 json_output=json_output,
             )
@@ -1245,6 +1304,7 @@ def run(
         output=output,
         compare_path=compare_path,
         suite=suite,
+        transcribe_smoke=transcribe_smoke,
         console=console,
         json_output=json_output,
     )
@@ -1264,4 +1324,4 @@ def run(
             _print_comparison(console, output["comparison"], json_output=False)
         console.print("\n[bold green]Benchmark completed[/bold green]")
 
-    _exit_if_transcribe_smoke_failed(console, degradation_reasons)
+    _exit_if_transcribe_smoke_failed(console, degradation_reasons, json_output=json_output)

@@ -13,7 +13,9 @@ from typer.testing import CliRunner
 
 from cli.benchmark import (
     _bind_transcribe_smoke,
+    _check_baseline_smoke_compatibility,
     _exit_if_transcribe_smoke_failed,
+    _maybe_attach_comparison_output,
     _run_audio_suite,
     _validate_transcribe_smoke_preconditions,
 )
@@ -111,6 +113,26 @@ class TestExitIfTranscribeSmokeFailed:
         msg = console.print.call_args.args[0]
         assert "transcribe-smoke" in msg.lower()
         assert "media" in msg.lower()
+
+    def test_json_mode_routes_error_to_stderr_keeping_stdout_console_silent(self) -> None:
+        # When --json is requested, the JSON document is already on stdout by
+        # the time the smoke-failure exit guard fires. Routing the error to
+        # the stdout console would append non-JSON text and break consumers
+        # that parse output on failure. The stdout console must NOT receive
+        # the print; the message goes to a stderr-bound Rich console instead.
+        stdout_console = MagicMock()
+        with patch("rich.console.Console") as mock_console_cls:
+            stderr_console = MagicMock()
+            mock_console_cls.return_value = stderr_console
+            with pytest.raises(typer.Exit):
+                _exit_if_transcribe_smoke_failed(
+                    stdout_console,
+                    ["audio-transcribe-smoke-skipped"],
+                    json_output=True,
+                )
+        stdout_console.print.assert_not_called()
+        mock_console_cls.assert_called_once_with(stderr=True)
+        stderr_console.print.assert_called_once()
 
 
 @pytest.mark.integration
@@ -253,3 +275,145 @@ class TestBenchmarkTranscribeSmoke:
         assert "transcribe" in normalized
         assert "smoke" in normalized
         assert "media" in normalized
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestCheckBaselineSmokeCompatibility:
+    """Direct coverage of the smoke-mode compatibility helper that gates
+    ``--compare`` mixing of smoke and non-smoke baselines.
+
+    A smoke run adds an ``AudioModel.generate()`` call per iteration, which
+    skews the per-iteration timings. Comparing across smoke modes without
+    surfacing the mismatch produces misleading regression signals.
+    """
+
+    def test_returns_none_when_modes_match_both_true(self) -> None:
+        warning = _check_baseline_smoke_compatibility(
+            {"transcribe_smoke": True},
+            transcribe_smoke=True,
+            console=MagicMock(),
+            json_output=False,
+        )
+        assert warning is None
+
+    def test_returns_none_when_modes_match_both_false(self) -> None:
+        warning = _check_baseline_smoke_compatibility(
+            {"transcribe_smoke": False},
+            transcribe_smoke=False,
+            console=MagicMock(),
+            json_output=False,
+        )
+        assert warning is None
+
+    def test_returns_none_when_baseline_missing_field_and_current_false(self) -> None:
+        # Older baselines predate the transcribe_smoke field; treat as False.
+        warning = _check_baseline_smoke_compatibility(
+            {},
+            transcribe_smoke=False,
+            console=MagicMock(),
+            json_output=False,
+        )
+        assert warning is None
+
+    def test_returns_warning_when_current_smoke_baseline_not(self) -> None:
+        console = MagicMock()
+        warning = _check_baseline_smoke_compatibility(
+            {"transcribe_smoke": False},
+            transcribe_smoke=True,
+            console=console,
+            json_output=False,
+        )
+        assert warning is not None
+        assert "smoke-mode mismatch" in warning.lower()
+        assert "baseline transcribe_smoke=false" in warning.lower()
+        # Human-mode prints to console; JSON-mode would suppress the print.
+        console.print.assert_called_once()
+
+    def test_returns_warning_when_baseline_smoke_current_not(self) -> None:
+        warning = _check_baseline_smoke_compatibility(
+            {"transcribe_smoke": True},
+            transcribe_smoke=False,
+            console=MagicMock(),
+            json_output=False,
+        )
+        assert warning is not None
+        assert "current=false" in warning.lower()
+
+    def test_json_mode_returns_warning_but_does_not_print(self) -> None:
+        # Under --json, the warning is attached to the output dict rather
+        # than printed, so stdout stays valid JSON for downstream consumers.
+        console = MagicMock()
+        warning = _check_baseline_smoke_compatibility(
+            {"transcribe_smoke": False},
+            transcribe_smoke=True,
+            console=console,
+            json_output=True,
+        )
+        assert warning is not None
+        console.print.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestMaybeAttachComparisonOutputSmokeWarning:
+    """Coverage for the smoke-mode wiring inside ``_maybe_attach_comparison_output``.
+
+    The helper attaches a ``comparison_smoke_warning`` field whenever the
+    baseline's ``transcribe_smoke`` flag disagrees with the current run.
+    The unit-level helper test pins the wording; this test pins the wiring
+    so a future refactor can't silently drop the field.
+    """
+
+    def _write_baseline(self, tmp_path: Path, *, transcribe_smoke: bool) -> Path:
+        import json as _json
+
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            _json.dumps(
+                {
+                    "suite": "audio",
+                    "runner_profile_version": 1,
+                    "transcribe_smoke": transcribe_smoke,
+                    "results": {"p50_ms": 1.0, "p95_ms": 1.0, "files_processed": 0},
+                }
+            )
+        )
+        return baseline_path
+
+    def test_attaches_smoke_warning_when_modes_differ(self, tmp_path: Path) -> None:
+        baseline_path = self._write_baseline(tmp_path, transcribe_smoke=False)
+        output: dict = {
+            "suite": "audio",
+            "runner_profile_version": 1,
+            "transcribe_smoke": True,
+            "results": {"p50_ms": 1.0, "p95_ms": 1.0, "files_processed": 0},
+        }
+        result = _maybe_attach_comparison_output(
+            output=output,
+            compare_path=baseline_path,
+            suite="audio",
+            transcribe_smoke=True,
+            console=MagicMock(),
+            json_output=True,
+        )
+        assert "comparison_smoke_warning" in result
+        assert "smoke-mode mismatch" in result["comparison_smoke_warning"].lower()
+
+    def test_no_smoke_warning_when_modes_match(self, tmp_path: Path) -> None:
+        baseline_path = self._write_baseline(tmp_path, transcribe_smoke=True)
+        output: dict = {
+            "suite": "audio",
+            "runner_profile_version": 1,
+            "transcribe_smoke": True,
+            "results": {"p50_ms": 1.0, "p95_ms": 1.0, "files_processed": 0},
+        }
+        result = _maybe_attach_comparison_output(
+            output=output,
+            compare_path=baseline_path,
+            suite="audio",
+            transcribe_smoke=True,
+            console=MagicMock(),
+            json_output=True,
+        )
+        assert "comparison_smoke_warning" not in result
