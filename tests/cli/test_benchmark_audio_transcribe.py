@@ -27,9 +27,7 @@ def _generate_silence_wav(path: Path, seconds: float = 0.5) -> None:
 @pytest.mark.integration
 @pytest.mark.ci
 class TestBenchmarkTranscribeSmoke:
-    def test_transcribe_smoke_invokes_audio_model_once(
-        self, tmp_path: Path
-    ) -> None:
+    def test_transcribe_smoke_invokes_audio_model_once(self, tmp_path: Path) -> None:
         """With --transcribe-smoke, exactly one AudioModel.generate call
         happens regardless of the candidate count."""
         audio_dir = tmp_path / "audio"
@@ -44,12 +42,16 @@ class TestBenchmarkTranscribeSmoke:
             result = runner.invoke(
                 app,
                 [
-                    "benchmark", "run",
+                    "benchmark",
+                    "run",
                     str(audio_dir),
-                    "--suite", "audio",
+                    "--suite",
+                    "audio",
                     "--transcribe-smoke",
-                    "--iterations", "1",
-                    "--warmup", "0",
+                    "--iterations",
+                    "1",
+                    "--warmup",
+                    "0",
                 ],
             )
 
@@ -60,9 +62,7 @@ class TestBenchmarkTranscribeSmoke:
         # is unambiguous.
         assert instance.generate.call_count == 1
 
-    def test_no_transcribe_smoke_means_no_audio_model_call(
-        self, tmp_path: Path
-    ) -> None:
+    def test_no_transcribe_smoke_means_no_audio_model_call(self, tmp_path: Path) -> None:
         """Default benchmark (no flag) must not instantiate AudioModel."""
         audio_dir = tmp_path / "audio"
         audio_dir.mkdir()
@@ -73,11 +73,15 @@ class TestBenchmarkTranscribeSmoke:
             result = runner.invoke(
                 app,
                 [
-                    "benchmark", "run",
+                    "benchmark",
+                    "run",
                     str(audio_dir),
-                    "--suite", "audio",
-                    "--iterations", "1",
-                    "--warmup", "0",
+                    "--suite",
+                    "audio",
+                    "--iterations",
+                    "1",
+                    "--warmup",
+                    "0",
                 ],
             )
 

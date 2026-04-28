@@ -42,9 +42,7 @@ class TestAudioModelInit:
         ("nonsense-model-name", "base"),  # falls back to BASE
     ],
 )
-def test_resolve_model_size_maps_to_valid_size(
-    name: str, expected_value: str
-) -> None:
+def test_resolve_model_size_maps_to_valid_size(name: str, expected_value: str) -> None:
     from models.audio_model import _resolve_model_size
 
     assert _resolve_model_size(name).value == expected_value
@@ -59,10 +57,7 @@ def test_default_config_resolves_to_valid_model_size() -> None:
     size = _resolve_model_size(config.name)
     # Must be one of the real ModelSize values (not the silent BASE fallback
     # that hides unrecognized names).
-    assert (
-        size.value == config.name
-        or size.value == config.name.replace("whisper-", "")
-    )
+    assert size.value == config.name or size.value == config.name.replace("whisper-", "")
 
 
 @pytest.mark.unit
@@ -117,9 +112,7 @@ class TestAudioModelGenerate:
 @pytest.mark.unit
 @pytest.mark.ci
 class TestAudioModelGenerateErrors:
-    def test_generate_before_initialize_raises_runtime_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_generate_before_initialize_raises_runtime_error(self, tmp_path: Path) -> None:
         config = ModelConfig(name="base", model_type=ModelType.AUDIO)
         model = AudioModel(config)
         # Note: not calling initialize()
@@ -128,9 +121,7 @@ class TestAudioModelGenerateErrors:
         with pytest.raises(RuntimeError, match="not initialized"):
             model.generate(str(fake_audio))
 
-    def test_generate_after_shutdown_raises_runtime_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_generate_after_shutdown_raises_runtime_error(self, tmp_path: Path) -> None:
         config = ModelConfig(name="base", model_type=ModelType.AUDIO)
         model = AudioModel(config)
         model.initialize()

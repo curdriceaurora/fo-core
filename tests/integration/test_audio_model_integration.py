@@ -38,9 +38,7 @@ def _generate_silence_wav(path: Path, seconds: float = 1.0) -> None:
 @pytest.mark.xdist_group(name="audio_real_whisper")
 class TestAudioModelEndToEnd:
     @pytest.fixture(autouse=True)
-    def _require_real_faster_whisper(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def _require_real_faster_whisper(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Defense against sys.modules pollution from peer tests that mock
         # faster_whisper / torch (T12 fixture-state-leak class). Clear any
         # cached module entries so AudioTranscriber gets the real package.

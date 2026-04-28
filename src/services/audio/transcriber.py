@@ -146,8 +146,10 @@ class AudioTranscriber:
         """
         self.model_size = model_size
         self.device = self._detect_device(device)
-        self.compute_type = compute_type if compute_type is not None else (
-            ComputeType.FLOAT16 if self.device == "cuda" else ComputeType.INT8
+        self.compute_type = (
+            compute_type
+            if compute_type is not None
+            else (ComputeType.FLOAT16 if self.device == "cuda" else ComputeType.INT8)
         )
         self.cache_dir = cache_dir
         self.num_workers = num_workers
