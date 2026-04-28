@@ -274,8 +274,16 @@ class TestAudioModelGenerate:
         ) as mock_transcribe:
             output = model.generate(str(fake_audio))
 
+        assert isinstance(output, str)
         assert output == "hello integration"
         mock_transcribe.assert_called_once()
+        # Pin the wiring contract: generate() forwards the prompt path as the
+        # first positional arg and passes a TranscriptionOptions via kwarg.
+        # Without these checks, a future refactor could swap arg order or
+        # drop options and the count-only check would still pass.
+        called_path = mock_transcribe.call_args.args[0]
+        assert Path(called_path) == fake_audio
+        assert mock_transcribe.call_args.kwargs.get("options") is not None
 
 
 class TestAudioModelCleanup:

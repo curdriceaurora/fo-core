@@ -89,10 +89,18 @@ class _SuiteExecutionClassification:
 
 @dataclass(frozen=True, slots=True)
 class _SuiteIterationOutcome:
-    """Per-iteration suite runner outcome consumed by classification."""
+    """Per-iteration suite runner outcome consumed by classification.
+
+    The smoke pair (``transcription_smoke_requested`` /
+    ``transcription_smoke_passed``) lets ``_classify_audio_suite`` distinguish
+    "smoke not asked for" from "smoke asked for but couldn't run" — required
+    so ``--transcribe-smoke`` doesn't silently succeed when the ``[media]``
+    extra is missing.
+    """
 
     processed_count: int
     used_synthetic_audio_metadata: bool = False
+    transcription_smoke_requested: bool = False
     transcription_smoke_passed: bool = False
 
 
@@ -543,6 +551,10 @@ def _run_audio_suite(
             finally:
                 model.safe_cleanup()
         except ImportError as exc:
+            # The smoke check was requested but couldn't run. Leave
+            # transcription_smoke_passed=False so _classify_audio_suite
+            # marks the run degraded; run() will surface a non-zero exit
+            # at the end. The warning is for the human reading stderr.
             typer.echo(
                 f"Warning: --transcribe-smoke requires [media] extra: {exc}",
                 err=True,
@@ -551,6 +563,7 @@ def _run_audio_suite(
     return _SuiteIterationOutcome(
         processed_count=len(candidates),
         used_synthetic_audio_metadata=used_synthetic_metadata,
+        transcription_smoke_requested=transcribe_smoke,
         transcription_smoke_passed=transcription_smoke_passed,
     )
 
@@ -712,11 +725,20 @@ def _classify_audio_suite(
             degraded=True,
             degradation_reasons=("audio-no-candidates-fallback-to-io",),
         )
+    reasons: list[str] = []
     if outcome.used_synthetic_audio_metadata:
+        reasons.append("audio-synthesized-metadata-fallback")
+    if outcome.transcription_smoke_requested and not outcome.transcription_smoke_passed:
+        # --transcribe-smoke was requested but couldn't run end-to-end
+        # (typically [media] extra missing). Surface the gap to the JSON
+        # consumer; run() will also exit non-zero so CI / scripts treat
+        # this as a real failure rather than a successful audio benchmark.
+        reasons.append("audio-transcribe-smoke-skipped")
+    if reasons:
         return _SuiteExecutionClassification(
             effective_suite="audio",
             degraded=True,
-            degradation_reasons=("audio-synthesized-metadata-fallback",),
+            degradation_reasons=tuple(reasons),
         )
     return _SuiteExecutionClassification(effective_suite="audio", degraded=False)
 
@@ -1060,6 +1082,13 @@ def run(
         raise typer.Exit(code=1)
     runner = suite_spec["run"]
     classifier = suite_spec["classify"]
+    if transcribe_smoke and suite != "audio":
+        # Fail fast rather than letting the flag become a silent no-op for
+        # non-audio suites (which would falsely report a successful "smoke
+        # check" in CI/scripts).
+        raise typer.BadParameter(
+            "--transcribe-smoke is only supported with --suite audio"
+        )
     if suite == "audio" and transcribe_smoke:
         runner = functools.partial(_run_audio_suite, transcribe_smoke=True)
 
@@ -1073,6 +1102,7 @@ def run(
                 "degraded": classification.degraded,
                 "degradation_reasons": sorted(set(classification.degradation_reasons)),
                 "runner_profile_version": _RUNNER_PROFILE_VERSION,
+                "transcribe_smoke": transcribe_smoke,
                 "files_count": 0,
                 "hardware_profile": _detect_hardware_profile(),
                 "results": compute_stats([], 0),
@@ -1136,13 +1166,17 @@ def run(
     # Statistics
     stats = compute_stats(measured, actual_processed_count)
 
-    # Build output
+    # Build output. `transcribe_smoke` is included so `--compare` can avoid
+    # mixing smoke and non-smoke baselines (which would otherwise show
+    # misleading regressions from the extra AudioModel.generate() call per
+    # iteration).
     output: dict[str, Any] = {
         "suite": suite,
         "effective_suite": effective_suite,
         "degraded": degraded,
         "degradation_reasons": degradation_reasons,
         "runner_profile_version": _RUNNER_PROFILE_VERSION,
+        "transcribe_smoke": transcribe_smoke,
         "files_count": actual_processed_count,
         "hardware_profile": _detect_hardware_profile(),
         "results": stats,
@@ -1171,3 +1205,16 @@ def run(
         if "comparison" in output:
             _print_comparison(console, output["comparison"], json_output=False)
         console.print("\n[bold green]Benchmark completed[/bold green]")
+
+    # `--transcribe-smoke` is a verification flag — if it was requested but
+    # didn't actually run end-to-end (typically [media] extra missing), the
+    # run must exit non-zero. The output above reports the failure for
+    # human + JSON consumers; this exits so CI / scripts treat it as a
+    # real failure instead of a successful audio benchmark.
+    if "audio-transcribe-smoke-skipped" in degradation_reasons:
+        console.print(
+            "[red]Error: --transcribe-smoke was requested but could not run "
+            "end-to-end (see warnings above). Install the [media] extra "
+            "(`pip install -e \".[media]\"`) and retry.[/red]",
+        )
+        raise typer.Exit(code=1)
