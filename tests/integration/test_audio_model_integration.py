@@ -61,15 +61,20 @@ class TestAudioModelEndToEnd:
         config = ModelConfig(name="tiny", model_type=ModelType.AUDIO)
         model = AudioModel(config)
         model.initialize()
+        # The transcriber's underlying Whisper model is lazy-loaded on first
+        # transcribe() call, so it should be None right after initialize().
+        assert model._transcriber._model is None
         try:
             output = model.generate(str(audio_path))
+            # Pipeline ran end-to-end without raising. Two non-vacuous
+            # assertions cover the contract:
+            #   1. generate() returned a string (not None, not an exception).
+            #   2. The lazy-load fired: _transcriber._model is now populated.
+            # Output text content is non-deterministic across whisper
+            # versions for silent audio, so we don't pin its value.
+            assert isinstance(output, str)
+            assert model._transcriber._model is not None
         finally:
             model.safe_cleanup()
-
-        assert isinstance(output, str)
-        # Silence may transcribe to empty or to a short artifact; both are
-        # valid. The contract we're proving here is: pipeline runs end-to-end
-        # without crashing. The isinstance(str) check above covers it; we
-        # don't pin an upper-length bound because a) `len(x) <= N` is
-        # T9-vacuous (passes for empty), and b) the actual transcription
-        # quality of silence is non-deterministic across whisper versions.
+        # cleanup() unloads the model — _transcriber._model is None again.
+        assert model._transcriber._model is None

@@ -222,24 +222,32 @@ class TestAudioModelInitialize:
 
 
 class TestAudioModelGenerate:
-    def test_generate_raises_not_implemented(self) -> None:
+    def test_generate_before_initialize_raises_runtime_error(self) -> None:
+        # Step 2A wired AudioModel.generate() to faster-whisper. The model
+        # is no longer a NotImplementedError stub; calling generate()
+        # before initialize() now raises RuntimeError via the BaseModel
+        # _enter_generate guard. (Was: assert NotImplementedError,
+        # match="Phase 3" — superseded by Step 2A Tasks 5/6.)
         from models.audio_model import AudioModel
         from models.base import ModelConfig, ModelType
 
-        config = ModelConfig(name="test-audio", model_type=ModelType.AUDIO)
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
         model = AudioModel(config)
 
-        with pytest.raises(NotImplementedError, match="Phase 3"):
+        with pytest.raises(RuntimeError, match="not initialized"):
             model.generate("audio/file.wav")
 
-    def test_generate_raises_regardless_of_kwargs(self) -> None:
+    def test_generate_kwargs_currently_ignored(self) -> None:
+        # generate() accepts **kwargs reserved for future per-call options.
+        # They're currently ignored. Calling without initialize() still
+        # raises the RuntimeError lifecycle guard regardless of kwargs.
         from models.audio_model import AudioModel
         from models.base import ModelConfig, ModelType
 
-        config = ModelConfig(name="test-audio", model_type=ModelType.AUDIO)
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
         model = AudioModel(config)
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(RuntimeError, match="not initialized"):
             model.generate("prompt", temperature=0.5, max_tokens=100)
 
 
@@ -281,11 +289,16 @@ class TestAudioModelGetDefaultConfig:
         assert cfg.model_type == ModelType.AUDIO
 
     def test_default_config_uses_default_model_name(self) -> None:
+        # Step 2A Task 3 changed the default from "distil-whisper-large-v3"
+        # (which silently fell back to ModelSize.BASE through the resolver)
+        # to "base" (a real ModelSize value). The new default makes the
+        # config self-describing — anyone reading it sees the actual
+        # whisper size that will load.
         from models.audio_model import AudioModel
 
         cfg = AudioModel.get_default_config()
 
-        assert cfg.name == "distil-whisper-large-v3"
+        assert cfg.name == "base"
 
     def test_default_config_custom_model_name(self) -> None:
         from models.audio_model import AudioModel
