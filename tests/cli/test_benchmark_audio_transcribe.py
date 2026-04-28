@@ -5,11 +5,17 @@ from __future__ import annotations
 import struct
 import wave
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
+from cli.benchmark import (
+    _bind_transcribe_smoke,
+    _exit_if_transcribe_smoke_failed,
+    _run_audio_suite,
+)
 from cli.main import app
 
 
@@ -22,6 +28,61 @@ def _generate_silence_wav(path: Path, seconds: float = 0.5) -> None:
         w.setsampwidth(2)
         w.setframerate(sample_rate)
         w.writeframes(struct.pack("<h", 0) * n_frames)
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestBindTranscribeSmoke:
+    """Direct coverage of the _bind_transcribe_smoke helper. Cheap unit tests
+    so the CI diff-coverage gate sees the new branches without needing the
+    full Typer/Click stack."""
+
+    def test_returns_unchanged_runner_when_smoke_off(self) -> None:
+        sentinel = MagicMock(name="default_runner")
+        result = _bind_transcribe_smoke(sentinel, suite="audio", transcribe_smoke=False)
+        assert result is sentinel
+
+    def test_returns_unchanged_runner_when_non_audio_and_smoke_off(self) -> None:
+        sentinel = MagicMock(name="io_runner")
+        result = _bind_transcribe_smoke(sentinel, suite="io", transcribe_smoke=False)
+        assert result is sentinel
+
+    def test_raises_bad_parameter_for_smoke_on_non_audio(self) -> None:
+        sentinel = MagicMock(name="io_runner")
+        with pytest.raises(typer.BadParameter, match="audio"):
+            _bind_transcribe_smoke(sentinel, suite="io", transcribe_smoke=True)
+
+    def test_binds_transcribe_smoke_for_audio_suite(self) -> None:
+        sentinel = MagicMock(name="default_audio_runner")
+        result = _bind_transcribe_smoke(sentinel, suite="audio", transcribe_smoke=True)
+        # Returns a functools.partial pre-bound to _run_audio_suite — not the
+        # sentinel default audio runner.
+        assert result is not sentinel
+        assert getattr(result, "func", None) is _run_audio_suite
+        assert result.keywords == {"transcribe_smoke": True}
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestExitIfTranscribeSmokeFailed:
+    """Direct coverage of the _exit_if_transcribe_smoke_failed helper."""
+
+    def test_no_exit_when_reason_absent(self) -> None:
+        console = MagicMock()
+        # Should NOT raise when the smoke-skipped reason isn't present.
+        _exit_if_transcribe_smoke_failed(console, ["audio-synthesized-metadata-fallback"])
+        console.print.assert_not_called()
+
+    def test_exits_nonzero_when_smoke_skipped_reason_present(self) -> None:
+        console = MagicMock()
+        with pytest.raises(typer.Exit) as exc_info:
+            _exit_if_transcribe_smoke_failed(console, ["audio-transcribe-smoke-skipped"])
+        assert exc_info.value.exit_code == 1
+        # Error message goes to console so the human reader sees the cause.
+        console.print.assert_called_once()
+        msg = console.print.call_args.args[0]
+        assert "transcribe-smoke" in msg.lower()
+        assert "media" in msg.lower()
 
 
 @pytest.mark.integration
@@ -88,9 +149,7 @@ class TestBenchmarkTranscribeSmoke:
         assert result.exit_code == 0, result.output
         mock_model_cls.assert_not_called()
 
-    def test_transcribe_smoke_with_non_audio_suite_fails_fast(
-        self, tmp_path: Path
-    ) -> None:
+    def test_transcribe_smoke_with_non_audio_suite_fails_fast(self, tmp_path: Path) -> None:
         """--transcribe-smoke without --suite audio must error, not silently
         no-op. Otherwise CI scripts that combine the wrong flags get a false
         positive (exit 0 with no smoke verification done)."""
@@ -118,8 +177,12 @@ class TestBenchmarkTranscribeSmoke:
         )
 
         assert result.exit_code != 0
-        assert "transcribe-smoke" in result.output.lower()
-        assert "audio" in result.output.lower()
+        # Rich panels can wrap long words; collapse whitespace before
+        # matching so `--transcribe-smoke` split across two lines still
+        # registers.
+        normalized = " ".join(result.output.lower().split())
+        assert "transcribe-smoke" in normalized or "transcribesmoke" in normalized
+        assert "audio" in normalized
 
     def test_transcribe_smoke_exits_nonzero_when_audio_model_unavailable(
         self, tmp_path: Path
@@ -154,6 +217,7 @@ class TestBenchmarkTranscribeSmoke:
         assert result.exit_code != 0
         # Both the warning (from _run_audio_suite) and the failure error
         # (from run()) should appear so the user sees the cause and the
-        # consequence.
-        assert "transcribe-smoke" in result.output.lower()
-        assert "media" in result.output.lower()
+        # consequence. Normalize whitespace to survive Rich panel wrap.
+        normalized = " ".join(result.output.lower().split())
+        assert "transcribe-smoke" in normalized or "transcribesmoke" in normalized
+        assert "media" in normalized

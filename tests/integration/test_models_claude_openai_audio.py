@@ -955,9 +955,7 @@ class TestAudioModel:
         model.initialize()
         assert model._initialized is True
 
-    def test_generate_propagates_filenotfound_for_missing_audio(
-        self, tmp_path: Path
-    ) -> None:
+    def test_generate_propagates_filenotfound_for_missing_audio(self, tmp_path: Path) -> None:
         # Step 2A wired generate() to faster-whisper. After initialize(),
         # passing a non-existent audio path now propagates the underlying
         # FileNotFoundError from AudioTranscriber.transcribe rather than

@@ -715,6 +715,44 @@ def _classify_vision_suite(
     return _SuiteExecutionClassification(effective_suite="vision", degraded=False)
 
 
+def _bind_transcribe_smoke(
+    runner: Callable[[list[Path]], _SuiteIterationOutcome],
+    *,
+    suite: str,
+    transcribe_smoke: bool,
+) -> Callable[[list[Path]], _SuiteIterationOutcome]:
+    """Validate ``--transcribe-smoke`` against ``suite`` and bind it to the runner.
+
+    Raises ``typer.BadParameter`` if the flag is set with a non-audio suite —
+    the flag becomes a silent no-op otherwise, which falsely reports a
+    successful "smoke check" to CI/scripts. When set with ``--suite audio``,
+    pre-binds ``transcribe_smoke=True`` to the audio runner so the dispatch
+    surface in :func:`run` doesn't need a special case.
+    """
+    if transcribe_smoke and suite != "audio":
+        raise typer.BadParameter("--transcribe-smoke is only supported with --suite audio")
+    if suite == "audio" and transcribe_smoke:
+        return functools.partial(_run_audio_suite, transcribe_smoke=True)
+    return runner
+
+
+def _exit_if_transcribe_smoke_failed(console: Any, degradation_reasons: Sequence[str]) -> None:
+    """Exit non-zero when ``--transcribe-smoke`` ran but no smoke completed.
+
+    Requested but couldn't run end-to-end (typically because the ``[media]``
+    extra is missing). The benchmark output is already emitted by the time
+    this fires, so JSON/human consumers see the degradation classification;
+    this just propagates the failure to the shell exit code.
+    """
+    if "audio-transcribe-smoke-skipped" in degradation_reasons:
+        console.print(
+            "[red]Error: --transcribe-smoke was requested but could not run "
+            "end-to-end (see warnings above). Install the [media] extra "
+            '(`pip install -e ".[media]"`) and retry.[/red]',
+        )
+        raise typer.Exit(code=1)
+
+
 def _classify_audio_suite(
     files: list[Path], outcome: _SuiteIterationOutcome
 ) -> _SuiteExecutionClassification:
@@ -1082,15 +1120,7 @@ def run(
         raise typer.Exit(code=1)
     runner = suite_spec["run"]
     classifier = suite_spec["classify"]
-    if transcribe_smoke and suite != "audio":
-        # Fail fast rather than letting the flag become a silent no-op for
-        # non-audio suites (which would falsely report a successful "smoke
-        # check" in CI/scripts).
-        raise typer.BadParameter(
-            "--transcribe-smoke is only supported with --suite audio"
-        )
-    if suite == "audio" and transcribe_smoke:
-        runner = functools.partial(_run_audio_suite, transcribe_smoke=True)
+    runner = _bind_transcribe_smoke(runner, suite=suite, transcribe_smoke=transcribe_smoke)
 
     if not files:
         if json_output:
@@ -1206,15 +1236,4 @@ def run(
             _print_comparison(console, output["comparison"], json_output=False)
         console.print("\n[bold green]Benchmark completed[/bold green]")
 
-    # `--transcribe-smoke` is a verification flag — if it was requested but
-    # didn't actually run end-to-end (typically [media] extra missing), the
-    # run must exit non-zero. The output above reports the failure for
-    # human + JSON consumers; this exits so CI / scripts treat it as a
-    # real failure instead of a successful audio benchmark.
-    if "audio-transcribe-smoke-skipped" in degradation_reasons:
-        console.print(
-            "[red]Error: --transcribe-smoke was requested but could not run "
-            "end-to-end (see warnings above). Install the [media] extra "
-            "(`pip install -e \".[media]\"`) and retry.[/red]",
-        )
-        raise typer.Exit(code=1)
+    _exit_if_transcribe_smoke_failed(console, degradation_reasons)
