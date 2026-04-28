@@ -51,3 +51,13 @@ def test_default_config_resolves_to_valid_model_size() -> None:
         size.value == config.name
         or size.value == config.name.replace("whisper-", "")
     )
+
+
+@pytest.mark.unit
+class TestAudioModelLifecycle:
+    def test_initialize_sets_initialized_flag(self) -> None:
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO)
+        model = AudioModel(config)
+        assert model.is_initialized is False
+        model.initialize()
+        assert model.is_initialized is True

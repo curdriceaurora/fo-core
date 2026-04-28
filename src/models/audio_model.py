@@ -59,8 +59,7 @@ class AudioModel(BaseModel):
         )
 
     def initialize(self) -> None:
-        """Initialize the audio model (not implemented yet)."""
-        logger.warning("Audio model not fully implemented yet (Phase 3)")
+        """Initialize the model. Whisper weights load lazily on first generate()."""
         super().initialize()
 
     def generate(self, prompt: str, **kwargs: Any) -> str:
