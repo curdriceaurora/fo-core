@@ -25,6 +25,7 @@ def _generate_silence_wav(path: Path, seconds: float = 0.5) -> None:
 
 
 @pytest.mark.integration
+@pytest.mark.ci
 class TestBenchmarkTranscribeSmoke:
     def test_transcribe_smoke_invokes_audio_model_once(
         self, tmp_path: Path

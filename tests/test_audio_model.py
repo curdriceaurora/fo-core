@@ -12,6 +12,7 @@ from models.base import ModelConfig, ModelType
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 class TestAudioModelInit:
     def test_init_creates_transcriber_attribute(self) -> None:
         config = ModelConfig(name="base", model_type=ModelType.AUDIO)
@@ -19,8 +20,18 @@ class TestAudioModelInit:
         assert model._transcriber is not None
         assert hasattr(model._transcriber, "transcribe")
 
+    def test_init_rejects_non_audio_model_type(self) -> None:
+        # AudioModel.__init__ guards against being constructed with a non-
+        # AUDIO ModelConfig — covers the ValueError raise. Without this
+        # test the diff-coverage gate fails because every other call site
+        # uses ModelType.AUDIO.
+        bad_config = ModelConfig(name="base", model_type=ModelType.TEXT)
+        with pytest.raises(ValueError, match="Expected AUDIO model type"):
+            AudioModel(bad_config)
+
 
 @pytest.mark.unit
+@pytest.mark.ci
 @pytest.mark.parametrize(
     "name,expected_value",
     [
@@ -40,6 +51,7 @@ def test_resolve_model_size_maps_to_valid_size(
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 def test_default_config_resolves_to_valid_model_size() -> None:
     from models.audio_model import _resolve_model_size
 
@@ -54,6 +66,7 @@ def test_default_config_resolves_to_valid_model_size() -> None:
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 class TestAudioModelLifecycle:
     def test_initialize_sets_initialized_flag(self) -> None:
         config = ModelConfig(name="base", model_type=ModelType.AUDIO)
@@ -73,6 +86,7 @@ class TestAudioModelLifecycle:
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 class TestAudioModelGenerate:
     def test_generate_returns_transcription_text(self, tmp_path: Path) -> None:
         config = ModelConfig(name="base", model_type=ModelType.AUDIO)
@@ -101,6 +115,7 @@ class TestAudioModelGenerate:
 
 
 @pytest.mark.unit
+@pytest.mark.ci
 class TestAudioModelGenerateErrors:
     def test_generate_before_initialize_raises_runtime_error(
         self, tmp_path: Path

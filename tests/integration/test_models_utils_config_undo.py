@@ -199,6 +199,21 @@ class TestAudioModelConstructor:
             AudioModel(config)
 
 
+class TestAudioModelConstructor:
+    def test_init_rejects_non_audio_model_type(self) -> None:
+        # AudioModel.__init__ guards against being constructed with a non-
+        # AUDIO ModelConfig — this pinned the "Expected AUDIO model type"
+        # ValueError. Covers the otherwise-unreached raise at
+        # src/models/audio_model.py:60 (the only integration-coverage gap
+        # post-Step-2A; happy paths all use ModelType.AUDIO).
+        from models.audio_model import AudioModel
+        from models.base import ModelConfig, ModelType
+
+        bad_config = ModelConfig(name="base", model_type=ModelType.TEXT)
+        with pytest.raises(ValueError, match="Expected AUDIO model type"):
+            AudioModel(bad_config)
+
+
 class TestAudioModelInitialize:
     def test_initialize_sets_initialized_flag(self) -> None:
         from models.audio_model import AudioModel
