@@ -163,8 +163,7 @@ class FileOrganizer:
         # at the Typer layer, but library callers can still pass it.
         if max_transcribe_seconds is not None and max_transcribe_seconds < 0:
             raise ValueError(
-                "max_transcribe_seconds must be >= 0 or None "
-                f"(got {max_transcribe_seconds!r})"
+                f"max_transcribe_seconds must be >= 0 or None (got {max_transcribe_seconds!r})"
             )
         self.max_transcribe_seconds = max_transcribe_seconds
         # Lazy-init in `_process_audio_files`; only constructed when the
