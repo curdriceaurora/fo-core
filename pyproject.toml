@@ -123,6 +123,10 @@ claude = [
     "anthropic>=0.20.0",  # 0.x — unstable API, keep >=; Anthropic Claude API provider
 ]
 
+# Optional: audio transcription (faster-whisper) and video scene detection.
+# Audio is exposed via the `AudioModel` class and is exercised end-to-end
+# by `fo benchmark run --suite audio --transcribe-smoke`. Video scene
+# detection is invoked by services/video/scene_detector.py callers.
 media = [
     "faster-whisper~=1.0",
     "torch~=2.1",

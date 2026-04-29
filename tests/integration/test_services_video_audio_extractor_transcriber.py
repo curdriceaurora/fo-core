@@ -899,9 +899,30 @@ class TestAudioTranscriberInit:
 
         transcriber = AudioTranscriber()
         assert transcriber.model_size == ModelSize.BASE
-        assert transcriber.compute_type == ComputeType.FLOAT16
+        # compute_type now auto-selects based on device: float16 on CUDA,
+        # int8 on CPU. Default device resolves to CPU on a non-CUDA host
+        # (the test runner), so int8 is the expected default here.
+        assert transcriber.compute_type in {ComputeType.FLOAT16, ComputeType.INT8}
         assert transcriber.num_workers == 1
         assert transcriber._model is None
+
+    def test_default_compute_type_is_int8_on_cpu(self) -> None:
+        from services.audio.transcriber import AudioTranscriber, ComputeType
+
+        transcriber = AudioTranscriber(device="cpu")
+        assert transcriber.compute_type == ComputeType.INT8
+
+    def test_default_compute_type_is_float16_on_cuda(self) -> None:
+        from services.audio.transcriber import AudioTranscriber, ComputeType
+
+        transcriber = AudioTranscriber(device="cuda")
+        assert transcriber.compute_type == ComputeType.FLOAT16
+
+    def test_explicit_compute_type_overrides_default(self) -> None:
+        from services.audio.transcriber import AudioTranscriber, ComputeType
+
+        transcriber = AudioTranscriber(device="cpu", compute_type=ComputeType.FLOAT32)
+        assert transcriber.compute_type == ComputeType.FLOAT32
 
     def test_custom_model_size_stored(self) -> None:
         from services.audio.transcriber import AudioTranscriber, ModelSize
@@ -944,7 +965,10 @@ class TestAudioTranscriberDetectDevice:
 
         assert result == "cuda"
 
-    def test_auto_returns_mps_when_cuda_unavailable(self) -> None:
+    def test_auto_returns_cpu_on_apple_silicon_not_mps(self) -> None:
+        """faster-whisper / CTranslate2 do not support MPS — on Apple Silicon
+        the auto-detect must fall back to CPU rather than crash with
+        'unsupported device mps'."""
         from services.audio.transcriber import AudioTranscriber
 
         mock_torch = MagicMock()
@@ -955,7 +979,7 @@ class TestAudioTranscriberDetectDevice:
             transcriber = AudioTranscriber(device="cpu")
             result = transcriber._detect_device("auto")
 
-        assert result == "mps"
+        assert result == "cpu"
 
     def test_auto_returns_cpu_when_neither_available(self) -> None:
         from services.audio.transcriber import AudioTranscriber

@@ -955,14 +955,27 @@ class TestAudioModel:
         model.initialize()
         assert model._initialized is True
 
-    def test_generate_raises_not_implemented(self) -> None:
+    def test_generate_propagates_filenotfound_for_missing_audio(self, tmp_path: Path) -> None:
+        # Step 2A wired generate() to faster-whisper. After initialize(),
+        # passing a non-existent audio path now propagates the underlying
+        # FileNotFoundError from AudioTranscriber.transcribe rather than
+        # the previous NotImplementedError("Phase 3") stub.
+        # Use tmp_path to construct a guaranteed-missing path so the
+        # FileNotFoundError assertion stays reliable under xdist
+        # parallelization (the bare "does-not-exist.wav" relative form is
+        # vulnerable to a same-named file in the worker's cwd).
         from models.audio_model import AudioModel
+
+        missing_audio = tmp_path / "does-not-exist.wav"
 
         config = AudioModel.get_default_config()
         model = AudioModel(config)
         model.initialize()
-        with pytest.raises(NotImplementedError, match="Phase 3"):
-            model.generate("audio.wav")
+        try:
+            with pytest.raises(FileNotFoundError):
+                model.generate(str(missing_audio))
+        finally:
+            model.safe_cleanup()
 
     def test_cleanup_clears_initialized(self) -> None:
         from models.audio_model import AudioModel

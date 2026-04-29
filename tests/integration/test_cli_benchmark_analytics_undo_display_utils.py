@@ -654,6 +654,7 @@ class TestBenchmarkSuiteHelpers:
             output=output,
             compare_path=None,
             suite="io",
+            transcribe_smoke=False,
             console=MagicMock(),
             json_output=False,
         )
@@ -689,6 +690,7 @@ class TestBenchmarkSuiteHelpers:
             output=output,
             compare_path=compare_path,
             suite="io",
+            transcribe_smoke=False,
             console=MagicMock(),
             json_output=False,
         )
@@ -705,6 +707,7 @@ class TestBenchmarkSuiteHelpers:
                 output={},
                 compare_path=bad_path,
                 suite="io",
+                transcribe_smoke=False,
                 console=MagicMock(),
                 json_output=False,
             )

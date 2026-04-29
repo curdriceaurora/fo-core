@@ -125,33 +125,51 @@ class AudioTranscriber:
         self,
         model_size: ModelSize = ModelSize.BASE,
         device: str = "auto",
-        compute_type: ComputeType = ComputeType.FLOAT16,
+        compute_type: ComputeType | None = None,
         cache_dir: Path | None = None,
         num_workers: int = 1,
     ):
         """Initialize the audio transcriber.
 
         Args:
-            model_size: Whisper model size to use
-            device: Device to run on ("cpu", "cuda", "mps", or "auto")
-            compute_type: Computation precision
-            cache_dir: Directory to cache models (None = default)
-            num_workers: Number of parallel workers for inference
+            model_size: Whisper model size to use.
+            device: Device to run on (``"cpu"``, ``"cuda"``, or ``"auto"``).
+                Apple Silicon's MPS is not supported by CTranslate2 and is
+                never auto-selected; see :meth:`_detect_device`.
+            compute_type: Computation precision. ``None`` (default) auto-
+                selects ``float16`` on CUDA and ``int8`` on CPU. CTranslate2
+                rejects ``float16`` on CPU with "target device or backend
+                do not support efficient float16 computation"; auto-selection
+                avoids that footgun.
+            cache_dir: Directory to cache models (``None`` = default).
+            num_workers: Number of parallel workers for inference.
         """
         self.model_size = model_size
         self.device = self._detect_device(device)
-        self.compute_type = compute_type
+        self.compute_type = (
+            compute_type
+            if compute_type is not None
+            else (ComputeType.FLOAT16 if self.device == "cuda" else ComputeType.INT8)
+        )
         self.cache_dir = cache_dir
         self.num_workers = num_workers
         self._model = None
 
         logger.info(
             f"Initializing AudioTranscriber with model={model_size.value}, "
-            f"device={self.device}, compute_type={compute_type.value}"
+            f"device={self.device}, compute_type={self.compute_type.value}"
         )
 
     def _detect_device(self, device: str) -> str:
-        """Detect the best available device."""
+        """Detect the best available device for faster-whisper.
+
+        faster-whisper wraps CTranslate2, which supports ``cpu`` and ``cuda``
+        only. Apple Silicon's MPS backend is **not** a supported CTranslate2
+        device — passing ``device="mps"`` produces ``RuntimeError: unsupported
+        device mps``. We therefore never auto-detect ``mps`` and fall back to
+        CPU on Apple Silicon. Callers that want explicit override can still
+        pass ``device="cuda"`` or ``device="cpu"`` directly.
+        """
         if device != "auto":
             return device
 
@@ -160,8 +178,6 @@ class AudioTranscriber:
 
             if torch.cuda.is_available():
                 return "cuda"
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                return "mps"
         except ImportError:
             pass
 
