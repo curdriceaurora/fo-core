@@ -933,9 +933,27 @@ def _check_baseline_smoke_compatibility(
     Returns a warning string when the baseline's ``transcribe_smoke`` flag
     differs from the current run, otherwise ``None``. Treats a missing
     field on the baseline as ``False`` since older baselines predate the
-    flag.
+    flag. A non-boolean value (e.g. the string ``"false"`` from a hand-
+    edited or malformed baseline) is reported via a malformed-field warning
+    instead of being coerced — ``bool("false")`` is ``True``, which would
+    silently invert the mismatch signal.
     """
-    baseline_smoke = bool(baseline.get("transcribe_smoke", False))
+    raw = baseline.get("transcribe_smoke")
+    if raw is None:
+        baseline_smoke = False
+    elif isinstance(raw, bool):
+        baseline_smoke = raw
+    else:
+        warning = (
+            "Baseline transcribe_smoke field is not a boolean "
+            f"(got {type(raw).__name__}={raw!r}); treating as missing. "
+            "The baseline file may be hand-edited or corrupted; "
+            "smoke-mode mismatch detection is unreliable for this comparison."
+        )
+        if not json_output:
+            console.print(f"[yellow]{warning}[/yellow]")
+        return warning
+
     if baseline_smoke == transcribe_smoke:
         return None
 

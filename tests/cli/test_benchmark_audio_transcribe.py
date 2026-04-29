@@ -353,6 +353,33 @@ class TestCheckBaselineSmokeCompatibility:
         assert warning is not None
         console.print.assert_not_called()
 
+    def test_returns_malformed_warning_when_baseline_field_is_string(self) -> None:
+        # `bool("false")` is True — naive coercion would silently invert the
+        # mismatch signal. The helper must detect non-bool values and warn
+        # rather than fall through to a misleading "no mismatch" result.
+        warning = _check_baseline_smoke_compatibility(
+            {"transcribe_smoke": "false"},
+            transcribe_smoke=False,
+            console=MagicMock(),
+            json_output=False,
+        )
+        assert warning is not None
+        assert "not a boolean" in warning.lower()
+        assert "str" in warning  # type name is surfaced
+
+    def test_returns_malformed_warning_when_baseline_field_is_int(self) -> None:
+        # Same defensive check for ints (0/1) — Python treats them as bools
+        # in arithmetic but the schema requires the JSON boolean.
+        warning = _check_baseline_smoke_compatibility(
+            {"transcribe_smoke": 1},
+            transcribe_smoke=True,
+            console=MagicMock(),
+            json_output=False,
+        )
+        assert warning is not None
+        assert "not a boolean" in warning.lower()
+        assert "int" in warning
+
 
 @pytest.mark.unit
 @pytest.mark.ci
