@@ -77,6 +77,9 @@ class TestConfigRoundTrip:
         # Read back via a fresh manager pointing at the same tmp dir.
         roundtripped = ConfigManager(config_dir=tmp_path).load()
 
+        # Pin the return-type contract — `ConfigManager.load()` must
+        # produce an `AppConfig`, not a fallback dict or partial object.
+        assert isinstance(roundtripped, AppConfig)
         # The round-tripped config must equal the original on every field.
         # Comparing via asdict() catches sub-dataclass field drift too
         # (e.g. ModelPreset losing `framework`).
@@ -139,6 +142,8 @@ class TestConfigCrossVersionRoundTrip:
 
         loaded = ConfigManager(config_dir=tmp_path).load()
 
+        # Pin the return-type contract.
+        assert isinstance(loaded, AppConfig)
         # Every field except `version` round-trips identically. `version`
         # is updated to current after the migration (correct behavior).
         # Comparing the full asdict() (with `version` neutralized) catches
@@ -184,6 +189,8 @@ class TestConfigCrossVersionRoundTrip:
         with caplog.at_level(logging.WARNING, logger="config.manager"):
             loaded = ConfigManager(config_dir=tmp_path).load()
 
+        # Pin the return-type contract.
+        assert isinstance(loaded, AppConfig)
         # Loaded best-effort: ALL known fields preserved (not just a
         # sampled subset — Copilot review on PR #238 caught that the
         # original 2-field check would let `models`/`updates`/`watcher`
@@ -195,15 +202,24 @@ class TestConfigCrossVersionRoundTrip:
         original_dict = asdict(original)
         loaded_dict["version"] = original_dict["version"] = "<<ignored>>"
         assert loaded_dict == original_dict
-        # And a warning was emitted naming the offending version. Check
-        # both `getMessage()` (formatted) and the raw `args` tuple — the
-        # warning uses %s formatting so the version may show up either
-        # in the formatted text or the args list depending on capture
-        # timing.
-        warned_for_future_version = any(
-            "99.0" in rec.getMessage() or "99.0" in str(rec.args or ()) for rec in caplog.records
-        )
-        assert warned_for_future_version, (
-            "Expected a WARNING naming the future version; got: "
-            f"{[(r.levelname, r.getMessage()) for r in caplog.records]}"
+
+        # Filter the captured records to the exact source + severity we
+        # expect. CodeRabbit review on PR #238: without this, a
+        # regression from logger.warning -> logger.error would still pass
+        # because caplog.at_level(WARNING) captures higher severities too.
+        # Pin both the source ("config.manager") and the level (WARNING)
+        # explicitly.
+        warnings = [
+            rec
+            for rec in caplog.records
+            if rec.name == "config.manager" and rec.levelno == logging.WARNING
+        ]
+        # The warning uses %s formatting so the version may show up
+        # either in the formatted text or the raw args tuple, depending
+        # on capture timing — check both.
+        assert any(
+            "99.0" in rec.getMessage() or "99.0" in str(rec.args or ()) for rec in warnings
+        ), (
+            "Expected a WARNING from config.manager naming the future version; got: "
+            f"{[(r.name, r.levelname, r.getMessage()) for r in caplog.records]}"
         )
