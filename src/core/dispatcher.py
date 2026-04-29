@@ -70,6 +70,34 @@ def _maybe_transcribe(
     return str(result)
 
 
+def _to_transcription_result(transcript: str | None, metadata: AudioMetadata) -> Any:
+    """Wrap a plain transcript string for `AudioClassifier.classify(transcription=...)`.
+
+    The classifier's Phase 3 keyword/speaker scoring expects a
+    ``TranscriptionResult`` dataclass with ``.text``, ``.duration``, and
+    ``.segments``. ``AudioModel.generate`` returns a plain ``str``, so we
+    construct a minimal stand-in here. ``segments=[]`` disables the
+    segment-based speaker-count heuristic; that's intentional — without
+    real word-level timestamps we'd be inventing signal.
+
+    Returns ``None`` when ``transcript`` is missing/empty so the
+    classifier's existing ``if transcription is not None`` guard skips
+    the transcription phase cleanly.
+    """
+    if not transcript:
+        return None
+    from services.audio.transcriber import TranscriptionOptions, TranscriptionResult
+
+    return TranscriptionResult(
+        text=transcript,
+        segments=[],
+        language="",
+        language_confidence=0.0,
+        duration=getattr(metadata, "duration", 0.0),
+        options=TranscriptionOptions(),
+    )
+
+
 def process_text_files(
     files: list[Path],
     text_processor: TextProcessor,
@@ -93,6 +121,7 @@ def process_text_files(
         task = progress.add_task("Processing files...", total=len(files))
 
         def _process_one(path: Path) -> ProcessedFile:
+            """Single-file processor closure passed to the parallel batch runner."""
             return text_processor.process_file(path)
 
         for file_result in parallel_processor.process_batch_iter(files, _process_one):
@@ -155,6 +184,7 @@ def process_image_files(
         task = progress.add_task("Processing images...", total=len(files))
 
         def _process_one_image(path: Path) -> ProcessedImage:
+            """Single-image processor closure passed to the parallel batch runner."""
             return vision_processor.process_file(path)
 
         for file_result in parallel_processor.process_batch_iter(files, _process_one_image):
@@ -235,7 +265,18 @@ def process_audio_files(
     for audio_path in files:
         try:
             metadata = extractor.extract(audio_path)
-            classification = classifier.classify(metadata)
+
+            # Transcribe FIRST so the result can influence classification.
+            # Otherwise the user pays transcription cost and gets the same
+            # metadata-only folder routing — defeating --transcribe-audio.
+            transcript = _maybe_transcribe(
+                audio_path,
+                metadata=metadata,
+                transcriber=transcriber,
+                max_transcribe_seconds=max_transcribe_seconds,
+            )
+            transcription = _to_transcription_result(transcript, metadata)
+            classification = classifier.classify(metadata, transcription=transcription)
             dest_path = organizer.generate_path(classification.audio_type, metadata)
 
             folder_name = dest_path.parent.as_posix()
@@ -248,13 +289,6 @@ def process_audio_files(
                 parts.append(metadata.title)
             description = (
                 ": ".join(parts[:1]) + " " + " - ".join(parts[1:]) if len(parts) > 1 else parts[0]
-            )
-
-            transcript = _maybe_transcribe(
-                audio_path,
-                metadata=metadata,
-                transcriber=transcriber,
-                max_transcribe_seconds=max_transcribe_seconds,
             )
 
             processed.append(

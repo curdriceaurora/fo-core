@@ -376,6 +376,13 @@ class FileOrganizer:
                 self.vision_processor.cleanup()
             if self._audio_model is not None:
                 self._audio_model.safe_cleanup()
+                # Reset to None so a subsequent organize() call on the
+                # same FileOrganizer instance re-initializes a fresh
+                # model. Without this, the lazy-init `is None` check in
+                # `_process_audio_files` would keep the disposed handle
+                # and `generate()` would raise RuntimeError per-file,
+                # silently degrading transcription to metadata-only.
+                self._audio_model = None
 
         return all_processed
 

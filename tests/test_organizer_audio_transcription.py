@@ -13,7 +13,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from core.dispatcher import _maybe_transcribe, process_audio_files
+from core.dispatcher import (
+    _maybe_transcribe,
+    _to_transcription_result,
+    process_audio_files,
+)
 
 
 def _stub_extractor_cls(*, duration: float) -> type:
@@ -145,6 +149,54 @@ class TestMaybeTranscribe:
 @pytest.mark.unit
 @pytest.mark.ci
 @pytest.mark.integration
+class TestToTranscriptionResult:
+    """Direct coverage of the str → TranscriptionResult wrapper.
+
+    The classifier's transcription-aware path expects a TranscriptionResult
+    dataclass (not a raw str). This helper bridges AudioModel's str
+    output to the classifier's input contract while degrading to None
+    on missing/empty transcripts so the classifier's existing
+    `if transcription is not None` guard stays the gating check.
+    """
+
+    def _stub_metadata(self, duration: float = 30.0) -> object:
+        from services.audio.metadata_extractor import AudioMetadata
+
+        return AudioMetadata(
+            file_path=Path("stub.mp3"),
+            file_size=1024,
+            format="MP3",
+            duration=duration,
+            bitrate=128_000,
+            sample_rate=44_100,
+            channels=2,
+        )
+
+    def test_returns_none_for_none_transcript(self) -> None:
+        assert _to_transcription_result(None, self._stub_metadata()) is None
+
+    def test_returns_none_for_empty_string(self) -> None:
+        # Empty transcripts must NOT pass through — the classifier would
+        # otherwise score 'few words → music' on a silent failure case
+        # and override the metadata-derived audio_type incorrectly.
+        assert _to_transcription_result("", self._stub_metadata()) is None
+
+    def test_wraps_text_into_transcription_result(self) -> None:
+        from services.audio.transcriber import TranscriptionResult
+
+        result = _to_transcription_result("hello world", self._stub_metadata(duration=120.0))
+        assert isinstance(result, TranscriptionResult)
+        assert result.text == "hello world"
+        assert result.duration == 120.0
+        # Empty segments — we don't have word-level timestamps from the
+        # plain-string transcriber output, so the classifier's
+        # speaker-count heuristic is intentionally inactive.
+        assert result.segments == []
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+@pytest.mark.integration
 class TestProcessAudioFilesTranscript:
     """Integration of `_maybe_transcribe` into `process_audio_files`.
 
@@ -192,6 +244,57 @@ class TestProcessAudioFilesTranscript:
         assert len(results) == 1
         assert results[0].transcript is None
         transcriber.generate.assert_not_called()
+
+    def test_transcript_influences_audio_classification(self, tmp_path: Path) -> None:
+        # Codex P1 (PR #237 review): the dispatcher attached the transcript
+        # but the classifier was called as `classify(metadata)` without it,
+        # so transcription paid CPU cost without affecting folder routing.
+        # This test pins the contract end-to-end: the dispatcher MUST pass
+        # transcription= to classify() so transcript-derived audio_type
+        # actually influences description and folder_name.
+        from unittest.mock import patch
+
+        audio = tmp_path / "a.mp3"
+        audio.touch()
+
+        transcriber = MagicMock()
+        transcriber.generate.return_value = (
+            "Welcome to the podcast. In this episode our guests discuss "
+            "the latest interview series and listeners can subscribe."
+        )
+        # Spy on the classifier so we can assert it received the
+        # transcription kwarg (not just metadata) — the missing wire was
+        # the actual bug Codex caught.
+        with patch(
+            "services.audio.classifier.AudioClassifier.classify",
+            autospec=True,
+        ) as spy_classify:
+            from services.audio.classifier import (
+                AudioType,
+                ClassificationResult,
+            )
+
+            spy_classify.return_value = ClassificationResult(
+                audio_type=AudioType.PODCAST,
+                confidence=0.9,
+                reasoning="stubbed",
+            )
+            results = process_audio_files(
+                [audio],
+                extractor_cls=_stub_extractor_cls(duration=300.0),
+                transcriber=transcriber,
+                max_transcribe_seconds=600,
+            )
+
+        assert len(results) == 1
+        assert results[0].transcript == transcriber.generate.return_value
+        # The contract under test: the transcription kwarg was passed and
+        # was not None — i.e. the transcript actually influenced the
+        # classifier call.
+        assert spy_classify.call_count == 1
+        passed_transcription = spy_classify.call_args.kwargs.get("transcription")
+        assert passed_transcription is not None
+        assert passed_transcription.text == transcriber.generate.return_value
 
 
 @pytest.mark.unit
@@ -265,6 +368,35 @@ class TestFileOrganizerTranscribeFlag:
         organizer._process_audio_files([tmp_path / "x.mp3"])
 
         assert captured["transcriber"] is None
+
+    def test_audio_model_reset_to_none_after_cleanup(self, tmp_path: Path) -> None:
+        # Codex P2 + CodeRabbit Major (PR #237 review): the cleanup block
+        # called `safe_cleanup()` but didn't reset the reference to None.
+        # On a second `organize()` call the lazy-init `if is None` check
+        # would skip re-initialize and `generate()` would raise per-file
+        # — silently degrading transcription to metadata-only. The reset
+        # lives in `_process_all_file_types`'s finally block; testing it
+        # via the public `organize()` is brittle because the empty-input
+        # short-circuit returns before the finally runs. Test the helper
+        # directly with a pre-populated `_audio_model`.
+        from core.organizer import FileOrganizer
+
+        fake_audio_model = MagicMock()
+        organizer = FileOrganizer(
+            dry_run=True,
+            transcribe_audio=True,
+            max_transcribe_seconds=300.0,
+        )
+        organizer._audio_model = fake_audio_model
+
+        # Empty file lists for every category so no file dispatch runs
+        # but the finally block still fires.
+        organizer._process_all_file_types([], [], [], [], [])
+
+        fake_audio_model.safe_cleanup.assert_called_once()
+        # The crucial assertion: the slot is reset so a second
+        # organize() on the same FileOrganizer would lazy-init fresh.
+        assert organizer._audio_model is None
 
     def test_import_error_falls_back_to_metadata_only(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
