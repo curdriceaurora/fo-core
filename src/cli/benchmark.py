@@ -544,8 +544,8 @@ def _run_audio_suite(
         try:
             config = ModelConfig(name="tiny", model_type=ModelType.AUDIO)
             model = AudioModel(config)
-            model.initialize()
             try:
+                model.initialize()
                 _ = model.generate(str(candidates[0]))
                 transcription_smoke_passed = True
             finally:

@@ -72,7 +72,7 @@ class TestValidateTranscribeSmokePreconditions:
     helper. Both paths used to short-circuit the benchmark before the
     smoke-failure exit guard ran, exiting 0 with no verification done."""
 
-    def test_passes_silently_when_smoke_off(self, tmp_path: Path) -> None:
+    def test_passes_silently_when_smoke_off(self) -> None:
         # No raise even with empty file list when smoke is off.
         _validate_transcribe_smoke_preconditions([], transcribe_smoke=False)
 
