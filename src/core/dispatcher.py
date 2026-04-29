@@ -8,7 +8,7 @@ and handles progress display for each batch.  Extracted from
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 from rich.console import Console
@@ -23,8 +23,52 @@ from parallel.processor import ParallelProcessor
 from services import ProcessedFile, ProcessedImage, TextProcessor, VisionProcessor
 
 if TYPE_CHECKING:
-    from services.audio.metadata_extractor import AudioMetadataExtractor
+    from services.audio.metadata_extractor import AudioMetadata, AudioMetadataExtractor
     from services.video.metadata_extractor import VideoMetadataExtractor
+
+
+def _maybe_transcribe(
+    audio_path: Path,
+    *,
+    metadata: AudioMetadata,
+    transcriber: Any | None,
+    max_transcribe_seconds: float | None,
+) -> str | None:
+    """Return a transcript when a transcriber is set and duration is within cap.
+
+    Returns ``None`` for any of:
+    - No transcriber configured (the default; metadata-only categorization).
+    - Duration exceeds ``max_transcribe_seconds`` (skip and warn — long files
+      would dominate the organize wall-clock time).
+    - The transcriber raises a recoverable exception (FileNotFound,
+      RuntimeError, ImportError); we degrade to metadata-only categorization
+      rather than aborting the entire organize batch on a single bad file.
+    """
+    if transcriber is None:
+        return None
+    duration = getattr(metadata, "duration", None)
+    if (
+        max_transcribe_seconds is not None
+        and isinstance(duration, (int, float))
+        and duration > max_transcribe_seconds
+    ):
+        logger.warning(
+            "Audio {} exceeds transcribe cap ({:.1f}s > {:.1f}s); using metadata only.",
+            audio_path.name,
+            float(duration),
+            float(max_transcribe_seconds),
+        )
+        return None
+    try:
+        result = transcriber.generate(str(audio_path))
+    except (FileNotFoundError, RuntimeError, ImportError) as exc:
+        logger.warning("Audio transcription failed for {}: {}", audio_path.name, exc)
+        return None
+    # `transcriber` is typed as `Any` so mypy can't see `generate`'s return
+    # type. AudioModel.generate returns str; defensive str() lets a duck-
+    # typed transcriber return any reasonable scalar without mypy failing
+    # the no-any-return gate at the lint step.
+    return str(result) if result is not None else None
 
 
 def process_text_files(
@@ -155,6 +199,8 @@ def process_audio_files(
     files: list[Path],
     *,
     extractor_cls: type[AudioMetadataExtractor] | None = None,
+    transcriber: Any | None = None,
+    max_transcribe_seconds: float | None = None,
 ) -> list[ProcessedFile]:
     """Process audio files using the metadata pipeline (no AI model required).
 
@@ -162,6 +208,17 @@ def process_audio_files(
         files: Audio file paths to process.
         extractor_cls: Optional extractor class override so organizer-level
             patch targets continue to intercept metadata extraction in tests.
+        transcriber: Optional transcriber object exposing
+            ``generate(audio_path: str) -> str`` (typically ``AudioModel``).
+            When provided, each file within the duration cap is transcribed
+            and the result attached to ``ProcessedFile.transcript`` for the
+            organizer's text-categorization path. ``None`` preserves the
+            metadata-only behavior.
+        max_transcribe_seconds: Per-file duration cap; files longer than
+            this skip transcription and fall back to metadata-only
+            categorization. ``None`` means no cap. Whisper is roughly
+            5-10× realtime on CPU, so a 600s default keeps a single-file
+            organize call under ~2 minutes of CPU work.
 
     Returns:
         List of processed file results.
@@ -194,6 +251,13 @@ def process_audio_files(
                 ": ".join(parts[:1]) + " " + " - ".join(parts[1:]) if len(parts) > 1 else parts[0]
             )
 
+            transcript = _maybe_transcribe(
+                audio_path,
+                metadata=metadata,
+                transcriber=transcriber,
+                max_transcribe_seconds=max_transcribe_seconds,
+            )
+
             processed.append(
                 ProcessedFile(
                     file_path=audio_path,
@@ -201,6 +265,7 @@ def process_audio_files(
                     folder_name=folder_name,
                     filename=filename_stem,
                     error=None,
+                    transcript=transcript,
                 )
             )
             logger.debug("Audio processed: {} → {}/{}", audio_path.name, folder_name, filename_stem)

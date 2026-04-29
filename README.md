@@ -102,7 +102,7 @@ Core file types (PDF, DOCX, XLSX, PPTX, EPUB, ZIP) work out of the box. RAR also
 
 | Pack | Install | Adds |
 |------|---------|------|
-| `media` | `pip install "fo-core[media]"` | Audio transcription (faster-whisper) + video scene detection. Verify with `fo benchmark run --suite audio --transcribe-smoke`. |
+| `media` | `pip install "fo-core[media]"` | Audio transcription (faster-whisper) + video scene detection. Use `fo organize --transcribe-audio` for content-aware audio categorization, or verify the install with `fo benchmark run --suite audio --transcribe-smoke`. |
 | `dedup-text` | `pip install "fo-core[dedup-text]"` | TF-IDF/cosine text deduplication |
 | `dedup-image` | `pip install "fo-core[dedup-image]"` | Image similarity deduplication |
 | `scientific` | `pip install "fo-core[scientific]"` | HDF5, NetCDF, MATLAB formats |

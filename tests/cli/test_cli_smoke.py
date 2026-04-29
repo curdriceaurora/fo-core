@@ -55,6 +55,8 @@ class TestOrganizeSmoke:
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
 
