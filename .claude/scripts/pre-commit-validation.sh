@@ -137,7 +137,12 @@ _src_py_changed=$(
 if [[ -n "$_src_py_changed" ]]; then
   echo "▶ Diff coverage gate (≥80% of changed lines)"
   pytest tests/ -q --override-ini="addopts=" --cov=src --cov-report=xml:coverage.xml --no-header
-  diff-cover coverage.xml --compare-branch="$_merge_base" --fail-under=80
+  # `--include-untracked` matches the trigger logic above: we treat new
+  # un-`git add`-ed src files as part of the validation scope, so
+  # diff-cover must also evaluate their lines. Without this flag, an
+  # untracked file would trigger the gate but fall outside diff-cover's
+  # default analysis, producing a false pass per Codex P2 review.
+  diff-cover coverage.xml --compare-branch="$_merge_base" --fail-under=80 --include-untracked
   echo "✓ Diff coverage gate"
   echo ""
 else
