@@ -88,16 +88,22 @@ class TestConfigRoundTrip:
 class TestConfigCrossVersionRoundTrip:
     """Cross-version compat: schema stays frozen but the walker still works."""
 
-    def test_synthetic_future_version_preserves_known_fields(
+    def test_past_version_migration_preserves_all_fields(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Write at a synthetic past version; load() must preserve all fields.
+        """Write at a synthetic PAST version; the migration walker must
+        preserve all fields when the migration is identity.
 
         We don't register an actual migration — beta promises the schema does
         not change across the line — but we DO promise that adding fields in
         the future won't drop existing fields. This test exercises that path
         using a registry monkeypatch, simulating what a future migration
         landing in beta.5 (say) would do during a beta.4 → beta.5 read.
+
+        Renamed from ``test_synthetic_future_version_preserves_known_fields``
+        per Copilot review on PR #238 — "future" was misleading because the
+        on-disk version is OLDER than the binary's, and the migration walker
+        ratchets it forward.
         """
         from config.migrations import MIGRATIONS, Migration
 
@@ -135,14 +141,16 @@ class TestConfigCrossVersionRoundTrip:
 
         # Every field except `version` round-trips identically. `version`
         # is updated to current after the migration (correct behavior).
+        # Comparing the full asdict() (with `version` neutralized) catches
+        # regressions on fields the test author forgot to enumerate
+        # (e.g. daemon/parallel/pipeline/events/deploy/johnny_decimal
+        # silently defaulting differently post-migration). Per Copilot
+        # review on PR #238.
         assert loaded.version == CURRENT_SCHEMA_VERSION
-        assert loaded.profile_name == original.profile_name
-        assert loaded.default_methodology == original.default_methodology
-        assert loaded.setup_completed == original.setup_completed
-        assert asdict(loaded.models) == asdict(original.models)
-        assert asdict(loaded.updates) == asdict(original.updates)
-        assert loaded.watcher == original.watcher
-        assert loaded.para == original.para
+        loaded_dict = asdict(loaded)
+        original_dict = asdict(original)
+        loaded_dict["version"] = original_dict["version"] = "<<ignored>>"
+        assert loaded_dict == original_dict
 
     def test_future_version_loads_best_effort_with_warning(
         self,
@@ -176,9 +184,17 @@ class TestConfigCrossVersionRoundTrip:
         with caplog.at_level(logging.WARNING, logger="config.manager"):
             loaded = ConfigManager(config_dir=tmp_path).load()
 
-        # Loaded best-effort: known fields preserved.
-        assert loaded.profile_name == original.profile_name
-        assert loaded.setup_completed == original.setup_completed
+        # Loaded best-effort: ALL known fields preserved (not just a
+        # sampled subset — Copilot review on PR #238 caught that the
+        # original 2-field check would let `models`/`updates`/`watcher`
+        # etc. silently regress). Compare full asdict() with `version`
+        # neutralized — it doesn't ratchet for future-version configs
+        # the binary doesn't know how to migrate, but the contract for
+        # known fields is unconditional.
+        loaded_dict = asdict(loaded)
+        original_dict = asdict(original)
+        loaded_dict["version"] = original_dict["version"] = "<<ignored>>"
+        assert loaded_dict == original_dict
         # And a warning was emitted naming the offending version. Check
         # both `getMessage()` (formatted) and the raw `args` tuple — the
         # warning uses %s formatting so the version may show up either
