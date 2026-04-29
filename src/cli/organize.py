@@ -109,6 +109,24 @@ def organize(
         "--no-prefetch",
         help="Backward-compatible alias for --prefetch-depth 0.",
     ),
+    transcribe_audio: bool = typer.Option(
+        False,
+        "--transcribe-audio",
+        help=(
+            "Transcribe audio files (requires the [media] extra) and use the "
+            "transcript for content-aware categorization. Off by default — "
+            "transcription is the expensive operation in the audio pipeline."
+        ),
+    ),
+    max_transcribe_seconds: float = typer.Option(
+        600.0,
+        "--max-transcribe-seconds",
+        min=0.0,
+        help=(
+            "Skip transcription for audio files longer than this (seconds). "
+            "Default: 600 (10 min). Set to 0 to disable the cap entirely."
+        ),
+    ),
 ) -> None:
     """Organize files in a directory using AI models."""
     # Check if setup has been completed
@@ -137,6 +155,10 @@ def organize(
             prefetch_depth=resolved_prefetch_depth,
             enable_vision=not no_vision,
             no_prefetch=no_prefetch,
+            transcribe_audio=transcribe_audio,
+            # `--max-transcribe-seconds 0` is the documented "disable the cap"
+            # value; convert to None for the organizer (None means uncapped).
+            max_transcribe_seconds=max_transcribe_seconds if max_transcribe_seconds > 0 else None,
         )
         result = organizer.organize(input_dir, output_dir)
         console.print(
@@ -181,6 +203,23 @@ def preview(
         "--no-prefetch",
         help="Backward-compatible alias for --prefetch-depth 0.",
     ),
+    transcribe_audio: bool = typer.Option(
+        False,
+        "--transcribe-audio",
+        help=(
+            "Transcribe audio files (requires the [media] extra) and use the "
+            "transcript for content-aware categorization. Off by default."
+        ),
+    ),
+    max_transcribe_seconds: float = typer.Option(
+        600.0,
+        "--max-transcribe-seconds",
+        min=0.0,
+        help=(
+            "Skip transcription for audio files longer than this (seconds). "
+            "Default: 600 (10 min). Set to 0 to disable the cap entirely."
+        ),
+    ),
 ) -> None:
     """Preview how files would be organized (dry-run)."""
     # Check if setup has been completed
@@ -204,6 +243,8 @@ def preview(
             prefetch_depth=resolved_prefetch_depth,
             enable_vision=not no_vision,
             no_prefetch=no_prefetch,
+            transcribe_audio=transcribe_audio,
+            max_transcribe_seconds=max_transcribe_seconds if max_transcribe_seconds > 0 else None,
         )
         result = organizer.organize(input_dir, input_dir)
         console.print(f"[green]Preview:[/green] {result.total_files} files would be organized")

@@ -114,6 +114,28 @@ Use `preview` for a quick dry-run view:
 fo preview ~/Downloads
 ```
 
+### Audio transcription (optional)
+
+When the `[media]` extra is installed, you can categorize audio files by
+transcript content rather than only by metadata tags:
+
+```bash
+fo organize ~/Downloads ~/Organized --transcribe-audio
+```
+
+Transcription is **off by default** because it is CPU-intensive. The default
+duration cap (10 minutes per file, override with `--max-transcribe-seconds`)
+prevents podcast-length files from monopolizing the run; over-cap files fall
+back to metadata-only categorization with a warning. Set
+`--max-transcribe-seconds 0` to disable the cap entirely.
+
+The first run downloads the Whisper "tiny" model (about 39 MB). Subsequent runs
+use the local cache.
+
+If `[media]` is not installed, `--transcribe-audio` degrades gracefully: the
+organize batch completes using metadata-only categorization and prints a yellow
+warning naming the missing extra.
+
 ### Searching Files
 
 Search through organized files by filename pattern or keyword:

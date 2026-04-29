@@ -30,6 +30,7 @@ class ProcessedFile:
     original_content: str | None = None
     processing_time: float = 0.0
     error: str | None = None
+    transcript: str | None = None
 
 
 # Stop-words and noise words filtered from AI-generated names.
