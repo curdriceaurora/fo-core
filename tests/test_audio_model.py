@@ -46,6 +46,18 @@ class TestAudioModelInit:
         # fixture which the project doesn't currently expose.)
         assert model._transcriber.device == "cpu"
 
+    def test_init_coerces_metal_device_to_cpu(self) -> None:
+        # `ModelConfig.device` accepts DeviceType.METAL too (used by MLX
+        # paths). CTranslate2 doesn't recognize "metal" either, so the
+        # same defensive coercion must apply or transcription crashes at
+        # runtime with an opaque "unsupported device" error. Allowlist
+        # (auto/cpu/cuda) covers any future DeviceType additions too.
+        from models.base import DeviceType
+
+        config = ModelConfig(name="base", model_type=ModelType.AUDIO, device=DeviceType.METAL)
+        model = AudioModel(config)
+        assert model._transcriber.device == "cpu"
+
 
 @pytest.mark.unit
 @pytest.mark.ci

@@ -73,16 +73,21 @@ class AudioModel(BaseModel):
         # `if config.device else "auto"` form had an unreachable else arm
         # under strict typing.
         device = config.device.value
-        # CTranslate2 (the engine under faster-whisper) does not support
-        # MPS — passing it through would crash later at transcription time
-        # with an opaque "unsupported device mps" error. Coerce to CPU here
-        # to match `AudioTranscriber._detect_device`'s auto-fallback
-        # behavior on Apple Silicon, with a loud log so callers explicitly
-        # passing DeviceType.MPS don't wonder why the backend changed.
-        if device == "mps":
+        # CTranslate2 (the engine under faster-whisper) only supports
+        # "auto", "cpu", and "cuda". `ModelConfig.device` accepts MPS and
+        # METAL too — passing either through unchanged would crash later
+        # at transcription time with an opaque "unsupported device" error.
+        # Coerce any non-supported value to CPU here to match
+        # `AudioTranscriber._detect_device`'s auto-fallback behavior on
+        # Apple Silicon, with a loud log so callers don't wonder why the
+        # backend changed. Allowlist (not denylist) so future DeviceType
+        # additions get the same defensive fallback.
+        _CTRANSLATE2_SUPPORTED = {"auto", "cpu", "cuda"}
+        if device not in _CTRANSLATE2_SUPPORTED:
             logger.warning(
-                "AudioModel: requested device=MPS is not supported by CTranslate2; "
-                "falling back to CPU."
+                "AudioModel: requested device=%s is not supported by CTranslate2; "
+                "falling back to CPU.",
+                device,
             )
             device = "cpu"
         self._transcriber = AudioTranscriber(
