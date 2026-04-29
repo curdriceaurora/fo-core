@@ -566,6 +566,20 @@ class FileOrganizer:
         transcriber: Any = None
         if self.transcribe_audio:
             try:
+                # Pre-flight check: `services.audio.transcriber` swallows the
+                # `faster_whisper` ImportError at module load and exposes
+                # `_FASTER_WHISPER_AVAILABLE=False` instead. Without this
+                # gate, `AudioModel(...)` construction succeeds and the
+                # ImportError fires later inside `generate()` for every
+                # single file — flooding the user with per-file warnings
+                # instead of the single organizer-level fallback warning
+                # this branch promised. Detecting availability here keeps
+                # the warning to one event per organize batch.
+                from services.audio.transcriber import _FASTER_WHISPER_AVAILABLE
+
+                if not _FASTER_WHISPER_AVAILABLE:
+                    raise ImportError("faster_whisper is not installed (the [media] extra)")
+
                 from models.audio_model import AudioModel
                 from models.base import ModelConfig, ModelType
 

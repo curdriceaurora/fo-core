@@ -429,13 +429,18 @@ class TestFileOrganizerTranscribeFlag:
         # organize() on the same FileOrganizer would lazy-init fresh.
         assert organizer._audio_model is None
 
-    def test_import_error_falls_back_to_metadata_only(
+    def test_preflight_skips_transcriber_when_faster_whisper_unavailable(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # When --transcribe-audio is requested but [media] isn't installed,
-        # the organize batch must still complete — degrade to metadata-only
-        # rather than aborting. The organizer surfaces a yellow warning so
-        # the user knows why content-aware categorization didn't run.
+        # Codex P2 (PR #237 review): `services.audio.transcriber` swallows
+        # the faster_whisper ImportError at module-load and exposes
+        # `_FASTER_WHISPER_AVAILABLE=False`. Without a pre-flight check,
+        # `AudioModel(...)` construction succeeds and ImportError fires
+        # per-file inside generate() — flooding the user with one warning
+        # per file instead of the single organizer-level fallback warning.
+        # This test pins the pre-flight: when the flag is False, the
+        # organizer hits the ImportError branch BEFORE constructing
+        # AudioModel and passes None to the dispatcher.
         from core.organizer import FileOrganizer
 
         captured: dict = {}
@@ -451,13 +456,68 @@ class TestFileOrganizerTranscribeFlag:
             return []
 
         monkeypatch.setattr("core.dispatcher.process_audio_files", _spy)
-        # Replace the module-level AudioModel class itself so the local
-        # `from models.audio_model import AudioModel` raises before the
-        # dispatcher is even called.
+        # Force the pre-flight gate to fail. We patch the attribute on
+        # services.audio.transcriber so the import inside the organizer
+        # method picks up the False value.
+        import services.audio.transcriber as transcriber_module
+
+        monkeypatch.setattr(transcriber_module, "_FASTER_WHISPER_AVAILABLE", False)
+
+        # AudioModel must NOT be constructed when the pre-flight fails.
+        # Patch it to a sentinel that would raise if called.
+        construction_calls: list[None] = []
+
+        def _audio_model_should_not_be_constructed(*args: object, **kwargs: object) -> None:
+            construction_calls.append(None)
+            raise AssertionError(
+                "AudioModel must not be constructed when faster_whisper is unavailable"
+            )
+
+        import models.audio_model as audio_model_module
+
+        monkeypatch.setattr(
+            audio_model_module, "AudioModel", _audio_model_should_not_be_constructed
+        )
+
+        organizer = FileOrganizer(dry_run=True, transcribe_audio=True)
+        organizer._process_audio_files([tmp_path / "x.mp3"])
+
+        assert captured["transcriber"] is None
+        assert construction_calls == []  # pre-flight blocked construction
+
+    def test_import_error_during_construction_falls_back_to_metadata_only(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Defense-in-depth: even if `_FASTER_WHISPER_AVAILABLE` is True
+        # (e.g. faster_whisper imports but transitively fails), an
+        # ImportError raised during AudioModel construction must still
+        # degrade gracefully to metadata-only.
+        from core.organizer import FileOrganizer
+
+        captured: dict = {}
+
+        def _spy(
+            files: list[Path],
+            *,
+            extractor_cls: type | None = None,
+            transcriber: object | None = None,
+            max_transcribe_seconds: float | None = None,
+        ) -> list:
+            captured["transcriber"] = transcriber
+            return []
+
+        monkeypatch.setattr("core.dispatcher.process_audio_files", _spy)
+
+        # Force pre-flight to pass, then make AudioModel construction
+        # raise to exercise the second fallback path.
+        import services.audio.transcriber as transcriber_module
+
+        monkeypatch.setattr(transcriber_module, "_FASTER_WHISPER_AVAILABLE", True)
+
         import models.audio_model as audio_model_module
 
         def _raise_import_error(*args: object, **kwargs: object) -> None:
-            raise ImportError("faster-whisper is not installed")
+            raise ImportError("transitive dep failed")
 
         monkeypatch.setattr(audio_model_module, "AudioModel", _raise_import_error)
 
