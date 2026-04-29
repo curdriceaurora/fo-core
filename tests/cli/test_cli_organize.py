@@ -110,6 +110,8 @@ class TestOrganize:
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -132,6 +134,8 @@ class TestOrganize:
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -166,6 +170,8 @@ class TestOrganize:
             prefetch_depth=1,
             enable_vision=False,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -193,6 +199,8 @@ class TestOrganize:
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -245,6 +253,8 @@ class TestOrganize:
             prefetch_depth=2,
             enable_vision=False,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -272,6 +282,8 @@ class TestOrganize:
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=True,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -306,6 +318,8 @@ class TestOrganize:
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -333,6 +347,8 @@ class TestOrganize:
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch(
@@ -385,6 +401,8 @@ class TestPreview:
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -401,6 +419,8 @@ class TestPreview:
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -417,6 +437,8 @@ class TestPreview:
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -433,6 +455,8 @@ class TestPreview:
             prefetch_depth=2,
             enable_vision=False,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -449,6 +473,8 @@ class TestPreview:
             prefetch_depth=2,
             enable_vision=False,
             no_prefetch=False,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -465,6 +491,8 @@ class TestPreview:
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=True,
+            transcribe_audio=False,
+            max_transcribe_seconds=600.0,
         )
 
     def test_preview_sequential_conflicts_with_max_workers(self, tmp_path: Path) -> None:
