@@ -118,7 +118,21 @@ if ! git rev-parse --verify "$_diff_base" >/dev/null 2>&1; then
   _diff_base="main"
 fi
 _merge_base=$(git merge-base HEAD "$_diff_base" 2>/dev/null || echo "$_diff_base")
-_src_py_changed=$(git diff --name-only --diff-filter=ACMR "${_diff_base}...HEAD" -- 'src/*.py' 'src/**/*.py' 2>/dev/null | head -1)
+# Codex P2 (PR #239 review): include unstaged + untracked src edits,
+# not just committed-on-branch ones. Without this, running validation
+# on a branch currently equal to main but with local working-tree edits
+# skipped the gate entirely — which is exactly the pre-commit scenario
+# we want covered. Three sources, deduped:
+#   1. Committed changes on this branch vs base (X...HEAD)
+#   2. Unstaged + staged working-tree changes (git diff HEAD)
+#   3. Untracked files (git ls-files --others --exclude-standard)
+_src_py_changed=$(
+  {
+    git diff --name-only --diff-filter=ACMR "${_diff_base}...HEAD" -- 'src/*.py' 'src/**/*.py' 2>/dev/null
+    git diff --name-only --diff-filter=ACMR HEAD -- 'src/*.py' 'src/**/*.py' 2>/dev/null
+    git ls-files --others --exclude-standard -- 'src/*.py' 'src/**/*.py' 2>/dev/null
+  } | sort -u | head -1
+)
 
 if [[ -n "$_src_py_changed" ]]; then
   echo "▶ Diff coverage gate (≥80% of changed lines)"
