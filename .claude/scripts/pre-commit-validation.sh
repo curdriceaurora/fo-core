@@ -103,33 +103,50 @@ run_step "Validate pre-commit configuration" pre-commit validate-config
 
 run_step "Run pre-commit on all files" pre-commit run --all-files
 
-run_step "Run semantic CI guardrails" pytest tests/ci -q --no-cov --override-ini="addopts="
-
-# ---------------------------------------------------------------------------
-# Docstring coverage gate (fast, no optional deps)
-# ---------------------------------------------------------------------------
-
-echo "▶ Docstring coverage gate (≥95%)"
-interrogate -v src/ --fail-under 95 -q
-echo "✓ Docstring coverage"
-echo ""
-
 # ---------------------------------------------------------------------------
 # Diff coverage gate (≥80% of changed lines must be covered)
-# Mirrors CI step in .github/workflows/ci.yml lines 184-185.
-# Skips gracefully when: not on a branch, no coverage.xml, or diff-cover
-# is not installed.
+# Mirrors the diff-cover hook in .pre-commit-config.yaml.
+# That hook uses --cached and is a no-op when run via --all-files, so we
+# run it here explicitly against the full branch diff.
+# Generates a fresh coverage.xml then compares against the merge base.
+# Skips only if no src/ Python files changed on this branch.
 # ---------------------------------------------------------------------------
 
-CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || true)
-if [[ -n "$CURRENT_BRANCH" ]] && command -v diff-cover &>/dev/null && [[ -f coverage.xml ]]; then
-  echo "▶ Diff coverage gate (>=80% of changed lines)"
-  git fetch origin main --quiet 2>/dev/null || true
-  diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
+git fetch origin main --quiet 2>/dev/null || true
+_diff_base="origin/main"
+if ! git rev-parse --verify "$_diff_base" >/dev/null 2>&1; then
+  _diff_base="main"
+fi
+_merge_base=$(git merge-base HEAD "$_diff_base" 2>/dev/null || echo "$_diff_base")
+# Codex P2 (PR #239 review): include unstaged + untracked src edits,
+# not just committed-on-branch ones. Without this, running validation
+# on a branch currently equal to main but with local working-tree edits
+# skipped the gate entirely — which is exactly the pre-commit scenario
+# we want covered. Three sources, deduped:
+#   1. Committed changes on this branch vs base (X...HEAD)
+#   2. Unstaged + staged working-tree changes (git diff HEAD)
+#   3. Untracked files (git ls-files --others --exclude-standard)
+_src_py_changed=$(
+  {
+    git diff --name-only --diff-filter=ACMR "${_diff_base}...HEAD" -- 'src/*.py' 'src/**/*.py' 2>/dev/null
+    git diff --name-only --diff-filter=ACMR HEAD -- 'src/*.py' 'src/**/*.py' 2>/dev/null
+    git ls-files --others --exclude-standard -- 'src/*.py' 'src/**/*.py' 2>/dev/null
+  } | sort -u | head -1
+)
+
+if [[ -n "$_src_py_changed" ]]; then
+  echo "▶ Diff coverage gate (≥80% of changed lines)"
+  pytest tests/ -q --override-ini="addopts=" --cov=src --cov-report=xml:coverage.xml --no-header
+  # `--include-untracked` matches the trigger logic above: we treat new
+  # un-`git add`-ed src files as part of the validation scope, so
+  # diff-cover must also evaluate their lines. Without this flag, an
+  # untracked file would trigger the gate but fall outside diff-cover's
+  # default analysis, producing a false pass per Codex P2 review.
+  diff-cover coverage.xml --compare-branch="$_merge_base" --fail-under=80 --include-untracked
   echo "✓ Diff coverage gate"
   echo ""
 else
-  echo "ℹ Diff coverage gate skipped (not on a branch, no coverage.xml, or diff-cover not installed)."
+  echo "ℹ Diff coverage gate skipped (no src/ Python changes on this branch)."
   echo ""
 fi
 

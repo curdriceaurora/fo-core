@@ -195,6 +195,13 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: docstring-coverage
+        name: docstring coverage (≥95%)
+        entry: interrogate src/ --fail-under 95 -q
+        language: system
+        pass_filenames: false
+        files: ^src/.*\.py$
+
       - id: pytest-affected
         name: pytest (affected tests)
         entry: bash -c "if ! PATHS=$(python scripts/select_tests_for_changes.py --staged --format args); then echo 'affected-test selector failed' >&2; exit 1; fi; [ -z \"$PATHS\" ] && exit 0; pytest $PATHS -q --override-ini='addopts=' --timeout=60"
