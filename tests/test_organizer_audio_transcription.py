@@ -130,6 +130,37 @@ class TestMaybeTranscribe:
         )
         assert result is None
 
+    def test_recovers_from_oserror(self, tmp_path: Path) -> None:
+        # Codex P1 (PR #237 review): faster-whisper / ctranslate2 surface
+        # malformed-audio decode failures via OSError. Without explicit
+        # handling, the exception escapes the outer handler and marks
+        # the file as failed in AUDIO_FALLBACK_FOLDER, regressing a file
+        # that's otherwise classifiable from metadata alone.
+        metadata = MagicMock(duration=30.0)
+        transcriber = MagicMock()
+        transcriber.generate.side_effect = OSError("decode error: malformed header")
+        result = _maybe_transcribe(
+            tmp_path / "a.mp3",
+            metadata=metadata,
+            transcriber=transcriber,
+            max_transcribe_seconds=600,
+        )
+        assert result is None
+
+    def test_recovers_from_valueerror(self, tmp_path: Path) -> None:
+        # Same rationale as `test_recovers_from_oserror` — ValueError is
+        # the second decode-failure shape (e.g. "unsupported audio format").
+        metadata = MagicMock(duration=30.0)
+        transcriber = MagicMock()
+        transcriber.generate.side_effect = ValueError("unsupported audio codec")
+        result = _maybe_transcribe(
+            tmp_path / "a.mp3",
+            metadata=metadata,
+            transcriber=transcriber,
+            max_transcribe_seconds=600,
+        )
+        assert result is None
+
     def test_recovers_from_import_error(self, tmp_path: Path) -> None:
         # ImportError happens when the user passes --transcribe-audio but
         # [media] isn't installed. Dispatcher swallows it and proceeds —

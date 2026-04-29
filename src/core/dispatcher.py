@@ -61,7 +61,14 @@ def _maybe_transcribe(
         return None
     try:
         result = transcriber.generate(str(audio_path))
-    except (FileNotFoundError, RuntimeError, ImportError) as exc:
+    except (FileNotFoundError, OSError, ValueError, RuntimeError, ImportError) as exc:
+        # OSError + ValueError cover malformed / unsupported audio
+        # (faster-whisper / ctranslate2 surface decode failures via these).
+        # Without them the exception escapes to the outer per-file handler
+        # and marks the file as failed in AUDIO_FALLBACK_FOLDER, regressing
+        # a file that's otherwise classifiable from metadata alone. Treat
+        # transcription as a best-effort enhancement: degrade to
+        # metadata-only categorization on any recoverable failure.
         logger.warning("Audio transcription failed for {}: {}", audio_path.name, exc)
         return None
     # `transcriber` is typed as `Any` so mypy can't see `generate`'s return
