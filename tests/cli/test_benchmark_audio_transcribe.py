@@ -275,6 +275,12 @@ class TestBenchmarkTranscribeSmoke:
         assert "transcribe" in normalized
         assert "smoke" in normalized
         assert "media" in normalized
+        # The "Benchmark completed" success banner must NOT appear when
+        # the smoke check failed — printing success and then exiting
+        # non-zero produces contradictory output that misleads operators
+        # and breaks any automation that scrapes the human log for
+        # completion status.
+        assert "benchmark completed" not in normalized
 
 
 @pytest.mark.unit
