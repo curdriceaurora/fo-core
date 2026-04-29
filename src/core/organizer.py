@@ -156,6 +156,16 @@ class FileOrganizer:
         self.text_processor: TextProcessor | None = None
         self.vision_processor: VisionProcessor | None = None
         self.transcribe_audio = transcribe_audio
+        # Reject negative caps at construction. Without the guard a
+        # negative value silently skips every audio file (every duration
+        # exceeds it), giving the user a confusing "no transcripts but
+        # no warning" outcome. The CLI's `min=0.0` already rejects this
+        # at the Typer layer, but library callers can still pass it.
+        if max_transcribe_seconds is not None and max_transcribe_seconds < 0:
+            raise ValueError(
+                "max_transcribe_seconds must be >= 0 or None "
+                f"(got {max_transcribe_seconds!r})"
+            )
         self.max_transcribe_seconds = max_transcribe_seconds
         # Lazy-init in `_process_audio_files`; only constructed when the
         # caller passes `transcribe_audio=True`. `None` keeps the legacy

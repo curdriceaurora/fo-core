@@ -46,6 +46,16 @@ def _maybe_transcribe(
     """
     if transcriber is None:
         return None
+    # Defensive guard: a duck-typed transcriber that doesn't expose
+    # `generate(audio_path)` would otherwise raise AttributeError and abort
+    # the per-file dispatcher loop. Treat invalid transcribers the same as
+    # missing — degrade to metadata-only with a warning.
+    if not callable(getattr(transcriber, "generate", None)):
+        logger.warning(
+            "Invalid transcriber for {} (missing generate()); using metadata only.",
+            audio_path.name,
+        )
+        return None
     duration = getattr(metadata, "duration", None)
     if (
         max_transcribe_seconds is not None
@@ -252,9 +262,12 @@ def process_audio_files(
             metadata-only behavior.
         max_transcribe_seconds: Per-file duration cap; files longer than
             this skip transcription and fall back to metadata-only
-            categorization. ``None`` means no cap. Whisper is roughly
-            5-10× realtime on CPU, so a 600s default keeps a single-file
-            organize call under ~2 minutes of CPU work.
+            categorization. ``None`` (the default at this layer) means no
+            cap — the CLI/organizer layer applies the 600s policy default
+            and threads it down. Whisper is roughly 5-10× realtime on
+            CPU, so a 600s cap keeps a single file under ~2 min of CPU
+            work; use ``None`` here only when you've already gated
+            duration upstream.
 
     Returns:
         List of processed file results.

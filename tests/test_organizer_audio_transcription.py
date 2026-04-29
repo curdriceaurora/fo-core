@@ -130,6 +130,41 @@ class TestMaybeTranscribe:
         )
         assert result is None
 
+    def test_rejects_invalid_transcriber_without_generate(self, tmp_path: Path) -> None:
+        # CodeRabbit Major (PR #237 review): a duck-typed transcriber
+        # missing `.generate` would otherwise raise AttributeError and
+        # abort the per-file dispatcher loop. Defensive guard returns
+        # None so the file degrades to metadata-only.
+        metadata = MagicMock(duration=30.0)
+
+        class _NoGenerate:
+            pass
+
+        result = _maybe_transcribe(
+            tmp_path / "a.mp3",
+            metadata=metadata,
+            transcriber=_NoGenerate(),
+            max_transcribe_seconds=600,
+        )
+        assert result is None
+
+    def test_rejects_transcriber_with_non_callable_generate(self, tmp_path: Path) -> None:
+        # Stricter sub-case of the previous test: if `.generate` exists
+        # but isn't callable (e.g. accidentally bound to a string), we
+        # also degrade rather than crash with TypeError.
+        metadata = MagicMock(duration=30.0)
+
+        class _BadGenerate:
+            generate = "not a callable"
+
+        result = _maybe_transcribe(
+            tmp_path / "a.mp3",
+            metadata=metadata,
+            transcriber=_BadGenerate(),
+            max_transcribe_seconds=600,
+        )
+        assert result is None
+
     def test_recovers_from_oserror(self, tmp_path: Path) -> None:
         # Codex P1 (PR #237 review): faster-whisper / ctranslate2 surface
         # malformed-audio decode failures via OSError. Without explicit
@@ -411,6 +446,49 @@ class TestFileOrganizerTranscribeFlag:
         organizer._process_audio_files([tmp_path / "x.mp3"])
 
         assert captured["transcriber"] is None
+
+    def test_negative_max_transcribe_seconds_rejected_at_construction(self) -> None:
+        # CodeRabbit Major (PR #237 review): a negative cap silently
+        # skips every audio file because every duration exceeds it,
+        # giving the user a confusing "no transcripts but no warning"
+        # outcome. The CLI's `min=0.0` rejects this at Typer, but
+        # library callers can still pass it. Fail fast with ValueError
+        # so the misuse is loud.
+        from core.organizer import FileOrganizer
+
+        with pytest.raises(ValueError, match="must be >= 0 or None"):
+            FileOrganizer(
+                dry_run=True,
+                transcribe_audio=True,
+                max_transcribe_seconds=-1.0,
+            )
+
+    def test_zero_max_transcribe_seconds_accepted(self) -> None:
+        # 0 means "skip every file" but is a valid sentinel value used
+        # by `--max-transcribe-seconds 0` (which the CLI converts to
+        # None for the organizer). Accept 0 directly when callers pass
+        # the library directly, since the validation is "cannot be
+        # negative", not "cannot be 0".
+        from core.organizer import FileOrganizer
+
+        organizer = FileOrganizer(
+            dry_run=True,
+            transcribe_audio=True,
+            max_transcribe_seconds=0.0,
+        )
+        assert organizer.max_transcribe_seconds == 0.0
+
+    def test_none_max_transcribe_seconds_accepted(self) -> None:
+        # None = uncapped; explicitly accepted as the documented
+        # "disable cap" value at the library layer.
+        from core.organizer import FileOrganizer
+
+        organizer = FileOrganizer(
+            dry_run=True,
+            transcribe_audio=True,
+            max_transcribe_seconds=None,
+        )
+        assert organizer.max_transcribe_seconds is None
 
     def test_audio_model_reset_to_none_after_cleanup(self, tmp_path: Path) -> None:
         # Codex P2 + CodeRabbit Major (PR #237 review): the cleanup block
