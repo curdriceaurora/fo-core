@@ -65,10 +65,9 @@ def _maybe_transcribe(
         logger.warning("Audio transcription failed for {}: {}", audio_path.name, exc)
         return None
     # `transcriber` is typed as `Any` so mypy can't see `generate`'s return
-    # type. AudioModel.generate returns str; defensive str() lets a duck-
-    # typed transcriber return any reasonable scalar without mypy failing
-    # the no-any-return gate at the lint step.
-    return str(result) if result is not None else None
+    # type; cast to str to satisfy the no-any-return gate. AudioModel.generate
+    # is contracted to return str (verified in `models/audio_model.py:generate`).
+    return str(result)
 
 
 def process_text_files(

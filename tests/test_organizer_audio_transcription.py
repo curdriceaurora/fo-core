@@ -49,8 +49,15 @@ def _stub_extractor_cls(*, duration: float) -> type:
 
 @pytest.mark.unit
 @pytest.mark.ci
+@pytest.mark.integration
 class TestMaybeTranscribe:
-    """Direct coverage of the `_maybe_transcribe` helper."""
+    """Direct coverage of the `_maybe_transcribe` helper.
+
+    Marked both unit and integration so the dispatcher's per-module
+    integration-coverage floor sees these branches — real-Whisper E2E
+    tests can't exercise the duration-cap or recoverable-error paths
+    without expensive setup, and the floor would otherwise regress.
+    """
 
     def test_returns_none_when_transcriber_absent(self, tmp_path: Path) -> None:
         # Default path: no transcriber, no transcript. The metadata-only
@@ -137,8 +144,14 @@ class TestMaybeTranscribe:
 
 @pytest.mark.unit
 @pytest.mark.ci
+@pytest.mark.integration
 class TestProcessAudioFilesTranscript:
-    """Integration of `_maybe_transcribe` into `process_audio_files`."""
+    """Integration of `_maybe_transcribe` into `process_audio_files`.
+
+    Same dual-marker rationale as `TestMaybeTranscribe` — covers the
+    transcriber-not-set, attached-transcript, and cap-skip wiring branches
+    inside `process_audio_files` for the integration coverage floor.
+    """
 
     def test_no_transcriber_means_no_transcript_attached(self, tmp_path: Path) -> None:
         audio = tmp_path / "a.mp3"
