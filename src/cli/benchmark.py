@@ -1332,9 +1332,7 @@ def run(
         # exit fires after so they still get the full payload (including
         # `degraded` + `degradation_reasons`) before the non-zero exit.
         console.print(json.dumps(output, indent=2))
-        _exit_if_transcribe_smoke_failed(
-            console, degradation_reasons, json_output=json_output
-        )
+        _exit_if_transcribe_smoke_failed(console, degradation_reasons, json_output=json_output)
     else:
         if degraded:
             console.print(
@@ -1350,7 +1348,5 @@ def run(
         # "Benchmark completed" and then exiting non-zero produces
         # contradictory output that misleads operators and breaks any
         # automation that scrapes the human log for completion status.
-        _exit_if_transcribe_smoke_failed(
-            console, degradation_reasons, json_output=json_output
-        )
+        _exit_if_transcribe_smoke_failed(console, degradation_reasons, json_output=json_output)
         console.print("\n[bold green]Benchmark completed[/bold green]")
