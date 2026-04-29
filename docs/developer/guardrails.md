@@ -31,11 +31,10 @@ That command must expand to this canonical command set:
 
 1. `pre-commit validate-config`
 2. `pre-commit run --all-files`
-3. `pytest tests/ci -q --no-cov --override-ini="addopts="`
 
 Why this split:
 - `pre-commit` is the staged-file gate — `--all-files` ensures local and CI run the same hooks
-- `tests/ci` is the semantic gate
+- `tests/ci` is the semantic gate, invoked via the `pytest-ci-lint` hook inside `pre-commit run --all-files`
 - the shell script is just the orchestrator
 
 ## How to Add a New Guardrail

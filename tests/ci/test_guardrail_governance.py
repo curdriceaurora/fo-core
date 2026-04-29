@@ -53,7 +53,6 @@ def test_pre_pr_script_runs_canonical_enforced_layers() -> None:
     assert commands == [
         "pre-commit validate-config",
         "pre-commit run --all-files",
-        'pytest tests/ci -q --no-cov --override-ini="addopts="',
     ]
     assert "git ls-files --others --exclude-standard" in source
 
