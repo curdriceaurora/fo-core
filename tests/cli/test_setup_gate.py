@@ -37,16 +37,41 @@ def fresh_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 @pytest.mark.unit
 @pytest.mark.ci
 @pytest.mark.uses_setup_gate
-@pytest.mark.parametrize("cmd", ["setup", "version", "doctor", "config", "hardware-info"])
-def test_allowlisted_commands_bypass_gate(cmd: str, fresh_config: Path) -> None:
-    """Allowlisted commands must work pre-setup.
+@pytest.mark.parametrize(
+    "cmd_args",
+    [
+        ["version"],  # prints version, no config or services needed
+        ["config", "list"],  # list profiles; returns "No profiles found" on empty dir
+        ["hardware-info"],  # reads local hardware; no config or services needed
+    ],
+)
+def test_allowlisted_commands_bypass_gate(cmd_args: list[str], fresh_config: Path) -> None:
+    """Allowlisted commands reach their handler even when setup_completed=False.
 
-    `--help` always exits 0 regardless of the gate; what matters is
-    that the panel doesn't appear (which would mean the gate ran).
+    Uses real invocations (not ``--help``) because ``--help`` now
+    short-circuits via ``ctx.resilient_parsing`` before the gate logic
+    runs — making ``--help``-based tests vacuous. Real invocations
+    prove the allowlist actually works.
     """
     runner = CliRunner()
-    result = runner.invoke(app, [cmd, "--help"])
+    result = runner.invoke(app, cmd_args)
     assert result.exit_code == 0, result.output
+    assert "First-time setup required" not in result.output
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+@pytest.mark.uses_setup_gate
+@pytest.mark.parametrize("cmd", ["doctor", "setup"])
+def test_allowlisted_entry_commands_not_gated(cmd: str, fresh_config: Path) -> None:
+    """Entry-level allowlisted commands never show the setup gate panel.
+
+    Exit code may be non-zero (doctor service checks may fail; setup
+    expects an interactive tty), but the first-run gate panel must be
+    absent — that's the contract this test pins.
+    """
+    runner = CliRunner()
+    result = runner.invoke(app, [cmd])
     assert "First-time setup required" not in result.output
 
 

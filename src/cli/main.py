@@ -120,15 +120,19 @@ def main_callback(
     if debug:
         # Install a loguru DEBUG-level stderr handler so every
         # `loguru.logger.*` call across `src/` surfaces during this
-        # invocation. `backtrace=True, diagnose=True` give Rich-style
-        # tracebacks for any swallowed exception logged via
-        # `logger.exception(...)`. Adding here (vs at module import)
+        # invocation. `backtrace=True` gives frame-linked tracebacks for
+        # swallowed exceptions logged via `logger.exception(...)`.
+        # `diagnose=False` (deliberately): diagnose=True annotates each
+        # frame with local variable values, which can expose credentials,
+        # API keys, or other sensitive runtime state when the output is
+        # shared in a bug report. Adding here (vs at module import)
         # keeps the no-debug path zero-overhead.
         import sys as _sys
 
         from loguru import logger as _loguru_logger
 
-        _loguru_logger.add(_sys.stderr, level="DEBUG", backtrace=True, diagnose=True)
+        _sink_id = _loguru_logger.add(_sys.stderr, level="DEBUG", backtrace=True, diagnose=False)
+        ctx.call_on_close(lambda: _loguru_logger.remove(_sink_id))
 
     from utils.log_redact import install_on_root
 
@@ -158,7 +162,14 @@ def main_callback(
     # so all entry commands except an explicit allowlist get the friendly
     # "First-time setup required" panel. The allowlist holds bootstrap +
     # read-only diagnostic commands.
-    if ctx.invoked_subcommand and ctx.invoked_subcommand not in _SETUP_GATE_ALLOWLIST:
+    # ctx.resilient_parsing is True when Click is parsing for completion
+    # or --help. Skip the gate in that case so `fo organize --help` works
+    # pre-setup without showing "First-time setup required".
+    if (
+        ctx.invoked_subcommand
+        and ctx.invoked_subcommand not in _SETUP_GATE_ALLOWLIST
+        and not ctx.resilient_parsing
+    ):
         from cli.organize import _check_setup_completed
 
         _check_setup_completed()

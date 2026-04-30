@@ -41,11 +41,12 @@ def test_cli_state_debug_defaults_false() -> None:
 def test_debug_flag_installs_loguru_debug_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """--debug attaches a loguru sink at level=DEBUG with backtrace+diagnose.
+    """--debug attaches a loguru sink at level=DEBUG with backtrace=True, diagnose=False.
 
-    Without this the user-visible logs from `loguru.logger.debug(...)`
-    calls scattered across `src/` stay hidden and bug reports lose
-    most of their signal.
+    backtrace=True gives frame-linked tracebacks for swallowed exceptions.
+    diagnose=False is intentional: diagnose annotates frames with local
+    variable values, which can expose credentials or API keys when the
+    output is shared in a bug report.
     """
     captured: list[dict[str, Any]] = []
 
@@ -53,17 +54,20 @@ def test_debug_flag_installs_loguru_debug_handler(
         captured.append(kwargs)
         return 1  # handler id
 
+    def _noop_remove(_handler_id: int) -> None:
+        pass  # ctx.call_on_close fires remove(); no real handler exists in tests
+
     monkeypatch.setattr("loguru.logger.add", _spy_add)
+    monkeypatch.setattr("loguru.logger.remove", _noop_remove)
 
     runner = CliRunner()
     result = runner.invoke(app, ["--debug", "version"])
     assert result.exit_code == 0
     debug_handlers = [c for c in captured if c.get("level") == "DEBUG"]
     assert len(debug_handlers) >= 1
-    # backtrace + diagnose are what give Rich-style tracebacks for
-    # exceptions logged via `logger.exception(...)`.
     assert debug_handlers[0].get("backtrace") is True
-    assert debug_handlers[0].get("diagnose") is True
+    # diagnose=False keeps local variable values out of shared bug reports.
+    assert debug_handlers[0].get("diagnose") is False
 
 
 @pytest.mark.unit

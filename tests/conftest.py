@@ -229,8 +229,13 @@ def provider_env(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
 # dozens of pre-existing tests.
 #
 # This autouse fixture patches `cli.organize._check_setup_completed` to
-# return True for ALL tests project-wide. Tests that specifically
-# exercise the gate must opt out by adding `@pytest.mark.uses_setup_gate`.
+# return True for ALL tests project-wide. The gate in `cli.main` imports
+# this function LAZILY (inside the callback body via
+# `from cli.organize import _check_setup_completed`) rather than at
+# module level, so each invocation re-fetches the attribute from
+# `cli.organize` — patching the origin module is therefore correct.
+# Tests that specifically exercise the gate must opt out by adding
+# `@pytest.mark.uses_setup_gate`.
 # Those tests configure the on-disk `setup_completed` flag via a
 # tmp_path config dir and need the gate to actually run.
 @pytest.fixture(autouse=True)

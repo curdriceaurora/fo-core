@@ -35,20 +35,20 @@ def isolated_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_config_edit_invalid_device_includes_valid_values(
     isolated_config: Path,
 ) -> None:
-    """A typo'd `--device cdua` produces a hint-rich error.
+    """A typo'd `--device cdua` produces a hint-rich error listing ALL valid devices.
 
     Rich wraps long error strings across newlines on narrow terminals;
     normalize whitespace + check word components individually so the
-    assertions are wrap-immune.
+    assertions are wrap-immune. All five values from ``_VALID_DEVICES``
+    must appear so a future removal would fail this test.
     """
     runner = CliRunner()
     result = runner.invoke(app, ["config", "edit", "--device", "cdua"])
     assert result.exit_code != 0, result.output
     normalized = " ".join(result.output.lower().split())
-    # All valid devices appear so the user can pick one.
-    assert "auto" in normalized
-    assert "cuda" in normalized
-    assert "mps" in normalized
+    # Every value in _VALID_DEVICES must be present in the error message.
+    for value in ("auto", "cpu", "cuda", "metal", "mps"):
+        assert value in normalized, f"missing valid device '{value}' in error output"
     # And the close-match suggestion fires for the typo.
     assert "did" in normalized
     assert "you mean" in normalized
@@ -60,7 +60,7 @@ def test_config_edit_invalid_device_includes_valid_values(
 def test_config_edit_invalid_methodology_includes_valid_values(
     isolated_config: Path,
 ) -> None:
-    """Methodology gets the same treatment as device.
+    """Methodology error lists ALL valid methodology values.
 
     Use ``parq`` (one-char typo of ``para``, edit-distance 1) so the
     difflib 0.6 cutoff fires reliably. Shorter typos like ``pra`` fall
@@ -72,8 +72,9 @@ def test_config_edit_invalid_methodology_includes_valid_values(
     result = runner.invoke(app, ["config", "edit", "--methodology", "parq"])
     assert result.exit_code != 0, result.output
     normalized = " ".join(result.output.lower().split())
-    assert "para" in normalized
-    assert "jd" in normalized
+    # Every value in _VALID_METHODOLOGIES must appear.
+    for value in ("none", "para", "jd"):
+        assert value in normalized, f"missing valid methodology '{value}' in error output"
     # Rich may wrap "Did you mean" across a newline; check word
     # components individually for wrap-immunity.
     assert "did" in normalized
