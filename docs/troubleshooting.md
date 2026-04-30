@@ -750,3 +750,24 @@ ollama ps
 # Restart Ollama if unresponsive
 ollama serve
 ```
+
+## Filing a bug report
+
+If you hit an error, the most useful thing you can attach to a bug report is
+the output with `--debug` enabled:
+
+```bash
+fo --debug <your command and args>
+```
+
+`--debug` enables verbose logging and surfaces the full traceback when an
+error occurs. Without it, the CLI prints only the error summary, which is
+often not enough for triage.
+
+Your bug report should include:
+
+- The full output of `fo --debug <command>` (use the [Beta bug
+  template](https://github.com/curdriceaurora/fo-core/issues/new?template=beta-bug.md))
+- Output of `fo doctor` (Ollama + dependency check)
+- Your OS, Python version, and `fo version`
+- Minimal reproduction steps

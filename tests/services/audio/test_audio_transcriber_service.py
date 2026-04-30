@@ -191,7 +191,10 @@ class TestAudioTranscriberInit:
     def test_default_values(self, transcriber):
         assert transcriber.model_size == ModelSize.BASE
         assert transcriber.device == "cpu"
-        assert transcriber.compute_type == ComputeType.FLOAT16
+        # PR #236 (Step 2A): compute_type default is now device-aware —
+        # CPU defaults to INT8 (CTranslate2 doesn't support efficient
+        # FLOAT16 on CPU). FLOAT16 still applies on CUDA.
+        assert transcriber.compute_type == ComputeType.INT8
         assert transcriber.cache_dir is None
         assert transcriber.num_workers == 1
         assert transcriber._model is None
@@ -237,6 +240,11 @@ class TestDetectDevice:
         assert result == "cuda"
 
     def test_auto_mps(self):
+        # PR #236 (Step 2A): CTranslate2 (the engine under faster-whisper)
+        # doesn't support MPS — `_detect_device` no longer returns "mps"
+        # even when torch reports it available. The Apple Silicon path
+        # falls back to CPU here (and AudioModel coerces explicit MPS
+        # configs to CPU upstream too).
         mock_torch = MagicMock()
         mock_torch.cuda.is_available.return_value = False
         mock_torch.backends.mps.is_available.return_value = True
@@ -244,7 +252,7 @@ class TestDetectDevice:
         with patch.dict("sys.modules", {"torch": mock_torch}):
             t = AudioTranscriber.__new__(AudioTranscriber)
             result = AudioTranscriber._detect_device(t, "auto")
-        assert result == "mps"
+        assert result == "cpu"
 
     def test_auto_cpu_no_torch(self):
         def fake_import(name, *args, **kwargs):

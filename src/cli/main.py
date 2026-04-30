@@ -53,6 +53,24 @@ def _version_callback(value: bool) -> None:
     raise typer.Exit()
 
 
+_SETUP_GATE_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "setup",
+        "version",
+        "doctor",
+        "update",
+        "recover",
+        "config",
+        "hardware-info",
+    }
+)
+"""Commands that work pre-setup. They're either bootstrap (`setup`,
+`config`), read-only diagnostics (`doctor`, `version`, `hardware-info`),
+the updater, or emergency recovery. Adding a command here relaxes the
+first-run gate for it — verify the command doesn't write or organize
+files first."""
+
+
 @app.callback()
 def main_callback(
     ctx: typer.Context,
@@ -62,6 +80,14 @@ def main_callback(
     yes: bool = typer.Option(False, "--yes", "-y", help="Auto-confirm all prompts."),
     interactive: bool = typer.Option(
         True, "--interactive/--no-interactive", help="Toggle interactive prompts."
+    ),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        help=(
+            "Enable verbose logging and surface tracebacks on errors. "
+            "Required for filing useful beta bug reports."
+        ),
     ),
     version_flag: bool = typer.Option(
         False,
@@ -88,7 +114,25 @@ def main_callback(
         json_output=json_output,
         yes=yes,
         no_interactive=not interactive,
+        debug=debug,
     )
+
+    if debug:
+        # Install a loguru DEBUG-level stderr handler so every
+        # `loguru.logger.*` call across `src/` surfaces during this
+        # invocation. `backtrace=True` gives frame-linked tracebacks for
+        # swallowed exceptions logged via `logger.exception(...)`.
+        # `diagnose=False` (deliberately): diagnose=True annotates each
+        # frame with local variable values, which can expose credentials,
+        # API keys, or other sensitive runtime state when the output is
+        # shared in a bug report. Adding here (vs at module import)
+        # keeps the no-debug path zero-overhead.
+        import sys as _sys
+
+        from loguru import logger as _loguru_logger
+
+        _sink_id = _loguru_logger.add(_sys.stderr, level="DEBUG", backtrace=True, diagnose=False)
+        ctx.call_on_close(lambda: _loguru_logger.remove(_sink_id))
 
     from utils.log_redact import install_on_root
 
@@ -112,6 +156,24 @@ def main_callback(
     # state (unlink, compact) before the preview ran and then report
     # "no retained entries" — breaking the read-only contract and
     # making the preview unreliable.
+    # Step 3 (UX): the first-run setup gate covered only `organize`/`preview`
+    # before — every other command would fail with cryptic stack traces if
+    # the user hadn't run `fo setup` yet. Promote the check to the callback
+    # so all entry commands except an explicit allowlist get the friendly
+    # "First-time setup required" panel. The allowlist holds bootstrap +
+    # read-only diagnostic commands.
+    # ctx.resilient_parsing is True when Click is parsing for completion
+    # or --help. Skip the gate in that case so `fo organize --help` works
+    # pre-setup without showing "First-time setup required".
+    if (
+        ctx.invoked_subcommand
+        and ctx.invoked_subcommand not in _SETUP_GATE_ALLOWLIST
+        and not ctx.resilient_parsing
+    ):
+        from cli.organize import _check_setup_completed
+
+        _check_setup_completed()
+
     if ctx.invoked_subcommand != "recover":
         try:
             _durable_move_sweep(_default_journal_path())

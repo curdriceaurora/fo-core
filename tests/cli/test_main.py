@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from cli.main import app
@@ -19,6 +20,7 @@ def test_version_command():
         assert "fo 1.2.3" in result.stdout
 
 
+@pytest.mark.uses_setup_gate
 @patch("config.manager.ConfigManager")
 def test_organize_requires_setup_completed(mock_cm):
     """organize exits with code 1 when setup is incomplete."""
@@ -28,6 +30,7 @@ def test_organize_requires_setup_completed(mock_cm):
     assert "setup" in result.stdout.lower()
 
 
+@pytest.mark.uses_setup_gate
 @patch("config.manager.ConfigManager")
 def test_preview_requires_setup_completed(mock_cm):
     """preview exits with code 1 when setup is incomplete."""
@@ -61,6 +64,8 @@ def test_organize_command_live(mock_organizer_cls, _mock_setup, tmp_path):
         prefetch_depth=2,
         enable_vision=True,
         no_prefetch=False,
+        transcribe_audio=False,
+        max_transcribe_seconds=600.0,
     )
     mock_instance.organize.assert_called_once_with(in_dir, out_dir)
 
@@ -89,6 +94,8 @@ def test_organize_command_dry_run(mock_organizer_cls, _mock_setup, tmp_path):
         prefetch_depth=2,
         enable_vision=True,
         no_prefetch=False,
+        transcribe_audio=False,
+        max_transcribe_seconds=600.0,
     )
     # A.cli resolves the path args before dispatching; the service sees
     # the canonical absolute form.
@@ -135,6 +142,8 @@ def test_preview_command(mock_organizer_cls, _mock_setup, tmp_path):
         prefetch_depth=2,
         enable_vision=True,
         no_prefetch=False,
+        transcribe_audio=False,
+        max_transcribe_seconds=600.0,
     )
     resolved = in_dir.resolve()
     mock_instance.organize.assert_called_once_with(resolved, resolved)

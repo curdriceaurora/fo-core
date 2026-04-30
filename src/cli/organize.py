@@ -129,8 +129,9 @@ def organize(
     ),
 ) -> None:
     """Organize files in a directory using AI models."""
-    # Check if setup has been completed
-    _check_setup_completed()
+    # First-run setup gate now lives in `cli.main.main_callback` and runs
+    # for every non-allowlisted command. The previous inline call here
+    # is removed (Step 3); leaving both would double-print the panel.
 
     # A.cli: resolve + validate both path args before any filesystem work.
     # Input must exist and be a dir; output may not exist yet (the
@@ -167,6 +168,11 @@ def organize(
         )
     except Exception as exc:
         console.print(f"[red]Error: {exc}[/red]")
+        # Step 3: surface the full Rich traceback when --debug is set so
+        # beta testers can attach actionable repro info to bug reports.
+        # Without --debug, only the red one-liner shows (current behavior).
+        if _get_state().debug:
+            console.print_exception(show_locals=False)
         raise typer.Exit(code=1) from exc
 
 
@@ -222,8 +228,7 @@ def preview(
     ),
 ) -> None:
     """Preview how files would be organized (dry-run)."""
-    # Check if setup has been completed
-    _check_setup_completed()
+    # Setup gate moved to `cli.main.main_callback` (Step 3).
 
     # A.cli: single-path validation — preview never writes, so no
     # output-dir pair check needed.
@@ -250,4 +255,6 @@ def preview(
         console.print(f"[green]Preview:[/green] {result.total_files} files would be organized")
     except Exception as exc:
         console.print(f"[red]Error: {exc}[/red]")
+        if _get_state().debug:
+            console.print_exception(show_locals=False)
         raise typer.Exit(code=1) from exc

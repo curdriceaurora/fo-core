@@ -19,6 +19,11 @@ class CLIState:
     json_output: bool = False
     yes: bool = False
     no_interactive: bool = False
+    # When true, --debug installs a loguru DEBUG-level stderr handler and
+    # CLI exception handlers surface full Rich tracebacks via
+    # console.print_exception(). This is the contract `fo --debug <cmd>`
+    # offers beta testers for filing actionable bug reports.
+    debug: bool = False
 
 
 def _get_state() -> CLIState:
