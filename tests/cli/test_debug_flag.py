@@ -125,8 +125,11 @@ def test_debug_surfaces_traceback_on_organize_error(
     assert result.exit_code == 1
     # The red one-liner is always there.
     assert "boom-from-test" in result.output
-    # And under --debug we additionally get the Rich traceback (file:line refs).
-    assert ".py" in result.output  # at least one frame's file path appears
+    # Under --debug the Rich traceback header must appear — this pins the actual
+    # contract (traceback rendered) rather than a generic ".py" substring that
+    # could match the error message itself.
+    assert "Traceback" in result.output
+    assert ".py" in result.output  # at least one frame's file path (secondary check)
 
 
 @pytest.mark.integration
