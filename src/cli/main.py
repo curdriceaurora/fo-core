@@ -162,13 +162,17 @@ def main_callback(
     # so all entry commands except an explicit allowlist get the friendly
     # "First-time setup required" panel. The allowlist holds bootstrap +
     # read-only diagnostic commands.
-    # ctx.resilient_parsing is True when Click is parsing for completion
-    # or --help. Skip the gate in that case so `fo organize --help` works
-    # pre-setup without showing "First-time setup required".
+    # ctx.resilient_parsing is True only during shell-completion parsing,
+    # NOT for --help (Click fires the eager --help option after the callback,
+    # with resilient_parsing=False).  LazyTyperGroup.parse_args stashes
+    # whether --help/-h was present in ctx.meta['help_requested'] before
+    # Click's resolve_command consumes the args — that flag is the reliable
+    # way to skip the gate for help invocations.
     if (
         ctx.invoked_subcommand
         and ctx.invoked_subcommand not in _SETUP_GATE_ALLOWLIST
-        and not ctx.resilient_parsing
+        and not ctx.resilient_parsing  # True during shell-completion only
+        and not ctx.meta.get("help_requested", False)  # skip gate for --help/-h
     ):
         from cli.organize import _check_setup_completed
 

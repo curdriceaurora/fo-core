@@ -114,6 +114,36 @@ class LazyCommandProxy(click.Group):
 class LazyTyperGroup(typer.core.TyperGroup):
     """A TyperGroup that integrates with LazyCommandProxy for deferred loading."""
 
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        """Stash help-flag presence in ctx.meta before Click consumes the args.
+
+        Click's ``Group.parse_args`` calls ``resolve_command``, which removes
+        ``--help`` / ``-h`` from ``ctx.args`` before the group callback fires.
+        By the time ``main_callback`` runs, the flags are gone and
+        ``ctx.resilient_parsing`` is ``False`` (it is only ``True`` during
+        shell-completion parsing, not for ``--help``).  Stashing the flag here
+        gives ``main_callback`` a reliable signal to bypass the first-run setup
+        gate when the user just wants help text.
+
+        Parameters:
+            ctx (click.Context): The Click invocation context.
+            args (list[str]): Raw argument list before Click's parsing pass.
+
+        Returns:
+            list[str]: Remaining/unconsumed arguments after parsing.
+        """
+        # Only inspect tokens before the end-of-options marker (``--``).
+        # Tokens after ``--`` are positional values and should not be
+        # mistaken for a help invocation (e.g. ``fo search -- --help``
+        # must NOT bypass the setup gate).
+        # Only ``--help`` is checked, not ``-h``: this CLI does not register
+        # ``-h`` as a help alias (Click's default help option is ``--help``
+        # only), so ``-h`` can legitimately appear as a value to another
+        # option (e.g. ``--type -h``) and must not trigger a gate bypass.
+        args_before_terminator = args[: args.index("--")] if "--" in args else args
+        ctx.meta["help_requested"] = "--help" in args_before_terminator
+        return super().parse_args(ctx, args)
+
     def list_commands(self, ctx: click.Context) -> list[str]:
         """Return a combined list of available command names including lazy-registered commands.
 
