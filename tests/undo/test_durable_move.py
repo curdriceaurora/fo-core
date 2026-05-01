@@ -1505,22 +1505,34 @@ class TestDirectoryMoveCoordination:
             move_entered.set()
             # Wait for observer to sample before the move completes and
             # the "done" entry overwrites the "started" entry.
+            # observer_done is guaranteed to be set via finally in observer,
+            # so this will not block forever even if the observer raises.
             observer_done.wait(timeout=5)
             return _real_move(*args, **kwargs)  # type: ignore[arg-type]
 
         def observer() -> None:
-            move_entered.wait(timeout=5)
-            result = is_path_in_flight(src, journal=journal) or is_path_in_flight(
-                dst, journal=journal
-            )
-            observations.append(result)
-            observer_done.set()
+            try:
+                # If move_entered times out the rendezvous is broken;
+                # record False so the main assertion fails with a clear
+                # message rather than an IndexError on an empty list.
+                if move_entered.wait(timeout=5):
+                    result = is_path_in_flight(src, journal=journal) or is_path_in_flight(
+                        dst, journal=journal
+                    )
+                    observations.append(result)
+                else:
+                    observations.append(False)
+            finally:
+                # Always release _hooked_move so the patched move is
+                # never stuck waiting until its own timeout.
+                observer_done.set()
 
         t = threading.Thread(target=observer, daemon=True)
         t.start()
         with patch("undo.durable_move.shutil.move", _hooked_move):
             directory_move(src, dst, journal=journal)
         t.join(timeout=5)
+        assert not t.is_alive(), "observer thread did not terminate within 5 seconds"
 
         assert observations and observations[0] is True, (
             "is_path_in_flight must see the directory as in-flight while "
