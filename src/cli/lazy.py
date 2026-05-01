@@ -132,7 +132,14 @@ class LazyTyperGroup(typer.core.TyperGroup):
         Returns:
             list[str]: Remaining/unconsumed arguments after parsing.
         """
-        ctx.meta["help_requested"] = "--help" in args or "-h" in args
+        # Only inspect tokens before the end-of-options marker (``--``).
+        # Tokens after ``--`` are positional values and should not be
+        # mistaken for a help invocation (e.g. ``fo search -- --help``
+        # must NOT bypass the setup gate).
+        args_before_terminator = args[: args.index("--")] if "--" in args else args
+        ctx.meta["help_requested"] = (
+            "--help" in args_before_terminator or "-h" in args_before_terminator
+        )
         return super().parse_args(ctx, args)
 
     def list_commands(self, ctx: click.Context) -> list[str]:
