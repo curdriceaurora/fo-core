@@ -9,7 +9,6 @@ code path using a real EPUB book created with ebooklib.
 
 from __future__ import annotations
 
-import importlib
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -27,51 +26,58 @@ pytestmark = pytest.mark.integration
 class TestEpubEnhancedImportGuards:
     """Cover the optional-dependency ``except ImportError`` branches in the module.
 
-    Pattern: use patch.dict to mock away a dep, reload the module (it is
-    already in sys.modules so reload works), assert the flag, then reload
-    again in a finally block to restore the live module state.  This is
-    T12-safe — patch.dict is the xdist-recommended sys.modules patch tool.
+    Pattern: save the original module object, evict it from sys.modules, then
+    import a *fresh* copy with the dependency blocked — asserting on the fresh
+    copy's flag values.  The original module object is restored to sys.modules
+    in a finally block so that other tests which hold pre-bound references to
+    classes (e.g. ``EPUBMetadata``) see the same class objects they imported at
+    collection time.  Using reload() would mutate the shared module object and
+    create new class objects, breaking ``isinstance`` checks in unit tests that
+    imported the class before the reload (the root cause of the
+    ``test_get_epub_metadata`` xdist failure).
     """
+
+    @staticmethod
+    def _fresh_import(blocked: dict) -> object:
+        """Import utils.epub_enhanced fresh with the given sys.modules overrides.
+
+        Saves and evicts the current module, imports a new copy with the blocked
+        entries active, records the fresh module, evicts *that* copy, then
+        restores the original — all inside a finally block so the original is
+        always restored even on assertion failure.
+
+        Returns the freshly-imported module for assertion.
+        """
+        original = sys.modules.pop("utils.epub_enhanced", None)
+        try:
+            with patch.dict(sys.modules, blocked):
+                import utils.epub_enhanced as fresh
+
+                return fresh
+        finally:
+            # Evict whatever copy is in sys.modules now (the fresh test-only copy)
+            sys.modules.pop("utils.epub_enhanced", None)
+            # Restore the original module (class objects preserved for unit tests)
+            if original is not None:
+                sys.modules["utils.epub_enhanced"] = original
 
     @pytest.mark.ci
     def test_ebooklib_unavailable_sets_flag_false(self) -> None:
         """When ebooklib is absent, EBOOKLIB_AVAILABLE is False (lines 26-27)."""
-        import utils.epub_enhanced as m
-
-        with patch.dict(sys.modules, {"ebooklib": None, "ebooklib.epub": None}):
-            try:
-                importlib.reload(m)
-                assert m.EBOOKLIB_AVAILABLE is False
-            finally:
-                # Restore: patch.dict exits → ebooklib back in sys.modules → reload
-                pass
-        importlib.reload(m)  # runs after patch.dict restores sys.modules
+        fresh = self._fresh_import({"ebooklib": None, "ebooklib.epub": None})
+        assert fresh.EBOOKLIB_AVAILABLE is False
 
     @pytest.mark.ci
     def test_pillow_unavailable_sets_flag_false(self) -> None:
         """When PIL is absent, PILLOW_AVAILABLE is False (lines 33-34)."""
-        import utils.epub_enhanced as m
-
-        with patch.dict(sys.modules, {"PIL": None, "PIL.Image": None}):
-            try:
-                importlib.reload(m)
-                assert m.PILLOW_AVAILABLE is False
-            finally:
-                pass
-        importlib.reload(m)
+        fresh = self._fresh_import({"PIL": None, "PIL.Image": None})
+        assert fresh.PILLOW_AVAILABLE is False
 
     @pytest.mark.ci
     def test_bs4_unavailable_sets_flag_false(self) -> None:
         """When bs4 is absent, BS4_AVAILABLE is False (lines 40-41)."""
-        import utils.epub_enhanced as m
-
-        with patch.dict(sys.modules, {"bs4": None}):
-            try:
-                importlib.reload(m)
-                assert m.BS4_AVAILABLE is False
-            finally:
-                pass
-        importlib.reload(m)
+        fresh = self._fresh_import({"bs4": None})
+        assert fresh.BS4_AVAILABLE is False
 
     @pytest.mark.ci
     def test_xml_parsed_as_html_warning_unavailable_sets_none(self) -> None:
@@ -81,16 +87,9 @@ class TestEpubEnhancedImportGuards:
         real attribute; accessing it via ``from bs4 import XMLParsedAsHTMLWarning``
         raises ImportError, which the guard converts to ``None``.
         """
-        import utils.epub_enhanced as m
-
         fake_bs4 = MagicMock(spec=[])  # spec=[] → AttributeError on any attr access
-        with patch.dict(sys.modules, {"bs4": fake_bs4}):
-            try:
-                importlib.reload(m)
-                assert m.XMLParsedAsHTMLWarning is None
-            finally:
-                pass
-        importlib.reload(m)
+        fresh = self._fresh_import({"bs4": fake_bs4})
+        assert fresh.XMLParsedAsHTMLWarning is None
 
 
 # ---------------------------------------------------------------------------

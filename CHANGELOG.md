@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.1] - 2026-05-01
+
+### Changed
+
+- **Development status promoted from Alpha to Beta** — all five alpha→beta acceptance
+  criteria are now met:
+  1. ✅ `AudioModel` wired to the existing transcriber; `fo benchmark --suite audio` passes.
+  2. ✅ Config schema version `1.0` frozen with a round-trip migration test.
+  3. ✅ `--debug` flag, global setup gate, and hint-rich config validation errors.
+  4. ✅ Integration coverage lifted to ≥70% on all 9 previously weak modules
+     (search 38→95%, daemon 57→80%, dedup-init 60→95%, profile-migrator 60→70%,
+     profile-merger 67→90%, JD adapters 67→90%, epub-enhanced 55→70%,
+     hardware-profile 68→90%, JD numbering 68→70%).
+  5. ✅ Beta criteria documented in `docs/release/beta-criteria.md`.
+- Version bumped from `2.0.0-alpha.3` to `2.0.0-beta.1`.
+
 ## [Unreleased]
 
 ### Changed

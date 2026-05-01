@@ -111,7 +111,7 @@ fo update install --pre    # download and install it
 To stay on stable: just don't pass `--pre`. To pin a specific older version:
 
 ```bash
-pip install 'fo-core==2.0.0-alpha.3'   # or whatever stable version you prefer
+pip install 'fo-core==2.0.0-beta.1'   # or whatever stable version you prefer
 ```
 
 ### Rolling back

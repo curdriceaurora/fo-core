@@ -5,7 +5,7 @@
 [![CI](https://github.com/curdriceaurora/fo-core/actions/workflows/ci.yml/badge.svg)](https://github.com/curdriceaurora/fo-core/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.0.0--alpha.3-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0--beta.1-blue)](CHANGELOG.md)
 
 ---
 
@@ -146,8 +146,8 @@ See [DEVELOPER.md](DEVELOPER.md) for architecture, local setup, testing, and con
 
 ## Releases
 
-Currently `2.0.0-alpha.3`. The criteria for promoting to beta and the contract
-with public pre-release testers are documented in
+Currently `2.0.0-beta.1`. The acceptance criteria that were required for this
+promotion and the contract with public pre-release testers are documented in
 [docs/release/beta-criteria.md](docs/release/beta-criteria.md).
 
 ## License
