@@ -47,25 +47,32 @@ class TestDeduplicationInitImportGuards:
         'except ImportError' clause catches and handles by assigning None.
         The document-dedup exports (DocumentDeduplicator, DocumentEmbedder,
         SemanticAnalyzer) are guarded by a *separate* try/except block and must
-        remain unchanged by this guard — snapshot their values before the reload
-        and assert they are the same after.
+        remain unchanged by this guard.
+
+        Note: we compare by (None-ness, __module__, __qualname__) rather than
+        object identity because concurrent xdist workers can evict and restore
+        submodules, causing reimport and new class objects with the same name.
         """
         import services.deduplication as dedup_mod
 
-        # Snapshot document-dedup exports before patching so we can assert they
-        # are unaffected (avoids asserting they are not-None, which would fail
-        # in lean environments without numpy/sklearn installed).
-        pre_doc_dedup = dedup_mod.DocumentDeduplicator
-        pre_embedder = dedup_mod.DocumentEmbedder
-        pre_semantic = dedup_mod.SemanticAnalyzer
+        def _cls_key(obj: object) -> object:
+            """Return a stable key: None for None, (module, qualname) for a class."""
+            if obj is None:
+                return None
+            return (getattr(obj, "__module__", None), getattr(obj, "__qualname__", None))
+
+        # Snapshot document-dedup exports before patching.
+        pre_doc_dedup_key = _cls_key(dedup_mod.DocumentDeduplicator)
+        pre_embedder_key = _cls_key(dedup_mod.DocumentEmbedder)
+        pre_semantic_key = _cls_key(dedup_mod.SemanticAnalyzer)
 
         with patch.dict(sys.modules, {"services.deduplication.image_dedup": None}):
             importlib.reload(dedup_mod)
             assert dedup_mod.ImageDeduplicator is None
             # Document-dedup exports must be unaffected by the image guard.
-            assert dedup_mod.DocumentDeduplicator is pre_doc_dedup
-            assert dedup_mod.DocumentEmbedder is pre_embedder
-            assert dedup_mod.SemanticAnalyzer is pre_semantic
+            assert _cls_key(dedup_mod.DocumentDeduplicator) == pre_doc_dedup_key
+            assert _cls_key(dedup_mod.DocumentEmbedder) == pre_embedder_key
+            assert _cls_key(dedup_mod.SemanticAnalyzer) == pre_semantic_key
         # patch.dict exited → entry restored → reload brings module back to full state
         importlib.reload(dedup_mod)
 
