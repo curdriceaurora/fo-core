@@ -108,10 +108,17 @@ fo update check --pre      # see the latest pre-release if any
 fo update install --pre    # download and install it
 ```
 
-To stay on stable: just don't pass `--pre`. To pin a specific older version:
+To install the current beta release explicitly:
 
 ```bash
-pip install 'fo-core==2.0.0-beta.1'   # or whatever stable version you prefer
+pip install 'fo-core==2.0.0-beta.1'
+```
+
+To stay on the latest stable (non-pre-release) version: just don't pass `--pre`.
+To pin a specific earlier version once newer betas exist:
+
+```bash
+pip install 'fo-core==2.0.0-beta.1'   # replace with the desired beta tag
 ```
 
 ### Rolling back

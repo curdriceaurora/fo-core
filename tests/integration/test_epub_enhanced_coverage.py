@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -38,7 +39,7 @@ class TestEpubEnhancedImportGuards:
     """
 
     @staticmethod
-    def _fresh_import(blocked: dict) -> object:
+    def _fresh_import(blocked: dict[str, object]) -> ModuleType:
         """Import utils.epub_enhanced fresh with the given sys.modules overrides.
 
         Saves and evicts the current module, imports a new copy with the blocked
