@@ -136,10 +136,12 @@ class LazyTyperGroup(typer.core.TyperGroup):
         # Tokens after ``--`` are positional values and should not be
         # mistaken for a help invocation (e.g. ``fo search -- --help``
         # must NOT bypass the setup gate).
+        # Only ``--help`` is checked, not ``-h``: this CLI does not register
+        # ``-h`` as a help alias (Click's default help option is ``--help``
+        # only), so ``-h`` can legitimately appear as a value to another
+        # option (e.g. ``--type -h``) and must not trigger a gate bypass.
         args_before_terminator = args[: args.index("--")] if "--" in args else args
-        ctx.meta["help_requested"] = (
-            "--help" in args_before_terminator or "-h" in args_before_terminator
-        )
+        ctx.meta["help_requested"] = "--help" in args_before_terminator
         return super().parse_args(ctx, args)
 
     def list_commands(self, ctx: click.Context) -> list[str]:

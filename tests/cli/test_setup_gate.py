@@ -113,9 +113,8 @@ def test_other_entry_commands_blocked_pre_setup(
 @pytest.mark.ci
 @pytest.mark.uses_setup_gate
 @pytest.mark.parametrize("cmd", ["organize", "search", "analyze", "preview"])
-@pytest.mark.parametrize("help_flag", ["--help", "-h"])
-def test_help_bypasses_gate_pre_setup(cmd: str, help_flag: str, fresh_config: Path) -> None:
-    """``fo <cmd> --help`` / ``-h`` shows help text even when setup has not been run.
+def test_help_bypasses_gate_pre_setup(cmd: str, fresh_config: Path) -> None:
+    """``fo <cmd> --help`` shows help text even when setup has not been run.
 
     Regression test for issue #241.  The original implementation relied on
     ``ctx.resilient_parsing`` to bypass the gate for ``--help``, but Click
@@ -125,18 +124,18 @@ def test_help_bypasses_gate_pre_setup(cmd: str, help_flag: str, fresh_config: Pa
     ``resolve_command`` consumes the args, and ``main_callback`` checks that
     flag to skip the gate.
 
+    Only ``--help`` is tested: ``-h`` is not a registered help alias in this
+    CLI, so it must NOT bypass the gate (a ``-h`` token could be a value to
+    another option such as ``--type -h``).
+
     ``fresh_config`` is used for its fixture side-effect (patching the config
     dir to simulate pre-setup state); its return value is intentionally unused.
     """
     runner = CliRunner()
-    result = runner.invoke(app, [cmd, help_flag])
-    # The gate must not fire for either help flag; exit code may vary by flag
-    # (Typer registers ``--help`` as eager/exit-0, ``-h`` may exit 2 if not
-    # registered as an alias, but the gate panel must never appear).
+    result = runner.invoke(app, [cmd, "--help"])
     assert "First-time setup required" not in result.output, (
-        f"`fo {cmd} {help_flag}` showed the setup gate pre-setup"
+        f"`fo {cmd} --help` showed the setup gate pre-setup"
     )
-    if help_flag == "--help":
-        assert result.exit_code == 0, (
-            f"`fo {cmd} --help` exited {result.exit_code}: {result.output[:200]}"
-        )
+    assert result.exit_code == 0, (
+        f"`fo {cmd} --help` exited {result.exit_code}: {result.output[:200]}"
+    )
