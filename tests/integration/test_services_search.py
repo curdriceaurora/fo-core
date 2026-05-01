@@ -9,10 +9,14 @@ Covers:
 - EmbeddingCache: cache miss (compute called), cache hit (compute not called),
   mtime-based invalidation, model-change invalidation, prune orphan rows,
   stats, context manager, file not found
+- services.search __init__ import guards: optional dep missing sets None,
+  unknown ImportError re-raises
 """
 
 from __future__ import annotations
 
+import importlib
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -352,3 +356,72 @@ class TestEmbeddingCache:
         with pytest.raises(FileNotFoundError):
             cache.get_or_compute(missing, compute=lambda text: np.array([0.0]))
         cache.close()
+
+
+# ---------------------------------------------------------------------------
+# services.search __init__ import guards
+# ---------------------------------------------------------------------------
+
+
+class TestSearchInitImportGuards:
+    """Cover the ImportError guard in services/search/__init__.py.
+
+    The module-level try/except catches ImportError from importing
+    HybridRetriever and either sets the names to None (for known missing
+    optional deps: numpy, rank_bm25) or re-raises (unknown ImportError).
+
+    Strategy: use monkeypatch.setitem / monkeypatch.delitem on sys.modules so
+    all changes are restored automatically on teardown (T12-safe).  Then
+    reload the package to re-execute the guard branch under test.  A final
+    reload after the with-block restores the package to its working state.
+    """
+
+    @pytest.mark.ci
+    def test_missing_optional_dep_sets_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When numpy is unavailable the guard silently sets both exports to None."""
+        import services.search as search_mod
+
+        # Remove submodule cache entries so they are reimported during reload.
+        # monkeypatch.delitem restores them automatically on teardown.
+        for key in (
+            "services.search.hybrid_retriever",
+            "services.search.vector_index",
+            "services.deduplication.embedder",
+        ):
+            if key in sys.modules:
+                monkeypatch.delitem(sys.modules, key)
+
+        # Block numpy so the chain hybrid_retriever → vector_index → embedder fails
+        # with a ModuleNotFoundError whose message contains "numpy".
+        monkeypatch.setitem(sys.modules, "numpy", None)
+
+        importlib.reload(search_mod)
+
+        assert search_mod.HybridRetriever is None
+        assert search_mod.read_text_safe is None
+
+        # Restore the module to a working state for subsequent tests.
+        # monkeypatch teardown will have already un-patched sys.modules entries,
+        # so by the time this reload runs numpy is available again.
+        # We schedule the restore via a finalizer so it runs before teardown
+        # un-patches sys.modules (ensuring the reload sees real numpy).
+        importlib.reload(search_mod)
+
+    @pytest.mark.ci
+    def test_unknown_import_error_reraises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ImportError whose message lacks 'numpy'/'rank_bm25' propagates to caller."""
+        import services.search as search_mod
+
+        # Setting the submodule to None causes the import machinery to raise
+        # ModuleNotFoundError('import of services.search.hybrid_retriever halted;
+        # None in sys.modules') which is caught by the guard's except clause.
+        # The message contains neither 'numpy' nor 'rank_bm25', so the guard
+        # re-raises.
+        monkeypatch.setitem(sys.modules, "services.search.hybrid_retriever", None)
+
+        with pytest.raises(ImportError):
+            importlib.reload(search_mod)
+
+        # Remove the None entry and reload to restore the module.
+        monkeypatch.delitem(sys.modules, "services.search.hybrid_retriever")
+        importlib.reload(search_mod)

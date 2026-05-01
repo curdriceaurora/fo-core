@@ -1963,3 +1963,251 @@ class TestDaemonServiceAdditional:
         daemon.start_background()
         daemon.stop()
         cb.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # New tests covering previously-uncovered lines
+    # ------------------------------------------------------------------
+
+    @pytest.mark.ci
+    def test_start_and_stop_lifecycle(self, tmp_path: Path) -> None:
+        """Synchronous start() runs the lifecycle and cleans up (lines 99-138)."""
+        import threading
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        watch = tmp_path / "watch"
+        watch.mkdir()
+        out = tmp_path / "out"
+        out.mkdir()
+        config = DaemonConfig(
+            watch_directories=[watch],
+            output_directory=out,
+            pid_file=tmp_path / "daemon.pid",
+        )
+        daemon = DaemonService(config)
+
+        # Replace _run_loop so start() returns quickly
+        def _instant_loop() -> None:
+            daemon._stop_event.set()
+
+        daemon._run_loop = _instant_loop  # type: ignore[method-assign]
+
+        # start() is blocking; run it in a thread so the test doesn't hang
+        exc_holder: list[BaseException] = []
+
+        def _run() -> None:
+            try:
+                daemon.start()
+            except Exception as exc:
+                exc_holder.append(exc)
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        t.join(timeout=5.0)
+
+        assert not t.is_alive(), "start() did not return within 5 s"
+        assert not exc_holder, f"start() raised: {exc_holder[0]}"
+        # After cleanup _running must be False
+        assert not daemon._running
+
+    @pytest.mark.ci
+    def test_start_background_with_dead_thread(self) -> None:
+        """start_background() clears a dead thread reference (line 153)."""
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+
+        # Simulate a previously-finished thread
+        dead_thread = MagicMock()
+        dead_thread.is_alive.return_value = False
+        daemon._thread = dead_thread
+
+        daemon.start_background()
+        try:
+            assert daemon.is_running
+        finally:
+            daemon.stop()
+
+    @pytest.mark.ci
+    def test_start_background_thread_start_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Thread.start() failure resets state and re-raises (lines 169-173)."""
+        import threading as _threading
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+
+        original_thread_cls = _threading.Thread
+
+        class _FailingThread(original_thread_cls):  # type: ignore[misc]
+            def start(self) -> None:
+                raise RuntimeError("simulated thread start failure")
+
+        monkeypatch.setattr(_threading, "Thread", _FailingThread)
+
+        with pytest.raises(RuntimeError, match="simulated thread start failure"):
+            daemon.start_background()
+
+        assert not daemon._running
+        assert daemon._thread is None
+
+    @pytest.mark.ci
+    def test_drain_signal_pipe_blocking_io_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_drain_signal_pipe returns cleanly on BlockingIOError (line 325->exit)."""
+        import os as _os
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+
+        def _raise_blocking(fd: int, n: int) -> bytes:
+            raise BlockingIOError("would block")
+
+        monkeypatch.setattr(_os, "read", _raise_blocking)
+
+        # Should not raise
+        daemon._drain_signal_pipe(99)
+
+    @pytest.mark.ci
+    def test_drain_signal_pipe_oserror(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_drain_signal_pipe returns cleanly on generic OSError (lines 331-333)."""
+        import os as _os
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+
+        def _raise_oserror(fd: int, n: int) -> bytes:
+            raise OSError("pipe error")
+
+        monkeypatch.setattr(_os, "read", _raise_oserror)
+
+        daemon._drain_signal_pipe(99)
+
+    @pytest.mark.ci
+    def test_drain_signal_pipe_empty_chunk(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_drain_signal_pipe returns when os.read returns empty bytes (line 335)."""
+        import os as _os
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+
+        monkeypatch.setattr(_os, "read", lambda fd, n: b"")
+
+        daemon._drain_signal_pipe(99)
+
+    @pytest.mark.ci
+    def test_log_signal_write_failures_rate_limited(self) -> None:
+        """Rate-limit guard suppresses the warning when called too soon (line 359)."""
+        from unittest.mock import patch
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+        # Simulate 5 prior failures that were not yet logged
+        daemon._signal_write_failures = 5
+        daemon._last_logged_write_failures = 0
+        # Set last-log timestamp to "just now" so the interval has not elapsed
+        daemon._last_signal_log_time = time.monotonic()
+
+        with patch.object(
+            type(daemon),
+            "_log_signal_write_failures_if_new",
+            wraps=daemon._log_signal_write_failures_if_new,
+        ):
+            with patch("daemon.service.logger") as mock_logger:
+                daemon._log_signal_write_failures_if_new()
+                mock_logger.warning.assert_not_called()
+
+    @pytest.mark.ci
+    def test_on_stop_callback_exception_swallowed(self) -> None:
+        """Exception in on_stop callback does not propagate out of _cleanup (lines 393-394)."""
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        def _bad_callback() -> None:
+            raise RuntimeError("on_stop boom")
+
+        daemon = DaemonService(DaemonConfig())
+        daemon.on_stop(_bad_callback)
+        daemon.start_background()
+
+        # stop() triggers _cleanup(); the RuntimeError must be swallowed
+        daemon.stop()  # must not raise
+        assert not daemon.is_running
+
+    @pytest.mark.ci
+    def test_install_signal_handlers_oserror(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """os.pipe() failure leaves sig_wakeup fds as None (lines 409-436)."""
+        import os as _os
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+
+        def _raise_oserror() -> tuple[int, int]:
+            raise OSError("pipe creation failed")
+
+        monkeypatch.setattr(_os, "pipe", _raise_oserror)
+
+        # Should not raise — the error path is logged as a warning
+        daemon._install_signal_handlers()
+
+        assert daemon._sig_wakeup_r is None
+        assert daemon._sig_wakeup_w is None
+
+    @pytest.mark.ci
+    def test_restore_signal_handlers(self) -> None:
+        """_restore_signal_handlers restores saved handlers and closes fds (lines 443-466)."""
+        import os as _os
+        import signal as _signal
+
+        from daemon.config import DaemonConfig
+        from daemon.service import DaemonService
+
+        daemon = DaemonService(DaemonConfig())
+
+        # Save real current handlers so we can put them back when done
+        real_sigterm = _signal.getsignal(_signal.SIGTERM)
+        real_sigint = _signal.getsignal(_signal.SIGINT)
+
+        # Install a dummy handler so daemon has something to restore *to*
+        def _dummy_handler(sig: int, frame: object) -> None:
+            pass
+
+        # Point daemon's "saved originals" at the dummy handler
+        daemon._original_sigterm = _dummy_handler  # type: ignore[assignment]
+        daemon._original_sigint = _dummy_handler  # type: ignore[assignment]
+
+        # Give daemon real pipe fds so we can verify they get closed
+        r, w = _os.pipe()
+        daemon._sig_wakeup_r = r
+        daemon._sig_wakeup_w = w
+
+        try:
+            daemon._restore_signal_handlers()
+        finally:
+            # Unconditionally restore the real handlers so the test is clean
+            _signal.signal(_signal.SIGTERM, real_sigterm)
+            _signal.signal(_signal.SIGINT, real_sigint)
+
+        # After restore, the daemon's saved-handler references must be cleared
+        assert daemon._original_sigterm is None
+        assert daemon._original_sigint is None
+        # Pipe fds must be closed and cleared
+        assert daemon._sig_wakeup_r is None
+        assert daemon._sig_wakeup_w is None
+        # Verify the fds were actually closed (os.fstat raises OSError on closed fd)
+        with pytest.raises(OSError):
+            _os.fstat(r)
+        with pytest.raises(OSError):
+            _os.fstat(w)
