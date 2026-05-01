@@ -9,26 +9,37 @@ Covers:
 - EmbeddingCache: cache miss (compute called), cache hit (compute not called),
   mtime-based invalidation, model-change invalidation, prune orphan rows,
   stats, context manager, file not found
+- services.search __init__ import guards: optional dep missing sets None,
+  unknown ImportError re-raises
 """
 
 from __future__ import annotations
 
+import importlib
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-np = pytest.importorskip("numpy")
+try:
+    import numpy as np
+except ImportError:
+    np = None  # type: ignore[assignment]
 
 pytestmark = pytest.mark.integration
 
 
 # ---------------------------------------------------------------------------
-# read_text_safe
+# read_text_safe  (requires numpy transitively via hybrid_retriever)
 # ---------------------------------------------------------------------------
 
 
 class TestReadTextSafe:
+    @pytest.fixture(autouse=True)
+    def _require_numpy(self) -> None:
+        pytest.importorskip("numpy")
+
     def test_reads_text_file_content(self, tmp_path: Path) -> None:
         from services.search.hybrid_retriever import read_text_safe
 
@@ -71,6 +82,10 @@ class TestReadTextSafe:
 
 
 class TestRrfFuse:
+    @pytest.fixture(autouse=True)
+    def _require_numpy(self) -> None:
+        pytest.importorskip("numpy")
+
     def test_basic_fusion_of_two_lists(self) -> None:
         from services.search.hybrid_retriever import _rrf_fuse
 
@@ -231,6 +246,10 @@ class TestHybridRetriever:
 
 
 class TestEmbeddingCache:
+    @pytest.fixture(autouse=True)
+    def _require_numpy(self) -> None:
+        pytest.importorskip("numpy")
+
     def _make_cache(self, tmp_path: Path, model: str = "test-model"):
         from services.search.embedding_cache import EmbeddingCache
 
@@ -352,3 +371,64 @@ class TestEmbeddingCache:
         with pytest.raises(FileNotFoundError):
             cache.get_or_compute(missing, compute=lambda text: np.array([0.0]))
         cache.close()
+
+
+# ---------------------------------------------------------------------------
+# services.search __init__ import guards
+# ---------------------------------------------------------------------------
+
+
+class TestSearchInitImportGuards:
+    """Cover the ImportError guard in services/search/__init__.py.
+
+    The module-level try/except catches ImportError from importing
+    HybridRetriever and either sets the names to None (for known missing
+    optional deps: numpy, rank_bm25) or re-raises (unknown ImportError).
+
+    Strategy: use ``patch.dict`` context manager on sys.modules so the
+    restoring reload always runs *after* sys.modules has been restored
+    (``patch.dict.__exit__`` fires synchronously before the next statement).
+    This avoids the teardown-ordering issue where a monkeypatch-based
+    restore reload would run while numpy is still patched to None (T12-safe).
+    """
+
+    @pytest.mark.ci
+    def test_missing_optional_dep_sets_none(self) -> None:
+        """When numpy is unavailable the guard silently sets both exports to None.
+
+        Strategy: *pop* (evict) the submodules from sys.modules rather than
+        setting them to None.  Setting to None produces an error message of the
+        form "import of X halted; None in sys.modules" which does NOT contain
+        "numpy" or "rank_bm25" — so the guard would re-raise instead of setting
+        exports to None.  Evicting forces Python to re-import the submodule,
+        which then fails trying to import numpy with the expected message.
+        """
+        import services.search as search_mod
+
+        submodule_keys = [
+            "services.search.hybrid_retriever",
+            "services.search.vector_index",
+            "services.deduplication.embedder",
+            "services.deduplication.semantic",
+        ]
+        saved = {k: sys.modules.pop(k) for k in submodule_keys if k in sys.modules}
+        try:
+            with patch.dict(sys.modules, {"numpy": None}):
+                importlib.reload(search_mod)
+                assert search_mod.HybridRetriever is None
+                assert search_mod.read_text_safe is None
+        finally:
+            sys.modules.update(saved)
+        # patch.dict has exited → sys.modules restored → reload sees real numpy
+        importlib.reload(search_mod)
+
+    @pytest.mark.ci
+    def test_unknown_import_error_reraises(self) -> None:
+        """ImportError whose message lacks 'numpy'/'rank_bm25' propagates to caller."""
+        import services.search as search_mod
+
+        with patch.dict(sys.modules, {"services.search.hybrid_retriever": None}):
+            with pytest.raises(ImportError):
+                importlib.reload(search_mod)
+        # patch.dict exited → submodule entry restored → module back to working state
+        importlib.reload(search_mod)
