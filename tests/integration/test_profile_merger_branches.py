@@ -361,8 +361,9 @@ class TestResolveConflictsFrequent:
             {"value": "Y", "metadata": {}},
         ]
         result = merger.resolve_conflicts(prefs, strategy=MergeStrategy.FREQUENT)
-        # Both appear once — max picks "X" or "Y" depending on dict ordering
-        assert result in ("X", "Y")
+        # Both appear once — max() on dict.items() returns the first key on a tie
+        # (Python 3.7+ dict preserves insertion order, so "X" is always first).
+        assert result == "X"
 
     def test_frequent_end_to_end_via_merge(
         self, manager: ProfileManager, merger: ProfileMerger

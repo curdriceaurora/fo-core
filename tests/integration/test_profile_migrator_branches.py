@@ -240,8 +240,8 @@ def test_backup_before_migration_success(migrator, sample_profile, tmp_path) -> 
 @pytest.mark.ci
 def test_backup_before_migration_exception_returns_none(migrator, sample_profile) -> None:
     """backup_before_migration catches exceptions and returns None (lines 283-285)."""
-    # Make the storage path read-only to trigger an OSError on mkdir
-    with patch.object(migrator.profile_manager, "storage_path", new=Path("/nonexistent/path")):
+    # Patch Path.mkdir to raise OSError — deterministic, xdist-safe, no hardcoded paths.
+    with patch("pathlib.Path.mkdir", side_effect=OSError("mkdir failed")):
         result = migrator.backup_before_migration(sample_profile)
 
     assert result is None

@@ -22,17 +22,24 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-np = pytest.importorskip("numpy")
+try:
+    import numpy as np
+except ImportError:
+    np = None  # type: ignore[assignment]
 
 pytestmark = pytest.mark.integration
 
 
 # ---------------------------------------------------------------------------
-# read_text_safe
+# read_text_safe  (requires numpy transitively via hybrid_retriever)
 # ---------------------------------------------------------------------------
 
 
 class TestReadTextSafe:
+    @pytest.fixture(autouse=True)
+    def _require_numpy(self) -> None:
+        pytest.importorskip("numpy")
+
     def test_reads_text_file_content(self, tmp_path: Path) -> None:
         from services.search.hybrid_retriever import read_text_safe
 
@@ -75,6 +82,10 @@ class TestReadTextSafe:
 
 
 class TestRrfFuse:
+    @pytest.fixture(autouse=True)
+    def _require_numpy(self) -> None:
+        pytest.importorskip("numpy")
+
     def test_basic_fusion_of_two_lists(self) -> None:
         from services.search.hybrid_retriever import _rrf_fuse
 
@@ -235,6 +246,10 @@ class TestHybridRetriever:
 
 
 class TestEmbeddingCache:
+    @pytest.fixture(autouse=True)
+    def _require_numpy(self) -> None:
+        pytest.importorskip("numpy")
+
     def _make_cache(self, tmp_path: Path, model: str = "test-model"):
         from services.search.embedding_cache import EmbeddingCache
 
@@ -370,58 +385,50 @@ class TestSearchInitImportGuards:
     HybridRetriever and either sets the names to None (for known missing
     optional deps: numpy, rank_bm25) or re-raises (unknown ImportError).
 
-    Strategy: use monkeypatch.setitem / monkeypatch.delitem on sys.modules so
-    all changes are restored automatically on teardown (T12-safe).  Then
-    reload the package to re-execute the guard branch under test.  A final
-    reload after the with-block restores the package to its working state.
+    Strategy: use ``patch.dict`` context manager on sys.modules so the
+    restoring reload always runs *after* sys.modules has been restored
+    (``patch.dict.__exit__`` fires synchronously before the next statement).
+    This avoids the teardown-ordering issue where a monkeypatch-based
+    restore reload would run while numpy is still patched to None (T12-safe).
     """
 
     @pytest.mark.ci
-    def test_missing_optional_dep_sets_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """When numpy is unavailable the guard silently sets both exports to None."""
+    def test_missing_optional_dep_sets_none(self) -> None:
+        """When numpy is unavailable the guard silently sets both exports to None.
+
+        Strategy: *pop* (evict) the submodules from sys.modules rather than
+        setting them to None.  Setting to None produces an error message of the
+        form "import of X halted; None in sys.modules" which does NOT contain
+        "numpy" or "rank_bm25" — so the guard would re-raise instead of setting
+        exports to None.  Evicting forces Python to re-import the submodule,
+        which then fails trying to import numpy with the expected message.
+        """
         import services.search as search_mod
 
-        # Remove submodule cache entries so they are reimported during reload.
-        # monkeypatch.delitem restores them automatically on teardown.
-        for key in (
+        submodule_keys = [
             "services.search.hybrid_retriever",
             "services.search.vector_index",
             "services.deduplication.embedder",
-        ):
-            if key in sys.modules:
-                monkeypatch.delitem(sys.modules, key)
-
-        # Block numpy so the chain hybrid_retriever → vector_index → embedder fails
-        # with a ModuleNotFoundError whose message contains "numpy".
-        monkeypatch.setitem(sys.modules, "numpy", None)
-
-        importlib.reload(search_mod)
-
-        assert search_mod.HybridRetriever is None
-        assert search_mod.read_text_safe is None
-
-        # Restore the module to a working state for subsequent tests.
-        # monkeypatch teardown will have already un-patched sys.modules entries,
-        # so by the time this reload runs numpy is available again.
-        # We schedule the restore via a finalizer so it runs before teardown
-        # un-patches sys.modules (ensuring the reload sees real numpy).
+            "services.deduplication.semantic",
+        ]
+        saved = {k: sys.modules.pop(k) for k in submodule_keys if k in sys.modules}
+        try:
+            with patch.dict(sys.modules, {"numpy": None}):
+                importlib.reload(search_mod)
+                assert search_mod.HybridRetriever is None
+                assert search_mod.read_text_safe is None
+        finally:
+            sys.modules.update(saved)
+        # patch.dict has exited → sys.modules restored → reload sees real numpy
         importlib.reload(search_mod)
 
     @pytest.mark.ci
-    def test_unknown_import_error_reraises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_unknown_import_error_reraises(self) -> None:
         """ImportError whose message lacks 'numpy'/'rank_bm25' propagates to caller."""
         import services.search as search_mod
 
-        # Setting the submodule to None causes the import machinery to raise
-        # ModuleNotFoundError('import of services.search.hybrid_retriever halted;
-        # None in sys.modules') which is caught by the guard's except clause.
-        # The message contains neither 'numpy' nor 'rank_bm25', so the guard
-        # re-raises.
-        monkeypatch.setitem(sys.modules, "services.search.hybrid_retriever", None)
-
-        with pytest.raises(ImportError):
-            importlib.reload(search_mod)
-
-        # Remove the None entry and reload to restore the module.
-        monkeypatch.delitem(sys.modules, "services.search.hybrid_retriever")
+        with patch.dict(sys.modules, {"services.search.hybrid_retriever": None}):
+            with pytest.raises(ImportError):
+                importlib.reload(search_mod)
+        # patch.dict exited → submodule entry restored → module back to working state
         importlib.reload(search_mod)

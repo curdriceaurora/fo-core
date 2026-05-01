@@ -19,15 +19,17 @@ Guard 2 (lines 23-32):
             raise
         DocumentDeduplicator = DocumentEmbedder = SemanticAnalyzer = None
 
-Strategy: use monkeypatch.setitem / monkeypatch.delitem on sys.modules so all
-changes are restored automatically on teardown (T12-safe).  After each test a
-reload restores the package to its working state.
+Strategy: use ``patch.dict`` context manager on sys.modules so the
+restoring reload always runs *after* sys.modules is restored.
+``patch.dict.__exit__`` fires synchronously before the next statement,
+avoiding the monkeypatch teardown-ordering problem (T12-safe).
 """
 
 from __future__ import annotations
 
 import importlib
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -37,67 +39,67 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 class TestDeduplicationInitImportGuards:
     """Cover uncovered except-branches in services/deduplication/__init__.py."""
 
-    def test_image_dedup_missing_sets_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_image_dedup_missing_sets_none(self) -> None:
         """When image_dedup submodule is unavailable, ImageDeduplicator is set to None.
 
         Setting sys.modules['services.deduplication.image_dedup'] = None causes
         the import machinery to raise ModuleNotFoundError, which the bare
         'except ImportError' clause catches and handles by assigning None.
-        DocumentDeduplicator and related exports are unaffected.
+        The document-dedup exports (DocumentDeduplicator, DocumentEmbedder,
+        SemanticAnalyzer) are guarded by a *separate* try/except block and must
+        remain unchanged by this guard — snapshot their values before the reload
+        and assert they are the same after.
         """
         import services.deduplication as dedup_mod
 
-        monkeypatch.setitem(sys.modules, "services.deduplication.image_dedup", None)
+        # Snapshot document-dedup exports before patching so we can assert they
+        # are unaffected (avoids asserting they are not-None, which would fail
+        # in lean environments without numpy/sklearn installed).
+        pre_doc_dedup = dedup_mod.DocumentDeduplicator
+        pre_embedder = dedup_mod.DocumentEmbedder
+        pre_semantic = dedup_mod.SemanticAnalyzer
 
+        with patch.dict(sys.modules, {"services.deduplication.image_dedup": None}):
+            importlib.reload(dedup_mod)
+            assert dedup_mod.ImageDeduplicator is None
+            # Document-dedup exports must be unaffected by the image guard.
+            assert dedup_mod.DocumentDeduplicator is pre_doc_dedup
+            assert dedup_mod.DocumentEmbedder is pre_embedder
+            assert dedup_mod.SemanticAnalyzer is pre_semantic
+        # patch.dict exited → entry restored → reload brings module back to full state
         importlib.reload(dedup_mod)
 
-        assert dedup_mod.ImageDeduplicator is None
-        # The document-dedup exports must not be affected by this guard.
-        assert dedup_mod.DocumentDeduplicator is not None
-        assert dedup_mod.DocumentEmbedder is not None
-        assert dedup_mod.SemanticAnalyzer is not None
-
-        # Restore the module to a working state for subsequent tests.
-        monkeypatch.delitem(sys.modules, "services.deduplication.image_dedup")
-        importlib.reload(dedup_mod)
-
-    def test_document_dedup_missing_numpy_sets_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_document_dedup_missing_numpy_sets_none(self) -> None:
         """When numpy is unavailable all three document-dedup exports are set to None.
 
-        Blocking numpy causes the import chain
-        document_dedup → embedder → numpy (or semantic → numpy) to raise
-        ModuleNotFoundError whose message contains 'numpy'.  The guard
-        catches this and sets DocumentDeduplicator, DocumentEmbedder,
-        and SemanticAnalyzer to None.
+        Strategy: *pop* (evict) the submodules from sys.modules rather than
+        setting them to None.  Setting to None produces an error message of the
+        form "import of X halted; None in sys.modules" which does NOT contain
+        "numpy"/"sklearn" — so the guard would re-raise instead of setting
+        exports to None.  Evicting forces Python to re-import the submodule
+        (embedder.py or semantic.py), which then fails trying to import numpy
+        with the right message for the guard to catch.
         """
         import services.deduplication as dedup_mod
 
-        # Remove submodule cache entries so they are reimported during reload
-        # and encounter the blocked numpy.  monkeypatch.delitem restores them.
-        for key in (
+        submodule_keys = [
             "services.deduplication.document_dedup",
             "services.deduplication.embedder",
             "services.deduplication.semantic",
-        ):
-            if key in sys.modules:
-                monkeypatch.delitem(sys.modules, key)
-
-        # Block numpy — the error message will contain "numpy".
-        monkeypatch.setitem(sys.modules, "numpy", None)
-
+        ]
+        saved = {k: sys.modules.pop(k) for k in submodule_keys if k in sys.modules}
+        try:
+            with patch.dict(sys.modules, {"numpy": None}):
+                importlib.reload(dedup_mod)
+                assert dedup_mod.DocumentDeduplicator is None
+                assert dedup_mod.DocumentEmbedder is None
+                assert dedup_mod.SemanticAnalyzer is None
+        finally:
+            sys.modules.update(saved)
+        # patch.dict exited → numpy restored → reload sees real numpy
         importlib.reload(dedup_mod)
 
-        assert dedup_mod.DocumentDeduplicator is None
-        assert dedup_mod.DocumentEmbedder is None
-        assert dedup_mod.SemanticAnalyzer is None
-
-        # Restore the module; monkeypatch teardown un-patches numpy first,
-        # so this reload sees the real numpy.
-        importlib.reload(dedup_mod)
-
-    def test_document_dedup_unknown_import_error_reraises(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_document_dedup_unknown_import_error_reraises(self) -> None:
         """ImportError whose message lacks numpy/sklearn/scikit propagates to caller.
 
         Setting sys.modules['services.deduplication.document_dedup'] = None
@@ -107,11 +109,8 @@ class TestDeduplicationInitImportGuards:
         """
         import services.deduplication as dedup_mod
 
-        monkeypatch.setitem(sys.modules, "services.deduplication.document_dedup", None)
-
-        with pytest.raises(ImportError):
-            importlib.reload(dedup_mod)
-
-        # Restore for subsequent tests.
-        monkeypatch.delitem(sys.modules, "services.deduplication.document_dedup")
+        with patch.dict(sys.modules, {"services.deduplication.document_dedup": None}):
+            with pytest.raises(ImportError):
+                importlib.reload(dedup_mod)
+        # patch.dict exited → submodule entry restored → module back to working state
         importlib.reload(dedup_mod)

@@ -113,6 +113,14 @@ def test_para_can_adapt_returns_false_for_unknown_category(para_adapter) -> None
     assert para_adapter.can_adapt(item) is False
 
 
+@pytest.mark.ci
+def test_para_adapt_to_jd_raises_for_unknown_category(para_adapter) -> None:
+    """adapt_to_jd raises ValueError when category can't be resolved to a PARA category."""
+    item = _item("file.txt", "unknown/file.txt", category="zzzunknown")
+    with pytest.raises(ValueError, match="Cannot determine PARA category"):
+        para_adapter.adapt_to_jd(item)
+
+
 # ---------------------------------------------------------------------------
 # FileSystemAdapter — adapt_to_jd: custom mapping (lines 211-212)
 # ---------------------------------------------------------------------------
@@ -276,6 +284,11 @@ def test_registry_adapt_to_jd_uses_registered_adapter(default_config, fs_adapter
     item = _item("file.txt", "parent/file.txt")
     result = registry.adapt_to_jd(item)
     assert result is not None
+    from methodologies.johnny_decimal.categories import NumberLevel
+
+    assert result.level == NumberLevel.CATEGORY  # depth-2 path → CATEGORY level
+    assert result.area is not None
+    assert result.category is not None
 
 
 @pytest.mark.ci
@@ -310,6 +323,8 @@ def test_registry_adapt_from_jd_filesystem_path(default_config) -> None:
     jd_num = JohnnyDecimalNumber(area=10, category=1)
     result = registry.adapt_from_jd(jd_num, "doc.pdf", methodology="filesystem")
     assert result is not None
+    assert isinstance(result.path, Path)
+    assert result.name == "doc.pdf"
 
 
 @pytest.mark.ci
