@@ -46,13 +46,7 @@ def fresh_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     ],
 )
 def test_allowlisted_commands_bypass_gate(cmd_args: list[str], fresh_config: Path) -> None:
-    """Allowlisted commands reach their handler even when setup_completed=False.
-
-    Uses real invocations (not ``--help``) because ``--help`` now
-    short-circuits via ``ctx.resilient_parsing`` before the gate logic
-    runs — making ``--help``-based tests vacuous. Real invocations
-    prove the allowlist actually works.
-    """
+    """Allowlisted commands reach their handler even when setup_completed=False."""
     runner = CliRunner()
     result = runner.invoke(app, cmd_args)
     assert result.exit_code == 0, result.output
@@ -109,9 +103,33 @@ def test_other_entry_commands_blocked_pre_setup(
     the new behavior — they show the friendly panel instead.
     """
     runner = CliRunner()
-    # `--help` is the safest no-arg invocation; it would show usage
-    # output if the gate didn't fire first.
     result = runner.invoke(app, [cmd])  # no --help so the gate runs
     # Some commands may also error on missing required args; the
     # panel must appear regardless of the secondary failure.
     assert "First-time setup required" in result.output
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+@pytest.mark.uses_setup_gate
+@pytest.mark.parametrize("cmd", ["organize", "search", "analyze", "preview"])
+def test_help_bypasses_gate_pre_setup(cmd: str, fresh_config: Path) -> None:
+    """``fo <cmd> --help`` shows help text even when setup has not been run.
+
+    Regression test for issue #241.  The original implementation relied on
+    ``ctx.resilient_parsing`` to bypass the gate for ``--help``, but Click
+    only sets ``resilient_parsing=True`` during shell-completion parsing — not
+    for ``--help``.  The fix adds a ``LazyTyperGroup.parse_args`` override
+    that stashes ``help_requested`` in ``ctx.meta`` before Click's
+    ``resolve_command`` consumes the args, and ``main_callback`` checks that
+    flag to skip the gate.
+    """
+    runner = CliRunner()
+    # ``--help`` must show help text and exit 0 (not the setup gate).
+    result = runner.invoke(app, [cmd, "--help"])
+    assert "First-time setup required" not in result.output, (
+        f"`fo {cmd} --help` showed the setup gate pre-setup"
+    )
+    assert result.exit_code == 0, (
+        f"`fo {cmd} --help` exited {result.exit_code}: {result.output[:200]}"
+    )
