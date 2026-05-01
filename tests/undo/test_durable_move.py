@@ -1455,44 +1455,72 @@ class TestDirectoryMoveCoordination:
         must register as in-flight via :func:`is_path_in_flight`.
         Without this, trash GC could delete src or dst between the
         started entry and the move's completion.
+
+        Implementation note — deterministic synchronisation:
+        The original spin-loop was racy on py3.12 fast runners: if the
+        GIL handed the move thread enough time to complete
+        ``directory_move`` before the observer thread was ever scheduled,
+        ``move_done`` was already set and the observer exited with
+        ``False``.
+
+        Fix: patch ``undo.durable_move.shutil.move`` so that the real
+        filesystem move pauses at the point *after* the "started" journal
+        entry is written but *before* bytes are copied on disk.  Two
+        events (``move_entered``, ``observer_done``) create a
+        rendezvous:
+
+        1. Patched move fires ``move_entered``  ← started entry is
+           already committed at this point.
+        2. Observer wakes, checks ``is_path_in_flight`` — must be True.
+        3. Observer fires ``observer_done``.
+        4. Patched move proceeds with the real ``shutil.move``.
+
+        This is fully deterministic regardless of thread scheduling.
         """
+        import shutil as _shutil
         import threading
+        from unittest.mock import patch
 
         from undo.durable_move import directory_move, is_path_in_flight
 
         src = tmp_path / "src_dir"
         src.mkdir()
-        # Generate enough content that shutil.move takes a non-trivial
-        # amount of time, giving the test thread a window to observe
-        # the in-flight state.
-        for i in range(50):
-            (src / f"file_{i}.txt").write_text("x" * 1024)
+        for i in range(5):
+            (src / f"file_{i}.txt").write_text("x" * 64)
         dst = tmp_path / "dst_dir"
         journal = tmp_path / "move.journal"
 
+        move_entered = threading.Event()
+        observer_done = threading.Event()
         observations: list[bool] = []
-        in_flight_seen = threading.Event()
-        move_done = threading.Event()
+
+        # Capture the real shutil.move BEFORE patching so _hooked_move
+        # does not recurse (both _shutil and undo.durable_move.shutil
+        # point at the same module object; patching one patches both).
+        _real_move = _shutil.move
+
+        def _hooked_move(*args: object, **kwargs: object) -> object:
+            # ``_append_journal(journal, {state: started})`` has already
+            # run before shutil.move is called — signal the observer.
+            move_entered.set()
+            # Wait for observer to sample before the move completes and
+            # the "done" entry overwrites the "started" entry.
+            observer_done.wait(timeout=5)
+            return _real_move(*args, **kwargs)  # type: ignore[arg-type]
 
         def observer() -> None:
-            # Spin until the started entry is visible OR the move
-            # completes. Then record one observation.
-            while not move_done.is_set():
-                if is_path_in_flight(src, journal=journal) or is_path_in_flight(
-                    dst, journal=journal
-                ):
-                    observations.append(True)
-                    in_flight_seen.set()
-                    return
-            observations.append(False)
+            move_entered.wait(timeout=5)
+            result = is_path_in_flight(src, journal=journal) or is_path_in_flight(
+                dst, journal=journal
+            )
+            observations.append(result)
+            observer_done.set()
 
         t = threading.Thread(target=observer, daemon=True)
         t.start()
-        try:
+        with patch("undo.durable_move.shutil.move", _hooked_move):
             directory_move(src, dst, journal=journal)
-        finally:
-            move_done.set()
-            t.join(timeout=2)
+        t.join(timeout=5)
 
         assert observations and observations[0] is True, (
             "is_path_in_flight must see the directory as in-flight while "
