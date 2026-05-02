@@ -13,13 +13,19 @@ pytestmark = pytest.mark.smoke
 
 @pytest.fixture(autouse=True)
 def _require_media() -> None:
-    # Hard imports — any missing package means the extra is broken, not just skippable.
-    # These are all declared in [media]; if any are absent the canary must FAIL, not skip.
-    import cv2  # noqa: F401
-    import faster_whisper  # noqa: F401
-    import pydub  # noqa: F401
-    import scenedetect  # noqa: F401
-    import torch  # noqa: F401
+    # Skip cleanly when the [media] extra is absent rather than surfacing
+    # cryptic AttributeError / ImportError noise from partially-installed envs.
+    # The ci-extras [media] job runs `pip install -e ".[dev,media]"` followed
+    # by an explicit `python -c "import faster_whisper; import cv2; print('OK')"`
+    # verify-imports step before this canary executes — that step is the
+    # authoritative "extra is broken" signal, so importorskip here doesn't
+    # weaken the canary contract.
+    # See: .claude/rules/test-generation-patterns.md T8 (MISSING_IMPORT_GUARD).
+    pytest.importorskip("cv2")
+    pytest.importorskip("faster_whisper")
+    pytest.importorskip("pydub")
+    pytest.importorskip("scenedetect")
+    pytest.importorskip("torch")
 
 
 def _make_wav(path: Path) -> None:

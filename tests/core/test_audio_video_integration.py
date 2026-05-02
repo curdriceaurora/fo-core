@@ -108,6 +108,17 @@ class TestProcessAudioFiles:
 
 @pytest.mark.unit
 class TestProcessVideoFiles:
+    @pytest.fixture(autouse=True)
+    def _require_media(self) -> None:
+        # Video metadata extraction relies on cv2 / pydub / faster_whisper from the
+        # [media] extra in environments where ffprobe is unavailable.  When none of
+        # those are installed, _process_video_files can surface optional-dep errors
+        # (AttributeError on stub modules, ImportError) that the dispatcher does not
+        # catch.  Skip cleanly in that case rather than failing with a cryptic trace
+        # — the [media] CI matrix exercises these paths with real deps.
+        # See: .claude/rules/test-generation-patterns.md T8 (MISSING_IMPORT_GUARD).
+        pytest.importorskip("cv2")
+
     def test_returns_processed_file_list(self, tmp_path: Path) -> None:
         """Video pipeline returns ProcessedFile instances."""
         video = _make_video_file(tmp_path)
