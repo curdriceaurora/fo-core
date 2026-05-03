@@ -61,9 +61,7 @@ class TestNumberingLift:
     def test_generate_category_number_uses_preferred_when_free(self) -> None:
         """Hits lines 216-223 (preferred_category returns immediately)."""
         _, gen = self._make()
-        num = gen.generate_category_number(
-            area=10, name="Receipts", preferred_category=5
-        )
+        num = gen.generate_category_number(area=10, name="Receipts", preferred_category=5)
         assert num.area == 10
         assert num.category == 5
 
@@ -91,8 +89,10 @@ class TestNumberingLift:
         resolved = gen.resolve_conflict(conflict, strategy="increment")
         assert resolved is not None
         assert resolved.name == "X"
-        # category None confirms we landed in the area-level branch, not
-        # category- or id-level.
+        # Area 10 has free categories, so the resolver must reuse area 10
+        # rather than wandering to area 20. category None confirms we landed in
+        # the area-level branch (lines 462-465), not category- or id-level.
+        assert resolved.area == 10
         assert resolved.category is None
 
     def test_resolve_conflict_skip_strategy_at_area_level(self, tmp_path: Path) -> None:
@@ -105,6 +105,9 @@ class TestNumberingLift:
         resolved = gen.resolve_conflict(conflict, strategy="skip")
         assert resolved is not None
         assert resolved.name == "X"
+        # Same invariant as the increment case: area 10 still has free
+        # categories, so skip-at-area-level returns area 10.
+        assert resolved.area == 10
         assert resolved.category is None
 
 
@@ -159,6 +162,7 @@ class TestEpubEnhancedLift:
     def test_extract_chapter_title_falls_back_to_filename(self) -> None:
         """Hits lines 394-400 (filename fallback in _extract_chapter_title)."""
         pytest.importorskip("ebooklib")
+        pytest.importorskip("bs4")
         from bs4 import BeautifulSoup
 
         from utils.epub_enhanced import EnhancedEPUBReader
@@ -294,12 +298,7 @@ class TestDedupExtractorLift:
         from services.deduplication.extractor import DocumentExtractor
 
         # Minimal valid PDF byte sequence.
-        pdf = (
-            b"%PDF-1.4\n"
-            b"1 0 obj <<>> endobj\n"
-            b"trailer <<>>\n"
-            b"%%EOF\n"
-        )
+        pdf = b"%PDF-1.4\n1 0 obj <<>> endobj\ntrailer <<>>\n%%EOF\n"
         f = tmp_path / "tiny.pdf"
         f.write_bytes(pdf)
         text = DocumentExtractor().extract_text(f)
@@ -385,18 +384,14 @@ class TestProfileExporterLift:
         )
         return prof
 
-    def test_export_profile_returns_false_when_profile_missing(
-        self, tmp_path: Path
-    ) -> None:
+    def test_export_profile_returns_false_when_profile_missing(self, tmp_path: Path) -> None:
         """Hits lines 60-62 (profile-not-found path)."""
         exporter, pm = self._exporter()
         pm.get_profile = MagicMock(return_value=None)
         result = exporter.export_profile("ghost", tmp_path / "out.json")
         assert result is False
 
-    def test_export_profile_returns_false_when_validation_fails(
-        self, tmp_path: Path
-    ) -> None:
+    def test_export_profile_returns_false_when_validation_fails(self, tmp_path: Path) -> None:
         """Hits lines 65-67 (validation-fails path)."""
         exporter, pm = self._exporter()
         pm.get_profile = MagicMock(return_value=self._profile(valid=False))
@@ -461,9 +456,7 @@ class TestProfileExporterLift:
         assert "learned_patterns" in data
         assert "confidence_data" in data
 
-    def test_export_selective_returns_false_when_profile_missing(
-        self, tmp_path: Path
-    ) -> None:
+    def test_export_selective_returns_false_when_profile_missing(self, tmp_path: Path) -> None:
         """Hits lines 116-118 (selective profile-missing branch)."""
         exporter, pm = self._exporter()
         pm.get_profile = MagicMock(return_value=None)
@@ -503,9 +496,7 @@ class TestProfileExporterLift:
         )
         assert exporter.validate_export(f) is False
 
-    def test_validate_export_rejects_missing_global_or_directory_keys(
-        self, tmp_path: Path
-    ) -> None:
+    def test_validate_export_rejects_missing_global_or_directory_keys(self, tmp_path: Path) -> None:
         """Hits lines 225-227 (preferences dict missing required keys)."""
         exporter, _ = self._exporter()
         f = tmp_path / "bad3.json"
@@ -522,9 +513,7 @@ class TestProfileExporterLift:
         )
         assert exporter.validate_export(f) is False
 
-    def test_validate_export_rejects_selective_missing_included_prefs(
-        self, tmp_path: Path
-    ) -> None:
+    def test_validate_export_rejects_selective_missing_included_prefs(self, tmp_path: Path) -> None:
         """Hits lines 231-233 (selective export missing 'included_preferences')."""
         exporter, _ = self._exporter()
         f = tmp_path / "bad4.json"
