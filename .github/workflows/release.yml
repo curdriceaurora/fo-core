@@ -62,3 +62,10 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+          # Explicit prerelease detection — softprops' built-in semver parser
+          # does NOT mark tags like ``v2.0.0-beta.1`` as prerelease (verified
+          # on the v2.0.0-beta.1 release, which had to be flipped manually).
+          # Detect from the tag name: any tag containing ``-`` after the
+          # version (alpha, beta, rc, pre, dev) is a prerelease per PEP 440
+          # and SemVer 2.0.0.
+          prerelease: ${{ contains(github.ref_name, '-') }}
