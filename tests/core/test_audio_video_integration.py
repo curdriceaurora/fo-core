@@ -108,6 +108,10 @@ class TestProcessAudioFiles:
 
 @pytest.mark.unit
 class TestProcessVideoFiles:
+    @pytest.fixture(autouse=True)
+    def _require_cv2(self) -> None:
+        pytest.importorskip("cv2")
+
     def test_returns_processed_file_list(self, tmp_path: Path) -> None:
         """Video pipeline returns ProcessedFile instances."""
         video = _make_video_file(tmp_path)

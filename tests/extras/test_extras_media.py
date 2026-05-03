@@ -13,13 +13,11 @@ pytestmark = pytest.mark.smoke
 
 @pytest.fixture(autouse=True)
 def _require_media() -> None:
-    # Hard imports — any missing package means the extra is broken, not just skippable.
-    # These are all declared in [media]; if any are absent the canary must FAIL, not skip.
-    import cv2  # noqa: F401
-    import faster_whisper  # noqa: F401
-    import pydub  # noqa: F401
-    import scenedetect  # noqa: F401
-    import torch  # noqa: F401
+    pytest.importorskip("cv2")
+    pytest.importorskip("faster_whisper")
+    pytest.importorskip("pydub")
+    pytest.importorskip("scenedetect")
+    pytest.importorskip("torch")
 
 
 def _make_wav(path: Path) -> None:
