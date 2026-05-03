@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.1] - 2026-05-03
+
+First public pre-release beta. The PyPI classifier moves from
+`3 - Alpha` to `4 - Beta` and the first release is tagged on the
+auto-updater's pre-release surface — see "How to opt in" below.
+
+See [docs/release/beta-criteria.md](docs/release/beta-criteria.md) for the
+full beta-tester contract, the schema-frozen promise, and the rollback path.
+
+### What's new since 2.0.0-alpha.3
+
+- Audio transcription is wired end-to-end. `fo organize --transcribe-audio`
+  uses faster-whisper to categorize audio files by transcript content;
+  `fo benchmark run --suite audio --transcribe-smoke` exercises the full path.
+- Global `--debug` flag surfaces tracebacks for bug reports.
+- First-run setup gate now consistently blocks all non-allowlisted commands.
+- Config validation errors include valid-values lists and "did you mean"
+  suggestions.
+- Schema-stability test suite (`tests/integration/test_config_schema_stability.py`)
+  guards the alpha → beta and beta.X → beta.Y compatibility promise.
+- Beta bug-report template at `.github/ISSUE_TEMPLATE/beta-bug.md` requiring
+  `fo --debug` output and `fo doctor` summary.
+- Release-metadata sanity test (`tests/ci/test_release_metadata.py`) pins
+  the version string, the `Development Status` classifier, and
+  `src/version.py` `__version__` together so a future bump cannot skew them.
+
+### Compatibility
+
+- Schema is frozen at version 1.0 across the entire 2.0.0-beta.X line.
+- Configs written by 2.0.0-alpha.3 read cleanly under 2.0.0-beta.1.
+- See [docs/release/beta-criteria.md](docs/release/beta-criteria.md) §3 for
+  the precise compat contract.
+
+### How to opt in
+
+```bash
+fo update check --pre      # see the latest pre-release if any
+fo update install --pre    # download and install it
+```
+
+There is no persistent channel state; the `--pre` flag applies per-invocation.
+
+### How to roll back to alpha
+
+```bash
+pip install 'fo-core==2.0.0-alpha.3'
+```
+
+Drop the `--pre` flag on subsequent `fo update` calls to stay on stable.
+
 ## [Unreleased]
 
 ### Changed
