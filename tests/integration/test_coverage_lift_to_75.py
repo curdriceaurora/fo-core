@@ -250,15 +250,18 @@ class TestParallelProcessorLift:
             # Release any still-blocked workers so the executor can shut down.
             blocker.set()
 
-        # All files should have an error result (timed out OR aborted).
+        # All files should have an error result and we must see BOTH branch
+        # outcomes: the first file trips the timeout path (lines 397-432) and
+        # the rest trip the abort path (lines 336-355).
         assert len(results) >= 1
         assert all(r.success is False for r in results)
-        timeout_or_abort = [
-            r
-            for r in results
-            if "timed out" in (r.error or "").lower() or "aborted" in (r.error or "").lower()
-        ]
-        assert len(timeout_or_abort) >= 1
+        errors_lower = [(r.error or "").lower() for r in results]
+        assert any("timed out" in e for e in errors_lower), (
+            f"Expected at least one 'timed out' error, got: {errors_lower}"
+        )
+        assert any("aborted" in e for e in errors_lower), (
+            f"Expected at least one 'aborted' error, got: {errors_lower}"
+        )
 
     def test_collect_result_wraps_exception(self, tmp_path: Path) -> None:
         """Hits lines 237-238 (_collect_result exception handling path)."""
@@ -432,7 +435,13 @@ class TestProfileExporterLift:
         assert stats["confidence_data_count"] == 1
 
     def test_export_selective_with_naming_and_folders(self, tmp_path: Path) -> None:
-        """Hits lines 113-178 (export_selective happy path with naming + folders)."""
+        """Hits lines 113-178 (export_selective happy path with naming + folders).
+
+        Exports only "global", "naming", "folders", "learned_patterns",
+        "confidence_data" — does NOT request "directory_specific". The negative
+        assertion guards against a regression that would leak unrequested
+        sections.
+        """
         exporter, pm = self._exporter()
         prof = self._profile(
             preferences={
@@ -455,6 +464,11 @@ class TestProfileExporterLift:
         assert data["preferences"]["global"]["folder_mappings"] == {"src": "dst"}
         assert "learned_patterns" in data
         assert "confidence_data" in data
+        # Negative assertion: directory_specific was NOT in preferences_list,
+        # so it must not appear in the exported preferences dict.
+        assert "directory_specific" not in data["preferences"], (
+            f"Unrequested 'directory_specific' leaked into export: {data['preferences']}"
+        )
 
     def test_export_selective_returns_false_when_profile_missing(self, tmp_path: Path) -> None:
         """Hits lines 116-118 (selective profile-missing branch)."""
