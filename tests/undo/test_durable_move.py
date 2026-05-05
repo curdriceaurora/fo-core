@@ -907,6 +907,49 @@ class TestDurableMoveFailureModes:
         entries = _read_journal(journal)
         assert any(e["src"] == str(bad_src) for e in entries)
 
+    def test_sweep_unlocked_body_missing_journal_is_noop(
+        self, tmp_path: Path
+    ) -> None:
+        """``_sweep_unlocked_body`` returns silently when the journal
+        disappears between sweep()'s ``exists()`` check and the
+        ``read_text()`` call (TOCTOU race, Codex P2 review finding
+        on PR #255).  Simulated by passing a path that doesn't exist."""
+        from undo.durable_move import _sweep_unlocked_body
+
+        journal = tmp_path / "vanished.journal"
+        # journal never created — simulates the race where the file
+        # disappears after exists() but before read_text()
+        _sweep_unlocked_body(journal)  # must not raise
+
+    def test_sweep_unlocked_body_size_cap_skips_compaction(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """``_sweep_unlocked_body`` applies the §6.6 size cap: journals
+        larger than _MAX_JOURNAL_SIZE_BYTES emit a WARNING and are not
+        compacted (parallel to the locked-body guard)."""
+        from undo.durable_move import _sweep_unlocked_body
+
+        journal = tmp_path / "big.journal"
+        # Each entry ~4 KiB; 4500 × 4 KiB ≈ 18 MiB > 16 MiB cap.
+        entry_line = (
+            '{"op":"move","src":"/a","dst":"/b","state":"done","_padding":"'
+            + "x" * 4096
+            + '"}\n'
+        )
+        journal.write_text(entry_line * 4500, encoding="utf-8")
+        size_before = journal.stat().st_size
+        assert size_before > 16 * 1024 * 1024
+
+        with caplog.at_level("WARNING", logger="undo.durable_move"):
+            _sweep_unlocked_body(journal)
+
+        assert journal.stat().st_size == size_before, (
+            "unlocked sweep must not compact oversized journal"
+        )
+        assert any("exceeds size cap" in r.message for r in caplog.records), (
+            "expected size-cap WARNING in log"
+        )
+
     def test_normalized_path_str_does_not_follow_symlinks(self, tmp_path: Path) -> None:
         """Codex P1 PRRT_kwDOR_Rkws59gRpv: a symlink must journal as
         itself, not its target. Otherwise a crash during the
