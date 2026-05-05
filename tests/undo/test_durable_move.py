@@ -921,12 +921,18 @@ class TestDurableMoveFailureModes:
 
         normalized = _normalized_path_str(link)
         # Must preserve the symlink path — NOT resolve to the target.
-        assert normalized == str(link), (
+        # Use normcase for comparison: _normalized_path_str applies normcase
+        # (lowercases on Windows), so str(link) and normalized differ in case
+        # on Windows even though they point at the same path.
+        assert normalized == os.path.normcase(str(link)), (
             f"symlink path normalization must not follow the link; "
-            f"got {normalized!r}, expected {link!r}"
+            f"got {normalized!r}, expected {os.path.normcase(str(link))!r}"
+        )
+        assert normalized != os.path.normcase(str(target)), (
+            "normalization must not resolve the symlink to its target"
         )
         # Sanity: target's normalized form is still itself.
-        assert _normalized_path_str(target) == str(target)
+        assert _normalized_path_str(target) == os.path.normcase(str(target))
 
     def test_normalized_path_still_resolves_relative_paths(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2127,6 +2133,12 @@ class TestAtomicCompaction:
             "zero-bytes-with-pending-entries window"
         )
 
+    @pytest.mark.skipif(
+        __import__("sys").platform == "win32",
+        reason="compact-tmp cleanup uses _atomic_compact_journal (POSIX only); "
+        "_sweep_unlocked_body on Windows uses atomic_write_with and never "
+        "creates the <journal>.<pid>.compact.tmp file this test depends on",
+    )
     def test_compaction_stale_tmp_from_prior_crashed_sweep(self, tmp_path: Path) -> None:
         """§6.4: if a prior crashed sweep left a compact-tmp on disk,
         the next sweep removes it once and retries."""

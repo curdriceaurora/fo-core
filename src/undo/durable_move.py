@@ -81,6 +81,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import tempfile
 import time
 import uuid
@@ -432,11 +433,16 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
         # fsync file + parent dir before the rename so a power loss
         # after ``os.replace`` can't leave the new directory entry
         # pointing at an inode with unflushed pages.
-        fd = os.open(tmp_path, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
+        # Windows: FlushFileBuffers requires a writable handle; fsync on
+        # a read-only fd raises EBADF.  Windows durability is handled by
+        # the OS page-cache flush, so we skip the explicit fsync there —
+        # same rationale as fsync_directory (which is also a no-op on win32).
+        if sys.platform != "win32":
+            fd = os.open(tmp_path, os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
         fsync_directory(dst)
         os.replace(tmp_path, dst)
         # Codex P1 PRRT_kwDOR_Rkws59fwMG: fsync ``dst.parent`` AGAIN
@@ -674,7 +680,20 @@ def _sweep_unlocked_body(journal: Path) -> None:
     Best-effort — callers rely on single-invocation serialization
     for crash safety; see the module docstring.
     """
-    entries = _read_journal(journal)
+    # §6.6 size cap — same guard as _sweep_locked_body; skip compaction
+    # on pathologically large journals to avoid OOM on the read-modify-write.
+    journal_text = journal.read_text(encoding="utf-8")
+    if len(journal_text.encode("utf-8")) > _MAX_JOURNAL_SIZE_BYTES:
+        logger.warning(
+            "sweep: skipping compaction — journal %s exceeds size cap (%d bytes > %d). "
+            "Steady-state journals should be bounded by in-flight count; "
+            "investigate runaway append behavior.",
+            journal,
+            len(journal_text.encode("utf-8")),
+            _MAX_JOURNAL_SIZE_BYTES,
+        )
+        return
+    entries = _parse_journal_text(journal_text)
     if not entries:
         return
     retained = _reconcile_entries(entries)
@@ -1424,7 +1443,12 @@ def _path_in_flight_from_entries(path: Path, entries: list[_JournalEntry]) -> bo
     for entry in latest.values():
         if entry.state == STATE_DONE:
             continue
-        if entry.src == path_str or entry.dst == path_str:
+        # Normalize stored paths the same way the query path is normalized.
+        # Production writers always store normcased paths via
+        # ``_normalized_path_str``, but test helpers and old journals may
+        # store the original case.  Applying normcase here makes the compare
+        # case-insensitive on Windows (normcase is a no-op on POSIX).
+        if os.path.normcase(entry.src) == path_str or os.path.normcase(entry.dst) == path_str:
             return True
     return False
 
