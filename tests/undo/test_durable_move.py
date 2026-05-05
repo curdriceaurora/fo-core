@@ -11,6 +11,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -2134,7 +2135,7 @@ class TestAtomicCompaction:
         )
 
     @pytest.mark.skipif(
-        __import__("sys").platform == "win32",
+        sys.platform == "win32",
         reason="compact-tmp cleanup uses _atomic_compact_journal (POSIX only); "
         "_sweep_unlocked_body on Windows uses atomic_write_with and never "
         "creates the <journal>.<pid>.compact.tmp file this test depends on",

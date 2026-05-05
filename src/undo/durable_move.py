@@ -81,7 +81,6 @@ import json
 import logging
 import os
 import shutil
-import sys
 import tempfile
 import time
 import uuid
@@ -433,16 +432,14 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
         # fsync file + parent dir before the rename so a power loss
         # after ``os.replace`` can't leave the new directory entry
         # pointing at an inode with unflushed pages.
-        # Windows: FlushFileBuffers requires a writable handle; fsync on
-        # a read-only fd raises EBADF.  Windows durability is handled by
-        # the OS page-cache flush, so we skip the explicit fsync there —
-        # same rationale as fsync_directory (which is also a no-op on win32).
-        if sys.platform != "win32":
-            fd = os.open(tmp_path, os.O_RDONLY)
-            try:
-                os.fsync(fd)
-            finally:
-                os.close(fd)
+        # Use O_RDWR (not O_RDONLY) so FlushFileBuffers succeeds on Windows —
+        # fsync on a read-only handle raises EBADF there.  O_RDWR also
+        # works on POSIX (fsync doesn't require write permission on Linux/macOS).
+        fd = os.open(tmp_path, os.O_RDWR)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
         fsync_directory(dst)
         os.replace(tmp_path, dst)
         # Codex P1 PRRT_kwDOR_Rkws59fwMG: fsync ``dst.parent`` AGAIN
@@ -682,7 +679,13 @@ def _sweep_unlocked_body(journal: Path) -> None:
     """
     # §6.6 size cap — same guard as _sweep_locked_body; skip compaction
     # on pathologically large journals to avoid OOM on the read-modify-write.
-    journal_text = journal.read_text(encoding="utf-8")
+    # Guard the read: journal may disappear between sweep()'s exists() check
+    # and this read (same TOCTOU that _sweep_locked_body handles via its own
+    # FileNotFoundError catch on open()).
+    try:
+        journal_text = journal.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return
     if len(journal_text.encode("utf-8")) > _MAX_JOURNAL_SIZE_BYTES:
         logger.warning(
             "sweep: skipping compaction — journal %s exceeds size cap (%d bytes > %d). "
