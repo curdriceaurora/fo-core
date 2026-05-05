@@ -907,9 +907,7 @@ class TestDurableMoveFailureModes:
         entries = _read_journal(journal)
         assert any(e["src"] == str(bad_src) for e in entries)
 
-    def test_sweep_unlocked_body_missing_journal_is_noop(
-        self, tmp_path: Path
-    ) -> None:
+    def test_sweep_unlocked_body_missing_journal_is_noop(self, tmp_path: Path) -> None:
         """``_sweep_unlocked_body`` returns silently when the journal
         disappears between sweep()'s ``exists()`` check and the
         ``read_text()`` call (TOCTOU race, Codex P2 review finding
@@ -932,9 +930,7 @@ class TestDurableMoveFailureModes:
         journal = tmp_path / "big.journal"
         # Each entry ~4 KiB; 4500 × 4 KiB ≈ 18 MiB > 16 MiB cap.
         entry_line = (
-            '{"op":"move","src":"/a","dst":"/b","state":"done","_padding":"'
-            + "x" * 4096
-            + '"}\n'
+            '{"op":"move","src":"/a","dst":"/b","state":"done","_padding":"' + "x" * 4096 + '"}\n'
         )
         journal.write_text(entry_line * 4500, encoding="utf-8")
         size_before = journal.stat().st_size
