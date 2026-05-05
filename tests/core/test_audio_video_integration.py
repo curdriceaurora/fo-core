@@ -106,9 +106,20 @@ class TestProcessAudioFiles:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def _require_cv2() -> None:
+    """Skip a test when cv2 is unavailable.
+
+    Opt-in (not autouse) so tests that exercise fallback/error paths which
+    don't reach cv2 (missing-file, mocked-extractor) keep running on
+    cv2-absent boxes and continue catching regressions there.
+    """
+    pytest.importorskip("cv2")
+
+
 @pytest.mark.unit
 class TestProcessVideoFiles:
-    def test_returns_processed_file_list(self, tmp_path: Path) -> None:
+    def test_returns_processed_file_list(self, _require_cv2: None, tmp_path: Path) -> None:
         """Video pipeline returns ProcessedFile instances."""
         video = _make_video_file(tmp_path)
         organizer = FileOrganizer()
@@ -118,31 +129,33 @@ class TestProcessVideoFiles:
         assert isinstance(results[0], ProcessedFile)
         assert results[0].file_path == video
 
-    def test_multiple_files_returned(self, tmp_path: Path) -> None:
+    def test_multiple_files_returned(self, _require_cv2: None, tmp_path: Path) -> None:
         files = [_make_video_file(tmp_path, f"video_{i}.mp4") for i in range(3)]
         organizer = FileOrganizer()
         results = organizer._process_video_files(files)
         assert len(results) == 3
 
-    def test_folder_name_is_set(self, tmp_path: Path) -> None:
+    def test_folder_name_is_set(self, _require_cv2: None, tmp_path: Path) -> None:
         video = _make_video_file(tmp_path)
         organizer = FileOrganizer()
         results = organizer._process_video_files([video])
         assert results[0].folder_name  # non-empty
 
-    def test_filename_stem_no_extension(self, tmp_path: Path) -> None:
+    def test_filename_stem_no_extension(self, _require_cv2: None, tmp_path: Path) -> None:
         video = _make_video_file(tmp_path, "myvideo.mp4")
         organizer = FileOrganizer()
         results = organizer._process_video_files([video])
         assert not results[0].filename.endswith(".mp4")
 
-    def test_description_contains_video(self, tmp_path: Path) -> None:
+    def test_description_contains_video(self, _require_cv2: None, tmp_path: Path) -> None:
         video = _make_video_file(tmp_path)
         organizer = FileOrganizer()
         results = organizer._process_video_files([video])
         assert "Video" in results[0].description
 
-    def test_screen_recording_goes_to_correct_folder(self, tmp_path: Path) -> None:
+    def test_screen_recording_goes_to_correct_folder(
+        self, _require_cv2: None, tmp_path: Path
+    ) -> None:
         video = _make_video_file(tmp_path, "Screen Recording 2025-01-15 at 3.45.22 PM.mov")
         organizer = FileOrganizer()
         results = organizer._process_video_files([video])

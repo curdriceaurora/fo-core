@@ -13,10 +13,15 @@ pytestmark = pytest.mark.smoke
 
 @pytest.fixture(autouse=True)
 def _require_media() -> None:
-    # Hard imports — any missing package means the extra is broken, not just skippable.
-    # These are all declared in [media]; if any are absent the canary must FAIL, not skip.
-    import cv2  # noqa: F401
-    import faster_whisper  # noqa: F401
+    # cv2 + faster_whisper: also covered by ci-extras.yml::extras-validate [media]'s
+    # key_import step, so importorskip here is safe — the canary fails earlier in that
+    # step if either is missing. Keeping importorskip lets this file collect cleanly
+    # outside the canary job (e.g. local pytest tests/ runs).
+    pytest.importorskip("cv2")
+    pytest.importorskip("faster_whisper")
+    # Hard imports — pydub, scenedetect, torch are NOT in key_import, so this file is
+    # their only canary in the [media] matrix. If any is absent the canary must FAIL,
+    # not skip.
     import pydub  # noqa: F401
     import scenedetect  # noqa: F401
     import torch  # noqa: F401
