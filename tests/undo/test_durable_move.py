@@ -11,6 +11,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -906,6 +907,47 @@ class TestDurableMoveFailureModes:
         entries = _read_journal(journal)
         assert any(e["src"] == str(bad_src) for e in entries)
 
+    def test_sweep_unlocked_body_missing_journal_is_noop(self, tmp_path: Path) -> None:
+        """``_sweep_unlocked_body`` must return silently when the journal
+        disappears between ``sweep()``'s ``exists()`` check and the
+        ``read_text()`` call (TOCTOU race). Simulated by passing a path
+        that doesn't exist.
+        """
+        from undo.durable_move import _sweep_unlocked_body
+
+        journal = tmp_path / "vanished.journal"
+        # Journal never created — simulates the race where the file
+        # disappears after exists() but before read_text().
+        _sweep_unlocked_body(journal)  # must not raise
+
+    def test_sweep_unlocked_body_size_cap_skips_compaction(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """``_sweep_unlocked_body`` applies the §6.6 size cap: journals
+        larger than ``_MAX_JOURNAL_SIZE_BYTES`` emit a WARNING and are
+        not compacted (parallel to the locked-body guard).
+        """
+        from undo.durable_move import _sweep_unlocked_body
+
+        journal = tmp_path / "big.journal"
+        # Each entry ~4 KiB; 4500 × 4 KiB ≈ 18 MiB > 16 MiB cap.
+        entry_line = (
+            '{"op":"move","src":"/a","dst":"/b","state":"done","_padding":"' + "x" * 4096 + '"}\n'
+        )
+        journal.write_text(entry_line * 4500, encoding="utf-8")
+        size_before = journal.stat().st_size
+        assert size_before > 16 * 1024 * 1024
+
+        with caplog.at_level("WARNING", logger="undo.durable_move"):
+            _sweep_unlocked_body(journal)
+
+        assert journal.stat().st_size == size_before, (
+            "unlocked sweep must not compact oversized journal"
+        )
+        assert any("exceeds size cap" in r.message for r in caplog.records), (
+            "expected size-cap WARNING in log"
+        )
+
     def test_normalized_path_str_does_not_follow_symlinks(self, tmp_path: Path) -> None:
         """Codex P1 PRRT_kwDOR_Rkws59gRpv: a symlink must journal as
         itself, not its target. Otherwise a crash during the
@@ -921,12 +963,19 @@ class TestDurableMoveFailureModes:
 
         normalized = _normalized_path_str(link)
         # Must preserve the symlink path — NOT resolve to the target.
-        assert normalized == str(link), (
+        # Use ``normcase`` for the comparison: ``_normalized_path_str``
+        # applies ``normcase`` (lowercases on Windows), so ``str(link)``
+        # and ``normalized`` differ in case on Windows even though they
+        # point at the same path.
+        assert normalized == os.path.normcase(str(link)), (
             f"symlink path normalization must not follow the link; "
-            f"got {normalized!r}, expected {link!r}"
+            f"got {normalized!r}, expected {os.path.normcase(str(link))!r}"
+        )
+        assert normalized != os.path.normcase(str(target)), (
+            "normalization must not resolve the symlink to its target"
         )
         # Sanity: target's normalized form is still itself.
-        assert _normalized_path_str(target) == str(target)
+        assert _normalized_path_str(target) == os.path.normcase(str(target))
 
     def test_normalized_path_still_resolves_relative_paths(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2127,6 +2176,12 @@ class TestAtomicCompaction:
             "zero-bytes-with-pending-entries window"
         )
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="compact-tmp cleanup uses _atomic_compact_journal (POSIX only); "
+        "_sweep_unlocked_body on Windows uses atomic_write_with and never "
+        "creates the <journal>.<pid>.compact.tmp file this test depends on",
+    )
     def test_compaction_stale_tmp_from_prior_crashed_sweep(self, tmp_path: Path) -> None:
         """§6.4: if a prior crashed sweep left a compact-tmp on disk,
         the next sweep removes it once and retries."""
