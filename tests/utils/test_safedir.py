@@ -402,6 +402,50 @@ class TestSymlinkRejection:
                 os.close(fd)
         assert (tmp_path / "fresh.txt").read_bytes() == b"hello"
 
+    def test_open_child_creates_files_with_non_executable_mode(self, tmp_path: Path) -> None:
+        """`os.open` defaults `mode=0o777`; with the typical 022 umask
+        that gives 0o755 — files created via SafeDir would be
+        unexpectedly executable. The default must match the high-level
+        `open()` builtin (0o666 pre-umask → 0o644 post-umask).
+        """
+        with SafeDir.open_root(tmp_path) as sd:
+            fd = sd.open_child("output.txt", flags=os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            os.close(fd)
+        st = (tmp_path / "output.txt").stat()
+        import stat as _stat
+
+        # The exact mode depends on the test environment's umask, but
+        # under no reasonable umask (000 through 077) does 0o666 produce
+        # an executable file. Assert no execute bits anywhere.
+        exec_bits = _stat.S_IXUSR | _stat.S_IXGRP | _stat.S_IXOTH
+        assert (st.st_mode & exec_bits) == 0, (
+            f"file created with executable bits: {oct(st.st_mode)}"
+        )
+
+    def test_open_child_honors_explicit_mode(self, tmp_path: Path) -> None:
+        """Callers can request stricter permissions (e.g. 0o600 for
+        secret-bearing files). The explicit mode is passed through to
+        `os.open` so the umask is still applied.
+        """
+        # Set a permissive umask so the explicit mode is what we observe.
+        # umask is restored by the conftest fixture isolation; for this
+        # test we just need to know the umask doesn't strip our bits.
+        prev_umask = os.umask(0)
+        try:
+            with SafeDir.open_root(tmp_path) as sd:
+                fd = sd.open_child(
+                    "secret.txt",
+                    flags=os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    mode=0o600,
+                )
+                os.close(fd)
+        finally:
+            os.umask(prev_umask)
+        st = (tmp_path / "secret.txt").stat()
+        assert (st.st_mode & 0o777) == 0o600, (
+            f"explicit mode 0o600 not honored: {oct(st.st_mode & 0o777)}"
+        )
+
     def test_open_child_directory_flag_rejects_symlinked_target(self, tmp_path: Path) -> None:
         """``O_DIRECTORY`` against a symlink returns ENOTDIR (not ELOOP) —
         the symlink inode itself isn't a directory. Disambiguate via lstat

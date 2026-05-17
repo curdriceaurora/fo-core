@@ -284,14 +284,22 @@ class SafeDir:
     # Open: file / subdirectory / reader-fd
     # ------------------------------------------------------------------
 
-    def open_child(self, name: str, *, flags: int = os.O_RDONLY) -> int:
+    def open_child(self, name: str, *, flags: int = os.O_RDONLY, mode: int = 0o666) -> int:
         """Open the entry *name* under this directory.
 
         Always sets ``O_NOFOLLOW``; if the entry is a symlink, raises
         ``SymlinkRejected``. *flags* is OR-ed in on top so callers can
-        request e.g. ``os.O_WRONLY | os.O_CREAT`` for non-content
+        request e.g. ``os.O_WRONLY | os.O_CREAT`` for non-create
         operations (the SafeDir invariant still holds: the open is
         anchored to ``self.fd`` and never follows a symlink).
+
+        *mode* is the file permission mode for newly created files (only
+        consulted when ``O_CREAT`` is in *flags*). Defaults to
+        ``0o666`` — matching the high-level ``open()`` builtin so files
+        end up at ``0o644`` under the typical ``022`` umask, NOT
+        ``0o755`` (which the lower-level ``os.open`` would produce with
+        its surprising ``0o777`` default). Callers needing private
+        files can pass ``mode=0o600`` explicitly.
 
         ``os.O_PATH`` is rejected — on Linux it changes ``O_NOFOLLOW``
         semantics so the symlink itself is opened rather than refused
@@ -328,7 +336,7 @@ class SafeDir:
                 "would return an fd for the symlink instead of refusing it"
             )
         try:
-            return os.open(name, flags | os.O_NOFOLLOW, dir_fd=self._fd)
+            return os.open(name, flags | os.O_NOFOLLOW, mode=mode, dir_fd=self._fd)
         except OSError as exc:
             # ELOOP is the direct symlink-rejection path. EEXIST shadows
             # it under O_CREAT|O_EXCL; ENOTDIR shadows it under
