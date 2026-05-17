@@ -128,12 +128,16 @@ class TestHappyPath:
             with os.fdopen(fd, "rb") as f:
                 assert f.read() == b"payload"
 
-    def test_scandir_yields_entries(self, tmp_path: Path) -> None:
+    def test_scandir_yields_names(self, tmp_path: Path) -> None:
         (tmp_path / "a").write_text("x")
         (tmp_path / "b").write_text("y")
         with SafeDir.open_root(tmp_path) as sd:
-            names = sorted(entry.name for entry in sd.scandir())
+            names = sorted(sd.scandir())
         assert names == ["a", "b"]
+        # Yielded values are plain strings, not DirEntry objects —
+        # callers can't reach symlink-following helpers.
+        for name in names:
+            assert isinstance(name, str)
 
     def test_scandir_filters_symlinks(self, tmp_path: Path) -> None:
         """``DirEntry.is_file()`` / ``.stat()`` default to following
@@ -153,13 +157,8 @@ class TestHappyPath:
             pytest.skip("symlink creation not supported")
 
         with SafeDir.open_root(organize) as sd:
-            entries = list(sd.scandir())
-        names = sorted(entry.name for entry in entries)
+            names = list(sd.scandir())
         assert names == ["regular.txt"]
-        # Defense check: every yielded entry must NOT be a symlink,
-        # whichever target type it points at.
-        for entry in entries:
-            assert not entry.is_symlink()
 
     def test_lstat_does_not_follow_symlink(self, tmp_path: Path) -> None:
         (tmp_path / "target").write_text("target content")
@@ -662,7 +661,7 @@ class TestPredicateNegatives:
         (tmp_path / "documents_link").mkdir()
         (tmp_path / "documents_link" / "x").write_text("x")
         with SafeDir.open_root(tmp_path) as sd, sd.open_subdir("documents_link") as sub:
-            assert {e.name for e in sub.scandir()} == {"x"}
+            assert set(sub.scandir()) == {"x"}
 
     def test_root_at_real_path_not_rejected(self, tmp_path: Path) -> None:
         """`open_root` on a real directory (whatever the parent has done) is fine.

@@ -396,24 +396,39 @@ class SafeDir:
     # Inspect / list / stat
     # ------------------------------------------------------------------
 
-    def scandir(self) -> Iterator[os.DirEntry[str]]:
-        """Iterate over directory entries, yielding non-symlink ``DirEntry``s.
+    def scandir(self) -> Iterator[str]:
+        """Yield names (``str``) of non-symlink entries in this directory.
 
-        **Symlinks are filtered out.** ``DirEntry.is_file()``,
-        ``DirEntry.is_dir()``, and ``DirEntry.stat()`` default to
-        ``follow_symlinks=True`` — a naive caller writing
-        ``for entry in sd.scandir(): if entry.is_file(): ...`` would
-        classify a symlink to a regular file as a file, bypassing the
-        SafeDir invariant before reaching ``open_for_reader``. Filtering
-        at the source removes the footgun; callers who genuinely need
-        to inspect symlink entries can call ``lstat(name)`` directly.
+        **Returns plain names, not ``os.DirEntry`` objects.** Exposing
+        ``DirEntry`` would let callers reach ``entry.is_file()``,
+        ``entry.is_dir()``, and ``entry.stat()`` — all of which default
+        to ``follow_symlinks=True``. Even after filtering symlinks at
+        scan time, a TOCTOU swap (regular file → symlink) between
+        ``is_symlink()`` and a downstream ``entry.stat()`` would let
+        the caller classify or stat the attacker's target. Returning
+        only the name keeps that footgun out of reach: any subsequent
+        operation must route through SafeDir's own methods, which all
+        enforce ``follow_symlinks=False`` / ``O_NOFOLLOW``.
+
+        Callers needing type/metadata for a yielded name should call
+        ``self.lstat(name)`` and inspect ``S_ISREG`` / ``S_ISDIR`` etc.
+        explicitly. Reads use ``self.open_for_reader(name)``;
+        subdirectories use ``self.open_subdir(name)``. Both are
+        symlink-safe under SafeDir's invariants.
+
+        Symlinks present at scan time are filtered out via the cached
+        ``DirEntry.is_symlink()``. The check uses ``readdir``-cached
+        ``d_type`` rather than a fresh ``lstat``, so a *post*-scan
+        swap-in could still yield a name that has since become a
+        symlink — but that's the caller's atomic check via
+        ``lstat`` / ``open_for_reader`` to handle correctly, and
+        SafeDir's other operations already refuse symlinks.
 
         The underlying ``os.scandir(self.fd)`` reads the directory by
-        file descriptor — there is no path-string lookup that could be
-        intercepted between this call and a follow-up operation on the
-        same name. The iterator is wrapped in a ``with`` block so the
-        underlying ``ScandirIterator`` is deterministically closed even
-        if the caller exhausts only part of the generator.
+        file descriptor (no path-string lookup that could be
+        intercepted). The iterator is wrapped in a ``with`` block so
+        the underlying ``ScandirIterator`` is deterministically closed
+        even if the caller exhausts only part of the generator.
         """
         self._check_open()
         with os.scandir(self._fd) as it:
@@ -426,7 +441,7 @@ class SafeDir:
                     # permission flip, etc.) — skip defensively. Matches
                     # safe_walk's stance.
                     continue
-                yield entry
+                yield entry.name
 
     def lstat(self, name: str) -> os.stat_result:
         """Stat *name* without following symlinks (``lstat`` semantics).
