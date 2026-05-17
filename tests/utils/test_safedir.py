@@ -284,6 +284,50 @@ class TestSymlinkRejection:
             with pytest.raises(ValueError, match="O_PATH"):
                 sd.open_child("regular", flags=os.O_PATH | os.O_RDONLY)
 
+    def test_open_child_excl_create_rejects_symlinked_target(self, tmp_path: Path) -> None:
+        """``O_CREAT|O_EXCL`` returns EEXIST (not ELOOP) on an existing
+        symlink. The documented contract is "symlink → SymlinkRejected",
+        so this case must disambiguate via lstat rather than leak through
+        as ``FileExistsError``. Otherwise an exclusive-create caller might
+        treat ``EEXIST`` as benign "file already exists" and miss the
+        symlink-swap attack.
+        """
+        (tmp_path / "honey").write_bytes(b"do_not_exfiltrate")
+        organize = tmp_path / "organize"
+        organize.mkdir()
+        try:
+            (organize / "out.txt").symlink_to(tmp_path / "honey")
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        excl_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        with SafeDir.open_root(organize) as sd, pytest.raises(SymlinkRejected):
+            sd.open_child("out.txt", flags=excl_flags)
+
+    def test_open_child_excl_create_passes_through_real_file_eexist(self, tmp_path: Path) -> None:
+        """T10 predicate-negative: when the existing entry is a regular
+        file (not a symlink), ``O_CREAT|O_EXCL`` must still surface
+        ``FileExistsError``, not ``SymlinkRejected``. The disambiguation
+        check fires only on actual symlinks.
+        """
+        (tmp_path / "out.txt").write_text("already here")
+        excl_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        with SafeDir.open_root(tmp_path) as sd, pytest.raises(FileExistsError):
+            sd.open_child("out.txt", flags=excl_flags)
+
+    def test_open_child_excl_create_succeeds_for_new_name(self, tmp_path: Path) -> None:
+        """T10 positive control: ``O_CREAT|O_EXCL`` on a non-existent name
+        succeeds (no symlink, no existing file). Confirms the new error
+        path doesn't break the happy case.
+        """
+        with SafeDir.open_root(tmp_path) as sd:
+            fd = sd.open_child("fresh.txt", flags=os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            try:
+                os.write(fd, b"hello")
+            finally:
+                os.close(fd)
+        assert (tmp_path / "fresh.txt").read_bytes() == b"hello"
+
 
 # ---------------------------------------------------------------------------
 # Resource lifetime

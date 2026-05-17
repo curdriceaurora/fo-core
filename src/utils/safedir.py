@@ -292,6 +292,14 @@ class SafeDir:
         ``O_PATH`` should add a dedicated method that handles the
         post-open ``S_ISLNK`` check.
 
+        With ``O_CREAT | O_EXCL`` the kernel returns ``EEXIST`` for an
+        existing symlink rather than ``ELOOP`` (O_EXCL fires before the
+        O_NOFOLLOW path). To preserve the "symlink → SymlinkRejected"
+        contract for exclusive-create callers, the error path
+        disambiguates ``EEXIST`` via ``lstat`` and raises
+        ``SymlinkRejected`` when the existing entry is a symlink.
+        Same pattern as ``open_subdir``'s ``ENOTDIR`` handling.
+
         Returns the opened fd. Caller is responsible for closing it
         (use ``os.fdopen`` / ``os.close`` / ``contextlib.closing``).
         """
@@ -305,6 +313,17 @@ class SafeDir:
         try:
             return os.open(name, flags | os.O_NOFOLLOW, dir_fd=self._fd)
         except OSError as exc:
+            # ELOOP is the direct symlink-rejection path (O_NOFOLLOW on a
+            # symlink with non-create flags). EEXIST shadows it for the
+            # O_EXCL case — disambiguate via lstat. Tolerating the
+            # one-syscall TOCTOU between failed open and lstat is fine:
+            # the open already didn't follow a symlink, and a same-name
+            # swap-in just means the entry IS now a symlink, which is
+            # still the security-relevant case.
+            if exc.errno == errno.ELOOP or (
+                exc.errno == errno.EEXIST and _is_symlink_at(name, self._fd)
+            ):
+                _raise_symlink_rejected(name, exc)
             raise _wrap_open_errno(exc, name) from exc
 
     def open_for_reader(self, name: str) -> int:
