@@ -466,6 +466,18 @@ class SafeDir:
         dst_dir_fd=other.fd)`` — atomic on POSIX within the same
         filesystem. Both component names are validated.
 
+        **Source is lstat'd before rename and a symlink raises
+        ``SymlinkRejected``.** ``os.rename`` has no ``O_NOFOLLOW``
+        equivalent — if a caller enumerates via ``scandir`` (which
+        filters symlinks) and then a TOCTOU attacker swaps ``name``
+        for a symlink before the rename, the symlink would be moved
+        into the managed destination, contaminating the trusted output
+        tree with a pointer outside the SafeDir root. The lstat check
+        narrows that window from "scan-to-rename" (caller-dependent
+        duration) down to "lstat-to-rename" (~one syscall) — the
+        residual race is acknowledged and acceptable given the kernel
+        offers no atomic alternative.
+
         Caller is responsible for ensuring ``other`` is on the same
         filesystem; cross-filesystem renames will raise ``OSError``
         (``EXDEV``) and the caller must fall back to copy + unlink (see
@@ -475,4 +487,7 @@ class SafeDir:
         other._check_open()
         _validate_name(name)
         _validate_name(other_name)
+        if _is_symlink_at(name, self._fd):
+            cause = OSError(errno.ELOOP, "refused to rename a symlinked source")
+            _raise_symlink_rejected(name, cause)
         os.rename(name, other_name, src_dir_fd=self._fd, dst_dir_fd=other._fd)

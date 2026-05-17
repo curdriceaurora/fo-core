@@ -216,6 +216,35 @@ class TestHappyPath:
         assert not (src_dir / "doc.txt").exists()
         assert (dst_dir / "doc.txt").read_text() == "moved"
 
+    def test_rename_into_rejects_symlinked_source(self, tmp_path: Path) -> None:
+        """``os.rename`` has no O_NOFOLLOW. A TOCTOU swap (scandir
+        yields a regular file, then attacker replaces it with a symlink
+        before rename) would otherwise move the symlink into the
+        managed destination — contaminating the trusted output tree
+        with a pointer outside the SafeDir root.
+        """
+        (tmp_path / "honey").write_bytes(b"do_not_exfiltrate")
+        src_dir = tmp_path / "src"
+        dst_dir = tmp_path / "dst"
+        src_dir.mkdir()
+        dst_dir.mkdir()
+        try:
+            (src_dir / "report.pdf").symlink_to(tmp_path / "honey")
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with (
+            SafeDir.open_root(src_dir) as src,
+            SafeDir.open_root(dst_dir) as dst,
+            pytest.raises(SymlinkRejected),
+        ):
+            src.rename_into("report.pdf", dst, "report.pdf")
+
+        # Destination must remain empty — no symlink leaked through.
+        assert list(dst_dir.iterdir()) == []
+        # Source symlink remains in place (rename refused).
+        assert (src_dir / "report.pdf").is_symlink()
+
 
 # ---------------------------------------------------------------------------
 # Symlink rejection — the headline security guarantee
