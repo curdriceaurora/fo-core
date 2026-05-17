@@ -540,7 +540,7 @@ class TestAudioMetadataExtractor:
 
         with patch(
             "services.audio.metadata_extractor.AudioMetadataExtractor._extract_with_mutagen",
-            side_effect=lambda p: (_ for _ in ()).throw(Exception("decode error")),
+            side_effect=Exception("decode error"),
         ):
             with patch(
                 "services.audio.metadata_extractor.AudioMetadataExtractor._extract_with_tinytag",
