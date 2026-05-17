@@ -46,6 +46,18 @@ __all__ = ["SafeDir", "SymlinkRejected"]
 _INVALID_NAME_CHARS = frozenset({"/", "\\", "\x00"})
 _RESERVED_NAMES = frozenset({"", ".", ".."})
 
+# ``O_PATH`` (Linux 2.6.39+) has a surprising interaction with ``O_NOFOLLOW``:
+# instead of refusing to dereference a symlink, the pair returns an fd
+# referring to the symlink itself. That breaks the documented contract of
+# ``open_child`` ("if the entry is a symlink, raises SymlinkRejected") — any
+# caller that later uses the resulting fd for an inode-pinning or existence
+# check would silently operate on the symlink. Reject the flag at the API
+# boundary; if a future caller genuinely needs ``O_PATH`` semantics, ship
+# a dedicated method that handles the post-open ``fstat(S_ISLNK)`` check.
+# On platforms that don't define ``O_PATH`` (macOS, BSD), the bug doesn't
+# exist; the guard falls through harmlessly via the ``getattr`` default.
+_O_PATH = getattr(os, "O_PATH", 0)
+
 
 class SymlinkRejected(OSError):
     """Raised when a SafeDir operation refuses to dereference a symlink.
@@ -274,11 +286,22 @@ class SafeDir:
         operations (the SafeDir invariant still holds: the open is
         anchored to ``self.fd`` and never follows a symlink).
 
+        ``os.O_PATH`` is rejected — on Linux it changes ``O_NOFOLLOW``
+        semantics so the symlink itself is opened rather than refused
+        (see the ``_O_PATH`` module-level note). Callers that need
+        ``O_PATH`` should add a dedicated method that handles the
+        post-open ``S_ISLNK`` check.
+
         Returns the opened fd. Caller is responsible for closing it
         (use ``os.fdopen`` / ``os.close`` / ``contextlib.closing``).
         """
         self._check_open()
         _validate_name(name)
+        if _O_PATH and (flags & _O_PATH):
+            raise ValueError(
+                "open_child does not support O_PATH: O_PATH|O_NOFOLLOW "
+                "would return an fd for the symlink instead of refusing it"
+            )
         try:
             return os.open(name, flags | os.O_NOFOLLOW, dir_fd=self._fd)
         except OSError as exc:

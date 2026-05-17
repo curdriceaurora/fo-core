@@ -254,6 +254,36 @@ class TestSymlinkRejection:
         """``SymlinkRejected`` subclasses ``OSError`` so existing handlers work."""
         assert issubclass(SymlinkRejected, OSError)
 
+    def test_open_child_rejects_o_path(self, tmp_path: Path) -> None:
+        """``O_PATH | O_NOFOLLOW`` on Linux returns an fd for the symlink
+        itself instead of raising ELOOP — that would silently violate the
+        documented "no symlinks" contract. The public API must refuse it.
+
+        On platforms without ``O_PATH`` (macOS, BSD) the bug doesn't exist;
+        ``_O_PATH == 0`` makes this skip cleanly.
+        """
+        if not hasattr(os, "O_PATH"):
+            pytest.skip("O_PATH is Linux-only; bug doesn't exist on this platform")
+
+        (tmp_path / "regular").write_text("x")
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(ValueError, match="O_PATH"):
+                sd.open_child("regular", flags=os.O_PATH)
+
+    def test_open_child_rejects_o_path_even_for_real_files(self, tmp_path: Path) -> None:
+        """Predicate-negative: the rejection fires on the flag, not on whether
+        the entry is a symlink. A regular file with ``O_PATH`` must still be
+        refused so callers can't 'just happen to' use the flag safely and
+        later trip on it with an attacker-controlled symlink (T10).
+        """
+        if not hasattr(os, "O_PATH"):
+            pytest.skip("O_PATH is Linux-only")
+
+        (tmp_path / "regular").write_text("x")
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(ValueError, match="O_PATH"):
+                sd.open_child("regular", flags=os.O_PATH | os.O_RDONLY)
+
 
 # ---------------------------------------------------------------------------
 # Resource lifetime
