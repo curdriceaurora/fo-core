@@ -63,7 +63,32 @@ class TestAudioModelEndToEnd:
         # transcribe() call, so it should be None right after initialize().
         assert model._transcriber._model is None
         try:
-            output = model.generate(str(audio_path))
+            try:
+                output = model.generate(str(audio_path))
+            except Exception as exc:
+                # First-run lazy load downloads the tiny model from
+                # HuggingFace Hub. Skip cleanly on transient network /
+                # rate-limit failures (403, connection reset, etc.) —
+                # the test purpose is "does the pipeline run end-to-end
+                # when the model is available", not "does HuggingFace
+                # serve us a model right now". Catching by exception
+                # message + module path keeps us decoupled from the
+                # huggingface_hub error hierarchy (which changes
+                # between versions).
+                msg = repr(exc).lower()
+                module_path = type(exc).__module__
+                hf_indicators = (
+                    "huggingface" in msg
+                    or "huggingface_hub" in module_path
+                    or "rate limit" in msg
+                    or "403" in msg
+                    or "429" in msg
+                    or "connection" in msg
+                    or "name resolution" in msg
+                )
+                if hf_indicators:
+                    pytest.skip(f"Whisper tiny model download unavailable: {exc!r}")
+                raise
             # Pipeline ran end-to-end without raising. Two non-vacuous
             # assertions cover the contract:
             #   1. generate() returned a string (not None, not an exception).
