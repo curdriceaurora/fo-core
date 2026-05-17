@@ -35,6 +35,7 @@ from utils.safedir import SafeDir, SymlinkRejected
 pytestmark = [
     pytest.mark.ci,
     pytest.mark.unit,
+    pytest.mark.integration,
     pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only primitive"),
 ]
 
