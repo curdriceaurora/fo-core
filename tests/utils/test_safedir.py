@@ -347,6 +347,37 @@ class TestSymlinkRejection:
                 os.close(fd)
         assert (tmp_path / "fresh.txt").read_bytes() == b"hello"
 
+    def test_open_child_directory_flag_rejects_symlinked_target(self, tmp_path: Path) -> None:
+        """``O_DIRECTORY`` against a symlink returns ENOTDIR (not ELOOP) —
+        the symlink inode itself isn't a directory. Disambiguate via lstat
+        so the contract holds: callers using the generic ``open_child``
+        helper with ``O_DIRECTORY`` get the documented ``SymlinkRejected``
+        rather than ``NotADirectoryError`` for symlinked targets.
+        """
+        honey_dir = tmp_path / "honey"
+        honey_dir.mkdir()
+        (honey_dir / "secret.txt").write_text("do_not_exfiltrate")
+        organize = tmp_path / "organize"
+        organize.mkdir()
+        try:
+            (organize / "documents").symlink_to(honey_dir, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(organize) as sd, pytest.raises(SymlinkRejected):
+            sd.open_child("documents", flags=os.O_DIRECTORY)
+
+    def test_open_child_directory_flag_propagates_enotdir_for_regular_file(
+        self, tmp_path: Path
+    ) -> None:
+        """T10 predicate-negative: ``O_DIRECTORY`` against a regular file
+        must still surface ``NotADirectoryError``, not ``SymlinkRejected``.
+        Disambiguation fires only on actual symlinks.
+        """
+        (tmp_path / "regular.txt").write_text("not a directory")
+        with SafeDir.open_root(tmp_path) as sd, pytest.raises(NotADirectoryError):
+            sd.open_child("regular.txt", flags=os.O_DIRECTORY)
+
 
 # ---------------------------------------------------------------------------
 # Resource lifetime
