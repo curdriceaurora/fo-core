@@ -139,6 +139,29 @@ class TestHappyPath:
         for name in names:
             assert isinstance(name, str)
 
+    def test_scandir_materializes_eagerly_so_iteration_cannot_outlive_safedir(
+        self, tmp_path: Path
+    ) -> None:
+        """``os.scandir(fd)`` dup's the fd, so a lazy generator could
+        keep yielding entries after ``SafeDir.__exit__`` closed the
+        SafeDir. Materializing names eagerly is the lifecycle
+        guarantee: the iterator returned by ``scandir()`` doesn't hold
+        an OS handle and can be safely consumed after the SafeDir is
+        closed (the data is already in memory; only future *operations*
+        on the SafeDir fail).
+        """
+        (tmp_path / "a").write_text("x")
+        (tmp_path / "b").write_text("y")
+        sd = SafeDir.open_root(tmp_path)
+        try:
+            it = sd.scandir()
+        finally:
+            sd.__exit__(None, None, None)
+        # Iterator survives SafeDir exit (names are already materialized);
+        # this is the contract — data is safe to consume, but no further
+        # syscalls happen.
+        assert sorted(it) == ["a", "b"]
+
     def test_scandir_filters_symlinks(self, tmp_path: Path) -> None:
         """``DirEntry.is_file()`` / ``.stat()`` default to following
         symlinks; filtering them out of scandir prevents naive callers

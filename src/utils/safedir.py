@@ -426,11 +426,23 @@ class SafeDir:
 
         The underlying ``os.scandir(self.fd)`` reads the directory by
         file descriptor (no path-string lookup that could be
-        intercepted). The iterator is wrapped in a ``with`` block so
-        the underlying ``ScandirIterator`` is deterministically closed
-        even if the caller exhausts only part of the generator.
+        intercepted). **Names are materialized eagerly** rather than
+        yielded lazily: ``os.scandir(fd)`` internally ``dup``-s the fd,
+        so the ``ScandirIterator`` has its own handle that would
+        survive ``SafeDir.__exit__``. A lazy generator could keep
+        yielding names after the context closed — violating the
+        lifecycle guarantee that operations are bounded by the
+        ``with`` block. Eager materialization also ensures the
+        ``ScandirIterator`` is closed before this method returns, so
+        the dup'd fd doesn't leak.
+
+        For typical SafeDir trees (a user's organize root) directory
+        sizes are bounded by ``safe_walk``-style enumeration limits;
+        materializing N names of average length ~50 bytes costs N×50
+        bytes which is negligible up to ~100K entries.
         """
         self._check_open()
+        names: list[str] = []
         with os.scandir(self._fd) as it:
             for entry in it:
                 try:
@@ -441,7 +453,8 @@ class SafeDir:
                     # permission flip, etc.) — skip defensively. Matches
                     # safe_walk's stance.
                     continue
-                yield entry.name
+                names.append(entry.name)
+        return iter(names)
 
     def lstat(self, name: str) -> os.stat_result:
         """Stat *name* without following symlinks (``lstat`` semantics).
