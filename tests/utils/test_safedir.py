@@ -311,6 +311,78 @@ class TestResourceLifetime:
         sd.__exit__(None, None, None)
 
 
+class TestUseAfterClose:
+    """Methods must refuse to operate on a closed SafeDir.
+
+    POSIX recycles fd numbers eagerly — if a caller retains a closed
+    ``SafeDir`` and then invokes a method on it, the stale ``self._fd``
+    could address an unrelated directory that the kernel reassigned
+    that number to (after any subsequent ``os.open`` in the same
+    process). Each method calls ``self._check_open()`` first so the
+    failure is loud rather than silently operating on the wrong dir.
+    """
+
+    @pytest.fixture
+    def closed_sd(self, tmp_path: Path) -> SafeDir:
+        sd = SafeDir.open_root(tmp_path)
+        sd.__exit__(None, None, None)
+        return sd
+
+    def test_fd_property_raises(self, closed_sd: SafeDir) -> None:
+        with pytest.raises(ValueError, match="closed"):
+            _ = closed_sd.fd
+
+    def test_open_child_raises(self, closed_sd: SafeDir) -> None:
+        with pytest.raises(ValueError, match="closed"):
+            closed_sd.open_child("anything")
+
+    def test_open_for_reader_raises(self, closed_sd: SafeDir) -> None:
+        with pytest.raises(ValueError, match="closed"):
+            closed_sd.open_for_reader("anything")
+
+    def test_open_subdir_raises(self, closed_sd: SafeDir) -> None:
+        with pytest.raises(ValueError, match="closed"):
+            closed_sd.open_subdir("anything")
+
+    def test_scandir_raises(self, closed_sd: SafeDir) -> None:
+        with pytest.raises(ValueError, match="closed"):
+            list(closed_sd.scandir())
+
+    def test_lstat_raises(self, closed_sd: SafeDir) -> None:
+        with pytest.raises(ValueError, match="closed"):
+            closed_sd.lstat("anything")
+
+    def test_mkdir_raises(self, closed_sd: SafeDir) -> None:
+        with pytest.raises(ValueError, match="closed"):
+            closed_sd.mkdir("anything")
+
+    def test_unlink_raises(self, closed_sd: SafeDir) -> None:
+        with pytest.raises(ValueError, match="closed"):
+            closed_sd.unlink("anything")
+
+    def test_rename_into_raises_on_closed_self(self, tmp_path: Path) -> None:
+        closed = SafeDir.open_root(tmp_path)
+        closed.__exit__(None, None, None)
+        with SafeDir.open_root(tmp_path) as live:
+            with pytest.raises(ValueError, match="closed"):
+                closed.rename_into("a", live, "b")
+
+    def test_rename_into_raises_on_closed_other(self, tmp_path: Path) -> None:
+        other = SafeDir.open_root(tmp_path)
+        other.__exit__(None, None, None)
+        with SafeDir.open_root(tmp_path) as live:
+            with pytest.raises(ValueError, match="closed"):
+                live.rename_into("a", other, "b")
+
+    def test_underlying_fd_invalidated_to_neg_one(self, tmp_path: Path) -> None:
+        """Defense in depth: even if ``_check_open`` is bypassed via
+        direct attribute access, the stored fd is -1 so any syscall
+        fails with EBADF rather than operating on a recycled fd."""
+        sd = SafeDir.open_root(tmp_path)
+        sd.__exit__(None, None, None)
+        assert sd._fd == -1
+
+
 # ---------------------------------------------------------------------------
 # Error semantics: missing entries
 # ---------------------------------------------------------------------------

@@ -207,8 +207,30 @@ class SafeDir:
         Callers should *not* perform syscalls on this fd directly — use
         the methods on this class instead, which keep the
         ``dir_fd=`` + ``O_NOFOLLOW`` invariant.
+
+        Raises ``ValueError`` if the SafeDir has been closed: the
+        stored fd would be -1, and reading it would invite the caller
+        into operating on whatever (unrelated) directory POSIX
+        eventually recycles the original fd number for.
         """
+        self._check_open()
         return self._fd
+
+    def _check_open(self) -> None:
+        """Raise ``ValueError`` if this SafeDir has already been closed.
+
+        POSIX fd numbers are recycled — if a caller retains a
+        ``SafeDir`` past its ``__exit__`` and then invokes a method on
+        it, the underlying ``dir_fd=`` would address whatever
+        directory the kernel reassigned the fd to (any subsequent
+        ``os.open``, including unrelated ones inside the same process).
+        That's a silent correctness bug: ``scandir`` / ``unlink`` /
+        ``rename_into`` would operate on the wrong directory rather
+        than failing with ``EBADF``. Every public method calls this
+        first so the failure is loud and immediate.
+        """
+        if self._closed:
+            raise ValueError("SafeDir has been closed; cannot use after context-manager exit")
 
     def __enter__(self) -> Self:
         """Enter the context manager; return *self* unchanged."""
@@ -228,8 +250,14 @@ class SafeDir:
         if self._closed:
             return
         self._closed = True
+        fd_to_close = self._fd
+        # Invalidate the stored fd so accidental late access via
+        # ``self._fd`` can't reach a recycled directory. Even if
+        # ``_check_open`` is bypassed (e.g. via direct attribute access),
+        # a syscall using -1 fails immediately with ``EBADF``.
+        self._fd = -1
         try:
-            os.close(self._fd)
+            os.close(fd_to_close)
         except OSError:  # pragma: no cover - defensive
             pass
 
@@ -249,6 +277,7 @@ class SafeDir:
         Returns the opened fd. Caller is responsible for closing it
         (use ``os.fdopen`` / ``os.close`` / ``contextlib.closing``).
         """
+        self._check_open()
         _validate_name(name)
         try:
             return os.open(name, flags | os.O_NOFOLLOW, dir_fd=self._fd)
@@ -278,6 +307,7 @@ class SafeDir:
             with sd.open_subdir("category") as sub:
                 ...
         """
+        self._check_open()
         _validate_name(name)
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
         try:
@@ -305,6 +335,7 @@ class SafeDir:
         intercepted between this call and a follow-up operation on the
         same name.
         """
+        self._check_open()
         return iter(os.scandir(self._fd))
 
     def lstat(self, name: str) -> os.stat_result:
@@ -314,6 +345,7 @@ class SafeDir:
         ``(st_dev, st_ino, st_size)`` here, then re-call before any
         destructive operation and refuse on mismatch.
         """
+        self._check_open()
         _validate_name(name)
         return os.stat(name, dir_fd=self._fd, follow_symlinks=False)
 
@@ -330,6 +362,7 @@ class SafeDir:
         re-stat or use ``O_DIRECTORY | O_NOFOLLOW`` semantics on the
         follow-up open.
         """
+        self._check_open()
         _validate_name(name)
         os.mkdir(name, mode=mode, dir_fd=self._fd)
 
@@ -340,6 +373,7 @@ class SafeDir:
         resolved through the held directory — not via a path string
         that could be intercepted.
         """
+        self._check_open()
         _validate_name(name)
         os.unlink(name, dir_fd=self._fd)
 
@@ -355,6 +389,8 @@ class SafeDir:
         (``EXDEV``) and the caller must fall back to copy + unlink (see
         ``undo/durable_move.py`` for the existing pattern).
         """
+        self._check_open()
+        other._check_open()
         _validate_name(name)
         _validate_name(other_name)
         os.rename(name, other_name, src_dir_fd=self._fd, dst_dir_fd=other._fd)
