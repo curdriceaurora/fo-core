@@ -90,6 +90,8 @@ _FLAGGED_CALLS: frozenset[str] = frozenset(
         "rarfile.RarFile",
         "RarFile",
         "tarfile.open",
+        "zipfile.ZipFile",
+        "ZipFile",
         # shutil — copy/move follow symlinks on the source side by default
         "shutil.copy",
         "shutil.copy2",
@@ -101,7 +103,7 @@ _FLAGGED_CALLS: frozenset[str] = frozenset(
 )
 
 
-_OPT_OUT_RE = re.compile(r"#\s*safedir:\s*ok\b")
+_OPT_OUT_RE = re.compile(r"#\s*safedir:\s*ok\s*[-—]\s*\S")
 _MARKER_WINDOW_ABOVE = 2
 _MARKER_WINDOW_BELOW = 6
 
@@ -175,9 +177,28 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
 
 
 def scan_tree(src_dir: Path = _SRC_DIR) -> list[tuple[Path, int, str, str]]:
-    """Scan every ``*.py`` under *src_dir*; return all violations."""
+    """Scan every ``*.py`` under *src_dir*; return all violations.
+
+    Symlinks and dot-prefixed paths are filtered before indexing (S1/S2 —
+    `search-generation-patterns.md`). A symlinked source file could point at a
+    target outside `src/` whose contents shouldn't drive rail decisions; hidden
+    directories (`.venv/`, `.tox/`) sometimes appear under `src/` in unusual
+    checkouts and would balloon the scan scope.
+    """
     out: list[tuple[Path, int, str, str]] = []
+    src_root = src_dir.resolve()
     for py in sorted(src_dir.rglob("*.py")):
+        try:
+            if py.is_symlink():
+                continue
+        except OSError:
+            continue
+        try:
+            rel_parts = py.resolve().relative_to(src_root).parts
+        except (OSError, ValueError):
+            continue
+        if any(part.startswith(".") for part in rel_parts):
+            continue
         rel = py.relative_to(_ROOT).as_posix()
         if rel in _ALLOWLISTED_FILES:
             continue
@@ -203,10 +224,13 @@ def main(argv: list[str]) -> int:
     for name, count in sorted(by_call.items(), key=lambda kv: (-kv[1], kv[0])):
         print(f"  {count:>4}  {name}", file=sys.stderr)
     if "--verbose" in argv:
+        # Metadata only — no source-line excerpts in CI logs (S5,
+        # `search-generation-patterns.md`). Path + line + callee is enough
+        # to navigate from `gh run view` to the offending site.
         print("[safedir-rail] Call sites:", file=sys.stderr)
-        for path, lineno, name, excerpt in violations:
+        for path, lineno, name, _excerpt in violations:
             rel = path.relative_to(_ROOT).as_posix()
-            print(f"  {rel}:{lineno}  {name}\n    {excerpt}", file=sys.stderr)
+            print(f"  {rel}:{lineno}  {name}", file=sys.stderr)
     if advisory:
         print(
             "[safedir-rail] ADVISORY mode (phase 1 — tracking #264). Exit 0.",

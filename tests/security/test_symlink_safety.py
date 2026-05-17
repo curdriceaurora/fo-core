@@ -109,7 +109,8 @@ class TestSafeWalkSymlinkFiltering:
         (honey_dir / "more_secrets.txt").write_bytes(_HONEY_CONTENT)
 
         organize = _make_organize_root(tmp_path)
-        (organize / "legit.txt").write_text("normal content")
+        legit = organize / "legit.txt"
+        legit.write_text("normal content")
 
         link_dir = organize / "documents"
         try:
@@ -118,6 +119,11 @@ class TestSafeWalkSymlinkFiltering:
             pytest.skip("symlink creation not supported on this filesystem")
 
         yielded = list(safe_walk(organize))
+
+        # Positive control: the legit file MUST appear. Otherwise a regression
+        # that makes safe_walk yield an empty list would pass this test
+        # vacuously (the "honey" leak loop runs zero iterations).
+        assert legit in yielded
 
         # No yielded entry should live under the honey tree, regardless of how
         # it resolves. Use lexical parts (safe_walk yields lexical paths) and
@@ -134,7 +140,8 @@ class TestSafeWalkSymlinkFiltering:
         should never resolve a cycle, but lock the behavior in.
         """
         organize = _make_organize_root(tmp_path)
-        (organize / "legit.txt").write_text("normal content")
+        legit = organize / "legit.txt"
+        legit.write_text("normal content")
 
         loop = organize / "loop"
         try:
@@ -144,6 +151,8 @@ class TestSafeWalkSymlinkFiltering:
 
         yielded = list(safe_walk(organize))
 
+        # Positive control — prevents vacuous pass on a safe_walk regression.
+        assert legit in yielded
         assert loop not in yielded
 
 

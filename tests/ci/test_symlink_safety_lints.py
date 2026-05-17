@@ -71,6 +71,8 @@ class TestDetectorPositiveCases:
             "import tarfile\ntarfile.open('/foo/bar.tar')\n",
             "from py7zr import SevenZipFile\nSevenZipFile('/foo/bar.7z')\n",
             "import rarfile\nrarfile.RarFile('/foo/bar.rar')\n",
+            "import zipfile\nzipfile.ZipFile('/foo/bar.zip')\n",
+            "from zipfile import ZipFile\nZipFile('/foo/bar.zip')\n",
         ],
     )
     def test_flagged_call(self, tmp_path: Path, source: str) -> None:
@@ -98,6 +100,20 @@ class TestDetectorOptOut:
         source = "import shutil\nmsg = \"# safedir: ok — fake marker\"\nshutil.copy2('/a', '/b')\n"
         violations = find_violations(_synth(tmp_path, source))
         assert len(violations) == 1
+
+    def test_bare_marker_without_reason_does_not_opt_out(self, tmp_path: Path) -> None:
+        """``# safedir: ok`` without a separator + reason is rejected.
+
+        The documented contract is ``# safedir: ok — <reason>``. A bare
+        marker would let drive-by exemptions slip through review.
+        """
+        source = "import shutil\nshutil.copy2('/a', '/b')  # safedir: ok\n"
+        assert len(find_violations(_synth(tmp_path, source))) == 1
+
+    def test_marker_with_hyphen_separator_opts_out(self, tmp_path: Path) -> None:
+        """Both ``— em-dash`` and ``- hyphen`` are accepted separators."""
+        source = "import shutil\nshutil.copy2('/a', '/b')  # safedir: ok - one-shot user export\n"
+        assert find_violations(_synth(tmp_path, source)) == []
 
 
 class TestDetectorNegativeCases:
@@ -180,9 +196,17 @@ class TestPredicateNegativeCases:
         assert find_violations(_synth(tmp_path, source)) == []
 
     def test_unrelated_open_method_not_flagged(self, tmp_path: Path) -> None:
-        """``socket.open(...)`` isn't a content reader. Not flagged."""
-        source = "class S:\n    def open(self, addr): pass\nS().open('localhost')\n"
-        # _call_name returns "S().open" — not exact match.
+        """A method called ``open`` on an unrelated receiver is not flagged.
+
+        Exercises the dotted-call path: ``s.open(...)`` parses to
+        ``Attribute(Name('s'), 'open')``, so ``_call_name`` returns
+        ``"s.open"`` — not in ``_FLAGGED_CALLS``. Compare with calling
+        ``S()`` directly, where ``_call_name`` would return ``None``
+        because the base is a ``Call`` rather than a ``Name`` (that
+        false-negative path is tested separately in
+        ``TestDetectorHelpers.test_call_name_dynamic_returns_none``).
+        """
+        source = "class S:\n    def open(self, addr): pass\ns = S()\ns.open('localhost')\n"
         assert find_violations(_synth(tmp_path, source)) == []
 
 
@@ -253,6 +277,8 @@ class TestFlaggedCallsContract:
             "shutil.copy2",
             "shutil.move",
             "shutil.copytree",
+            "zipfile.ZipFile",
+            "ZipFile",
         }
         missing = required - _FLAGGED_CALLS
         assert not missing, f"watch list dropped flagged calls: {missing}"
