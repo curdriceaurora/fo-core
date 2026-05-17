@@ -9,6 +9,7 @@ are stubbed at the ``model._do_generate()`` level.
 
 from __future__ import annotations
 
+import os
 import stat
 import sys
 from pathlib import Path
@@ -24,10 +25,20 @@ from .conftest import make_text_config, make_vision_config, patch_text_generate_
 pytestmark = [pytest.mark.integration]
 
 
+# `chmod 000` is silently bypassed when the process has CAP_DAC_OVERRIDE
+# (the standard root capability on Linux). Containers and CI runners that
+# execute as uid 0 — common in our dev-container images — would otherwise
+# read the "unreadable" file fine and the test asserts the wrong thing.
+_skip_if_root_or_windows = pytest.mark.skipif(
+    sys.platform == "win32" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="chmod 000 does not restrict reads on Windows or when running as root",
+)
+
+
 class TestFileReadErrors:
     """File read errors surface in ProcessedFile results, not exceptions."""
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="chmod does not restrict reads on Windows")
+    @_skip_if_root_or_windows
     def test_unreadable_file_returns_error_in_result(
         self,
         stub_text_model_init: None,
@@ -117,7 +128,7 @@ class TestOrganizerErrorHandling:
                 output_path=str(tmp_path / "output"),
             )
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="chmod does not restrict reads on Windows")
+    @_skip_if_root_or_windows
     def test_mixed_good_and_bad_files_in_batch(
         self,
         stub_all_models: None,
