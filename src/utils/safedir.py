@@ -389,15 +389,36 @@ class SafeDir:
     # ------------------------------------------------------------------
 
     def scandir(self) -> Iterator[os.DirEntry[str]]:
-        """Iterate over entries in this directory, yielding ``os.DirEntry``s.
+        """Iterate over directory entries, yielding non-symlink ``DirEntry``s.
+
+        **Symlinks are filtered out.** ``DirEntry.is_file()``,
+        ``DirEntry.is_dir()``, and ``DirEntry.stat()`` default to
+        ``follow_symlinks=True`` — a naive caller writing
+        ``for entry in sd.scandir(): if entry.is_file(): ...`` would
+        classify a symlink to a regular file as a file, bypassing the
+        SafeDir invariant before reaching ``open_for_reader``. Filtering
+        at the source removes the footgun; callers who genuinely need
+        to inspect symlink entries can call ``lstat(name)`` directly.
 
         The underlying ``os.scandir(self.fd)`` reads the directory by
         file descriptor — there is no path-string lookup that could be
         intercepted between this call and a follow-up operation on the
-        same name.
+        same name. The iterator is wrapped in a ``with`` block so the
+        underlying ``ScandirIterator`` is deterministically closed even
+        if the caller exhausts only part of the generator.
         """
         self._check_open()
-        return iter(os.scandir(self._fd))
+        with os.scandir(self._fd) as it:
+            for entry in it:
+                try:
+                    if entry.is_symlink():
+                        continue
+                except OSError:
+                    # Per-entry stat failure (race with deletion,
+                    # permission flip, etc.) — skip defensively. Matches
+                    # safe_walk's stance.
+                    continue
+                yield entry
 
     def lstat(self, name: str) -> os.stat_result:
         """Stat *name* without following symlinks (``lstat`` semantics).

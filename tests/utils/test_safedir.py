@@ -135,6 +135,32 @@ class TestHappyPath:
             names = sorted(entry.name for entry in sd.scandir())
         assert names == ["a", "b"]
 
+    def test_scandir_filters_symlinks(self, tmp_path: Path) -> None:
+        """``DirEntry.is_file()`` / ``.stat()`` default to following
+        symlinks; filtering them out of scandir prevents naive callers
+        from classifying a symlink-to-file as a regular file (which
+        would bypass the SafeDir invariant before reaching
+        ``open_for_reader``).
+        """
+        (tmp_path / "honey").write_bytes(b"do_not_exfiltrate")
+        organize = tmp_path / "organize"
+        organize.mkdir()
+        (organize / "regular.txt").write_text("real")
+        try:
+            (organize / "link").symlink_to(tmp_path / "honey")
+            (organize / "link_to_dir").symlink_to(tmp_path, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(organize) as sd:
+            entries = list(sd.scandir())
+        names = sorted(entry.name for entry in entries)
+        assert names == ["regular.txt"]
+        # Defense check: every yielded entry must NOT be a symlink,
+        # whichever target type it points at.
+        for entry in entries:
+            assert not entry.is_symlink()
+
     def test_lstat_does_not_follow_symlink(self, tmp_path: Path) -> None:
         (tmp_path / "target").write_text("target content")
         try:
