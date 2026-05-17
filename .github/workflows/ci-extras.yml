@@ -12,7 +12,7 @@ name: Extras Validation
 
 on:
   pull_request:
-    branches: [main, epic/flatten-src-fo]
+    branches: [main, epic/flatten-src-fo, epic/safedir-readside-pr3]
     paths-ignore:
       - ".claude/**"
       - "docs/**"
