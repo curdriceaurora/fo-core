@@ -1,0 +1,249 @@
+"""Tests for the SafeDir-aware reader API.
+
+Covers the additions made in PR3a (#267):
+
+- ``fileobj=`` kwarg on the public reader functions in
+  ``utils.readers.documents`` (text, docx, pdf, rtf, spreadsheet,
+  presentation). When given, the reader uses the library's file-like
+  API instead of opening the path. Path-based callers are unchanged
+  (covered by the existing ``tests/utils/test_file_readers.py``).
+- ``utils.readers.read_file_via_safedir(safe_dir, name)`` — the
+  SafeDir-friendly dispatcher: opens via ``SafeDir.open_for_reader``
+  (which refuses symlinks with ``O_NOFOLLOW``) and routes to the
+  matching reader via ``fileobj=``.
+- ``utils.readers._base._check_fd_size`` — fd-based size check used by
+  the fileobj branch.
+"""
+
+from __future__ import annotations
+
+import io
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from utils.readers import (
+    MAX_FILE_SIZE_BYTES,
+    FileTooLargeError,
+    read_docx_file,
+    read_file_via_safedir,
+    read_pdf_file,
+    read_presentation_file,
+    read_rtf_file,
+    read_spreadsheet_file,
+    read_text_file,
+)
+from utils.readers._base import _check_fd_size
+from utils.safedir import SafeDir, SymlinkRejected
+
+pytestmark = [
+    pytest.mark.ci,
+    pytest.mark.unit,
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only"),
+]
+
+
+# ---------------------------------------------------------------------------
+# fileobj= on individual readers
+# ---------------------------------------------------------------------------
+
+
+class TestReadTextFileFileobj:
+    def test_reads_from_fileobj(self) -> None:
+        data = b"hello\nworld\n"
+        assert read_text_file(fileobj=io.BytesIO(data)) == "hello\nworld\n"
+
+    def test_respects_max_chars(self) -> None:
+        data = b"x" * 50_000
+        out = read_text_file(fileobj=io.BytesIO(data), max_chars=100)
+        assert out == "x" * 100
+
+    def test_ignores_invalid_utf8(self) -> None:
+        # An invalid UTF-8 byte gets dropped; the surrounding ASCII remains.
+        data = b"valid \xfe more"
+        out = read_text_file(fileobj=io.BytesIO(data))
+        assert "valid" in out
+        assert "more" in out
+
+    def test_label_falls_back_when_no_file_path(self) -> None:
+        # Doesn't raise; label is just used in logs.
+        assert read_text_file(fileobj=io.BytesIO(b"x")) == "x"
+
+
+class TestReadDocxFileFileobj:
+    @patch("utils.readers.documents.docx")
+    def test_reads_from_fileobj(self, mock_docx: MagicMock, tmp_path: Path) -> None:
+        para = MagicMock()
+        para.text = "Hello docx"
+        mock_doc = MagicMock()
+        mock_doc.paragraphs = [para]
+        mock_docx.Document.return_value = mock_doc
+
+        out = read_docx_file(fileobj=io.BytesIO(b"fake docx bytes"))
+        assert out == "Hello docx"
+        mock_docx.Document.assert_called_once()
+
+
+class TestReadPdfFileFileobj:
+    @patch("utils.readers.documents.fitz")
+    def test_reads_from_fileobj_via_stream(self, mock_fitz: MagicMock) -> None:
+        mock_page = MagicMock()
+        mock_page.get_text.return_value = "page text"
+        mock_doc = MagicMock()
+        mock_doc.__enter__.return_value = mock_doc
+        mock_doc.__exit__.return_value = None
+        mock_doc.__len__.return_value = 1
+        mock_doc.load_page.return_value = mock_page
+        mock_fitz.open.return_value = mock_doc
+
+        out = read_pdf_file(fileobj=io.BytesIO(b"%PDF-fake"))
+        assert out == "page text"
+        # The fileobj path must use ``stream=`` so fitz never receives a path.
+        kwargs = mock_fitz.open.call_args.kwargs
+        assert "stream" in kwargs
+        assert kwargs.get("filetype") == "pdf"
+
+
+class TestReadRtfFileFileobj:
+    @patch("utils.readers.documents._rtf_to_text", return_value="rtf content")
+    def test_reads_from_fileobj(self, _mock_rtf: MagicMock) -> None:
+        out = read_rtf_file(fileobj=io.BytesIO(b"{\\rtf1...}"))
+        assert "rtf content" in out
+
+
+class TestReadSpreadsheetFileFileobj:
+    def test_csv_from_fileobj(self, tmp_path: Path) -> None:
+        data = b"a,b,c\n1,2,3\n4,5,6\n"
+        out = read_spreadsheet_file(
+            file_path=tmp_path / "data.csv",
+            fileobj=io.BytesIO(data),
+        )
+        assert out == "a,b,c\n1,2,3\n4,5,6"
+
+    @patch("utils.readers.documents.openpyxl")
+    def test_xlsx_from_fileobj(self, mock_openpyxl: MagicMock, tmp_path: Path) -> None:
+        mock_ws = MagicMock()
+        mock_ws.iter_rows.return_value = iter([("h1", "h2"), (1, 2)])
+        mock_wb = MagicMock()
+        mock_wb.active = mock_ws
+        mock_openpyxl.load_workbook.return_value = mock_wb
+
+        out = read_spreadsheet_file(
+            file_path=tmp_path / "data.xlsx",
+            fileobj=io.BytesIO(b"fake xlsx"),
+        )
+        assert "h1,h2" in out
+        assert "1,2" in out
+
+    def test_requires_file_path_for_extension_detection(self) -> None:
+        with pytest.raises(ValueError, match="file_path"):
+            read_spreadsheet_file(fileobj=io.BytesIO(b"data"))
+
+
+class TestReadPresentationFileFileobj:
+    @patch("utils.readers.documents.Presentation")
+    def test_reads_from_fileobj(self, mock_prs_cls: MagicMock) -> None:
+        shape = MagicMock()
+        shape.text = "Slide text"
+        slide = MagicMock()
+        slide.shapes = [shape]
+        mock_prs = MagicMock()
+        mock_prs.slides = [slide]
+        mock_prs_cls.return_value = mock_prs
+
+        out = read_presentation_file(fileobj=io.BytesIO(b"fake pptx"))
+        assert "Slide text" in out
+
+
+# ---------------------------------------------------------------------------
+# Either-or argument validation
+# ---------------------------------------------------------------------------
+
+
+class TestRequiresFilePathOrFileobj:
+    """Every reader must reject calls with neither arg supplied."""
+
+    @pytest.mark.parametrize(
+        "reader",
+        [read_text_file, read_docx_file, read_pdf_file, read_rtf_file, read_presentation_file],
+    )
+    def test_rejects_both_args_missing(self, reader) -> None:  # type: ignore[no-untyped-def]
+        with pytest.raises(ValueError):
+            reader()
+
+
+# ---------------------------------------------------------------------------
+# read_file_via_safedir: dispatcher + symlink rejection
+# ---------------------------------------------------------------------------
+
+
+class TestReadFileViaSafedir:
+    def test_reads_real_text_file(self, tmp_path: Path) -> None:
+        (tmp_path / "notes.txt").write_text("integration test content")
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, "notes.txt")
+        assert out == "integration test content"
+
+    def test_reads_md_file(self, tmp_path: Path) -> None:
+        (tmp_path / "doc.md").write_text("# heading\n\nbody")
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, "doc.md")
+        assert "heading" in out
+
+    def test_refuses_symlink(self, tmp_path: Path) -> None:
+        """The dispatcher uses ``open_for_reader`` which refuses symlinks."""
+        honey = tmp_path / "honey.txt"
+        honey.write_text("do_not_exfiltrate")
+        organize = tmp_path / "organize"
+        organize.mkdir()
+        try:
+            (organize / "link.txt").symlink_to(honey)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(organize) as sd:
+            with pytest.raises(SymlinkRejected):
+                read_file_via_safedir(sd, "link.txt")
+
+    def test_unsupported_extension_returns_none(self, tmp_path: Path) -> None:
+        """Extensions not yet in ``_SAFEDIR_READERS`` (archives, ebooks, etc.)
+        return None — caller can fall back to legacy path-based ``read_file``.
+        """
+        (tmp_path / "archive.zip").write_bytes(b"PK\x03\x04")
+        with SafeDir.open_root(tmp_path) as sd:
+            assert read_file_via_safedir(sd, "archive.zip") is None
+
+    def test_rejects_bad_name(self, tmp_path: Path) -> None:
+        """Component-name validation rides on SafeDir.open_for_reader."""
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(ValueError):
+                read_file_via_safedir(sd, "../escape.txt")
+
+
+# ---------------------------------------------------------------------------
+# _check_fd_size
+# ---------------------------------------------------------------------------
+
+
+class TestCheckFdSize:
+    def test_raises_for_large_fd(self, tmp_path: Path) -> None:
+        big = tmp_path / "big.bin"
+        big.write_bytes(b"\x00" * 1024)
+        with big.open("rb") as f:
+            with pytest.raises(FileTooLargeError):
+                _check_fd_size(f, max_bytes=512)
+
+    def test_allows_small_fd(self, tmp_path: Path) -> None:
+        small = tmp_path / "small.bin"
+        small.write_bytes(b"\x00" * 100)
+        with small.open("rb") as f:
+            _check_fd_size(f, max_bytes=MAX_FILE_SIZE_BYTES)  # no raise
+
+    def test_silently_skips_in_memory_buffers(self) -> None:
+        """``BytesIO`` raises ``io.UnsupportedOperation`` on ``fileno()``;
+        the check should fall through silently rather than erroring out.
+        """
+        _check_fd_size(io.BytesIO(b"x" * 100), max_bytes=10)  # no raise
