@@ -179,11 +179,13 @@ class SafeDir:
     # ------------------------------------------------------------------
 
     @classmethod
-    def open_root(cls, path: Path) -> Self:
+    def open_root(cls, path: str | os.PathLike[str]) -> Self:
         """Open *path* as the root of a SafeDir.
 
         *path* is the only place a multi-component path enters this API —
         every subsequent operation must use single component names.
+        Accepts ``str`` and ``os.PathLike`` (including ``pathlib.Path``);
+        the value is normalized to ``Path`` at the entry boundary.
 
         Raises:
             NotImplementedError: On Windows. ``dir_fd=`` and
@@ -199,6 +201,11 @@ class SafeDir:
             raise NotImplementedError(
                 "SafeDir requires POSIX dir_fd / O_NOFOLLOW support; Windows port deferred (#264)"
             )
+        # Normalize at the boundary so str/PathLike callers (CLI args,
+        # un-typed config values) don't trip on ``path.is_symlink()`` below
+        # with AttributeError instead of the documented SymlinkRejected /
+        # OSError. The conversion is idempotent for an existing Path.
+        path = Path(path)
         flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
         try:
             fd = os.open(str(path), flags)

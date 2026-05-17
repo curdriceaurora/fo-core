@@ -250,6 +250,25 @@ class TestSymlinkRejection:
         with pytest.raises(SymlinkRejected):
             SafeDir.open_root(link)
 
+    def test_open_root_rejects_symlinked_root_when_passed_as_string(self, tmp_path: Path) -> None:
+        """``open_root`` accepts str / PathLike callers too.
+
+        Before the boundary-normalization fix, the ``ENOTDIR`` error path
+        called ``path.is_symlink()`` directly — which would raise
+        ``AttributeError`` instead of the documented ``SymlinkRejected``
+        when a CLI/config caller passed an un-typed string.
+        """
+        real_root = tmp_path / "real"
+        real_root.mkdir()
+        try:
+            link = tmp_path / "link"
+            link.symlink_to(real_root, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+        # Pass the path as a string, not a Path object.
+        with pytest.raises(SymlinkRejected):
+            SafeDir.open_root(str(link))
+
     def test_symlink_rejected_is_oserror(self) -> None:
         """``SymlinkRejected`` subclasses ``OSError`` so existing handlers work."""
         assert issubclass(SymlinkRejected, OSError)
