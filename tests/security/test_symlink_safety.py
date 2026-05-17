@@ -40,6 +40,7 @@ from core.path_guard import safe_walk
 pytestmark = [
     pytest.mark.ci,
     pytest.mark.unit,
+    pytest.mark.integration,
     pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlink semantics"),
 ]
 

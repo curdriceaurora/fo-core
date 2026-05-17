@@ -247,3 +247,54 @@ class TestCheckFdSize:
         the check should fall through silently rather than erroring out.
         """
         _check_fd_size(io.BytesIO(b"x" * 100), max_bytes=10)  # no raise
+
+    def test_silently_skips_when_fstat_fails(self, tmp_path: Path) -> None:
+        """If ``os.fstat`` itself errors (e.g. closed fd), the check
+        falls through. The reader's subsequent read will raise its own
+        error; the size check shouldn't mask the real problem.
+        """
+        import os as _os
+
+        target = tmp_path / "x.bin"
+        target.write_bytes(b"data")
+        f = target.open("rb")
+        _os.close(f.fileno())
+        # f.fileno() still returns the int, but fstat now raises EBADF
+        _check_fd_size(f, max_bytes=10)  # no raise
+
+
+class TestReadFileViaSafedirCompoundExtension:
+    """Cover the ``.tar.gz`` / ``.tar.bz2`` / ``.tar.xz`` branch and the
+    dispatcher's exception-rewrap path."""
+
+    def test_tar_gz_returns_none(self, tmp_path: Path) -> None:
+        """Archives aren't in ``_SAFEDIR_READERS`` yet (migrated in PR3b),
+        but the compound-extension parsing path still executes — covers
+        the ``.tar.gz`` branch in ``read_file_via_safedir``.
+        """
+        (tmp_path / "data.tar.gz").write_bytes(b"PK\x03\x04")
+        with SafeDir.open_root(tmp_path) as sd:
+            assert read_file_via_safedir(sd, "data.tar.gz") is None
+
+    def test_dispatcher_reraises_unexpected_reader_exception(self, tmp_path: Path) -> None:
+        """``read_file_via_safedir`` wraps the reader call in a try/except
+        that logs then re-raises any exception. Covers the
+        ``except Exception as exc: logger.error(...); raise`` block.
+
+        Patching ``utils.readers.documents.fitz.open`` (the underlying
+        library) reliably triggers the path because ``read_pdf_file``
+        is reached via the dispatcher's ``_SAFEDIR_READERS`` dict —
+        patching the module-level binding wouldn't intercept that.
+        """
+        (tmp_path / "report.pdf").write_bytes(b"%PDF-fake")
+        with SafeDir.open_root(tmp_path) as sd:
+            with patch(
+                "utils.readers.documents.fitz.open",
+                side_effect=RuntimeError("synthetic fitz failure"),
+            ):
+                # The reader wraps the fitz error as FileReadError;
+                # the dispatcher logs and re-raises that.
+                from utils.readers import FileReadError as _FRE
+
+                with pytest.raises(_FRE):
+                    read_file_via_safedir(sd, "report.pdf")
