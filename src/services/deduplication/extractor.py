@@ -57,14 +57,23 @@ class DocumentExtractor:
             file_path: Path to document file
 
         Returns:
-            Extracted text content, or empty string on read failure.
-            A refused symlink returns ``""`` rather than raising — matches
-            the legacy contract that returns ``""`` for any unrecoverable
-            extraction error.
+            Extracted text content, or ``""`` when extraction fails for
+            *any* reason — including a refused symlink (``SymlinkRejected``),
+            an underlying ``OSError`` during the read, a malformed file, or
+            a missing optional library. The empty-string contract is
+            preserved from the pre-SafeDir implementation so consumers
+            (``document_dedup`` etc.) behave identically: a file that
+            can't be read simply contributes no text to the dedup corpus.
+
+            **Read failures are NOT raised** — callers cannot rely on
+            ``OSError`` to detect read problems. Only the missing-file
+            and unsupported-format pre-checks raise.
 
         Raises:
-            ValueError: If file format not supported
-            OSError: If file does not exist
+            OSError: If the file does not exist (pre-flight check before
+                any SafeDir / library work).
+            ValueError: If the file's extension is not in
+                ``supported_extensions``.
         """
         if not file_path.exists():
             raise OSError(f"File not found: {file_path}")
@@ -81,11 +90,16 @@ class DocumentExtractor:
             try:
                 with SafeDir.open_root(file_path.parent) as safe_dir:
                     fd = safe_dir.open_for_reader(file_path.name)
+                    # fdopen takes ownership only once it returns; close the
+                    # bare fd explicitly if fdopen itself raises (e.g. on
+                    # a closed dir_fd race), otherwise the fd would leak.
                     try:
-                        with os.fdopen(fd, "rb", closefd=True) as fileobj:
-                            return self._extract_from_fileobj(extension, fileobj, file_path.name)
-                    except SymlinkRejected:
+                        fileobj = os.fdopen(fd, "rb", closefd=True)
+                    except OSError:
+                        os.close(fd)
                         raise
+                    with fileobj:
+                        return self._extract_from_fileobj(extension, fileobj, file_path.name)
             except SymlinkRejected as exc:
                 logger.warning(
                     "Refused to read symlinked file %s: %s", file_path, exc, exc_info=True
@@ -215,7 +229,8 @@ class DocumentExtractor:
                     if text:
                         text_parts.append(text)
             else:
-                assert file_path is not None
+                if file_path is None:
+                    raise TypeError("path-branch requires file_path")
                 with open(file_path, "rb") as f:
                     pdf_reader = pypdf.PdfReader(f)
                     for page_num in range(len(pdf_reader.pages)):
@@ -251,7 +266,8 @@ class DocumentExtractor:
             if fileobj is not None:
                 doc = docx.Document(fileobj)
             else:
-                assert file_path is not None
+                if file_path is None:
+                    raise TypeError("path-branch requires file_path")
                 doc = docx.Document(str(file_path))
 
             text_parts = [paragraph.text for paragraph in doc.paragraphs]
@@ -303,7 +319,8 @@ class DocumentExtractor:
             # All strict decodes failed — fall back to ignore errors.
             return raw.decode("utf-8", errors="ignore")
 
-        assert file_path is not None
+        if file_path is None:
+            raise TypeError("path-branch requires file_path")
         try:
             for encoding in encodings:
                 try:
@@ -338,7 +355,8 @@ class DocumentExtractor:
             if fileobj is not None:
                 rtf_content = fileobj.read().decode("utf-8", errors="ignore")
             else:
-                assert file_path is not None
+                if file_path is None:
+                    raise TypeError("path-branch requires file_path")
                 with open(file_path, encoding="utf-8", errors="ignore") as f:
                     rtf_content = f.read()
 
@@ -381,7 +399,8 @@ class DocumentExtractor:
             # ODT files are ZIP archives — zipfile.ZipFile accepts both
             # paths and file-like objects.
             source = fileobj if fileobj is not None else file_path
-            assert source is not None
+            if source is None:
+                raise TypeError("_extract_odt requires file_path or fileobj")
             with zipfile.ZipFile(source, "r") as odt_zip:
                 content_xml = odt_zip.read("content.xml")
 
