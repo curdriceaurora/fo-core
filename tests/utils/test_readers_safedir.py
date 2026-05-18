@@ -29,7 +29,11 @@ from utils.readers import (
     FileTooLargeError,
     read_7z_file,
     read_docx_file,
+    read_ebook_file,
     read_file_via_safedir,
+    read_hdf5_file,
+    read_mat_file,
+    read_netcdf_file,
     read_pdf_file,
     read_presentation_file,
     read_rar_file,
@@ -344,6 +348,253 @@ class TestReadRarFileFileobj:
 
 
 # ---------------------------------------------------------------------------
+# Ebook + scientific readers — fileobj= branch (PR3c)
+# ---------------------------------------------------------------------------
+
+
+def _make_epub(path: Path) -> None:
+    """Minimal valid EPUB so ebooklib.read_epub round-trips through fileobj.
+
+    The structure mirrors the ebooklib happy-path: mimetype + container.xml
+    + a content.opf manifest + one XHTML chapter. Smaller than fixturing a
+    real ebook on disk and avoids a binary blob in the repo.
+    """
+    import zipfile as _zf
+
+    with _zf.ZipFile(path, "w") as zf:
+        zf.writestr("mimetype", "application/epub+zip")
+        zf.writestr(
+            "META-INF/container.xml",
+            (
+                '<?xml version="1.0"?>'
+                '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                "<rootfiles>"
+                '<rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>'
+                "</rootfiles></container>"
+            ),
+        )
+        zf.writestr(
+            "content.opf",
+            (
+                '<?xml version="1.0"?>'
+                '<package version="2.0" xmlns="http://www.idpf.org/2007/opf" '
+                'unique-identifier="bookid">'
+                '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                "<dc:title>Test Book</dc:title>"
+                '<dc:identifier id="bookid">test</dc:identifier>'
+                "<dc:language>en</dc:language></metadata>"
+                '<manifest><item id="ch1" href="ch1.xhtml" '
+                'media-type="application/xhtml+xml"/></manifest>'
+                '<spine><itemref idref="ch1"/></spine></package>'
+            ),
+        )
+        zf.writestr(
+            "ch1.xhtml",
+            "<html><body><p>Chapter one with searchable content text</p></body></html>",
+        )
+
+
+class TestReadEbookFileFileobj:
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        epub_path = tmp_path / "book.epub"
+        _make_epub(epub_path)
+        with epub_path.open("rb") as f:
+            out = read_ebook_file(file_path=epub_path, fileobj=f)
+        assert "Chapter one with searchable content" in out
+
+    def test_label_falls_back_when_no_file_path(self, tmp_path: Path) -> None:
+        epub_path = tmp_path / "book.epub"
+        _make_epub(epub_path)
+        with epub_path.open("rb") as f:
+            # No file_path supplied: extension check is skipped, label is <fileobj>
+            out = read_ebook_file(fileobj=f)
+        assert "Chapter one" in out
+
+    def test_rejects_non_epub_extension(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        with pytest.raises(_FRE, match="Only .epub supported"):
+            read_ebook_file(file_path=tmp_path / "book.azw3", fileobj=io.BytesIO(b"x"))
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        """A parse error from ebooklib is wrapped as FileReadError on the
+        fileobj branch, mirroring the path branch's contract.
+        """
+        from utils.readers import FileReadError as _FRE
+
+        with pytest.raises(_FRE, match="ebook file"):
+            read_ebook_file(file_path=tmp_path / "x.epub", fileobj=io.BytesIO(b"not a zip"))
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_ebook_file()
+
+
+class TestReadHdf5FileFileobj:
+    """``h5py`` is in the ``scientific`` optional extra and not installed by
+    the default CI matrix (``.[dev,search]``). Tests mock the library so
+    they exercise the reader's Python code paths regardless — matches the
+    existing pattern in ``test_file_readers_extended.py``.
+    """
+
+    def _build_mocked_h5py(self) -> tuple[MagicMock, MagicMock]:
+        mock_ds = MagicMock()
+        mock_ds.shape = (4,)
+        mock_ds.dtype = "int32"
+        mock_ds.nbytes = 16
+        mock_ds.attrs = {}
+
+        def fake_visititems(callback):  # type: ignore[no-untyped-def]
+            callback("alpha", mock_ds)
+
+        mock_hf = MagicMock()
+        mock_hf.keys.return_value = ["alpha"]
+        mock_hf.visititems.side_effect = fake_visititems
+        mock_hf.__enter__.return_value = mock_hf
+        mock_hf.__exit__.return_value = None
+        mock_h5py = MagicMock()
+        mock_h5py.File.return_value = mock_hf
+        mock_h5py.Dataset = type(mock_ds)  # so isinstance(ds, Dataset) holds
+        mock_h5py.Group = type(None)  # Won't match group branch
+        return mock_h5py, mock_hf
+
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        mock_h5py, _ = self._build_mocked_h5py()
+        with (
+            patch("utils.readers.scientific.H5PY_AVAILABLE", True),
+            patch("utils.readers.scientific.h5py", mock_h5py, create=True),
+        ):
+            out = read_hdf5_file(
+                file_path=tmp_path / "data.h5", fileobj=io.BytesIO(b"fake h5 bytes")
+            )
+        assert "HDF5 File: data.h5" in out
+        assert "alpha" in out
+        # Library reached with the fileobj, not the path.
+        call_args, _kwargs = mock_h5py.File.call_args
+        assert hasattr(call_args[0], "read")
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        mock_h5py = MagicMock()
+        mock_h5py.File.side_effect = RuntimeError("synthetic h5 failure")
+        with (
+            patch("utils.readers.scientific.H5PY_AVAILABLE", True),
+            patch("utils.readers.scientific.h5py", mock_h5py, create=True),
+        ):
+            with pytest.raises(_FRE, match="HDF5"):
+                read_hdf5_file(file_path=tmp_path / "x.h5", fileobj=io.BytesIO(b"not h5"))
+
+    def test_requires_arg(self) -> None:
+        # No deps needed — ValueError fires before the AVAILABLE check.
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_hdf5_file()
+
+
+class TestReadNetcdfFileFileobj:
+    """``netCDF4`` is in the ``scientific`` optional extra. Mocked here so
+    CI without the C library still exercises the buffer-into-``memory=``
+    flow on the fileobj branch.
+    """
+
+    def _build_mocked_netcdf(self) -> tuple[MagicMock, MagicMock]:
+        mock_dim = MagicMock()
+        mock_dim.isunlimited.return_value = False
+        mock_dim.__len__ = MagicMock(return_value=5)
+
+        mock_var = MagicMock()
+        mock_var.dtype = "float32"
+        mock_var.shape = (5,)
+        mock_var.units = "K"
+        # ``hasattr(var, "long_name")`` returns True on MagicMock unless we
+        # restrict the spec — accept either branch by leaving it on.
+
+        mock_nc = MagicMock()
+        mock_nc.data_model = "NETCDF4"
+        mock_nc.dimensions = {"time": mock_dim}
+        mock_nc.variables = {"temperature": mock_var}
+        mock_nc.ncattrs.return_value = []
+        mock_nc.__enter__.return_value = mock_nc
+        mock_nc.__exit__.return_value = None
+
+        mock_netcdf4 = MagicMock()
+        mock_netcdf4.Dataset.return_value = mock_nc
+        return mock_netcdf4, mock_nc
+
+    def test_reads_from_fileobj_via_memory_param(self, tmp_path: Path) -> None:
+        """``netCDF4.Dataset`` doesn't accept fileobj; the reader buffers
+        the stream into bytes and passes ``memory=`` (the public C API).
+        """
+        mock_netcdf4, _ = self._build_mocked_netcdf()
+        with (
+            patch("utils.readers.scientific.NETCDF4_AVAILABLE", True),
+            patch("utils.readers.scientific.netCDF4", mock_netcdf4, create=True),
+        ):
+            out = read_netcdf_file(
+                file_path=tmp_path / "data.nc", fileobj=io.BytesIO(b"\x89HDF\r\n\x1a\n" * 4)
+            )
+        assert "NetCDF File: data.nc" in out
+        assert "NETCDF4" in out
+        assert "temperature" in out
+        # The fileobj branch passes ``memory=<bytes>`` (not a path).
+        _args, kwargs = mock_netcdf4.Dataset.call_args
+        assert kwargs.get("memory") is not None
+        assert isinstance(kwargs["memory"], bytes)
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        mock_netcdf4 = MagicMock()
+        mock_netcdf4.Dataset.side_effect = RuntimeError("synthetic netcdf failure")
+        with (
+            patch("utils.readers.scientific.NETCDF4_AVAILABLE", True),
+            patch("utils.readers.scientific.netCDF4", mock_netcdf4, create=True),
+        ):
+            with pytest.raises(_FRE, match="NetCDF"):
+                read_netcdf_file(file_path=tmp_path / "x.nc", fileobj=io.BytesIO(b"not netcdf"))
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_netcdf_file()
+
+
+class TestReadMatFileFileobj:
+    """``scipy`` is in the ``scientific`` optional extra. Mocked so the
+    fileobj branch of ``read_mat_file`` is exercised on CI without scipy.
+    """
+
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        mock_loadmat = MagicMock(
+            return_value={"__header__": b"MAT", "alpha": MagicMock(shape=(3,))}
+        )
+        with (
+            patch("utils.readers.scientific.SCIPY_AVAILABLE", True),
+            patch("utils.readers.scientific.loadmat", mock_loadmat, create=True),
+        ):
+            out = read_mat_file(file_path=tmp_path / "data.mat", fileobj=io.BytesIO(b"fake"))
+        assert "MATLAB File: data.mat" in out
+        assert "alpha" in out
+        # Library reached with the fileobj, not the path.
+        call_args, _kwargs = mock_loadmat.call_args
+        assert hasattr(call_args[0], "read")
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        mock_loadmat = MagicMock(side_effect=RuntimeError("synthetic mat failure"))
+        with (
+            patch("utils.readers.scientific.SCIPY_AVAILABLE", True),
+            patch("utils.readers.scientific.loadmat", mock_loadmat, create=True),
+        ):
+            with pytest.raises(_FRE, match="MAT"):
+                read_mat_file(file_path=tmp_path / "x.mat", fileobj=io.BytesIO(b"not a mat"))
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_mat_file()
+
+
+# ---------------------------------------------------------------------------
 # Either-or argument validation
 # ---------------------------------------------------------------------------
 
@@ -414,6 +665,37 @@ class TestFileTooLargeErrorPropagation:
             with pytest.raises(FileTooLargeError):
                 read_rar_file(fileobj=io.BytesIO(b"any"))
 
+    def test_ebook_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.ebook._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_ebook_file(fileobj=io.BytesIO(b"any"))
+
+    def test_hdf5_reader_propagates(self, tmp_path: Path) -> None:
+        # Patch H5PY_AVAILABLE so the optional-dep ImportError doesn't fire
+        # ahead of the size-check on CI without h5py installed.
+        with (
+            patch("utils.readers.scientific.H5PY_AVAILABLE", True),
+            patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large),
+        ):
+            with pytest.raises(FileTooLargeError):
+                read_hdf5_file(fileobj=io.BytesIO(b"any"))
+
+    def test_netcdf_reader_propagates(self, tmp_path: Path) -> None:
+        with (
+            patch("utils.readers.scientific.NETCDF4_AVAILABLE", True),
+            patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large),
+        ):
+            with pytest.raises(FileTooLargeError):
+                read_netcdf_file(fileobj=io.BytesIO(b"any"))
+
+    def test_mat_reader_propagates(self, tmp_path: Path) -> None:
+        with (
+            patch("utils.readers.scientific.SCIPY_AVAILABLE", True),
+            patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large),
+        ):
+            with pytest.raises(FileTooLargeError):
+                read_mat_file(fileobj=io.BytesIO(b"any"))
+
 
 class TestRequiresFilePathOrFileobj:
     """Every reader must reject calls with neither arg supplied."""
@@ -430,6 +712,10 @@ class TestRequiresFilePathOrFileobj:
             read_7z_file,
             read_tar_file,
             read_rar_file,
+            read_ebook_file,
+            read_hdf5_file,
+            read_netcdf_file,
+            read_mat_file,
         ],
     )
     def test_rejects_both_args_missing(self, reader) -> None:  # type: ignore[no-untyped-def]
@@ -471,13 +757,12 @@ class TestReadFileViaSafedir:
                 read_file_via_safedir(sd, "link.txt")
 
     def test_unsupported_extension_returns_none(self, tmp_path: Path) -> None:
-        """Extensions not yet in ``_SAFEDIR_READERS`` (ebooks, scientific,
-        CAD) return None — caller can fall back to legacy path-based
-        ``read_file``.
+        """Extensions not yet in ``_SAFEDIR_READERS`` (CAD) return None —
+        caller can fall back to legacy path-based ``read_file``.
         """
-        (tmp_path / "book.epub").write_bytes(b"PK\x03\x04")
+        (tmp_path / "model.dxf").write_text("dummy dxf")
         with SafeDir.open_root(tmp_path) as sd:
-            assert read_file_via_safedir(sd, "book.epub") is None
+            assert read_file_via_safedir(sd, "model.dxf") is None
 
     def test_rejects_bad_name(self, tmp_path: Path) -> None:
         """Component-name validation rides on SafeDir.open_for_reader."""
@@ -579,6 +864,135 @@ class TestReadFileViaSafedir:
         mock_rarfile_mod.RarFile.assert_called_once()
         call_args, _ = mock_rarfile_mod.RarFile.call_args
         assert hasattr(call_args[0], "read")
+
+    def test_dispatches_epub_extension(self, tmp_path: Path) -> None:
+        """End-to-end: dispatcher resolves ``.epub`` via the new SafeDir
+        ebook entry and returns ebooklib's parsed text.
+        """
+        _make_epub(tmp_path / "book.epub")
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, "book.epub")
+        assert out is not None
+        assert "Chapter one with searchable content" in out
+
+    @pytest.mark.parametrize("name", ["data.h5", "data.hdf5", "data.hdf"])
+    def test_dispatches_hdf5_extensions(self, tmp_path: Path, name: str) -> None:
+        """Each HDF5 alias must reach ``read_hdf5_file`` via the dispatcher.
+
+        Mocked rather than using a real HDF5 file so the test runs on the
+        default CI matrix (``.[dev,search]`` — no ``scientific`` extra).
+        Asserts the SafeDir-opened fileobj reached the library binding.
+        """
+        # _SAFEDIR_READERS still requires the file to exist for SafeDir's
+        # open_for_reader, so a placeholder is enough.
+        (tmp_path / name).write_bytes(b"\x89HDF\r\n\x1a\n" + b"\x00" * 32)
+
+        mock_ds = MagicMock()
+        mock_ds.shape = (3,)
+        mock_ds.dtype = "int32"
+        mock_ds.nbytes = 12
+        mock_ds.attrs = {}
+
+        def fake_visititems(callback):  # type: ignore[no-untyped-def]
+            callback("alpha", mock_ds)
+
+        mock_hf = MagicMock()
+        mock_hf.keys.return_value = ["alpha"]
+        mock_hf.visititems.side_effect = fake_visititems
+        mock_hf.__enter__.return_value = mock_hf
+        mock_hf.__exit__.return_value = None
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with (
+                patch("utils.readers.scientific.H5PY_AVAILABLE", True),
+                patch("utils.readers.scientific.h5py", create=True) as mock_h5py,
+            ):
+                mock_h5py.File.return_value = mock_hf
+                mock_h5py.Dataset = type(mock_ds)
+                mock_h5py.Group = type(None)
+                out = read_file_via_safedir(sd, name)
+        assert out is not None
+        assert f"HDF5 File: {name}" in out
+        assert "alpha" in out
+        # SafeDir-opened fileobj reached the underlying library.
+        call_args, _kwargs = mock_h5py.File.call_args
+        assert hasattr(call_args[0], "read")
+
+    @pytest.mark.parametrize("name", ["data.nc", "data.nc4", "data.netcdf"])
+    def test_dispatches_netcdf_extensions(self, tmp_path: Path, name: str) -> None:
+        """Each NetCDF alias must reach ``read_netcdf_file`` via the
+        dispatcher and route through the ``memory=`` parameter (the
+        netCDF4 C API doesn't accept fileobjs).
+        """
+        (tmp_path / name).write_bytes(b"CDF\x01" + b"\x00" * 32)
+
+        mock_dim = MagicMock()
+        mock_dim.isunlimited.return_value = False
+        mock_dim.__len__ = MagicMock(return_value=2)
+        mock_var = MagicMock()
+        mock_var.dtype = "float32"
+        mock_var.shape = (2,)
+
+        mock_nc = MagicMock()
+        mock_nc.data_model = "NETCDF4"
+        mock_nc.dimensions = {"time": mock_dim}
+        mock_nc.variables = {"x": mock_var}
+        mock_nc.ncattrs.return_value = []
+        mock_nc.__enter__.return_value = mock_nc
+        mock_nc.__exit__.return_value = None
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with (
+                patch("utils.readers.scientific.NETCDF4_AVAILABLE", True),
+                patch("utils.readers.scientific.netCDF4", create=True) as mock_netcdf4,
+            ):
+                mock_netcdf4.Dataset.return_value = mock_nc
+                out = read_file_via_safedir(sd, name)
+        assert out is not None
+        assert f"NetCDF File: {name}" in out
+        assert "time: 2" in out
+        # The fileobj was buffered into bytes and passed as ``memory=``.
+        _args, kwargs = mock_netcdf4.Dataset.call_args
+        assert isinstance(kwargs.get("memory"), bytes)
+
+    def test_dispatches_mat_extension(self, tmp_path: Path) -> None:
+        """End-to-end: ``.mat`` reaches ``read_mat_file`` and scipy parses
+        the in-memory stream.
+        """
+        (tmp_path / "data.mat").write_bytes(b"MATLAB 5.0 MAT-file\x00" + b"\x00" * 32)
+
+        mock_loadmat = MagicMock(
+            return_value={"__header__": b"MAT", "alpha": MagicMock(shape=(2,))}
+        )
+        with SafeDir.open_root(tmp_path) as sd:
+            with (
+                patch("utils.readers.scientific.SCIPY_AVAILABLE", True),
+                patch("utils.readers.scientific.loadmat", mock_loadmat, create=True),
+            ):
+                out = read_file_via_safedir(sd, "data.mat")
+        assert out is not None
+        assert "MATLAB File: data.mat" in out
+        assert "alpha" in out
+        # SafeDir-opened fileobj reached the underlying library.
+        call_args, _kwargs = mock_loadmat.call_args
+        assert hasattr(call_args[0], "read")
+
+    def test_refuses_symlinked_epub(self, tmp_path: Path) -> None:
+        """The dispatcher refuses a symlinked EPUB in the organize root —
+        the SafeDir fd would dereference the link otherwise.
+        """
+        real = tmp_path / "real.epub"
+        _make_epub(real)
+        organize = tmp_path / "organize"
+        organize.mkdir()
+        try:
+            (organize / "decoy.epub").symlink_to(real)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(organize) as sd:
+            with pytest.raises(SymlinkRejected):
+                read_file_via_safedir(sd, "decoy.epub")
 
     def test_refuses_symlinked_zip(self, tmp_path: Path) -> None:
         """A symlinked archive in the organize root must be refused, not

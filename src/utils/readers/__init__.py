@@ -176,8 +176,13 @@ def read_file(file_path: str | Path, **kwargs: object) -> str | None:
 # Migrated in PR3b (#267): archive readers — ZIP, 7Z, TAR (incl. compound
 # extensions like ``.tar.gz``/``.tar.bz2``/``.tar.xz``), and RAR.
 #
-# Remaining path-only readers (ebook, scientific, CAD) dispatch falls back to
-# ``read_file`` and does not benefit from SafeDir's symlink rejection.
+# Migrated in PR3c (#267): ebook (EPUB) and scientific (HDF5, NetCDF, MAT)
+# readers. NetCDF buffers the stream into memory via ``memory=`` because the
+# netCDF4 C extension doesn't accept file-likes directly; size is capped by
+# ``_check_fd_size`` before the buffer is materialised.
+#
+# Remaining path-only readers (CAD) dispatch falls back to ``read_file`` and
+# does not benefit from SafeDir's symlink rejection.
 _SAFEDIR_READERS: dict[tuple[str, ...], object] = {
     (".txt", ".md"): read_text_file,
     (".docx",): read_docx_file,
@@ -189,6 +194,10 @@ _SAFEDIR_READERS: dict[tuple[str, ...], object] = {
     (".7z",): read_7z_file,
     (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz"): read_tar_file,
     (".rar",): read_rar_file,
+    (".epub",): read_ebook_file,
+    (".hdf5", ".h5", ".hdf"): read_hdf5_file,
+    (".nc", ".nc4", ".netcdf"): read_netcdf_file,
+    (".mat",): read_mat_file,
 }
 
 
