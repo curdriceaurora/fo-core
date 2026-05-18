@@ -162,10 +162,20 @@ class TextProcessor:
                     filename=file_path.stem,
                     error=f"Refused to read symlink: {file_path.name}",
                 )
+            except NotImplementedError:
+                # SafeDir requires POSIX dir_fd / O_NOFOLLOW; on Windows
+                # the Windows port is deferred (#264). Fall back to the
+                # legacy path-based reader so Windows users can still
+                # process .txt/.md/.pdf/.docx through TextProcessor.
+                # Tracked for follow-up in PR3b–PR3e.
+                logger.debug(
+                    "SafeDir unavailable on this platform; using legacy reader for {}",
+                    file_path.name,
+                )
             if content is None:
-                # Extension not yet supported by the SafeDir dispatcher
-                # (archives, ebooks, scientific, CAD — migrated in
-                # PR3b–PR3e). Fall back to the legacy path-based reader.
+                # Either the SafeDir dispatcher returned ``None`` (extension
+                # not yet migrated — archives, ebooks, scientific, CAD,
+                # handled in PR3b–PR3e) OR SafeDir is unavailable (Windows).
                 # Real FS errors from the SafeDir branch propagate to the
                 # outer ``except FileReadError`` / ``except OSError``
                 # handlers — never silently masked by a path-based retry

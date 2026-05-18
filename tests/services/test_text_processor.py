@@ -175,6 +175,31 @@ class TestTextProcessor:
 class TestTextProcessorFileProcessing:
     """Tests for file processing logic."""
 
+    @patch("services.text_processor.read_file")
+    @patch(
+        "services.text_processor.SafeDir.open_root",
+        side_effect=NotImplementedError("SafeDir requires POSIX dir_fd / O_NOFOLLOW support"),
+    )
+    def test_process_file_falls_back_when_safedir_unavailable(
+        self,
+        _mock_safedir: MagicMock,
+        mock_legacy_read: MagicMock,
+        text_processor: TextProcessor,
+        mock_text_model: MagicMock,
+    ) -> None:
+        """On Windows (or anywhere SafeDir is unavailable), ``process_file``
+        must fall back to the legacy path-based ``read_file`` so users can
+        still process common documents. Regression test for the Windows
+        ``NotImplementedError`` path."""
+        mock_legacy_read.return_value = "fallback content"
+        mock_text_model.generate.side_effect = ["desc", "folder_cat", "file_name"]
+
+        result = text_processor.process_file("test.txt")
+
+        assert result.error is None
+        assert "fallback" in (result.original_content or "")
+        mock_legacy_read.assert_called_once()
+
     @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_success(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock

@@ -163,6 +163,53 @@ class TestReadPresentationFileFileobj:
 # ---------------------------------------------------------------------------
 
 
+class TestFileTooLargeErrorPropagation:
+    """`FileTooLargeError` from ``_check_fd_size`` must propagate to callers
+    of the ``fileobj=`` branch. The dispatcher docstring promises this type;
+    if the broad ``except Exception`` parser-error handler wrapped it as
+    ``FileReadError``, callers could no longer distinguish oversized files
+    from genuine reader failures.
+
+    Patches ``_check_fd_size`` to raise directly — the goal here is to
+    verify the reader's exception handling preserves the type, not to
+    re-test ``_check_fd_size`` itself (covered above).
+    """
+
+    @staticmethod
+    def _raise_too_large(*_args: object, **_kwargs: object) -> None:
+        raise FileTooLargeError("test: file too large")
+
+    def test_text_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.documents._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_text_file(fileobj=io.BytesIO(b"any"))
+
+    def test_docx_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.documents._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_docx_file(fileobj=io.BytesIO(b"any"))
+
+    def test_pdf_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.documents._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_pdf_file(fileobj=io.BytesIO(b"any"))
+
+    def test_rtf_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.documents._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_rtf_file(fileobj=io.BytesIO(b"any"))
+
+    def test_spreadsheet_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.documents._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_spreadsheet_file(file_path=tmp_path / "x.csv", fileobj=io.BytesIO(b"any"))
+
+    def test_presentation_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.documents._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_presentation_file(fileobj=io.BytesIO(b"any"))
+
+
 class TestRequiresFilePathOrFileobj:
     """Every reader must reject calls with neither arg supplied."""
 

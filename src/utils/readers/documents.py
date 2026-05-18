@@ -89,8 +89,11 @@ def read_text_file(
     """
     if fileobj is not None:
         label = Path(file_path).name if file_path is not None else "<fileobj>"
+        # Size check outside the try so ``FileTooLargeError`` propagates
+        # to callers as the dispatcher docstring promises (it would
+        # otherwise be wrapped as ``FileReadError`` by the broad catch).
+        _check_fd_size(fileobj)
         try:
-            _check_fd_size(fileobj)
             return _parse_text(fileobj, max_chars, label)
         except OSError as e:
             raise FileReadError(f"Failed to read text file {label}: {e}") from e
@@ -136,8 +139,9 @@ def read_docx_file(
         raise ImportError("python-docx is not installed. Install with: pip install python-docx")
     if fileobj is not None:
         label = Path(file_path).name if file_path is not None else "<fileobj>"
+        # Size check outside the try so ``FileTooLargeError`` propagates.
+        _check_fd_size(fileobj)
         try:
-            _check_fd_size(fileobj)
             return _parse_docx(fileobj, label)
         except Exception as e:  # Intentional catch-all: python-docx raises library-specific errors
             raise FileReadError(f"Failed to read DOCX file {label}: {e}") from e
@@ -202,8 +206,9 @@ def read_pdf_file(
         raise ImportError("PyMuPDF is not installed. Install with: pip install PyMuPDF")
     if fileobj is not None:
         label = Path(file_path).name if file_path is not None else "<fileobj>"
+        # Size check outside the try so ``FileTooLargeError`` propagates.
+        _check_fd_size(fileobj)
         try:
-            _check_fd_size(fileobj)
             return _parse_pdf_stream(fileobj, max_pages, label)
         except Exception as e:  # Intentional catch-all: PyMuPDF raises library-specific errors
             raise FileReadError(f"Failed to read PDF file {label}: {e}") from e
@@ -237,8 +242,9 @@ def read_rtf_file(
         raise ImportError("striprtf is required for RTF support: pip install striprtf")
     if fileobj is not None:
         label = Path(file_path).name if file_path is not None else "<fileobj>"
+        # Size check outside the try so ``FileTooLargeError`` propagates.
+        _check_fd_size(fileobj)
         try:
-            _check_fd_size(fileobj)
             return _parse_rtf(fileobj, max_chars, label)
         except Exception as exc:
             raise FileReadError(f"Failed to read RTF {label}: {exc}") from exc
@@ -325,8 +331,9 @@ def read_spreadsheet_file(
     path = Path(file_path)
     ext = path.suffix.lower()
     if fileobj is not None:
+        # Size check outside the try so ``FileTooLargeError`` propagates.
+        _check_fd_size(fileobj)
         try:
-            _check_fd_size(fileobj)
             return _dispatch_spreadsheet(fileobj, ext, max_rows, path.name)
         except (ImportError, FileReadError):
             raise
@@ -380,8 +387,9 @@ def read_presentation_file(
         raise ImportError("python-pptx is not installed. Install with: pip install python-pptx")
     if fileobj is not None:
         label = Path(file_path).name if file_path is not None else "<fileobj>"
+        # Size check outside the try so ``FileTooLargeError`` propagates.
+        _check_fd_size(fileobj)
         try:
-            _check_fd_size(fileobj)
             return _parse_presentation(fileobj, label)
         except Exception as e:  # Intentional catch-all: python-pptx raises library-specific errors
             raise FileReadError(f"Failed to read presentation file {label}: {e}") from e
