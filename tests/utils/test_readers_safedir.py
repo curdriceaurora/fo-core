@@ -29,9 +29,12 @@ from utils.readers import (
     FileTooLargeError,
     read_7z_file,
     read_docx_file,
+    read_dwg_file,
+    read_dxf_file,
     read_ebook_file,
     read_file_via_safedir,
     read_hdf5_file,
+    read_iges_file,
     read_mat_file,
     read_netcdf_file,
     read_pdf_file,
@@ -39,6 +42,7 @@ from utils.readers import (
     read_rar_file,
     read_rtf_file,
     read_spreadsheet_file,
+    read_step_file,
     read_tar_file,
     read_text_file,
     read_zip_file,
@@ -595,6 +599,238 @@ class TestReadMatFileFileobj:
 
 
 # ---------------------------------------------------------------------------
+# CAD readers — fileobj= branch (PR3d)
+# ---------------------------------------------------------------------------
+
+
+def _build_mocked_ezdxf_doc() -> MagicMock:
+    """Return a MagicMock that quacks like an ezdxf Drawing.
+
+    Shared by the DXF / DWG fileobj tests so the mock surface stays
+    consistent — ``_process_dxf_doc`` iterates layers, modelspace
+    entities, and blocks; the mock provides one of each.
+    """
+    mock_header = MagicMock()
+    mock_header.get.return_value = "Test Drawing"
+
+    mock_layer = MagicMock()
+    mock_layer.dxf.name = "Layer0"
+    mock_layer.dxf.color = 7
+
+    mock_entity = MagicMock()
+    mock_entity.dxftype.return_value = "LINE"
+
+    mock_modelspace = MagicMock()
+    mock_modelspace.__iter__ = MagicMock(return_value=iter([mock_entity]))
+
+    mock_block = MagicMock()
+    mock_block.name = "MyBlock"
+
+    mock_doc = MagicMock()
+    mock_doc.header = mock_header
+    mock_doc.dxfversion = "AC1032"
+    mock_doc.layers = [mock_layer]
+    mock_doc.modelspace.return_value = mock_modelspace
+    mock_doc.blocks = [mock_block]
+    return mock_doc
+
+
+class TestReadDxfFileFileobj:
+    """``ezdxf`` is in the ``cad`` optional extra (not in ``.[dev,search]``).
+    Mocked so the reader's Python code paths are exercised on CI without
+    the library installed.
+    """
+
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        mock_doc = _build_mocked_ezdxf_doc()
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad.ezdxf", create=True) as mock_ezdxf,
+        ):
+            mock_ezdxf.read.return_value = mock_doc
+            out = read_dxf_file(
+                file_path=tmp_path / "model.dxf", fileobj=io.BytesIO(b"0\nSECTION\n")
+            )
+        assert "DXF Document Metadata" in out
+        assert "AC1032" in out
+        assert "Layer0" in out
+        # The fileobj branch must use ``ezdxf.read`` (text-stream API),
+        # not ``ezdxf.readfile`` (path API).
+        mock_ezdxf.read.assert_called_once()
+        mock_ezdxf.readfile.assert_not_called()
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad.ezdxf", create=True) as mock_ezdxf,
+        ):
+            mock_ezdxf.read.side_effect = RuntimeError("synthetic ezdxf failure")
+            with pytest.raises(_FRE, match="DXF"):
+                read_dxf_file(file_path=tmp_path / "bad.dxf", fileobj=io.BytesIO(b"not dxf"))
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_dxf_file()
+
+    def test_fileobj_not_closed_after_return(self, tmp_path: Path) -> None:
+        """The fileobj= contract preserves caller ownership. ``ezdxf.read``
+        is fed via ``io.TextIOWrapper``, which closes its source stream
+        on GC unless ``detach()`` is called — verify the underlying
+        binary stream survives the call.
+        """
+        mock_doc = _build_mocked_ezdxf_doc()
+        fileobj = io.BytesIO(b"0\nSECTION\n")
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad.ezdxf", create=True) as mock_ezdxf,
+        ):
+            mock_ezdxf.read.return_value = mock_doc
+            read_dxf_file(file_path=tmp_path / "x.dxf", fileobj=fileobj)
+        import gc
+
+        gc.collect()  # force TextIOWrapper finalisation
+        assert not fileobj.closed
+
+
+class TestReadDwgFileFileobj:
+    """DWG falls back to a basic file-info message when ezdxf can't parse —
+    the fileobj branch uses ``os.fstat`` for size instead of ``Path.stat()``.
+    """
+
+    def test_reads_from_fileobj_when_ezdxf_parses(self, tmp_path: Path) -> None:
+        mock_doc = _build_mocked_ezdxf_doc()
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad.ezdxf", create=True) as mock_ezdxf,
+        ):
+            mock_ezdxf.read.return_value = mock_doc
+            out = read_dwg_file(file_path=tmp_path / "model.dwg", fileobj=io.BytesIO(b"00000"))
+        assert "AC1032" in out
+        mock_ezdxf.read.assert_called_once()
+
+    def test_fileobj_fallback_when_ezdxf_fails(self, tmp_path: Path) -> None:
+        """``ezdxf`` can't always parse DWG; the reader catches and emits
+        a basic file-info message. The fileobj branch derives size from
+        ``os.fstat`` rather than touching the path.
+        """
+        p = tmp_path / "blob.dwg"
+        p.write_bytes(b"binary dwg content here")
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad.ezdxf", create=True) as mock_ezdxf,
+        ):
+            mock_ezdxf.read.side_effect = RuntimeError("cannot parse DWG")
+            with p.open("rb") as f:
+                out = read_dwg_file(file_path=p, fileobj=f)
+        assert "DWG File Information" in out
+        assert "blob.dwg" in out
+        assert "ODA File Converter" in out
+        # Size came from os.fstat on the fileobj, not Path.stat.
+        assert "Size:" in out
+
+    def test_fileobj_fallback_handles_unstatable_stream(self, tmp_path: Path) -> None:
+        """``BytesIO`` raises on ``fileno()``; the size line is omitted."""
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad.ezdxf", create=True) as mock_ezdxf,
+        ):
+            mock_ezdxf.read.side_effect = RuntimeError("cannot parse")
+            out = read_dwg_file(file_path=tmp_path / "x.dwg", fileobj=io.BytesIO(b"binary"))
+        assert "DWG File Information" in out
+        # Size line is suppressed when fstat fails (BytesIO).
+        assert "Size:" not in out
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_dwg_file()
+
+
+class TestReadStepFileFileobj:
+    """STEP is plain ASCII; the fileobj branch decodes the first 10 KB."""
+
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        step_content = (
+            "ISO-10303-21;\n"
+            "HEADER;\n"
+            "FILE_DESCRIPTION(('test description'),'2;1');\n"
+            "FILE_NAME('test.step','2026-01-01',('me'),('co'),'tool','sys','auth');\n"
+            "FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));\n"
+            "ENDSEC;\n"
+            "DATA;\n"
+            "#1=POINT('',(0.,0.,0.));\n"
+            "#2=POINT('',(1.,1.,1.));\n"
+            "ENDSEC;\n"
+            "END-ISO-10303-21;\n"
+        )
+        p = tmp_path / "model.step"
+        p.write_text(step_content)
+        with p.open("rb") as f:
+            out = read_step_file(file_path=p, fileobj=f)
+        assert "STEP File Information" in out
+        assert "model.step" in out
+        assert "FILE_DESCRIPTION" in out
+        assert "Approximate entity count: 2" in out
+        assert "Size:" in out
+
+    def test_fileobj_size_omitted_for_unstatable_stream(self, tmp_path: Path) -> None:
+        """``BytesIO`` can't be ``fstat``ed; the Size line is omitted."""
+        out = read_step_file(
+            file_path=tmp_path / "x.step",
+            fileobj=io.BytesIO(b"ISO-10303-21;\nHEADER;\n"),
+        )
+        assert "STEP File Information" in out
+        assert "Size:" not in out
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_step_file()
+
+
+class TestReadIgesFileFileobj:
+    """IGES is column-structured ASCII; the fileobj branch reads N lines."""
+
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        # Column 73 is the section marker (S=Start, G=Global, D=DirectoryEntry,
+        # P=ParameterData, T=Terminate). Pad each line to 72 chars + marker.
+        def line(content: str, marker: str) -> str:
+            return content.ljust(72) + marker + "      1\n"
+
+        iges_content = (
+            line("This is the start section", "S")
+            + line(",,3HMy ,4HFILE,1,,,,", "G")
+            + line("0", "D")
+            + line("0", "D")
+            + line("Terminate", "T")
+        )
+        p = tmp_path / "model.iges"
+        p.write_text(iges_content)
+        with p.open("rb") as f:
+            out = read_iges_file(file_path=p, fileobj=f)
+        assert "IGES File Information" in out
+        assert "model.iges" in out
+        assert "Start Section" in out
+        assert "Directory entries found: 2" in out
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_iges_file()
+
+    def test_fileobj_not_closed_after_return(self, tmp_path: Path) -> None:
+        """IGES wraps the binary fileobj in ``TextIOWrapper`` to read text
+        lines; verify ``detach()`` releases ownership so the caller's
+        stream isn't closed when the wrapper goes out of scope.
+        """
+        fileobj = io.BytesIO(b" " * 80 + b"S\n" + b" " * 80 + b"G\n")
+        read_iges_file(file_path=tmp_path / "x.iges", fileobj=fileobj)
+        import gc
+
+        gc.collect()
+        assert not fileobj.closed
+
+
+# ---------------------------------------------------------------------------
 # Either-or argument validation
 # ---------------------------------------------------------------------------
 
@@ -696,6 +932,32 @@ class TestFileTooLargeErrorPropagation:
             with pytest.raises(FileTooLargeError):
                 read_mat_file(fileobj=io.BytesIO(b"any"))
 
+    def test_dxf_reader_propagates(self, tmp_path: Path) -> None:
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad._check_fd_size", side_effect=self._raise_too_large),
+        ):
+            with pytest.raises(FileTooLargeError):
+                read_dxf_file(fileobj=io.BytesIO(b"any"))
+
+    def test_dwg_reader_propagates(self, tmp_path: Path) -> None:
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad._check_fd_size", side_effect=self._raise_too_large),
+        ):
+            with pytest.raises(FileTooLargeError):
+                read_dwg_file(fileobj=io.BytesIO(b"any"))
+
+    def test_step_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.cad._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_step_file(fileobj=io.BytesIO(b"any"))
+
+    def test_iges_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.cad._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_iges_file(fileobj=io.BytesIO(b"any"))
+
 
 class TestRequiresFilePathOrFileobj:
     """Every reader must reject calls with neither arg supplied."""
@@ -716,6 +978,10 @@ class TestRequiresFilePathOrFileobj:
             read_hdf5_file,
             read_netcdf_file,
             read_mat_file,
+            read_dxf_file,
+            read_dwg_file,
+            read_step_file,
+            read_iges_file,
         ],
     )
     def test_rejects_both_args_missing(self, reader) -> None:  # type: ignore[no-untyped-def]
@@ -757,12 +1023,15 @@ class TestReadFileViaSafedir:
                 read_file_via_safedir(sd, "link.txt")
 
     def test_unsupported_extension_returns_none(self, tmp_path: Path) -> None:
-        """Extensions not yet in ``_SAFEDIR_READERS`` (CAD) return None —
-        caller can fall back to legacy path-based ``read_file``.
+        """Extensions outside ``_SAFEDIR_READERS`` return None — caller can
+        fall back to legacy path-based ``read_file`` (which itself returns
+        None for genuinely unknown formats). After PR3d, every reader the
+        codebase supports has a SafeDir mapping, so this exercises the
+        truly-unsupported branch with a synthetic extension.
         """
-        (tmp_path / "model.dxf").write_text("dummy dxf")
+        (tmp_path / "data.unknownext").write_text("dummy")
         with SafeDir.open_root(tmp_path) as sd:
-            assert read_file_via_safedir(sd, "model.dxf") is None
+            assert read_file_via_safedir(sd, "data.unknownext") is None
 
     def test_rejects_bad_name(self, tmp_path: Path) -> None:
         """Component-name validation rides on SafeDir.open_for_reader."""
@@ -976,6 +1245,82 @@ class TestReadFileViaSafedir:
         # SafeDir-opened fileobj reached the underlying library.
         call_args, _kwargs = mock_loadmat.call_args
         assert hasattr(call_args[0], "read")
+
+    @pytest.mark.parametrize(
+        ("name", "reader_module_attr"),
+        [
+            ("model.dxf", "read"),
+            ("model.dwg", "read"),
+        ],
+    )
+    def test_dispatches_dxf_dwg_extensions(
+        self, tmp_path: Path, name: str, reader_module_attr: str
+    ) -> None:
+        """``.dxf`` and ``.dwg`` reach the ezdxf-based readers via the
+        dispatcher. Mocked because ``ezdxf`` is in the ``cad`` optional
+        extra (not in the default CI ``.[dev,search]`` install).
+        """
+        (tmp_path / name).write_text("0\nSECTION\nfake dxf content\n")
+
+        mock_doc = _build_mocked_ezdxf_doc()
+        with SafeDir.open_root(tmp_path) as sd:
+            with (
+                patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+                patch("utils.readers.cad.ezdxf", create=True) as mock_ezdxf,
+            ):
+                mock_ezdxf.read.return_value = mock_doc
+                out = read_file_via_safedir(sd, name)
+        assert out is not None
+        assert "AC1032" in out
+        # ezdxf.read (text-stream API) called, not readfile (path API).
+        getattr(mock_ezdxf, reader_module_attr).assert_called_once()
+
+    @pytest.mark.parametrize("name", ["model.step", "model.stp"])
+    def test_dispatches_step_extensions(self, tmp_path: Path, name: str) -> None:
+        """Both ``.step`` and ``.stp`` reach ``read_step_file`` via the
+        dispatcher.
+        """
+        (tmp_path / name).write_text(
+            "ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN'));\nENDSEC;\nDATA;\n"
+            "#1=POINT('',(0.,0.,0.));\nENDSEC;\nEND-ISO-10303-21;\n"
+        )
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, name)
+        assert out is not None
+        assert "STEP File Information" in out
+        assert name in out
+
+    @pytest.mark.parametrize("name", ["model.iges", "model.igs"])
+    def test_dispatches_iges_extensions(self, tmp_path: Path, name: str) -> None:
+        """Both ``.iges`` and ``.igs`` reach ``read_iges_file`` via the
+        dispatcher.
+        """
+        line = lambda content, marker: content.ljust(72) + marker + "      1\n"  # noqa: E731
+        (tmp_path / name).write_text(
+            line("Start info", "S") + line(",,3HMy,4HFILE,", "G") + line("0", "D")
+        )
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, name)
+        assert out is not None
+        assert "IGES File Information" in out
+        assert name in out
+
+    def test_refuses_symlinked_step(self, tmp_path: Path) -> None:
+        """Symlinked CAD files are refused by the dispatcher — exercises
+        the SafeDir O_NOFOLLOW path for one of the new extensions.
+        """
+        real = tmp_path / "real.step"
+        real.write_text("ISO-10303-21;\nHEADER;\nENDSEC;\n")
+        organize = tmp_path / "organize"
+        organize.mkdir()
+        try:
+            (organize / "decoy.step").symlink_to(real)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(organize) as sd:
+            with pytest.raises(SymlinkRejected):
+                read_file_via_safedir(sd, "decoy.step")
 
     def test_refuses_symlinked_epub(self, tmp_path: Path) -> None:
         """The dispatcher refuses a symlinked EPUB in the organize root —

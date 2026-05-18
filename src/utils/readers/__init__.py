@@ -181,8 +181,10 @@ def read_file(file_path: str | Path, **kwargs: object) -> str | None:
 # netCDF4 C extension doesn't accept file-likes directly; size is capped by
 # ``_check_fd_size`` before the buffer is materialised.
 #
-# Remaining path-only readers (CAD) dispatch falls back to ``read_file`` and
-# does not benefit from SafeDir's symlink rejection.
+# Migrated in PR3d (#267): CAD readers — DXF, DWG, STEP, IGES. ezdxf takes a
+# text stream via ``ezdxf.read()`` (binary fileobj is wrapped in
+# ``io.TextIOWrapper``); STEP and IGES are ASCII text formats decoded the
+# same way.
 _SAFEDIR_READERS: dict[tuple[str, ...], object] = {
     (".txt", ".md"): read_text_file,
     (".docx",): read_docx_file,
@@ -198,6 +200,10 @@ _SAFEDIR_READERS: dict[tuple[str, ...], object] = {
     (".hdf5", ".h5", ".hdf"): read_hdf5_file,
     (".nc", ".nc4", ".netcdf"): read_netcdf_file,
     (".mat",): read_mat_file,
+    (".dxf",): read_dxf_file,
+    (".dwg",): read_dwg_file,
+    (".step", ".stp"): read_step_file,
+    (".iges", ".igs"): read_iges_file,
 }
 
 
