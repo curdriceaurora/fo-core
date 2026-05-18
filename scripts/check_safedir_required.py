@@ -43,7 +43,6 @@ import io
 import re
 import sys
 import tokenize
-from collections.abc import Iterator
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -125,15 +124,6 @@ _READ_OPEN_ENFORCED_DIRS: frozenset[str] = frozenset()
 # (``"w"``/``"a"``/``"x"`` without ``"+"``).
 _WRITE_ONLY_MODE_LETTERS = frozenset("wax")
 
-# Stdlib module-style ``.open`` APIs that share the builtin ``open(file, mode)``
-# signature — mode is the 2nd positional argument, not the 1st. Without this
-# allowlist the rail would parse the *filename* argument as the mode and the
-# classification becomes filename-dependent (e.g. ``gzip.open("/tmp/a", "rb")``
-# would extract ``"/tmp/a"`` as mode → ``'a'`` letter → mis-classified as
-# write-only → false negative). For every other ``<X>.open(...)`` receiver
-# (Path, file-object instance methods), mode lives at position 0.
-_MODULE_STYLE_OPEN_RECEIVERS = frozenset({"io", "gzip", "bz2", "lzma", "tarfile", "builtins"})
-
 
 def _is_read_mode(mode_str: str | None) -> bool:
     """Return True if *mode_str* (or default-``"r"`` when None) reads."""
@@ -174,421 +164,7 @@ def _mode_arg(node: ast.Call, mode_position: int) -> str | None:
     return None  # no mode argument → default "r"
 
 
-def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
-    """Walk module-scope ``import`` statements (including those nested
-    inside top-level control-flow constructs like ``if`` / ``try`` /
-    ``with`` / ``for`` / ``while``) and build a local-name → real-
-    module map.
-
-    Handles ``import gzip`` → ``{"gzip": "gzip"}`` and the aliased form
-    ``import gzip as gz`` → ``{"gz": "gzip"}``.
-
-    Imports nested inside a function / class / lambda / comprehension
-    body bind their names in that inner scope, not at module level —
-    those are excluded via ``_iter_excluding_nested_scopes``. The
-    ``_active_aliases_at_call`` resolver applies per-call scope+order
-    awareness on top of this base map; this builder serves only as a
-    "is there any module-level import alias at all?" short-circuit.
-
-    Dotted imports (``import gzip.partial``) collapse to their top-level
-    module name — the receiver in a call like ``gzip.partial.open(...)``
-    is the chained attribute, not a bare ``Name``, so the AST branch in
-    ``_bare_open_violation`` would not match it anyway.
-    """
-    aliases: dict[str, str] = {}
-    for stmt in tree.body:
-        for node in _iter_excluding_nested_scopes(stmt):
-            if isinstance(node, ast.Import):
-                for alias_node in node.names:
-                    top_level = alias_node.name.split(".", 1)[0]
-                    # Python's actual binding rule: ``import x.y`` binds
-                    # ``x`` locally; ``import x.y as z`` binds ``z``.
-                    local = alias_node.asname if alias_node.asname else top_level
-                    aliases[local] = top_level
-    return aliases
-
-
-def _build_parent_map(tree: ast.Module) -> dict[ast.AST, ast.AST]:
-    """Map child AST node → its parent for the entire tree."""
-    parents: dict[ast.AST, ast.AST] = {}
-    for parent in ast.walk(tree):
-        for child in ast.iter_child_nodes(parent):
-            parents[child] = parent
-    return parents
-
-
-_SCOPE_BOUNDARY_TYPES: tuple[type[ast.AST], ...] = (
-    ast.FunctionDef,
-    ast.AsyncFunctionDef,
-    ast.ClassDef,
-    ast.Lambda,
-    # Python 3 scopes comprehension targets to the comprehension itself,
-    # NOT the enclosing function or module. Without excluding these, a
-    # ``[gz for gz in xs]`` comprehension target would be treated as a
-    # rebind of the module-level ``gz`` and incorrectly drop the alias.
-    ast.ListComp,
-    ast.SetComp,
-    ast.DictComp,
-    ast.GeneratorExp,
-)
-
-
-def _iter_excluding_nested_scopes(node: ast.AST) -> Iterator[ast.AST]:
-    """Yield *node* and its descendants, but stop descending at nested
-    scope boundaries (function / async-function / class / lambda /
-    list-comp / set-comp / dict-comp / generator-expression). Each of
-    these introduces its own name-resolution context that should not
-    influence bindings in the enclosing scope.
-    """
-    yield node
-    if isinstance(node, _SCOPE_BOUNDARY_TYPES):
-        return
-    for child in ast.iter_child_nodes(node):
-        yield from _iter_excluding_nested_scopes(child)
-
-
-def _collect_globally_declared_names(body: list[ast.stmt]) -> set[str]:
-    """Walk *body* (excluding nested scopes) and collect names declared
-    by ``global`` / ``nonlocal`` statements. Those names are NOT local
-    to the enclosing function even if assigned later in the body."""
-    declared: set[str] = set()
-    for stmt in body:
-        for node in _iter_excluding_nested_scopes(stmt):
-            if isinstance(node, (ast.Global, ast.Nonlocal)):
-                declared.update(node.names)
-    return declared
-
-
-def _add_import_bound_name(
-    alias_node: ast.alias,
-    target: set[str],
-    excluded: set[str],
-    *,
-    top_level_dot: bool,
-) -> None:
-    """Append the local name bound by *alias_node* to *target* unless it
-    is in *excluded*. ``top_level_dot=True`` collapses dotted imports
-    (``import x.y``) to their top-level name."""
-    if alias_node.name == "*":
-        return
-    if alias_node.asname:
-        bound = alias_node.asname
-    elif top_level_dot:
-        bound = alias_node.name.split(".", 1)[0]
-    else:
-        bound = alias_node.name
-    if bound not in excluded:
-        target.add(bound)
-
-
-def _function_local_names(func: ast.AST) -> set[str]:
-    """Collect every local name bound by *func* (FunctionDef / AsyncFunctionDef
-    / Lambda) — parameters AND any Store-context Name / nested ``Import`` in
-    the body, BUT NOT inside further-nested functions/classes/lambdas/
-    comprehensions (those have their own scope).
-
-    Names declared ``global`` / ``nonlocal`` are NOT local — assignments
-    to them bind in the enclosing scope, not the function's own
-    namespace.
-    """
-    names: set[str] = set()
-    args = func.args  # type: ignore[attr-defined]
-    for arg_node in (*args.posonlyargs, *args.args, *args.kwonlyargs):
-        names.add(arg_node.arg)
-    if args.vararg:
-        names.add(args.vararg.arg)
-    if args.kwarg:
-        names.add(args.kwarg.arg)
-    body = func.body if isinstance(func.body, list) else []  # type: ignore[attr-defined]
-    declared_non_local = _collect_globally_declared_names(body)
-    for stmt in body:
-        for node in _iter_excluding_nested_scopes(stmt):
-            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                if node.id not in declared_non_local:
-                    names.add(node.id)
-            elif isinstance(node, ast.Import):
-                for alias_node in node.names:
-                    _add_import_bound_name(
-                        alias_node, names, declared_non_local, top_level_dot=True
-                    )
-            elif isinstance(node, ast.ImportFrom):
-                for alias_node in node.names:
-                    _add_import_bound_name(
-                        alias_node, names, declared_non_local, top_level_dot=False
-                    )
-            elif (
-                isinstance(node, ast.ExceptHandler)
-                and node.name is not None
-                and node.name not in declared_non_local
-            ):
-                # ``except ... as name:`` binds via the handler's name attr.
-                names.add(node.name)
-            elif (
-                isinstance(node, (ast.MatchAs, ast.MatchStar))
-                and node.name is not None
-                and node.name not in declared_non_local
-            ):
-                # ``case gz:`` / ``case [x, *gz]`` — pattern capture.
-                names.add(node.name)
-            elif (
-                isinstance(node, ast.MatchMapping)
-                and node.rest is not None
-                and node.rest not in declared_non_local
-            ):
-                # ``case {**rest}:`` — captures the unmatched keys.
-                names.add(node.rest)
-    return names
-
-
-def _class_local_names(class_def: ast.ClassDef) -> set[str]:
-    """Collect every name bound in *class_def*'s body — Name(Store)
-    assignments and ``Import`` / ``ImportFrom`` aliases — excluding
-    nested function / class / lambda / comprehension scopes.
-
-    Class body has its own namespace at definition time; names bound
-    here become class attributes. Calls placed DIRECTLY in the class
-    body (not inside a method) resolve the receiver against this
-    namespace first.
-    """
-    names: set[str] = set()
-    for stmt in class_def.body:
-        for node in _iter_excluding_nested_scopes(stmt):
-            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                names.add(node.id)
-            elif isinstance(node, ast.Import):
-                for alias_node in node.names:
-                    if alias_node.asname:
-                        names.add(alias_node.asname)
-                    else:
-                        names.add(alias_node.name.split(".", 1)[0])
-            elif isinstance(node, ast.ImportFrom):
-                for alias_node in node.names:
-                    if alias_node.name == "*":
-                        continue
-                    names.add(alias_node.asname if alias_node.asname else alias_node.name)
-    # Class body also binds the class methods/nested classes themselves
-    # (since those are not entered by the iterator above).
-    for stmt in class_def.body:
-        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            names.add(stmt.name)
-    return names
-
-
-def _top_level_stmt_lineno(
-    node: ast.AST, parents: dict[ast.AST, ast.AST], module: ast.Module
-) -> int | None:
-    """Return the lineno of the top-level (module body) statement that
-    contains *node*, or ``None`` if *node* is not under the module body.
-    """
-    cur = node
-    while cur in parents:
-        parent = parents[cur]
-        if parent is module:
-            return cur.lineno
-        cur = parent
-    return None
-
-
-def _enclosing_function(call_node: ast.AST, parents: dict[ast.AST, ast.AST]) -> ast.AST | None:
-    """Return the immediate enclosing function / async-function / lambda
-    for *call_node*, or None if the call is at module / class-body
-    scope."""
-    cur = call_node
-    while cur in parents:
-        cur = parents[cur]
-        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-            return cur
-        if isinstance(cur, ast.Module):
-            return None
-    return None
-
-
-def _replay_module_aliases(module: ast.Module, cutoff_lineno: int | None) -> dict[str, str]:
-    """Walk module body in source order; build the active alias map.
-
-    Walks every top-level statement with ``lineno <= cutoff_lineno`` (all
-    statements if cutoff is None). For each statement:
-
-    - ``ast.Import`` adds/updates aliases (handles same-name re-imports
-      in source order — later ``import X as gz`` overwrites earlier
-      ``import Y as gz``).
-    - ``ast.ImportFrom`` drops any matching alias. ``from M import X as gz``
-      binds ``gz`` to something from module M (typically a class /
-      function / constant — not a module). Be conservative and drop.
-    - ``ast.FunctionDef`` / ``ast.AsyncFunctionDef`` / ``ast.ClassDef``
-      at module level rebind the name to a function / class object —
-      drop the alias.
-    - Any ``ast.Name(Store)`` (excluding nested function / class /
-      lambda / comprehension scopes) removes the matching alias.
-    """
-    active: dict[str, str] = {}
-    for stmt in module.body:
-        if cutoff_lineno is not None and stmt.lineno > cutoff_lineno:
-            break
-        for node in _iter_excluding_nested_scopes(stmt):
-            _apply_node_to_alias_map(node, active)
-    return active
-
-
-def _apply_node_to_alias_map(node: ast.AST, active: dict[str, str]) -> None:
-    """Apply a single AST node's binding effect to *active*. Handles
-    every form of name binding that can appear in a module-level scope
-    (including inside top-level control-flow statements like ``if`` /
-    ``try`` / ``with`` / ``for`` / ``while``):
-
-    - ``ast.Import`` adds aliases (handles ``import gzip``,
-      ``import gzip as gz``, ``import x.y``).
-    - ``ast.ImportFrom`` drops matching alias (``from M import gz`` /
-      ``from M import X as gz`` — not a module).
-    - ``ast.FunctionDef`` / ``ast.AsyncFunctionDef`` / ``ast.ClassDef``
-      drop the alias whose name matches the def/class.
-    - ``ast.Name(Store)`` drops the alias for assignment targets.
-    - ``ast.ExceptHandler`` drops on ``except ... as name``.
-    - ``ast.MatchAs`` / ``ast.MatchStar`` drop on pattern captures.
-    - ``ast.MatchMapping`` drops on ``**rest`` mapping rest capture.
-    """
-    if isinstance(node, ast.Import):
-        for alias_node in node.names:
-            top_level = alias_node.name.split(".", 1)[0]
-            local = alias_node.asname if alias_node.asname else top_level
-            active[local] = top_level
-    elif isinstance(node, ast.ImportFrom):
-        for alias_node in node.names:
-            if alias_node.name == "*":
-                continue
-            bound = alias_node.asname if alias_node.asname else alias_node.name
-            active.pop(bound, None)
-    elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-        active.pop(node.name, None)
-    elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-        active.pop(node.id, None)
-    elif isinstance(node, ast.ExceptHandler) and node.name is not None:
-        active.pop(node.name, None)
-    elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name is not None:
-        active.pop(node.name, None)
-    elif isinstance(node, ast.MatchMapping) and node.rest is not None:
-        active.pop(node.rest, None)
-
-
-def _drop_function_shadowed(
-    active: dict[str, str],
-    call_node: ast.AST,
-    parents: dict[ast.AST, ast.AST],
-) -> None:
-    """Walk enclosing scopes; drop aliases shadowed by each scope's
-    local bindings. Mutates *active* in place.
-
-    Python LEGB rule with the class-scope caveat:
-    - Function / async-function / lambda: collect locals; continue
-      outward through enclosing FUNCTIONS (Python skips intervening
-      class scopes when a method looks up a free variable).
-    - Class body: applies ONLY when it is the *immediate* enclosing
-      scope of the call (e.g. a statement directly in the class body,
-      not a call inside a method). Methods inside the class do not see
-      the class namespace via LEGB.
-    """
-    cur = call_node
-    is_immediate_scope = True
-    while cur in parents:
-        cur = parents[cur]
-        if isinstance(cur, ast.Module):
-            return
-        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-            local_names = _function_local_names(cur)
-            for name in list(active):
-                if name in local_names:
-                    del active[name]
-            is_immediate_scope = False
-        elif isinstance(cur, ast.ClassDef):
-            if is_immediate_scope:
-                local_names = _class_local_names(cur)
-                for name in list(active):
-                    if name in local_names:
-                        del active[name]
-            is_immediate_scope = False
-
-
-def _active_aliases_at_call(
-    call_node: ast.Call,
-    base_aliases: dict[str, str],
-    parents: dict[ast.AST, ast.AST],
-    module: ast.Module,
-) -> dict[str, str]:
-    """Return the alias map effective at *call_node*'s location.
-
-    Uses a **replay** model rather than build-then-filter:
-
-    1. Determine the cutoff. For calls *inside* a function/lambda, the
-       cutoff is end-of-file — by invocation time the module body has
-       fully executed, so every module-level binding is visible. For
-       module-level calls, the cutoff is the lineno of the call's
-       containing top-level statement (inclusive — bindings in the
-       statement's header like ``for gz in ...:`` apply to the body).
-    2. Walk ``module.body`` in source order. For each statement at
-       ``lineno <= cutoff`` (or all statements if cutoff is None):
-
-       - ``ast.Import`` adds / updates aliases (top-level module name,
-         keyed by asname or top-level local name). This means a later
-         ``import pathlib as gz`` correctly overwrites an earlier
-         ``import gzip as gz`` from that line forward, and calls between
-         the two see the EARLIER mapping.
-       - Any ``ast.Name(Store)`` within the statement (excluding nested
-         function / class / lambda scopes, which Python treats as
-         separate name-resolution contexts) removes the name from the
-         alias map. So ``for gz in items:`` drops ``gz`` for calls inside
-         the body, and ``gz = Path(...)`` followed by ``gz.open('wb')``
-         drops ``gz`` before the call.
-
-    3. Apply function-scope shadowing on top: walk outward from the call
-       to the module. At each enclosing function / lambda, drop any
-       alias whose name is locally bound (parameter, ``Name(Store)``,
-       or nested ``Import``).
-
-    The replay model naturally handles:
-
-    - Same-line rebinds (``for gz in ...: gz.open(...)`` — the for-target
-      and the call share the for-statement's lineno; the target binding
-      is collected when walking the statement).
-    - Multiple imports of the same alias name (calls between them see
-      the earlier mapping; calls after the second see the new mapping).
-    - Module-level rebinds AFTER an in-function definition (the function
-      call sees the post-rebind value because cutoff is end-of-file).
-    """
-    if not base_aliases:
-        return {}
-
-    # Determine cutoff:
-    # - In-function call: cutoff = the immediate enclosing def's lineno.
-    #   This is a static heuristic — Python doesn't snapshot module
-    #   bindings at def-time, so the call's *runtime* alias depends on
-    #   when the function is invoked. Using the def's lineno captures
-    #   the "imported, then defined, then called during module init"
-    #   pattern (no post-def rebinds visible). Trade-off vs end-of-file
-    #   cutoff: choosing the def lineno produces false positives for
-    #   functions invoked AFTER a module-level rebind, but avoids false
-    #   negatives for functions invoked during module init.
-    # - Module-level call: cutoff = the call's top-level statement
-    #   lineno (inclusive — so bindings in the statement's header,
-    #   like ``for gz in ...:``, apply to the call in the body).
-    enclosing_fn = _enclosing_function(call_node, parents)
-    if enclosing_fn is not None:
-        cutoff_lineno: int | None = enclosing_fn.lineno
-    else:
-        cutoff_lineno = _top_level_stmt_lineno(call_node, parents, module)
-        if cutoff_lineno is None:
-            return {}
-
-    active = _replay_module_aliases(module, cutoff_lineno)
-    if not active:
-        return active
-    _drop_function_shadowed(active, call_node, parents)
-    return active
-
-
-def _bare_open_violation(
-    node: ast.Call,
-    module_aliases: dict[str, str] | None = None,
-) -> str | None:
+def _bare_open_violation(node: ast.Call) -> str | None:
     """Return a synthetic name for a bare-open read, or ``None``.
 
     Detects:
@@ -597,11 +173,6 @@ def _bare_open_violation(
       - ``<X>.open("r"...)`` on Path/file → ``"<receiver>.open"``  (any X
         — the rail can't statically tell SafeDir from Path, so the
         marker is the disambiguator)
-
-    When *module_aliases* is supplied, the receiver in ``<X>.open(...)``
-    is resolved through the map before checking ``_MODULE_STYLE_OPEN_RECEIVERS``,
-    so ``import gzip as gz`` followed by ``gz.open(p, "rb")`` correctly
-    routes to the module-style classification.
 
     The detector only returns a name; the caller checks
     ``_READ_OPEN_ENFORCED_DIRS`` membership.
@@ -614,24 +185,13 @@ def _bare_open_violation(
         return None
     # ``<receiver>.open(...)`` — Attribute node, attr == "open"
     if isinstance(func, ast.Attribute) and func.attr == "open":
-        receiver = func.value
-        # Module-style: ``io.open(path, "rb")`` / ``gzip.open(path, "rb")`` /
-        # ``bz2.open(...)`` etc. Mode is positional arg 1 (signature mirrors
-        # the builtin ``open(file, mode, ...)``). Only classify as module-
-        # style when the receiver is PROVEN to resolve to a module binding
-        # at this call site — i.e., it appears in the (already-shadow-
-        # resolved) ``module_aliases`` map AND that canonical name is in
-        # the stdlib module-style allowlist. A receiver literally named
-        # ``gzip`` (parameter, local, etc.) that is NOT in the alias map
-        # falls through to the Path.open branch.
-        if isinstance(receiver, ast.Name):
-            canonical = (module_aliases or {}).get(receiver.id)
-            if canonical is not None and canonical in _MODULE_STYLE_OPEN_RECEIVERS:
-                if _is_read_mode(_mode_arg(node, mode_position=1)):
-                    return f"{canonical}.open"
-                return None
-        # ``path.open("rb")`` — Path-like / instance method. Mode is
-        # positional arg 0 (the receiver doesn't appear in node.args).
+        # io.open(path, "rb") — receiver is Name "io"
+        if isinstance(func.value, ast.Name) and func.value.id == "io":
+            if _is_read_mode(_mode_arg(node, mode_position=1)):
+                return "io.open"
+            return None
+        # ``path.open("rb")`` — any other receiver. Mode is positional
+        # arg 0 (the receiver doesn't appear in node.args).
         if _is_read_mode(_mode_arg(node, mode_position=0)):
             return "Path.open"
         return None
@@ -721,15 +281,6 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
     marker_lines = _collect_marker_comment_lines(source)
     total = len(lines)
     bare_open_active = _file_under_enforced_dir(path)
-    # Pre-compute the base alias map and parent map once per file. The
-    # per-call resolver ``_active_aliases_at_call`` combines them with
-    # scope + order awareness for each individual call site.
-    base_aliases: dict[str, str] = {}
-    parents: dict[ast.AST, ast.AST] = {}
-    if bare_open_active:
-        base_aliases = _build_module_alias_map(tree)
-        if base_aliases:
-            parents = _build_parent_map(tree)
     out: list[tuple[int, str, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -745,16 +296,7 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
         # Pass 2: bare-open read (directory-scoped)
         if not bare_open_active:
             continue
-        # Resolve aliases active at THIS call's location. Earlier
-        # commits used a single file-global alias map and either kept
-        # the alias even when a later rebind invalidated it (false
-        # positive for write-mode .open) or dropped the alias because
-        # of a later/unrelated rebind (false negative for legitimate
-        # reads). Per-call resolution avoids both.
-        effective_aliases = (
-            _active_aliases_at_call(node, base_aliases, parents, tree) if base_aliases else {}
-        )
-        bare_name = _bare_open_violation(node, effective_aliases)
+        bare_name = _bare_open_violation(node)
         if bare_name is None:
             continue
         if _has_opt_out_in_window(marker_lines, node.lineno, total):
