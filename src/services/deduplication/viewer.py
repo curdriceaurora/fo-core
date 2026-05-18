@@ -26,6 +26,8 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
+from .image_utils import safedir_image_open
+
 
 class UserAction(Enum):
     """User actions for duplicate handling."""
@@ -201,7 +203,7 @@ class ComparisonViewer:
         Raises:
             Exception: If image cannot be loaded
         """
-        with Image.open(image_path) as img:
+        with safedir_image_open(image_path) as img:
             width, height = img.size
             img_format = img.format or "UNKNOWN"
             mode = img.mode
@@ -301,7 +303,7 @@ class ComparisonViewer:
             ASCII art string or None if preview fails
         """
         try:
-            with Image.open(image_path) as raw_img:
+            with safedir_image_open(image_path) as raw_img:
                 # Convert to grayscale
                 img: Image.Image = raw_img.convert("L")
 

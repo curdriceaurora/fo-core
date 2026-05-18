@@ -2,18 +2,79 @@
 
 Provides helper functions for image validation, metadata extraction,
 format conversion, and batch processing operations.
+
+Every image read goes through :func:`safedir_image_open`, which routes
+``PIL.Image.open`` through a SafeDir-opened file descriptor on POSIX.
+A symlink swapped into the organize root between the directory walk and
+the read is refused with ``SymlinkRejected`` (an ``OSError`` subclass)
+rather than dereferenced — closes the symlink-following surface in the
+image dedup ingestion pipeline (#264). On Windows (where SafeDir's
+``dir_fd`` + ``O_NOFOLLOW`` primitives are unavailable) the legacy
+path-based ``Image.open`` is used.
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
+import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 from PIL import Image, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 
+from utils.safedir import SafeDir
+
 logger = logging.getLogger(__name__)
+
+
+@contextlib.contextmanager
+def safedir_image_open(image_path: Path) -> Iterator[Image.Image]:
+    """Yield a ``PIL.Image`` opened via SafeDir; refuses symlinks.
+
+    Behaves like ``with safedir_image_open(image_path) as img:`` but the file
+    is opened through ``SafeDir.open_for_reader`` so a symlink inside
+    ``image_path.parent`` is refused with ``SymlinkRejected`` (an
+    ``OSError`` subclass) instead of dereferenced. Callers that
+    already catch ``OSError`` will naturally treat refused symlinks
+    as unreadable images.
+
+    On Windows (or any platform where SafeDir raises
+    ``NotImplementedError``) the helper falls back to direct
+    ``Image.open(image_path)`` — preserves the legacy API surface.
+
+    The Pillow Image lifecycle: ``Image.open(fileobj)`` is lazy, so
+    the fileobj must stay alive until the image is closed. We keep
+    both contexts open until the caller's ``with`` block exits.
+    """
+    if sys.platform == "win32":
+        with Image.open(image_path) as img:
+            yield img
+        return
+
+    try:
+        with SafeDir.open_root(image_path.parent) as safe_dir:
+            fd = safe_dir.open_for_reader(image_path.name)
+            # fdopen takes ownership only once it returns; explicitly
+            # close the raw fd if fdopen itself raises (e.g. on a
+            # closed dir_fd race).
+            try:
+                fileobj = os.fdopen(fd, "rb", closefd=True)
+            except OSError:
+                os.close(fd)
+                raise
+            with fileobj, Image.open(fileobj) as img:
+                yield img
+    except NotImplementedError:
+        # SafeDir's POSIX primitives unavailable on this build; fall
+        # back to direct Image.open so the helper still works.
+        logger.debug("SafeDir unavailable; using legacy Image.open for %s", image_path.name)
+        with Image.open(image_path) as img:
+            yield img
+
 
 # Supported image formats
 SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif", ".webp"}
@@ -93,7 +154,7 @@ def get_image_metadata(image_path: Path) -> ImageMetadata | None:
         return None
 
     try:
-        with Image.open(image_path) as img:
+        with safedir_image_open(image_path) as img:
             width, height = img.size
             image_format = img.format or "unknown"
             mode = img.mode
@@ -129,7 +190,7 @@ def get_image_dimensions(image_path: Path) -> tuple[int, int] | None:
         Tuple of (width, height) in pixels, or None if image cannot be read
     """
     try:
-        with Image.open(image_path) as img:
+        with safedir_image_open(image_path) as img:
             return img.size  # type: ignore[no-any-return]
     except (OSError, ValueError) as e:
         logger.warning(f"Could not get dimensions for {image_path}: {e}")
@@ -146,7 +207,7 @@ def get_image_format(image_path: Path) -> str | None:
         Format string (e.g., "JPEG", "PNG"), or None if cannot be determined
     """
     try:
-        with Image.open(image_path) as img:
+        with safedir_image_open(image_path) as img:
             return img.format  # type: ignore[no-any-return]
     except (OSError, ValueError) as e:
         logger.warning(f"Could not determine format for {image_path}: {e}")
@@ -192,12 +253,12 @@ def validate_image_file(image_path: Path) -> tuple[bool, str | None]:
         return False, f"Unsupported format: {image_path.suffix}"
 
     try:
-        with Image.open(image_path) as img:
+        with safedir_image_open(image_path) as img:
             # Verify image data is readable
             img.verify()
 
         # Reopen to get actual dimensions (verify closes the file)
-        with Image.open(image_path) as img:
+        with safedir_image_open(image_path) as img:
             width, height = img.size
             if width <= 0 or height <= 0:
                 return False, f"Invalid dimensions: {width}x{height}"

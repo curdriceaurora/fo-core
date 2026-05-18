@@ -13,8 +13,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
-from PIL import Image
-
 try:
     from imagededup.methods import AHash, DHash, PHash  # pyre-ignore[21]
 
@@ -23,7 +21,7 @@ except ImportError:
     AHash = DHash = PHash = None
     _IMAGEDEDUP_AVAILABLE = False
 
-from .image_utils import SUPPORTED_FORMATS
+from .image_utils import SUPPORTED_FORMATS, safedir_image_open
 
 logger = logging.getLogger(__name__)
 
@@ -413,7 +411,7 @@ class ImageDeduplicator:
             return False, f"Unsupported format: {image_path.suffix}"
 
         try:
-            with Image.open(image_path) as img:
+            with safedir_image_open(image_path) as img:
                 # Try to load image data to verify it's not corrupt
                 img.verify()
             return True, None

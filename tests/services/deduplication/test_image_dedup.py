@@ -722,10 +722,13 @@ class TestValidateImage:
         img.write_bytes(b"\xff\xd8\xff\xe0data")
 
         dedup = _make_dedup()
-        with patch("services.deduplication.image_dedup.Image") as mock_image:
+        # PR3f: validate_image now opens via ``safedir_image_open`` (SafeDir-
+        # routed). Patch the helper directly so the test doesn't need a real
+        # JPEG payload or a live SafeDir.
+        with patch("services.deduplication.image_dedup.safedir_image_open") as mock_open:
             mock_ctx = MagicMock()
-            mock_image.open.return_value.__enter__ = MagicMock(return_value=mock_ctx)
-            mock_image.open.return_value.__exit__ = MagicMock(return_value=False)
+            mock_open.return_value.__enter__ = MagicMock(return_value=mock_ctx)
+            mock_open.return_value.__exit__ = MagicMock(return_value=False)
 
             is_valid, error = dedup.validate_image(img)
             assert is_valid is True
@@ -761,9 +764,9 @@ class TestValidateImage:
         img.write_bytes(b"\xff\xd8\xff\xe0corrupt")
 
         dedup = _make_dedup()
-        with patch("services.deduplication.image_dedup.Image") as mock_image:
-            mock_image.open.return_value.__enter__ = MagicMock(side_effect=OSError("truncated"))
-            mock_image.open.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("services.deduplication.image_dedup.safedir_image_open") as mock_open:
+            mock_open.return_value.__enter__ = MagicMock(side_effect=OSError("truncated"))
+            mock_open.return_value.__exit__ = MagicMock(return_value=False)
 
             is_valid, error = dedup.validate_image(img)
             assert is_valid is False
@@ -775,11 +778,9 @@ class TestValidateImage:
         img.write_bytes(b"\x89PNGbaddata")
 
         dedup = _make_dedup()
-        with patch("services.deduplication.image_dedup.Image") as mock_image:
-            mock_image.open.return_value.__enter__ = MagicMock(
-                side_effect=RuntimeError("weird error")
-            )
-            mock_image.open.return_value.__exit__ = MagicMock(return_value=False)
+        with patch("services.deduplication.image_dedup.safedir_image_open") as mock_open:
+            mock_open.return_value.__enter__ = MagicMock(side_effect=RuntimeError("weird error"))
+            mock_open.return_value.__exit__ = MagicMock(return_value=False)
 
             is_valid, error = dedup.validate_image(img)
             assert is_valid is False

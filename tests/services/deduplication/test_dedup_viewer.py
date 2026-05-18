@@ -477,7 +477,7 @@ class TestGenerateAsciiPreview:
         mock_open_cm.__exit__ = MagicMock(return_value=False)
 
         with patch(
-            "services.deduplication.viewer.Image.open",
+            "services.deduplication.viewer.safedir_image_open",
             return_value=mock_open_cm,
         ):
             result = viewer._generate_ascii_preview(
@@ -525,7 +525,7 @@ class TestGenerateAsciiPreview:
         mock_cm.__enter__ = MagicMock(return_value=landscape_img)
         mock_cm.__exit__ = MagicMock(return_value=False)
         with patch(
-            "services.deduplication.viewer.Image.open",
+            "services.deduplication.viewer.safedir_image_open",
             return_value=mock_cm,
         ):
             result = viewer._generate_ascii_preview(
@@ -539,7 +539,7 @@ class TestGenerateAsciiPreview:
         mock_cm2.__enter__ = MagicMock(return_value=portrait_img)
         mock_cm2.__exit__ = MagicMock(return_value=False)
         with patch(
-            "services.deduplication.viewer.Image.open",
+            "services.deduplication.viewer.safedir_image_open",
             return_value=mock_cm2,
         ):
             result = viewer._generate_ascii_preview(
