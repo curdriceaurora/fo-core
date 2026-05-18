@@ -311,7 +311,10 @@ class TestGetImageHashErrorBranches:
         assert result == "deadbeef"
         # The non-RGB branch was taken: convert("RGB") called once.
         mock_rgba_img.convert.assert_called_once_with("RGB")
-        # imagededup received a contiguous BGR-ordered 3-channel array.
+        # imagededup received a contiguous RGB 3-channel array.
+        # ``ascontiguousarray`` is preserved for future-proofing even
+        # though plain ``np.asarray(img)`` is already C-contiguous —
+        # the assertion locks the contract.
         passed_array = dedup.hasher.encode_image.call_args.kwargs["image_array"]
         assert passed_array.shape == (4, 4, 3)
         assert passed_array.flags["C_CONTIGUOUS"]
@@ -341,6 +344,51 @@ class TestViewerMetadataFdNoneFallback:
         assert meta.height == 10
         # File size came from path.stat (not os.fstat).
         assert meta.file_size > 0
+
+
+class TestHashEquivalenceWithPathCodepath:
+    """The SafeDir-routed ``get_image_hash`` must produce the same
+    perceptual hash as imagededup's path-based ``encode_image(path)``
+    flow — otherwise the migration silently breaks dedup matches on
+    existing corpora. This test runs with REAL imagededup installed
+    and asserts byte-for-byte hash equality between the two paths.
+
+    Skipped when ``imagededup`` is absent (CI matrix without the
+    dedup-image extra). Locally with the extra installed this is the
+    regression test that catches channel-order / preprocessing
+    mismatches like the one Codex flagged on PR3f.
+    """
+
+    def test_safedir_hash_matches_path_hash(self, tmp_path: Path) -> None:
+        pytest.importorskip("imagededup")
+        from services.deduplication.image_dedup import ImageDeduplicator
+
+        # A color photo where R/B differ noticeably, so any R/B swap
+        # would produce a clearly different perceptual hash.
+        from PIL import Image as _PILImage
+
+        target = tmp_path / "color.jpg"
+        # Diagonal gradient with strong red dominance so the grayscale
+        # luminance differs from a B-dominant version.
+        img = _PILImage.new("RGB", (32, 32))
+        pixels = img.load()
+        for y in range(32):
+            for x in range(32):
+                pixels[x, y] = (200 + (x % 16), 50, 30 + (y % 32))
+        img.save(target, format="JPEG", quality=95)
+
+        dedup = ImageDeduplicator(hash_method="phash")
+        # Path-based reference hash (what imagededup would compute on
+        # its own, no SafeDir involved).
+        reference = dedup.hasher.encode_image(image_file=str(target))
+
+        # SafeDir-routed hash via our refactored get_image_hash.
+        safedir_hash = dedup.get_image_hash(target)
+
+        assert safedir_hash == reference, (
+            f"SafeDir hash {safedir_hash!r} != path-based reference "
+            f"{reference!r} — channel ordering or preprocessing drift"
+        )
 
 
 class TestQualityFdStatBranch:
