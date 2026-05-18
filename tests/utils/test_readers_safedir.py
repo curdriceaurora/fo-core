@@ -674,6 +674,25 @@ class TestReadDxfFileFileobj:
         with pytest.raises(ValueError, match="file_path or fileobj"):
             read_dxf_file()
 
+    def test_fileobj_not_closed_after_return(self, tmp_path: Path) -> None:
+        """The fileobj= contract preserves caller ownership. ``ezdxf.read``
+        is fed via ``io.TextIOWrapper``, which closes its source stream
+        on GC unless ``detach()`` is called — verify the underlying
+        binary stream survives the call.
+        """
+        mock_doc = _build_mocked_ezdxf_doc()
+        fileobj = io.BytesIO(b"0\nSECTION\n")
+        with (
+            patch("utils.readers.cad.EZDXF_AVAILABLE", True),
+            patch("utils.readers.cad.ezdxf", create=True) as mock_ezdxf,
+        ):
+            mock_ezdxf.read.return_value = mock_doc
+            read_dxf_file(file_path=tmp_path / "x.dxf", fileobj=fileobj)
+        import gc
+
+        gc.collect()  # force TextIOWrapper finalisation
+        assert not fileobj.closed
+
 
 class TestReadDwgFileFileobj:
     """DWG falls back to a basic file-info message when ezdxf can't parse —
@@ -797,6 +816,18 @@ class TestReadIgesFileFileobj:
     def test_requires_arg(self) -> None:
         with pytest.raises(ValueError, match="file_path or fileobj"):
             read_iges_file()
+
+    def test_fileobj_not_closed_after_return(self, tmp_path: Path) -> None:
+        """IGES wraps the binary fileobj in ``TextIOWrapper`` to read text
+        lines; verify ``detach()`` releases ownership so the caller's
+        stream isn't closed when the wrapper goes out of scope.
+        """
+        fileobj = io.BytesIO(b" " * 80 + b"S\n" + b" " * 80 + b"G\n")
+        read_iges_file(file_path=tmp_path / "x.iges", fileobj=fileobj)
+        import gc
+
+        gc.collect()
+        assert not fileobj.closed
 
 
 # ---------------------------------------------------------------------------

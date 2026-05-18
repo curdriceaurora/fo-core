@@ -118,9 +118,19 @@ def _read_dxf_from_fileobj(fileobj: BinaryIO) -> Any:
     ``ezdxf.read`` takes a ``TextIO``; SafeDir hands us a binary fd. The
     ``surrogateescape`` errors handler matches ``ezdxf.readfile``'s default
     so non-UTF-8 byte sequences in headers round-trip cleanly.
+
+    The wrapper is ``detach()``'d on every exit path — including
+    exceptions — so the caller's underlying binary stream survives the
+    wrapper's garbage collection (``TextIOWrapper`` otherwise closes
+    its source on ``__del__``). This both preserves the caller-owned
+    ``fileobj=`` contract and lets the DWG fallback path below still
+    ``os.fstat`` the same fd after a parse failure.
     """
     text_stream = io.TextIOWrapper(fileobj, encoding="utf-8", errors="surrogateescape")
-    return ezdxf.read(text_stream)  # type: ignore[attr-defined]  # ezdxf stubs incomplete
+    try:
+        return ezdxf.read(text_stream)  # type: ignore[attr-defined]  # ezdxf stubs incomplete
+    finally:
+        text_stream.detach()
 
 
 def read_dxf_file(
@@ -441,8 +451,14 @@ def read_iges_file(
         label = Path(file_path).name if file_path is not None else "<fileobj>"
         _check_fd_size(fileobj)
         try:
+            # ``TextIOWrapper`` closes its source stream on GC; detach the
+            # underlying binary fd before the wrapper goes out of scope so
+            # the caller-owned ``fileobj`` survives this call.
             text_stream = io.TextIOWrapper(fileobj, encoding="utf-8", errors="ignore")
-            lines = [text_stream.readline() for _ in range(max_lines)]
+            try:
+                lines = [text_stream.readline() for _ in range(max_lines)]
+            finally:
+                text_stream.detach()
             try:
                 size_kb = os.fstat(fileobj.fileno()).st_size / 1024
             except (OSError, AttributeError, ValueError):
