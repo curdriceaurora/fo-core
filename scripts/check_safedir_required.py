@@ -372,9 +372,16 @@ def _replay_module_aliases(module: ast.Module, cutoff_lineno: int | None) -> dic
     statements if cutoff is None). For each statement:
 
     - ``ast.Import`` adds/updates aliases (handles same-name re-imports
-      in source order).
-    - Any ``ast.Name(Store)`` (excluding nested function/class/lambda
-      scopes) removes the matching alias.
+      in source order — later ``import X as gz`` overwrites earlier
+      ``import Y as gz``).
+    - ``ast.ImportFrom`` drops any matching alias. ``from M import X as gz``
+      binds ``gz`` to something from module M (typically a class /
+      function / constant — not a module). Be conservative and drop.
+    - ``ast.FunctionDef`` / ``ast.AsyncFunctionDef`` / ``ast.ClassDef``
+      at module level rebind the name to a function / class object —
+      drop the alias.
+    - Any ``ast.Name(Store)`` (excluding nested function / class /
+      lambda / comprehension scopes) removes the matching alias.
     """
     active: dict[str, str] = {}
     for stmt in module.body:
@@ -385,6 +392,16 @@ def _replay_module_aliases(module: ast.Module, cutoff_lineno: int | None) -> dic
                 top_level = alias_node.name.split(".", 1)[0]
                 local = alias_node.asname if alias_node.asname else top_level
                 active[local] = top_level
+        elif isinstance(stmt, ast.ImportFrom):
+            for alias_node in stmt.names:
+                if alias_node.name == "*":
+                    continue
+                bound = alias_node.asname if alias_node.asname else alias_node.name
+                if bound in active:
+                    del active[bound]
+        elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if stmt.name in active:
+                del active[stmt.name]
         for node in _iter_excluding_nested_scopes(stmt):
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id in active:
                 del active[node.id]

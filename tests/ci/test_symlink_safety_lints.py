@@ -968,6 +968,49 @@ class TestBareOpenDetectionDirScoped:
         # name resolution skips class to module. Alias stays active.
         assert active.get("gz") == "gzip"
 
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # ``from M import X as gz`` rebinds gz to a class/function.
+            "import gzip as gz\nfrom pathlib import Path as gz\ngz.open('wb')\n",
+            # ``from M import gz`` (no asname) also rebinds.
+            "import gzip as gz\nfrom mod import gz\ngz.open('wb')\n",
+            # ``def gz(...)`` rebinds.
+            "import gzip as gz\ndef gz(): pass\ngz.open('wb')\n",
+            # ``async def gz(...)`` rebinds.
+            "import gzip as gz\nasync def gz(): pass\ngz.open('wb')\n",
+            # ``class gz: ...`` rebinds.
+            "import gzip as gz\nclass gz: pass\ngz.open('wb')\n",
+        ],
+    )
+    def test_module_scope_non_assign_rebinds_drop_alias(self, source: str) -> None:
+        """Regression for Codex P2 (308cd7b): module-scope rebinders
+        other than Name(Store) — ``from ... import ... as``, ``def``,
+        ``async def``, ``class`` — must also drop the alias. Before
+        this fix, ``import gzip as gz; from pathlib import Path as gz;
+        gz.open('wb')`` kept the gz → gzip mapping, mis-classified the
+        call as module-style ``gzip.open`` (mode at arg 1 → omitted →
+        default-read), and would have flagged a legitimate write-only
+        ``Path.open``."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        assert "gz" not in active
+
     def test_in_function_call_drops_alias_on_any_module_rebind(self) -> None:
         """Regression for Codex P2 (2fdb63e): a call inside a function
         sees the *runtime* value of the module global by the time the
