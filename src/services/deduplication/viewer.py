@@ -153,8 +153,10 @@ class ComparisonViewer:
         # Get user action
         action = self._prompt_user_action(len(metadata_list))
 
-        # Process action
-        return self._process_user_action(action, metadata_list)
+        # Process action — forward trusted_root so the AUTO_SELECT branch's
+        # re-open via ``_auto_select_best`` gets the same SafeDir anchoring
+        # as the initial display.
+        return self._process_user_action(action, metadata_list, trusted_root=trusted_root)
 
     def batch_review(
         self,
@@ -188,8 +190,9 @@ class ComparisonViewer:
             self.console.rule()
 
             if auto_select_best:
-                # Automatic selection of best quality
-                review = self._auto_select_best(images)
+                # Automatic selection of best quality — same anchoring
+                # contract as the manual path.
+                review = self._auto_select_best(images, trusted_root=trusted_root)
             else:
                 # Manual review — pass the scan root through so each
                 # image opens with full anchored traversal.
@@ -438,13 +441,20 @@ class ComparisonViewer:
                 self.console.print("[red]Invalid choice. Please try again.[/red]")
 
     def _process_user_action(
-        self, action: UserAction, metadata_list: list[ImageMetadata]
+        self,
+        action: UserAction,
+        metadata_list: list[ImageMetadata],
+        *,
+        trusted_root: Path | None = None,
     ) -> DuplicateReview:
         """Process user action and return review result.
 
         Args:
             action: UserAction enum value
             metadata_list: List of ImageMetadata
+            trusted_root: Forwarded to ``_auto_select_best`` so the
+                AUTO_SELECT branch's image re-open uses the same
+                SafeDir anchoring as the display.
 
         Returns:
             DuplicateReview with decisions
@@ -466,7 +476,9 @@ class ComparisonViewer:
                 return DuplicateReview([], [], skipped=True)
 
         elif action == UserAction.AUTO_SELECT:
-            return self._auto_select_best([m.path for m in metadata_list])
+            return self._auto_select_best(
+                [m.path for m in metadata_list], trusted_root=trusted_root
+            )
 
         elif action == UserAction.KEEP:
             # Prompt for which image to keep
@@ -489,7 +501,9 @@ class ComparisonViewer:
 
         return DuplicateReview([], [], skipped=True)
 
-    def _auto_select_best(self, images: list[Path]) -> DuplicateReview:
+    def _auto_select_best(
+        self, images: list[Path], *, trusted_root: Path | None = None
+    ) -> DuplicateReview:
         """Automatically select the best quality image.
 
         Chooses based on:
@@ -499,12 +513,17 @@ class ComparisonViewer:
 
         Args:
             images: List of image paths
+            trusted_root: Scan root for SafeDir anchoring; forwarded to
+                each ``_get_image_metadata`` re-open so the auto-select
+                path gets the same protection as the display path.
 
         Returns:
             DuplicateReview with best image kept, others marked for deletion
         """
         try:
-            metadata_list = [self._get_image_metadata(img) for img in images]
+            metadata_list = [
+                self._get_image_metadata(img, trusted_root=trusted_root) for img in images
+            ]
         except (OSError, ValueError) as e:
             self.console.print(f"[yellow]Warning: Could not auto-select: {e}[/yellow]")
             return DuplicateReview([], [], skipped=True)
