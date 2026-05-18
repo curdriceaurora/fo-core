@@ -223,3 +223,111 @@ class TestImageDedupValidateRefusesSymlinks:
         assert is_valid is False
         assert err is not None
         assert "Cannot read image" in err or "symlink" in err.lower()
+
+
+class TestGetImageHashErrorBranches:
+    """Cover the new error-handling branches in ``ImageDeduplicator.
+    get_image_hash`` introduced by PR3f's SafeDir-routed hashing
+    (#281 reviews). These run with mocked imagededup so they don't
+    need the ``dedup-image`` extra installed.
+    """
+
+    def _make_dedup(self):
+        """Build an ImageDeduplicator with a controllable hasher mock.
+
+        Patches the imagededup availability flag so the constructor
+        succeeds even when the optional extra is absent (CI matrix).
+        """
+        from unittest.mock import MagicMock, patch as _patch
+
+        from services.deduplication import image_dedup as _id
+
+        with (
+            _patch.object(_id, "_IMAGEDEDUP_AVAILABLE", True),
+            _patch.object(_id, "PHash", MagicMock(return_value=MagicMock())),
+            _patch.object(_id, "DHash", MagicMock(return_value=MagicMock())),
+            _patch.object(_id, "AHash", MagicMock(return_value=MagicMock())),
+        ):
+            d = _id.ImageDeduplicator()
+        d.hasher = MagicMock()
+        return d
+
+    def test_decompression_bomb_returns_none(self, tmp_path: Path) -> None:
+        """DecompressionBombError on Image.open is caught and returns
+        None — must not abort a find_duplicates / batch_compute_hashes
+        scan."""
+        from PIL.Image import DecompressionBombError
+
+        img = tmp_path / "bomb.jpg"
+        img.write_bytes(b"\x00")  # bytes irrelevant; we patch safedir_image_open
+
+        dedup = self._make_dedup()
+        with patch(
+            "services.deduplication.image_dedup.safedir_image_open",
+            side_effect=DecompressionBombError("synthetic bomb"),
+        ):
+            result = dedup.get_image_hash(img)
+        assert result is None
+
+    def test_non_rgb_image_is_converted(self, tmp_path: Path) -> None:
+        """Non-RGB images (e.g. RGBA, L) are converted before being
+        handed to imagededup as a numpy array. Exercises the
+        ``img.mode != "RGB": img = img.convert("RGB")`` branch.
+        """
+        from unittest.mock import MagicMock
+
+        img = tmp_path / "rgba.png"
+        _make_jpeg(img)
+
+        # Mock the helper to return a non-RGB image.
+        mock_rgba_img = MagicMock()
+        mock_rgba_img.mode = "RGBA"
+        mock_rgb_img = MagicMock()
+        mock_rgb_img.mode = "RGB"
+        mock_rgba_img.convert.return_value = mock_rgb_img
+
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=(mock_rgba_img, None))
+        mock_cm.__exit__ = MagicMock(return_value=False)
+
+        dedup = self._make_dedup()
+        dedup.hasher.encode_image.return_value = "deadbeef"
+
+        with (
+            patch(
+                "services.deduplication.image_dedup.safedir_image_open",
+                return_value=mock_cm,
+            ),
+            patch("numpy.asarray", return_value="fake_array"),
+        ):
+            result = dedup.get_image_hash(img)
+
+        assert result == "deadbeef"
+        # The non-RGB branch was taken: convert("RGB") called once.
+        mock_rgba_img.convert.assert_called_once_with("RGB")
+
+
+class TestViewerMetadataFdNoneFallback:
+    """``viewer._get_image_metadata`` falls back to ``image_path.stat()``
+    when ``safedir_image_open`` yields ``fd is None`` (Windows / SafeDir
+    unavailable). Exercised by simulating the NotImplementedError
+    fallback path."""
+
+    def test_viewer_metadata_uses_path_stat_when_fd_none(self, tmp_path: Path) -> None:
+        from services.deduplication.viewer import ComparisonViewer
+
+        target = tmp_path / "img.jpg"
+        _make_jpeg(target, size=(12, 10))
+
+        viewer = ComparisonViewer()
+        # Force the Windows-style fallback so the helper yields fd=None.
+        with patch(
+            "services.deduplication.image_utils.SafeDir.open_root",
+            side_effect=NotImplementedError("simulated fallback"),
+        ):
+            meta = viewer._get_image_metadata(target)
+
+        assert meta.width == 12
+        assert meta.height == 10
+        # File size came from path.stat (not os.fstat).
+        assert meta.file_size > 0

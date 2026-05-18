@@ -21,6 +21,8 @@ except ImportError:
     AHash = DHash = PHash = None
     _IMAGEDEDUP_AVAILABLE = False
 
+from PIL.Image import DecompressionBombError
+
 from .image_utils import SUPPORTED_FORMATS, safedir_image_open
 
 logger = logging.getLogger(__name__)
@@ -149,6 +151,13 @@ class ImageDeduplicator:
             return str(encoding) if encoding is not None else None
         except OSError as e:
             logger.warning(f"Could not read image {image_path}: {e}")
+            return None
+        except DecompressionBombError as e:
+            # PIL refuses images over MAX_IMAGE_PIXELS — recoverable
+            # per-file error, not a reason to abort find_duplicates /
+            # batch_compute_hashes scans. Mirrors how
+            # image_utils.get_image_metadata handles it.
+            logger.error(f"Decompression bomb detected for {image_path}: {e}")
             return None
         except (ValueError, RuntimeError) as e:
             logger.error(f"Error processing image {image_path}: {e}")
