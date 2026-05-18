@@ -50,7 +50,7 @@ import sys
 
 from loguru import logger
 
-from utils.safedir import SafeDir
+from utils.safedir import SafeDir, SymlinkRejected
 
 
 def _read_epub_safedir(file_path: Path) -> Any:
@@ -74,23 +74,29 @@ def _read_epub_safedir(file_path: Path) -> Any:
     if sys.platform == "win32":
         return epub.read_epub(file_path)
 
+    # Narrowly catch NotImplementedError only around the SafeDir
+    # construction step. If ``epub.read_epub(fileobj)`` (or any
+    # downstream library code) raised NotImplementedError, an
+    # outer except would silently retry the same file through the
+    # path-based reader — reopening the symlink-following surface
+    # that this helper exists to close.
     try:
-        with SafeDir.open_root(file_path.parent) as safe_dir:
-            fd = safe_dir.open_for_reader(file_path.name)
-            # fdopen takes ownership only once it returns; explicitly
-            # close the raw fd if fdopen itself raises.
-            try:
-                fileobj = os.fdopen(fd, "rb", closefd=True)
-            except OSError:
-                os.close(fd)
-                raise
-            with fileobj:
-                return epub.read_epub(fileobj)
+        safe_dir_cm = SafeDir.open_root(file_path.parent)
     except NotImplementedError:
-        # SafeDir's POSIX primitives unavailable on this build; fall
-        # back to direct path-based open.
         logger.debug("SafeDir unavailable; using legacy epub.read_epub for {}", file_path.name)
         return epub.read_epub(file_path)
+
+    with safe_dir_cm as safe_dir:
+        fd = safe_dir.open_for_reader(file_path.name)
+        # fdopen takes ownership only once it returns; explicitly
+        # close the raw fd if fdopen itself raises.
+        try:
+            fileobj = os.fdopen(fd, "rb", closefd=True)
+        except OSError:
+            os.close(fd)
+            raise
+        with fileobj:
+            return epub.read_epub(fileobj)
 
 
 class EPUBProcessingError(Exception):
@@ -246,6 +252,11 @@ class EnhancedEPUBReader:
         try:
             book = _read_epub_safedir(file_path)
             logger.debug(f"Successfully opened EPUB: {file_path.name}")
+        except SymlinkRejected:
+            # SafeDir refused a symlinked EPUB. Surface the security-
+            # specific OSError unchanged so callers can distinguish a
+            # refused symlink from an ordinary malformed EPUB.
+            raise
         except Exception as e:  # Intentional catch-all: ebooklib raises library-specific errors
             raise EPUBProcessingError(f"Failed to read EPUB file {file_path}: {e}") from e
 
@@ -747,5 +758,10 @@ def get_epub_metadata(file_path: str | Path) -> EPUBMetadata:
         book = _read_epub_safedir(file_path)
         reader = EnhancedEPUBReader()
         return reader._extract_metadata(book)
+    except SymlinkRejected:
+        # As in EnhancedEPUBReader.read_epub — let the SafeDir refusal
+        # propagate untouched so callers can distinguish symlink
+        # rejection from ordinary parsing failures.
+        raise
     except Exception as e:  # Intentional catch-all: ebooklib raises library-specific errors
         raise EPUBProcessingError(f"Failed to read EPUB metadata: {e}") from e

@@ -369,3 +369,93 @@ class TestBareOpenDetectionDirScoped:
                 n for n in __import__("ast").walk(tree) if isinstance(n, __import__("ast").Call)
             )
             assert _bare_open_violation(call) is not None, f"missed read-write mode: {source!r}"
+
+
+class TestBareOpenDetectionDirScopedIntegration:
+    """Integration test: when ``_READ_OPEN_ENFORCED_DIRS`` is non-empty,
+    ``find_violations`` reports bare reads on files inside the enforced
+    directory. Verifies the pass-2 wiring + ``_file_under_enforced_dir``
+    end-to-end, not just the helper in isolation.
+
+    Patches the module-level ``_READ_OPEN_ENFORCED_DIRS`` set so the
+    test owns the membership for its duration; the patch is reverted
+    after the test runs.
+    """
+
+    def test_find_violations_flags_bare_open_when_dir_enforced(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from unittest.mock import patch as _patch
+
+        import check_safedir_required as _csr
+
+        # Create the same ``src/x/<file>`` layout ``_synth`` uses so the
+        # ``_file_under_enforced_dir`` resolution succeeds: it computes
+        # the path relative to ``_SRC_DIR``'s parent. We must point
+        # ``_SRC_DIR`` at our synthetic root so its parent is tmp_path.
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "myreaders"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text("with open('/x/y.txt', 'rb') as f: pass\n")
+
+        with (
+            _patch.object(_csr, "_SRC_DIR", src_root),
+            _patch.object(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})),
+        ):
+            violations = _csr.find_violations(target)
+
+        # The bare ``open(path, "rb")`` is now flagged because the
+        # directory is enforced.
+        assert len(violations) == 1
+        line_no, name, _excerpt = violations[0]
+        assert name == "open"
+        assert line_no == 1
+
+    def test_find_violations_skips_bare_open_outside_enforced_dir(self, tmp_path: Path) -> None:
+        """File NOT under an enforced dir → bare open ignored even when
+        the set is populated."""
+        from unittest.mock import patch as _patch
+
+        import check_safedir_required as _csr
+
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "elsewhere"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text("with open('/x/y.txt', 'rb') as f: pass\n")
+
+        with (
+            _patch.object(_csr, "_SRC_DIR", src_root),
+            # Different directory enforced.
+            _patch.object(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})),
+        ):
+            violations = _csr.find_violations(target)
+
+        assert violations == []
+
+    def test_find_violations_respects_opt_out_marker_for_bare_open(self, tmp_path: Path) -> None:
+        """Trailing ``# safedir: ok — <reason>`` marker exempts a bare
+        open just like it does for library-call violations."""
+        from unittest.mock import patch as _patch
+
+        import check_safedir_required as _csr
+
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "myreaders"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text(
+            "with open('/x/y.txt', 'rb') as f: pass  # safedir: ok — legacy callsite\n"
+        )
+
+        with (
+            _patch.object(_csr, "_SRC_DIR", src_root),
+            _patch.object(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})),
+        ):
+            violations = _csr.find_violations(target)
+
+        assert violations == []
