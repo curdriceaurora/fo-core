@@ -141,12 +141,19 @@ class ImageDeduplicator:
             import numpy as np
 
             with safedir_image_open(image_path, trusted_root=trusted_root) as (img, _fd):
-                # imagededup expects RGB uint8 arrays for the perceptual
-                # hash families (PHash/DHash/AHash). Convert if needed —
-                # mode "RGB" is the documented input format.
+                # imagededup's array preprocessing uses OpenCV's BGR
+                # channel ordering — passing an RGB array would swap
+                # red/blue and produce different perceptual hashes
+                # vs. its path-based ``encode_image(str(path))`` flow.
+                # Convert to RGB first (so palette / RGBA modes are
+                # normalised) and then reverse the channel axis to
+                # match imagededup's BGR expectation. ``ascontiguous-
+                # array`` materialises a contiguous buffer because
+                # negative-stride slicing is non-contiguous and would
+                # otherwise force a copy inside numpy/cv2 anyway.
                 if img.mode != "RGB":
                     img = img.convert("RGB")
-                image_array = np.asarray(img)
+                image_array = np.ascontiguousarray(np.asarray(img)[:, :, ::-1])
             encoding = self.hasher.encode_image(image_array=image_array)
             return str(encoding) if encoding is not None else None
         except OSError as e:

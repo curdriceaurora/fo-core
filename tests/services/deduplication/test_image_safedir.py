@@ -294,18 +294,27 @@ class TestGetImageHashErrorBranches:
         dedup = self._make_dedup()
         dedup.hasher.encode_image.return_value = "deadbeef"
 
+        import numpy as np
+
+        # Provide a real 3-channel uint8 array so the new BGR-reverse
+        # slicing (``[:, :, ::-1]``) and ``np.ascontiguousarray`` work.
+        fake_rgb = np.zeros((4, 4, 3), dtype=np.uint8)
         with (
             patch(
                 "services.deduplication.image_dedup.safedir_image_open",
                 return_value=mock_cm,
             ),
-            patch("numpy.asarray", return_value="fake_array"),
+            patch("numpy.asarray", return_value=fake_rgb),
         ):
             result = dedup.get_image_hash(img)
 
         assert result == "deadbeef"
         # The non-RGB branch was taken: convert("RGB") called once.
         mock_rgba_img.convert.assert_called_once_with("RGB")
+        # imagededup received a contiguous BGR-ordered 3-channel array.
+        passed_array = dedup.hasher.encode_image.call_args.kwargs["image_array"]
+        assert passed_array.shape == (4, 4, 3)
+        assert passed_array.flags["C_CONTIGUOUS"]
 
 
 class TestViewerMetadataFdNoneFallback:
@@ -332,3 +341,51 @@ class TestViewerMetadataFdNoneFallback:
         assert meta.height == 10
         # File size came from path.stat (not os.fstat).
         assert meta.file_size > 0
+
+
+class TestQualityFdStatBranch:
+    """Cover the new ``os.fstat(fd)`` branch in
+    ``quality.ImageQualityAnalyzer._extract_metrics_with_pil``
+    introduced by 552228c. The existing test_quality.py tests mock
+    safedir_image_open to yield ``(mock_img, None)`` — only the
+    ``fd is None`` path is exercised. Add a test that yields a real
+    integer fd so the ``os.fstat(fd)`` branch is hit.
+    """
+
+    def test_quality_uses_fstat_when_fd_is_supplied(self, tmp_path: Path) -> None:
+        from unittest.mock import MagicMock
+
+        from services.deduplication.quality import ImageQualityAnalyzer
+
+        analyzer = ImageQualityAnalyzer()
+        target = tmp_path / "img.jpg"
+        _make_jpeg(target, size=(40, 30))
+
+        # Open a real fd so os.fstat() can be called on it. Provide
+        # a fake PIL Image with the expected attributes; the helper
+        # mock yields (img, fd). The fd must be valid for fstat to
+        # report a sensible size.
+        real_fd = os.open(str(target), os.O_RDONLY)
+        try:
+            mock_img = MagicMock()
+            mock_img.size = (40, 30)
+            mock_img.format = "JPEG"
+            mock_img.mode = "RGB"
+            mock_img.info = {}
+
+            cm = MagicMock()
+            cm.__enter__ = MagicMock(return_value=(mock_img, real_fd))
+            cm.__exit__ = MagicMock(return_value=False)
+            with patch(
+                "services.deduplication.image_utils.safedir_image_open",
+                return_value=cm,
+            ):
+                metrics = analyzer._extract_metrics_with_pil(target)
+        finally:
+            os.close(real_fd)
+
+        assert metrics is not None
+        assert metrics.width == 40
+        assert metrics.height == 30
+        # os.fstat path was taken: file_size came from the fd, not path.stat().
+        assert metrics.file_size > 0
