@@ -733,6 +733,44 @@ class TestBareOpenDetectionDirScoped:
         # Module-level alias unaffected by nested-scope import.
         assert aliases.get("gz") == "gzip"
 
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # ``import X as gz`` inside the function body.
+            "import gzip as gz\ndef f():\n    import pathlib as gz\n    gz.open('wb')\n",
+            # ``import gz`` inside the function (no asname; binds top-level
+            # name ``gz`` — same shadow effect).
+            "import gzip as gz\ndef f():\n    import gz  # noqa\n    gz.open('wb')\n",
+            # ``from pathlib import Path as gz`` inside function.
+            "import gzip as gz\ndef f():\n    from pathlib import Path as gz\n    gz.open('wb')\n",
+        ],
+    )
+    def test_function_scope_import_shadows_module_alias(self, source: str) -> None:
+        """Regression for Codex P2 (7c59f11): an ``import ... as gz``
+        inside a function body shadows the module-level alias for calls
+        within that function. ``_function_local_names`` must collect
+        ``ast.Import`` / ``ast.ImportFrom`` alias names, not just
+        ``Name(Store)``."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        # In-function import shadows module-level alias.
+        assert "gz" not in active
+
     def test_in_function_call_drops_alias_on_any_module_rebind(self) -> None:
         """Regression for Codex P2 (2fdb63e): a call inside a function
         sees the *runtime* value of the module global by the time the

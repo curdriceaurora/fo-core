@@ -257,6 +257,26 @@ def _function_local_names(func: ast.AST) -> set[str]:
         for node in _iter_excluding_nested_scopes(stmt):
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
                 names.add(node.id)
+            elif isinstance(node, ast.Import):
+                # ``import X`` inside the function body binds ``X`` (top-
+                # level name) locally; ``import X as Y`` binds ``Y``.
+                # These are ``ast.alias`` nodes, NOT Name(Store), so the
+                # general walk misses them.
+                for alias_node in node.names:
+                    if alias_node.asname:
+                        names.add(alias_node.asname)
+                    else:
+                        names.add(alias_node.name.split(".", 1)[0])
+            elif isinstance(node, ast.ImportFrom):
+                # ``from M import X`` binds ``X``; ``from M import X as Y``
+                # binds ``Y``. Star imports (``from M import *``) bind
+                # an unknown set — be conservative and don't try to
+                # enumerate; that case shouldn't affect alias resolution
+                # for the names we care about.
+                for alias_node in node.names:
+                    if alias_node.name == "*":
+                        continue
+                    names.add(alias_node.asname if alias_node.asname else alias_node.name)
             elif isinstance(node, ast.arg):
                 # Inner lambda's parameters are NOT local to *func*. But
                 # _iter_excluding_nested_scopes already skips lambdas,
