@@ -204,6 +204,17 @@ class TestReadZipFileFileobj:
             out = read_zip_file(fileobj=f)
         assert "ZIP Archive: <fileobj>" in out
 
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        """A zipfile parse error from the fileobj branch wraps as FileReadError."""
+        from utils.readers import FileReadError as _FRE
+
+        with patch(
+            "utils.readers.archives.zipfile.ZipFile",
+            side_effect=RuntimeError("synthetic zip failure"),
+        ):
+            with pytest.raises(_FRE, match="ZIP file"):
+                read_zip_file(fileobj=io.BytesIO(b"not a zip"))
+
     def test_requires_arg(self) -> None:
         with pytest.raises(ValueError, match="file_path or fileobj"):
             read_zip_file()
@@ -262,6 +273,16 @@ class TestRead7zFileFileobj:
         assert "Total files: 1" in out
         assert "hello.txt" in out
 
+    @patch("utils.readers.archives.py7zr")
+    def test_fileobj_error_wraps_as_file_read_error(
+        self, mock_py7zr: MagicMock, tmp_path: Path
+    ) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        mock_py7zr.SevenZipFile.side_effect = RuntimeError("synthetic 7z failure")
+        with pytest.raises(_FRE, match="7Z file"):
+            read_7z_file(file_path=tmp_path / "x.7z", fileobj=io.BytesIO(b"not 7z"))
+
     def test_requires_arg(self) -> None:
         with pytest.raises(ValueError, match="file_path or fileobj"):
             read_7z_file()
@@ -290,6 +311,32 @@ class TestReadRarFileFileobj:
         assert "RAR Archive: archive.rar" in out
         assert "Total files: 1" in out
         assert "hello.txt" in out
+
+    @patch("utils.readers.archives.rarfile")
+    def test_fileobj_error_wraps_as_file_read_error(
+        self, mock_rarfile_mod: MagicMock, tmp_path: Path
+    ) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        mock_rarfile_mod.RarFile.side_effect = RuntimeError("synthetic rar failure")
+        mock_rarfile_mod.RarCannotExec = type("RarCannotExec", (Exception,), {})
+        with pytest.raises(_FRE, match="RAR file"):
+            read_rar_file(file_path=tmp_path / "x.rar", fileobj=io.BytesIO(b"not rar"))
+
+    @patch("utils.readers.archives.rarfile")
+    def test_fileobj_rar_cannot_exec_wraps_with_unrar_hint(
+        self, mock_rarfile_mod: MagicMock, tmp_path: Path
+    ) -> None:
+        """Missing ``unrar`` tool surfaces as ``FileReadError`` with the
+        install-hint message — the narrower ``RarCannotExec`` branch.
+        """
+        from utils.readers import FileReadError as _FRE
+
+        rar_cannot_exec_cls = type("RarCannotExec", (Exception,), {})
+        mock_rarfile_mod.RarCannotExec = rar_cannot_exec_cls
+        mock_rarfile_mod.RarFile.side_effect = rar_cannot_exec_cls("unrar missing")
+        with pytest.raises(_FRE, match="unrar tool not found"):
+            read_rar_file(file_path=tmp_path / "x.rar", fileobj=io.BytesIO(b"not rar"))
 
     def test_requires_arg(self) -> None:
         with pytest.raises(ValueError, match="file_path or fileobj"):

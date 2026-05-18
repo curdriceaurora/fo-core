@@ -245,7 +245,13 @@ class TestRead7zMockedPaths:
             else:
                 archives.py7zr = original_py7zr
 
-        seven_zip_ctor.assert_called_once_with(path, "r")
+        # After PR3b: the path branch opens the path itself and hands a file
+        # object to ``py7zr.SevenZipFile`` (matches the unified _parse_7z
+        # helper shared with the ``fileobj=`` branch).
+        seven_zip_ctor.assert_called_once()
+        call_args, _ = seven_zip_ctor.call_args
+        assert hasattr(call_args[0], "read"), "first arg should be a file-like"
+        assert call_args[1] == "r"
         assert "7Z Archive: mocked.7z" in result
         assert "Encrypted: Yes" in result
         assert "a.txt" in result
@@ -278,7 +284,12 @@ class TestRead7zMockedPaths:
             else:
                 archives.py7zr = original_py7zr
 
-        seven_zip_ctor.assert_called_once_with(path, "r")
+        # After PR3b: the path branch hands a file-like (not the path) to
+        # ``py7zr.SevenZipFile`` — see the success-case assertion above.
+        seven_zip_ctor.assert_called_once()
+        call_args, _ = seven_zip_ctor.call_args
+        assert hasattr(call_args[0], "read")
+        assert call_args[1] == "r"
 
 
 # ---------------------------------------------------------------------------
