@@ -103,9 +103,7 @@ class TestSafedirImageOpenHelper:
             "services.deduplication.image_utils.os.fdopen",
             side_effect=OSError("synthetic fdopen failure"),
         ) as mock_fdopen:
-            with patch(
-                "services.deduplication.image_utils.os.close"
-            ) as mock_close:
+            with patch("services.deduplication.image_utils.os.close") as mock_close:
                 with pytest.raises(OSError, match="synthetic fdopen failure"):
                     with safedir_image_open(target):
                         pass
