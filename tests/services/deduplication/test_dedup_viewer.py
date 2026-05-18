@@ -220,7 +220,8 @@ class TestShowComparison:
         """If some images fail to load, the rest still show up."""
         call_count = 0
 
-        def _meta_side_effect(path):
+        def _meta_side_effect(path, **_kwargs):
+            # PR3f: _get_image_metadata accepts ``trusted_root=`` kwarg now
             nonlocal call_count
             call_count += 1
             if call_count == 1:

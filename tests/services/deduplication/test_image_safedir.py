@@ -360,12 +360,19 @@ class TestHashEquivalenceWithPathCodepath:
     """
 
     def test_safedir_hash_matches_path_hash(self, tmp_path: Path) -> None:
-        pytest.importorskip("imagededup")
-        from services.deduplication.image_dedup import ImageDeduplicator
-
+        # ``test_image_dedup.py`` injects a fake ``imagededup`` into
+        # ``sys.modules`` via ``setdefault`` when the real extra is
+        # absent, which means a plain ``importorskip("imagededup")``
+        # succeeds against the mock and the test would then fail
+        # calling real hash methods. Probe a submodule the fake doesn't
+        # provide instead — it only exists when the actual library is
+        # installed.
+        pytest.importorskip("imagededup.utils.image_utils")
         # A color photo where R/B differ noticeably, so any R/B swap
         # would produce a clearly different perceptual hash.
         from PIL import Image as _PILImage
+
+        from services.deduplication.image_dedup import ImageDeduplicator
 
         target = tmp_path / "color.jpg"
         # Diagonal gradient with strong red dominance so the grayscale

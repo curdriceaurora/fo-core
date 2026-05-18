@@ -107,7 +107,11 @@ class ComparisonViewer:
         self._terminal_width = shutil.get_terminal_size().columns
 
     def show_comparison(
-        self, images: list[Path], similarity_score: float | None = None
+        self,
+        images: list[Path],
+        similarity_score: float | None = None,
+        *,
+        trusted_root: Path | None = None,
     ) -> DuplicateReview:
         """Show comparison for a group of duplicate images.
 
@@ -116,6 +120,13 @@ class ComparisonViewer:
         Args:
             images: List of duplicate image paths
             similarity_score: Similarity score if available
+            trusted_root: Optional scan root that bounds the SafeDir
+                traversal for each image. When supplied (typically the
+                directory passed to ``find_duplicates``), every
+                intermediate component of each image path is checked
+                for symlinks during the metadata + preview generation —
+                closes the nested-symlink-ancestor TOCTOU window that
+                would otherwise reopen between hashing and review.
 
         Returns:
             DuplicateReview with user decisions
@@ -127,7 +138,7 @@ class ComparisonViewer:
         metadata_list = []
         for img_path in images:
             try:
-                metadata = self._get_image_metadata(img_path)
+                metadata = self._get_image_metadata(img_path, trusted_root=trusted_root)
                 metadata_list.append(metadata)
             except (OSError, ValueError) as e:
                 self.console.print(f"[yellow]Warning: Could not load {img_path}: {e}[/yellow]")
@@ -137,7 +148,7 @@ class ComparisonViewer:
 
         # Display comparison
         self._display_comparison_header(len(metadata_list), similarity_score)
-        self._display_images_side_by_side(metadata_list)
+        self._display_images_side_by_side(metadata_list, trusted_root=trusted_root)
 
         # Get user action
         action = self._prompt_user_action(len(metadata_list))
@@ -146,13 +157,21 @@ class ComparisonViewer:
         return self._process_user_action(action, metadata_list)
 
     def batch_review(
-        self, duplicate_groups: dict[str, list[Path]], auto_select_best: bool = False
+        self,
+        duplicate_groups: dict[str, list[Path]],
+        auto_select_best: bool = False,
+        *,
+        trusted_root: Path | None = None,
     ) -> dict[Path, str]:
         """Review multiple groups of duplicates in batch.
 
         Args:
             duplicate_groups: Dictionary mapping group IDs to lists of duplicate images
             auto_select_best: If True, automatically keep best quality
+            trusted_root: Optional scan root that bounds SafeDir traversal
+                for each image during review. Forwards through to
+                :meth:`show_comparison` so symlinked ancestors are
+                rejected at every component.
 
         Returns:
             Dictionary mapping file paths to actions ("keep" or "delete")
@@ -172,8 +191,9 @@ class ComparisonViewer:
                 # Automatic selection of best quality
                 review = self._auto_select_best(images)
             else:
-                # Manual review
-                review = self.show_comparison(images)
+                # Manual review — pass the scan root through so each
+                # image opens with full anchored traversal.
+                review = self.show_comparison(images, trusted_root=trusted_root)
 
             # Record decisions
             for path in review.files_to_keep:
@@ -192,11 +212,15 @@ class ComparisonViewer:
 
         return decisions
 
-    def _get_image_metadata(self, image_path: Path) -> ImageMetadata:
+    def _get_image_metadata(
+        self, image_path: Path, *, trusted_root: Path | None = None
+    ) -> ImageMetadata:
         """Extract metadata from an image file.
 
         Args:
             image_path: Path to image file
+            trusted_root: Scan root for SafeDir anchoring; defers to the
+                parent-rooted fallback when ``None``.
 
         Returns:
             ImageMetadata object
@@ -204,7 +228,7 @@ class ComparisonViewer:
         Raises:
             Exception: If image cannot be loaded
         """
-        with safedir_image_open(image_path) as (img, fd):
+        with safedir_image_open(image_path, trusted_root=trusted_root) as (img, fd):
             width, height = img.size
             img_format = img.format or "UNKNOWN"
             mode = img.mode
@@ -238,17 +262,25 @@ class ComparisonViewer:
 
         self.console.print(Panel(header_text, style="bold cyan", box=box.DOUBLE))
 
-    def _display_images_side_by_side(self, metadata_list: list[ImageMetadata]) -> None:
+    def _display_images_side_by_side(
+        self,
+        metadata_list: list[ImageMetadata],
+        *,
+        trusted_root: Path | None = None,
+    ) -> None:
         """Display images side by side with metadata.
 
         Args:
             metadata_list: List of ImageMetadata objects
+            trusted_root: Forwarded to ``_generate_ascii_preview`` so
+                the ASCII preview re-open uses the same SafeDir anchor
+                as the metadata extraction.
         """
         # Create tables for each image
         tables = []
 
         for idx, metadata in enumerate(metadata_list, 1):
-            table = self._create_image_info_table(idx, metadata)
+            table = self._create_image_info_table(idx, metadata, trusted_root=trusted_root)
             tables.append(table)
 
         # Display in columns if terminal is wide enough
@@ -260,12 +292,19 @@ class ComparisonViewer:
                 self.console.print(table)
                 self.console.print()
 
-    def _create_image_info_table(self, index: int, metadata: ImageMetadata) -> Table:
+    def _create_image_info_table(
+        self,
+        index: int,
+        metadata: ImageMetadata,
+        *,
+        trusted_root: Path | None = None,
+    ) -> Table:
         """Create a table displaying image information.
 
         Args:
             index: Image number in comparison
             metadata: ImageMetadata object
+            trusted_root: Forwarded to ``_generate_ascii_preview``.
 
         Returns:
             Rich Table with image info
@@ -291,14 +330,19 @@ class ComparisonViewer:
         table.add_row("Full Path", str(metadata.path))
 
         # Add ASCII preview if terminal supports it
-        preview = self._generate_ascii_preview(metadata.path)
+        preview = self._generate_ascii_preview(metadata.path, trusted_root=trusted_root)
         if preview:
             table.add_row("Preview", preview)
 
         return table
 
     def _generate_ascii_preview(
-        self, image_path: Path, max_width: int = 40, max_height: int = 15
+        self,
+        image_path: Path,
+        max_width: int = 40,
+        max_height: int = 15,
+        *,
+        trusted_root: Path | None = None,
     ) -> str | None:
         """Generate ASCII art preview of image.
 
@@ -306,12 +350,14 @@ class ComparisonViewer:
             image_path: Path to image
             max_width: Maximum width in characters
             max_height: Maximum height in characters
+            trusted_root: Scan root for SafeDir anchoring; defers to
+                the parent-rooted fallback when ``None``.
 
         Returns:
             ASCII art string or None if preview fails
         """
         try:
-            with safedir_image_open(image_path) as (raw_img, _fd):
+            with safedir_image_open(image_path, trusted_root=trusted_root) as (raw_img, _fd):
                 # Convert to grayscale
                 img: Image.Image = raw_img.convert("L")
 
