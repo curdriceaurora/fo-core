@@ -301,6 +301,64 @@ def _top_level_stmt_lineno(
     return None
 
 
+def _call_is_inside_function(call_node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:
+    """Walk parents outward; return True if any enclosing scope is a
+    function / async-function / lambda."""
+    cur = call_node
+    while cur in parents:
+        cur = parents[cur]
+        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            return True
+        if isinstance(cur, ast.Module):
+            return False
+    return False
+
+
+def _replay_module_aliases(module: ast.Module, cutoff_lineno: int | None) -> dict[str, str]:
+    """Walk module body in source order; build the active alias map.
+
+    Walks every top-level statement with ``lineno <= cutoff_lineno`` (all
+    statements if cutoff is None). For each statement:
+
+    - ``ast.Import`` adds/updates aliases (handles same-name re-imports
+      in source order).
+    - Any ``ast.Name(Store)`` (excluding nested function/class/lambda
+      scopes) removes the matching alias.
+    """
+    active: dict[str, str] = {}
+    for stmt in module.body:
+        if cutoff_lineno is not None and stmt.lineno > cutoff_lineno:
+            break
+        if isinstance(stmt, ast.Import):
+            for alias_node in stmt.names:
+                top_level = alias_node.name.split(".", 1)[0]
+                local = alias_node.asname if alias_node.asname else top_level
+                active[local] = top_level
+        for node in _iter_excluding_nested_scopes(stmt):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id in active:
+                del active[node.id]
+    return active
+
+
+def _drop_function_shadowed(
+    active: dict[str, str],
+    call_node: ast.AST,
+    parents: dict[ast.AST, ast.AST],
+) -> None:
+    """Walk enclosing scopes; drop aliases shadowed by any function's
+    local bindings. Mutates *active* in place."""
+    cur = call_node
+    while cur in parents:
+        cur = parents[cur]
+        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            local_names = _function_local_names(cur)
+            for name in list(active):
+                if name in local_names:
+                    del active[name]
+        elif isinstance(cur, ast.Module):
+            break
+
+
 def _active_aliases_at_call(
     call_node: ast.Call,
     base_aliases: dict[str, str],
@@ -309,81 +367,61 @@ def _active_aliases_at_call(
 ) -> dict[str, str]:
     """Return the alias map effective at *call_node*'s location.
 
-    Two-layer resolution:
+    Uses a **replay** model rather than build-then-filter:
 
-    1. **Function-scope shadowing (LEGB-like)**: walk outward from the
-       call to the module. At each enclosing function / async-function /
-       lambda, drop any alias whose name appears in that function's
-       local bindings (parameters or any Store-context Name in the body
-       — excluding nested scopes). Python's function-scope rule is not
-       order-based, so the entire function body counts.
-    2. **Module-level order shadowing**: scan top-level module bindings
-       (Store-context Names anywhere in module-body statements, but
-       not inside nested function/class/lambda bodies). Drop any alias
-       whose first such binding has a lineno STRICTLY BEFORE the
-       top-level statement containing the call. Calls that come
-       before any module-level rebind keep their alias.
+    1. Determine the cutoff. For calls *inside* a function/lambda, the
+       cutoff is end-of-file — by invocation time the module body has
+       fully executed, so every module-level binding is visible. For
+       module-level calls, the cutoff is the lineno of the call's
+       containing top-level statement (inclusive — bindings in the
+       statement's header like ``for gz in ...:`` apply to the body).
+    2. Walk ``module.body`` in source order. For each statement at
+       ``lineno <= cutoff`` (or all statements if cutoff is None):
 
-    Both layers compose: function-shadowed aliases stay dropped even if
-    the function appears before any module rebind, and module-rebound
-    aliases stay dropped even if the call is inside a function that
-    doesn't locally shadow.
+       - ``ast.Import`` adds / updates aliases (top-level module name,
+         keyed by asname or top-level local name). This means a later
+         ``import pathlib as gz`` correctly overwrites an earlier
+         ``import gzip as gz`` from that line forward, and calls between
+         the two see the EARLIER mapping.
+       - Any ``ast.Name(Store)`` within the statement (excluding nested
+         function / class / lambda scopes, which Python treats as
+         separate name-resolution contexts) removes the name from the
+         alias map. So ``for gz in items:`` drops ``gz`` for calls inside
+         the body, and ``gz = Path(...)`` followed by ``gz.open('wb')``
+         drops ``gz`` before the call.
+
+    3. Apply function-scope shadowing on top: walk outward from the call
+       to the module. At each enclosing function / lambda, drop any
+       alias whose name is locally bound (parameter, ``Name(Store)``,
+       or nested ``Import``).
+
+    The replay model naturally handles:
+
+    - Same-line rebinds (``for gz in ...: gz.open(...)`` — the for-target
+      and the call share the for-statement's lineno; the target binding
+      is collected when walking the statement).
+    - Multiple imports of the same alias name (calls between them see
+      the earlier mapping; calls after the second see the new mapping).
+    - Module-level rebinds AFTER an in-function definition (the function
+      call sees the post-rebind value because cutoff is end-of-file).
     """
-    active = dict(base_aliases)
-    if not active:
-        return active
+    if not base_aliases:
+        return {}
 
-    # Layer 1: walk enclosing scopes outward; drop locally-bound names.
-    # Also remember whether the call is inside a function — that changes
-    # how Layer 2 interprets module-level rebinds.
-    inside_function = False
-    cur = call_node
-    while cur in parents:
-        cur = parents[cur]
-        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-            inside_function = True
-            local_names = _function_local_names(cur)
-            for name in list(active):
-                if name in local_names:
-                    del active[name]
-        elif isinstance(cur, ast.Module):
-            break
-
-    if not active:
-        return active
-
-    # Layer 2: module-level rebind shadowing.
-    #
-    # For calls *at module scope*: only rebinds strictly before the
-    # containing top-level statement shadow the alias. This preserves
-    # legitimate reads like ``gz.open(p, "rb")`` that precede a later
-    # ``gz = object()`` rebind.
-    #
-    # For calls *inside a function*: ANY module-level rebind anywhere in
-    # the file shadows the alias. Rationale: by the time the function is
-    # invoked from outside the module, the module body has run to
-    # completion, so any post-def rebind is visible — the function's
-    # ``def`` line is not a meaningful cutoff. (Calls of the function
-    # made BEFORE the rebind during module loading are a corner case
-    # we accept as over-conservative.)
-    if inside_function:
-        cutoff_lineno: int | None = None  # any rebind anywhere shadows
+    # Determine cutoff: end-of-file for in-function calls (entire module
+    # body has executed by invocation time); call's top-level statement
+    # lineno (inclusive of in-header bindings) for module-level calls.
+    if _call_is_inside_function(call_node, parents):
+        cutoff_lineno: int | None = None
     else:
         cutoff_lineno = _top_level_stmt_lineno(call_node, parents, module)
         if cutoff_lineno is None:
-            return active
+            return {}
 
-    for stmt in module.body:
-        # Don't descend into nested scopes — function/class/lambda
-        # bodies have their own bindings that don't shadow the module
-        # name at module scope.
-        for node in _iter_excluding_nested_scopes(stmt):
-            if not (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)):
-                continue
-            if node.id not in active:
-                continue
-            if cutoff_lineno is None or node.lineno < cutoff_lineno:
-                del active[node.id]
+    active = _replay_module_aliases(module, cutoff_lineno)
+    if not active:
+        return active
+    _drop_function_shadowed(active, call_node, parents)
     return active
 
 

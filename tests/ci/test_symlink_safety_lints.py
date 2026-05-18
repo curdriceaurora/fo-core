@@ -771,6 +771,88 @@ class TestBareOpenDetectionDirScoped:
         # In-function import shadows module-level alias.
         assert "gz" not in active
 
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # for-target shadow — single-line.
+            "import gzip as gz\nfor gz in []: gz.open('wb')\n",
+            # for-target shadow — multi-line.
+            "import gzip as gz\nfor gz in []:\n    gz.open('wb')\n",
+            # with-target shadow.
+            "import gzip as gz\nwith open('/x') as gz: gz.open('wb')\n",
+        ],
+    )
+    def test_alias_dropped_by_same_line_header_binding(self, source: str) -> None:
+        """Regression for Codex P2 (1f6e27a): the previous order check
+        used ``node.lineno < cutoff`` (strict less-than), which missed
+        bindings on the SAME line as the cutoff statement — exactly the
+        case for ``for gz in ...:`` and ``with ... as gz:`` where the
+        target binding and the call share the statement's lineno. The
+        replay model walks all statements with ``lineno <= cutoff`` and
+        collects in-header bindings before evaluating the call."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        assert "gz" not in active
+
+    def test_replay_preserves_earlier_import_for_calls_before_second_import(
+        self,
+    ) -> None:
+        """Regression for Codex P2 (1f6e27a): when two module-level
+        imports bind the same local name (``import gzip as gz`` then
+        ``import pathlib as gz``), a call BETWEEN them sees the
+        earlier mapping; a call AFTER the second sees the new one.
+
+        Source under test::
+
+            import gzip as gz         # 1
+            gz.open('/x/a', 'rb')     # 2  ← resolves to gzip.open
+            import pathlib as gz      # 3
+            gz.open('rb')             # 4  ← resolves to pathlib.open
+
+        Both calls have ``gz`` as the receiver, but the replay model
+        gives them different alias maps.
+        """
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = "import gzip as gz\ngz.open('/x/a', 'rb')\nimport pathlib as gz\ngz.open('rb')\n"
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        calls = [
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        ]
+        # Call at line 2 — before the second import.
+        first_call = next(c for c in calls if c.lineno == 2)
+        # Call at line 4 — after the second import.
+        second_call = next(c for c in calls if c.lineno == 4)
+        first_active = _active_aliases_at_call(first_call, base_aliases, parents, tree)
+        second_active = _active_aliases_at_call(second_call, base_aliases, parents, tree)
+        assert first_active.get("gz") == "gzip"
+        assert second_active.get("gz") == "pathlib"
+
     def test_in_function_call_drops_alias_on_any_module_rebind(self) -> None:
         """Regression for Codex P2 (2fdb63e): a call inside a function
         sees the *runtime* value of the module global by the time the
