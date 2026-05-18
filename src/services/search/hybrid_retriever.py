@@ -13,6 +13,8 @@ building.
 
 from __future__ import annotations
 
+import os
+import sys
 import threading
 from pathlib import Path
 
@@ -21,6 +23,7 @@ from loguru import logger
 from interfaces.search import RetrieverProtocol
 from services.search.bm25_index import BM25Index
 from services.search.vector_index import VectorIndex
+from utils.safedir import SafeDir, SymlinkRejected
 
 # ---------------------------------------------------------------------------
 # Corpus helpers (shared by API router and CLI)
@@ -39,20 +42,50 @@ def read_text_safe(path: Path, limit: int = CORPUS_TEXT_LIMIT) -> str:
     *limit* bytes, inspects the first :data:`CORPUS_BINARY_PEEK` bytes for
     null bytes (binary sentinel), then decodes.
 
+    The read goes through :class:`utils.safedir.SafeDir` on POSIX so a
+    symlink swapped in between corpus enumeration and this content read
+    is refused rather than dereferenced (closes the LLM-exfiltration
+    vector documented in #264). Windows / non-POSIX platforms fall back
+    to the legacy path-based open until the SafeDir Windows port lands.
+
     Args:
         path: File to read.
         limit: Maximum number of bytes to read (may yield fewer characters for
             multi-byte encodings).
 
     Returns:
-        Decoded text content, or an empty string if the file is binary or
-        unreadable.
+        Decoded text content, or an empty string if the file is binary,
+        unreadable, or a refused symlink.
     """
-    try:
-        with path.open("rb") as fh:
-            raw = fh.read(limit)
-    except OSError:
-        return ""
+    raw: bytes | None = None
+    if sys.platform != "win32":
+        try:
+            with SafeDir.open_root(path.parent) as safe_dir:
+                fd = safe_dir.open_for_reader(path.name)
+                # fdopen takes ownership only once it returns; explicitly
+                # close the bare fd if fdopen itself raises.
+                try:
+                    fileobj = os.fdopen(fd, "rb", closefd=True)
+                except OSError:
+                    os.close(fd)
+                    raise
+                with fileobj:
+                    raw = fileobj.read(limit)
+        except SymlinkRejected as exc:
+            logger.warning("Refused to read symlinked file {}: {}", path, exc)
+            return ""
+        except NotImplementedError:
+            # SafeDir's POSIX primitives unavailable; fall through to
+            # legacy path-based open below.
+            logger.debug("SafeDir unavailable; using legacy reader for {}", path.name)
+        except OSError:
+            return ""
+    if raw is None:
+        try:
+            with path.open("rb") as fh:  # safedir: ok — Windows / NotImplementedError fallback
+                raw = fh.read(limit)
+        except OSError:
+            return ""
     peek_size = min(CORPUS_BINARY_PEEK, len(raw))
     if b"\x00" in raw[:peek_size]:
         return ""  # binary file — skip content extraction
