@@ -269,10 +269,11 @@ def read_tar_file(
     *,
     fileobj: BinaryIO | None = None,
 ) -> str:
-    """Read contents and metadata from a TAR/GZ/BZ2 archive.
+    """Read contents and metadata from a TAR/GZ/BZ2/XZ archive.
 
     Args:
-        file_path: Path to TAR file (.tar, .tar.gz, .tgz, .tar.bz2). Used as
+        file_path: Path to TAR file (``.tar``, ``.tar.gz`` / ``.tgz``,
+            ``.tar.bz2`` / ``.tbz2``, ``.tar.xz`` / ``.xz``). Used as
             the compression-type hint when ``fileobj`` is supplied.
         max_files: Maximum number of files to list
         fileobj: Open binary file-like (SafeDir-friendly entry point). The

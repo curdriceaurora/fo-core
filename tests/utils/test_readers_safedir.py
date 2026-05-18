@@ -497,17 +497,88 @@ class TestReadFileViaSafedir:
         assert "ZIP Archive: real.zip" in out
         assert "hello.txt" in out
 
-    def test_reads_real_tar_gz_archive(self, tmp_path: Path) -> None:
-        """End-to-end with a compound extension — exercises the dispatcher's
-        ``.tar.gz`` branch and reaches ``read_tar_file`` via the SafeDir fd.
+    @pytest.mark.parametrize(
+        ("name", "tar_mode", "expected_compression"),
+        [
+            ("real.tar", "w", "None"),
+            ("real.tar.gz", "w:gz", "GZ"),
+            ("real.tgz", "w:gz", "GZ"),
+            ("real.tar.bz2", "w:bz2", "BZ2"),
+            ("real.tbz2", "w:bz2", "BZ2"),
+            ("real.tar.xz", "w:xz", "XZ"),
+        ],
+    )
+    def test_reads_real_tar_archive_for_each_extension(
+        self, tmp_path: Path, name: str, tar_mode: str, expected_compression: str
+    ) -> None:
+        """End-to-end via the dispatcher for every TAR extension in
+        ``_SAFEDIR_READERS``. A dropped mapping (incl. the compound-extension
+        branch in ``read_file_via_safedir``) would silently return ``None`` —
+        we assert real content makes it through for each alias so the
+        mapping has positive coverage.
         """
-        _make_tar(tmp_path / "real.tar.gz", mode="w:gz")
+        _make_tar(tmp_path / name, mode=tar_mode)
         with SafeDir.open_root(tmp_path) as sd:
-            out = read_file_via_safedir(sd, "real.tar.gz")
-        assert out is not None
-        assert "TAR Archive: real.tar.gz" in out
-        assert "Compression: GZ" in out
+            out = read_file_via_safedir(sd, name)
+        assert out is not None, f"dispatcher returned None for {name!r}"
+        assert f"TAR Archive: {name}" in out
+        assert f"Compression: {expected_compression}" in out
         assert "readme.txt" in out
+
+    def test_dispatches_7z_extension(self, tmp_path: Path) -> None:
+        """``.7z`` routes to ``read_7z_file`` via the SafeDir dispatcher.
+
+        ``_SAFEDIR_READERS`` holds direct function references — patching
+        ``read_7z_file`` at the module level won't intercept. Instead we
+        patch the underlying py7zr binding and assert the reader reached
+        it with the SafeDir-opened fileobj (same approach as
+        ``test_dispatcher_reraises_unexpected_reader_exception``).
+        """
+        (tmp_path / "data.7z").write_bytes(b"7z placeholder")
+        mock_file_info = MagicMock()
+        mock_file_info.filename = "inside.txt"
+        mock_file_info.uncompressed = 5
+        mock_file_info.compressed = 5
+        mock_archive = MagicMock()
+        mock_archive.__enter__.return_value = mock_archive
+        mock_archive.__exit__.return_value = None
+        mock_archive.list.return_value = [mock_file_info]
+        mock_archive.password_protected = False
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with patch("utils.readers.archives.py7zr") as mock_py7zr:
+                mock_py7zr.SevenZipFile.return_value = mock_archive
+                out = read_file_via_safedir(sd, "data.7z")
+        assert out is not None
+        assert "7Z Archive: data.7z" in out
+        # SafeDir-opened fileobj reached the underlying library.
+        mock_py7zr.SevenZipFile.assert_called_once()
+        call_args, _ = mock_py7zr.SevenZipFile.call_args
+        assert hasattr(call_args[0], "read")
+
+    def test_dispatches_rar_extension(self, tmp_path: Path) -> None:
+        """``.rar`` routes to ``read_rar_file`` via the SafeDir dispatcher."""
+        (tmp_path / "data.rar").write_bytes(b"rar placeholder")
+        mock_info = MagicMock()
+        mock_info.filename = "inside.txt"
+        mock_info.file_size = 10
+        mock_info.compress_size = 8
+        mock_rf = MagicMock()
+        mock_rf.__enter__.return_value = mock_rf
+        mock_rf.__exit__.return_value = None
+        mock_rf.infolist.return_value = [mock_info]
+        mock_rf.needs_password.return_value = False
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with patch("utils.readers.archives.rarfile") as mock_rarfile_mod:
+                mock_rarfile_mod.RarFile.return_value = mock_rf
+                mock_rarfile_mod.RarCannotExec = type("RarCannotExec", (Exception,), {})
+                out = read_file_via_safedir(sd, "data.rar")
+        assert out is not None
+        assert "RAR Archive: data.rar" in out
+        mock_rarfile_mod.RarFile.assert_called_once()
+        call_args, _ = mock_rarfile_mod.RarFile.call_args
+        assert hasattr(call_args[0], "read")
 
     def test_refuses_symlinked_zip(self, tmp_path: Path) -> None:
         """A symlinked archive in the organize root must be refused, not
