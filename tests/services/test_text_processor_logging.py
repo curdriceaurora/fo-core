@@ -68,7 +68,7 @@ class TestInfoLevelDoesNotLeakContent:
         with (
             patch("services.text_processor.logger") as mock_logger,
             patch(
-                "services.text_processor.read_file",
+                "services.text_processor.read_file_via_safedir",
                 return_value="healthcare content",
             ),
         ):
@@ -86,7 +86,7 @@ class TestInfoLevelDoesNotLeakContent:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="medical records"),
+            patch("services.text_processor.read_file_via_safedir", return_value="medical records"),
         ):
             processor.process_file(str(tmp_path / "records.txt"))
 
@@ -105,7 +105,7 @@ class TestInfoLevelDoesNotLeakContent:
         with (
             patch("services.text_processor.logger") as mock_logger,
             patch(
-                "services.text_processor.read_file",
+                "services.text_processor.read_file_via_safedir",
                 return_value="financial planning",
             ),
         ):
@@ -141,7 +141,7 @@ class TestWarningLevelDoesNotLeakContent:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="some text"),
+            patch("services.text_processor.read_file_via_safedir", return_value="some text"),
             patch("services.text_processor.clean_text", return_value="fallback_folder"),
         ):
             processor.process_file(str(tmp_path / "short_folder.txt"))
@@ -167,7 +167,7 @@ class TestWarningLevelDoesNotLeakContent:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="some code"),
+            patch("services.text_processor.read_file_via_safedir", return_value="some code"),
             patch("services.text_processor.clean_text", return_value="code_snippet"),
         ):
             processor.process_file(str(tmp_path / "short_fn.txt"))
@@ -186,7 +186,7 @@ class TestWarningLevelDoesNotLeakContent:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="content"),
+            patch("services.text_processor.read_file_via_safedir", return_value="content"),
             patch("services.text_processor.clean_text", return_value="fallback"),
         ):
             processor.process_file(str(tmp_path / "warn_test.txt"))
@@ -223,7 +223,7 @@ class TestDebugLevelDoesNotLeakAiResponses:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="text"),
+            patch("services.text_processor.read_file_via_safedir", return_value="text"),
         ):
             processor.process_file(str(tmp_path / "debug_test.txt"))
 
@@ -244,7 +244,7 @@ class TestDebugLevelDoesNotLeakAiResponses:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="text"),
+            patch("services.text_processor.read_file_via_safedir", return_value="text"),
         ):
             processor.process_file(str(tmp_path / "debug_fn_test.txt"))
 
@@ -267,7 +267,7 @@ class TestDebugLevelDoesNotLeakAiResponses:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="python code"),
+            patch("services.text_processor.read_file_via_safedir", return_value="python code"),
         ):
             processor.process_file(str(tmp_path / "code_guide.txt"))
 
@@ -300,7 +300,7 @@ class TestLogMessageFormats:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="recipe content"),
+            patch("services.text_processor.read_file_via_safedir", return_value="recipe content"),
         ):
             processor.process_file(str(tmp_path / "recipe.txt"))
 
@@ -321,7 +321,7 @@ class TestLogMessageFormats:
 
         with (
             patch("services.text_processor.logger") as mock_logger,
-            patch("services.text_processor.read_file", return_value="cooking content"),
+            patch("services.text_processor.read_file_via_safedir", return_value="cooking content"),
         ):
             processor.process_file(str(tmp_path / "cooking.txt"))
 

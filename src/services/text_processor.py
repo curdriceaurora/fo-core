@@ -13,6 +13,8 @@ from models import TextModel
 from models.base import BaseModel, ModelConfig, ModelType
 from models.provider_factory import get_text_model
 from utils.file_readers import FileReadError, read_file
+from utils.readers import read_file_via_safedir
+from utils.safedir import SafeDir, SymlinkRejected
 from utils.text_processing import (
     clean_text,
     truncate_text,
@@ -138,9 +140,47 @@ class TextProcessor:
         start_time = time.time()
 
         try:
-            # Read file content
+            # Read file content via SafeDir for the migrated extensions
+            # (txt/md/docx/pdf/rtf/csv/xlsx/pptx — the LLM ingestion path).
+            # ``read_file_via_safedir`` opens with ``O_NOFOLLOW`` so a
+            # symlink swapped in between the directory walk and this read
+            # is refused rather than dereferenced — closes the LLM-
+            # exfiltration vector documented in #264. Other extensions
+            # fall back to the legacy path-based ``read_file`` until their
+            # readers are migrated in PR3b–PR3e.
             logger.debug("Reading file: {}", file_path.name)
-            content = read_file(file_path)
+            content: str | None = None
+            try:
+                with SafeDir.open_root(file_path.parent) as safe_dir:
+                    content = read_file_via_safedir(safe_dir, file_path.name)
+            except SymlinkRejected as exc:
+                logger.warning("Refused to read symlinked file {}: {}", file_path, exc)
+                return ProcessedFile(
+                    file_path=file_path,
+                    description="",
+                    folder_name="errors",
+                    filename=file_path.stem,
+                    error=f"Refused to read symlink: {file_path.name}",
+                )
+            except NotImplementedError:
+                # SafeDir requires POSIX dir_fd / O_NOFOLLOW; on Windows
+                # the Windows port is deferred (#264). Fall back to the
+                # legacy path-based reader so Windows users can still
+                # process .txt/.md/.pdf/.docx through TextProcessor.
+                # Tracked for follow-up in PR3b–PR3e.
+                logger.debug(
+                    "SafeDir unavailable on this platform; using legacy reader for {}",
+                    file_path.name,
+                )
+            if content is None:
+                # Either the SafeDir dispatcher returned ``None`` (extension
+                # not yet migrated — archives, ebooks, scientific, CAD,
+                # handled in PR3b–PR3e) OR SafeDir is unavailable (Windows).
+                # Real FS errors from the SafeDir branch propagate to the
+                # outer ``except FileReadError`` / ``except OSError``
+                # handlers — never silently masked by a path-based retry
+                # that could follow a symlink swapped in mid-flight.
+                content = read_file(file_path)
 
             if content is None:
                 return ProcessedFile(

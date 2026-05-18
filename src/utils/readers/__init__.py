@@ -21,7 +21,9 @@ Example::
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -31,6 +33,9 @@ from utils.readers._base import (
     FileTooLargeError,
     _check_file_size,
 )
+
+if TYPE_CHECKING:
+    from utils.safedir import SafeDir
 from utils.readers.archives import (
     read_7z_file,
     read_rar_file,
@@ -64,8 +69,9 @@ __all__ = [
     "FileReadError",
     "FileTooLargeError",
     "MAX_FILE_SIZE_BYTES",
-    # Dispatcher
+    # Dispatchers
     "read_file",
+    "read_file_via_safedir",
     # Document readers
     "read_text_file",
     "read_docx_file",
@@ -159,4 +165,86 @@ def read_file(file_path: str | Path, **kwargs: object) -> str | None:
                     raise
 
     logger.warning(f"Unsupported file type: {ext}")
+    return None
+
+
+# Readers that accept the SafeDir-friendly ``fileobj=`` kwarg. Migrated in
+# PR3a (#267): the LLM text-ingestion path — plain text, markdown, DOCX, PDF,
+# RTF, CSV/XLSX, and PowerPoint. Other readers (ebook, archives, scientific,
+# CAD) are still path-only and dispatch falls back to ``read_file`` (which
+# does not benefit from SafeDir's symlink rejection).
+_SAFEDIR_READERS: dict[tuple[str, ...], object] = {
+    (".txt", ".md"): read_text_file,
+    (".docx",): read_docx_file,
+    (".pdf",): read_pdf_file,
+    (".rtf",): read_rtf_file,
+    (".csv", ".xlsx", ".xls"): read_spreadsheet_file,
+    (".ppt", ".pptx"): read_presentation_file,
+}
+
+
+def read_file_via_safedir(
+    safe_dir: SafeDir,
+    name: str,
+    **kwargs: object,
+) -> str | None:
+    """Open *name* under *safe_dir* and dispatch to a reader.
+
+    The SafeDir-friendly entry point: ``safe_dir.open_for_reader(name)`` is
+    used to obtain a file descriptor with ``O_NOFOLLOW``, so a symlink
+    swapped in between directory enumeration and read is refused with
+    ``SymlinkRejected`` rather than dereferenced.
+
+    Args:
+        safe_dir: An open :class:`utils.safedir.SafeDir` for the parent
+            directory of *name*.
+        name: Single path component identifying the file inside *safe_dir*.
+        **kwargs: Additional arguments forwarded to the dispatched reader
+            (e.g. ``max_pages`` for PDF).
+
+    Returns:
+        Extracted text content, or ``None`` if the file extension isn't
+        currently supported via the SafeDir path (caller may choose to
+        fall back to legacy ``read_file`` or treat as unsupported). The
+        size-limit check uses ``os.fstat`` on the SafeDir-opened fd so
+        ``FileTooLargeError`` is raised before the reader receives the
+        stream.
+
+    Raises:
+        utils.safedir.SymlinkRejected: If *name* is a symlink.
+        ValueError: If *name* contains path separators or is reserved.
+        FileReadError: If the reader fails on the file content.
+        FileTooLargeError: If the file exceeds ``MAX_FILE_SIZE_BYTES``.
+    """
+    # Build a Path purely for extension parsing — never used for I/O.
+    name_path = Path(name)
+    name_lower = name.lower()
+    if (
+        name_lower.endswith(".tar.gz")
+        or name_lower.endswith(".tar.bz2")
+        or name_lower.endswith(".tar.xz")
+    ):
+        compound_ext = "." + ".".join(name_path.name.split(".")[-2:]).lower()
+    else:
+        compound_ext = name_path.suffix.lower()
+    ext = name_path.suffix.lower()
+
+    for check_ext in [compound_ext, ext]:
+        for extensions, reader in _SAFEDIR_READERS.items():
+            if check_ext in extensions:
+                fd = safe_dir.open_for_reader(name)
+                try:
+                    with os.fdopen(fd, "rb", closefd=True) as fileobj:
+                        return reader(  # type: ignore[operator,no-any-return]
+                            file_path=name_path,
+                            fileobj=fileobj,
+                            **kwargs,
+                        )
+                except Exception as exc:
+                    logger.error(f"Error reading {name}: {exc}")
+                    raise
+
+    logger.debug(
+        f"Extension {ext!r} not yet supported by read_file_via_safedir; caller may fall back"
+    )
     return None

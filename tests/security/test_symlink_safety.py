@@ -40,6 +40,7 @@ from core.path_guard import safe_walk
 pytestmark = [
     pytest.mark.ci,
     pytest.mark.unit,
+    pytest.mark.integration,
     pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlink semantics"),
 ]
 
@@ -162,36 +163,103 @@ class TestSafeWalkSymlinkFiltering:
 
 
 class TestReadSideSymlinkSafety:
-    """Tests for the LLM-exfiltration vector (blocked on PR3, #267)."""
+    """Tests for the LLM-exfiltration vector — un-skipped in PR3a (#267)."""
+
+    @staticmethod
+    def _mock_text_processor():
+        """Return a ``TextProcessor`` with a mocked TEXT model.
+
+        Imports happen inside the function so the module imports during
+        test collection don't require LLM extras.
+        """
+        from unittest.mock import MagicMock
+
+        from models.base import ModelType
+        from services.text_processor import TextProcessor
+
+        model = MagicMock()
+        model.config.model_type = ModelType.TEXT
+        model.is_initialized = True
+        # A recorder for content the LLM would have seen. If the symlink
+        # were dereferenced, honey bytes would land here.
+        model.generate = MagicMock(return_value="MOCK_SUMMARY")
+        return TextProcessor(text_model=model), model
 
     def test_reader_does_not_open_symlink_target(self, tmp_path: Path) -> None:
-        """A swapped symlink between enumeration and read is rejected.
+        """A symlinked file in the organize root is refused before the reader runs.
 
-        Sequence the test will exercise once SafeDir is wired in:
+        Setup:
+        1. Honey file outside the organize root with sensitive content.
+        2. ``organize/report.txt`` is a symlink pointing at the honey file.
+        3. Caller invokes ``text_processor.process_file(organize/report.txt)``.
 
-        1. ``safe_walk`` yields ``organize/report.pdf`` as a regular file.
-        2. Between yield and read, the file is replaced by a symlink to the
-           honey file (simulated via patched ``open`` callback or a sleep +
-           subprocess swap).
-        3. ``SafeDir.open_for_reader`` uses ``O_NOFOLLOW`` and raises
-           ``SymlinkRejected``. The content reader is never called.
-
-        Acceptance: a recorder mock attached to the LLM processor never
-        receives ``_HONEY_CONTENT``.
+        Expected:
+        - ``SafeDir.open_for_reader`` raises ``SymlinkRejected``.
+        - ``ProcessedFile.folder_name == "errors"``.
+        - ``ProcessedFile.error`` mentions the symlink refusal.
+        - The mocked LLM is NOT called (no ``generate`` invocation), so
+          honey content cannot have leaked into the inference path.
         """
-        pytest.skip("blocked on PR3 (#267) — SafeDir read-side migration")
+        honey = _make_honey(tmp_path)  # tmp_path/honey/SECRET
+        organize = _make_organize_root(tmp_path)
+        # The symlink uses a .txt extension so it would be routed through
+        # the SafeDir text reader if SafeDir didn't refuse it.
+        link = organize / "report.txt"
+        try:
+            link.symlink_to(honey)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        processor, model = self._mock_text_processor()
+        result = processor.process_file(link)
+
+        assert result.folder_name == "errors"
+        assert result.error is not None
+        assert "symlink" in result.error.lower(), (
+            f"expected refusal message to mention symlink: {result.error!r}"
+        )
+        assert model.generate.call_count == 0, (
+            "LLM was invoked despite symlink rejection — honey content may have leaked"
+        )
 
     def test_organize_large_symlink_target_not_opened(self, tmp_path: Path) -> None:
-        """A 200MB out-of-tree symlink target is not read.
+        """A symlink to a large out-of-tree file is refused without reading the target.
 
-        Today ``collect_files`` (legacy ``os.walk``) yields the symlink and
-        the content reader opens it. After PR3+PR6 this path goes through
-        SafeDir and the read is refused. The test measures wall-clock + I/O
-        — if the reader actually opens 200MB the test will trip a timeout
-        guard. Once green, it becomes the canary for "fo organize doesn't
-        accidentally pull arbitrary files into memory via a planted link".
+        Today (PR3a) the SafeDir reader refuses the symlink at open time —
+        no bytes from the target are ever read. The canary: time the
+        operation and confirm it's fast even when the target is large.
+        500 KB of zeros is enough to detect a regression where the
+        reader would have opened the target.
         """
-        pytest.skip("blocked on PR3 (#267) and PR6 (#270) — legacy collect_files")
+        honey_dir = tmp_path / "honey"
+        honey_dir.mkdir()
+        # 500KB sentinel — big enough that reading it would be measurable,
+        # small enough to keep test runtime negligible.
+        big_target = honey_dir / "huge.txt"
+        big_target.write_bytes(b"\x00" * (500 * 1024))
+
+        organize = _make_organize_root(tmp_path)
+        link = organize / "report.txt"
+        try:
+            link.symlink_to(big_target)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        processor, model = self._mock_text_processor()
+
+        import time
+
+        start = time.perf_counter()
+        result = processor.process_file(link)
+        elapsed = time.perf_counter() - start
+
+        assert result.folder_name == "errors"
+        assert result.error is not None
+        # The refusal path does a few syscalls + log calls. Even on a slow
+        # CI runner it should finish in well under 0.5 seconds. Reading
+        # 500 KB through the LLM pipeline would take much longer.
+        assert elapsed < 0.5, f"refusal took {elapsed:.2f}s — symlink target may have been read"
+        assert model.generate.call_count == 0
 
 
 class TestDedupeSymlinkSafety:
