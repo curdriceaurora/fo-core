@@ -83,6 +83,10 @@ def read_ebook_file(
         ImportError: If ebooklib is not installed
         ValueError: If neither ``file_path`` nor ``fileobj`` is provided.
     """
+    # Argument-validation contract is independent of the optional dep —
+    # raise ValueError on missing args BEFORE checking EBOOKLIB_AVAILABLE.
+    if fileobj is None and file_path is None:
+        raise ValueError("read_ebook_file requires file_path or fileobj")
     if not EBOOKLIB_AVAILABLE:
         raise ImportError("ebooklib is not installed. Install with: pip install ebooklib")
 
@@ -102,8 +106,7 @@ def read_ebook_file(
             return _parse_epub(fileobj, max_chars, label)
         except Exception as e:  # Intentional catch-all: ebooklib raises library-specific errors
             raise FileReadError(f"Failed to read ebook file {label}: {e}") from e
-    if file_path is None:
-        raise ValueError("read_ebook_file requires file_path or fileobj")
+    assert file_path is not None  # narrowed by the early ValueError above
     path = Path(file_path)
     _check_file_size(path)
     try:

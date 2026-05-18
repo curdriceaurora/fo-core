@@ -431,6 +431,13 @@ class TestReadEbookFileFileobj:
 
 
 class TestReadHdf5FileFileobj:
+    @pytest.fixture(autouse=True)
+    def _require_h5py(self) -> None:
+        """T8: ``h5py`` is in the ``scientific`` optional extra, not installed
+        by the default CI matrix (``.[dev,search]``). Skip the whole class
+        when the library is absent."""
+        pytest.importorskip("h5py")
+
     def test_reads_from_fileobj(self, tmp_path: Path) -> None:
         import h5py as _h5
 
@@ -456,6 +463,11 @@ class TestReadHdf5FileFileobj:
 
 
 class TestReadNetcdfFileFileobj:
+    @pytest.fixture(autouse=True)
+    def _require_netcdf4(self) -> None:
+        """T8: ``netCDF4`` is in the ``scientific`` optional extra."""
+        pytest.importorskip("netCDF4")
+
     def test_reads_from_fileobj_via_memory_param(self, tmp_path: Path) -> None:
         """``netCDF4.Dataset`` doesn't accept fileobj; the reader buffers
         the stream into bytes and passes ``memory=`` (the public C API).
@@ -488,6 +500,11 @@ class TestReadNetcdfFileFileobj:
 
 
 class TestReadMatFileFileobj:
+    @pytest.fixture(autouse=True)
+    def _require_scipy(self) -> None:
+        """T8: ``scipy`` is in the ``scientific`` optional extra."""
+        pytest.importorskip("scipy")
+
     def test_reads_from_fileobj(self, tmp_path: Path) -> None:
         import numpy as _np
         from scipy.io import savemat as _savemat
@@ -588,16 +605,19 @@ class TestFileTooLargeErrorPropagation:
                 read_ebook_file(fileobj=io.BytesIO(b"any"))
 
     def test_hdf5_reader_propagates(self, tmp_path: Path) -> None:
+        pytest.importorskip("h5py")
         with patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large):
             with pytest.raises(FileTooLargeError):
                 read_hdf5_file(fileobj=io.BytesIO(b"any"))
 
     def test_netcdf_reader_propagates(self, tmp_path: Path) -> None:
+        pytest.importorskip("netCDF4")
         with patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large):
             with pytest.raises(FileTooLargeError):
                 read_netcdf_file(fileobj=io.BytesIO(b"any"))
 
     def test_mat_reader_propagates(self, tmp_path: Path) -> None:
+        pytest.importorskip("scipy")
         with patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large):
             with pytest.raises(FileTooLargeError):
                 read_mat_file(fileobj=io.BytesIO(b"any"))
@@ -784,6 +804,7 @@ class TestReadFileViaSafedir:
     @pytest.mark.parametrize("name", ["data.h5", "data.hdf5", "data.hdf"])
     def test_dispatches_hdf5_extensions(self, tmp_path: Path, name: str) -> None:
         """Each HDF5 alias must reach ``read_hdf5_file`` via the dispatcher."""
+        pytest.importorskip("h5py")
         import h5py as _h5
 
         p = tmp_path / name
@@ -801,6 +822,7 @@ class TestReadFileViaSafedir:
         """Each NetCDF alias must reach ``read_netcdf_file`` via the
         dispatcher and round-trip through the ``memory=`` parameter.
         """
+        pytest.importorskip("netCDF4")
         import netCDF4 as _nc
 
         p = tmp_path / name
@@ -819,6 +841,7 @@ class TestReadFileViaSafedir:
         """End-to-end: ``.mat`` reaches ``read_mat_file`` and scipy parses
         the in-memory stream.
         """
+        pytest.importorskip("scipy")
         import numpy as _np
         from scipy.io import savemat as _savemat
 

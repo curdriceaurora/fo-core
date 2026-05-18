@@ -115,6 +115,12 @@ def read_hdf5_file(
         ImportError: If h5py is not installed
         ValueError: If neither ``file_path`` nor ``fileobj`` is provided.
     """
+    # Argument-validation contract is independent of the optional dep —
+    # raise ValueError on missing args BEFORE checking H5PY_AVAILABLE so a
+    # caller that supplies neither arg gets a clear API error regardless of
+    # whether h5py is installed.
+    if fileobj is None and file_path is None:
+        raise ValueError("read_hdf5_file requires file_path or fileobj")
     if not H5PY_AVAILABLE:
         raise ImportError("h5py is not installed. Install with: pip install h5py")
 
@@ -126,8 +132,7 @@ def read_hdf5_file(
             return _parse_hdf5(fileobj, max_datasets, label)
         except Exception as e:  # Intentional catch-all: h5py raises library-specific errors
             raise FileReadError(f"Failed to read HDF5 file {label}: {e}") from e
-    if file_path is None:
-        raise ValueError("read_hdf5_file requires file_path or fileobj")
+    assert file_path is not None  # narrowed by the early ValueError above
     path = Path(file_path)
     _check_file_size(path)
     try:
@@ -207,6 +212,9 @@ def read_netcdf_file(
         ImportError: If netCDF4 is not installed
         ValueError: If neither ``file_path`` nor ``fileobj`` is provided.
     """
+    # Argument-validation contract precedes the optional-dep check.
+    if fileobj is None and file_path is None:
+        raise ValueError("read_netcdf_file requires file_path or fileobj")
     if not NETCDF4_AVAILABLE:
         raise ImportError("netCDF4 is not installed. Install with: pip install netCDF4")
 
@@ -222,8 +230,7 @@ def read_netcdf_file(
                 return _parse_netcdf(nc, label)
         except Exception as e:  # Intentional catch-all: netCDF4 raises library-specific errors
             raise FileReadError(f"Failed to read NetCDF file {label}: {e}") from e
-    if file_path is None:
-        raise ValueError("read_netcdf_file requires file_path or fileobj")
+    assert file_path is not None  # narrowed by the early ValueError above
     path = Path(file_path)
     try:
         with netCDF4.Dataset(path, "r") as nc:
@@ -286,6 +293,9 @@ def read_mat_file(
         ImportError: If scipy is not installed
         ValueError: If neither ``file_path`` nor ``fileobj`` is provided.
     """
+    # Argument-validation contract precedes the optional-dep check.
+    if fileobj is None and file_path is None:
+        raise ValueError("read_mat_file requires file_path or fileobj")
     if not SCIPY_AVAILABLE:
         raise ImportError("scipy is not installed. Install with: pip install scipy")
 
@@ -296,8 +306,7 @@ def read_mat_file(
             return _parse_mat(fileobj, label)
         except Exception as e:  # Intentional catch-all: scipy.io raises library-specific errors
             raise FileReadError(f"Failed to read MAT file {label}: {e}") from e
-    if file_path is None:
-        raise ValueError("read_mat_file requires file_path or fileobj")
+    assert file_path is not None  # narrowed by the early ValueError above
     path = Path(file_path)
     try:
         return _parse_mat(path, path.name)
