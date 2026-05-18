@@ -29,7 +29,11 @@ from utils.readers import (
     FileTooLargeError,
     read_7z_file,
     read_docx_file,
+    read_ebook_file,
     read_file_via_safedir,
+    read_hdf5_file,
+    read_mat_file,
+    read_netcdf_file,
     read_pdf_file,
     read_presentation_file,
     read_rar_file,
@@ -344,6 +348,170 @@ class TestReadRarFileFileobj:
 
 
 # ---------------------------------------------------------------------------
+# Ebook + scientific readers — fileobj= branch (PR3c)
+# ---------------------------------------------------------------------------
+
+
+def _make_epub(path: Path) -> None:
+    """Minimal valid EPUB so ebooklib.read_epub round-trips through fileobj.
+
+    The structure mirrors the ebooklib happy-path: mimetype + container.xml
+    + a content.opf manifest + one XHTML chapter. Smaller than fixturing a
+    real ebook on disk and avoids a binary blob in the repo.
+    """
+    import zipfile as _zf
+
+    with _zf.ZipFile(path, "w") as zf:
+        zf.writestr("mimetype", "application/epub+zip")
+        zf.writestr(
+            "META-INF/container.xml",
+            (
+                '<?xml version="1.0"?>'
+                '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                "<rootfiles>"
+                '<rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>'
+                "</rootfiles></container>"
+            ),
+        )
+        zf.writestr(
+            "content.opf",
+            (
+                '<?xml version="1.0"?>'
+                '<package version="2.0" xmlns="http://www.idpf.org/2007/opf" '
+                'unique-identifier="bookid">'
+                '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                "<dc:title>Test Book</dc:title>"
+                '<dc:identifier id="bookid">test</dc:identifier>'
+                "<dc:language>en</dc:language></metadata>"
+                '<manifest><item id="ch1" href="ch1.xhtml" '
+                'media-type="application/xhtml+xml"/></manifest>'
+                '<spine><itemref idref="ch1"/></spine></package>'
+            ),
+        )
+        zf.writestr(
+            "ch1.xhtml",
+            "<html><body><p>Chapter one with searchable content text</p></body></html>",
+        )
+
+
+class TestReadEbookFileFileobj:
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        epub_path = tmp_path / "book.epub"
+        _make_epub(epub_path)
+        with epub_path.open("rb") as f:
+            out = read_ebook_file(file_path=epub_path, fileobj=f)
+        assert "Chapter one with searchable content" in out
+
+    def test_label_falls_back_when_no_file_path(self, tmp_path: Path) -> None:
+        epub_path = tmp_path / "book.epub"
+        _make_epub(epub_path)
+        with epub_path.open("rb") as f:
+            # No file_path supplied: extension check is skipped, label is <fileobj>
+            out = read_ebook_file(fileobj=f)
+        assert "Chapter one" in out
+
+    def test_rejects_non_epub_extension(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        with pytest.raises(_FRE, match="Only .epub supported"):
+            read_ebook_file(file_path=tmp_path / "book.azw3", fileobj=io.BytesIO(b"x"))
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        """A parse error from ebooklib is wrapped as FileReadError on the
+        fileobj branch, mirroring the path branch's contract.
+        """
+        from utils.readers import FileReadError as _FRE
+
+        with pytest.raises(_FRE, match="ebook file"):
+            read_ebook_file(file_path=tmp_path / "x.epub", fileobj=io.BytesIO(b"not a zip"))
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_ebook_file()
+
+
+class TestReadHdf5FileFileobj:
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        import h5py as _h5
+
+        p = tmp_path / "data.h5"
+        with _h5.File(p, "w") as f:
+            f.create_dataset("alpha", data=[1, 2, 3, 4])
+            f.create_group("subdir")
+
+        with p.open("rb") as fh:
+            out = read_hdf5_file(file_path=p, fileobj=fh)
+        assert "HDF5 File: data.h5" in out
+        assert "Dataset: alpha" in out
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        with pytest.raises(_FRE, match="HDF5"):
+            read_hdf5_file(file_path=tmp_path / "x.h5", fileobj=io.BytesIO(b"not h5"))
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_hdf5_file()
+
+
+class TestReadNetcdfFileFileobj:
+    def test_reads_from_fileobj_via_memory_param(self, tmp_path: Path) -> None:
+        """``netCDF4.Dataset`` doesn't accept fileobj; the reader buffers
+        the stream into bytes and passes ``memory=`` (the public C API).
+        """
+        import netCDF4 as _nc
+
+        p = tmp_path / "data.nc"
+        nc = _nc.Dataset(p, "w")
+        nc.createDimension("time", 5)
+        v = nc.createVariable("temperature", "f4", ("time",))
+        v.units = "K"
+        nc.close()
+
+        with p.open("rb") as fh:
+            out = read_netcdf_file(file_path=p, fileobj=fh)
+        assert "NetCDF File: data.nc" in out
+        assert "time: 5" in out
+        assert "temperature" in out
+        assert "units: K" in out
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        with pytest.raises(_FRE, match="NetCDF"):
+            read_netcdf_file(file_path=tmp_path / "x.nc", fileobj=io.BytesIO(b"not netcdf"))
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_netcdf_file()
+
+
+class TestReadMatFileFileobj:
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        import numpy as _np
+        from scipy.io import savemat as _savemat
+
+        p = tmp_path / "data.mat"
+        _savemat(p, {"x": _np.array([[1.0, 2.0, 3.0]]), "name": "label"})
+
+        with p.open("rb") as fh:
+            out = read_mat_file(file_path=p, fileobj=fh)
+        assert "MATLAB File: data.mat" in out
+        assert "x" in out
+
+    def test_fileobj_error_wraps_as_file_read_error(self, tmp_path: Path) -> None:
+        from utils.readers import FileReadError as _FRE
+
+        with pytest.raises(_FRE, match="MAT"):
+            read_mat_file(file_path=tmp_path / "x.mat", fileobj=io.BytesIO(b"not a mat"))
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_mat_file()
+
+
+# ---------------------------------------------------------------------------
 # Either-or argument validation
 # ---------------------------------------------------------------------------
 
@@ -414,6 +582,26 @@ class TestFileTooLargeErrorPropagation:
             with pytest.raises(FileTooLargeError):
                 read_rar_file(fileobj=io.BytesIO(b"any"))
 
+    def test_ebook_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.ebook._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_ebook_file(fileobj=io.BytesIO(b"any"))
+
+    def test_hdf5_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_hdf5_file(fileobj=io.BytesIO(b"any"))
+
+    def test_netcdf_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_netcdf_file(fileobj=io.BytesIO(b"any"))
+
+    def test_mat_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.scientific._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_mat_file(fileobj=io.BytesIO(b"any"))
+
 
 class TestRequiresFilePathOrFileobj:
     """Every reader must reject calls with neither arg supplied."""
@@ -430,6 +618,10 @@ class TestRequiresFilePathOrFileobj:
             read_7z_file,
             read_tar_file,
             read_rar_file,
+            read_ebook_file,
+            read_hdf5_file,
+            read_netcdf_file,
+            read_mat_file,
         ],
     )
     def test_rejects_both_args_missing(self, reader) -> None:  # type: ignore[no-untyped-def]
@@ -471,13 +663,12 @@ class TestReadFileViaSafedir:
                 read_file_via_safedir(sd, "link.txt")
 
     def test_unsupported_extension_returns_none(self, tmp_path: Path) -> None:
-        """Extensions not yet in ``_SAFEDIR_READERS`` (ebooks, scientific,
-        CAD) return None — caller can fall back to legacy path-based
-        ``read_file``.
+        """Extensions not yet in ``_SAFEDIR_READERS`` (CAD) return None —
+        caller can fall back to legacy path-based ``read_file``.
         """
-        (tmp_path / "book.epub").write_bytes(b"PK\x03\x04")
+        (tmp_path / "model.dxf").write_text("dummy dxf")
         with SafeDir.open_root(tmp_path) as sd:
-            assert read_file_via_safedir(sd, "book.epub") is None
+            assert read_file_via_safedir(sd, "model.dxf") is None
 
     def test_rejects_bad_name(self, tmp_path: Path) -> None:
         """Component-name validation rides on SafeDir.open_for_reader."""
@@ -579,6 +770,83 @@ class TestReadFileViaSafedir:
         mock_rarfile_mod.RarFile.assert_called_once()
         call_args, _ = mock_rarfile_mod.RarFile.call_args
         assert hasattr(call_args[0], "read")
+
+    def test_dispatches_epub_extension(self, tmp_path: Path) -> None:
+        """End-to-end: dispatcher resolves ``.epub`` via the new SafeDir
+        ebook entry and returns ebooklib's parsed text.
+        """
+        _make_epub(tmp_path / "book.epub")
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, "book.epub")
+        assert out is not None
+        assert "Chapter one with searchable content" in out
+
+    @pytest.mark.parametrize("name", ["data.h5", "data.hdf5", "data.hdf"])
+    def test_dispatches_hdf5_extensions(self, tmp_path: Path, name: str) -> None:
+        """Each HDF5 alias must reach ``read_hdf5_file`` via the dispatcher."""
+        import h5py as _h5
+
+        p = tmp_path / name
+        with _h5.File(p, "w") as f:
+            f.create_dataset("alpha", data=[1, 2, 3])
+
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, name)
+        assert out is not None
+        assert f"HDF5 File: {name}" in out
+        assert "Dataset: alpha" in out
+
+    @pytest.mark.parametrize("name", ["data.nc", "data.nc4", "data.netcdf"])
+    def test_dispatches_netcdf_extensions(self, tmp_path: Path, name: str) -> None:
+        """Each NetCDF alias must reach ``read_netcdf_file`` via the
+        dispatcher and round-trip through the ``memory=`` parameter.
+        """
+        import netCDF4 as _nc
+
+        p = tmp_path / name
+        nc = _nc.Dataset(p, "w")
+        nc.createDimension("time", 2)
+        nc.createVariable("x", "f4", ("time",))
+        nc.close()
+
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, name)
+        assert out is not None
+        assert f"NetCDF File: {name}" in out
+        assert "time: 2" in out
+
+    def test_dispatches_mat_extension(self, tmp_path: Path) -> None:
+        """End-to-end: ``.mat`` reaches ``read_mat_file`` and scipy parses
+        the in-memory stream.
+        """
+        import numpy as _np
+        from scipy.io import savemat as _savemat
+
+        p = tmp_path / "data.mat"
+        _savemat(p, {"alpha": _np.array([[1.0, 2.0]])})
+
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, "data.mat")
+        assert out is not None
+        assert "MATLAB File: data.mat" in out
+        assert "alpha" in out
+
+    def test_refuses_symlinked_epub(self, tmp_path: Path) -> None:
+        """The dispatcher refuses a symlinked EPUB in the organize root —
+        the SafeDir fd would dereference the link otherwise.
+        """
+        real = tmp_path / "real.epub"
+        _make_epub(real)
+        organize = tmp_path / "organize"
+        organize.mkdir()
+        try:
+            (organize / "decoy.epub").symlink_to(real)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(organize) as sd:
+            with pytest.raises(SymlinkRejected):
+                read_file_via_safedir(sd, "decoy.epub")
 
     def test_refuses_symlinked_zip(self, tmp_path: Path) -> None:
         """A symlinked archive in the organize root must be refused, not
