@@ -81,6 +81,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import tempfile
 import time
 import uuid
@@ -432,10 +433,18 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
         # fsync file + parent dir before the rename so a power loss
         # after ``os.replace`` can't leave the new directory entry
         # pointing at an inode with unflushed pages.
-        # Use O_RDWR (not O_RDONLY) so FlushFileBuffers succeeds on Windows —
-        # fsync on a read-only handle raises EBADF there.  O_RDWR also works
-        # on POSIX (fsync doesn't require write permission on Linux/macOS).
-        fd = os.open(tmp_path, os.O_RDWR)
+        #
+        # Platform-conditional open mode (codex PR #259 r3259316089):
+        #   Windows: must be O_RDWR — ``FlushFileBuffers`` rejects
+        #            read-only handles with EBADF.
+        #   POSIX:   must stay O_RDONLY — ``shutil.copystat`` above
+        #            propagates the source's mode bits onto tmp_path,
+        #            so a read-only source (0444/0555) makes tmp_path
+        #            read-only too, and opening O_RDWR would raise
+        #            EACCES.  fsync(2) on Linux/macOS works fine on a
+        #            read-only fd.
+        flags = os.O_RDWR if sys.platform == "win32" else os.O_RDONLY
+        fd = os.open(tmp_path, flags)
         try:
             os.fsync(fd)
         finally:

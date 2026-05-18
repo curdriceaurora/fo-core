@@ -370,6 +370,41 @@ class TestDurableMoveCrossDevice:
             f"trace: {fsync_calls}"
         )
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="POSIX-only: regression for codex PR #259 r3259316089. "
+        "Windows opens the fsync fd O_RDWR (required by FlushFileBuffers) "
+        "and copystat semantics on Windows differ, so this read-only EXDEV "
+        "case applies to POSIX only.",
+    )
+    def test_cross_device_preserves_read_only_source(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """codex PR #259 r3259316089: a read-only source (e.g. ``0444``)
+        must still move across devices.  ``shutil.copystat`` propagates
+        mode bits to the EXDEV ``tmp_path``, so the pre-rename fsync
+        ``os.open`` must use ``O_RDONLY`` on POSIX — opening ``O_RDWR``
+        on a ``0444`` file raises ``EACCES`` and the rollback restore
+        of a read-only file fails.
+        """
+        from undo.durable_move import durable_move
+
+        self._force_exdev(monkeypatch)
+
+        src = tmp_path / "readonly_src.txt"
+        dst = tmp_path / "readonly_dst.txt"
+        src.write_text("read-only payload")
+        os.chmod(src, 0o444)  # read-only for all — no write permission for owner
+        journal = tmp_path / "move.journal"
+
+        # Must not raise EACCES on the fsync open.
+        durable_move(src, dst, journal=journal)
+
+        assert not src.exists(), "source must be removed after EXDEV move"
+        assert dst.read_text() == "read-only payload"
+        # copystat propagated mode → dst is also read-only.
+        assert dst.stat().st_mode & 0o777 == 0o444
+
 
 # ---------------------------------------------------------------------------
 # Recovery sweep — crash simulation
