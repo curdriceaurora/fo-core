@@ -81,6 +81,7 @@ import json
 import logging
 import os
 import shutil
+import stat
 import sys
 import tempfile
 import time
@@ -434,21 +435,39 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
         # after ``os.replace`` can't leave the new directory entry
         # pointing at an inode with unflushed pages.
         #
-        # Platform-conditional open mode (codex PR #259 r3259316089):
-        #   Windows: must be O_RDWR — ``FlushFileBuffers`` rejects
-        #            read-only handles with EBADF.
-        #   POSIX:   must stay O_RDONLY — ``shutil.copystat`` above
-        #            propagates the source's mode bits onto tmp_path,
-        #            so a read-only source (0444/0555) makes tmp_path
-        #            read-only too, and opening O_RDWR would raise
-        #            EACCES.  fsync(2) on Linux/macOS works fine on a
-        #            read-only fd.
-        flags = os.O_RDWR if sys.platform == "win32" else os.O_RDONLY
-        fd = os.open(tmp_path, flags)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
+        # Platform-conditional path (codex PR #259 r3259316089 +
+        # r3259356591 — read-only EXDEV sources must work on both
+        # platforms):
+        #   POSIX:   open O_RDONLY.  ``shutil.copystat`` above
+        #            propagates the source mode bits, so a read-only
+        #            source (``0444``/``0555``) makes tmp_path read-
+        #            only and opening O_RDWR raises EACCES.
+        #            ``fsync(2)`` works on a read-only fd.
+        #   Windows: ``FlushFileBuffers`` requires a writable handle
+        #            (O_RDONLY raises EBADF).  ``copystat`` may have
+        #            propagated ``FILE_ATTRIBUTE_READONLY``, so we
+        #            briefly clear the read-only bit, open O_RDWR,
+        #            fsync, then restore the original mode.
+        if sys.platform == "win32":
+            original_mode = tmp_path.stat().st_mode
+            needs_relax = not (original_mode & stat.S_IWUSR)
+            if needs_relax:
+                os.chmod(tmp_path, original_mode | stat.S_IWUSR)
+            try:
+                fd = os.open(tmp_path, os.O_RDWR)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+            finally:
+                if needs_relax:
+                    os.chmod(tmp_path, original_mode)
+        else:
+            fd = os.open(tmp_path, os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
         fsync_directory(dst)
         os.replace(tmp_path, dst)
         # Codex P1 PRRT_kwDOR_Rkws59fwMG: fsync ``dst.parent`` AGAIN

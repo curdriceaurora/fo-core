@@ -370,23 +370,25 @@ class TestDurableMoveCrossDevice:
             f"trace: {fsync_calls}"
         )
 
-    @pytest.mark.skipif(
-        sys.platform == "win32",
-        reason="POSIX-only: regression for codex PR #259 r3259316089. "
-        "Windows opens the fsync fd O_RDWR (required by FlushFileBuffers) "
-        "and copystat semantics on Windows differ, so this read-only EXDEV "
-        "case applies to POSIX only.",
-    )
     def test_cross_device_preserves_read_only_source(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """codex PR #259 r3259316089: a read-only source (e.g. ``0444``)
-        must still move across devices.  ``shutil.copystat`` propagates
-        mode bits to the EXDEV ``tmp_path``, so the pre-rename fsync
-        ``os.open`` must use ``O_RDONLY`` on POSIX — opening ``O_RDWR``
-        on a ``0444`` file raises ``EACCES`` and the rollback restore
-        of a read-only file fails.
+        """A read-only source (``0444``) must still move across devices
+        on both POSIX and Windows.
+
+        codex PR #259 r3259316089 (POSIX): ``shutil.copystat`` propagates
+        the mode bits to ``tmp_path``, so the pre-rename fsync ``os.open``
+        must use ``O_RDONLY`` — opening ``O_RDWR`` on a ``0444`` file
+        raises ``EACCES``.
+
+        codex PR #259 r3259356591 (Windows): ``shutil.copystat`` propagates
+        ``FILE_ATTRIBUTE_READONLY``, so the pre-rename fsync must briefly
+        clear the read-only attribute to open ``O_RDWR`` (required by
+        ``FlushFileBuffers``), then restore it.  Otherwise the open raises
+        ``PermissionError``.
         """
+        import stat as _stat
+
         from undo.durable_move import durable_move
 
         self._force_exdev(monkeypatch)
@@ -394,16 +396,26 @@ class TestDurableMoveCrossDevice:
         src = tmp_path / "readonly_src.txt"
         dst = tmp_path / "readonly_dst.txt"
         src.write_text("read-only payload")
-        os.chmod(src, 0o444)  # read-only for all — no write permission for owner
+        os.chmod(src, 0o444)  # read-only — no write permission for owner
+        # Sanity: confirm the chmod took effect on this platform.
+        assert src.stat().st_mode & _stat.S_IWUSR == 0, (
+            f"test setup: chmod 0o444 did not clear S_IWUSR on src; "
+            f"got mode={oct(src.stat().st_mode)}"
+        )
         journal = tmp_path / "move.journal"
 
-        # Must not raise EACCES on the fsync open.
+        # Must not raise EACCES (POSIX) or PermissionError (Windows).
         durable_move(src, dst, journal=journal)
 
         assert not src.exists(), "source must be removed after EXDEV move"
         assert dst.read_text() == "read-only payload"
-        # copystat propagated mode → dst is also read-only.
-        assert dst.stat().st_mode & 0o777 == 0o444
+        # copystat propagated mode → dst is also read-only on both
+        # platforms (POSIX: mode 0o444; Windows: FILE_ATTRIBUTE_READONLY,
+        # surfaced through stat() as S_IWUSR cleared).
+        assert dst.stat().st_mode & _stat.S_IWUSR == 0, (
+            f"dst should preserve read-only mode after EXDEV move; "
+            f"got mode={oct(dst.stat().st_mode)}"
+        )
 
 
 # ---------------------------------------------------------------------------
