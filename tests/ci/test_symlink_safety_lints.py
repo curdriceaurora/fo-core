@@ -710,6 +710,71 @@ class TestBareOpenDetectionDirScoped:
         assert "gz" not in _active_aliases_at_call(inside_call, base_aliases, parents, tree)
         assert _active_aliases_at_call(module_call, base_aliases, parents, tree).get("gz") == "gzip"
 
+    def test_nested_scope_import_does_not_clobber_module_alias(self) -> None:
+        """Regression for Codex P1 (2fdb63e): an import inside a function
+        body binds its name in the function's local scope, NOT at module
+        level. If ``_build_module_alias_map`` walked the full tree, a
+        nested ``import pathlib as gz`` would clobber the module-level
+        ``import gzip as gz`` mapping and hide the real read at line 2.
+
+        Source under test::
+
+            import gzip as gz
+            gz.open('/x/a', 'rb')            # ← module-level read
+            def helper(): import pathlib as gz  # ← nested import, NOT a module alias
+        """
+        from check_safedir_required import _build_module_alias_map
+
+        source = (
+            "import gzip as gz\ngz.open('/x/a', 'rb')\ndef helper():\n    import pathlib as gz\n"
+        )
+        tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
+        # Module-level alias unaffected by nested-scope import.
+        assert aliases.get("gz") == "gzip"
+
+    def test_in_function_call_drops_alias_on_any_module_rebind(self) -> None:
+        """Regression for Codex P2 (2fdb63e): a call inside a function
+        sees the *runtime* value of the module global by the time the
+        function is invoked. So ANY module-level rebind anywhere in the
+        file shadows the alias for in-function calls — not just rebinds
+        before the function definition.
+
+        Source under test::
+
+            import gzip as gz
+            def f():
+                gz.open('wb')         # ← in-function call
+            gz = Path('/x/out')      # ← rebind AFTER def
+        """
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = (
+            "from pathlib import Path\n"
+            "import gzip as gz\n"
+            "def f():\n"
+            "    gz.open('wb')\n"
+            "gz = Path('/x/out')\n"
+        )
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        in_func_call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(in_func_call, base_aliases, parents, tree)
+        # Rebind happens after the def, but the function call sees the
+        # post-rebind value at invocation time → alias dropped.
+        assert "gz" not in active
+
     def test_find_violations_respects_parameter_shadowing_end_to_end(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

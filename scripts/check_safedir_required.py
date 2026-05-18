@@ -175,16 +175,19 @@ def _mode_arg(node: ast.Call, mode_position: int) -> str | None:
 
 
 def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
-    """Walk ``import`` statements and build a local-name → real-module map.
+    """Walk **module-scope** ``import`` statements and build a local-name →
+    real-module map.
 
     Handles ``import gzip`` → ``{"gzip": "gzip"}`` and the aliased form
     ``import gzip as gz`` → ``{"gz": "gzip"}``.
 
-    Returns the raw mapping for every import in the file. Per-call
-    scope and order awareness is applied by ``_active_aliases_at_call``
-    using the parent map + module reference, not at build time. This
-    preserves the alias at call sites that come BEFORE any rebind and
-    at sites OUTSIDE any function that locally shadows the name.
+    Only direct children of ``tree.body`` are considered. Imports nested
+    inside a function / class / lambda body bind their names in that
+    inner scope, not at module level — including them here would let a
+    nested ``import pathlib as gz`` clobber the module-level
+    ``import gzip as gz`` mapping and hide real reads. The
+    ``_active_aliases_at_call`` resolver applies per-call scope+order
+    awareness on top of this base map.
 
     Dotted imports (``import gzip.partial``) collapse to their top-level
     module name — the receiver in a call like ``gzip.partial.open(...)``
@@ -192,9 +195,9 @@ def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
     ``_bare_open_violation`` would not match it anyway.
     """
     aliases: dict[str, str] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias_node in node.names:
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Import):
+            for alias_node in stmt.names:
                 top_level = alias_node.name.split(".", 1)[0]
                 # Python's actual binding rule: ``import x.y`` binds ``x``
                 # in the local namespace; ``import x.y as z`` binds ``z``.
@@ -311,10 +314,14 @@ def _active_aliases_at_call(
         return active
 
     # Layer 1: walk enclosing scopes outward; drop locally-bound names.
+    # Also remember whether the call is inside a function — that changes
+    # how Layer 2 interprets module-level rebinds.
+    inside_function = False
     cur = call_node
     while cur in parents:
         cur = parents[cur]
         if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            inside_function = True
             local_names = _function_local_names(cur)
             for name in list(active):
                 if name in local_names:
@@ -325,24 +332,37 @@ def _active_aliases_at_call(
     if not active:
         return active
 
-    # Layer 2: order-aware module-level rebind shadowing.
-    top_stmt_line = _top_level_stmt_lineno(call_node, parents, module)
-    if top_stmt_line is None:
-        # Call isn't in module body (shouldn't happen for well-formed
-        # input). Be conservative: keep the active map as-is.
-        return active
+    # Layer 2: module-level rebind shadowing.
+    #
+    # For calls *at module scope*: only rebinds strictly before the
+    # containing top-level statement shadow the alias. This preserves
+    # legitimate reads like ``gz.open(p, "rb")`` that precede a later
+    # ``gz = object()`` rebind.
+    #
+    # For calls *inside a function*: ANY module-level rebind anywhere in
+    # the file shadows the alias. Rationale: by the time the function is
+    # invoked from outside the module, the module body has run to
+    # completion, so any post-def rebind is visible — the function's
+    # ``def`` line is not a meaningful cutoff. (Calls of the function
+    # made BEFORE the rebind during module loading are a corner case
+    # we accept as over-conservative.)
+    if inside_function:
+        cutoff_lineno: int | None = None  # any rebind anywhere shadows
+    else:
+        cutoff_lineno = _top_level_stmt_lineno(call_node, parents, module)
+        if cutoff_lineno is None:
+            return active
 
     for stmt in module.body:
         # Don't descend into nested scopes — function/class/lambda
         # bodies have their own bindings that don't shadow the module
         # name at module scope.
         for node in _iter_excluding_nested_scopes(stmt):
-            if (
-                isinstance(node, ast.Name)
-                and isinstance(node.ctx, ast.Store)
-                and node.lineno < top_stmt_line
-                and node.id in active
-            ):
+            if not (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)):
+                continue
+            if node.id not in active:
+                continue
+            if cutoff_lineno is None or node.lineno < cutoff_lineno:
                 del active[node.id]
     return active
 
