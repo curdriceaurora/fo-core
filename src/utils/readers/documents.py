@@ -152,15 +152,29 @@ def read_docx_file(
         raise FileReadError(f"Failed to read DOCX file {path}: {e}") from e
 
 
-def _parse_pdf(fileobj: BinaryIO, max_pages: int, label: str) -> str:
-    """Parse PDF from a file-like by reading bytes and using fitz.open(stream=)."""
-    data = fileobj.read()
-    with fitz.open(stream=data, filetype="pdf") as doc:
-        num_pages = min(max_pages, len(doc))
-        pages_text = [doc.load_page(i).get_text() for i in range(num_pages)]
-        text = "\n".join(pages_text)
+def _extract_pdf_pages(doc: object, max_pages: int, label: str) -> str:
+    """Extract text from the first ``max_pages`` of an open PyMuPDF document."""
+    num_pages = min(max_pages, len(doc))  # type: ignore[arg-type]
+    pages_text = [
+        doc.load_page(i).get_text()  # type: ignore[attr-defined]
+        for i in range(num_pages)
+    ]
+    text = "\n".join(pages_text)
     logger.debug(f"Extracted {len(text)} characters from {num_pages} pages of {label}")
     return text
+
+
+def _parse_pdf_stream(fileobj: BinaryIO, max_pages: int, label: str) -> str:
+    """Parse PDF from a file-like by reading bytes and using fitz.open(stream=).
+
+    Used only when the caller already has a fileobj (the SafeDir-friendly
+    entry point); the path branch streams from disk via ``fitz.open(path)``
+    to avoid loading the whole PDF into memory before ``max_pages`` is
+    applied.
+    """
+    data = fileobj.read()
+    with fitz.open(stream=data, filetype="pdf") as doc:
+        return _extract_pdf_pages(doc, max_pages, label)
 
 
 def read_pdf_file(
@@ -190,7 +204,7 @@ def read_pdf_file(
         label = Path(file_path).name if file_path is not None else "<fileobj>"
         try:
             _check_fd_size(fileobj)
-            return _parse_pdf(fileobj, max_pages, label)
+            return _parse_pdf_stream(fileobj, max_pages, label)
         except Exception as e:  # Intentional catch-all: PyMuPDF raises library-specific errors
             raise FileReadError(f"Failed to read PDF file {label}: {e}") from e
     if file_path is None:
@@ -198,8 +212,8 @@ def read_pdf_file(
     path = Path(file_path)
     _check_file_size(path)
     try:
-        with path.open("rb") as f:
-            return _parse_pdf(f, max_pages, path.name)
+        with fitz.open(str(path)) as doc:
+            return _extract_pdf_pages(doc, max_pages, path.name)
     except Exception as e:  # Intentional catch-all: PyMuPDF raises library-specific errors
         raise FileReadError(f"Failed to read PDF file {path}: {e}") from e
 

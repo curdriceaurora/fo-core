@@ -1656,7 +1656,10 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="programming")
 
         with (
-            patch("services.text_processor.read_file", return_value="Python programming content"),
+            patch(
+                "services.text_processor.read_file_via_safedir",
+                return_value="Python programming content",
+            ),
             patch(
                 "services.text_processor.truncate_text", return_value="Python programming content"
             ),
@@ -1731,7 +1734,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(side_effect=gen_side_effect)
 
         with (
-            patch("services.text_processor.read_file", return_value="python content"),
+            patch("services.text_processor.read_file_via_safedir", return_value="python content"),
             patch("services.text_processor.truncate_text", return_value="python content"),
             patch("services.text_processor.clean_text", return_value="programming"),
         ):
@@ -1750,7 +1753,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="programming")
 
         with (
-            patch("services.text_processor.read_file", return_value="hello world"),
+            patch("services.text_processor.read_file_via_safedir", return_value="hello world"),
             patch("services.text_processor.truncate_text", return_value="hello world"),
             patch("services.text_processor.clean_text", return_value="programming"),
         ):
@@ -1769,7 +1772,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="notes")
 
         with (
-            patch("services.text_processor.read_file", return_value="some text"),
+            patch("services.text_processor.read_file_via_safedir", return_value="some text"),
             patch("services.text_processor.truncate_text", return_value="some text"),
             patch("services.text_processor.clean_text", return_value="notes"),
         ):
@@ -1880,7 +1883,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="sample")
 
         with (
-            patch("services.text_processor.read_file", return_value="sample text"),
+            patch("services.text_processor.read_file_via_safedir", return_value="sample text"),
             patch("services.text_processor.truncate_text", return_value="sample text"),
             patch("services.text_processor.clean_text", return_value="sample"),
         ):
@@ -1900,7 +1903,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="words")
 
         with (
-            patch("services.text_processor.read_file", return_value=long_content),
+            patch("services.text_processor.read_file_via_safedir", return_value=long_content),
             patch("services.text_processor.truncate_text", return_value=long_content[:5000]),
             patch("services.text_processor.clean_text", return_value="words"),
         ):

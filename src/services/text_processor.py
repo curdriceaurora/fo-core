@@ -162,19 +162,14 @@ class TextProcessor:
                     filename=file_path.stem,
                     error=f"Refused to read symlink: {file_path.name}",
                 )
-            except (FileNotFoundError, NotADirectoryError):
-                # SafeDir path requires the file (and its parent) to
-                # exist on disk. Fall through to legacy ``read_file``
-                # which will either re-raise the same error to be
-                # handled below OR be intercepted by a test mock.
-                # Preserves backward compatibility with existing tests
-                # that monkey-patch ``read_file``.
-                pass
             if content is None:
-                # Either extension not yet supported by the SafeDir
-                # dispatcher (archives, ebooks, scientific, CAD —
-                # migrated in PR3b–PR3e) OR the SafeDir open failed
-                # for a non-symlink reason (handled above).
+                # Extension not yet supported by the SafeDir dispatcher
+                # (archives, ebooks, scientific, CAD — migrated in
+                # PR3b–PR3e). Fall back to the legacy path-based reader.
+                # Real FS errors from the SafeDir branch propagate to the
+                # outer ``except FileReadError`` / ``except OSError``
+                # handlers — never silently masked by a path-based retry
+                # that could follow a symlink swapped in mid-flight.
                 content = read_file(file_path)
 
             if content is None:
