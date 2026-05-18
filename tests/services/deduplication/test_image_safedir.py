@@ -238,7 +238,8 @@ class TestGetImageHashErrorBranches:
         Patches the imagededup availability flag so the constructor
         succeeds even when the optional extra is absent (CI matrix).
         """
-        from unittest.mock import MagicMock, patch as _patch
+        from unittest.mock import MagicMock
+        from unittest.mock import patch as _patch
 
         from services.deduplication import image_dedup as _id
 

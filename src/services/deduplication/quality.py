@@ -135,9 +135,11 @@ class ImageQualityAnalyzer:
             return None
 
         try:
+            import os
+
             from .image_utils import safedir_image_open
 
-            with safedir_image_open(path) as (img, _fd):
+            with safedir_image_open(path) as (img, fd):
                 width, height = img.size
                 resolution = width * height
 
@@ -165,7 +167,14 @@ class ImageQualityAnalyzer:
                 }
                 color_depth = mode_bits.get(img.mode, 24)
 
-                stat = path.stat()
+                # Stat from the SafeDir-opened fd when available so size
+                # and mtime describe the same non-symlink file the image
+                # was decoded from. Falls back to ``path.stat()`` when
+                # ``fd is None`` (Windows / SafeDir-unavailable).
+                if fd is not None:
+                    stat = os.fstat(fd)
+                else:
+                    stat = path.stat()
                 file_size = stat.st_size
                 format_enum = self._get_format_from_extension(path)
                 aspect_ratio = width / height if height > 0 else 0

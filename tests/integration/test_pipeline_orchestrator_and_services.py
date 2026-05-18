@@ -841,6 +841,11 @@ class TestCommandExecutorFind:
         assert result.success is False
 
     def test_find_by_filename_match(self, tmp_path: Path) -> None:
+        # CommandExecutor.find_files routes through BM25Index which
+        # requires rank-bm25 (``search`` extra). Skip when absent so
+        # the test doesn't fail in dev envs without ``[search]``; CI
+        # installs ``.[dev,search]`` and exercises this path normally.
+        pytest.importorskip("rank_bm25")
         from services.copilot.executor import CommandExecutor
         from services.copilot.models import Intent, IntentType
 
