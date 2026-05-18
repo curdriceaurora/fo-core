@@ -87,14 +87,16 @@ class DocumentExtractor:
                     except SymlinkRejected:
                         raise
             except SymlinkRejected as exc:
-                logger.warning("Refused to read symlinked file %s: %s", file_path, exc)
+                logger.warning(
+                    "Refused to read symlinked file %s: %s", file_path, exc, exc_info=True
+                )
                 return ""
             except NotImplementedError:
                 # SafeDir's POSIX primitives unavailable; fall through to
                 # the path-based extraction below.
                 logger.debug("SafeDir unavailable; using legacy reader for %s", file_path.name)
             except (OSError, ValueError, ImportError) as e:
-                logger.error(f"Error extracting text from {file_path}: {e}")
+                logger.error("Error extracting text from %s: %s", file_path, e, exc_info=True)
                 return ""
 
         # Legacy path-based fallback (Windows) — preserves the original
@@ -102,7 +104,7 @@ class DocumentExtractor:
         try:
             return self._extract_via_path(extension, file_path)
         except (OSError, ValueError, ImportError) as e:
-            logger.error(f"Error extracting text from {file_path}: {e}")
+            logger.error("Error extracting text from %s: %s", file_path, e, exc_info=True)
             return ""
 
     def _extract_from_fileobj(self, extension: str, fileobj: BinaryIO, label: str) -> str:
@@ -121,8 +123,9 @@ class DocumentExtractor:
         return self._extract_text(fileobj=fileobj, label=label)
 
     def _extract_via_path(self, extension: str, file_path: Path) -> str:
-        """Dispatch extraction to the right ``_extract_X`` with a path
-        (legacy fallback used only when SafeDir is unavailable).
+        """Dispatch extraction to the right ``_extract_X`` with a path.
+
+        Legacy fallback used only when SafeDir is unavailable.
         """
         if extension == ".pdf":
             return self._extract_pdf(file_path=file_path)
