@@ -232,7 +232,7 @@ def _unlink_relaxing_readonly(path: Path) -> None:
     Raises whatever ``os.unlink`` raises.  Callers that need
     ``FileNotFoundError`` tolerance must wrap the call.
     """
-    if sys.platform == "win32" and not path.is_symlink():
+    if sys.platform == "win32" and not path.is_symlink():  # pragma: no cover - Windows
         try:
             mode = path.stat().st_mode
             if not (mode & stat.S_IWUSR):
@@ -484,7 +484,7 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
         #            propagated ``FILE_ATTRIBUTE_READONLY``, so we
         #            briefly clear the read-only bit, open O_RDWR,
         #            fsync, then restore the original mode.
-        if sys.platform == "win32":
+        if sys.platform == "win32":  # pragma: no cover - Windows
             original_mode = tmp_path.stat().st_mode
             needs_relax = not (original_mode & stat.S_IWUSR)
             if needs_relax:
