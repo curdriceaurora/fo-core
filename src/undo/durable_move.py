@@ -211,6 +211,42 @@ def _normalized_path_str(path: Path) -> str:
     return os.path.normcase(os.path.abspath(os.fspath(path)))
 
 
+def _unlink_relaxing_readonly(path: Path) -> None:
+    """``os.unlink(path)`` that first clears the read-only attribute on Windows.
+
+    Codex PR #259 r3259394715: Windows ``DeleteFile`` rejects a file
+    with ``FILE_ATTRIBUTE_READONLY`` and raises ``PermissionError``.
+    When ``durable_move`` (or sweep's recovery) moves a read-only file
+    via the EXDEV branch, the destination inherits the read-only
+    attribute through ``shutil.copystat``, and the subsequent
+    ``os.unlink(src)`` of the original would then fail — the move
+    completes the copy but never reaches the ``done`` journal state.
+
+    Clear the read-only bit on the file before unlinking (no need to
+    restore it; the inode is about to be deleted).  No-op on POSIX
+    where ``unlink(2)`` honors the parent directory's write/execute
+    permission, not the file's mode bits.  Skipped on symlinks, where
+    ``os.chmod`` would target the link's target instead of the link
+    itself.
+
+    Raises whatever ``os.unlink`` raises.  Callers that need
+    ``FileNotFoundError`` tolerance must wrap the call.
+    """
+    if sys.platform == "win32" and not path.is_symlink():
+        try:
+            mode = path.stat().st_mode
+            if not (mode & stat.S_IWUSR):
+                os.chmod(path, mode | stat.S_IWUSR)
+        except FileNotFoundError:
+            # ``unlink`` below will raise the same FileNotFoundError —
+            # let the caller's existing handling deal with it.
+            pass
+    # Use ``Path.unlink`` (not ``os.unlink``) so existing tests that
+    # monkeypatch ``Path.unlink`` to simulate OSError still exercise the
+    # error path through this helper.  The two are equivalent at runtime.
+    path.unlink()
+
+
 _LOCK_SUFFIX = ".lock"
 
 
@@ -481,7 +517,7 @@ def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:
     _append_journal(journal, {**base_payload, "state": STATE_COPIED})
 
     try:
-        os.unlink(src)
+        _unlink_relaxing_readonly(src)
     except FileNotFoundError:
         # Source already gone — treat as done.
         pass
@@ -1062,7 +1098,7 @@ def _execute_unlink_src(entry: _JournalEntry) -> bool:
     """
     src = Path(entry.src)
     try:
-        src.unlink()
+        _unlink_relaxing_readonly(src)
     except FileNotFoundError:
         pass
     except OSError as exc:
