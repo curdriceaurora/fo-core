@@ -532,77 +532,183 @@ class TestBareOpenDetectionDirScoped:
     @pytest.mark.parametrize(
         "source",
         [
-            # Shadowed via plain assignment.
+            # Module-level rebind BEFORE the call → alias shadowed.
             "import gzip as gz\ngz = object()\ngz.open('wb')\n",
-            # Shadowed via Path() — Codex's exact example.
+            # Path() rebinding (Codex's first example) before the call.
             ("from pathlib import Path\nimport gzip as gz\ngz = Path('/x')\ngz.open('wb')\n"),
-            # Shadowed via for-loop target.
-            "import gzip as gz\nfor gz in []: gz.open('wb')\n",
-            # Shadowed via with-as target.
-            "import gzip as gz\nwith open('/x') as gz: gz.open('wb')\n",
-            # Shadowed via walrus.
-            "import gzip as gz\nif (gz := object()): gz.open('wb')\n",
+            # For-loop rebind before the call.
+            "import gzip as gz\nfor gz in []: pass\ngz.open('wb')\n",
+            # With-as rebind before the call.
+            "import gzip as gz\nwith open('/x') as gz: pass\ngz.open('wb')\n",
+            # Walrus rebind before the call.
+            "import gzip as gz\nif (gz := object()): pass\ngz.open('wb')\n",
         ],
     )
-    def test_alias_dropped_when_shadowed_anywhere_in_file(self, source: str) -> None:
-        """Regression for Codex P2 (04ae6fe): a name that is rebound
-        anywhere in the file (assignment, for-loop, with-as, walrus) is
-        no longer treated as a module alias. Without this scope-awareness
-        check, ``import gzip as gz; gz = Path('/x'); gz.open('wb')``
-        would module-style-classify ``gz.open`` and incorrectly flag a
-        legitimate write-only ``Path.open``."""
-        from check_safedir_required import _build_module_alias_map
+    def test_alias_shadowed_when_module_rebind_precedes_call(self, source: str) -> None:
+        """Regression for Codex P2 (cf2c841 + earlier): a module-level
+        rebind that happens BEFORE the call shadows the alias at the
+        call site. Verified through ``_active_aliases_at_call`` which
+        is what ``find_violations`` actually uses. ``_build_module_alias_map``
+        no longer filters — it returns all imports — so the per-call
+        resolver decides effective aliases with scope + order awareness."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
 
         tree = ast.parse(source)
-        aliases = _build_module_alias_map(tree)
-        # ``gz`` got rebound somewhere, so it's dropped from the alias map.
-        assert "gz" not in aliases
+        base_aliases = _build_module_alias_map(tree)
+        # Build phase keeps the alias — no filter at this layer anymore.
+        assert base_aliases.get("gz") == "gzip"
+        parents = _build_parent_map(tree)
+        # The Attribute-style ``gz.open(...)`` call is what we care about.
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        assert "gz" not in active
 
-    def test_unshadowed_alias_kept_in_map(self) -> None:
-        """Belt-and-suspenders for the scope-awareness fix: a name that
-        is ONLY bound by import (never rebound) stays in the alias map."""
-        from check_safedir_required import _build_module_alias_map
+    def test_unshadowed_alias_kept_in_resolver(self) -> None:
+        """Belt-and-suspenders for the resolver: a non-shadowed alias
+        survives the per-call resolution."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
 
         source = "import gzip as gz\ngz.open('/x/a', 'rb')\n"
         tree = ast.parse(source)
-        aliases = _build_module_alias_map(tree)
-        assert aliases.get("gz") == "gzip"
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        assert active.get("gz") == "gzip"
+
+    def test_alias_active_when_rebind_is_after_call(self) -> None:
+        """Codex's fresh P2 example (8a73104): a call that comes BEFORE
+        a later module-level rebind must keep the alias active. Without
+        order awareness, the file-global filter wrongly dropped the
+        alias and the call fell through to Path.open with the filename
+        misread as mode — masking real reads in enforced directories.
+
+        Source under test::
+
+            import gzip as gz
+            gz.open('/x/ax', 'rb')   # ← real READ; alias still active
+            gz = object()            # ← rebind AFTER the call
+        """
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = "import gzip as gz\ngz.open('/x/ax', 'rb')\ngz = object()\n"
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        # Rebind is AFTER the call → alias still active → resolver
+        # returns the canonical mapping.
+        assert active.get("gz") == "gzip"
 
     @pytest.mark.parametrize(
         "source",
         [
-            # Function parameter shadows the alias — Codex's exact example.
+            # Function parameter shadows the alias INSIDE the function.
             "import gzip as gz\ndef f(gz):\n    gz.open('wb')\n",
-            # Lambda parameter.
+            # Lambda parameter — inner scope.
             "import gzip as gz\nh = lambda gz: gz.open('wb')\n",
-            # *args parameter.
-            "import gzip as gz\ndef f(*gz):\n    pass\n",
-            # **kwargs parameter.
-            "import gzip as gz\ndef f(**gz):\n    pass\n",
             # Keyword-only parameter.
             "import gzip as gz\ndef f(*, gz):\n    gz.open('wb')\n",
             # Positional-only parameter.
             "import gzip as gz\ndef f(gz, /):\n    gz.open('wb')\n",
             # Async function parameter.
             "import gzip as gz\nasync def f(gz):\n    gz.open('wb')\n",
+            # Function-body assignment (not parameter) — Python's
+            # function-scope rule binds it locally regardless of order.
+            "import gzip as gz\ndef f():\n    gz = object()\n    gz.open('wb')\n",
         ],
     )
-    def test_alias_dropped_when_used_as_parameter(self, source: str) -> None:
-        """Function and lambda parameters bind the name in their inner
-        scope — they are ``ast.arg`` nodes, not ``ast.Name(ctx=Store)``,
-        so the prior Store-only walk missed them. Without this fix,
-        ``import gzip as gz; def f(gz): gz.open('wb')`` would still
-        alias-resolve ``gz`` to ``gzip`` and mis-classify the call as
-        module-style (mode at arg 1 → omitted → default read), flagging
-        a legitimate Path.open write call. Conservative: ANY parameter
-        with the alias name anywhere in the file drops the alias —
-        worst case is regression to the literal-name (Path.open)
-        baseline, which is correct."""
-        from check_safedir_required import _build_module_alias_map
+    def test_alias_dropped_when_call_is_in_function_with_local_binding(self, source: str) -> None:
+        """Function-scope shadowing for calls INSIDE the function.
+
+        ``def f(gz): gz.open('wb')`` — the call inside ``f`` refers to
+        the parameter, not the module alias. Resolver must drop the
+        alias at this call site even though the module-level alias is
+        otherwise active."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
 
         tree = ast.parse(source)
-        aliases = _build_module_alias_map(tree)
-        assert "gz" not in aliases
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        assert "gz" not in active
+
+    def test_alias_kept_for_module_call_when_function_locally_shadows(self) -> None:
+        """Symmetric to the function-shadow test: a function whose body
+        locally shadows ``gz`` must NOT shadow ``gz`` for calls OUTSIDE
+        that function. Without proper scope awareness, my prior file-
+        global filter dropped the alias for both calls."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = (
+            "import gzip as gz\n"
+            "def f(gz):\n"
+            "    gz.open('wb')\n"  # function-local — alias shadowed
+            "gz.open('/x/a', 'rb')\n"  # module-level — alias active
+        )
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        # Collect both Attribute-style ``.open`` calls.
+        open_calls = [
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        ]
+        # Inside the function (lineno 3) → alias shadowed.
+        inside_call = next(c for c in open_calls if c.lineno == 3)
+        # At module level (lineno 4) → alias active.
+        module_call = next(c for c in open_calls if c.lineno == 4)
+        assert "gz" not in _active_aliases_at_call(inside_call, base_aliases, parents, tree)
+        assert _active_aliases_at_call(module_call, base_aliases, parents, tree).get("gz") == "gzip"
 
     def test_find_violations_respects_parameter_shadowing_end_to_end(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

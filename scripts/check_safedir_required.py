@@ -43,6 +43,7 @@ import io
 import re
 import sys
 import tokenize
+from collections.abc import Iterator
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -179,27 +180,16 @@ def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
     Handles ``import gzip`` → ``{"gzip": "gzip"}`` and the aliased form
     ``import gzip as gz`` → ``{"gz": "gzip"}``.
 
-    Without this, ``_bare_open_violation`` would only recognise the
-    literal receiver name (e.g. ``gzip.open``) — an aliased import like
-    ``import gzip as gz; gz.open(p, "rb")`` would fall through to the
-    Path.open branch and mis-parse the mode position, producing
-    filename-dependent false negatives and false positives.
+    Returns the raw mapping for every import in the file. Per-call
+    scope and order awareness is applied by ``_active_aliases_at_call``
+    using the parent map + module reference, not at build time. This
+    preserves the alias at call sites that come BEFORE any rebind and
+    at sites OUTSIDE any function that locally shadows the name.
 
     Dotted imports (``import gzip.partial``) collapse to their top-level
     module name — the receiver in a call like ``gzip.partial.open(...)``
     is the chained attribute, not a bare ``Name``, so the AST branch in
     ``_bare_open_violation`` would not match it anyway.
-
-    Scope awareness: any local name that is ALSO an assignment target
-    anywhere in the file (``gz = Path("/x")``, ``for gz in ...:``,
-    ``with open(...) as gz:``, walrus, etc.) is dropped from the map.
-    Without this, ``import gzip as gz; gz = Path("/x"); gz.open("wb")``
-    would alias-resolve ``gz`` to ``gzip``, classify the call as
-    module-style (mode at arg 1 → omitted → default-read), and
-    incorrectly flag a legitimate write-only ``Path.open``. Over-
-    conservative — drops shadowed-only-inside-a-function aliases too —
-    but the failure mode is the prior Path.open classification, which
-    is the pre-alias-fix baseline.
     """
     aliases: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -212,30 +202,149 @@ def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
                 # the top-level (NOT the full dotted name).
                 local = alias_node.asname if alias_node.asname else top_level
                 aliases[local] = top_level
-    if not aliases:
-        return aliases
-    # Collect every binding form that shadows the alias name:
-    #
-    # - ``ast.Name`` with ``ctx=Store`` — plain assignment, augmented /
-    #   annotated assignment, for-loop targets, with-as targets, walrus
-    #   operator, comprehensions.
-    # - ``ast.arg`` — function and lambda parameters (positional, keyword,
-    #   *args, **kwargs, positional-only, keyword-only). Parameters are
-    #   NOT ``ast.Name`` nodes so the Store-context walk alone misses
-    #   them. Without this, ``import gzip as gz; def f(gz): gz.open("wb")``
-    #   would still alias-resolve ``gz`` to ``gzip`` and mis-classify the
-    #   call as a read.
-    #
-    # Conservative file-global rule: a same-name binding anywhere in the
-    # file disables module-style resolution for that alias. Failure mode
-    # is the prior Path.open classification, which is safe.
-    shadowed: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-            shadowed.add(node.id)
-        elif isinstance(node, ast.arg):
-            shadowed.add(node.arg)
-    return {local: canon for local, canon in aliases.items() if local not in shadowed}
+    return aliases
+
+
+def _build_parent_map(tree: ast.Module) -> dict[ast.AST, ast.AST]:
+    """Map child AST node → its parent for the entire tree."""
+    parents: dict[ast.AST, ast.AST] = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parents[child] = parent
+    return parents
+
+
+def _iter_excluding_nested_scopes(node: ast.AST) -> Iterator[ast.AST]:
+    """Yield *node* and its descendants, but stop descending at nested
+    function / async-function / class / lambda boundaries. Used to
+    collect module-level bindings without leaking into inner scopes
+    (which Python treats as separate scopes for name resolution).
+    """
+    yield node
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+        return
+    for child in ast.iter_child_nodes(node):
+        yield from _iter_excluding_nested_scopes(child)
+
+
+def _function_local_names(func: ast.AST) -> set[str]:
+    """Collect every local name bound by *func* (FunctionDef / AsyncFunctionDef
+    / Lambda) — parameters AND any Store-context Name / nested ``Import`` in
+    the body, BUT NOT inside further-nested functions/classes/lambdas
+    (those have their own scope).
+
+    Python's function-scope binding rule is *not* order-based: if a name
+    is bound anywhere in the function body, it's local everywhere in
+    that function (would raise UnboundLocalError if used before
+    assignment, but it's still local). So a single set is sufficient.
+    """
+    names: set[str] = set()
+    args = func.args  # type: ignore[attr-defined]
+    for arg_node in (*args.posonlyargs, *args.args, *args.kwonlyargs):
+        names.add(arg_node.arg)
+    if args.vararg:
+        names.add(args.vararg.arg)
+    if args.kwarg:
+        names.add(args.kwarg.arg)
+    # Lambda body is a single expression — Name(Store) is impossible
+    # there (no assignment), so we only need to traverse for function /
+    # async-function defs.
+    body = func.body if isinstance(func.body, list) else []  # type: ignore[attr-defined]
+    for stmt in body:
+        for node in _iter_excluding_nested_scopes(stmt):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                names.add(node.id)
+            elif isinstance(node, ast.arg):
+                # Inner lambda's parameters are NOT local to *func*. But
+                # _iter_excluding_nested_scopes already skips lambdas,
+                # so any ast.arg we see here belongs to *func* itself —
+                # already collected from args above. Defensive: skip.
+                continue
+    return names
+
+
+def _top_level_stmt_lineno(
+    node: ast.AST, parents: dict[ast.AST, ast.AST], module: ast.Module
+) -> int | None:
+    """Return the lineno of the top-level (module body) statement that
+    contains *node*, or ``None`` if *node* is not under the module body.
+    """
+    cur = node
+    while cur in parents:
+        parent = parents[cur]
+        if parent is module:
+            return cur.lineno
+        cur = parent
+    return None
+
+
+def _active_aliases_at_call(
+    call_node: ast.Call,
+    base_aliases: dict[str, str],
+    parents: dict[ast.AST, ast.AST],
+    module: ast.Module,
+) -> dict[str, str]:
+    """Return the alias map effective at *call_node*'s location.
+
+    Two-layer resolution:
+
+    1. **Function-scope shadowing (LEGB-like)**: walk outward from the
+       call to the module. At each enclosing function / async-function /
+       lambda, drop any alias whose name appears in that function's
+       local bindings (parameters or any Store-context Name in the body
+       — excluding nested scopes). Python's function-scope rule is not
+       order-based, so the entire function body counts.
+    2. **Module-level order shadowing**: scan top-level module bindings
+       (Store-context Names anywhere in module-body statements, but
+       not inside nested function/class/lambda bodies). Drop any alias
+       whose first such binding has a lineno STRICTLY BEFORE the
+       top-level statement containing the call. Calls that come
+       before any module-level rebind keep their alias.
+
+    Both layers compose: function-shadowed aliases stay dropped even if
+    the function appears before any module rebind, and module-rebound
+    aliases stay dropped even if the call is inside a function that
+    doesn't locally shadow.
+    """
+    active = dict(base_aliases)
+    if not active:
+        return active
+
+    # Layer 1: walk enclosing scopes outward; drop locally-bound names.
+    cur = call_node
+    while cur in parents:
+        cur = parents[cur]
+        if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            local_names = _function_local_names(cur)
+            for name in list(active):
+                if name in local_names:
+                    del active[name]
+        elif isinstance(cur, ast.Module):
+            break
+
+    if not active:
+        return active
+
+    # Layer 2: order-aware module-level rebind shadowing.
+    top_stmt_line = _top_level_stmt_lineno(call_node, parents, module)
+    if top_stmt_line is None:
+        # Call isn't in module body (shouldn't happen for well-formed
+        # input). Be conservative: keep the active map as-is.
+        return active
+
+    for stmt in module.body:
+        # Don't descend into nested scopes — function/class/lambda
+        # bodies have their own bindings that don't shadow the module
+        # name at module scope.
+        for node in _iter_excluding_nested_scopes(stmt):
+            if (
+                isinstance(node, ast.Name)
+                and isinstance(node.ctx, ast.Store)
+                and node.lineno < top_stmt_line
+                and node.id in active
+            ):
+                del active[node.id]
+    return active
 
 
 def _bare_open_violation(
@@ -370,9 +479,15 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
     marker_lines = _collect_marker_comment_lines(source)
     total = len(lines)
     bare_open_active = _file_under_enforced_dir(path)
-    # Pre-compute alias map once per file so the per-call detector can
-    # resolve ``import gzip as gz; gz.open(...)`` as module-style.
-    module_aliases = _build_module_alias_map(tree) if bare_open_active else {}
+    # Pre-compute the base alias map and parent map once per file. The
+    # per-call resolver ``_active_aliases_at_call`` combines them with
+    # scope + order awareness for each individual call site.
+    base_aliases: dict[str, str] = {}
+    parents: dict[ast.AST, ast.AST] = {}
+    if bare_open_active:
+        base_aliases = _build_module_alias_map(tree)
+        if base_aliases:
+            parents = _build_parent_map(tree)
     out: list[tuple[int, str, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -388,7 +503,16 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
         # Pass 2: bare-open read (directory-scoped)
         if not bare_open_active:
             continue
-        bare_name = _bare_open_violation(node, module_aliases)
+        # Resolve aliases active at THIS call's location. Earlier
+        # commits used a single file-global alias map and either kept
+        # the alias even when a later rebind invalidated it (false
+        # positive for write-mode .open) or dropped the alias because
+        # of a later/unrelated rebind (false negative for legitimate
+        # reads). Per-call resolution avoids both.
+        effective_aliases = (
+            _active_aliases_at_call(node, base_aliases, parents, tree) if base_aliases else {}
+        )
+        bare_name = _bare_open_violation(node, effective_aliases)
         if bare_name is None:
             continue
         if _has_opt_out_in_window(marker_lines, node.lineno, total):
