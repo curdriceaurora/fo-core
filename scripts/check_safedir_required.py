@@ -617,12 +617,16 @@ def _bare_open_violation(
         receiver = func.value
         # Module-style: ``io.open(path, "rb")`` / ``gzip.open(path, "rb")`` /
         # ``bz2.open(...)`` etc. Mode is positional arg 1 (signature mirrors
-        # the builtin ``open(file, mode, ...)``). Aliases resolve through
-        # *module_aliases* — ``import gzip as gz; gz.open(...)`` reports
-        # the canonical name (``gzip.open``) so output is alias-agnostic.
+        # the builtin ``open(file, mode, ...)``). Only classify as module-
+        # style when the receiver is PROVEN to resolve to a module binding
+        # at this call site — i.e., it appears in the (already-shadow-
+        # resolved) ``module_aliases`` map AND that canonical name is in
+        # the stdlib module-style allowlist. A receiver literally named
+        # ``gzip`` (parameter, local, etc.) that is NOT in the alias map
+        # falls through to the Path.open branch.
         if isinstance(receiver, ast.Name):
-            canonical = (module_aliases or {}).get(receiver.id, receiver.id)
-            if canonical in _MODULE_STYLE_OPEN_RECEIVERS:
+            canonical = (module_aliases or {}).get(receiver.id)
+            if canonical is not None and canonical in _MODULE_STYLE_OPEN_RECEIVERS:
                 if _is_read_mode(_mode_arg(node, mode_position=1)):
                     return f"{canonical}.open"
                 return None

@@ -324,11 +324,16 @@ class TestBareOpenDetectionDirScoped:
         """Direct unit-test of the AST helper — bypasses the dir-scope
         gate so we can verify the detection logic itself.
         """
-        from check_safedir_required import _bare_open_violation
+        from check_safedir_required import _bare_open_violation, _build_module_alias_map
 
         tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
         calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
-        flagged = [_bare_open_violation(c) for c in calls if _bare_open_violation(c) is not None]
+        flagged = [
+            _bare_open_violation(c, aliases)
+            for c in calls
+            if _bare_open_violation(c, aliases) is not None
+        ]
         assert len(flagged) == 1, f"expected exactly one read-mode call, got {flagged}"
 
     @pytest.mark.parametrize(
@@ -348,11 +353,16 @@ class TestBareOpenDetectionDirScoped:
         legitimate writes, not reads — handled by the atomic-write rail
         instead. The bare-open read detector must not flag them.
         """
-        from check_safedir_required import _bare_open_violation
+        from check_safedir_required import _bare_open_violation, _build_module_alias_map
 
         tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
         calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
-        flagged = [_bare_open_violation(c) for c in calls if _bare_open_violation(c) is not None]
+        flagged = [
+            _bare_open_violation(c, aliases)
+            for c in calls
+            if _bare_open_violation(c, aliases) is not None
+        ]
         assert flagged == [], f"write-mode call wrongly flagged: {flagged}"
 
     def test_read_plus_modes_flagged(self) -> None:
@@ -389,15 +399,16 @@ class TestBareOpenDetectionDirScoped:
         ``gzip.open("/x/a", "rb")`` must extract mode from arg 1, not arg
         0. Previously ``"/x/a"`` got interpreted as mode → letter ``'a'``
         intersects write-only set → not flagged (false negative)."""
-        from check_safedir_required import _bare_open_violation
+        from check_safedir_required import _bare_open_violation, _build_module_alias_map
 
         tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
         call = next(
             n
             for n in ast.walk(tree)
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
         )
-        assert _bare_open_violation(call) == expected_name
+        assert _bare_open_violation(call, aliases) == expected_name
 
     @pytest.mark.parametrize(
         "source",
@@ -412,32 +423,34 @@ class TestBareOpenDetectionDirScoped:
     def test_module_style_open_write_modes_not_flagged(self, source: str) -> None:
         """Verifies the mode-position fix doesn't over-flag — write-only
         calls on module-style APIs still get correctly dropped."""
-        from check_safedir_required import _bare_open_violation
+        from check_safedir_required import _bare_open_violation, _build_module_alias_map
 
         tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
         call = next(
             n
             for n in ast.walk(tree)
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
         )
-        assert _bare_open_violation(call) is None
+        assert _bare_open_violation(call, aliases) is None
 
     def test_filename_with_write_mode_letters_does_not_break_classification(self) -> None:
         """Belt-and-suspenders: filenames containing ``'w'`` / ``'a'`` /
         ``'x'`` letters used to mis-classify the call as write-only because
         the wrong arg was consulted. Now the mode position is correct, so
         the filename content is irrelevant."""
-        from check_safedir_required import _bare_open_violation
+        from check_safedir_required import _bare_open_violation, _build_module_alias_map
 
         for filename in ["/x/awx", "writer.log", "/y/data.xml"]:
             source = f"import gzip\ngzip.open({filename!r}, 'rb')\n"
             tree = ast.parse(source)
+            aliases = _build_module_alias_map(tree)
             call = next(
                 n
                 for n in ast.walk(tree)
                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
             )
-            assert _bare_open_violation(call) == "gzip.open", (
+            assert _bare_open_violation(call, aliases) == "gzip.open", (
                 f"filename {filename!r} broke gzip.open detection"
             )
 
@@ -1105,6 +1118,50 @@ class TestBareOpenDetectionDirScoped:
         )
         active = _active_aliases_at_call(call, base_aliases, parents, tree)
         assert active.get("gz") == "gzip"
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # Function parameter named literally `gzip` — not the module.
+            "def f(gzip):\n    gzip.open('wb')\n",
+            # Local variable shadows the literal name.
+            "def f():\n    gzip = object()\n    gzip.open('wb')\n",
+            # Module-level rebinding to non-module (no prior import).
+            "gzip = object()\ngzip.open('wb')\n",
+        ],
+    )
+    def test_literal_module_name_without_import_is_not_module_style(self, source: str) -> None:
+        """Regression for Codex P2 (4ca4af1): a receiver whose literal
+        name matches a known module-style API (``gzip``, ``bz2``, etc.)
+        must NOT be classified as module-style unless it actually
+        resolves to a module binding at the call site. The fix gates
+        module-style classification on the active alias map: only
+        receivers present in ``module_aliases`` (which the per-call
+        resolver populates after handling all shadowing forms) are
+        eligible. Without this, ``def f(gzip): gzip.open('wb')`` would
+        be misclassified as module-style ``gzip.open`` with mode at
+        arg 1 → omitted → default-read → flagged."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        # No real ``import gzip`` (or it's shadowed), so the resolved
+        # alias map should NOT contain gzip → falls through to Path.open
+        # branch with mode at arg 0 = 'wb' → write → not flagged.
+        assert "gzip" not in active
 
     def test_except_handler_binding_shadows_module_alias(self) -> None:
         """Regression for Codex P2 (f311244): ``except ... as gz`` binds
