@@ -448,6 +448,8 @@ class TestCopilotExecutorHandlers:
         assert "search" in result.message.lower()
 
     def test_handle_find_with_results(self, executor, tmp_path: Path) -> None:
+        # Routes through BM25Index which requires rank-bm25 (``search`` extra).
+        pytest.importorskip("rank_bm25")
         from services.copilot.executor import Intent, IntentType
 
         f = tmp_path / "important_report.txt"

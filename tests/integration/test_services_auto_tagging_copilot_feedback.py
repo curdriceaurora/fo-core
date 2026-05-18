@@ -781,6 +781,9 @@ class TestCommandExecutorAdditional:
         assert "search for" in result.message.lower()
 
     def test_execute_find_with_matches(self, tmp_path: Path) -> None:
+        # CommandExecutor.find_files routes through BM25Index which
+        # requires rank-bm25 (``search`` extra). Skip when absent.
+        pytest.importorskip("rank_bm25")
         from services.copilot.executor import CommandExecutor
 
         (tmp_path / "report.txt").write_text("content")

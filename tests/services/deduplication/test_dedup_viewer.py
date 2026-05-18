@@ -220,7 +220,8 @@ class TestShowComparison:
         """If some images fail to load, the rest still show up."""
         call_count = 0
 
-        def _meta_side_effect(path):
+        def _meta_side_effect(path, **_kwargs):
+            # PR3f: _get_image_metadata accepts ``trusted_root=`` kwarg now
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -473,11 +474,11 @@ class TestGenerateAsciiPreview:
         type(fake_img.resize.return_value).width = 40
 
         mock_open_cm = MagicMock()
-        mock_open_cm.__enter__ = MagicMock(return_value=fake_img)
+        mock_open_cm.__enter__ = MagicMock(return_value=(fake_img, None))
         mock_open_cm.__exit__ = MagicMock(return_value=False)
 
         with patch(
-            "services.deduplication.viewer.Image.open",
+            "services.deduplication.viewer.safedir_image_open",
             return_value=mock_open_cm,
         ):
             result = viewer._generate_ascii_preview(
@@ -522,10 +523,10 @@ class TestGenerateAsciiPreview:
         # Landscape: 400x100, aspect_ratio=4 > 1
         landscape_img = _make_fake_img(400, 100, 20, 10)
         mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=landscape_img)
+        mock_cm.__enter__ = MagicMock(return_value=(landscape_img, None))
         mock_cm.__exit__ = MagicMock(return_value=False)
         with patch(
-            "services.deduplication.viewer.Image.open",
+            "services.deduplication.viewer.safedir_image_open",
             return_value=mock_cm,
         ):
             result = viewer._generate_ascii_preview(
@@ -536,10 +537,10 @@ class TestGenerateAsciiPreview:
         # Portrait: 100x400, aspect_ratio=0.25 < 1
         portrait_img = _make_fake_img(100, 400, 20, 10)
         mock_cm2 = MagicMock()
-        mock_cm2.__enter__ = MagicMock(return_value=portrait_img)
+        mock_cm2.__enter__ = MagicMock(return_value=(portrait_img, None))
         mock_cm2.__exit__ = MagicMock(return_value=False)
         with patch(
-            "services.deduplication.viewer.Image.open",
+            "services.deduplication.viewer.safedir_image_open",
             return_value=mock_cm2,
         ):
             result = viewer._generate_ascii_preview(
