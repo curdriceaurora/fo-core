@@ -1050,6 +1050,62 @@ class TestBareOpenDetectionDirScoped:
         # Pattern capture shadows the alias.
         assert "gz" not in active
 
+    @pytest.mark.parametrize(
+        "source,expected",
+        [
+            # Import inside top-level ``if`` — binds at module scope.
+            ("if True:\n    import gzip as gz\ngz.open('/x', 'rb')\n", "gzip"),
+            # Import inside top-level ``try``.
+            (
+                "try:\n    import gzip as gz\nexcept Exception:\n    pass\ngz.open('/x', 'rb')\n",
+                "gzip",
+            ),
+            # Import inside top-level ``with``.
+            (
+                "import contextlib\nwith contextlib.suppress(Exception):\n    import gzip as gz\ngz.open('/x', 'rb')\n",
+                "gzip",
+            ),
+        ],
+    )
+    def test_module_alias_map_picks_up_conditional_top_level_imports(
+        self, source: str, expected: str
+    ) -> None:
+        """Regression for Codex P2 (72d002f): ``_build_module_alias_map``
+        previously only inspected direct ``tree.body`` entries, so
+        imports gated behind module-level ``if`` / ``try`` / ``with``
+        were missed. Those imports still bind names in module scope at
+        runtime; missing them would short-circuit the alias resolver
+        out entirely (returns empty map) and miss real reads."""
+        from check_safedir_required import _build_module_alias_map
+
+        tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
+        assert aliases.get("gz") == expected
+
+    def test_conditional_import_visible_in_per_call_replay(self) -> None:
+        """Full-stack regression for Codex P2 (72d002f): a call after a
+        conditional top-level import correctly resolves the alias via
+        the replay walk."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = "if True:\n    import gzip as gz\ngz.open('/x', 'rb')\n"
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        assert active.get("gz") == "gzip"
+
     def test_except_handler_binding_shadows_module_alias(self) -> None:
         """Regression for Codex P2 (f311244): ``except ... as gz`` binds
         ``gz`` via ``ast.ExceptHandler.name`` (a raw str), NOT via

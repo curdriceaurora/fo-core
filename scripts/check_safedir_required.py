@@ -175,19 +175,20 @@ def _mode_arg(node: ast.Call, mode_position: int) -> str | None:
 
 
 def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
-    """Walk **module-scope** ``import`` statements and build a local-name →
-    real-module map.
+    """Walk module-scope ``import`` statements (including those nested
+    inside top-level control-flow constructs like ``if`` / ``try`` /
+    ``with`` / ``for`` / ``while``) and build a local-name → real-
+    module map.
 
     Handles ``import gzip`` → ``{"gzip": "gzip"}`` and the aliased form
     ``import gzip as gz`` → ``{"gz": "gzip"}``.
 
-    Only direct children of ``tree.body`` are considered. Imports nested
-    inside a function / class / lambda body bind their names in that
-    inner scope, not at module level — including them here would let a
-    nested ``import pathlib as gz`` clobber the module-level
-    ``import gzip as gz`` mapping and hide real reads. The
+    Imports nested inside a function / class / lambda / comprehension
+    body bind their names in that inner scope, not at module level —
+    those are excluded via ``_iter_excluding_nested_scopes``. The
     ``_active_aliases_at_call`` resolver applies per-call scope+order
-    awareness on top of this base map.
+    awareness on top of this base map; this builder serves only as a
+    "is there any module-level import alias at all?" short-circuit.
 
     Dotted imports (``import gzip.partial``) collapse to their top-level
     module name — the receiver in a call like ``gzip.partial.open(...)``
@@ -196,15 +197,14 @@ def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
     """
     aliases: dict[str, str] = {}
     for stmt in tree.body:
-        if isinstance(stmt, ast.Import):
-            for alias_node in stmt.names:
-                top_level = alias_node.name.split(".", 1)[0]
-                # Python's actual binding rule: ``import x.y`` binds ``x``
-                # in the local namespace; ``import x.y as z`` binds ``z``.
-                # So the local key is the asname when present, otherwise
-                # the top-level (NOT the full dotted name).
-                local = alias_node.asname if alias_node.asname else top_level
-                aliases[local] = top_level
+        for node in _iter_excluding_nested_scopes(stmt):
+            if isinstance(node, ast.Import):
+                for alias_node in node.names:
+                    top_level = alias_node.name.split(".", 1)[0]
+                    # Python's actual binding rule: ``import x.y`` binds
+                    # ``x`` locally; ``import x.y as z`` binds ``z``.
+                    local = alias_node.asname if alias_node.asname else top_level
+                    aliases[local] = top_level
     return aliases
 
 
@@ -425,47 +425,42 @@ def _replay_module_aliases(module: ast.Module, cutoff_lineno: int | None) -> dic
     for stmt in module.body:
         if cutoff_lineno is not None and stmt.lineno > cutoff_lineno:
             break
-        _apply_stmt_to_alias_map(stmt, active)
         for node in _iter_excluding_nested_scopes(stmt):
-            _drop_alias_for_node_binding(node, active)
+            _apply_node_to_alias_map(node, active)
     return active
 
 
-def _apply_stmt_to_alias_map(stmt: ast.stmt, active: dict[str, str]) -> None:
-    """Process a top-level module statement: add aliases for Import,
-    drop for ImportFrom / FunctionDef / AsyncFunctionDef / ClassDef."""
-    if isinstance(stmt, ast.Import):
-        for alias_node in stmt.names:
+def _apply_node_to_alias_map(node: ast.AST, active: dict[str, str]) -> None:
+    """Apply a single AST node's binding effect to *active*. Handles
+    every form of name binding that can appear in a module-level scope
+    (including inside top-level control-flow statements like ``if`` /
+    ``try`` / ``with`` / ``for`` / ``while``):
+
+    - ``ast.Import`` adds aliases (handles ``import gzip``,
+      ``import gzip as gz``, ``import x.y``).
+    - ``ast.ImportFrom`` drops matching alias (``from M import gz`` /
+      ``from M import X as gz`` — not a module).
+    - ``ast.FunctionDef`` / ``ast.AsyncFunctionDef`` / ``ast.ClassDef``
+      drop the alias whose name matches the def/class.
+    - ``ast.Name(Store)`` drops the alias for assignment targets.
+    - ``ast.ExceptHandler`` drops on ``except ... as name``.
+    - ``ast.MatchAs`` / ``ast.MatchStar`` drop on pattern captures.
+    - ``ast.MatchMapping`` drops on ``**rest`` mapping rest capture.
+    """
+    if isinstance(node, ast.Import):
+        for alias_node in node.names:
             top_level = alias_node.name.split(".", 1)[0]
             local = alias_node.asname if alias_node.asname else top_level
             active[local] = top_level
-    elif isinstance(stmt, ast.ImportFrom):
-        for alias_node in stmt.names:
+    elif isinstance(node, ast.ImportFrom):
+        for alias_node in node.names:
             if alias_node.name == "*":
                 continue
             bound = alias_node.asname if alias_node.asname else alias_node.name
             active.pop(bound, None)
-    elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-        active.pop(stmt.name, None)
-
-
-def _drop_alias_for_node_binding(node: ast.AST, active: dict[str, str]) -> None:
-    """For nested binder nodes (Name(Store), ExceptHandler, MatchAs,
-    MatchStar, MatchMapping) that bind a name within the current
-    statement's subtree, drop the matching alias.
-
-    Comments:
-    - ``Name(Store)``: standard assignment target.
-    - ``ExceptHandler``: ``except ... as gz`` binds via the handler's
-      ``name`` attribute (raw str). Python deletes the name after the
-      handler exits, but we conservatively drop for the rest of the
-      file (false negatives are worse than false positives for a
-      security rail).
-    - ``MatchAs`` / ``MatchStar``: ``case gz`` / ``case [*gz]`` bind
-      via the pattern's ``name`` (raw str).
-    - ``MatchMapping``: ``case {**rest}`` binds via ``rest`` (raw str).
-    """
-    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+    elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        active.pop(node.name, None)
+    elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
         active.pop(node.id, None)
     elif isinstance(node, ast.ExceptHandler) and node.name is not None:
         active.pop(node.name, None)
