@@ -45,7 +45,52 @@ try:
 except ImportError:
     XMLParsedAsHTMLWarning = None  # type: ignore[assignment,misc]
 
+import os
+import sys
+
 from loguru import logger
+
+from utils.safedir import SafeDir
+
+
+def _read_epub_safedir(file_path: Path) -> Any:
+    """Open *file_path* via SafeDir and pass the fileobj to ``epub.read_epub``.
+
+    On POSIX, opens the file with ``SafeDir.open_for_reader`` so a
+    symlink swapped into the directory between the walk and this read
+    is refused with ``SymlinkRejected`` (an ``OSError`` subclass)
+    rather than dereferenced — closes the symlink-following surface
+    in the enhanced-EPUB ingestion path (#264).
+
+    On Windows (where SafeDir's POSIX primitives raise
+    ``NotImplementedError``) falls back to direct
+    ``epub.read_epub(file_path)`` — preserves the legacy API.
+
+    Requires ``ebooklib>=0.20`` (verified in PR3c via #275) so the
+    fileobj branch of ``epub.read_epub`` works correctly; older
+    versions called ``os.path.isdir`` unconditionally on the input
+    and raised ``TypeError`` for file-likes.
+    """
+    if sys.platform == "win32":
+        return epub.read_epub(file_path)
+
+    try:
+        with SafeDir.open_root(file_path.parent) as safe_dir:
+            fd = safe_dir.open_for_reader(file_path.name)
+            # fdopen takes ownership only once it returns; explicitly
+            # close the raw fd if fdopen itself raises.
+            try:
+                fileobj = os.fdopen(fd, "rb", closefd=True)
+            except OSError:
+                os.close(fd)
+                raise
+            with fileobj:
+                return epub.read_epub(fileobj)
+    except NotImplementedError:
+        # SafeDir's POSIX primitives unavailable on this build; fall
+        # back to direct path-based open.
+        logger.debug("SafeDir unavailable; using legacy epub.read_epub for {}", file_path.name)
+        return epub.read_epub(file_path)
 
 
 class EPUBProcessingError(Exception):
@@ -199,7 +244,7 @@ class EnhancedEPUBReader:
             raise FileNotFoundError(f"EPUB file not found: {file_path}")
 
         try:
-            book = epub.read_epub(file_path)
+            book = _read_epub_safedir(file_path)
             logger.debug(f"Successfully opened EPUB: {file_path.name}")
         except Exception as e:  # Intentional catch-all: ebooklib raises library-specific errors
             raise EPUBProcessingError(f"Failed to read EPUB file {file_path}: {e}") from e
@@ -610,8 +655,12 @@ class EnhancedEPUBReader:
                 output_dir = Path(output_dir)
                 output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Determine file extension from content
-            img = Image.open(io.BytesIO(cover_data))
+            # Determine file extension from content.
+            # cover_data was already extracted from the EPUB via
+            # ebooklib (which read it via the SafeDir-routed
+            # _read_epub_safedir above), so the Image.open below
+            # consumes an in-memory BytesIO, not a path.
+            img = Image.open(io.BytesIO(cover_data))  # safedir: ok — in-memory bytes, not a path
             ext = img.format.lower() if img.format else "jpg"
 
             output_path = output_dir / f"{epub_path.stem}_cover.{ext}"
@@ -695,7 +744,7 @@ def get_epub_metadata(file_path: str | Path) -> EPUBMetadata:
     file_path = Path(file_path)
 
     try:
-        book = epub.read_epub(file_path)
+        book = _read_epub_safedir(file_path)
         reader = EnhancedEPUBReader()
         return reader._extract_metadata(book)
     except Exception as e:  # Intentional catch-all: ebooklib raises library-specific errors

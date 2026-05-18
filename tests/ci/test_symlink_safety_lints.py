@@ -282,3 +282,90 @@ class TestFlaggedCallsContract:
         }
         missing = required - _FLAGGED_CALLS
         assert not missing, f"watch list dropped flagged calls: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# Bare-open detection — added in PR3g (deferred from #271)
+# ---------------------------------------------------------------------------
+
+
+class TestBareOpenDetectionDirScoped:
+    """Bare ``open(path, "r"...)`` / ``Path.open("r"...)`` / ``io.open(path, "r"...)``
+    calls are only flagged inside directories listed in
+    ``_READ_OPEN_ENFORCED_DIRS``. PR3g adds the detection with an
+    empty enforced-dirs set as a placeholder; PR3i populates it for
+    migrated reader / dedup directories.
+    """
+
+    def test_bare_open_not_flagged_when_dir_set_empty(self, tmp_path: Path) -> None:
+        """With no directories enforced, bare-open reads aren't flagged
+        even in synthetic files — the detection class is opt-in.
+        """
+        source = "with open('/x/y.txt', 'rb') as f: pass\n"
+        # Synthetic path under tmp/src/x — not in _READ_OPEN_ENFORCED_DIRS.
+        # Empty set means no file is enforced.
+        violations = find_violations(_synth(tmp_path, source))
+        assert violations == []
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "with open('/x/y.txt', 'rb') as f: pass\n",
+            'with open("/x", mode="r") as f: pass\n',
+            "with open('/x') as f: pass\n",  # default mode = "r"
+            "import io\nwith io.open('/x', 'rb') as f: pass\n",
+            "from pathlib import Path\nPath('/x').open('rb')\n",
+            "from pathlib import Path\nPath('/x').open()\n",  # default mode
+            "from pathlib import Path\nPath('/x').open(mode='r')\n",
+        ],
+    )
+    def test_bare_open_detected_via_helper(self, tmp_path: Path, source: str) -> None:
+        """Direct unit-test of the AST helper — bypasses the dir-scope
+        gate so we can verify the detection logic itself.
+        """
+        from check_safedir_required import _bare_open_violation
+
+        tree = __import__("ast").parse(source)
+        calls = [n for n in __import__("ast").walk(tree) if isinstance(n, __import__("ast").Call)]
+        flagged = [_bare_open_violation(c) for c in calls if _bare_open_violation(c) is not None]
+        assert len(flagged) == 1, f"expected exactly one read-mode call, got {flagged}"
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # Write modes are not reads.
+            "with open('/x', 'wb') as f: pass\n",
+            'with open("/x", mode="w") as f: pass\n',
+            "with open('/x', 'a') as f: pass\n",
+            "from pathlib import Path\nPath('/x').open('wb')\n",
+            "from pathlib import Path\nPath('/x').open(mode='a')\n",
+            "import io\nio.open('/x', 'wb')\n",
+        ],
+    )
+    def test_write_modes_not_flagged(self, tmp_path: Path, source: str) -> None:
+        """Write-only modes (``"w"``/``"a"``/``"x"`` without ``"+"``) are
+        legitimate writes, not reads — handled by the atomic-write rail
+        instead. The bare-open read detector must not flag them.
+        """
+        from check_safedir_required import _bare_open_violation
+
+        tree = __import__("ast").parse(source)
+        calls = [n for n in __import__("ast").walk(tree) if isinstance(n, __import__("ast").Call)]
+        flagged = [_bare_open_violation(c) for c in calls if _bare_open_violation(c) is not None]
+        assert flagged == [], f"write-mode call wrongly flagged: {flagged}"
+
+    def test_read_plus_modes_flagged(self) -> None:
+        """``"r+"`` / ``"w+"`` / ``"a+"`` reads-and-writes still open
+        the underlying file and could dereference a symlink."""
+        from check_safedir_required import _bare_open_violation
+
+        for source in [
+            "open('/x', 'r+')\n",
+            "open('/x', 'w+')\n",
+            "open('/x', 'a+')\n",
+        ]:
+            tree = __import__("ast").parse(source)
+            call = next(
+                n for n in __import__("ast").walk(tree) if isinstance(n, __import__("ast").Call)
+            )
+            assert _bare_open_violation(call) is not None, f"missed read-write mode: {source!r}"
