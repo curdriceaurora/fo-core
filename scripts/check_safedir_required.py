@@ -214,16 +214,27 @@ def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
                 aliases[local] = top_level
     if not aliases:
         return aliases
-    # Collect every Store-context Name in the tree (assignment targets,
-    # for-loops, walrus, with-as, comprehensions). Function ``arg`` nodes
-    # and import ``alias`` nodes don't show up here — fine, because they
-    # shadow inside a smaller scope and we want to keep the module-level
-    # alias when only inner functions rebind. Conservative for safety:
-    # if the same name is rebound anywhere in the file, we drop the alias.
+    # Collect every binding form that shadows the alias name:
+    #
+    # - ``ast.Name`` with ``ctx=Store`` — plain assignment, augmented /
+    #   annotated assignment, for-loop targets, with-as targets, walrus
+    #   operator, comprehensions.
+    # - ``ast.arg`` — function and lambda parameters (positional, keyword,
+    #   *args, **kwargs, positional-only, keyword-only). Parameters are
+    #   NOT ``ast.Name`` nodes so the Store-context walk alone misses
+    #   them. Without this, ``import gzip as gz; def f(gz): gz.open("wb")``
+    #   would still alias-resolve ``gz`` to ``gzip`` and mis-classify the
+    #   call as a read.
+    #
+    # Conservative file-global rule: a same-name binding anywhere in the
+    # file disables module-style resolution for that alias. Failure mode
+    # is the prior Path.open classification, which is safe.
     shadowed: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
             shadowed.add(node.id)
+        elif isinstance(node, ast.arg):
+            shadowed.add(node.arg)
     return {local: canon for local, canon in aliases.items() if local not in shadowed}
 
 

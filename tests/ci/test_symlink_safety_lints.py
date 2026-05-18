@@ -568,6 +568,67 @@ class TestBareOpenDetectionDirScoped:
         aliases = _build_module_alias_map(tree)
         assert aliases.get("gz") == "gzip"
 
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # Function parameter shadows the alias — Codex's exact example.
+            "import gzip as gz\ndef f(gz):\n    gz.open('wb')\n",
+            # Lambda parameter.
+            "import gzip as gz\nh = lambda gz: gz.open('wb')\n",
+            # *args parameter.
+            "import gzip as gz\ndef f(*gz):\n    pass\n",
+            # **kwargs parameter.
+            "import gzip as gz\ndef f(**gz):\n    pass\n",
+            # Keyword-only parameter.
+            "import gzip as gz\ndef f(*, gz):\n    gz.open('wb')\n",
+            # Positional-only parameter.
+            "import gzip as gz\ndef f(gz, /):\n    gz.open('wb')\n",
+            # Async function parameter.
+            "import gzip as gz\nasync def f(gz):\n    gz.open('wb')\n",
+        ],
+    )
+    def test_alias_dropped_when_used_as_parameter(self, source: str) -> None:
+        """Function and lambda parameters bind the name in their inner
+        scope — they are ``ast.arg`` nodes, not ``ast.Name(ctx=Store)``,
+        so the prior Store-only walk missed them. Without this fix,
+        ``import gzip as gz; def f(gz): gz.open('wb')`` would still
+        alias-resolve ``gz`` to ``gzip`` and mis-classify the call as
+        module-style (mode at arg 1 → omitted → default read), flagging
+        a legitimate Path.open write call. Conservative: ANY parameter
+        with the alias name anywhere in the file drops the alias —
+        worst case is regression to the literal-name (Path.open)
+        baseline, which is correct."""
+        from check_safedir_required import _build_module_alias_map
+
+        tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
+        assert "gz" not in aliases
+
+    def test_find_violations_respects_parameter_shadowing_end_to_end(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Full-stack regression for Codex P2 (parameter shadowing): a
+        file under an enforced dir that uses ``gz`` as a function
+        parameter must NOT classify ``gz.open('wb')`` as module-style.
+        Codex's exact example."""
+        import check_safedir_required as _csr
+
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "myreaders"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text("import gzip as gz\ndef f(gz):\n    gz.open('wb')\n")
+
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
+        violations = _csr.find_violations(target)
+
+        # ``gz`` is a function parameter → dropped from alias map →
+        # falls to Path.open branch → mode at arg 0 = 'wb' → write-only
+        # → not flagged.
+        assert violations == []
+
 
 class TestBareOpenDetectionDirScopedIntegration:
     """Integration test: when ``_READ_OPEN_ENFORCED_DIRS`` is non-empty,
