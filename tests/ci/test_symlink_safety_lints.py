@@ -441,6 +441,94 @@ class TestBareOpenDetectionDirScoped:
                 f"filename {filename!r} broke gzip.open detection"
             )
 
+    @pytest.mark.parametrize(
+        "source,expected_name",
+        [
+            # ``import gzip as gz`` — receiver name 'gz' must resolve to 'gzip'
+            # via the alias map before module-style classification applies.
+            ("import gzip as gz\ngz.open('/tmp/a', 'rb')\n", "gzip.open"),
+            ("import bz2 as bz\nbz.open('/tmp/data', 'r')\n", "bz2.open"),
+            ("import lzma as xz\nxz.open('/tmp/x', 'rb')\n", "lzma.open"),
+            ("import tarfile as tf\ntf.open('/tmp/archive', 'r')\n", "tarfile.open"),
+        ],
+    )
+    def test_aliased_module_imports_resolve_to_module_style(
+        self, source: str, expected_name: str
+    ) -> None:
+        """Regression for Codex P2 (8f7e18d): aliased module imports fell
+        through to the Path.open branch because the receiver name didn't
+        match the literal module-style allowlist. The fix builds an alias
+        map from ``ast.Import`` and resolves through it before checking
+        the allowlist — so ``gz.open(...)`` now correctly classifies as
+        ``gzip.open`` and consults mode at position 1."""
+        from check_safedir_required import _bare_open_violation, _build_module_alias_map
+
+        tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        )
+        assert _bare_open_violation(call, aliases) == expected_name
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # Aliased imports with write mode must NOT be flagged — proves
+            # the alias resolution doesn't introduce a false positive.
+            "import gzip as gz\ngz.open('/tmp/out', 'wb')\n",
+            "import bz2 as bz\nbz.open('/tmp/out', 'w')\n",
+            "import lzma as xz\nxz.open('/tmp/out', 'a')\n",
+        ],
+    )
+    def test_aliased_module_imports_write_modes_not_flagged(self, source: str) -> None:
+        """The alias-aware module-style path must drop write-only modes the
+        same way the literal-name path does."""
+        from check_safedir_required import _bare_open_violation, _build_module_alias_map
+
+        tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        )
+        assert _bare_open_violation(call, aliases) is None
+
+    def test_build_module_alias_map_handles_plain_and_aliased(self) -> None:
+        """Unit-test the alias map builder directly: plain ``import X`` is
+        the identity mapping, ``import X as Y`` records ``Y → X``, and
+        dotted imports collapse to the top-level module name (matching
+        the AST receiver shape for ``X.open(...)``)."""
+        from check_safedir_required import _build_module_alias_map
+
+        source = (
+            "import gzip\n"
+            "import bz2 as bz\n"
+            "import tarfile as tf\n"
+            "import lzma\n"
+            "import pathlib.PurePath  # not a real stmt but parses\n"
+        )
+        # Note: ``import a.b`` is real syntax; the local name bound is the
+        # top-level (``a``). Verify that.
+        source = (
+            "import gzip\n"
+            "import bz2 as bz\n"
+            "import tarfile as tf\n"
+            "import lzma\n"
+            "import collections.abc\n"
+        )
+        tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
+        assert aliases["gzip"] == "gzip"
+        assert aliases["bz"] == "bz2"
+        assert aliases["tf"] == "tarfile"
+        assert aliases["lzma"] == "lzma"
+        # `import collections.abc` binds `collections` locally; the alias
+        # map collapses to the top-level module name.
+        assert aliases["collections"] == "collections"
+
 
 class TestBareOpenDetectionDirScopedIntegration:
     """Integration test: when ``_READ_OPEN_ENFORCED_DIRS`` is non-empty,
@@ -520,6 +608,57 @@ class TestBareOpenDetectionDirScopedIntegration:
         target.write_text(
             "with open('/x/y.txt', 'rb') as f: pass  # safedir: ok — legacy callsite\n"
         )
+
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        monkeypatch.setattr(
+            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
+        )
+        violations = _csr.find_violations(target)
+
+        assert violations == []
+
+    def test_find_violations_resolves_aliased_module_import_end_to_end(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Full-stack regression for Codex P2: a file under an enforced dir
+        with ``import gzip as gz`` followed by ``gz.open(path, 'rb')`` must
+        be flagged. Before the alias-map fix, the bare-open detector
+        consulted only the literal receiver id (``gz``), missed the
+        allowlist, and fell through to the Path.open branch — which then
+        misread the filename as the mode."""
+        import check_safedir_required as _csr
+
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "myreaders"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text("import gzip as gz\ngz.open('/tmp/a', 'rb')\n")
+
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        monkeypatch.setattr(
+            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
+        )
+        violations = _csr.find_violations(target)
+
+        assert len(violations) == 1
+        line_no, name, _excerpt = violations[0]
+        assert name == "gzip.open"  # canonical name, not literal alias
+        assert line_no == 2
+
+    def test_find_violations_aliased_write_mode_not_flagged_end_to_end(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Companion to the previous test — same alias setup but write
+        mode. Confirms the alias fix doesn't over-flag write-only calls."""
+        import check_safedir_required as _csr
+
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "myreaders"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text("import gzip as gz\ngz.open('/tmp/out', 'wb')\n")
 
         monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
         monkeypatch.setattr(

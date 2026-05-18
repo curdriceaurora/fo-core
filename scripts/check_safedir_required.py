@@ -173,7 +173,40 @@ def _mode_arg(node: ast.Call, mode_position: int) -> str | None:
     return None  # no mode argument → default "r"
 
 
-def _bare_open_violation(node: ast.Call) -> str | None:
+def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
+    """Walk top-level ``import`` statements and build a local-name → real-
+    module map. Handles ``import gzip`` → ``{"gzip": "gzip"}`` and the
+    aliased form ``import gzip as gz`` → ``{"gz": "gzip"}``.
+
+    Without this, ``_bare_open_violation`` would only recognise the
+    literal receiver name (e.g. ``gzip.open``) — an aliased import like
+    ``import gzip as gz; gz.open(p, "rb")`` would fall through to the
+    Path.open branch and mis-parse the mode position, producing
+    filename-dependent false negatives and false positives.
+
+    Dotted imports (``import gzip.partial``) collapse to their top-level
+    module name — the receiver in a call like ``gzip.partial.open(...)``
+    is the chained attribute, not a bare ``Name``, so the AST branch in
+    ``_bare_open_violation`` would not match it anyway.
+    """
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias_node in node.names:
+                top_level = alias_node.name.split(".", 1)[0]
+                # Python's actual binding rule: ``import x.y`` binds ``x``
+                # in the local namespace; ``import x.y as z`` binds ``z``.
+                # So the local key is the asname when present, otherwise
+                # the top-level (NOT the full dotted name).
+                local = alias_node.asname if alias_node.asname else top_level
+                aliases[local] = top_level
+    return aliases
+
+
+def _bare_open_violation(
+    node: ast.Call,
+    module_aliases: dict[str, str] | None = None,
+) -> str | None:
     """Return a synthetic name for a bare-open read, or ``None``.
 
     Detects:
@@ -182,6 +215,11 @@ def _bare_open_violation(node: ast.Call) -> str | None:
       - ``<X>.open("r"...)`` on Path/file → ``"<receiver>.open"``  (any X
         — the rail can't statically tell SafeDir from Path, so the
         marker is the disambiguator)
+
+    When *module_aliases* is supplied, the receiver in ``<X>.open(...)``
+    is resolved through the map before checking ``_MODULE_STYLE_OPEN_RECEIVERS``,
+    so ``import gzip as gz`` followed by ``gz.open(p, "rb")`` correctly
+    routes to the module-style classification.
 
     The detector only returns a name; the caller checks
     ``_READ_OPEN_ENFORCED_DIRS`` membership.
@@ -197,11 +235,15 @@ def _bare_open_violation(node: ast.Call) -> str | None:
         receiver = func.value
         # Module-style: ``io.open(path, "rb")`` / ``gzip.open(path, "rb")`` /
         # ``bz2.open(...)`` etc. Mode is positional arg 1 (signature mirrors
-        # the builtin ``open(file, mode, ...)``).
-        if isinstance(receiver, ast.Name) and receiver.id in _MODULE_STYLE_OPEN_RECEIVERS:
-            if _is_read_mode(_mode_arg(node, mode_position=1)):
-                return f"{receiver.id}.open"
-            return None
+        # the builtin ``open(file, mode, ...)``). Aliases resolve through
+        # *module_aliases* — ``import gzip as gz; gz.open(...)`` reports
+        # the canonical name (``gzip.open``) so output is alias-agnostic.
+        if isinstance(receiver, ast.Name):
+            canonical = (module_aliases or {}).get(receiver.id, receiver.id)
+            if canonical in _MODULE_STYLE_OPEN_RECEIVERS:
+                if _is_read_mode(_mode_arg(node, mode_position=1)):
+                    return f"{canonical}.open"
+                return None
         # ``path.open("rb")`` — Path-like / instance method. Mode is
         # positional arg 0 (the receiver doesn't appear in node.args).
         if _is_read_mode(_mode_arg(node, mode_position=0)):
@@ -293,6 +335,9 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
     marker_lines = _collect_marker_comment_lines(source)
     total = len(lines)
     bare_open_active = _file_under_enforced_dir(path)
+    # Pre-compute alias map once per file so the per-call detector can
+    # resolve ``import gzip as gz; gz.open(...)`` as module-style.
+    module_aliases = _build_module_alias_map(tree) if bare_open_active else {}
     out: list[tuple[int, str, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -308,7 +353,7 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
         # Pass 2: bare-open read (directory-scoped)
         if not bare_open_active:
             continue
-        bare_name = _bare_open_violation(node)
+        bare_name = _bare_open_violation(node, module_aliases)
         if bare_name is None:
             continue
         if _has_opt_out_in_window(marker_lines, node.lineno, total):
