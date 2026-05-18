@@ -16,6 +16,7 @@ The CI test verifies three things:
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -282,3 +283,170 @@ class TestFlaggedCallsContract:
         }
         missing = required - _FLAGGED_CALLS
         assert not missing, f"watch list dropped flagged calls: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# Bare-open detection — added in PR3g (deferred from #271)
+# ---------------------------------------------------------------------------
+
+
+class TestBareOpenDetectionDirScoped:
+    """Bare ``open(path, "r"...)`` / ``Path.open("r"...)`` / ``io.open(path, "r"...)``
+    calls are only flagged inside directories listed in
+    ``_READ_OPEN_ENFORCED_DIRS``. PR3g adds the detection with an
+    empty enforced-dirs set as a placeholder; PR3i populates it for
+    migrated reader / dedup directories.
+    """
+
+    def test_bare_open_not_flagged_when_dir_set_empty(self, tmp_path: Path) -> None:
+        """With no directories enforced, bare-open reads aren't flagged
+        even in synthetic files — the detection class is opt-in.
+        """
+        source = "with open('/x/y.txt', 'rb') as f: pass\n"
+        # Synthetic path under tmp/src/x — not in _READ_OPEN_ENFORCED_DIRS.
+        # Empty set means no file is enforced.
+        violations = find_violations(_synth(tmp_path, source))
+        assert violations == []
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "with open('/x/y.txt', 'rb') as f: pass\n",
+            'with open("/x", mode="r") as f: pass\n',
+            "with open('/x') as f: pass\n",  # default mode = "r"
+            "import io\nwith io.open('/x', 'rb') as f: pass\n",
+            "from pathlib import Path\nPath('/x').open('rb')\n",
+            "from pathlib import Path\nPath('/x').open()\n",  # default mode
+            "from pathlib import Path\nPath('/x').open(mode='r')\n",
+        ],
+    )
+    def test_bare_open_detected_via_helper(self, tmp_path: Path, source: str) -> None:
+        """Direct unit-test of the AST helper — bypasses the dir-scope
+        gate so we can verify the detection logic itself.
+        """
+        from check_safedir_required import _bare_open_violation
+
+        tree = ast.parse(source)
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+        flagged = [_bare_open_violation(c) for c in calls if _bare_open_violation(c) is not None]
+        assert len(flagged) == 1, f"expected exactly one read-mode call, got {flagged}"
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # Write modes are not reads.
+            "with open('/x', 'wb') as f: pass\n",
+            'with open("/x", mode="w") as f: pass\n',
+            "with open('/x', 'a') as f: pass\n",
+            "from pathlib import Path\nPath('/x').open('wb')\n",
+            "from pathlib import Path\nPath('/x').open(mode='a')\n",
+            "import io\nio.open('/x', 'wb')\n",
+        ],
+    )
+    def test_write_modes_not_flagged(self, tmp_path: Path, source: str) -> None:
+        """Write-only modes (``"w"``/``"a"``/``"x"`` without ``"+"``) are
+        legitimate writes, not reads — handled by the atomic-write rail
+        instead. The bare-open read detector must not flag them.
+        """
+        from check_safedir_required import _bare_open_violation
+
+        tree = ast.parse(source)
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+        flagged = [_bare_open_violation(c) for c in calls if _bare_open_violation(c) is not None]
+        assert flagged == [], f"write-mode call wrongly flagged: {flagged}"
+
+    def test_read_plus_modes_flagged(self) -> None:
+        """``"r+"`` / ``"w+"`` / ``"a+"`` reads-and-writes still open
+        the underlying file and could dereference a symlink."""
+        from check_safedir_required import _bare_open_violation
+
+        for source in [
+            "open('/x', 'r+')\n",
+            "open('/x', 'w+')\n",
+            "open('/x', 'a+')\n",
+        ]:
+            tree = ast.parse(source)
+            call = next(n for n in ast.walk(tree) if isinstance(n, ast.Call))
+            assert _bare_open_violation(call) is not None, f"missed read-write mode: {source!r}"
+
+
+class TestBareOpenDetectionDirScopedIntegration:
+    """Integration test: when ``_READ_OPEN_ENFORCED_DIRS`` is non-empty,
+    ``find_violations`` reports bare reads on files inside the enforced
+    directory. Verifies the pass-2 wiring + ``_file_under_enforced_dir``
+    end-to-end, not just the helper in isolation.
+
+    Patches the module-level ``_READ_OPEN_ENFORCED_DIRS`` set so the
+    test owns the membership for its duration; the patch is reverted
+    after the test runs.
+    """
+
+    def test_find_violations_flags_bare_open_when_dir_enforced(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import check_safedir_required as _csr
+
+        # Create the same ``src/x/<file>`` layout ``_synth`` uses so the
+        # ``_file_under_enforced_dir`` resolution succeeds: it computes
+        # the path relative to ``_SRC_DIR``'s parent. We must point
+        # ``_SRC_DIR`` at our synthetic root so its parent is tmp_path.
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "myreaders"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text("with open('/x/y.txt', 'rb') as f: pass\n")
+
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
+        violations = _csr.find_violations(target)
+
+        # The bare ``open(path, "rb")`` is now flagged because the
+        # directory is enforced.
+        assert len(violations) == 1
+        line_no, name, _excerpt = violations[0]
+        assert name == "open"
+        assert line_no == 1
+
+    def test_find_violations_skips_bare_open_outside_enforced_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """File NOT under an enforced dir → bare open ignored even when
+        the set is populated."""
+        import check_safedir_required as _csr
+
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "elsewhere"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text("with open('/x/y.txt', 'rb') as f: pass\n")
+
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        # Different directory enforced.
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
+        violations = _csr.find_violations(target)
+
+        assert violations == []
+
+    def test_find_violations_respects_opt_out_marker_for_bare_open(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Trailing ``# safedir: ok — <reason>`` marker exempts a bare
+        open just like it does for library-call violations."""
+        import check_safedir_required as _csr
+
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "myreaders"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text(
+            "with open('/x/y.txt', 'rb') as f: pass  # safedir: ok — legacy callsite\n"
+        )
+
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
+        violations = _csr.find_violations(target)
+
+        assert violations == []
