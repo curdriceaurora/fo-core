@@ -27,13 +27,17 @@ import pytest
 from utils.readers import (
     MAX_FILE_SIZE_BYTES,
     FileTooLargeError,
+    read_7z_file,
     read_docx_file,
     read_file_via_safedir,
     read_pdf_file,
     read_presentation_file,
+    read_rar_file,
     read_rtf_file,
     read_spreadsheet_file,
+    read_tar_file,
     read_text_file,
+    read_zip_file,
 )
 from utils.readers._base import _check_fd_size
 from utils.safedir import SafeDir, SymlinkRejected
@@ -159,6 +163,140 @@ class TestReadPresentationFileFileobj:
 
 
 # ---------------------------------------------------------------------------
+# Archive readers — fileobj= branch (PR3b)
+# ---------------------------------------------------------------------------
+
+
+def _make_zip(path: Path) -> None:
+    import zipfile as _zf
+
+    with _zf.ZipFile(path, "w", _zf.ZIP_DEFLATED) as zf:
+        zf.writestr("hello.txt", "hello\n")
+        zf.writestr("data.csv", "a,b,c\n1,2,3\n")
+
+
+def _make_tar(path: Path, *, mode: str = "w:gz") -> None:
+    import tarfile as _tf
+
+    payload = path.parent / f".__tar_payload_{path.name}.txt"
+    payload.write_text("tar payload")
+    with _tf.open(path, mode) as tf:
+        tf.add(payload, arcname="readme.txt")
+    payload.unlink()
+
+
+class TestReadZipFileFileobj:
+    def test_reads_from_fileobj(self, tmp_path: Path) -> None:
+        zip_path = tmp_path / "archive.zip"
+        _make_zip(zip_path)
+
+        with zip_path.open("rb") as f:
+            out = read_zip_file(file_path=zip_path, fileobj=f)
+        assert "ZIP Archive: archive.zip" in out
+        assert "Total files: 2" in out
+        assert "hello.txt" in out
+        assert "data.csv" in out
+
+    def test_label_falls_back_when_no_file_path(self, tmp_path: Path) -> None:
+        zip_path = tmp_path / "archive.zip"
+        _make_zip(zip_path)
+        with zip_path.open("rb") as f:
+            out = read_zip_file(fileobj=f)
+        assert "ZIP Archive: <fileobj>" in out
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_zip_file()
+
+
+class TestReadTarFileFileobj:
+    def test_reads_tar_gz_from_fileobj(self, tmp_path: Path) -> None:
+        tar_path = tmp_path / "archive.tar.gz"
+        _make_tar(tar_path, mode="w:gz")
+        with tar_path.open("rb") as f:
+            out = read_tar_file(file_path=tar_path, fileobj=f)
+        assert "TAR Archive: archive.tar.gz" in out
+        assert "Compression: GZ" in out
+        assert "Total files: 1" in out
+        assert "readme.txt" in out
+
+    def test_reads_plain_tar_from_fileobj(self, tmp_path: Path) -> None:
+        tar_path = tmp_path / "archive.tar"
+        _make_tar(tar_path, mode="w")
+        with tar_path.open("rb") as f:
+            out = read_tar_file(file_path=tar_path, fileobj=f)
+        assert "Compression: None" in out
+
+    def test_compression_unknown_when_no_file_path(self, tmp_path: Path) -> None:
+        """Without a filename hint we can't display the compression type;
+        tarfile still auto-detects from the magic bytes so the read succeeds.
+        """
+        tar_path = tmp_path / "archive.tar.gz"
+        _make_tar(tar_path, mode="w:gz")
+        with tar_path.open("rb") as f:
+            out = read_tar_file(fileobj=f)
+        assert "Compression: Unknown" in out
+        assert "readme.txt" in out
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_tar_file()
+
+
+class TestRead7zFileFileobj:
+    @patch("utils.readers.archives.py7zr")
+    def test_reads_from_fileobj(self, mock_py7zr: MagicMock, tmp_path: Path) -> None:
+        mock_file_info = MagicMock()
+        mock_file_info.filename = "hello.txt"
+        mock_file_info.uncompressed = 12
+        mock_file_info.compressed = 6
+        mock_archive = MagicMock()
+        mock_archive.__enter__.return_value = mock_archive
+        mock_archive.__exit__.return_value = None
+        mock_archive.list.return_value = [mock_file_info]
+        mock_archive.password_protected = False
+        mock_py7zr.SevenZipFile.return_value = mock_archive
+
+        out = read_7z_file(file_path=tmp_path / "archive.7z", fileobj=io.BytesIO(b"7z fake"))
+        assert "7Z Archive: archive.7z" in out
+        assert "Total files: 1" in out
+        assert "hello.txt" in out
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_7z_file()
+
+
+class TestReadRarFileFileobj:
+    @patch("utils.readers.archives.rarfile")
+    def test_reads_from_fileobj(self, mock_rarfile_mod: MagicMock, tmp_path: Path) -> None:
+        mock_info = MagicMock()
+        mock_info.filename = "hello.txt"
+        mock_info.file_size = 100
+        mock_info.compress_size = 50
+        mock_rf = MagicMock()
+        mock_rf.__enter__.return_value = mock_rf
+        mock_rf.__exit__.return_value = None
+        mock_rf.infolist.return_value = [mock_info]
+        mock_rf.needs_password.return_value = False
+        # The reader references the module's RarCannotExec class for the
+        # narrower except branch — patch.dict-style replacement on the
+        # module-level binding loses that attribute, so re-attach a real
+        # class object that's never raised by the mock.
+        mock_rarfile_mod.RarFile.return_value = mock_rf
+        mock_rarfile_mod.RarCannotExec = type("RarCannotExec", (Exception,), {})
+
+        out = read_rar_file(file_path=tmp_path / "archive.rar", fileobj=io.BytesIO(b"rar fake"))
+        assert "RAR Archive: archive.rar" in out
+        assert "Total files: 1" in out
+        assert "hello.txt" in out
+
+    def test_requires_arg(self) -> None:
+        with pytest.raises(ValueError, match="file_path or fileobj"):
+            read_rar_file()
+
+
+# ---------------------------------------------------------------------------
 # Either-or argument validation
 # ---------------------------------------------------------------------------
 
@@ -209,13 +347,43 @@ class TestFileTooLargeErrorPropagation:
             with pytest.raises(FileTooLargeError):
                 read_presentation_file(fileobj=io.BytesIO(b"any"))
 
+    def test_zip_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.archives._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_zip_file(fileobj=io.BytesIO(b"any"))
+
+    def test_7z_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.archives._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_7z_file(fileobj=io.BytesIO(b"any"))
+
+    def test_tar_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.archives._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_tar_file(fileobj=io.BytesIO(b"any"))
+
+    def test_rar_reader_propagates(self, tmp_path: Path) -> None:
+        with patch("utils.readers.archives._check_fd_size", side_effect=self._raise_too_large):
+            with pytest.raises(FileTooLargeError):
+                read_rar_file(fileobj=io.BytesIO(b"any"))
+
 
 class TestRequiresFilePathOrFileobj:
     """Every reader must reject calls with neither arg supplied."""
 
     @pytest.mark.parametrize(
         "reader",
-        [read_text_file, read_docx_file, read_pdf_file, read_rtf_file, read_presentation_file],
+        [
+            read_text_file,
+            read_docx_file,
+            read_pdf_file,
+            read_rtf_file,
+            read_presentation_file,
+            read_zip_file,
+            read_7z_file,
+            read_tar_file,
+            read_rar_file,
+        ],
     )
     def test_rejects_both_args_missing(self, reader) -> None:  # type: ignore[no-untyped-def]
         with pytest.raises(ValueError):
@@ -256,18 +424,60 @@ class TestReadFileViaSafedir:
                 read_file_via_safedir(sd, "link.txt")
 
     def test_unsupported_extension_returns_none(self, tmp_path: Path) -> None:
-        """Extensions not yet in ``_SAFEDIR_READERS`` (archives, ebooks, etc.)
-        return None — caller can fall back to legacy path-based ``read_file``.
+        """Extensions not yet in ``_SAFEDIR_READERS`` (ebooks, scientific,
+        CAD) return None — caller can fall back to legacy path-based
+        ``read_file``.
         """
-        (tmp_path / "archive.zip").write_bytes(b"PK\x03\x04")
+        (tmp_path / "book.epub").write_bytes(b"PK\x03\x04")
         with SafeDir.open_root(tmp_path) as sd:
-            assert read_file_via_safedir(sd, "archive.zip") is None
+            assert read_file_via_safedir(sd, "book.epub") is None
 
     def test_rejects_bad_name(self, tmp_path: Path) -> None:
         """Component-name validation rides on SafeDir.open_for_reader."""
         with SafeDir.open_root(tmp_path) as sd:
             with pytest.raises(ValueError):
                 read_file_via_safedir(sd, "../escape.txt")
+
+    def test_reads_real_zip_archive(self, tmp_path: Path) -> None:
+        """End-to-end: dispatcher resolves ``.zip`` via the new SafeDir
+        archive entry and returns the metadata-list output of
+        ``read_zip_file``.
+        """
+        _make_zip(tmp_path / "real.zip")
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, "real.zip")
+        assert out is not None
+        assert "ZIP Archive: real.zip" in out
+        assert "hello.txt" in out
+
+    def test_reads_real_tar_gz_archive(self, tmp_path: Path) -> None:
+        """End-to-end with a compound extension — exercises the dispatcher's
+        ``.tar.gz`` branch and reaches ``read_tar_file`` via the SafeDir fd.
+        """
+        _make_tar(tmp_path / "real.tar.gz", mode="w:gz")
+        with SafeDir.open_root(tmp_path) as sd:
+            out = read_file_via_safedir(sd, "real.tar.gz")
+        assert out is not None
+        assert "TAR Archive: real.tar.gz" in out
+        assert "Compression: GZ" in out
+        assert "readme.txt" in out
+
+    def test_refuses_symlinked_zip(self, tmp_path: Path) -> None:
+        """A symlinked archive in the organize root must be refused, not
+        followed and indexed.
+        """
+        real = tmp_path / "real.zip"
+        _make_zip(real)
+        organize = tmp_path / "organize"
+        organize.mkdir()
+        try:
+            (organize / "decoy.zip").symlink_to(real)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(organize) as sd:
+            with pytest.raises(SymlinkRejected):
+                read_file_via_safedir(sd, "decoy.zip")
 
 
 # ---------------------------------------------------------------------------
@@ -314,14 +524,23 @@ class TestReadFileViaSafedirCompoundExtension:
     """Cover the ``.tar.gz`` / ``.tar.bz2`` / ``.tar.xz`` branch and the
     dispatcher's exception-rewrap path."""
 
-    def test_tar_gz_returns_none(self, tmp_path: Path) -> None:
-        """Archives aren't in ``_SAFEDIR_READERS`` yet (migrated in PR3b),
-        but the compound-extension parsing path still executes — covers
-        the ``.tar.gz`` branch in ``read_file_via_safedir``.
+    def test_tar_gz_dispatches_to_tar_reader(self, tmp_path: Path) -> None:
+        """Once archives migrated in PR3b, ``.tar.gz`` resolves via the
+        compound-extension branch and reaches ``read_tar_file`` with the
+        SafeDir-opened fd. We assert the route taken via patching, since
+        crafting a real tar.gz here would duplicate the round-trip test
+        below.
         """
-        (tmp_path / "data.tar.gz").write_bytes(b"PK\x03\x04")
+        (tmp_path / "data.tar.gz").write_bytes(b"\x1f\x8b\x08\x00")  # gz header
         with SafeDir.open_root(tmp_path) as sd:
-            assert read_file_via_safedir(sd, "data.tar.gz") is None
+            with patch(
+                "utils.readers.archives.tarfile.open",
+                side_effect=RuntimeError("synthetic tarfile failure"),
+            ):
+                from utils.readers import FileReadError as _FRE
+
+                with pytest.raises(_FRE):
+                    read_file_via_safedir(sd, "data.tar.gz")
 
     def test_dispatcher_reraises_unexpected_reader_exception(self, tmp_path: Path) -> None:
         """``read_file_via_safedir`` wraps the reader call in a try/except

@@ -168,11 +168,16 @@ def read_file(file_path: str | Path, **kwargs: object) -> str | None:
     return None
 
 
-# Readers that accept the SafeDir-friendly ``fileobj=`` kwarg. Migrated in
-# PR3a (#267): the LLM text-ingestion path — plain text, markdown, DOCX, PDF,
-# RTF, CSV/XLSX, and PowerPoint. Other readers (ebook, archives, scientific,
-# CAD) are still path-only and dispatch falls back to ``read_file`` (which
-# does not benefit from SafeDir's symlink rejection).
+# Readers that accept the SafeDir-friendly ``fileobj=`` kwarg.
+#
+# Migrated in PR3a (#267): the LLM text-ingestion path — plain text, markdown,
+# DOCX, PDF, RTF, CSV/XLSX, and PowerPoint.
+#
+# Migrated in PR3b (#267): archive readers — ZIP, 7Z, TAR (incl. compound
+# extensions like ``.tar.gz``/``.tar.bz2``/``.tar.xz``), and RAR.
+#
+# Remaining path-only readers (ebook, scientific, CAD) dispatch falls back to
+# ``read_file`` and does not benefit from SafeDir's symlink rejection.
 _SAFEDIR_READERS: dict[tuple[str, ...], object] = {
     (".txt", ".md"): read_text_file,
     (".docx",): read_docx_file,
@@ -180,6 +185,10 @@ _SAFEDIR_READERS: dict[tuple[str, ...], object] = {
     (".rtf",): read_rtf_file,
     (".csv", ".xlsx", ".xls"): read_spreadsheet_file,
     (".ppt", ".pptx"): read_presentation_file,
+    (".zip",): read_zip_file,
+    (".7z",): read_7z_file,
+    (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz"): read_tar_file,
+    (".rar",): read_rar_file,
 }
 
 
