@@ -174,9 +174,10 @@ def _mode_arg(node: ast.Call, mode_position: int) -> str | None:
 
 
 def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
-    """Walk top-level ``import`` statements and build a local-name → real-
-    module map. Handles ``import gzip`` → ``{"gzip": "gzip"}`` and the
-    aliased form ``import gzip as gz`` → ``{"gz": "gzip"}``.
+    """Walk ``import`` statements and build a local-name → real-module map.
+
+    Handles ``import gzip`` → ``{"gzip": "gzip"}`` and the aliased form
+    ``import gzip as gz`` → ``{"gz": "gzip"}``.
 
     Without this, ``_bare_open_violation`` would only recognise the
     literal receiver name (e.g. ``gzip.open``) — an aliased import like
@@ -188,6 +189,17 @@ def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
     module name — the receiver in a call like ``gzip.partial.open(...)``
     is the chained attribute, not a bare ``Name``, so the AST branch in
     ``_bare_open_violation`` would not match it anyway.
+
+    Scope awareness: any local name that is ALSO an assignment target
+    anywhere in the file (``gz = Path("/x")``, ``for gz in ...:``,
+    ``with open(...) as gz:``, walrus, etc.) is dropped from the map.
+    Without this, ``import gzip as gz; gz = Path("/x"); gz.open("wb")``
+    would alias-resolve ``gz`` to ``gzip``, classify the call as
+    module-style (mode at arg 1 → omitted → default-read), and
+    incorrectly flag a legitimate write-only ``Path.open``. Over-
+    conservative — drops shadowed-only-inside-a-function aliases too —
+    but the failure mode is the prior Path.open classification, which
+    is the pre-alias-fix baseline.
     """
     aliases: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -200,7 +212,19 @@ def _build_module_alias_map(tree: ast.Module) -> dict[str, str]:
                 # the top-level (NOT the full dotted name).
                 local = alias_node.asname if alias_node.asname else top_level
                 aliases[local] = top_level
-    return aliases
+    if not aliases:
+        return aliases
+    # Collect every Store-context Name in the tree (assignment targets,
+    # for-loops, walrus, with-as, comprehensions). Function ``arg`` nodes
+    # and import ``alias`` nodes don't show up here — fine, because they
+    # shadow inside a smaller scope and we want to keep the module-level
+    # alias when only inner functions rebind. Conservative for safety:
+    # if the same name is rebound anywhere in the file, we drop the alias.
+    shadowed: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            shadowed.add(node.id)
+    return {local: canon for local, canon in aliases.items() if local not in shadowed}
 
 
 def _bare_open_violation(

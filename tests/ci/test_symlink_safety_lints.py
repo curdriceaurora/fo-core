@@ -375,19 +375,19 @@ class TestBareOpenDetectionDirScoped:
             # Module-style ``.open`` APIs share the ``open(file, mode)``
             # builtin signature — mode at position 1, not 0. The filename
             # at position 0 must NOT be misread as the mode.
-            ("import gzip\ngzip.open('/tmp/a', 'rb')\n", "gzip.open"),
-            ("import bz2\nbz2.open('/tmp/file.txt', 'rb')\n", "bz2.open"),
-            ("import lzma\nlzma.open('/tmp/data', 'r')\n", "lzma.open"),
-            ("import tarfile\ntarfile.open('/tmp/archive', 'r')\n", "tarfile.open"),
-            ("import builtins\nbuiltins.open('/tmp/x', 'rb')\n", "builtins.open"),
+            ("import gzip\ngzip.open('/x/a', 'rb')\n", "gzip.open"),
+            ("import bz2\nbz2.open('/x/file.txt', 'rb')\n", "bz2.open"),
+            ("import lzma\nlzma.open('/x/data', 'r')\n", "lzma.open"),
+            ("import tarfile\ntarfile.open('/x/archive', 'r')\n", "tarfile.open"),
+            ("import builtins\nbuiltins.open('/x/x', 'rb')\n", "builtins.open"),
         ],
     )
     def test_module_style_open_flagged_with_correct_mode_position(
         self, source: str, expected_name: str
     ) -> None:
         """Regression for the filename-as-mode false negative: a call like
-        ``gzip.open("/tmp/a", "rb")`` must extract mode from arg 1, not arg
-        0. Previously ``"/tmp/a"`` got interpreted as mode → letter ``'a'``
+        ``gzip.open("/x/a", "rb")`` must extract mode from arg 1, not arg
+        0. Previously ``"/x/a"`` got interpreted as mode → letter ``'a'``
         intersects write-only set → not flagged (false negative)."""
         from check_safedir_required import _bare_open_violation
 
@@ -403,10 +403,10 @@ class TestBareOpenDetectionDirScoped:
         "source",
         [
             # Write modes on module-style APIs must NOT be flagged.
-            "import gzip\ngzip.open('/tmp/out', 'wb')\n",
-            "import bz2\nbz2.open('/tmp/out', 'w')\n",
-            "import lzma\nlzma.open('/tmp/out', 'a')\n",
-            "import tarfile\ntarfile.open('/tmp/out', 'x')\n",
+            "import gzip\ngzip.open('/x/out', 'wb')\n",
+            "import bz2\nbz2.open('/x/out', 'w')\n",
+            "import lzma\nlzma.open('/x/out', 'a')\n",
+            "import tarfile\ntarfile.open('/x/out', 'x')\n",
         ],
     )
     def test_module_style_open_write_modes_not_flagged(self, source: str) -> None:
@@ -429,7 +429,7 @@ class TestBareOpenDetectionDirScoped:
         the filename content is irrelevant."""
         from check_safedir_required import _bare_open_violation
 
-        for filename in ["/tmp/awx", "writer.log", "/var/data.xml"]:
+        for filename in ["/x/awx", "writer.log", "/y/data.xml"]:
             source = f"import gzip\ngzip.open({filename!r}, 'rb')\n"
             tree = ast.parse(source)
             call = next(
@@ -446,10 +446,10 @@ class TestBareOpenDetectionDirScoped:
         [
             # ``import gzip as gz`` — receiver name 'gz' must resolve to 'gzip'
             # via the alias map before module-style classification applies.
-            ("import gzip as gz\ngz.open('/tmp/a', 'rb')\n", "gzip.open"),
-            ("import bz2 as bz\nbz.open('/tmp/data', 'r')\n", "bz2.open"),
-            ("import lzma as xz\nxz.open('/tmp/x', 'rb')\n", "lzma.open"),
-            ("import tarfile as tf\ntf.open('/tmp/archive', 'r')\n", "tarfile.open"),
+            ("import gzip as gz\ngz.open('/x/a', 'rb')\n", "gzip.open"),
+            ("import bz2 as bz\nbz.open('/x/data', 'r')\n", "bz2.open"),
+            ("import lzma as xz\nxz.open('/x/x', 'rb')\n", "lzma.open"),
+            ("import tarfile as tf\ntf.open('/x/archive', 'r')\n", "tarfile.open"),
         ],
     )
     def test_aliased_module_imports_resolve_to_module_style(
@@ -477,9 +477,9 @@ class TestBareOpenDetectionDirScoped:
         [
             # Aliased imports with write mode must NOT be flagged — proves
             # the alias resolution doesn't introduce a false positive.
-            "import gzip as gz\ngz.open('/tmp/out', 'wb')\n",
-            "import bz2 as bz\nbz.open('/tmp/out', 'w')\n",
-            "import lzma as xz\nxz.open('/tmp/out', 'a')\n",
+            "import gzip as gz\ngz.open('/x/out', 'wb')\n",
+            "import bz2 as bz\nbz.open('/x/out', 'w')\n",
+            "import lzma as xz\nxz.open('/x/out', 'a')\n",
         ],
     )
     def test_aliased_module_imports_write_modes_not_flagged(self, source: str) -> None:
@@ -529,6 +529,45 @@ class TestBareOpenDetectionDirScoped:
         # map collapses to the top-level module name.
         assert aliases["collections"] == "collections"
 
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # Shadowed via plain assignment.
+            "import gzip as gz\ngz = object()\ngz.open('wb')\n",
+            # Shadowed via Path() — Codex's exact example.
+            ("from pathlib import Path\nimport gzip as gz\ngz = Path('/x')\ngz.open('wb')\n"),
+            # Shadowed via for-loop target.
+            "import gzip as gz\nfor gz in []: gz.open('wb')\n",
+            # Shadowed via with-as target.
+            "import gzip as gz\nwith open('/x') as gz: gz.open('wb')\n",
+            # Shadowed via walrus.
+            "import gzip as gz\nif (gz := object()): gz.open('wb')\n",
+        ],
+    )
+    def test_alias_dropped_when_shadowed_anywhere_in_file(self, source: str) -> None:
+        """Regression for Codex P2 (04ae6fe): a name that is rebound
+        anywhere in the file (assignment, for-loop, with-as, walrus) is
+        no longer treated as a module alias. Without this scope-awareness
+        check, ``import gzip as gz; gz = Path('/x'); gz.open('wb')``
+        would module-style-classify ``gz.open`` and incorrectly flag a
+        legitimate write-only ``Path.open``."""
+        from check_safedir_required import _build_module_alias_map
+
+        tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
+        # ``gz`` got rebound somewhere, so it's dropped from the alias map.
+        assert "gz" not in aliases
+
+    def test_unshadowed_alias_kept_in_map(self) -> None:
+        """Belt-and-suspenders for the scope-awareness fix: a name that
+        is ONLY bound by import (never rebound) stays in the alias map."""
+        from check_safedir_required import _build_module_alias_map
+
+        source = "import gzip as gz\ngz.open('/x/a', 'rb')\n"
+        tree = ast.parse(source)
+        aliases = _build_module_alias_map(tree)
+        assert aliases.get("gz") == "gzip"
+
 
 class TestBareOpenDetectionDirScopedIntegration:
     """Integration test: when ``_READ_OPEN_ENFORCED_DIRS`` is non-empty,
@@ -558,9 +597,7 @@ class TestBareOpenDetectionDirScopedIntegration:
         target.write_text("with open('/x/y.txt', 'rb') as f: pass\n")
 
         monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
-        monkeypatch.setattr(
-            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
-        )
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
         violations = _csr.find_violations(target)
 
         # The bare ``open(path, "rb")`` is now flagged because the
@@ -586,9 +623,7 @@ class TestBareOpenDetectionDirScopedIntegration:
 
         monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
         # Different directory enforced.
-        monkeypatch.setattr(
-            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
-        )
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
         violations = _csr.find_violations(target)
 
         assert violations == []
@@ -610,9 +645,7 @@ class TestBareOpenDetectionDirScopedIntegration:
         )
 
         monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
-        monkeypatch.setattr(
-            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
-        )
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
         violations = _csr.find_violations(target)
 
         assert violations == []
@@ -633,12 +666,10 @@ class TestBareOpenDetectionDirScopedIntegration:
         target_dir = src_root / "myreaders"
         target_dir.mkdir()
         target = target_dir / "mod.py"
-        target.write_text("import gzip as gz\ngz.open('/tmp/a', 'rb')\n")
+        target.write_text("import gzip as gz\ngz.open('/x/a', 'rb')\n")
 
         monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
-        monkeypatch.setattr(
-            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
-        )
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
         violations = _csr.find_violations(target)
 
         assert len(violations) == 1
@@ -658,12 +689,38 @@ class TestBareOpenDetectionDirScopedIntegration:
         target_dir = src_root / "myreaders"
         target_dir.mkdir()
         target = target_dir / "mod.py"
-        target.write_text("import gzip as gz\ngz.open('/tmp/out', 'wb')\n")
+        target.write_text("import gzip as gz\ngz.open('/x/out', 'wb')\n")
 
         monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
-        monkeypatch.setattr(
-            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
+        violations = _csr.find_violations(target)
+
+        assert violations == []
+
+    def test_find_violations_respects_alias_shadowing_end_to_end(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Full-stack regression for Codex P2 (scope awareness): a file
+        that imports ``gzip as gz`` but then rebinds ``gz`` to a Path
+        before calling ``.open('wb')`` must NOT be flagged. The
+        rebinding signals that the call is Path-style — mode at arg 0
+        is ``'wb'``, write-only, not a read. Without scope awareness,
+        the file-global alias map would module-style-classify the call
+        and incorrectly flag it as a read (mode at arg 1 → omitted →
+        default read)."""
+        import check_safedir_required as _csr
+
+        src_root = tmp_path / "src"
+        src_root.mkdir()
+        target_dir = src_root / "myreaders"
+        target_dir.mkdir()
+        target = target_dir / "mod.py"
+        target.write_text(
+            "from pathlib import Path\nimport gzip as gz\ngz = Path('/x/out')\ngz.open('wb')\n"
         )
+
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        monkeypatch.setattr(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"}))
         violations = _csr.find_violations(target)
 
         assert violations == []
