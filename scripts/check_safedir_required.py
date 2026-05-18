@@ -217,14 +217,31 @@ def _build_parent_map(tree: ast.Module) -> dict[ast.AST, ast.AST]:
     return parents
 
 
+_SCOPE_BOUNDARY_TYPES: tuple[type[ast.AST], ...] = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.Lambda,
+    # Python 3 scopes comprehension targets to the comprehension itself,
+    # NOT the enclosing function or module. Without excluding these, a
+    # ``[gz for gz in xs]`` comprehension target would be treated as a
+    # rebind of the module-level ``gz`` and incorrectly drop the alias.
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.GeneratorExp,
+)
+
+
 def _iter_excluding_nested_scopes(node: ast.AST) -> Iterator[ast.AST]:
     """Yield *node* and its descendants, but stop descending at nested
-    function / async-function / class / lambda boundaries. Used to
-    collect module-level bindings without leaking into inner scopes
-    (which Python treats as separate scopes for name resolution).
+    scope boundaries (function / async-function / class / lambda /
+    list-comp / set-comp / dict-comp / generator-expression). Each of
+    these introduces its own name-resolution context that should not
+    influence bindings in the enclosing scope.
     """
     yield node
-    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+    if isinstance(node, _SCOPE_BOUNDARY_TYPES):
         return
     for child in ast.iter_child_nodes(node):
         yield from _iter_excluding_nested_scopes(child)
@@ -283,6 +300,40 @@ def _function_local_names(func: ast.AST) -> set[str]:
                 # so any ast.arg we see here belongs to *func* itself —
                 # already collected from args above. Defensive: skip.
                 continue
+    return names
+
+
+def _class_local_names(class_def: ast.ClassDef) -> set[str]:
+    """Collect every name bound in *class_def*'s body — Name(Store)
+    assignments and ``Import`` / ``ImportFrom`` aliases — excluding
+    nested function / class / lambda / comprehension scopes.
+
+    Class body has its own namespace at definition time; names bound
+    here become class attributes. Calls placed DIRECTLY in the class
+    body (not inside a method) resolve the receiver against this
+    namespace first.
+    """
+    names: set[str] = set()
+    for stmt in class_def.body:
+        for node in _iter_excluding_nested_scopes(stmt):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                names.add(node.id)
+            elif isinstance(node, ast.Import):
+                for alias_node in node.names:
+                    if alias_node.asname:
+                        names.add(alias_node.asname)
+                    else:
+                        names.add(alias_node.name.split(".", 1)[0])
+            elif isinstance(node, ast.ImportFrom):
+                for alias_node in node.names:
+                    if alias_node.name == "*":
+                        continue
+                    names.add(alias_node.asname if alias_node.asname else alias_node.name)
+    # Class body also binds the class methods/nested classes themselves
+    # (since those are not entered by the iterator above).
+    for stmt in class_def.body:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(stmt.name)
     return names
 
 
@@ -345,18 +396,37 @@ def _drop_function_shadowed(
     call_node: ast.AST,
     parents: dict[ast.AST, ast.AST],
 ) -> None:
-    """Walk enclosing scopes; drop aliases shadowed by any function's
-    local bindings. Mutates *active* in place."""
+    """Walk enclosing scopes; drop aliases shadowed by each scope's
+    local bindings. Mutates *active* in place.
+
+    Python LEGB rule with the class-scope caveat:
+    - Function / async-function / lambda: collect locals; continue
+      outward through enclosing FUNCTIONS (Python skips intervening
+      class scopes when a method looks up a free variable).
+    - Class body: applies ONLY when it is the *immediate* enclosing
+      scope of the call (e.g. a statement directly in the class body,
+      not a call inside a method). Methods inside the class do not see
+      the class namespace via LEGB.
+    """
     cur = call_node
+    is_immediate_scope = True
     while cur in parents:
         cur = parents[cur]
+        if isinstance(cur, ast.Module):
+            return
         if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             local_names = _function_local_names(cur)
             for name in list(active):
                 if name in local_names:
                     del active[name]
-        elif isinstance(cur, ast.Module):
-            break
+            is_immediate_scope = False
+        elif isinstance(cur, ast.ClassDef):
+            if is_immediate_scope:
+                local_names = _class_local_names(cur)
+                for name in list(active):
+                    if name in local_names:
+                        del active[name]
+            is_immediate_scope = False
 
 
 def _active_aliases_at_call(

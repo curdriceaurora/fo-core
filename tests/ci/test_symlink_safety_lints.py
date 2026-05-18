@@ -853,6 +853,121 @@ class TestBareOpenDetectionDirScoped:
         assert first_active.get("gz") == "gzip"
         assert second_active.get("gz") == "pathlib"
 
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # List comprehension target.
+            "import gzip as gz\n[gz for gz in []]\ngz.open('/x/a', 'rb')\n",
+            # Set comprehension.
+            "import gzip as gz\n{gz for gz in []}\ngz.open('/x/a', 'rb')\n",
+            # Dict comprehension (key + value).
+            "import gzip as gz\n{gz: gz for gz in []}\ngz.open('/x/a', 'rb')\n",
+            # Generator expression.
+            "import gzip as gz\nlist(gz for gz in [])\ngz.open('/x/a', 'rb')\n",
+        ],
+    )
+    def test_comprehension_targets_do_not_shadow_module_alias(self, source: str) -> None:
+        """Regression for Codex P1 (d6e2911): Python 3 scopes
+        comprehension/genexpr targets to the comprehension itself —
+        they do NOT shadow names in the enclosing scope. ``[gz for gz
+        in xs]`` followed by ``gz.open('/x/a', 'rb')`` must keep the
+        module alias active for the later call."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        # The Attribute-style call (gz.open) — not the comprehension internals.
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        # Alias survives the comprehension.
+        assert active.get("gz") == "gzip"
+
+    def test_class_body_local_shadows_alias_for_direct_class_call(self) -> None:
+        """Regression for Codex P2 (d6e2911): a name bound in a class
+        body (e.g. ``gz = Writer()``) shadows the module-level alias
+        for calls placed DIRECTLY in the class body (not inside a
+        method).
+
+        Source under test::
+
+            import gzip as gz
+            class C:
+                gz = Writer()
+                gz.open('wb')   # ← class-body call — gz is class-local
+        """
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = "import gzip as gz\nclass C:\n    gz = object()\n    gz.open('wb')\n"
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        # Class body shadows.
+        assert "gz" not in active
+
+    def test_method_call_does_not_see_class_body_shadow(self) -> None:
+        """Symmetric to the class-body test: a call inside a METHOD does
+        NOT see class-body bindings (Python's LEGB rule skips the class
+        namespace for method-internal name resolution).
+
+        Source under test::
+
+            import gzip as gz
+            class C:
+                gz = Writer()
+                def m(self):
+                    gz.open('/x/a', 'rb')   # ← method call uses MODULE-level gz
+        """
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = (
+            "import gzip as gz\n"
+            "class C:\n"
+            "    gz = object()\n"
+            "    def m(self):\n"
+            "        gz.open('/x/a', 'rb')\n"
+        )
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        # Class body's ``gz`` does NOT leak into method scope. Method
+        # name resolution skips class to module. Alias stays active.
+        assert active.get("gz") == "gzip"
+
     def test_in_function_call_drops_alias_on_any_module_rebind(self) -> None:
         """Regression for Codex P2 (2fdb63e): a call inside a function
         sees the *runtime* value of the module global by the time the
