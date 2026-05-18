@@ -1011,6 +1011,42 @@ class TestBareOpenDetectionDirScoped:
         active = _active_aliases_at_call(call, base_aliases, parents, tree)
         assert "gz" not in active
 
+    def test_except_handler_binding_shadows_module_alias(self) -> None:
+        """Regression for Codex P2 (f311244): ``except ... as gz`` binds
+        ``gz`` via ``ast.ExceptHandler.name`` (a raw str), NOT via
+        ``Name(Store)``. Without explicit handling, the replay walk
+        missed this binding and the call inside the handler would
+        resolve as the module alias.
+
+        Source under test::
+
+            import gzip as gz
+            try:
+                pass
+            except Exception as gz:
+                gz.open('wb')   # ← inside except handler — gz is exception, not alias
+        """
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = "import gzip as gz\ntry:\n    pass\nexcept Exception as gz:\n    gz.open('wb')\n"
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        # ``gz`` is the exception, not the alias. Alias dropped.
+        assert "gz" not in active
+
     def test_in_function_call_uses_def_lineno_as_cutoff(self) -> None:
         """In-function call resolution uses the immediate enclosing
         ``def``'s lineno as the cutoff, NOT end-of-file.

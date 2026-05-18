@@ -316,6 +316,13 @@ def _function_local_names(func: ast.AST) -> set[str]:
                     _add_import_bound_name(
                         alias_node, names, declared_non_local, top_level_dot=False
                     )
+            elif (
+                isinstance(node, ast.ExceptHandler)
+                and node.name is not None
+                and node.name not in declared_non_local
+            ):
+                # ``except ... as name:`` binds via the handler's name attr.
+                names.add(node.name)
     return names
 
 
@@ -422,6 +429,21 @@ def _replay_module_aliases(module: ast.Module, cutoff_lineno: int | None) -> dic
         for node in _iter_excluding_nested_scopes(stmt):
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id in active:
                 del active[node.id]
+            elif (
+                isinstance(node, ast.ExceptHandler)
+                and node.name is not None
+                and node.name in active
+            ):
+                # ``except Exception as gz:`` binds gz via the handler's
+                # ``name`` attribute (a raw str), NOT via Name(Store), so
+                # the Name walk above misses it. Python actually deletes
+                # gz after the except block exits, but for the purposes
+                # of static replay this conservatively drops the alias
+                # for the rest of the file (we lose precision on the
+                # post-except state, which is acceptable for a security
+                # rail — the alternative is false positives inside the
+                # handler body).
+                del active[node.name]
     return active
 
 
