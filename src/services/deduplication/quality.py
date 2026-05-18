@@ -135,7 +135,9 @@ class ImageQualityAnalyzer:
             return None
 
         try:
-            with self.Image.open(path) as img:
+            from .image_utils import safedir_image_open
+
+            with safedir_image_open(path) as (img, _fd):
                 width, height = img.size
                 resolution = width * height
 

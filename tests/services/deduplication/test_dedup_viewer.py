@@ -473,7 +473,7 @@ class TestGenerateAsciiPreview:
         type(fake_img.resize.return_value).width = 40
 
         mock_open_cm = MagicMock()
-        mock_open_cm.__enter__ = MagicMock(return_value=fake_img)
+        mock_open_cm.__enter__ = MagicMock(return_value=(fake_img, None))
         mock_open_cm.__exit__ = MagicMock(return_value=False)
 
         with patch(
@@ -522,7 +522,7 @@ class TestGenerateAsciiPreview:
         # Landscape: 400x100, aspect_ratio=4 > 1
         landscape_img = _make_fake_img(400, 100, 20, 10)
         mock_cm = MagicMock()
-        mock_cm.__enter__ = MagicMock(return_value=landscape_img)
+        mock_cm.__enter__ = MagicMock(return_value=(landscape_img, None))
         mock_cm.__exit__ = MagicMock(return_value=False)
         with patch(
             "services.deduplication.viewer.safedir_image_open",
@@ -536,7 +536,7 @@ class TestGenerateAsciiPreview:
         # Portrait: 100x400, aspect_ratio=0.25 < 1
         portrait_img = _make_fake_img(100, 400, 20, 10)
         mock_cm2 = MagicMock()
-        mock_cm2.__enter__ = MagicMock(return_value=portrait_img)
+        mock_cm2.__enter__ = MagicMock(return_value=(portrait_img, None))
         mock_cm2.__exit__ = MagicMock(return_value=False)
         with patch(
             "services.deduplication.viewer.safedir_image_open",

@@ -21,6 +21,7 @@ Verifies:
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -55,7 +56,7 @@ class TestSafedirImageOpenHelper:
     def test_opens_real_image(self, tmp_path: Path) -> None:
         target = tmp_path / "photo.jpg"
         _make_jpeg(target, size=(16, 8))
-        with safedir_image_open(target) as img:
+        with safedir_image_open(target) as (img, _fd):
             assert img.size == (16, 8)
             assert img.format == "JPEG"
 
@@ -88,7 +89,7 @@ class TestSafedirImageOpenHelper:
             "services.deduplication.image_utils.SafeDir.open_root",
             side_effect=NotImplementedError("simulated unavailable SafeDir"),
         ):
-            with safedir_image_open(target) as img:
+            with safedir_image_open(target) as (img, _fd):
                 assert img.size == (8, 8)
 
     def test_closes_fd_when_fdopen_raises(self, tmp_path: Path) -> None:
@@ -96,14 +97,24 @@ class TestSafedirImageOpenHelper:
         dir_fd race), the helper must close the raw fd returned by
         ``open_for_reader`` before the exception propagates — otherwise
         we leak a descriptor. Verified via patch on ``os.fdopen``.
+
+        ``os.close`` is patched with ``side_effect=os.close`` (i.e. the
+        real ``os.close``) so the leak guard's call AND SafeDir's own
+        dir_fd cleanup actually close their fds — patching with a bare
+        ``MagicMock`` would just record the calls and leak the fds
+        during the test run (Copilot #281 review).
         """
         target = tmp_path / "fd_leak_test.jpg"
         _make_jpeg(target)
+        real_os_close = os.close  # capture before patching
         with patch(
             "services.deduplication.image_utils.os.fdopen",
             side_effect=OSError("synthetic fdopen failure"),
         ) as mock_fdopen:
-            with patch("services.deduplication.image_utils.os.close") as mock_close:
+            with patch(
+                "services.deduplication.image_utils.os.close",
+                side_effect=real_os_close,
+            ) as mock_close:
                 with pytest.raises(OSError, match="synthetic fdopen failure"):
                     with safedir_image_open(target):
                         pass

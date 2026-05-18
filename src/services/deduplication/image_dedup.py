@@ -89,15 +89,32 @@ class ImageDeduplicator:
         else:  # ahash
             self.hasher = AHash()
 
-    def get_image_hash(self, image_path: Path) -> str | None:
+    def get_image_hash(self, image_path: Path, *, trusted_root: Path | None = None) -> str | None:
         """Compute perceptual hash for a single image.
 
+        Routes the image read through :func:`safedir_image_open` so a
+        symlinked image is refused at every path component when
+        ``trusted_root`` is supplied (closes the dedup-ingestion
+        symlink-exfiltration vector, #264). The PIL Image is converted
+        to a numpy array and handed to ``imagededup``'s
+        ``encode_image(image_array=...)`` API — bypassing the path-based
+        ``encode_image(path)`` codepath that would otherwise dereference
+        symlinks inside imagededup itself.
+
         Args:
-            image_path: Path to image file
+            image_path: Path to image file.
+            trusted_root: Anchor directory that bounds the SafeDir
+                traversal. When supplied (typically the directory the
+                walk started from), every intermediate component of
+                ``image_path.relative_to(trusted_root)`` is checked for
+                symlinks. ``find_duplicates``, ``cluster_by_similarity``,
+                and ``batch_compute_hashes`` thread their root through.
+                When ``None``, falls back to parent-rooted protection
+                (final component only) — OK for ad-hoc calls.
 
         Returns:
             Hexadecimal string representation of perceptual hash,
-            or None if image could not be processed
+            or None if image could not be processed.
         """
         if not image_path.exists():
             logger.warning(f"Image not found: {image_path}")
@@ -114,8 +131,21 @@ class ImageDeduplicator:
             return None
 
         try:
-            # imagededup expects string path
-            encoding = self.hasher.encode_image(str(image_path))
+            # Open via SafeDir, convert PIL Image → numpy array, pass to
+            # imagededup's image_array= API. This bypasses imagededup's
+            # path-based codepath which would call Pillow's path-based
+            # Image.open() internally and re-introduce the symlink
+            # dereference we're trying to close.
+            import numpy as np
+
+            with safedir_image_open(image_path, trusted_root=trusted_root) as (img, _fd):
+                # imagededup expects RGB uint8 arrays for the perceptual
+                # hash families (PHash/DHash/AHash). Convert if needed —
+                # mode "RGB" is the documented input format.
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                image_array = np.asarray(img)
+            encoding = self.hasher.encode_image(image_array=image_array)
             return str(encoding) if encoding is not None else None
         except OSError as e:
             logger.warning(f"Could not read image {image_path}: {e}")
@@ -227,7 +257,10 @@ class ImageDeduplicator:
         image_hashes: dict[Path, str] = {}
 
         for idx, img_path in enumerate(image_files, 1):
-            img_hash = self.get_image_hash(img_path)
+            # ``directory`` is the trusted root: every image was found
+            # under this walk, so SafeDir anchoring traverses each
+            # intermediate component with O_NOFOLLOW.
+            img_hash = self.get_image_hash(img_path, trusted_root=directory)
             if img_hash is not None:
                 image_hashes[img_path] = img_hash
 
@@ -295,6 +328,11 @@ class ImageDeduplicator:
         image_hashes: dict[Path, str] = {}
 
         for idx, img_path in enumerate(images, 1):
+            # cluster_by_similarity takes an arbitrary list of paths;
+            # there's no single trusted root we can anchor against.
+            # Fall back to parent-rooted protection (final-component
+            # O_NOFOLLOW only) — documented as the standalone-caller
+            # contract in safedir_image_open.
             img_hash = self.get_image_hash(img_path)
             if img_hash is not None:
                 image_hashes[img_path] = img_hash
@@ -353,6 +391,9 @@ class ImageDeduplicator:
         results: dict[Path, str] = {}
 
         for idx, img_path in enumerate(image_paths, 1):
+            # batch_compute_hashes takes an arbitrary list of paths; no
+            # single trusted root. Falls back to parent-rooted SafeDir
+            # protection — same as cluster_by_similarity.
             img_hash = self.get_image_hash(img_path)
             if img_hash is not None:
                 results[img_path] = img_hash
@@ -380,6 +421,14 @@ class ImageDeduplicator:
             pattern = "*"
 
         for path in directory.glob(pattern):
+            # ``Path.is_file()`` follows symlinks (PR3f / Codex finding).
+            # Filter symlinked entries here so SafeDir's per-component
+            # check inside the dedup hash flow remains the only place
+            # that decides whether a symlinked image is processed —
+            # never silently accepted by the walk.
+            if path.is_symlink():
+                logger.debug("Skipping symlinked image in walk: %s", path)
+                continue
             if path.is_file() and path.suffix.lower() in SUPPORTED_FORMATS:
                 image_files.append(path)
 
@@ -411,7 +460,7 @@ class ImageDeduplicator:
             return False, f"Unsupported format: {image_path.suffix}"
 
         try:
-            with safedir_image_open(image_path) as img:
+            with safedir_image_open(image_path) as (img, _fd):
                 # Try to load image data to verify it's not corrupt
                 img.verify()
             return True, None

@@ -11,6 +11,7 @@ Provides a terminal-based UI for reviewing duplicate images with:
 
 from __future__ import annotations
 
+import os
 import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -203,12 +204,19 @@ class ComparisonViewer:
         Raises:
             Exception: If image cannot be loaded
         """
-        with safedir_image_open(image_path) as img:
+        with safedir_image_open(image_path) as (img, fd):
             width, height = img.size
             img_format = img.format or "UNKNOWN"
             mode = img.mode
-
-        stat = image_path.stat()
+            # Stat from the same SafeDir-opened fd so size/mtime
+            # describe the non-symlink file we actually read. Falls
+            # back to ``image_path.stat()`` only when ``fd is None``
+            # (Windows / SafeDir-unavailable), where the helper itself
+            # already used the path directly.
+            if fd is not None:
+                stat = os.fstat(fd)
+            else:
+                stat = image_path.stat()
 
         return ImageMetadata(
             path=image_path,
@@ -303,7 +311,7 @@ class ComparisonViewer:
             ASCII art string or None if preview fails
         """
         try:
-            with safedir_image_open(image_path) as raw_img:
+            with safedir_image_open(image_path) as (raw_img, _fd):
                 # Convert to grayscale
                 img: Image.Image = raw_img.convert("L")
 
