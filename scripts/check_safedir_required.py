@@ -247,16 +247,49 @@ def _iter_excluding_nested_scopes(node: ast.AST) -> Iterator[ast.AST]:
         yield from _iter_excluding_nested_scopes(child)
 
 
+def _collect_globally_declared_names(body: list[ast.stmt]) -> set[str]:
+    """Walk *body* (excluding nested scopes) and collect names declared
+    by ``global`` / ``nonlocal`` statements. Those names are NOT local
+    to the enclosing function even if assigned later in the body."""
+    declared: set[str] = set()
+    for stmt in body:
+        for node in _iter_excluding_nested_scopes(stmt):
+            if isinstance(node, (ast.Global, ast.Nonlocal)):
+                declared.update(node.names)
+    return declared
+
+
+def _add_import_bound_name(
+    alias_node: ast.alias,
+    target: set[str],
+    excluded: set[str],
+    *,
+    top_level_dot: bool,
+) -> None:
+    """Append the local name bound by *alias_node* to *target* unless it
+    is in *excluded*. ``top_level_dot=True`` collapses dotted imports
+    (``import x.y``) to their top-level name."""
+    if alias_node.name == "*":
+        return
+    if alias_node.asname:
+        bound = alias_node.asname
+    elif top_level_dot:
+        bound = alias_node.name.split(".", 1)[0]
+    else:
+        bound = alias_node.name
+    if bound not in excluded:
+        target.add(bound)
+
+
 def _function_local_names(func: ast.AST) -> set[str]:
     """Collect every local name bound by *func* (FunctionDef / AsyncFunctionDef
     / Lambda) — parameters AND any Store-context Name / nested ``Import`` in
-    the body, BUT NOT inside further-nested functions/classes/lambdas
-    (those have their own scope).
+    the body, BUT NOT inside further-nested functions/classes/lambdas/
+    comprehensions (those have their own scope).
 
-    Python's function-scope binding rule is *not* order-based: if a name
-    is bound anywhere in the function body, it's local everywhere in
-    that function (would raise UnboundLocalError if used before
-    assignment, but it's still local). So a single set is sufficient.
+    Names declared ``global`` / ``nonlocal`` are NOT local — assignments
+    to them bind in the enclosing scope, not the function's own
+    namespace.
     """
     names: set[str] = set()
     args = func.args  # type: ignore[attr-defined]
@@ -266,40 +299,23 @@ def _function_local_names(func: ast.AST) -> set[str]:
         names.add(args.vararg.arg)
     if args.kwarg:
         names.add(args.kwarg.arg)
-    # Lambda body is a single expression — Name(Store) is impossible
-    # there (no assignment), so we only need to traverse for function /
-    # async-function defs.
     body = func.body if isinstance(func.body, list) else []  # type: ignore[attr-defined]
+    declared_non_local = _collect_globally_declared_names(body)
     for stmt in body:
         for node in _iter_excluding_nested_scopes(stmt):
             if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                names.add(node.id)
+                if node.id not in declared_non_local:
+                    names.add(node.id)
             elif isinstance(node, ast.Import):
-                # ``import X`` inside the function body binds ``X`` (top-
-                # level name) locally; ``import X as Y`` binds ``Y``.
-                # These are ``ast.alias`` nodes, NOT Name(Store), so the
-                # general walk misses them.
                 for alias_node in node.names:
-                    if alias_node.asname:
-                        names.add(alias_node.asname)
-                    else:
-                        names.add(alias_node.name.split(".", 1)[0])
+                    _add_import_bound_name(
+                        alias_node, names, declared_non_local, top_level_dot=True
+                    )
             elif isinstance(node, ast.ImportFrom):
-                # ``from M import X`` binds ``X``; ``from M import X as Y``
-                # binds ``Y``. Star imports (``from M import *``) bind
-                # an unknown set — be conservative and don't try to
-                # enumerate; that case shouldn't affect alias resolution
-                # for the names we care about.
                 for alias_node in node.names:
-                    if alias_node.name == "*":
-                        continue
-                    names.add(alias_node.asname if alias_node.asname else alias_node.name)
-            elif isinstance(node, ast.arg):
-                # Inner lambda's parameters are NOT local to *func*. But
-                # _iter_excluding_nested_scopes already skips lambdas,
-                # so any ast.arg we see here belongs to *func* itself —
-                # already collected from args above. Defensive: skip.
-                continue
+                    _add_import_bound_name(
+                        alias_node, names, declared_non_local, top_level_dot=False
+                    )
     return names
 
 
@@ -352,17 +368,18 @@ def _top_level_stmt_lineno(
     return None
 
 
-def _call_is_inside_function(call_node: ast.AST, parents: dict[ast.AST, ast.AST]) -> bool:
-    """Walk parents outward; return True if any enclosing scope is a
-    function / async-function / lambda."""
+def _enclosing_function(call_node: ast.AST, parents: dict[ast.AST, ast.AST]) -> ast.AST | None:
+    """Return the immediate enclosing function / async-function / lambda
+    for *call_node*, or None if the call is at module / class-body
+    scope."""
     cur = call_node
     while cur in parents:
         cur = parents[cur]
         if isinstance(cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
-            return True
+            return cur
         if isinstance(cur, ast.Module):
-            return False
-    return False
+            return None
+    return None
 
 
 def _replay_module_aliases(module: ast.Module, cutoff_lineno: int | None) -> dict[str, str]:
@@ -495,11 +512,22 @@ def _active_aliases_at_call(
     if not base_aliases:
         return {}
 
-    # Determine cutoff: end-of-file for in-function calls (entire module
-    # body has executed by invocation time); call's top-level statement
-    # lineno (inclusive of in-header bindings) for module-level calls.
-    if _call_is_inside_function(call_node, parents):
-        cutoff_lineno: int | None = None
+    # Determine cutoff:
+    # - In-function call: cutoff = the immediate enclosing def's lineno.
+    #   This is a static heuristic — Python doesn't snapshot module
+    #   bindings at def-time, so the call's *runtime* alias depends on
+    #   when the function is invoked. Using the def's lineno captures
+    #   the "imported, then defined, then called during module init"
+    #   pattern (no post-def rebinds visible). Trade-off vs end-of-file
+    #   cutoff: choosing the def lineno produces false positives for
+    #   functions invoked AFTER a module-level rebind, but avoids false
+    #   negatives for functions invoked during module init.
+    # - Module-level call: cutoff = the call's top-level statement
+    #   lineno (inclusive — so bindings in the statement's header,
+    #   like ``for gz in ...:``, apply to the call in the body).
+    enclosing_fn = _enclosing_function(call_node, parents)
+    if enclosing_fn is not None:
+        cutoff_lineno: int | None = enclosing_fn.lineno
     else:
         cutoff_lineno = _top_level_stmt_lineno(call_node, parents, module)
         if cutoff_lineno is None:

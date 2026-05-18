@@ -1011,15 +1011,22 @@ class TestBareOpenDetectionDirScoped:
         active = _active_aliases_at_call(call, base_aliases, parents, tree)
         assert "gz" not in active
 
-    def test_in_function_call_drops_alias_on_any_module_rebind(self) -> None:
-        """Regression for Codex P2 (2fdb63e): a call inside a function
-        sees the *runtime* value of the module global by the time the
-        function is invoked. So ANY module-level rebind anywhere in the
-        file shadows the alias for in-function calls — not just rebinds
-        before the function definition.
+    def test_in_function_call_uses_def_lineno_as_cutoff(self) -> None:
+        """In-function call resolution uses the immediate enclosing
+        ``def``'s lineno as the cutoff, NOT end-of-file.
+
+        Trade-off documented in ``_active_aliases_at_call``: Python
+        doesn't snapshot module bindings at def-time, so the call's
+        runtime alias depends on when the function is invoked. The
+        def-lineno cutoff captures "imported, defined, then called
+        during module init" semantics (no post-def rebinds visible).
+        It produces false positives for functions invoked AFTER a
+        post-def rebind, but those are easier to suppress with opt-out
+        markers than the symmetric false negative.
 
         Source under test::
 
+            from pathlib import Path
             import gzip as gz
             def f():
                 gz.open('wb')         # ← in-function call
@@ -1049,9 +1056,81 @@ class TestBareOpenDetectionDirScoped:
             and n.func.attr == "open"
         )
         active = _active_aliases_at_call(in_func_call, base_aliases, parents, tree)
-        # Rebind happens after the def, but the function call sees the
-        # post-rebind value at invocation time → alias dropped.
+        # def at line 3, rebind at line 5. cutoff = 3 (def's lineno).
+        # Replay up to line 3 (inclusive): import at line 2 → gz added;
+        # def at line 3 → 'f' name only, not 'gz'. Active = {gz: gzip}.
+        assert active.get("gz") == "gzip"
+
+    def test_in_function_call_drops_alias_when_rebind_precedes_def(self) -> None:
+        """Companion to the def-lineno-cutoff test: a module-level
+        rebind BEFORE the function's def is visible at the def-time
+        cutoff, so the alias is correctly dropped for in-function calls.
+
+        Source under test::
+
+            from pathlib import Path
+            import gzip as gz
+            gz = Path('/x/out')   # ← rebind BEFORE def
+            def f():
+                gz.open('wb')     # ← in-function call: gz is no longer gzip
+        """
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        source = (
+            "from pathlib import Path\n"
+            "import gzip as gz\n"
+            "gz = Path('/x/out')\n"
+            "def f():\n"
+            "    gz.open('wb')\n"
+        )
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        in_func_call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(in_func_call, base_aliases, parents, tree)
+        # def at line 4, rebind at line 3. cutoff = 4 (def's lineno).
+        # Replay up to line 4: gz added (line 2), dropped (line 3),
+        # def at line 4 → no change. Active = {}.
         assert "gz" not in active
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # ``global gz`` makes the gz = X assignment go to module
+            # scope, NOT function-local. Function-local detection must
+            # exclude globally-declared names.
+            (
+                "import gzip as gz\n"
+                "def f():\n"
+                "    global gz\n"
+                "    gz.open('/x/a', 'rb')\n"
+                "    gz = object()\n"
+            ),
+        ],
+    )
+    def test_global_declaration_excludes_name_from_function_locals(self, source: str) -> None:
+        """Regression for Codex P2 (d052f9b): ``global gz`` declares
+        that gz refers to the module-scope name; assignments to gz in
+        the function body don't bind a local. Without this fix,
+        ``_function_local_names`` saw the ``gz = object()`` Name(Store)
+        and dropped the alias for the read at line 4."""
+        from check_safedir_required import _function_local_names
+
+        tree = ast.parse(source)
+        func = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef))
+        locals_ = _function_local_names(func)
+        # ``gz`` is globally-declared, not function-local.
+        assert "gz" not in locals_
 
     def test_find_violations_respects_parameter_shadowing_end_to_end(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
