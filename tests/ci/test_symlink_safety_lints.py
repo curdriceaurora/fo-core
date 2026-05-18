@@ -1011,6 +1011,45 @@ class TestBareOpenDetectionDirScoped:
         active = _active_aliases_at_call(call, base_aliases, parents, tree)
         assert "gz" not in active
 
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # ``case gz:`` — bare MatchAs capture (most common).
+            ("import gzip as gz\nmatch object():\n    case gz:\n        gz.open('wb')\n"),
+            # ``case ... as gz:`` — MatchAs with explicit pattern.
+            ("import gzip as gz\nmatch object():\n    case _ as gz:\n        gz.open('wb')\n"),
+            # ``case [*gz]:`` — MatchStar capture.
+            ("import gzip as gz\nmatch []:\n    case [*gz]:\n        gz.open('wb')\n"),
+            # ``case {**gz}:`` — MatchMapping rest capture.
+            ("import gzip as gz\nmatch {}:\n    case {**gz}:\n        gz.open('wb')\n"),
+        ],
+    )
+    def test_match_pattern_capture_shadows_module_alias(self, source: str) -> None:
+        """Regression for Codex P2 (7d04b1b): ``match`` pattern captures
+        bind names via ``ast.MatchAs.name`` / ``ast.MatchStar.name`` /
+        ``ast.MatchMapping.rest`` (raw strs), NOT via ``Name(Store)``.
+        Without explicit handling, the replay walk missed these
+        bindings."""
+        from check_safedir_required import (
+            _active_aliases_at_call,
+            _build_module_alias_map,
+            _build_parent_map,
+        )
+
+        tree = ast.parse(source)
+        base_aliases = _build_module_alias_map(tree)
+        parents = _build_parent_map(tree)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "open"
+        )
+        active = _active_aliases_at_call(call, base_aliases, parents, tree)
+        # Pattern capture shadows the alias.
+        assert "gz" not in active
+
     def test_except_handler_binding_shadows_module_alias(self) -> None:
         """Regression for Codex P2 (f311244): ``except ... as gz`` binds
         ``gz`` via ``ast.ExceptHandler.name`` (a raw str), NOT via

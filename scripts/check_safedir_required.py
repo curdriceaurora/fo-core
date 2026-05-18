@@ -323,6 +323,20 @@ def _function_local_names(func: ast.AST) -> set[str]:
             ):
                 # ``except ... as name:`` binds via the handler's name attr.
                 names.add(node.name)
+            elif (
+                isinstance(node, (ast.MatchAs, ast.MatchStar))
+                and node.name is not None
+                and node.name not in declared_non_local
+            ):
+                # ``case gz:`` / ``case [x, *gz]`` — pattern capture.
+                names.add(node.name)
+            elif (
+                isinstance(node, ast.MatchMapping)
+                and node.rest is not None
+                and node.rest not in declared_non_local
+            ):
+                # ``case {**rest}:`` — captures the unmatched keys.
+                names.add(node.rest)
     return names
 
 
@@ -411,40 +425,54 @@ def _replay_module_aliases(module: ast.Module, cutoff_lineno: int | None) -> dic
     for stmt in module.body:
         if cutoff_lineno is not None and stmt.lineno > cutoff_lineno:
             break
-        if isinstance(stmt, ast.Import):
-            for alias_node in stmt.names:
-                top_level = alias_node.name.split(".", 1)[0]
-                local = alias_node.asname if alias_node.asname else top_level
-                active[local] = top_level
-        elif isinstance(stmt, ast.ImportFrom):
-            for alias_node in stmt.names:
-                if alias_node.name == "*":
-                    continue
-                bound = alias_node.asname if alias_node.asname else alias_node.name
-                if bound in active:
-                    del active[bound]
-        elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if stmt.name in active:
-                del active[stmt.name]
+        _apply_stmt_to_alias_map(stmt, active)
         for node in _iter_excluding_nested_scopes(stmt):
-            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id in active:
-                del active[node.id]
-            elif (
-                isinstance(node, ast.ExceptHandler)
-                and node.name is not None
-                and node.name in active
-            ):
-                # ``except Exception as gz:`` binds gz via the handler's
-                # ``name`` attribute (a raw str), NOT via Name(Store), so
-                # the Name walk above misses it. Python actually deletes
-                # gz after the except block exits, but for the purposes
-                # of static replay this conservatively drops the alias
-                # for the rest of the file (we lose precision on the
-                # post-except state, which is acceptable for a security
-                # rail — the alternative is false positives inside the
-                # handler body).
-                del active[node.name]
+            _drop_alias_for_node_binding(node, active)
     return active
+
+
+def _apply_stmt_to_alias_map(stmt: ast.stmt, active: dict[str, str]) -> None:
+    """Process a top-level module statement: add aliases for Import,
+    drop for ImportFrom / FunctionDef / AsyncFunctionDef / ClassDef."""
+    if isinstance(stmt, ast.Import):
+        for alias_node in stmt.names:
+            top_level = alias_node.name.split(".", 1)[0]
+            local = alias_node.asname if alias_node.asname else top_level
+            active[local] = top_level
+    elif isinstance(stmt, ast.ImportFrom):
+        for alias_node in stmt.names:
+            if alias_node.name == "*":
+                continue
+            bound = alias_node.asname if alias_node.asname else alias_node.name
+            active.pop(bound, None)
+    elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        active.pop(stmt.name, None)
+
+
+def _drop_alias_for_node_binding(node: ast.AST, active: dict[str, str]) -> None:
+    """For nested binder nodes (Name(Store), ExceptHandler, MatchAs,
+    MatchStar, MatchMapping) that bind a name within the current
+    statement's subtree, drop the matching alias.
+
+    Comments:
+    - ``Name(Store)``: standard assignment target.
+    - ``ExceptHandler``: ``except ... as gz`` binds via the handler's
+      ``name`` attribute (raw str). Python deletes the name after the
+      handler exits, but we conservatively drop for the rest of the
+      file (false negatives are worse than false positives for a
+      security rail).
+    - ``MatchAs`` / ``MatchStar``: ``case gz`` / ``case [*gz]`` bind
+      via the pattern's ``name`` (raw str).
+    - ``MatchMapping``: ``case {**rest}`` binds via ``rest`` (raw str).
+    """
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+        active.pop(node.id, None)
+    elif isinstance(node, ast.ExceptHandler) and node.name is not None:
+        active.pop(node.name, None)
+    elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name is not None:
+        active.pop(node.name, None)
+    elif isinstance(node, ast.MatchMapping) and node.rest is not None:
+        active.pop(node.rest, None)
 
 
 def _drop_function_shadowed(
