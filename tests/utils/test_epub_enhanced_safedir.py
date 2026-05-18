@@ -21,7 +21,6 @@ from utils.safedir import SymlinkRejected
 
 pytestmark = [
     pytest.mark.ci,
-    pytest.mark.unit,
     pytest.mark.integration,
     pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only"),
 ]

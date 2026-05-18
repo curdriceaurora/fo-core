@@ -16,6 +16,7 @@ The CI test verifies three things:
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -325,8 +326,8 @@ class TestBareOpenDetectionDirScoped:
         """
         from check_safedir_required import _bare_open_violation
 
-        tree = __import__("ast").parse(source)
-        calls = [n for n in __import__("ast").walk(tree) if isinstance(n, __import__("ast").Call)]
+        tree = ast.parse(source)
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
         flagged = [_bare_open_violation(c) for c in calls if _bare_open_violation(c) is not None]
         assert len(flagged) == 1, f"expected exactly one read-mode call, got {flagged}"
 
@@ -349,8 +350,8 @@ class TestBareOpenDetectionDirScoped:
         """
         from check_safedir_required import _bare_open_violation
 
-        tree = __import__("ast").parse(source)
-        calls = [n for n in __import__("ast").walk(tree) if isinstance(n, __import__("ast").Call)]
+        tree = ast.parse(source)
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
         flagged = [_bare_open_violation(c) for c in calls if _bare_open_violation(c) is not None]
         assert flagged == [], f"write-mode call wrongly flagged: {flagged}"
 
@@ -364,11 +365,81 @@ class TestBareOpenDetectionDirScoped:
             "open('/x', 'w+')\n",
             "open('/x', 'a+')\n",
         ]:
-            tree = __import__("ast").parse(source)
-            call = next(
-                n for n in __import__("ast").walk(tree) if isinstance(n, __import__("ast").Call)
-            )
+            tree = ast.parse(source)
+            call = next(n for n in ast.walk(tree) if isinstance(n, ast.Call))
             assert _bare_open_violation(call) is not None, f"missed read-write mode: {source!r}"
+
+    @pytest.mark.parametrize(
+        "source,expected_name",
+        [
+            # Module-style ``.open`` APIs share the ``open(file, mode)``
+            # builtin signature — mode at position 1, not 0. The filename
+            # at position 0 must NOT be misread as the mode.
+            ("import gzip\ngzip.open('/tmp/a', 'rb')\n", "gzip.open"),
+            ("import bz2\nbz2.open('/tmp/file.txt', 'rb')\n", "bz2.open"),
+            ("import lzma\nlzma.open('/tmp/data', 'r')\n", "lzma.open"),
+            ("import tarfile\ntarfile.open('/tmp/archive', 'r')\n", "tarfile.open"),
+            ("import builtins\nbuiltins.open('/tmp/x', 'rb')\n", "builtins.open"),
+        ],
+    )
+    def test_module_style_open_flagged_with_correct_mode_position(
+        self, source: str, expected_name: str
+    ) -> None:
+        """Regression for the filename-as-mode false negative: a call like
+        ``gzip.open("/tmp/a", "rb")`` must extract mode from arg 1, not arg
+        0. Previously ``"/tmp/a"`` got interpreted as mode → letter ``'a'``
+        intersects write-only set → not flagged (false negative)."""
+        from check_safedir_required import _bare_open_violation
+
+        tree = ast.parse(source)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        )
+        assert _bare_open_violation(call) == expected_name
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # Write modes on module-style APIs must NOT be flagged.
+            "import gzip\ngzip.open('/tmp/out', 'wb')\n",
+            "import bz2\nbz2.open('/tmp/out', 'w')\n",
+            "import lzma\nlzma.open('/tmp/out', 'a')\n",
+            "import tarfile\ntarfile.open('/tmp/out', 'x')\n",
+        ],
+    )
+    def test_module_style_open_write_modes_not_flagged(self, source: str) -> None:
+        """Verifies the mode-position fix doesn't over-flag — write-only
+        calls on module-style APIs still get correctly dropped."""
+        from check_safedir_required import _bare_open_violation
+
+        tree = ast.parse(source)
+        call = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        )
+        assert _bare_open_violation(call) is None
+
+    def test_filename_with_write_mode_letters_does_not_break_classification(self) -> None:
+        """Belt-and-suspenders: filenames containing ``'w'`` / ``'a'`` /
+        ``'x'`` letters used to mis-classify the call as write-only because
+        the wrong arg was consulted. Now the mode position is correct, so
+        the filename content is irrelevant."""
+        from check_safedir_required import _bare_open_violation
+
+        for filename in ["/tmp/awx", "writer.log", "/var/data.xml"]:
+            source = f"import gzip\ngzip.open({filename!r}, 'rb')\n"
+            tree = ast.parse(source)
+            call = next(
+                n
+                for n in ast.walk(tree)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            )
+            assert _bare_open_violation(call) == "gzip.open", (
+                f"filename {filename!r} broke gzip.open detection"
+            )
 
 
 class TestBareOpenDetectionDirScopedIntegration:
@@ -385,8 +456,6 @@ class TestBareOpenDetectionDirScopedIntegration:
     def test_find_violations_flags_bare_open_when_dir_enforced(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from unittest.mock import patch as _patch
-
         import check_safedir_required as _csr
 
         # Create the same ``src/x/<file>`` layout ``_synth`` uses so the
@@ -400,11 +469,11 @@ class TestBareOpenDetectionDirScopedIntegration:
         target = target_dir / "mod.py"
         target.write_text("with open('/x/y.txt', 'rb') as f: pass\n")
 
-        with (
-            _patch.object(_csr, "_SRC_DIR", src_root),
-            _patch.object(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})),
-        ):
-            violations = _csr.find_violations(target)
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        monkeypatch.setattr(
+            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
+        )
+        violations = _csr.find_violations(target)
 
         # The bare ``open(path, "rb")`` is now flagged because the
         # directory is enforced.
@@ -413,11 +482,11 @@ class TestBareOpenDetectionDirScopedIntegration:
         assert name == "open"
         assert line_no == 1
 
-    def test_find_violations_skips_bare_open_outside_enforced_dir(self, tmp_path: Path) -> None:
+    def test_find_violations_skips_bare_open_outside_enforced_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """File NOT under an enforced dir → bare open ignored even when
         the set is populated."""
-        from unittest.mock import patch as _patch
-
         import check_safedir_required as _csr
 
         src_root = tmp_path / "src"
@@ -427,20 +496,20 @@ class TestBareOpenDetectionDirScopedIntegration:
         target = target_dir / "mod.py"
         target.write_text("with open('/x/y.txt', 'rb') as f: pass\n")
 
-        with (
-            _patch.object(_csr, "_SRC_DIR", src_root),
-            # Different directory enforced.
-            _patch.object(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})),
-        ):
-            violations = _csr.find_violations(target)
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        # Different directory enforced.
+        monkeypatch.setattr(
+            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
+        )
+        violations = _csr.find_violations(target)
 
         assert violations == []
 
-    def test_find_violations_respects_opt_out_marker_for_bare_open(self, tmp_path: Path) -> None:
+    def test_find_violations_respects_opt_out_marker_for_bare_open(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Trailing ``# safedir: ok — <reason>`` marker exempts a bare
         open just like it does for library-call violations."""
-        from unittest.mock import patch as _patch
-
         import check_safedir_required as _csr
 
         src_root = tmp_path / "src"
@@ -452,10 +521,10 @@ class TestBareOpenDetectionDirScopedIntegration:
             "with open('/x/y.txt', 'rb') as f: pass  # safedir: ok — legacy callsite\n"
         )
 
-        with (
-            _patch.object(_csr, "_SRC_DIR", src_root),
-            _patch.object(_csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})),
-        ):
-            violations = _csr.find_violations(target)
+        monkeypatch.setattr(_csr, "_SRC_DIR", src_root)
+        monkeypatch.setattr(
+            _csr, "_READ_OPEN_ENFORCED_DIRS", frozenset({"src/myreaders"})
+        )
+        violations = _csr.find_violations(target)
 
         assert violations == []

@@ -124,6 +124,15 @@ _READ_OPEN_ENFORCED_DIRS: frozenset[str] = frozenset()
 # (``"w"``/``"a"``/``"x"`` without ``"+"``).
 _WRITE_ONLY_MODE_LETTERS = frozenset("wax")
 
+# Stdlib module-style ``.open`` APIs that share the builtin ``open(file, mode)``
+# signature — mode is the 2nd positional argument, not the 1st. Without this
+# allowlist the rail would parse the *filename* argument as the mode and the
+# classification becomes filename-dependent (e.g. ``gzip.open("/tmp/a", "rb")``
+# would extract ``"/tmp/a"`` as mode → ``'a'`` letter → mis-classified as
+# write-only → false negative). For every other ``<X>.open(...)`` receiver
+# (Path, file-object instance methods), mode lives at position 0.
+_MODULE_STYLE_OPEN_RECEIVERS = frozenset({"io", "gzip", "bz2", "lzma", "tarfile", "builtins"})
+
 
 def _is_read_mode(mode_str: str | None) -> bool:
     """Return True if *mode_str* (or default-``"r"`` when None) reads."""
@@ -185,15 +194,19 @@ def _bare_open_violation(node: ast.Call) -> str | None:
         return None
     # ``<receiver>.open(...)`` — Attribute node, attr == "open"
     if isinstance(func, ast.Attribute) and func.attr == "open":
-        # io.open(path, "rb") — receiver is Name "io"
-        if isinstance(func.value, ast.Name) and func.value.id == "io":
+        receiver = func.value
+        # Module-style: ``io.open(path, "rb")`` / ``gzip.open(path, "rb")`` /
+        # ``bz2.open(...)`` etc. Mode is positional arg 1 (signature mirrors
+        # the builtin ``open(file, mode, ...)``).
+        if isinstance(receiver, ast.Name) and receiver.id in _MODULE_STYLE_OPEN_RECEIVERS:
             if _is_read_mode(_mode_arg(node, mode_position=1)):
-                return "io.open"
+                return f"{receiver.id}.open"
             return None
-        # ``path.open("rb")`` — any other receiver. Mode is positional
-        # arg 0 (the receiver doesn't appear in node.args).
+        # ``path.open("rb")`` — Path-like / instance method. Mode is
+        # positional arg 0 (the receiver doesn't appear in node.args).
         if _is_read_mode(_mode_arg(node, mode_position=0)):
             return "Path.open"
+        return None
     return None
 
 

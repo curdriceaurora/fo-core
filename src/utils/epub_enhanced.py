@@ -96,6 +96,9 @@ def _read_epub_safedir(file_path: Path) -> Any:
             os.close(fd)
             raise
         with fileobj:
+            # ebooklib reads the ZIP synchronously; the returned EpubBook
+            # holds all content in memory before this returns, so closing
+            # fileobj on context exit is safe.
             return epub.read_epub(fileobj)
 
 
