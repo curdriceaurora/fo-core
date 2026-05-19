@@ -25,7 +25,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from services.search.hybrid_retriever import CORPUS_TEXT_LIMIT, read_text_safe
+# ``hybrid_retriever`` transitively imports BM25 / sklearn / numpy via
+# its ``VectorIndex`` and ``BM25Index`` siblings. The ``read_text_safe``
+# helper itself doesn't depend on them, but module import still pulls
+# them in, so we skip the file cleanly when the optional ``search`` /
+# ``dedup-text`` extras aren't installed (e.g. CI's lint env).
+pytest.importorskip("rank_bm25")
+pytest.importorskip("sklearn")
+
+from services.search.hybrid_retriever import (
+    CORPUS_TEXT_LIMIT,
+    read_text_safe,
+)
 from utils.safedir import SymlinkRejected
 
 pytestmark = [
