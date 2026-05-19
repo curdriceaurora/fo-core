@@ -32,6 +32,7 @@ sys.path.insert(0, str(_FO_ROOT / "scripts"))
 from check_safedir_required import (  # noqa: E402  — sys.path manipulation above
     _ALLOWLISTED_FILES,
     _FLAGGED_CALLS,
+    _READ_OPEN_ENFORCED_DIRS,
     _call_name,
     _collect_marker_comment_lines,
     _has_opt_out_in_window,
@@ -250,6 +251,46 @@ class TestLiveTreeAdvisory:
         assert "call site(s)" in result.stderr
         assert "Breakdown by callee:" in result.stderr
         assert "ADVISORY mode" in result.stderr
+
+    def test_no_bare_open_violations_in_enforced_dirs(self) -> None:
+        """PR3i populates ``_READ_OPEN_ENFORCED_DIRS`` with every PR3a–PR3h
+        migration target. Every bare ``open(...)`` / ``Path.open(...)`` /
+        ``io.open(...)`` site in those files must either be migrated to
+        SafeDir OR carry a ``# safedir: ok — <reason>`` opt-out marker
+        (legacy / Windows / NotImplementedError fallback branches).
+
+        This test reads the live tree and asserts Pass 2 (bare-open
+        detection) finds zero unmarked violations in the enforced dirs.
+        If this fails, either a new bare-open read was added to a
+        migrated file (route it through SafeDir or add a marker) or
+        an existing marker has drifted out of the matching window.
+
+        Implicit contract: ``find_violations`` (the function that
+        backs ``scan_tree``) only emits Pass 2 detections when the
+        file is in ``_READ_OPEN_ENFORCED_DIRS`` — see
+        ``_file_under_enforced_dir`` in the checker script. So
+        filtering by call name alone is sufficient here; the
+        path-scope guard is inherited from the detector. If
+        ``find_violations`` is ever refactored to decouple path-scope
+        from emission, add an explicit ``_file_under_enforced_dir(path)``
+        guard below.
+        """
+        # Sanity: enforcement is actually on (PR3i populated the set).
+        assert _READ_OPEN_ENFORCED_DIRS, (
+            "expected _READ_OPEN_ENFORCED_DIRS to be populated by PR3i; "
+            "if you cleared it intentionally, update this test"
+        )
+
+        violations = scan_tree()
+        bare_call_names = {"open", "io.open", "Path.open"}
+        bare = [
+            (path, lineno, name)
+            for path, lineno, name, _excerpt in violations
+            if name in bare_call_names
+        ]
+        assert not bare, "unmarked bare-open reads found in enforced dirs:\n" + "\n".join(
+            f"  {path.relative_to(_FO_ROOT)}:{lineno}  {name}" for path, lineno, name in bare
+        )
 
     def test_allowlist_files_not_scanned(self) -> None:
         """Allowlisted implementation files don't generate self-flags."""

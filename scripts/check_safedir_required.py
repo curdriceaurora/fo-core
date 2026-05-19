@@ -108,13 +108,46 @@ _MARKER_WINDOW_ABOVE = 2
 _MARKER_WINDOW_BELOW = 6
 
 
-# Directories where bare ``open(path, "r"...)`` / ``Path.open("r"...)`` /
-# ``io.open(path, "r"...)`` read calls are also flagged (deferred from
-# #271 / per CodeRabbit review on PR1). Empty for now — PR3i flips the
-# already-migrated reader and dedup dirs into this set with opt-out
-# markers on the legitimate post-migration sites. Adding a directory
-# here is what turns the bare-open detection on for files inside it.
-_READ_OPEN_ENFORCED_DIRS: frozenset[str] = frozenset()
+# Directories / files where bare ``open(path, "r"...)`` / ``Path.open("r"...)`` /
+# ``io.open(path, "r"...)`` read calls are also flagged. Populated by PR3i for
+# every PR3a–PR3h migration target. New bare-open reads in these locations need
+# a ``# safedir: ok — <reason>`` opt-out marker; the legitimate post-migration
+# sites (Windows / NotImplementedError fallback branches, dual-API path
+# branches in the reader libraries) are already marked.
+#
+# Entries can be either directory prefixes (matched via ``startswith(d/)``) or
+# specific file paths (matched via exact equality).
+#
+# Per #267, expanding this set to ``services/deduplication/{hasher,backup,
+# embedder}`` is PR4 scope; ``undo/`` is PR5; ``watcher/`` / ``daemon/`` /
+# ``pipeline/stages/{writer,postprocessor}`` / ``core/file_ops`` is PR6.
+_READ_OPEN_ENFORCED_DIRS: frozenset[str] = frozenset(
+    {
+        # PR3a — text processor + document readers
+        "src/services/text_processor.py",
+        "src/utils/readers/documents.py",
+        # PR3b — archive readers (zip / 7z / tar / rar)
+        "src/utils/readers/archives.py",
+        # PR3c — ebook + scientific readers
+        "src/utils/readers/ebook.py",
+        "src/utils/readers/scientific.py",
+        # PR3d — CAD readers
+        "src/utils/readers/cad.py",
+        # PR3e — dedup document extractor
+        "src/services/deduplication/extractor.py",
+        # PR3f — dedup image readers
+        "src/services/deduplication/image_dedup.py",
+        "src/services/deduplication/image_utils.py",
+        "src/services/deduplication/viewer.py",
+        "src/services/deduplication/quality.py",
+        # PR3g — EPUB enhanced reader
+        "src/utils/epub_enhanced.py",
+        # PR3h — search / organize / PARA detection
+        "src/services/search/hybrid_retriever.py",
+        "src/core/organizer.py",
+        "src/methodologies/para/detection/heuristics.py",
+    }
+)
 
 # Read-mode characters. ``open(...)`` defaults to ``"r"`` so a call with
 # no mode argument is also a read. ``"r+"`` / ``"w+"`` / ``"a+"`` are

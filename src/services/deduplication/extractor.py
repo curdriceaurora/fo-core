@@ -231,7 +231,14 @@ class DocumentExtractor:
             else:
                 if file_path is None:
                     raise TypeError("path-branch requires file_path")
-                with open(file_path, "rb") as f:
+                # The opt-out marker below covers BOTH the bare open and the
+                # nearby ``pypdf.PdfReader(f)`` call (within
+                # ``_MARKER_WINDOW_BELOW=6``). Both belong to the same legacy
+                # fallback block — when SafeDir is unavailable we accept the
+                # path-based read end-to-end.
+                with open(
+                    file_path, "rb"
+                ) as f:  # safedir: ok — Windows / NotImplementedError fallback
                     pdf_reader = pypdf.PdfReader(f)
                     for page_num in range(len(pdf_reader.pages)):
                         page = pdf_reader.pages[page_num]
@@ -324,7 +331,9 @@ class DocumentExtractor:
         try:
             for encoding in encodings:
                 try:
-                    with open(file_path, encoding=encoding) as f:
+                    with open(
+                        file_path, encoding=encoding
+                    ) as f:  # safedir: ok — Windows / NotImplementedError fallback
                         text = f.read()
                     logger.debug(f"Read {len(text)} chars from text file: {display}")
                     return text
@@ -332,7 +341,7 @@ class DocumentExtractor:
                     continue
 
             # If all encodings fail, read as binary and decode with errors='ignore'
-            with open(file_path, "rb") as f:
+            with open(file_path, "rb") as f:  # safedir: ok — Windows / NotImplementedError fallback
                 text = f.read().decode("utf-8", errors="ignore")
 
             return text
@@ -357,7 +366,9 @@ class DocumentExtractor:
             else:
                 if file_path is None:
                     raise TypeError("path-branch requires file_path")
-                with open(file_path, encoding="utf-8", errors="ignore") as f:
+                with open(
+                    file_path, encoding="utf-8", errors="ignore"
+                ) as f:  # safedir: ok — Windows / NotImplementedError fallback
                     rtf_content = f.read()
 
             # Try using striprtf if available
