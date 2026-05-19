@@ -15,6 +15,8 @@ delegates to extracted modules for specific concerns:
 from __future__ import annotations
 
 import hashlib
+import os
+import sys
 import time
 from pathlib import Path
 from typing import Any, ClassVar
@@ -39,6 +41,7 @@ from services import ProcessedFile, ProcessedImage, TextProcessor, VisionProcess
 from services.audio.metadata_extractor import AudioMetadataExtractor
 from services.video.metadata_extractor import VideoMetadataExtractor
 from undo import UndoManager
+from utils.safedir import SafeDir, SymlinkRejected
 
 
 class FileOrganizer:
@@ -407,13 +410,11 @@ class FileOrganizer:
         seen_hashes: set[str] = set()
         deduped: list[ProcessedFile | ProcessedImage] = []
         for pf in all_processed:
-            try:
-                hasher = hashlib.sha256()
-                with pf.file_path.open("rb") as f:
-                    for chunk in iter(lambda: f.read(65536), b""):
-                        hasher.update(chunk)
-                file_hash = hasher.hexdigest()
-            except OSError:
+            file_hash = self._sha256_via_safedir(pf.file_path)
+            if file_hash is None:
+                # I/O error or refused symlink — keep the file in the
+                # deduped output (we can't determine whether it's a
+                # duplicate without hashing).
                 deduped.append(pf)
                 continue
             if file_hash not in seen_hashes:
@@ -423,6 +424,58 @@ class FileOrganizer:
                 logger.info("Duplicate file detected by content: {}, skipping.", pf.file_path.name)
                 result.deduplicated_files += 1
         return deduped
+
+    @staticmethod
+    def _sha256_via_safedir(file_path: Path) -> str | None:
+        """Compute the SHA-256 hex digest of *file_path*, via SafeDir.
+
+        Opens through :class:`utils.safedir.SafeDir` on POSIX so a
+        symlink swapped in between organize-time enumeration and the
+        hash read is refused (closes the LLM-exfiltration vector in
+        #264). Windows / non-POSIX falls back to the legacy path-based
+        open until the SafeDir Windows port lands.
+
+        Returns ``None`` when the file is unreadable or the read is
+        refused — the caller treats that as "unknown hash" and keeps
+        the file in the deduplicated output rather than dropping it.
+        """
+        hasher = hashlib.sha256()
+        if sys.platform != "win32":
+            try:
+                with SafeDir.open_root(file_path.parent) as safe_dir:
+                    fd = safe_dir.open_for_reader(file_path.name)
+                    try:
+                        fileobj = os.fdopen(fd, "rb", closefd=True)
+                    except OSError:
+                        os.close(fd)
+                        raise
+                    with fileobj:
+                        for chunk in iter(lambda: fileobj.read(65536), b""):
+                            hasher.update(chunk)
+                return hasher.hexdigest()
+            except SymlinkRejected as exc:
+                logger.warning("Refused to hash symlinked file {}: {}", file_path, exc)
+                return None
+            except NotImplementedError:
+                logger.debug(
+                    "SafeDir unavailable; hashing {} via legacy reader",
+                    file_path.name,
+                )
+            except (OSError, ValueError):
+                # ValueError covers SafeDir's name-validation rejection
+                # (filenames with backslash / NUL / path separators);
+                # OSError covers normal I/O failures. Both are
+                # "file unreadable" outcomes — return None so the
+                # caller keeps the file in the dedup output.
+                return None
+        # Legacy path-based fallback (Windows / NotImplementedError).
+        try:
+            with file_path.open("rb") as f:  # safedir: ok — Windows / NotImplementedError fallback
+                for chunk in iter(lambda: f.read(65536), b""):
+                    hasher.update(chunk)
+            return hasher.hexdigest()
+        except OSError:
+            return None
 
     def _execute_organization(
         self,
