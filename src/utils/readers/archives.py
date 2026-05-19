@@ -114,7 +114,9 @@ def read_zip_file(
         raise ValueError("read_zip_file requires file_path or fileobj")
     path = Path(file_path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _parse_zip(f, max_files, path.name)
     except Exception as e:  # Intentional catch-all: zipfile raises library-specific errors
         raise FileReadError(f"Failed to read ZIP file {path}: {e}") from e
@@ -198,7 +200,9 @@ def read_7z_file(
         raise ValueError("read_7z_file requires file_path or fileobj")
     path = Path(file_path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _parse_7z(f, max_files, path.name)
     except Exception as e:  # Intentional catch-all: py7zr raises library-specific errors
         raise FileReadError(f"Failed to read 7Z file {path}: {e}") from e
@@ -302,7 +306,9 @@ def read_tar_file(
         raise ValueError("read_tar_file requires file_path or fileobj")
     path = Path(file_path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _parse_tar(f, max_files, path.name)
     except Exception as e:  # Intentional catch-all: tarfile raises library-specific errors
         raise FileReadError(f"Failed to read TAR file {path}: {e}") from e
@@ -394,7 +400,9 @@ def read_rar_file(
         raise ValueError("read_rar_file requires file_path or fileobj")
     path = Path(file_path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _parse_rar(f, max_files, path.name)
     except rarfile.RarCannotExec as e:
         raise FileReadError(

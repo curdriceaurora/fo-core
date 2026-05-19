@@ -358,7 +358,9 @@ def read_step_file(
     path = Path(file_path)
     _check_file_size(path)
     try:
-        with path.open(encoding="utf-8", errors="ignore") as f:
+        with path.open(
+            encoding="utf-8", errors="ignore"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             content = f.read(10000)
         size_kb = path.stat().st_size / 1024
         return _parse_step_text(content, path.name, size_kb)
@@ -471,7 +473,9 @@ def read_iges_file(
     path = Path(file_path)
     _check_file_size(path)
     try:
-        with path.open(encoding="utf-8", errors="ignore") as f:
+        with path.open(
+            encoding="utf-8", errors="ignore"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             lines = [f.readline() for _ in range(max_lines)]
         size_kb = path.stat().st_size / 1024
         return _parse_iges_lines(lines, path.name, size_kb)

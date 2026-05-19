@@ -102,7 +102,9 @@ def read_text_file(
     path = Path(file_path)
     _check_file_size(path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _parse_text(f, max_chars, path.name)
     except OSError as e:
         raise FileReadError(f"Failed to read text file {path}: {e}") from e
@@ -150,7 +152,9 @@ def read_docx_file(
     path = Path(file_path)
     _check_file_size(path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _parse_docx(f, path.name)
     except Exception as e:  # Intentional catch-all: python-docx raises library-specific errors
         raise FileReadError(f"Failed to read DOCX file {path}: {e}") from e
@@ -253,7 +257,9 @@ def read_rtf_file(
     path = Path(file_path)
     _check_file_size(path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _parse_rtf(f, max_chars, path.name)
     except Exception as exc:
         raise FileReadError(f"Failed to read RTF {path.name}: {exc}") from exc
@@ -341,7 +347,9 @@ def read_spreadsheet_file(
             raise FileReadError(f"Failed to read spreadsheet file {path.name}: {e}") from e
     _check_file_size(path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _dispatch_spreadsheet(f, ext, max_rows, path.name)
     except (ImportError, FileReadError):
         raise
@@ -398,7 +406,9 @@ def read_presentation_file(
     path = Path(file_path)
     _check_file_size(path)
     try:
-        with path.open("rb") as f:
+        with path.open(
+            "rb"
+        ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
             return _parse_presentation(f, path.name)
     except Exception as e:  # Intentional catch-all: python-pptx raises library-specific errors
         raise FileReadError(f"Failed to read presentation file {path}: {e}") from e
