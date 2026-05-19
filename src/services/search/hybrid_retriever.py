@@ -86,7 +86,9 @@ def read_text_safe(path: Path, limit: int = CORPUS_TEXT_LIMIT) -> str:
             # SafeDir's POSIX primitives unavailable; fall through to
             # legacy path-based open below.
             logger.debug("SafeDir unavailable; using legacy reader for {}", path.name)
-        except OSError:
+        except (OSError, ValueError):
+            # ValueError covers SafeDir's name-validation rejection
+            # (filenames with backslash / NUL / path separators).
             return ""
     if raw is None:
         try:

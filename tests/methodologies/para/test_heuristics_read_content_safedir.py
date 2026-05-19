@@ -114,6 +114,20 @@ class TestReadContentBytesSafedirBranches:
         ):
             assert AIHeuristic._read_content_bytes(target, limit=64) is None
 
+    def test_safedir_valueerror_returns_none(self, tmp_path: Path) -> None:
+        """SafeDir's name validation raises ``ValueError`` for
+        filenames containing backslash / NUL / path separators. On
+        POSIX such filenames are legal in the filesystem, so a
+        directory walk can yield them. The helper must return ``None``
+        rather than letting the ``ValueError`` abort PARA detection."""
+        target = tmp_path / "ok.txt"
+        target.write_bytes(b"data")
+        with patch(
+            "methodologies.para.detection.heuristics.SafeDir.open_root",
+            side_effect=ValueError("name 'a\\b' contains path separator"),
+        ):
+            assert AIHeuristic._read_content_bytes(target, limit=64) is None
+
 
 @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
 class TestReadContentBytesLegacyFallback:

@@ -161,6 +161,20 @@ class TestReadTextSafeSafedirBranches:
         ):
             assert read_text_safe(target) == ""
 
+    def test_safedir_valueerror_returns_empty(self, tmp_path: Path) -> None:
+        """SafeDir's name validation raises ``ValueError`` for
+        filenames containing backslash / NUL / path separators. On
+        POSIX such filenames are legal in the filesystem, so a corpus
+        enumerator can yield them. The helper must return ``""``
+        rather than letting the ``ValueError`` abort the caller."""
+        target = tmp_path / "ok.txt"
+        target.write_text("data")
+        with patch(
+            "services.search.hybrid_retriever.SafeDir.open_root",
+            side_effect=ValueError("name 'a\\b' contains path separator"),
+        ):
+            assert read_text_safe(target) == ""
+
 
 @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
 class TestReadTextSafeLegacyFallback:

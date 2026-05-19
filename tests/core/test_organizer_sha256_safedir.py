@@ -100,6 +100,22 @@ class TestSha256ViaSafedirBranches:
         ):
             assert FileOrganizer._sha256_via_safedir(target) is None
 
+    def test_safedir_valueerror_returns_none(self, tmp_path: Path) -> None:
+        """SafeDir's name validation rejects filenames containing
+        backslash / NUL / path separators with ``ValueError``. On
+        POSIX such filenames are legal in the filesystem, so a
+        ``safe_walk`` enumerator can yield them. The helper must treat
+        them like any other unreadable file and return ``None`` rather
+        than letting the ``ValueError`` abort the entire organize run.
+        """
+        target = tmp_path / "ok.bin"
+        target.write_bytes(b"data")
+        with patch(
+            "core.organizer.SafeDir.open_root",
+            side_effect=ValueError("name 'a\\b' contains path separator"),
+        ):
+            assert FileOrganizer._sha256_via_safedir(target) is None
+
 
 @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
 class TestSha256ViaSafedirLegacyFallback:

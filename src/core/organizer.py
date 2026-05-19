@@ -461,7 +461,12 @@ class FileOrganizer:
                     "SafeDir unavailable; hashing {} via legacy reader",
                     file_path.name,
                 )
-            except OSError:
+            except (OSError, ValueError):
+                # ValueError covers SafeDir's name-validation rejection
+                # (filenames with backslash / NUL / path separators);
+                # OSError covers normal I/O failures. Both are
+                # "file unreadable" outcomes — return None so the
+                # caller keeps the file in the dedup output.
                 return None
         # Legacy path-based fallback (Windows / NotImplementedError).
         try:

@@ -824,7 +824,9 @@ class AIHeuristic(Heuristic):
                     "SafeDir unavailable; reading %s via legacy reader",
                     file_path.name,
                 )
-            except OSError:
+            except (OSError, ValueError):
+                # ValueError covers SafeDir's name-validation rejection
+                # (filenames with backslash / NUL / path separators).
                 return None
         try:
             with file_path.open("rb") as f:  # safedir: ok — Windows / NotImplementedError fallback
