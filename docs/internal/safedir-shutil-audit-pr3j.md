@@ -168,32 +168,46 @@ to obtain `st_size`, `st_mtime`, `st_mode`, etc. The path-based
 ### Exceptions (with rationale)
 
 A few sites legitimately use `path.stat()` before a SafeDir open. The
-**only** acceptable rationale is that the stat is used purely for
-**logging / display** — not for any security-relevant decision (e.g.,
-a "skip files larger than N MB" guard that's user-visible UX, not a
-security boundary). A path-based stat by definition re-traverses the
-path; if its result fed into a security decision, the swap-between-
-syscalls race is open.
+**only** acceptable rationale is that the stat result is used purely
+for **logging / display** — never as input to any decision that
+affects what bytes are read, what limit is enforced, or what action
+is taken. A path-based stat by definition re-traverses the path; if
+its result fed into any program decision (size cap, skip-or-process,
+permission check, mtime cache key), the swap-between-syscalls race is
+open and the decision applies to the wrong inode.
 
-What is **not** sufficient rationale: "the path came from a
-SafeDir-aware enumeration." `safe_walk` (and similar enumerators)
-yield lexical `Path` objects, not inode-pinned handles. A writable
-parent can swap an entry between enumeration and a later
-`path.stat()`, and the post-enumeration path is no more
-trust-bounded for follow-up syscalls than any other path string. The
-documented contract on `SafeDir` says callers must route subsequent
-operations through `lstat` / `open_for_reader` for that reason.
+What is **not** sufficient rationale, even if the check feels like a
+UX nicety:
 
-Each such site carries (or will carry) an inline comment explaining
-why the dual-stat pattern is safe (logging/display only) in that
-context.
+- **Size gates** — "skip files larger than N MB" via `path.stat()`
+  before opening content. This is a security decision (it bounds
+  reader resource use); the project's pattern is `_check_fd_size`
+  on the opened fd (`src/utils/readers/_base.py:47`), exactly so the
+  stat and the content read see the same inode.
+- **mtime-based caches** — "skip files unchanged since last scan"
+  via `path.stat().st_mtime`. The cache key must come from the fd
+  (`os.fstat(fd).st_mtime`) or it can be poisoned by a swap.
+- **"The path came from a SafeDir-aware enumeration"** — `safe_walk`
+  (and similar enumerators) yield lexical `Path` objects, not
+  inode-pinned handles. A writable parent can swap an entry between
+  enumeration and a later `path.stat()`, and the post-enumeration
+  path is no more trust-bounded for follow-up syscalls than any
+  other path string. The documented contract on `SafeDir` says
+  callers must route subsequent operations through `lstat` /
+  `open_for_reader` for that reason.
+
+Each surviving exception (purely informational `path.stat()` for a
+log line, etc.) carries (or will carry) an inline comment explaining
+why the dual-stat pattern is non-security-relevant in that context.
 
 ### What this rules out
 
-- Path-based size validation before opening content. Wrong: see
-  CVE-2021-3580 class issues where the size check and the content
-  read disagree.
-- Path-based mtime caching before reading. Wrong for the same reason.
+- Path-based size validation before opening content. Wrong: the
+  stat and the content read can see different inodes. Use
+  `_check_fd_size(fileobj, …)` (`src/utils/readers/_base.py:47`)
+  on the SafeDir-opened fd.
+- Path-based mtime caching before reading. Wrong for the same
+  reason. Use `os.fstat(fd).st_mtime`.
 - Any "check this file is OK to read by stat-ing it first" pattern.
 
 ### What this rules in
@@ -246,6 +260,8 @@ live tree at the head of this PR's base branch (`epic/safedir-readside-pr3`).
   branch guard.
 - `scripts/check_safedir_required.py` — the `_ALLOWLISTED_FILES`
   entry covering `src/undo/durable_move.py`.
+- `src/utils/readers/_base.py` — `_check_fd_size` fd-based size cap
+  cited as the project's pattern in "What this rules out".
 
 ### Callsites / line references
 
@@ -256,6 +272,7 @@ live tree at the head of this PR's base branch (`epic/safedir-readside-pr3`).
 | `if src.is_symlink():` branch guard | `src/undo/durable_move.py:410` |
 | `copystat` `try/except OSError` non-fatal | `src/undo/durable_move.py:423-430` |
 | `_ALLOWLISTED_FILES` entry | `scripts/check_safedir_required.py:64` |
+| `_check_fd_size` fd-based size cap | `src/utils/readers/_base.py:47` |
 | Rail advisory count (44 sites after PR3i) | `python scripts/check_safedir_required.py --advisory` |
 
 ### Contradiction checklist
@@ -267,7 +284,9 @@ live tree at the head of this PR's base branch (`epic/safedir-readside-pr3`).
 - "Streaming-vs-stat" decision section vs the "Exceptions" subsection
   (logging / display only, never security-relevant): **consistent** —
   exceptions are bounded by the explicit rule that they MUST NOT be
-  security-relevant.
+  security-relevant. Size gates and mtime caches are listed as
+  examples of what is NOT a sufficient rationale, and "What this
+  rules out" cites `_check_fd_size` as the fd-based replacement.
 - Audit claim "shutil.copyfile follows source symlinks by default"
   vs conclusion "the callsite is allowlisted under the undo
   risk-model boundary": **consistent** — the `is_symlink()` guard
