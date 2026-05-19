@@ -16,45 +16,53 @@ exactly two callsites, both in the same function in `src/undo/durable_move.py`:
 | `src/undo/durable_move.py:417` | `shutil.copyfile(src, tmp_path)` | Inside `_durable_cross_device_move`, in the `else:` branch of `if src.is_symlink():`. Regular files only — symlinks take the dedicated `os.replace(tmp_path, dst)` branch. |
 | `src/undo/durable_move.py:422` | `shutil.copystat(src, tmp_path)` | Same `else:` branch. Wrapped in `try / except OSError` (non-fatal — see comment at line 423). |
 
+[VERIFIED in: src/undo/durable_move.py:417,422]
+
 ### Risk assessment
 
-`shutil.copyfile(src, dst)` does NOT follow symlinks on the source side
-when `follow_symlinks=True` is the default and Python sees a symlink at
-`src` — it raises `IsADirectoryError` or copies the dereferenced target
-depending on the Python version. The CPython source confirms that
-`shutil.copyfile` opens both endpoints with the builtin `open()`, which
-follows symlinks at every path component.
+`shutil.copyfile(src, dst)` with the default `follow_symlinks=True`
+**does** follow symlinks at `src` — it dereferences the symlink and
+copies the content of whatever it resolves to. Only
+`follow_symlinks=False` preserves a symlink as a symlink. CPython
+implements this by opening `src` with the builtin `open()`, which
+follows symlinks at every path component (final + intermediate).
 
 That sounds dangerous, but the `durable_move.py` call is protected
-upstream:
+upstream by a deliberate symlink branch:
 
 ```python
 if src.is_symlink():
     # symlink path: os.replace the tmp ENTRY (which the caller pre-
-    # populated as a symlink). shutil.copyfile is NEVER reached.
+    # populated as a symlink). shutil.copyfile is NEVER reached, so
+    # the symlink-dereference vector is closed at the final component.
     os.replace(tmp_path, dst)
     fsync_directory(dst)
 else:
-    shutil.copyfile(src, tmp_path)  # regular file only
+    shutil.copyfile(src, tmp_path)  # regular file only — symlinks went above
     try:
         shutil.copystat(src, tmp_path)
     except OSError:
         ...
 ```
 
-`src.is_symlink()` resolves the LAST path component without following
-it (`lstat`-style). For ancestor-component symlink swaps that an
-attacker could perform between the `is_symlink()` check and the
-`copyfile()` call, the existing `_durable_cross_device_move` workflow
-DOES have a TOCTOU window — but this is the same window the rest of
-the read-side has (see #286 anchored-traversal epic). Closing it for
-`durable_move.py` belongs in **PR5** (`undo/` migration) per #267.
+[FROM: src/undo/durable_move.py:410-428] [VERIFIED in: src/undo/durable_move.py:417,422]
+
+`src.is_symlink()` uses `lstat` semantics, so it answers the
+final-component question correctly: a symlink at `src` itself takes
+the `os.replace()` branch and never reaches `shutil.copyfile`. For
+**ancestor-component** symlink swaps that an attacker could perform
+between the `is_symlink()` check and the `copyfile()` call, the
+existing `_durable_cross_device_move` workflow DOES have a TOCTOU
+window — but this is the same intermediate-component window the rest
+of the read-side has (see #286 anchored-traversal epic). Closing it
+for `durable_move.py` belongs in **PR5** (`undo/` migration) per #267.
 
 ### Conclusion
 
 - Both callsites are correctly allowlisted in
   `scripts/check_safedir_required.py` via
   `_ALLOWLISTED_FILES = frozenset({..., "src/undo/durable_move.py"})`.
+  [VERIFIED in: scripts/check_safedir_required.py:64]
 - The `is_symlink()` guard at line 410 makes the `copyfile` path
   unreachable for symlinks at the final component.
 - The intermediate-component TOCTOU is tracked separately (**#286**)
@@ -183,3 +191,49 @@ Parallel tracking issues that remain after PR3 closes:
 - #267 — read-side SafeDir hardening epic.
 - #271 — original bare-open detection requirement.
 - #266 — SafeDir primitive design.
+
+## Verification metadata
+
+All concrete claims in this document were cross-checked against the
+live tree at the head of this PR's base branch (`epic/safedir-readside-pr3`).
+
+### Sources verified
+
+- `src/undo/durable_move.py` — both callsites and the `is_symlink()`
+  branch guard.
+- `scripts/check_safedir_required.py` — the `_ALLOWLISTED_FILES`
+  entry covering `src/undo/durable_move.py`.
+
+### Callsites / line references
+
+| Claim | Source |
+|---|---|
+| `shutil.copyfile(src, tmp_path)` callsite | `src/undo/durable_move.py:417` |
+| `shutil.copystat(src, tmp_path)` callsite | `src/undo/durable_move.py:422` |
+| `if src.is_symlink():` branch guard | `src/undo/durable_move.py:410` |
+| `copystat` `try/except OSError` non-fatal | `src/undo/durable_move.py:423-430` |
+| `_ALLOWLISTED_FILES` entry | `scripts/check_safedir_required.py:64` |
+| Rail advisory count (44 sites after PR3i) | `python scripts/check_safedir_required.py --advisory` |
+
+### Contradiction checklist
+
+- Audit findings (2 callsites, both safe via upstream guard) vs the
+  Conclusion section ("no PR3j-scope code changes required"): **consistent**.
+- "Streaming-vs-stat" decision section vs the "Exceptions" subsection
+  (logging / display only, never security-relevant): **consistent** —
+  exceptions are bounded by the explicit rule that they MUST NOT be
+  security-relevant.
+- Audit claim "shutil.copyfile follows source symlinks by default" vs
+  conclusion "the callsite is symlink-safe": **consistent** because
+  the upstream `if src.is_symlink():` branch prevents `copyfile` from
+  ever seeing a symlink.
+
+### Cross-reference checks
+
+- `shutil.copyfile` symlink semantics (Python docs, `Lib/shutil.py`):
+  `follow_symlinks=True` (default) follows source symlinks; verified
+  against CPython's `shutil.copyfile` implementation and the existing
+  `tests/undo/test_durable_move.py` test fixtures that exercise the
+  dereference behavior.
+- Sub-PR per-row entries in the streaming-vs-stat precedent table
+  match the merged commits for PR3a–PR3h on `epic/safedir-readside-pr3`.
