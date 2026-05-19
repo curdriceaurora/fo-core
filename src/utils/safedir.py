@@ -32,11 +32,12 @@ CI is Linux; nightly Windows runs skip the dependent test modules. See
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import os
 import sys
 from collections.abc import Iterator
-from pathlib import Path
+from pathlib import Path, PurePath
 from types import TracebackType
 from typing import Self
 
@@ -391,6 +392,55 @@ class SafeDir:
                 _raise_symlink_rejected(name, exc)
             raise _wrap_open_errno(exc, name) from exc
         return SafeDir(fd)
+
+    def open_anchored_reader(self, relative_path: str | os.PathLike[str]) -> int:
+        """Walk *relative_path* from this SafeDir and open the leaf as a reader fd.
+
+        Each intermediate component is opened via :meth:`open_subdir` (which
+        uses ``O_NOFOLLOW``), and the leaf is opened via
+        :meth:`open_for_reader`. An attacker-controlled ancestor swapped to
+        a symlink between directory enumeration and this read is refused with
+        :class:`SymlinkRejected`, not dereferenced — closes the nested-
+        ancestor TOCTOU window (#286) that the parent-rooted pattern leaves
+        open.
+
+        Args:
+            relative_path: A relative path under this SafeDir. Must not be
+                absolute and must not contain ``..`` components. May be a
+                ``str`` or any ``os.PathLike`` (typically ``PurePath`` /
+                ``Path``).
+
+        Returns:
+            The reader file descriptor for the leaf. Caller owns lifetime —
+            wrap with ``os.fdopen(fd, "rb", closefd=True)`` and close on
+            ``fdopen`` failure (``os.close(fd)``). The intermediate subdir
+            fds opened during traversal are released before this returns.
+
+        Raises:
+            ValueError: If *relative_path* is absolute, contains ``..``, is
+                empty, or any component fails :func:`_validate_name`.
+            SymlinkRejected: If any component (intermediate or leaf) is a
+                symlink at open time.
+            OSError: For other open failures (permission denied, missing
+                component, etc.).
+        """
+        self._check_open()
+        rel = PurePath(relative_path) if not isinstance(relative_path, PurePath) else relative_path
+        if rel.is_absolute():
+            raise ValueError(f"open_anchored_reader requires a relative path, got absolute {rel!r}")
+        parts = rel.parts
+        if not parts:
+            raise ValueError("open_anchored_reader requires a non-empty relative path")
+        if any(part == ".." for part in parts):
+            raise ValueError(f"open_anchored_reader refuses '..' components in {rel!r}")
+        # Walk intermediates inside an ExitStack so any subdir fd is closed
+        # exactly once even if a later component raises. The leaf fd is
+        # handed back open — caller owns its lifetime (see Returns above).
+        with contextlib.ExitStack() as stack:
+            current = self
+            for component in parts[:-1]:
+                current = stack.enter_context(current.open_subdir(component))
+            return current.open_for_reader(parts[-1])
 
     # ------------------------------------------------------------------
     # Inspect / list / stat
