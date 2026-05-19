@@ -33,12 +33,12 @@ upstream by a deliberate symlink branch:
 ```python
 if src.is_symlink():
     # symlink path: os.replace the tmp ENTRY (which the caller pre-
-    # populated as a symlink). shutil.copyfile is NEVER reached, so
-    # the symlink-dereference vector is closed at the final component.
+    # populated as a symlink). shutil.copyfile is NEVER reached on
+    # this branch.
     os.replace(tmp_path, dst)
     fsync_directory(dst)
 else:
-    shutil.copyfile(src, tmp_path)  # regular file only — symlinks went above
+    shutil.copyfile(src, tmp_path)  # regular file at check-time
     try:
         shutil.copystat(src, tmp_path)
     except OSError:
@@ -47,15 +47,40 @@ else:
 
 [FROM: src/undo/durable_move.py:410-428] [VERIFIED in: src/undo/durable_move.py:417,422]
 
-`src.is_symlink()` uses `lstat` semantics, so it answers the
-final-component question correctly: a symlink at `src` itself takes
-the `os.replace()` branch and never reaches `shutil.copyfile`. For
-**ancestor-component** symlink swaps that an attacker could perform
-between the `is_symlink()` check and the `copyfile()` call, the
-existing `_durable_cross_device_move` workflow DOES have a TOCTOU
-window — but this is the same intermediate-component window the rest
-of the read-side has (see #286 anchored-traversal epic). Closing it
-for `durable_move.py` belongs in **PR5** (`undo/` migration) per #267.
+`src.is_symlink()` uses `lstat` semantics — it correctly identifies
+a symlink at `src` **at the moment of the check** and routes it to
+the `os.replace()` branch. **But the check and the subsequent
+`shutil.copyfile(src, ...)` are both path-based**: the latter
+re-opens `src` by path, so an attacker who can write into `src`'s
+parent directory between the check and the copy can swap `src` for
+a symlink (or replace the regular file with a different inode).
+This is a TOCTOU race window at the **final component**, in addition
+to the well-known race at **intermediate components** (#286 anchored-
+traversal epic).
+
+In other words, the upstream `is_symlink()` guard does NOT prove
+that the inode `copyfile` opens is the same inode that
+`_durable_cross_device_move`'s caller intended to move. The audit
+finding is: **both the final-component and the ancestor-component
+symlink-swap windows are open at this callsite**. Closing them
+requires switching to an fd-pinned operation (open `src` once with
+`O_NOFOLLOW`, then stream from that fd into `tmp_path`) and lives
+in **PR5** (`undo/` migration) per #267.
+
+Why is the file still allowlisted today? The risk model for the
+undo subsystem is narrower than the organize-time content readers
+this epic targeted:
+
+- `durable_move` only operates on paths the caller previously
+  produced via undo's own state (journal entries reference paths
+  the daemon owns). User-controlled paths reach `durable_move` only
+  through the daemon's path-validation layer, not directly.
+- The trash/journal directories that `durable_move` writes into are
+  app-owned, not user-organize-root.
+
+That risk-model boundary is what the `_ALLOWLISTED_FILES` entry is
+recording — not a security proof. PR5's anchored-traversal migration
+upgrades it to a real proof.
 
 ### Conclusion
 
@@ -63,10 +88,19 @@ for `durable_move.py` belongs in **PR5** (`undo/` migration) per #267.
   `scripts/check_safedir_required.py` via
   `_ALLOWLISTED_FILES = frozenset({..., "src/undo/durable_move.py"})`.
   [VERIFIED in: scripts/check_safedir_required.py:64]
-- The `is_symlink()` guard at line 410 makes the `copyfile` path
-  unreachable for symlinks at the final component.
-- The intermediate-component TOCTOU is tracked separately (**#286**)
-  and the migration to `SafeDir.open_path_under` lives in **PR5**.
+- The `is_symlink()` guard at line 410 routes confirmed-symlink-at-
+  check-time inputs to the `os.replace()` branch. It does NOT prove
+  the file `copyfile` opens by path is the same inode that the
+  check examined — both the final-component and intermediate-component
+  symlink-swap windows are open.
+- Allowlisting is justified by the **undo-subsystem risk model**
+  (paths only reach `durable_move` through the daemon's
+  validation layer, not directly from user-organize-root) — not by
+  a TOCTOU-free proof at the syscall level.
+- Closing both windows requires fd-pinned (`O_NOFOLLOW`) handling
+  in `durable_move` itself. Tracked in **#286** for the broader
+  anchored-traversal effort and scheduled for **PR5** (`undo/`
+  migration) per #267.
 - No PR3j-scope code changes required for these callsites.
 
 ## Decision: streaming from fd vs stat-then-open from path
@@ -217,16 +251,21 @@ live tree at the head of this PR's base branch (`epic/safedir-readside-pr3`).
 
 ### Contradiction checklist
 
-- Audit findings (2 callsites, both safe via upstream guard) vs the
+- Audit findings (2 callsites, both allowlisted under the undo
+  subsystem's risk model, with both final-component and intermediate-
+  component TOCTOU windows open and tracked for PR5) vs the
   Conclusion section ("no PR3j-scope code changes required"): **consistent**.
 - "Streaming-vs-stat" decision section vs the "Exceptions" subsection
   (logging / display only, never security-relevant): **consistent** —
   exceptions are bounded by the explicit rule that they MUST NOT be
   security-relevant.
-- Audit claim "shutil.copyfile follows source symlinks by default" vs
-  conclusion "the callsite is symlink-safe": **consistent** because
-  the upstream `if src.is_symlink():` branch prevents `copyfile` from
-  ever seeing a symlink.
+- Audit claim "shutil.copyfile follows source symlinks by default"
+  vs conclusion "the callsite is allowlisted under the undo
+  risk-model boundary": **consistent** — the `is_symlink()` guard
+  doesn't TOCTOU-pin the inode (final-component swap window is
+  open), so the allowlist is justified by the upstream
+  path-validation guarantee, not by syscall-level safety. PR5
+  migrates to fd-pinned handling for a real proof.
 
 ### Cross-reference checks
 
