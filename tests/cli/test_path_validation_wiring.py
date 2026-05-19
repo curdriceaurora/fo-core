@@ -91,7 +91,7 @@ def test_benchmark_compare_directory_rejected(tmp_path: Path) -> None:
     compare_dir.mkdir()
     result = runner.invoke(app, ["benchmark", "run", str(input_dir), "--compare", str(compare_dir)])
     assert result.exit_code == 2
-    assert "not a regular file" in result.output.lower()
+    assert "not a regular file" in " ".join(result.output.lower().split())
 
 
 def test_analyze_directory_rejected_with_regular_file_message(tmp_path: Path) -> None:
@@ -103,4 +103,4 @@ def test_analyze_directory_rejected_with_regular_file_message(tmp_path: Path) ->
     d.mkdir()
     result = runner.invoke(app, ["analyze", str(d)])
     assert result.exit_code == 1
-    assert "not a regular file" in result.output.lower()
+    assert "not a regular file" in " ".join(result.output.lower().split())
