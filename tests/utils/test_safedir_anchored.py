@@ -20,14 +20,24 @@ import pytest
 from utils.readers import read_file_via_safedir_anchored
 from utils.safedir import SafeDir, SymlinkRejected
 
-# Mirrors tests/utils/test_readers_safedir.py: the suite exercises the
-# anchored-traversal primitive end-to-end through real filesystem syscalls,
-# so it counts as integration coverage for ``src/utils/safedir.py`` and
-# ``src/utils/readers/__init__.py``. Without ``integration``, the per-module
-# floor check in pr-integration.yml drops below the baseline whenever this
-# file's source coverage isn't seen in the integration run.
+# The suite exercises the anchored-traversal primitive end-to-end through
+# real filesystem syscalls, so it counts as integration coverage for
+# ``src/utils/safedir.py`` and ``src/utils/readers/__init__.py``. Without
+# ``integration``, the per-module floor check in pr-integration.yml drops
+# below the baseline whenever this file's source coverage isn't seen in
+# the integration run.
+#
+# NOTE on ``ci``: deliberately omitted from this file's marks. The
+# TextProcessorScanRoot tests below import ``services.text_processor.TextProcessor``,
+# which transitively pulls in the ``models`` package singletons. Under
+# ``-m ci`` (Test PR suite, xdist ``--dist=loadgroup``), that import
+# happens early enough in the collection to leak into the audio-model
+# singleton state — surfacing the pre-existing flake tracked in #291.
+# Test PR suite (``-m ci``) coverage is provided by the existing
+# tests/utils/test_readers_safedir.py and tests/services/test_text_processor.py;
+# this file's contribution is via ``-m unit`` (local) and ``-m integration``
+# (PR integration job).
 pytestmark = [
-    pytest.mark.ci,
     pytest.mark.unit,
     pytest.mark.integration,
     pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only"),
