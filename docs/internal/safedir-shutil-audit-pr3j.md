@@ -167,17 +167,26 @@ to obtain `st_size`, `st_mtime`, `st_mode`, etc. The path-based
 
 ### Exceptions (with rationale)
 
-A few sites legitimately use `path.stat()` before a SafeDir open. These
-are documented and acceptable because:
+A few sites legitimately use `path.stat()` before a SafeDir open. The
+**only** acceptable rationale is that the stat is used purely for
+**logging / display** — not for any security-relevant decision (e.g.,
+a "skip files larger than N MB" guard that's user-visible UX, not a
+security boundary). A path-based stat by definition re-traverses the
+path; if its result fed into a security decision, the swap-between-
+syscalls race is open.
 
-- The stat is used purely for **logging / display** — not for any
-  security-relevant decision (e.g., a "skip files larger than N MB"
-  guard that's user-visible UX, not a security boundary).
-- The stat happens **after** SafeDir-aware enumeration of the
-  containing directory, so the path is already trust-bounded.
+What is **not** sufficient rationale: "the path came from a
+SafeDir-aware enumeration." `safe_walk` (and similar enumerators)
+yield lexical `Path` objects, not inode-pinned handles. A writable
+parent can swap an entry between enumeration and a later
+`path.stat()`, and the post-enumeration path is no more
+trust-bounded for follow-up syscalls than any other path string. The
+documented contract on `SafeDir` says callers must route subsequent
+operations through `lstat` / `open_for_reader` for that reason.
 
 Each such site carries (or will carry) an inline comment explaining
-why the dual-stat pattern is safe in that context.
+why the dual-stat pattern is safe (logging/display only) in that
+context.
 
 ### What this rules out
 
