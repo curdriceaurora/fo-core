@@ -231,6 +231,11 @@ class DocumentExtractor:
             else:
                 if file_path is None:
                     raise TypeError("path-branch requires file_path")
+                # The opt-out marker below covers BOTH the bare open and the
+                # nearby ``pypdf.PdfReader(f)`` call (within
+                # ``_MARKER_WINDOW_BELOW=6``). Both belong to the same legacy
+                # fallback block — when SafeDir is unavailable we accept the
+                # path-based read end-to-end.
                 with open(
                     file_path, "rb"
                 ) as f:  # safedir: ok — Windows / NotImplementedError fallback

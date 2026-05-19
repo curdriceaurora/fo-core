@@ -32,6 +32,7 @@ sys.path.insert(0, str(_FO_ROOT / "scripts"))
 from check_safedir_required import (  # noqa: E402  — sys.path manipulation above
     _ALLOWLISTED_FILES,
     _FLAGGED_CALLS,
+    _READ_OPEN_ENFORCED_DIRS,
     _call_name,
     _collect_marker_comment_lines,
     _has_opt_out_in_window,
@@ -263,9 +264,17 @@ class TestLiveTreeAdvisory:
         If this fails, either a new bare-open read was added to a
         migrated file (route it through SafeDir or add a marker) or
         an existing marker has drifted out of the matching window.
-        """
-        from check_safedir_required import _READ_OPEN_ENFORCED_DIRS
 
+        Implicit contract: ``find_violations`` (the function that
+        backs ``scan_tree``) only emits Pass 2 detections when the
+        file is in ``_READ_OPEN_ENFORCED_DIRS`` — see
+        ``_file_under_enforced_dir`` in the checker script. So
+        filtering by call name alone is sufficient here; the
+        path-scope guard is inherited from the detector. If
+        ``find_violations`` is ever refactored to decouple path-scope
+        from emission, add an explicit ``_file_under_enforced_dir(path)``
+        guard below.
+        """
         # Sanity: enforcement is actually on (PR3i populated the set).
         assert _READ_OPEN_ENFORCED_DIRS, (
             "expected _READ_OPEN_ENFORCED_DIRS to be populated by PR3i; "
