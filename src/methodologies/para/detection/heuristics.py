@@ -795,7 +795,14 @@ class AIHeuristic(Heuristic):
 
         Falls back to a path-based open on Windows / when SafeDir is
         unavailable. Returns ``None`` on any I/O error or refused symlink.
+
+        Defensive: a non-positive *limit* (from a misconfigured
+        ``max_content_chars``) would otherwise make ``read(limit)`` read
+        the whole file, defeating the preview cap. Treat it as "no
+        content to read".
         """
+        if limit <= 0:
+            return None
         if sys.platform != "win32":
             try:
                 with SafeDir.open_root(file_path.parent) as safe_dir:

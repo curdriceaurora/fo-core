@@ -57,6 +57,14 @@ def read_text_safe(path: Path, limit: int = CORPUS_TEXT_LIMIT) -> str:
         Decoded text content, or an empty string if the file is binary,
         unreadable, or a refused symlink.
     """
+    # Defensive clamp: a non-positive limit would make the underlying
+    # ``read(n)`` calls read the whole file, bypassing the corpus cap
+    # (search-generation-patterns S3). Callers today pass
+    # ``CORPUS_TEXT_LIMIT`` or smaller, but the guard keeps the API
+    # safe against future regressions.
+    if limit <= 0:
+        return ""
+    limit = min(limit, CORPUS_TEXT_LIMIT)
     raw: bytes | None = None
     if sys.platform != "win32":
         try:
