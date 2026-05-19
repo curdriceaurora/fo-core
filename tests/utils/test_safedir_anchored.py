@@ -20,6 +20,19 @@ import pytest
 from utils.readers import read_file_via_safedir_anchored
 from utils.safedir import SafeDir, SymlinkRejected
 
+# Mirrors tests/utils/test_readers_safedir.py: the suite exercises the
+# anchored-traversal primitive end-to-end through real filesystem syscalls,
+# so it counts as integration coverage for ``src/utils/safedir.py`` and
+# ``src/utils/readers/__init__.py``. Without ``integration``, the per-module
+# floor check in pr-integration.yml drops below the baseline whenever this
+# file's source coverage isn't seen in the integration run.
+pytestmark = [
+    pytest.mark.ci,
+    pytest.mark.unit,
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only"),
+]
+
 posix_only = pytest.mark.skipif(
     sys.platform == "win32",
     reason="SafeDir requires POSIX dir_fd / O_NOFOLLOW",
@@ -188,24 +201,80 @@ class TestTextProcessorScanRoot:
     - With scan_root: anchored traversal kicks in for the LLM-ingestion path.
     """
 
-    def test_process_file_accepts_scan_root_kwarg(self, tmp_path: Path) -> None:
-        """Smoke test — verifies the signature accepts scan_root without raising.
+    def _mock_text_model(self) -> object:
+        """Build a MagicMock text model that satisfies TextProcessor's contract."""
+        from unittest.mock import MagicMock
 
-        The full behavioral test (anchored protection in the LLM path)
-        lives in the dedicated test_safedir_anchored module — this just
-        confirms the parameter plumbed through.
-        """
-        pytest.importorskip("ollama")  # TextProcessor needs the text model stack
+        from models.base import ModelType
 
+        model = MagicMock()
+        model.config.model_type = ModelType.TEXT
+        model.is_initialized = True
+        model.generate.return_value = "Mocked AI Response"
+        return model
+
+    def test_signature_accepts_scan_root(self, tmp_path: Path) -> None:
+        """Smoke test: kwarg appears in the function signature."""
         from services.text_processor import TextProcessor
 
-        # Construction without a real model: rely on a stub or skip if unavail.
-        try:
-            processor = TextProcessor()
-        except Exception:
-            pytest.skip("TextProcessor cannot construct without provider")
-
-        (tmp_path / "doc.txt").write_text("hello")
-        # Just verify the kwarg is accepted by the signature.
+        processor = TextProcessor(text_model=self._mock_text_model())
         sig_params = processor.process_file.__code__.co_varnames
         assert "scan_root" in sig_params
+
+    def test_scan_root_exercises_anchored_path(self, tmp_path: Path) -> None:
+        """Calling process_file with scan_root walks intermediates anchored.
+
+        Verifies an ancestor symlink under scan_root causes the read to
+        be refused — which the parent-rooted path would silently
+        dereference. Covers the new branch in process_file end-to-end.
+        """
+        from services.text_processor import TextProcessor
+
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "secret.txt").write_text("attacker content")
+
+        inside = tmp_path / "inside"
+        inside.mkdir()
+        (inside / "evil").symlink_to(outside)
+
+        # Caller "discovered" inside/evil/secret.txt during a walk and now
+        # asks TextProcessor to read it under the anchored root `inside`.
+        victim = inside / "evil" / "secret.txt"
+
+        processor = TextProcessor(text_model=self._mock_text_model())
+        result = processor.process_file(
+            victim,
+            generate_description=False,
+            generate_folder=False,
+            generate_filename=False,
+            scan_root=inside,
+        )
+        # The anchored path refuses the read (via SymlinkRejected on the
+        # 'evil' intermediate). The wrapper catches it and returns a
+        # ProcessedFile with the "Refused to read symlink" error.
+        assert result.error is not None
+        assert "symlink" in result.error.lower()
+        # Crucially, no attacker content reached the model.
+        assert result.original_content is None or "attacker" not in (result.original_content or "")
+
+    def test_scan_root_none_uses_parent_rooted_path(self, tmp_path: Path) -> None:
+        """When scan_root is None (default), legacy parent-rooted SafeDir open.
+
+        Same behaviour as PR3a–PR3i — covers the else branch.
+        """
+        from services.text_processor import TextProcessor
+
+        leaf = tmp_path / "doc.txt"
+        leaf.write_text("legitimate content")
+
+        processor = TextProcessor(text_model=self._mock_text_model())
+        result = processor.process_file(
+            leaf,
+            generate_description=False,
+            generate_folder=False,
+            generate_filename=False,
+            # scan_root omitted — default None
+        )
+        # No error; the parent-rooted SafeDir open succeeded.
+        assert result.error is None
