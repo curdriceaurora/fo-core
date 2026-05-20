@@ -21,23 +21,20 @@ from utils.readers import read_file_via_safedir_anchored
 from utils.safedir import SafeDir, SymlinkRejected
 
 # The suite exercises the anchored-traversal primitive end-to-end through
-# real filesystem syscalls, so it counts as integration coverage for
-# ``src/utils/safedir.py`` and ``src/utils/readers/__init__.py``. Without
-# ``integration``, the per-module floor check in pr-integration.yml drops
-# below the baseline whenever this file's source coverage isn't seen in
-# the integration run.
+# real filesystem syscalls. Module-level marks apply to every class in
+# this file:
 #
-# NOTE on ``ci``: deliberately omitted from this file's marks. The
-# TextProcessorScanRoot tests below import ``services.text_processor.TextProcessor``,
-# which transitively pulls in the ``models`` package singletons. Under
-# ``-m ci`` (Test PR suite, xdist ``--dist=loadgroup``), that import
-# happens early enough in the collection to leak into the audio-model
-# singleton state — surfacing the pre-existing flake tracked in #291.
-# Test PR suite (``-m ci``) coverage is provided by the existing
-# tests/utils/test_readers_safedir.py and tests/services/test_text_processor.py;
-# this file's contribution is via ``-m unit`` (local) and ``-m integration``
-# (PR integration job).
+# - ``ci``: included so the new SafeDir primitive + reader wrapper get
+#   diff-coverage credit in the Test PR suite (``-m "ci and not benchmark"``).
+#   The TextProcessorScanRoot class below explicitly overrides this with a
+#   per-class ``ci=False`` skipif to avoid #291 (audio-model singleton
+#   ordering flake) — see the class-level pytestmark for the rationale.
+# - ``unit``: local development sweep.
+# - ``integration``: PR integration job. The per-module floor check in
+#   pr-integration.yml drops below the baseline whenever this file's
+#   source coverage isn't seen in the integration run.
 pytestmark = [
+    pytest.mark.ci,
     pytest.mark.unit,
     pytest.mark.integration,
     pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only"),
@@ -200,93 +197,7 @@ class TestReadFileViaSafedirAnchored:
         assert out is None
 
 
-# ---------------------------------------------------------------------------
-# Backward-compat: text_processor.process_file with optional scan_root
-# ---------------------------------------------------------------------------
-
-
-@posix_only
-class TestTextProcessorScanRoot:
-    """``TextProcessor.process_file`` accepts an optional scan_root.
-
-    - Without scan_root: behavior is unchanged (parent-rooted SafeDir open).
-    - With scan_root: anchored traversal kicks in for the LLM-ingestion path.
-    """
-
-    def _mock_text_model(self) -> object:
-        """Build a MagicMock text model that satisfies TextProcessor's contract."""
-        from unittest.mock import MagicMock
-
-        from models.base import ModelType
-
-        model = MagicMock()
-        model.config.model_type = ModelType.TEXT
-        model.is_initialized = True
-        model.generate.return_value = "Mocked AI Response"
-        return model
-
-    def test_signature_accepts_scan_root(self, tmp_path: Path) -> None:
-        """Smoke test: kwarg appears in the function signature."""
-        from services.text_processor import TextProcessor
-
-        processor = TextProcessor(text_model=self._mock_text_model())
-        sig_params = processor.process_file.__code__.co_varnames
-        assert "scan_root" in sig_params
-
-    def test_scan_root_exercises_anchored_path(self, tmp_path: Path) -> None:
-        """Calling process_file with scan_root walks intermediates anchored.
-
-        Verifies an ancestor symlink under scan_root causes the read to
-        be refused — which the parent-rooted path would silently
-        dereference. Covers the new branch in process_file end-to-end.
-        """
-        from services.text_processor import TextProcessor
-
-        outside = tmp_path / "outside"
-        outside.mkdir()
-        (outside / "secret.txt").write_text("attacker content")
-
-        inside = tmp_path / "inside"
-        inside.mkdir()
-        (inside / "evil").symlink_to(outside)
-
-        # Caller "discovered" inside/evil/secret.txt during a walk and now
-        # asks TextProcessor to read it under the anchored root `inside`.
-        victim = inside / "evil" / "secret.txt"
-
-        processor = TextProcessor(text_model=self._mock_text_model())
-        result = processor.process_file(
-            victim,
-            generate_description=False,
-            generate_folder=False,
-            generate_filename=False,
-            scan_root=inside,
-        )
-        # The anchored path refuses the read (via SymlinkRejected on the
-        # 'evil' intermediate). The wrapper catches it and returns a
-        # ProcessedFile with the "Refused to read symlink" error.
-        assert result.error is not None
-        assert "symlink" in result.error.lower()
-        # Crucially, no attacker content reached the model.
-        assert result.original_content is None or "attacker" not in (result.original_content or "")
-
-    def test_scan_root_none_uses_parent_rooted_path(self, tmp_path: Path) -> None:
-        """When scan_root is None (default), legacy parent-rooted SafeDir open.
-
-        Same behaviour as PR3a–PR3i — covers the else branch.
-        """
-        from services.text_processor import TextProcessor
-
-        leaf = tmp_path / "doc.txt"
-        leaf.write_text("legitimate content")
-
-        processor = TextProcessor(text_model=self._mock_text_model())
-        result = processor.process_file(
-            leaf,
-            generate_description=False,
-            generate_folder=False,
-            generate_filename=False,
-            # scan_root omitted — default None
-        )
-        # No error; the parent-rooted SafeDir open succeeded.
-        assert result.error is None
+# NOTE: ``TestTextProcessorScanRoot`` lives in
+# ``tests/services/test_text_processor_scan_root.py`` (kept off the
+# ``ci`` mark to avoid #291's audio-model singleton ordering flake —
+# see that file's module docstring for the full rationale).
