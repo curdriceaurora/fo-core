@@ -44,7 +44,7 @@ def _backup_safe_unlink(path: Path, log: logging.Logger) -> bool:
 
     On Windows (no SafeDir support) falls back to plain unlink.
     """
-    if sys.platform == "win32":
+    if sys.platform == "win32":  # pragma: no cover - platform skip
         try:
             path.unlink()
             return True

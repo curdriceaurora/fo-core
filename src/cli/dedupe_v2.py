@@ -196,7 +196,7 @@ def _dedupe_unlink(path: Path, renderer: Renderer) -> bool:
 
     Returns True if the file was removed, False on error or refusal.
     """
-    if sys.platform == "win32":
+    if sys.platform == "win32":  # pragma: no cover - platform skip
         try:
             path.unlink()
             renderer.render_resolve_action("removed", path)

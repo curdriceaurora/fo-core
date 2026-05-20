@@ -25,7 +25,7 @@ try:
     import numpy as np
 
     _NUMPY_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - numpy always installed in CI
     np = None
     _NUMPY_AVAILABLE = False
 

@@ -352,6 +352,29 @@ class TestDedupeSymlinkSafety:
         assert not victim.exists()
         assert any(a[0] == "removed" for a in renderer.actions)
 
+    def test_dedupe_unlink_oserror_handled(self, tmp_path: Path) -> None:
+        """_dedupe_unlink returns False and logs on OSError during SafeDir unlink."""
+        from unittest.mock import patch
+
+        from cli.dedupe_v2 import _dedupe_unlink
+
+        victim = tmp_path / "victim.txt"
+        victim.write_text("content")
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action,))
+
+        renderer = _FakeRenderer()
+        with patch("utils.safedir.SafeDir.unlink", side_effect=OSError("busy")):
+            result = _dedupe_unlink(victim, renderer)
+
+        assert result is False
+        assert any(a[0] == "error" for a in renderer.actions)
+
     def test_dedupe_unlink_inode_mismatch_detected(self, tmp_path: Path) -> None:
         """_dedupe_unlink refuses if lstat triple differs from pin_inode triple."""
         import logging
