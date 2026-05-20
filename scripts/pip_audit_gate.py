@@ -44,6 +44,7 @@ class AllowlistEntry:
     version_spec: SpecifierSet
     reason: str
     expires_on: date
+    platform: str | None = None
 
 
 @dataclass
@@ -81,6 +82,7 @@ def load_allowlist(path: Path) -> list[AllowlistEntry]:
                 version_spec=SpecifierSet(item["version_spec"]),
                 reason=item["reason"],
                 expires_on=_parse_date(item["expires_on"]),
+                platform=item.get("platform"),
             )
         )
     return entries
@@ -113,6 +115,7 @@ def evaluate(  # noqa: C901 — gate policy is inherently multi-rule; splitting 
     allowlist: list[AllowlistEntry],
     *,
     today: date,
+    current_platform: str | None = None,
 ) -> GateResult:
     """Decide whether the audit + allowlist pair should fail the build.
 
@@ -192,6 +195,9 @@ def evaluate(  # noqa: C901 — gate policy is inherently multi-rule; splitting 
     for idx, entry in enumerate(allowlist):
         if idx in expired_indexes:
             continue  # already counted as stale
+        _this_platform = current_platform if current_platform is not None else sys.platform
+        if entry.platform is not None and entry.platform != _this_platform:
+            continue  # platform-conditional entry; skip on non-matching OS
         if entry.package not in audited_names:
             result.unused_entries.append(
                 f"{entry.advisory_id} ({entry.package}) — package not installed"

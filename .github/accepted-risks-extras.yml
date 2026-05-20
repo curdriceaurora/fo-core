@@ -14,6 +14,9 @@
 #   - version_spec: string, PEP 440 specifier
 #   - reason      : string, why the code path is unreachable for fo-core
 #   - expires_on  : YYYY-MM-DD (≤ 6 months from add date)
+#   - platform    : string, optional sys.platform value (e.g. "darwin");
+#                   when set the entry is silently skipped on non-matching
+#                   platforms — use for macOS-only transitive deps
 
 allowlist:
   - advisory_id: CVE-2025-69872
@@ -39,3 +42,211 @@ allowlist:
       upstream fix is expected. Re-evaluate when pytest drops the ``py``
       dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
     expires_on: 2026-10-23
+  # torch 2.12.0 — 11 advisories, no patched release available as of 2026-05-20.
+  # fo-core uses torch transitively via imagededup ([dedup-image]) and
+  # faster-whisper ([media]). It never calls torch.load() on user-provided or
+  # untrusted model files; models are downloaded from official HuggingFace
+  # repos at install/first-run time only. Re-evaluate when torch 2.13+ ships.
+  - advisory_id: PYSEC-2025-189
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-190
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-191
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-192
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-193
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-194
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-195
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-196
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-197
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-210
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2026-139
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  # joblib 1.5.3 — PYSEC-2024-277, no patched release available as of 2026-05-20.
+  # Transitive via scikit-learn ([dedup-text] / [search] extras). fo-core never
+  # calls joblib.load() on untrusted data; joblib is used internally by sklearn
+  # for parallelism only. Re-evaluate when joblib ships a patched release.
+  - advisory_id: PYSEC-2024-277
+    package: joblib
+    version_spec: "==1.5.3"
+    reason: >-
+      Arbitrary code execution via joblib.load() on untrusted data. fo-core
+      never calls joblib.load() directly; joblib is a transitive sklearn
+      dependency used for internal parallelism only.
+    expires_on: 2026-11-20
+  # ollama 0.6.2 — same 6 advisories as in accepted-risks.yml, duplicated here
+  # because the extras audit installs .[all] which includes ollama as a base dep.
+  - advisory_id: PYSEC-2025-144
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-145
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-146
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-147
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2026-101
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2026-102
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  # transformers 5.8.1 — 8 advisories, no patched release available as of 2026-05-20.
+  # Transitive via faster-whisper ([media] extra) on macOS only; faster-whisper
+  # is not installed on linux runners (no mlx/apple-silicon support). fo-core
+  # never loads user-supplied model weights or runs untrusted deserialization
+  # through transformers. Re-evaluate when transformers ships a patched 5.x
+  # release. `platform: darwin` limits gate enforcement to macOS runners.
+  - advisory_id: PYSEC-2025-211
+    package: transformers
+    version_spec: "==5.8.1"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-212
+    package: transformers
+    version_spec: "==5.8.1"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-213
+    package: transformers
+    version_spec: "==5.8.1"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-214
+    package: transformers
+    version_spec: "==5.8.1"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-215
+    package: transformers
+    version_spec: "==5.8.1"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-216
+    package: transformers
+    version_spec: "==5.8.1"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-217
+    package: transformers
+    version_spec: "==5.8.1"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-218
+    package: transformers
+    version_spec: "==5.8.1"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
