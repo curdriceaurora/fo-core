@@ -103,7 +103,7 @@ same path.
 - In `RollbackExecutor.rollback_move`, before calling `self._move(destination,
   source)`:
   1. Check if `operation.dest_dev` is not None (new-style row).
-  2. If yes: `os.stat(destination)` and compare `(st_dev, st_ino)` to the
+  2. If yes: `os.lstat(destination)` and compare `(st_dev, st_ino)` to the
      recorded triple.
   3. On mismatch: log `security_event undo_inode_mismatch`, refuse with a
      clear error string, return `False`.

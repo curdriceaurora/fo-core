@@ -611,6 +611,39 @@ class TestUndoSymlinkSafety:
         assert result is True
         assert src.read_bytes() == b"legacy content"
 
+    def test_undo_partial_metadata_treated_as_legacy(self, tmp_path: Path) -> None:
+        """A row with dest_dev but no dest_ino is treated as legacy — no inode check."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "partial_src.txt"
+        dst = tmp_path / "partial_dst.txt"
+        dst.write_bytes(b"partial content")
+
+        # dest_dev present but dest_ino missing — partial / broken row.
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": 42},  # dest_ino intentionally absent
+        )
+        assert op.dest_dev == 42
+        assert op.dest_ino is None  # partial row
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+        result = executor.rollback_move(op)
+
+        # Falls back to legacy path — no inode mismatch refuse
+        assert result is True
+        assert src.read_bytes() == b"partial content"
+
     def test_undo_refuses_when_destination_missing(self, tmp_path: Path) -> None:
         """Undo refuses when the destination file no longer exists."""
         from datetime import UTC, datetime

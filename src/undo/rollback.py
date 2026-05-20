@@ -176,8 +176,13 @@ class RollbackExecutor:
 
         logger.info(f"Rolling back move: {destination} -> {source}")
 
-        # PR5c inode verification — POSIX only.
-        if sys.platform != "win32" and operation.dest_dev is not None:
+        # PR5c inode verification — POSIX only; requires both fields (partial
+        # rows from broken writes or legacy DBs fall back to legacy path).
+        if (
+            sys.platform != "win32"
+            and operation.dest_dev is not None
+            and operation.dest_ino is not None
+        ):
             if not self._verify_dst_inode(operation, destination):
                 return False
 

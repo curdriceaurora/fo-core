@@ -32,10 +32,10 @@ Files originally listed in issue #286:
 | `src/core/organizer.py` | none | ✅ Clean |
 | `src/services/audio/organizer.py` | none | ✅ Clean |
 | `src/services/video/organizer.py` | none | ✅ Clean |
-| `src/undo/validator.py:543` | `self.trash_dir.rglob(filename)` | ✅ See note below |
+| `src/undo/validator.py:545` | `self.trash_dir.rglob(filename)` | ✅ See note below |
 | All other `src/undo/*.py` | none | ✅ Clean |
 
-### `src/undo/validator.py:543` — system-managed root
+### `src/undo/validator.py:545` — system-managed root
 
 ```python
 # safedir: ok — system-managed trash dir (not user-supplied root);
@@ -78,6 +78,6 @@ hardening PR (after PR6, which addresses the organize-path symlink vector).
 All files in the #286 scope are confirmed safe or opted out with documented rationale.
 No functional code change was required beyond:
 
-1. `# safedir: ok` comment on `validator.py:543`
+1. `# safedir: ok` comment on `validator.py:545`
 
 Issue #286 can be closed.
