@@ -589,3 +589,482 @@ def test_read_rtf_file_returns_text(tmp_path: Path) -> None:
     result = read_file(rtf_file)
     assert result is not None
     assert "Hello RTF" in result
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Coverage-hardening tests: fileobj paths, ValueError branches, ImportError
+# branches for optional libraries, and unsupported-suffix paths.
+# ────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestDocumentsMissingLibraries:
+    """Tests for ImportError branches when optional libraries are absent."""
+
+    @patch("utils.readers.documents.DOCX_AVAILABLE", False)
+    def test_read_docx_raises_import_error_when_unavailable(self) -> None:
+        """Patch DOCX_AVAILABLE to False → read_docx_file raises ImportError."""
+        from utils.readers.documents import read_docx_file as _read_docx
+
+        with pytest.raises(ImportError, match="python-docx"):
+            _read_docx(Path("dummy.docx"))
+
+    @patch("utils.readers.documents.PYMUPDF_AVAILABLE", False)
+    def test_read_pdf_raises_import_error_when_unavailable(self) -> None:
+        """Patch PYMUPDF_AVAILABLE to False → read_pdf_file raises ImportError."""
+        from utils.readers.documents import read_pdf_file as _read_pdf
+
+        with pytest.raises(ImportError, match="PyMuPDF"):
+            _read_pdf(Path("dummy.pdf"))
+
+    @patch("utils.readers.documents.STRIPRTF_AVAILABLE", False)
+    def test_read_rtf_raises_import_error_when_unavailable(self) -> None:
+        """Patch STRIPRTF_AVAILABLE to False → read_rtf_file raises ImportError."""
+        from utils.readers.documents import read_rtf_file as _read_rtf
+
+        with pytest.raises(ImportError, match="striprtf"):
+            _read_rtf(Path("dummy.rtf"))
+
+    @patch("utils.readers.documents.OPENPYXL_AVAILABLE", False)
+    def test_read_spreadsheet_xlsx_raises_import_error_when_unavailable(self) -> None:
+        """Patch OPENPYXL_AVAILABLE to False → spreadsheet reader raises ImportError for xlsx."""
+        import io
+
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        # Use fileobj so the extension is taken from file_path without needing the file to exist
+        fileobj = io.BytesIO(b"fake xlsx bytes")
+        with pytest.raises(ImportError, match="openpyxl"):
+            _read_ss(file_path="test.xlsx", fileobj=fileobj)
+
+    @patch("utils.readers.documents.PPTX_AVAILABLE", False)
+    def test_read_presentation_raises_import_error_when_unavailable(self) -> None:
+        """Patch PPTX_AVAILABLE to False → read_presentation_file raises ImportError."""
+        from utils.readers.documents import read_presentation_file as _read_pptx
+
+        with pytest.raises(ImportError, match="python-pptx"):
+            _read_pptx(Path("dummy.pptx"))
+
+
+@pytest.mark.unit
+class TestDocumentsValueErrorPaths:
+    """Tests for ValueError when neither file_path nor fileobj is provided."""
+
+    def test_read_text_file_no_args_raises_value_error(self) -> None:
+        from utils.readers.documents import read_text_file as _read_text
+
+        with pytest.raises(ValueError, match="read_text_file requires"):
+            _read_text()
+
+    @patch("utils.readers.documents.DOCX_AVAILABLE", True)
+    def test_read_docx_file_no_args_raises_value_error(self) -> None:
+        from utils.readers.documents import read_docx_file as _read_docx
+
+        with pytest.raises(ValueError, match="read_docx_file requires"):
+            _read_docx()
+
+    @patch("utils.readers.documents.PYMUPDF_AVAILABLE", True)
+    def test_read_pdf_file_no_args_raises_value_error(self) -> None:
+        from utils.readers.documents import read_pdf_file as _read_pdf
+
+        with pytest.raises(ValueError, match="read_pdf_file requires"):
+            _read_pdf()
+
+    @patch("utils.readers.documents.STRIPRTF_AVAILABLE", True)
+    def test_read_rtf_file_no_args_raises_value_error(self) -> None:
+        from utils.readers.documents import read_rtf_file as _read_rtf
+
+        with pytest.raises(ValueError, match="read_rtf_file requires"):
+            _read_rtf()
+
+    def test_read_spreadsheet_file_no_args_raises_value_error(self) -> None:
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        with pytest.raises(ValueError, match="read_spreadsheet_file requires"):
+            _read_ss()
+
+    @patch("utils.readers.documents.PPTX_AVAILABLE", True)
+    def test_read_presentation_file_no_args_raises_value_error(self) -> None:
+        from utils.readers.documents import read_presentation_file as _read_pptx
+
+        with pytest.raises(ValueError, match="read_presentation_file requires"):
+            _read_pptx()
+
+
+@pytest.mark.unit
+class TestDocumentsFileobjPaths:
+    """Tests for fileobj= entry points (SafeDir-friendly paths)."""
+
+    def test_read_text_file_via_fileobj(self, tmp_path: Path) -> None:
+        """read_text_file accepts a binary fileobj and returns decoded text."""
+        import io
+
+        from utils.readers.documents import read_text_file as _read_text
+
+        content = b"Hello from fileobj\nLine 2"
+        fileobj = io.BytesIO(content)
+        result = _read_text(fileobj=fileobj)
+        assert "Hello from fileobj" in result
+        assert "Line 2" in result
+
+    def test_read_text_file_via_fileobj_with_label(self, tmp_path: Path) -> None:
+        """read_text_file uses file_path for label only when fileobj provided."""
+        import io
+
+        from utils.readers.documents import read_text_file as _read_text
+
+        content = b"Labelled content"
+        fileobj = io.BytesIO(content)
+        result = _read_text(file_path="myfile.txt", fileobj=fileobj)
+        assert "Labelled content" in result
+
+    @patch("utils.readers.documents.DOCX_AVAILABLE", True)
+    @patch("utils.readers.documents.docx", create=True)
+    def test_read_docx_file_via_fileobj(self, mock_docx: MagicMock) -> None:
+        """read_docx_file accepts a binary fileobj."""
+        import io
+
+        from utils.readers.documents import read_docx_file as _read_docx
+
+        mock_doc = MagicMock()
+        mock_para = MagicMock()
+        mock_para.text = "Fileobj paragraph"
+        mock_doc.paragraphs = [mock_para]
+        mock_docx.Document.return_value = mock_doc
+
+        fileobj = io.BytesIO(b"fake docx bytes")
+        result = _read_docx(fileobj=fileobj)
+        assert "Fileobj paragraph" in result
+
+    @patch("utils.readers.documents.DOCX_AVAILABLE", True)
+    @patch("utils.readers.documents.docx", create=True)
+    def test_read_docx_file_via_fileobj_raises_file_read_error(self, mock_docx: MagicMock) -> None:
+        """Exceptions from python-docx when using fileobj are wrapped as FileReadError."""
+        import io
+
+        from utils.readers.documents import read_docx_file as _read_docx
+
+        mock_docx.Document.side_effect = RuntimeError("corrupted docx")
+        fileobj = io.BytesIO(b"bad bytes")
+        with pytest.raises(FileReadError, match="Failed to read DOCX"):
+            _read_docx(fileobj=fileobj)
+
+    @patch("utils.readers.documents.PYMUPDF_AVAILABLE", True)
+    @patch("utils.readers.documents.fitz", create=True)
+    def test_read_pdf_file_via_fileobj_falls_back_to_in_memory(self, mock_fitz: MagicMock) -> None:
+        """read_pdf_file with a BytesIO fileobj falls back to in-memory open (no real fd)."""
+        import io
+
+        from utils.readers.documents import read_pdf_file as _read_pdf
+
+        mock_doc = MagicMock()
+        mock_doc.__len__.return_value = 1
+        mock_page = MagicMock()
+        mock_page.get_text.return_value = "PDF page text"
+        mock_doc.load_page.return_value = mock_page
+        # fitz.open() is a context manager
+        mock_fitz.open.return_value.__enter__.return_value = mock_doc
+        mock_fitz.open.return_value.__exit__.return_value = False
+
+        # BytesIO has no real fd, so fileno() raises io.UnsupportedOperation (OSError subclass)
+        fileobj = io.BytesIO(b"%PDF-1.4 fake pdf bytes")
+        result = _read_pdf(fileobj=fileobj)
+        assert "PDF page text" in result
+
+    @patch("utils.readers.documents.PYMUPDF_AVAILABLE", True)
+    @patch("utils.readers.documents.fitz", create=True)
+    def test_read_pdf_file_via_fileobj_raises_file_read_error(self, mock_fitz: MagicMock) -> None:
+        """Exceptions from PyMuPDF when using fileobj are wrapped as FileReadError."""
+        import io
+
+        from utils.readers.documents import read_pdf_file as _read_pdf
+
+        mock_fitz.open.side_effect = RuntimeError("corrupted pdf")
+        fileobj = io.BytesIO(b"bad bytes")
+        with pytest.raises(FileReadError, match="Failed to read PDF"):
+            _read_pdf(fileobj=fileobj)
+
+    @patch("utils.readers.documents.STRIPRTF_AVAILABLE", True)
+    @patch("utils.readers.documents._rtf_to_text", create=True)
+    def test_read_rtf_file_via_fileobj(self, mock_rtf_to_text: MagicMock) -> None:
+        """read_rtf_file accepts a binary fileobj."""
+        import io
+
+        from utils.readers.documents import read_rtf_file as _read_rtf
+
+        mock_rtf_to_text.return_value = "Plain text from RTF"
+        fileobj = io.BytesIO(b"{\\rtf1 Hello}")
+        result = _read_rtf(fileobj=fileobj)
+        assert "Plain text from RTF" in result
+
+    @patch("utils.readers.documents.STRIPRTF_AVAILABLE", True)
+    @patch("utils.readers.documents._rtf_to_text", create=True)
+    def test_read_rtf_file_via_fileobj_raises_file_read_error(
+        self, mock_rtf_to_text: MagicMock
+    ) -> None:
+        """Exceptions from striprtf when using fileobj are wrapped as FileReadError."""
+        import io
+
+        from utils.readers.documents import read_rtf_file as _read_rtf
+
+        mock_rtf_to_text.side_effect = RuntimeError("rtf parse failure")
+        fileobj = io.BytesIO(b"bad rtf")
+        with pytest.raises(FileReadError, match="Failed to read RTF"):
+            _read_rtf(fileobj=fileobj)
+
+    def test_read_spreadsheet_csv_via_fileobj(self, tmp_path: Path) -> None:
+        """read_spreadsheet_file accepts a binary fileobj for CSV."""
+        import io
+
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        csv_bytes = b"Name,Score\nAlice,100\nBob,90"
+        fileobj = io.BytesIO(csv_bytes)
+        result = _read_ss(file_path="data.csv", fileobj=fileobj)
+        assert "Name,Score" in result
+        assert "Alice,100" in result
+
+    @patch("utils.readers.documents.OPENPYXL_AVAILABLE", True)
+    @patch("utils.readers.documents.openpyxl", create=True)
+    def test_read_spreadsheet_xlsx_via_fileobj(self, mock_openpyxl: MagicMock) -> None:
+        """read_spreadsheet_file accepts a binary fileobj for XLSX."""
+        import io
+
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        mock_ws = MagicMock()
+        mock_ws.iter_rows.return_value = [(("col1", "col2"),), (("a", "b"),)]
+        mock_wb = MagicMock()
+        mock_wb.active = mock_ws
+        mock_openpyxl.load_workbook.return_value = mock_wb
+
+        fileobj = io.BytesIO(b"fake xlsx")
+        result = _read_ss(file_path="data.xlsx", fileobj=fileobj)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    def test_read_spreadsheet_unsupported_suffix_raises_file_read_error(self) -> None:
+        """read_spreadsheet_file with an unsupported extension raises FileReadError."""
+        import io
+
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        # Use fileobj so the extension is taken from file_path without needing the file to exist;
+        # the unsupported-suffix guard fires inside _dispatch_spreadsheet before any I/O.
+        fileobj = io.BytesIO(b"irrelevant")
+        with pytest.raises(FileReadError, match="Unsupported"):
+            _read_ss(file_path="test.txt", fileobj=fileobj)
+
+    @patch("utils.readers.documents.OPENPYXL_AVAILABLE", True)
+    @patch("utils.readers.documents.openpyxl", create=True)
+    def test_read_spreadsheet_fileobj_raises_file_read_error_on_exception(
+        self, mock_openpyxl: MagicMock
+    ) -> None:
+        """Generic exceptions from openpyxl via fileobj are wrapped as FileReadError."""
+        import io
+
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        mock_openpyxl.load_workbook.side_effect = RuntimeError("xlsx parse failed")
+        fileobj = io.BytesIO(b"bad xlsx")
+        with pytest.raises(FileReadError, match="Failed to read spreadsheet"):
+            _read_ss(file_path="data.xlsx", fileobj=fileobj)
+
+    @patch("utils.readers.documents.PPTX_AVAILABLE", True)
+    @patch("utils.readers.documents.Presentation", create=True)
+    def test_read_presentation_via_fileobj(self, mock_prs_cls: MagicMock) -> None:
+        """read_presentation_file accepts a binary fileobj."""
+        import io
+
+        from utils.readers.documents import read_presentation_file as _read_pptx
+
+        mock_prs = MagicMock()
+        mock_slide = MagicMock()
+        mock_shape = MagicMock()
+        mock_shape.text = "Slide text from fileobj"
+        mock_slide.shapes = [mock_shape]
+        mock_prs.slides = [mock_slide]
+        mock_prs_cls.return_value = mock_prs
+
+        fileobj = io.BytesIO(b"fake pptx")
+        result = _read_pptx(fileobj=fileobj)
+        assert "Slide 1" in result
+        assert "Slide text from fileobj" in result
+
+    @patch("utils.readers.documents.PPTX_AVAILABLE", True)
+    @patch("utils.readers.documents.Presentation", create=True)
+    def test_read_presentation_via_fileobj_raises_file_read_error(
+        self, mock_prs_cls: MagicMock
+    ) -> None:
+        """Exceptions from python-pptx via fileobj are wrapped as FileReadError."""
+        import io
+
+        from utils.readers.documents import read_presentation_file as _read_pptx
+
+        mock_prs_cls.side_effect = RuntimeError("corrupted pptx")
+        fileobj = io.BytesIO(b"bad bytes")
+        with pytest.raises(FileReadError, match="Failed to read presentation"):
+            _read_pptx(fileobj=fileobj)
+
+
+@pytest.mark.unit
+class TestDocumentsRtfPathBranch:
+    """Tests for read_rtf_file path-based branch error handling."""
+
+    @patch("utils.readers.documents.STRIPRTF_AVAILABLE", True)
+    @patch("utils.readers.documents._rtf_to_text", create=True)
+    def test_read_rtf_file_path_raises_file_read_error(
+        self, mock_rtf_to_text: MagicMock, tmp_path: Path
+    ) -> None:
+        """Exceptions from striprtf via path branch are wrapped as FileReadError."""
+        from utils.readers.documents import read_rtf_file as _read_rtf
+
+        mock_rtf_to_text.side_effect = RuntimeError("parse failure")
+        rtf_file = tmp_path / "sample.rtf"
+        rtf_file.write_bytes(b"{\\rtf1 bad}")
+        with pytest.raises(FileReadError, match="Failed to read RTF"):
+            _read_rtf(rtf_file)
+
+
+@pytest.mark.unit
+class TestDocumentsPdfLazyParsing:
+    """Tests for _parse_pdf_stream fallback when fileno() raises OSError."""
+
+    @patch("utils.readers.documents.PYMUPDF_AVAILABLE", True)
+    @patch("utils.readers.documents.fitz", create=True)
+    def test_pdf_fileobj_with_real_fd_uses_dev_fd_path(
+        self, mock_fitz: MagicMock, tmp_path: Path
+    ) -> None:
+        """When fileobj has a real fd, _parse_pdf_stream uses /dev/fd/{fd}."""
+        from utils.readers.documents import read_pdf_file as _read_pdf
+
+        mock_doc = MagicMock()
+        mock_doc.__len__.return_value = 1
+        mock_page = MagicMock()
+        mock_page.get_text.return_value = "PDF from fd"
+        mock_doc.load_page.return_value = mock_page
+        mock_fitz.open.return_value.__enter__.return_value = mock_doc
+        mock_fitz.open.return_value.__exit__.return_value = False
+
+        pdf_file = tmp_path / "real.pdf"
+        pdf_file.write_bytes(b"%PDF-1.4 minimal")
+        with pdf_file.open("rb") as f:
+            result = _read_pdf(file_path="real.pdf", fileobj=f)
+        assert "PDF from fd" in result
+
+
+@pytest.mark.unit
+class TestDocumentsRowLimitBranches:
+    """Tests for max_rows break branches in _parse_csv and _parse_xlsx."""
+
+    def test_parse_csv_respects_max_rows(self, tmp_path: Path) -> None:
+        """_parse_csv stops at max_rows — covers the break on line 288."""
+        import io
+
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        # 5 data rows; limit to 2
+        csv_bytes = b"a\nb\nc\nd\ne\n"
+        fileobj = io.BytesIO(csv_bytes)
+        result = _read_ss(file_path="data.csv", max_rows=2, fileobj=fileobj)
+        lines = [ln for ln in result.splitlines() if ln]
+        assert len(lines) == 2
+        assert lines[0] == "a"
+        assert lines[1] == "b"
+
+    @patch("utils.readers.documents.OPENPYXL_AVAILABLE", True)
+    @patch("utils.readers.documents.openpyxl", create=True)
+    def test_parse_xlsx_respects_max_rows(self, mock_openpyxl: MagicMock) -> None:
+        """_parse_xlsx stops at max_rows — covers the break on line 303."""
+        import io
+
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        # Simulate 5 rows returned by iter_rows; limit to 3
+        mock_ws = MagicMock()
+        mock_ws.iter_rows.return_value = [
+            ("row1col1",),
+            ("row2col1",),
+            ("row3col1",),
+            ("row4col1",),
+            ("row5col1",),
+        ]
+        mock_wb = MagicMock()
+        mock_wb.active = mock_ws
+        mock_openpyxl.load_workbook.return_value = mock_wb
+
+        fileobj = io.BytesIO(b"fake xlsx")
+        result = _read_ss(file_path="data.xlsx", max_rows=3, fileobj=fileobj)
+        lines = [ln for ln in result.splitlines() if ln]
+        assert len(lines) == 3
+
+    @patch("utils.readers.documents.OPENPYXL_AVAILABLE", True)
+    @patch("utils.readers.documents.openpyxl", create=True)
+    def test_parse_xlsx_skips_empty_rows(self, mock_openpyxl: MagicMock) -> None:
+        """_parse_xlsx skips rows where all cells are None — covers branch 305->301."""
+        import io
+
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        # First row has data; second row is all None (empty)
+        mock_ws = MagicMock()
+        mock_ws.iter_rows.return_value = [
+            ("data_cell",),
+            (None,),  # all-None row → row_str.strip(",") is empty → skipped
+        ]
+        mock_wb = MagicMock()
+        mock_wb.active = mock_ws
+        mock_openpyxl.load_workbook.return_value = mock_wb
+
+        fileobj = io.BytesIO(b"fake xlsx")
+        result = _read_ss(file_path="data.xlsx", fileobj=fileobj)
+        lines = [ln for ln in result.splitlines() if ln]
+        assert len(lines) == 1
+        assert "data_cell" in lines[0]
+
+
+@pytest.mark.unit
+class TestDocumentsPathBranchErrors:
+    """Tests for except-Exception branches in path-based readers."""
+
+    def test_read_text_file_via_fileobj_oserror_wrapped(self) -> None:
+        """OSError from _parse_text via fileobj is wrapped as FileReadError (lines 98-99)."""
+        import io
+
+        from utils.readers.documents import read_text_file as _read_text
+
+        # Create a fileobj whose .read() raises OSError
+        bad_fileobj = MagicMock(spec=io.RawIOBase)
+        bad_fileobj.read.side_effect = OSError("I/O error")
+        bad_fileobj.fileno.side_effect = OSError("no fd")
+
+        with pytest.raises(FileReadError, match="Failed to read text file"):
+            _read_text(fileobj=bad_fileobj)
+
+    @patch("utils.readers.documents.PPTX_AVAILABLE", True)
+    @patch("utils.readers.documents.Presentation", create=True)
+    def test_read_presentation_path_raises_file_read_error(
+        self, mock_prs_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """Exceptions from python-pptx via path branch are wrapped as FileReadError (428-429)."""
+        from utils.readers.documents import read_presentation_file as _read_pptx
+
+        mock_prs_cls.side_effect = RuntimeError("corrupted pptx on disk")
+        pptx_file = tmp_path / "slides.pptx"
+        pptx_file.write_bytes(b"fake pptx bytes")
+        with pytest.raises(FileReadError, match="Failed to read presentation"):
+            _read_pptx(pptx_file)
+
+    @patch("utils.readers.documents.OPENPYXL_AVAILABLE", True)
+    @patch("utils.readers.documents.openpyxl", create=True)
+    def test_read_spreadsheet_xlsx_path_raises_file_read_error(
+        self, mock_openpyxl: MagicMock, tmp_path: Path
+    ) -> None:
+        """Generic exceptions from openpyxl via path branch are wrapped as FileReadError (371-372)."""
+        from utils.readers.documents import read_spreadsheet_file as _read_ss
+
+        mock_openpyxl.load_workbook.side_effect = RuntimeError("xlsx on disk failed")
+        xlsx_file = tmp_path / "data.xlsx"
+        xlsx_file.write_bytes(b"fake xlsx bytes")
+        with pytest.raises(FileReadError, match="Failed to read spreadsheet"):
+            _read_ss(xlsx_file)

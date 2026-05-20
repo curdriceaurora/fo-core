@@ -858,3 +858,202 @@ class TestCLIIntegration:
                 root.removeFilter(f)
             for f in preexisting:
                 root.addFilter(f)
+
+
+class TestErrorHandlingFallbacks:
+    """Cover the remaining exception / branch paths not exercised by
+    the main contract tests.  All paths are fail-closed (never raise,
+    never leak) so each test verifies safety, not just execution.
+    """
+
+    # ------------------------------------------------------------------ #
+    # _sanitize_args — dict branch (lines 180-181) and scalar (line 182)  #
+    # ------------------------------------------------------------------ #
+
+    def test_dict_args_formatting_failure_sanitization(self) -> None:
+        """Dict args are sanitised via dict.fromkeys when getMessage() fails.
+
+        Drives lines 180-181: the filter encounters a Mapping-typed args
+        whose %s template can't be satisfied, triggering the outer
+        except-Exception handler.  _sanitize_args receives the (already
+        key-remapped) dict and returns a new dict with all values REDACTED.
+        """
+        f = CredentialRedactingFilter()
+        # Mapping args with a %-format template that is incompatible
+        # (expects %(key)s but template uses %s) so getMessage() raises.
+        record = _make_record("value is %s %s")
+        record.args = {"api_key": "sk-secret"}  # Mapping, wrong format → raises
+        assert f.filter(record) is True
+        # dict keys preserved, values replaced
+        assert isinstance(record.args, dict)
+        assert record.args.get("api_key") == REDACTED
+
+    def test_scalar_args_sanitized_to_redacted(self) -> None:
+        """Scalar (non-tuple, non-dict) args reach line 182 → return REDACTED.
+
+        A string-typed record.args is truthy but not Mapping, so the
+        mapping-remap block is skipped.  getMessage() raises TypeError
+        (template doesn't consume the string), triggering the outer
+        except.  _sanitize_args gets a plain string → returns REDACTED.
+        """
+        f = CredentialRedactingFilter()
+        record = _make_record("no substitution slots here")
+        record.args = "not_a_tuple"  # truthy scalar → TypeError on getMessage
+        assert f.filter(record) is True
+        assert record.args == REDACTED
+
+    # ------------------------------------------------------------------ #
+    # filter double-exception path (lines 264-265)                        #
+    # ------------------------------------------------------------------ #
+
+    def test_double_exception_msg_replaced_with_redacted(self) -> None:
+        """Lines 264-265: msg is set to REDACTED when str(msg) also raises.
+
+        The outer except-Exception fires because getMessage() raises.
+        Inside the inner try, _redact_text(str(record.msg)) raises because
+        str(_PoisonMsg) raises.  The inner except sets record.msg = REDACTED.
+        """
+
+        class _PoisonMsg:
+            def __str__(self) -> str:
+                raise RuntimeError("str() unavailable")
+
+        f = CredentialRedactingFilter()
+        record = _make_record(_PoisonMsg(), "some_arg")
+        assert f.filter(record) is True
+        assert record.msg == REDACTED
+
+    # ------------------------------------------------------------------ #
+    # Loguru _patcher branches                                             #
+    # ------------------------------------------------------------------ #
+
+    def test_loguru_patcher_idempotency_guard_returns_early(self) -> None:
+        """Line 365: patcher returns immediately for already-processed records."""
+        from utils.log_redact import _RECORD_REDACTED_SENTINEL, _install_on_loguru
+
+        instance = CredentialRedactingFilter()
+        _install_on_loguru(instance)
+        patcher = instance._loguru_patcher  # type: ignore[attr-defined]
+
+        original_msg = "api_key=sk-secret"
+        record: dict = {
+            "message": original_msg,
+            "exception": None,
+            "extra": {"_fo_redacted": _RECORD_REDACTED_SENTINEL},
+        }
+        patcher(record)
+        assert record["message"] == original_msg  # not modified — guard fired
+
+    def test_loguru_patcher_non_string_message_not_redacted(self) -> None:
+        """Lines 370->372: non-string message is left unchanged.
+
+        The patcher only redacts str messages; an integer/object message is
+        skipped and the patcher continues to the exception block.
+        """
+        from utils.log_redact import _RECORD_REDACTED_SENTINEL, _install_on_loguru
+
+        instance = CredentialRedactingFilter()
+        _install_on_loguru(instance)
+        patcher = instance._loguru_patcher  # type: ignore[attr-defined]
+
+        record: dict = {"message": 42, "exception": None, "extra": {}}
+        patcher(record)
+        assert record["message"] == 42  # unchanged
+        assert record["extra"].get("_fo_redacted") is _RECORD_REDACTED_SENTINEL
+
+    def test_loguru_patcher_no_exception_marks_idempotency(self) -> None:
+        """Lines 379->411: exception=None skips the exc block; sentinel set."""
+        from utils.log_redact import _RECORD_REDACTED_SENTINEL, _install_on_loguru
+
+        instance = CredentialRedactingFilter()
+        _install_on_loguru(instance)
+        patcher = instance._loguru_patcher  # type: ignore[attr-defined]
+
+        record: dict = {"message": "safe msg", "exception": None, "extra": {}}
+        patcher(record)
+        assert record["extra"].get("_fo_redacted") is _RECORD_REDACTED_SENTINEL
+
+    def test_loguru_patcher_traceback_format_failure_drops_exception(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Lines 382-389: format_exception raises → exception set to None."""
+        from loguru._recattrs import RecordException
+
+        import utils.log_redact as log_redact_mod
+        from utils.log_redact import _install_on_loguru
+
+        def _boom(*_a: object, **_kw: object) -> list[str]:
+            raise RuntimeError("format broken")
+
+        monkeypatch.setattr(log_redact_mod.traceback, "format_exception", _boom)
+
+        instance = CredentialRedactingFilter()
+        _install_on_loguru(instance)
+        patcher = instance._loguru_patcher  # type: ignore[attr-defined]
+
+        try:
+            raise ValueError("api_key=sk-secret")
+        except ValueError as exc:
+            fake_exc = RecordException(type(exc), exc, exc.__traceback__)
+
+        record: dict = {"message": "oops", "exception": fake_exc, "extra": {}}
+        patcher(record)
+        assert record["exception"] is None  # dropped — fail-closed
+
+    def test_loguru_patcher_record_exception_import_error_drops_exception(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Lines 401-406: ImportError on RecordException → exception set to None."""
+        import sys
+        import types
+
+        from loguru._recattrs import RecordException
+
+        import utils.log_redact as log_redact_mod
+        from utils.log_redact import _install_on_loguru
+
+        # Patch traceback.format_exception to succeed so we reach the import.
+        def _ok_format(*_a: object, **_kw: object) -> list[str]:
+            return ["FakeError\n"]
+
+        monkeypatch.setattr(log_redact_mod.traceback, "format_exception", _ok_format)
+
+        # Shadow loguru._recattrs so the deferred `from loguru._recattrs import`
+        # inside _patcher raises ImportError.
+        fake_mod = types.ModuleType("loguru._recattrs")
+        monkeypatch.setitem(sys.modules, "loguru._recattrs", fake_mod)  # no RecordException attr
+
+        instance = CredentialRedactingFilter()
+        _install_on_loguru(instance)
+        patcher = instance._loguru_patcher  # type: ignore[attr-defined]
+
+        try:
+            raise ValueError("api_key=sk-secret")
+        except ValueError as exc:
+            fake_exc = RecordException(type(exc), exc, exc.__traceback__)
+
+        record: dict = {"message": "oops", "exception": fake_exc, "extra": {}}
+        patcher(record)
+        assert record["exception"] is None
+
+    # ------------------------------------------------------------------ #
+    # install_on_root idempotency (lines 456->467)                        #
+    # ------------------------------------------------------------------ #
+
+    def test_install_on_root_idempotent_second_call_skips_factory_wrap(self) -> None:
+        """Lines 456->467: second install_on_root call skips factory wrapping."""
+        from utils.log_redact import install_on_root
+
+        original_factory = logging.getLogRecordFactory()
+        try:
+            install_on_root()
+            factory_after_first = logging.getLogRecordFactory()
+            install_on_root()  # second call — hits the 456->467 branch
+            factory_after_second = logging.getLogRecordFactory()
+            # Factory must not be double-wrapped — same object.
+            assert factory_after_first is factory_after_second
+        finally:
+            logging.setLogRecordFactory(original_factory)
+            root = logging.getLogger()
+            for flt in [f for f in root.filters if isinstance(f, CredentialRedactingFilter)]:
+                root.removeFilter(flt)
