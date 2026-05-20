@@ -229,10 +229,11 @@ def _dedupe_unlink(path: Path, renderer: Renderer) -> bool:
                 return False
             safe_dir.unlink(name)
     except SymlinkRejected as exc:
-        logger.warning("security_event symlink_rejected path=%s: %s", path, exc)
+        logger.warning("security_event symlink_rejected path=%s: %s", path, exc, exc_info=True)
         renderer.render_resolve_action("error", path, error=str(exc))
         return False
     except OSError as exc:
+        logger.warning("Failed to unlink %s: %s", path, exc, exc_info=True)
         renderer.render_resolve_action("error", path, error=str(exc))
         return False
     renderer.render_resolve_action("removed", path)
