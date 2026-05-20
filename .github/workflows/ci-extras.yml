@@ -28,8 +28,78 @@ permissions:
   contents: read
 
 jobs:
-  extras-validate:
+  # PR matrix: only cheap extras (≤20 min) so PR feedback is fast.
+  # Heavy extras (media ≥30 min, dedup-image ≥40 min) run on main push only.
+  extras-validate-pr:
     name: "Extras [${{ matrix.extra }}]"
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - extra: dedup-text
+            os: ubuntu-latest
+            timeout_minutes: 20
+            key_import: "import sklearn; print('OK')"
+            smoke: "true"
+            test_file: tests/extras/test_extras_dedup_text.py
+          - extra: scientific
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import h5py; import netCDF4; import scipy; print('OK')"
+            smoke: "true"
+          - extra: cad
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import ezdxf; print('OK')"
+            smoke: "true"
+          - extra: cloud
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import openai; print('OK')"
+            smoke: "false"
+          - extra: claude
+            os: ubuntu-latest
+            timeout_minutes: 10
+            key_import: "import anthropic; print('OK')"
+            smoke: "false"
+          - extra: mlx
+            os: macos-latest
+            timeout_minutes: 15
+            key_import: "import mlx_lm; print('OK')"
+            smoke: "false"
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install extra with dev dependencies
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev,${{ matrix.extra }}]"
+      - name: Verify key imports
+        run: python -c "${{ matrix.key_import }}"
+      - name: Run smoke canary
+        if: matrix.smoke == 'true'
+        run: |
+          TEST_FILE="${{ matrix.test_file || format('tests/extras/test_extras_{0}.py', matrix.extra) }}"
+          pytest "$TEST_FILE" \
+            -m "smoke" \
+            -x \
+            -v \
+            --override-ini="addopts="
+
+  # Main push matrix: full set including heavy extras (media, dedup-image, llama).
+  extras-validate-main:
+    name: "Extras [${{ matrix.extra }}]"
+    if: github.event_name == 'push'
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.timeout_minutes }}
     strategy:

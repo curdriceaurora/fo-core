@@ -30,6 +30,7 @@ the SafeDir primitive isn't implemented for it (see #264 → #266).
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -264,87 +265,581 @@ class TestDedupeSymlinkSafety:
     """TOCTOU between hash and unlink (blocked on PR4, #268)."""
 
     def test_dedupe_refuses_unlink_on_inode_swap(self, tmp_path: Path) -> None:
-        """Dedupe refuses to unlink if (dev, ino, size) changed since hash.
+        """Dedupe refuses to unlink if the victim was swapped for a symlink.
 
-        Sequence the test will exercise once inode-pinning lands:
+        Sequence:
 
-        1. Two identical files A and B; A is the victim.
-        2. ``compute_hash(A)`` records ``HashResult(digest, dev, ino, size)``.
-        3. Between hash and unlink, A is replaced by a symlink to the honey
-           file (simulated by manipulating the path between scan and resolve
-           phases).
-        4. Dedupe re-lstats and detects the mismatch, refuses the unlink,
-           logs a ``security_event``.
+        1. Two identical files A (victim) and B (keeper) in the scan root.
+        2. Attacker replaces A with a symlink to a honey file outside the root
+           (simulates swap between scan phase and resolve phase).
+        3. ``_dedupe_unlink`` opens A with O_NOFOLLOW via SafeDir;
+           ``SymlinkRejected`` is raised and caught — unlink is refused.
+        4. Honey file must be intact; a ``security_event`` must be logged.
 
-        Acceptance: honey file still exists, anomaly is logged, exit code
-        reflects the partial-skip.
+        Acceptance: honey file still exists, security event is logged.
         """
-        pytest.skip("blocked on PR4 (#268) — inode pinning in dedupe")
+        import logging
+
+        from cli.dedupe_v2 import _dedupe_unlink
+
+        scan_root = tmp_path / "organize"
+        scan_root.mkdir()
+        honey_dir = tmp_path / "honey"
+        honey_dir.mkdir()
+
+        honey = honey_dir / "secret.txt"
+        honey.write_text("sensitive data")
+        honey_content = honey.read_text()
+
+        victim = scan_root / "duplicate.txt"
+        victim.write_text("identical content")
+        keeper = scan_root / "keeper.txt"
+        keeper.write_text("identical content")
+
+        try:
+            victim.unlink()
+            victim.symlink_to(honey)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action, str(path)))
+
+        renderer = _FakeRenderer()
+        security_events: list[str] = []
+
+        class _CapturingHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                msg = self.format(record)
+                if "security_event" in msg:
+                    security_events.append(msg)
+
+        handler = _CapturingHandler()
+        logging.getLogger("cli.dedupe_v2").addHandler(handler)
+        try:
+            result = _dedupe_unlink(victim, renderer)
+        finally:
+            logging.getLogger("cli.dedupe_v2").removeHandler(handler)
+
+        assert result is False, "unlink should have been refused"
+        assert honey.exists(), "honey file must not be deleted"
+        assert honey.read_text() == honey_content, "honey content must be intact"
+        assert any("security_event" in e for e in security_events), (
+            f"no security_event logged; actions={renderer.actions}"
+        )
+
+    def test_dedupe_unlink_success(self, tmp_path: Path) -> None:
+        """_dedupe_unlink removes a regular file and returns True."""
+        from cli.dedupe_v2 import _dedupe_unlink
+
+        victim = tmp_path / "duplicate.txt"
+        victim.write_text("content")
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action, str(path)))
+
+        renderer = _FakeRenderer()
+        result = _dedupe_unlink(victim, renderer)
+
+        assert result is True
+        assert not victim.exists()
+        assert any(a[0] == "removed" for a in renderer.actions)
+
+    def test_dedupe_unlink_oserror_handled(self, tmp_path: Path) -> None:
+        """_dedupe_unlink returns False and logs on OSError during SafeDir unlink."""
+        from unittest.mock import patch
+
+        from cli.dedupe_v2 import _dedupe_unlink
+
+        victim = tmp_path / "victim.txt"
+        victim.write_text("content")
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action,))
+
+        renderer = _FakeRenderer()
+        with patch("utils.safedir.SafeDir.unlink", side_effect=OSError("busy")):
+            result = _dedupe_unlink(victim, renderer)
+
+        assert result is False
+        assert any(a[0] == "error" for a in renderer.actions)
+
+    def test_dedupe_unlink_inode_mismatch_detected(self, tmp_path: Path) -> None:
+        """_dedupe_unlink refuses if lstat triple differs from pin_inode triple."""
+        import logging
+        from unittest.mock import patch
+
+        from cli.dedupe_v2 import _dedupe_unlink
+        from services.deduplication.hasher import InodePin
+
+        victim = tmp_path / "victim.txt"
+        victim.write_text("content")
+
+        # Fake pin with mismatched ino so the comparison always fails.
+        fake_pin = InodePin(dev=0, ino=0, size=0)
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action, str(path)))
+
+        renderer = _FakeRenderer()
+        security_events: list[str] = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                if "security_event" in self.format(record):
+                    security_events.append(self.format(record))
+
+        handler = _Cap()
+        logging.getLogger("cli.dedupe_v2").addHandler(handler)
+        try:
+            with patch(
+                "services.deduplication.hasher.FileHasher.pin_inode",
+                return_value=fake_pin,
+            ):
+                result = _dedupe_unlink(victim, renderer)
+        finally:
+            logging.getLogger("cli.dedupe_v2").removeHandler(handler)
+
+        assert result is False
+        assert victim.exists(), "file must not be deleted on mismatch"
+        assert any("inode_swap" in e for e in security_events)
 
 
 class TestDestinationSymlinkSafety:
-    """Category-dir-replaced-with-symlink (blocked on PR6, #270)."""
+    """Category-dir-replaced-with-symlink — PR6 (#270)."""
 
     def test_organize_destination_symlink_swap(self, tmp_path: Path) -> None:
-        """A category dir replaced by a symlink between mkdir and rename is rejected.
+        """PostprocessorStage refuses when the category dir is a symlink.
 
-        Sequence the test will exercise once SafeDir-based moves land:
+        Sequence:
 
-        1. ``fo organize`` plans to move ``input/doc.txt`` to
-           ``output/category_X/doc.txt``.
-        2. After ``mkdir`` but before ``rename``, ``output/category_X`` is
-           replaced by a symlink to an attacker-controlled directory outside
-           the organize root.
-        3. The SafeDir-based ``os.rename(src_name, dst_name, dst_dir_fd=...)``
-           opens the dst dir with ``O_NOFOLLOW`` and fails; the file is not
-           written to the attacker location.
+        1. ``PostprocessorStage`` is initialised with an output root.
+        2. After the output root is created, the category subdir is
+           replaced by a symlink pointing outside the root (attacker).
+        3. ``PostprocessorStage.process()`` tries ``safe_dir.mkdir(category)``
+           which raises ``SymlinkRejected`` because ``O_NOFOLLOW`` sees the
+           symlink.
+        4. The stage sets ``context.error`` — the file is NOT written to
+           the attacker location.
 
-        Acceptance: the attacker directory is empty; the operation either
-        fails or lands inside the real output root.
+        Acceptance: attacker directory remains empty; ``context.failed`` is
+        True; a ``security_event destination_symlink_swap`` is logged.
         """
-        pytest.skip("blocked on PR6 (#270) — destination SafeDir + dir_fd=")
+        import logging
+
+        from interfaces.pipeline import StageContext
+        from pipeline.stages.postprocessor import PostprocessorStage
+
+        output_root = tmp_path / "output"
+        output_root.mkdir()
+        attacker_dir = tmp_path / "attacker"
+        attacker_dir.mkdir()
+
+        # Pre-create the category subdir as a symlink to the attacker dir.
+        category_link = output_root / "documents"
+        try:
+            category_link.symlink_to(attacker_dir, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"sensitive content")
+
+        security_events: list[str] = []
+
+        class _CapHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                msg = self.format(record)
+                if "security_event" in msg:
+                    security_events.append(msg)
+
+        cap = _CapHandler()
+        postprocessor_log = logging.getLogger("pipeline.stages.postprocessor")
+        postprocessor_log.addHandler(cap)
+        try:
+            stage = PostprocessorStage(output_root)
+            try:
+                ctx = StageContext(file_path=src, dry_run=False)
+                ctx.category = "documents"
+                ctx.filename = "doc"
+                result = stage.process(ctx)
+            finally:
+                stage.close()
+        finally:
+            postprocessor_log.removeHandler(cap)
+
+        assert result.failed, "stage must fail when category dir is a symlink"
+        assert not any(attacker_dir.iterdir()), "attacker dir must remain empty"
+        assert result.error is not None, "context.error must be set"
+        assert any("destination_symlink_swap" in e for e in security_events), (
+            "security_event destination_symlink_swap must be logged; got: " + str(security_events)
+        )
 
 
 class TestDaemonSymlinkSafety:
-    """Watcher event → open gap (blocked on PR6, #270)."""
+    """Watcher event → open gap — PR6 (#270)."""
 
     def test_daemon_skips_symlink_created_post_start(self, tmp_path: Path) -> None:
-        """A symlink created inside the watch root after daemon start is skipped.
+        """FileEventHandler drops symlink events when SafeDir is injected.
 
-        Sequence the test will exercise once the daemon routes through
-        SafeDir:
+        Sequence:
 
-        1. Daemon starts watching ``organize/``.
-        2. ``organize/report.pdf`` is created as a symlink to the honey file.
-        3. The watcher event handler routes through
-           ``safe_dir.open_child('report.pdf')`` which raises
-           ``SymlinkRejected``.
-        4. Event is dropped; no content reader is invoked.
+        1. Watch root opened as a ``SafeDir`` and injected into
+           ``FileEventHandler``.
+        2. A symlink named ``report.pdf`` is created inside the root
+           pointing at a honey file outside it.
+        3. A synthetic CREATE event for ``report.pdf`` is injected into
+           ``_handle_event``.
+        4. ``_safedir_allows`` opens the entry with ``O_NOFOLLOW`` via
+           the SafeDir, gets ``SymlinkRejected``, logs
+           ``security_event watcher_symlink_rejected``, and returns False.
+        5. The event is NOT enqueued.
 
-        Acceptance: the LLM processor recorder never sees ``_HONEY_CONTENT``;
-        a ``security_event`` is logged.
+        Acceptance: ``queue`` remains empty; a ``security_event`` log is
+        emitted.
         """
-        pytest.skip("blocked on PR6 (#270) — watcher SafeDir routing")
+
+        from watchdog.events import FileCreatedEvent
+
+        from utils.safedir import SafeDir
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
+
+        honey = _make_honey(tmp_path)
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+
+        link = watch_root / "report.pdf"
+        try:
+            link.symlink_to(honey)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        queue = EventQueue()
+        config = WatcherConfig(watch_directories=[watch_root], debounce_seconds=0.0)
+
+        security_events: list[str] = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                if "security_event" in record.getMessage():
+                    security_events.append(record.getMessage())
+
+        cap = _Cap()
+        log = logging.getLogger("watcher.handler")
+        log.addHandler(cap)
+        try:
+            with SafeDir.open_root(watch_root) as sd:
+                handler = FileEventHandler(config, queue, safe_dir=sd)
+                event = FileCreatedEvent(str(link))
+                handler._handle_event(event, EventType.CREATED)
+        finally:
+            log.removeHandler(cap)
+
+        assert queue.size == 0, "symlink event must not reach the queue"
+        assert any("watcher_symlink_rejected" in e for e in security_events), (
+            "security_event watcher_symlink_rejected must be logged"
+        )
 
 
 class TestUndoSymlinkSafety:
-    """Replay TOCTOU (blocked on PR5, #269)."""
+    """Replay TOCTOU — PR5c (#269)."""
 
     def test_undo_refuses_replay_on_inode_change(self, tmp_path: Path) -> None:
         """Undo refuses to overwrite a destination whose (dev, ino) changed.
 
-        Sequence the test will exercise once history records (dev, ino):
+        Sequence:
 
-        1. ``fo organize`` moves ``input/A`` to ``output/cat/A``; history
-           records ``dest_dev`` / ``dest_ino`` from ``os.fstat`` on the open
-           fd.
-        2. ``output/cat/A`` is deleted and replaced by a different file with
-           the same name (different inode).
-        3. ``fo undo`` re-stats the destination; the recorded
-           ``(dest_dev, dest_ino)`` doesn't match.
-        4. Undo refuses, logs a ``security_event``.
+        1. Create ``output/cat/A`` and build a history record that pins its
+           ``(dev, ino)`` via PR5a accessors.
+        2. Delete ``output/cat/A`` and replace it with a new file (different
+           inode) at the same path.
+        3. Call ``RollbackExecutor.rollback_move`` — the inode check fires,
+           sees a mismatch, logs ``security_event undo_inode_mismatch``, and
+           returns ``False``.
 
-        Acceptance: the replacement file at ``output/cat/A`` is untouched
-        and ``input/A`` is not re-created.
+        Acceptance:
+        - ``rollback_move`` returns ``False``
+        - The replacement file at ``output/cat/A`` is untouched
+        - ``input/A`` is NOT re-created
+        - A log record containing ``security_event undo_inode_mismatch`` is emitted
         """
-        pytest.skip("blocked on PR5 (#269) — history (dev, ino) + verify on undo")
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        # Set up paths
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output" / "cat"
+        input_dir.mkdir(parents=True)
+        output_dir.mkdir(parents=True)
+
+        source = input_dir / "A"
+        destination = output_dir / "A"
+
+        # Step 1: Simulate an original organize move — destination exists.
+        destination.write_bytes(b"original content")
+        st = destination.stat()
+
+        # Build a history record with the original inode pinned.
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=source,
+            destination_path=destination,
+            status=OperationStatus.COMPLETED,
+            metadata={
+                "dest_dev": st.st_dev,
+                "dest_ino": st.st_ino,
+            },
+        )
+        assert op.dest_dev == st.st_dev
+        assert op.dest_ino == st.st_ino
+
+        # Step 2: Attacker replaces destination with a different file.
+        # Use rename rather than unlink+write so the replacement file gets a
+        # fresh inode even on Linux where deleted inodes are immediately reused.
+        replacement = output_dir / "A.replacement"
+        replacement.write_bytes(b"attacker content")
+        replacement_ino = replacement.stat().st_ino
+        replacement.rename(destination)
+        new_st = destination.stat()
+        assert new_st.st_ino == replacement_ino, "sanity: rename must preserve inode"
+        assert new_st.st_ino != st.st_ino, "sanity: replacement must have a different inode"
+
+        # Step 3: Attempt undo — rollback_move should refuse.
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+
+        with self._capture_security_log() as records:
+            result = executor.rollback_move(op)
+
+        # Acceptance checks
+        assert result is False, "rollback_move must refuse when inode changed"
+        assert destination.read_bytes() == b"attacker content", "replacement file must be untouched"
+        assert not source.exists(), "source must NOT be re-created"
+        assert any("security_event undo_inode_mismatch" in r.getMessage() for r in records), (
+            "a security_event undo_inode_mismatch log record must be emitted"
+        )
+
+    def test_undo_proceeds_when_inode_matches(self, tmp_path: Path) -> None:
+        """Undo succeeds when (dev, ino) still match — happy path."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        dst.write_bytes(b"correct file")
+        st = dst.stat()
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": st.st_dev, "dest_ino": st.st_ino},
+        )
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+        result = executor.rollback_move(op)
+
+        assert result is True
+        assert src.read_bytes() == b"correct file"
+        assert not dst.exists()
+
+    def test_undo_legacy_row_skips_inode_check(self, tmp_path: Path) -> None:
+        """Legacy rows (dest_dev=None) proceed without inode verification."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "legacy_src.txt"
+        dst = tmp_path / "legacy_dst.txt"
+        dst.write_bytes(b"legacy content")
+
+        # No dest_dev / dest_ino in metadata — simulates a pre-PR5 row.
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={},
+        )
+        assert op.dest_dev is None  # pre-PR5 legacy row
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+        result = executor.rollback_move(op)
+
+        assert result is True
+        assert src.read_bytes() == b"legacy content"
+
+    def test_undo_partial_metadata_treated_as_legacy(self, tmp_path: Path) -> None:
+        """A row with dest_dev but no dest_ino is treated as legacy — no inode check."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "partial_src.txt"
+        dst = tmp_path / "partial_dst.txt"
+        dst.write_bytes(b"partial content")
+
+        # dest_dev present but dest_ino missing — partial / broken row.
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": 42},  # dest_ino intentionally absent
+        )
+        assert op.dest_dev == 42
+        assert op.dest_ino is None  # partial row
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+        result = executor.rollback_move(op)
+
+        # Falls back to legacy path — no inode mismatch refuse
+        assert result is True
+        assert src.read_bytes() == b"partial content"
+
+    def test_undo_refuses_when_destination_missing(self, tmp_path: Path) -> None:
+        """Undo refuses when the destination file no longer exists."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+
+        # Record inode from a file we immediately delete to simulate "gone".
+        dst.write_bytes(b"original")
+        st = dst.stat()
+        dst.unlink()
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": st.st_dev, "dest_ino": st.st_ino},
+        )
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+
+        with self._capture_security_log() as records:
+            result = executor.rollback_move(op)
+
+        assert result is False
+        assert not src.exists(), "source must NOT be re-created"
+        assert any("security_event undo_dst_missing" in r.getMessage() for r in records)
+
+    def test_undo_refuses_when_lstat_raises_oserror(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Undo refuses when os.lstat raises a generic OSError."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        dst.write_bytes(b"content")
+        st = dst.stat()
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": st.st_dev, "dest_ino": st.st_ino},
+        )
+
+        def _raise_oserror(_path: object) -> None:
+            raise OSError("permission denied")
+
+        monkeypatch.setattr("undo.rollback.os.lstat", _raise_oserror)
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+
+        with self._capture_security_log() as records:
+            result = executor.rollback_move(op)
+
+        assert result is False
+        assert any("security_event undo_dst_lstat_error" in r.getMessage() for r in records)
+
+    # ------------------------------------------------------------------
+    # Helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _capture_security_log():
+        """Context manager: capture log records from the rollback module."""
+        import contextlib
+
+        @contextlib.contextmanager
+        def _ctx():
+            handler = _ListHandler()
+            log = logging.getLogger("undo.rollback")
+            log.addHandler(handler)
+            try:
+                yield handler.records
+            finally:
+                log.removeHandler(handler)
+
+        return _ctx()
+
+
+class _ListHandler(logging.Handler):
+    """Accumulates LogRecord objects for test assertions."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)

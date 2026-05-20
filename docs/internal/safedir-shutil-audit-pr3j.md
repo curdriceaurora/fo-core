@@ -163,7 +163,7 @@ to obtain `st_size`, `st_mtime`, `st_mode`, etc. The path-based
 | PR3e | `services/deduplication/extractor.py` | Streams content; size limits enforced from `_extract_from_fileobj` via `fileobj.read(n)` caps, not `path.stat()`. |
 | PR3f | `services/deduplication/{image_dedup,image_utils,viewer,quality}.py` | `os.fstat(fd)` used in `viewer.py` for `file_size` / `mtime` display — the explicit precedent for this decision. |
 | PR3g | `utils/epub_enhanced.py` | EPUB is read as a stream from the SafeDir fd; no metadata-then-content split. |
-| PR3h | `services/search/hybrid_retriever.py`, `core/organizer.py`, `methodologies/para/detection/heuristics.py` | All three new helpers read a bounded byte range from the SafeDir fd directly (`fileobj.read(limit)`). No `path.stat()` precedes the open. |
+| PR3h | `services/search/hybrid_retriever.py`, `src/core/organizer.py`, `methodologies/para/detection/heuristics.py` | All three new helpers read a bounded byte range from the SafeDir fd directly (`fileobj.read(limit)`). No `path.stat()` precedes the open. |
 
 ### Exceptions (with rationale)
 

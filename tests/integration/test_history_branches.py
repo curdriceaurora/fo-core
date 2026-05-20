@@ -354,3 +354,91 @@ class TestHistoryExporterTimezoneBranches:
         )
         # Both dates bracket the inserted operation
         assert count == 1
+
+
+# ---------------------------------------------------------------------------
+# history/models.py — inode-pin accessors (PR5a / #269)
+# ---------------------------------------------------------------------------
+
+
+class TestOperationInodePinIntegration:
+    """Integration coverage for the PR5a inode-pin accessors and mutators.
+
+    The unit tests in tests/history/test_history_models.py cover the round-trip
+    via to_dict/from_dict. These integration tests exercise the same paths
+    through a real database so the integration coverage floor is maintained.
+    """
+
+    def test_source_dev_source_ino_accessors_via_db(self, tmp_path: Path) -> None:
+        """source_dev and source_ino accessors return correct values from the DB."""
+        from history.models import OperationType
+        from history.tracker import OperationHistory
+
+        src = tmp_path / "source.txt"
+        src.write_bytes(b"src")
+
+        with OperationHistory(db_path=tmp_path / "h.db") as history:
+            history.log_operation(
+                OperationType.MOVE,
+                source_path=src,
+                destination_path=src,
+                source_dev=42,
+                source_ino=99,
+            )
+            ops = history.get_operations()
+
+        assert ops[0].source_dev == 42
+        assert ops[0].source_ino == 99
+
+    def test_set_dest_inode_and_set_source_inode_mutators(self, tmp_path: Path) -> None:
+        """set_dest_inode and set_source_inode write into metadata and survive round-trip."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationType
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=tmp_path / "a",
+            destination_path=tmp_path / "b",
+        )
+        op.set_dest_inode(dev=7, ino=77)
+        op.set_source_inode(dev=8, ino=88)
+
+        assert op.dest_dev == 7
+        assert op.dest_ino == 77
+        assert op.source_dev == 8
+        assert op.source_ino == 88
+
+        # Round-trip through to_dict / from_dict
+        rebuilt = Operation.from_dict(op.to_dict())
+        assert rebuilt.source_dev == 8
+        assert rebuilt.source_ino == 88
+
+    def test_log_operation_stores_dest_ino_and_source_ino_independently(
+        self, tmp_path: Path
+    ) -> None:
+        """dest_ino and source_ino are each stored when provided without their partner."""
+        from history.models import OperationType
+        from history.tracker import OperationHistory
+
+        src = tmp_path / "f.txt"
+        src.write_bytes(b"x")
+
+        with OperationHistory(db_path=tmp_path / "h2.db") as history:
+            history.log_operation(
+                OperationType.MOVE,
+                source_path=src,
+                destination_path=src,
+                dest_dev=10,
+                dest_ino=20,
+                source_dev=30,
+                source_ino=40,
+            )
+            ops = history.get_operations()
+
+        op = ops[0]
+        assert op.dest_dev == 10
+        assert op.dest_ino == 20
+        assert op.source_dev == 30
+        assert op.source_ino == 40

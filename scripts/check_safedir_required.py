@@ -6,6 +6,10 @@ files **from the user-supplied organize root** without going through the
 ``SafeDir`` primitive (#266). Symlink-following content readers are the
 LLM-exfiltration vector documented in #264.
 
+Contributor guide (opt-out grammar, worked migration examples, streaming-vs-stat
+decision rule): ``docs/developer/safedir-readers.md``.
+Streaming-vs-stat audit: ``docs/internal/safedir-shutil-audit-pr3j.md``.
+
 Status — phase 1 (PR1 / #265): **ADVISORY** for the whole tree. The detector
 runs, reports counts, and exits 0 regardless. The companion CI test
 ``tests/ci/test_symlink_safety_lints.py`` records the current baseline.
@@ -146,6 +150,11 @@ _READ_OPEN_ENFORCED_DIRS: frozenset[str] = frozenset(
         "src/services/search/hybrid_retriever.py",
         "src/core/organizer.py",
         "src/methodologies/para/detection/heuristics.py",
+        # PR6 — watcher, pipeline/stages/{writer,postprocessor}, core/file_ops
+        "src/watcher/handler.py",
+        "src/pipeline/stages/writer.py",
+        "src/pipeline/stages/postprocessor.py",
+        "src/core/file_ops.py",
     }
 )
 

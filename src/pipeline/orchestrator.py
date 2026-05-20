@@ -295,6 +295,15 @@ class PipelineOrchestrator:
             # Clean up processors
             self.processor_pool.cleanup()
 
+            # Release resources held by stages (e.g. SafeDir fds in PostprocessorStage).
+            import contextlib
+
+            for stage in self._stages:
+                close_fn = getattr(stage, "close", None)
+                if close_fn is not None:
+                    with contextlib.suppress(Exception):
+                        close_fn()
+
             logger.info("Pipeline stopped")
 
     # ------------------------------------------------------------------

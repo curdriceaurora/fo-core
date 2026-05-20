@@ -153,6 +153,64 @@ class TestFileHasher:
         with pytest.raises(ValueError, match="Unsupported algorithm"):
             FileHasher.validate_algorithm("sha512")
 
+    def test_pin_inode_returns_correct_triple(self, tmp_path: Path) -> None:
+        """pin_inode captures (dev, ino, size) matching os.stat on the file."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from services.deduplication.hasher import FileHasher, InodePin
+        from utils.safedir import SafeDir
+
+        f = tmp_path / "pintest.txt"
+        f.write_bytes(b"inode pin integration test")
+        st = f.stat()
+
+        with SafeDir.open_root(tmp_path) as sd:
+            pin = FileHasher().pin_inode(sd, "pintest.txt")
+
+        assert isinstance(pin, InodePin)
+        assert pin.dev == st.st_dev
+        assert pin.ino == st.st_ino
+        assert pin.size == st.st_size
+
+    def test_pin_inode_rejects_symlink(self, tmp_path: Path) -> None:
+        """pin_inode raises SymlinkRejected for a symlinked file."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from services.deduplication.hasher import FileHasher
+        from utils.safedir import SafeDir, SymlinkRejected
+
+        real = tmp_path / "real.txt"
+        real.write_bytes(b"real content")
+        link = tmp_path / "link.txt"
+        try:
+            link.symlink_to(real)
+        except OSError:
+            pytest.skip("symlinks not supported on this filesystem")
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(SymlinkRejected):
+                FileHasher().pin_inode(sd, "link.txt")
+
+    def test_pin_inode_raises_for_missing_file(self, tmp_path: Path) -> None:
+        """pin_inode raises FileNotFoundError for a non-existent name."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from services.deduplication.hasher import FileHasher
+        from utils.safedir import SafeDir
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(FileNotFoundError):
+                FileHasher().pin_inode(sd, "ghost.txt")
+
 
 # ---------------------------------------------------------------------------
 # DocumentExtractor
@@ -256,6 +314,38 @@ class TestDocumentExtractor:
         # Both striprtf and basic-stripping fallback extract "Hello" from the test input
         assert "Hello" in text
 
+    def test_extract_rtf_cp1252_path_branch(self, tmp_path: Path) -> None:
+        """cp1252-encoded RTF (common on Windows) decodes 0x80-0x9F correctly."""
+        from services.deduplication.extractor import DocumentExtractor
+
+        # 0x92 is right single quote (') in cp1252, but a C1 control char in
+        # latin-1.  If the decoder tried latin-1 first it would return a
+        # control character, not the quotation mark.
+        rtf_bytes = rb"{\rtf1\ansi don" + b"\x92" + rb"t}"
+        f = tmp_path / "windows.rtf"
+        f.write_bytes(rtf_bytes)
+        extractor = DocumentExtractor()
+        text = extractor.extract_text(f)
+        assert isinstance(text, str)
+        assert len(text) > 0
+        # cp1252 maps 0x92 → U+2019 RIGHT SINGLE QUOTATION MARK
+        assert "’" in text or "'" in text
+
+    def test_decode_bytes_fallback_chain(self) -> None:
+        """_decode_bytes tries utf-8 → cp1252 → latin-1 fallback chain."""
+        from services.deduplication.extractor import DocumentExtractor
+
+        # Pure ASCII — utf-8 succeeds first.
+        assert DocumentExtractor._decode_bytes(b"hello") == "hello"
+        # 0x80 is € in cp1252, but a C1 control char in latin-1.
+        # Verifies cp1252 is tried before latin-1.
+        assert DocumentExtractor._decode_bytes(b"\x80") == "€"  # €
+        # 0xe9 is é in both latin-1 and cp1252 — covers the latin-1 fallback path.
+        assert DocumentExtractor._decode_bytes(b"caf\xe9") == "café"
+        # All bytes in range — ensure no exception on arbitrary bytes.
+        result = DocumentExtractor._decode_bytes(bytes(range(256)))
+        assert isinstance(result, str)
+
     def test_extract_odt_basic(self, tmp_path: Path) -> None:
         import io
         import zipfile
@@ -282,6 +372,40 @@ class TestDocumentExtractor:
         extractor = DocumentExtractor()
         text = extractor.extract_text(odt_path)
         assert "ODT paragraph text" in text
+
+    def test_extract_odt_entity_bomb_refused(self, tmp_path: Path) -> None:
+        """defusedxml neutralises billion-laughs entity expansion in ODT XML."""
+        import io
+        import zipfile
+
+        from services.deduplication.extractor import DocumentExtractor
+
+        # Exponential entity expansion — would hang/OOM without defusedxml.
+        bomb_xml = (
+            '<?xml version="1.0"?>'
+            "<!DOCTYPE bomb ["
+            '  <!ENTITY a "aaaa">'
+            '  <!ENTITY b "&a;&a;&a;&a;">'
+            '  <!ENTITY c "&b;&b;&b;&b;">'
+            '  <!ENTITY d "&c;&c;&c;&c;">'
+            "]>"
+            "<office:document-content"
+            ' xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"'
+            ' xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">'
+            "<office:body><office:text>"
+            "<text:p>&d;</text:p>"
+            "</office:text></office:body></office:document-content>"
+        )
+        odt_bytes = io.BytesIO()
+        with zipfile.ZipFile(odt_bytes, "w") as zf:
+            zf.writestr("content.xml", bomb_xml)
+        odt_path = tmp_path / "bomb.odt"
+        odt_path.write_bytes(odt_bytes.getvalue())
+
+        extractor = DocumentExtractor()
+        # Must return "" quickly — not hang or raise unhandled exception.
+        result = extractor.extract_text(odt_path)
+        assert result == ""
 
     def test_extract_text_latin1_encoding(self, tmp_path: Path) -> None:
         from services.deduplication.extractor import DocumentExtractor

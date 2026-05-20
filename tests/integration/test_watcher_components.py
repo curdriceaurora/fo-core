@@ -333,3 +333,146 @@ class TestEventQueueBlocking:
         q = EventQueue()
         batch = q.dequeue_batch_blocking(max_size=1, timeout=0.01)
         assert batch == []
+
+
+# ---------------------------------------------------------------------------
+# PR6 SafeDir watcher paths — integration coverage
+# ---------------------------------------------------------------------------
+
+
+class TestFileEventHandlerSafeDirIntegration:
+    """Integration coverage for the watch_root + SafeDir paths (PR6 / #270)."""
+
+    def test_direct_child_regular_file_allowed(self, tmp_path: Path) -> None:
+        """_safedir_allows returns True for a regular direct-child file."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+        regular = watch_root / "file.txt"
+        regular.write_bytes(b"data")
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        with SafeDir.open_root(watch_root) as sd:
+            handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
+            assert handler._safedir_allows(regular) is True
+
+    def test_path_outside_root_returns_false(self, tmp_path: Path) -> None:
+        """_safedir_allows rejects a path outside the watch root."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+        outside = tmp_path / "outside.txt"
+        outside.write_bytes(b"x")
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        with SafeDir.open_root(watch_root) as sd:
+            handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
+            assert handler._safedir_allows(outside) is False
+
+    def test_nested_path_allowed_through(self, tmp_path: Path) -> None:
+        """_safedir_allows allows nested paths (checked at pipeline level)."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
+
+        watch_root = tmp_path / "watch"
+        (watch_root / "sub").mkdir(parents=True)
+        nested = watch_root / "sub" / "file.txt"
+        nested.write_bytes(b"data")
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        with SafeDir.open_root(watch_root) as sd:
+            handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
+            assert handler._safedir_allows(nested) is True
+
+    def test_symlink_in_watch_root_rejected(self, tmp_path: Path) -> None:
+        """_safedir_allows rejects a symlink directly in the watch root."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+        target = tmp_path / "outside.txt"
+        target.write_bytes(b"secret")
+        link = watch_root / "link.txt"
+        try:
+            link.symlink_to(target)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        with SafeDir.open_root(watch_root) as sd:
+            handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
+            assert handler._safedir_allows(link) is False
+
+    def test_no_safedir_allows_all(self, tmp_path: Path) -> None:
+        """_safedir_allows returns True when safe_dir is None (line 252)."""
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue, safe_dir=None, watch_root=watch_root)
+        assert handler._safedir_allows(watch_root / "anything.txt") is True
+
+    def test_transient_oserror_allows_through(self, tmp_path: Path) -> None:
+        """Non-SymlinkRejected OSError from open_child is treated as allow (lines 295-296)."""
+        import sys
+        from unittest.mock import MagicMock
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+
+        sd_mock = MagicMock()
+        sd_mock.open_child.side_effect = FileNotFoundError("gone")
+
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue, safe_dir=sd_mock, watch_root=watch_root)
+        assert handler._safedir_allows(watch_root / "gone.txt") is True

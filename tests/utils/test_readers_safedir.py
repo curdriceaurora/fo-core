@@ -783,6 +783,26 @@ class TestReadStepFileFileobj:
         assert "STEP File Information" in out
         assert "Size:" not in out
 
+    def test_max_lines_limits_content(self, tmp_path: Path) -> None:
+        """``max_lines`` caps how many lines are read; the reported entity
+        count is lower when fewer lines are consumed."""
+        # 4-line preamble + 200 entity lines + 2 footer lines.
+        lines = ["ISO-10303-21;\n", "HEADER;\n", "ENDSEC;\n", "DATA;\n"]
+        for i in range(1, 201):
+            lines.append(f"#{i}=POINT('',(0.,0.,{i}.));\n")
+        lines.append("ENDSEC;\n")
+        lines.append("END-ISO-10303-21;\n")
+        p = tmp_path / "big.step"
+        p.write_text("".join(lines))
+
+        # 10 lines: preamble (4) + 6 entity lines → entity count reported as 6.
+        out_limited = read_step_file(file_path=p, max_lines=10)
+        assert "Approximate entity count: 6" in out_limited
+
+        # 300 lines covers all 200 entities.
+        out_full = read_step_file(file_path=p, max_lines=300)
+        assert "Approximate entity count: 200" in out_full
+
     def test_requires_arg(self) -> None:
         with pytest.raises(ValueError, match="file_path or fileobj"):
             read_step_file()
@@ -1249,14 +1269,14 @@ class TestReadFileViaSafedir:
         assert hasattr(call_args[0], "read")
 
     @pytest.mark.parametrize(
-        ("name", "reader_module_attr"),
+        ("name", "expected_ezdxf_method"),
         [
             ("model.dxf", "read"),
             ("model.dwg", "read"),
         ],
     )
     def test_dispatches_dxf_dwg_extensions(
-        self, tmp_path: Path, name: str, reader_module_attr: str
+        self, tmp_path: Path, name: str, expected_ezdxf_method: str
     ) -> None:
         """``.dxf`` and ``.dwg`` reach the ezdxf-based readers via the
         dispatcher. Mocked because ``ezdxf`` is in the ``cad`` optional
@@ -1275,7 +1295,7 @@ class TestReadFileViaSafedir:
         assert out is not None
         assert "AC1032" in out
         # ezdxf.read (text-stream API) called, not readfile (path API).
-        getattr(mock_ezdxf, reader_module_attr).assert_called_once()
+        getattr(mock_ezdxf, expected_ezdxf_method).assert_called_once()
 
     @pytest.mark.parametrize("name", ["model.step", "model.stp"])
     def test_dispatches_step_extensions(self, tmp_path: Path, name: str) -> None:

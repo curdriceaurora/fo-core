@@ -21,6 +21,14 @@ except ImportError:
     AHash = DHash = PHash = None
     _IMAGEDEDUP_AVAILABLE = False
 
+try:
+    import numpy as np
+
+    _NUMPY_AVAILABLE = True
+except ImportError:  # pragma: no cover - numpy always installed in CI
+    np = None
+    _NUMPY_AVAILABLE = False
+
 from PIL.Image import DecompressionBombError
 
 from .image_utils import SUPPORTED_FORMATS, safedir_image_open
@@ -133,13 +141,14 @@ class ImageDeduplicator:
             return None
 
         try:
+            if not _NUMPY_AVAILABLE:
+                logger.warning("numpy required for image hashing; install fo-core[dedup-image]")
+                return None
             # Open via SafeDir, convert PIL Image → numpy array, pass to
             # imagededup's image_array= API. This bypasses imagededup's
             # path-based codepath which would call Pillow's path-based
             # Image.open() internally and re-introduce the symlink
             # dereference we're trying to close.
-            import numpy as np
-
             with safedir_image_open(image_path, trusted_root=trusted_root) as (img, _fd):
                 # imagededup interprets numpy arrays as RGB: its
                 # ``preprocess_image`` runs ``PIL.Image.fromarray(array)``

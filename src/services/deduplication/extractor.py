@@ -20,8 +20,17 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import xml.etree.ElementTree as _stdlib_ET  # fallback if defusedxml absent
+import zipfile
 from pathlib import Path
 from typing import BinaryIO
+
+try:
+    # defusedxml prevents entity-bomb (billion-laughs) attacks in ODT XML.
+    # It is a base dependency; the stdlib fallback is a safety net only.
+    import defusedxml.ElementTree as _ET
+except ImportError:  # pragma: no cover
+    _ET = _stdlib_ET  # type: ignore[assignment]
 
 from utils.safedir import SafeDir, SymlinkRejected
 
@@ -298,6 +307,20 @@ class DocumentExtractor:
             logger.error(f"Error extracting DOCX {display}: {e}")
             return ""
 
+    @staticmethod
+    def _decode_bytes(raw: bytes) -> str:
+        """Decode bytes using a utf-8 → cp1252 → latin-1 fallback chain.
+
+        latin-1 is tried last because it accepts all 256 byte values without
+        error; placing it earlier would make cp1252 unreachable.
+        """
+        for encoding in ("utf-8", "cp1252", "latin-1"):
+            try:
+                return raw.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return raw.decode("utf-8", errors="ignore")  # unreachable; latin-1 always succeeds
+
     def _extract_text(
         self,
         file_path: Path | None = None,
@@ -306,30 +329,22 @@ class DocumentExtractor:
         label: str | None = None,
     ) -> str:
         """Extract text from plain text file."""
-        encodings = ["utf-8", "latin-1", "cp1252", "ascii"]
         display = label or (file_path.name if file_path is not None else "<fileobj>")
 
         if fileobj is not None:
-            # Read all bytes once; try each encoding in turn.
             try:
                 raw = fileobj.read()
             except OSError as e:
                 logger.error(f"Error reading text file {display}: {e}")
                 return ""
-            for encoding in encodings:
-                try:
-                    text = raw.decode(encoding)
-                    logger.debug(f"Read {len(text)} chars from text file: {display}")
-                    return text
-                except UnicodeDecodeError:
-                    continue
-            # All strict decodes failed — fall back to ignore errors.
-            return raw.decode("utf-8", errors="ignore")
+            text = self._decode_bytes(raw)
+            logger.debug(f"Read {len(text)} chars from text file: {display}")
+            return text
 
         if file_path is None:
             raise TypeError("path-branch requires file_path")
         try:
-            for encoding in encodings:
+            for encoding in ("utf-8", "latin-1", "cp1252", "ascii"):
                 try:
                     with open(
                         file_path, encoding=encoding
@@ -362,14 +377,14 @@ class DocumentExtractor:
 
         try:
             if fileobj is not None:
-                rtf_content = fileobj.read().decode("utf-8", errors="ignore")
+                rtf_content = self._decode_bytes(fileobj.read())
             else:
                 if file_path is None:
                     raise TypeError("path-branch requires file_path")
                 with open(
-                    file_path, encoding="utf-8", errors="ignore"
+                    file_path, "rb"
                 ) as f:  # safedir: ok — Windows / NotImplementedError fallback
-                    rtf_content = f.read()
+                    rtf_content = self._decode_bytes(f.read())
 
             # Try using striprtf if available
             try:
@@ -404,9 +419,6 @@ class DocumentExtractor:
         display = label or (file_path.name if file_path is not None else "<fileobj>")
 
         try:
-            import xml.etree.ElementTree as ET
-            import zipfile
-
             # ODT files are ZIP archives — zipfile.ZipFile accepts both
             # paths and file-like objects.
             source = fileobj if fileobj is not None else file_path
@@ -415,7 +427,7 @@ class DocumentExtractor:
             with zipfile.ZipFile(source, "r") as odt_zip:
                 content_xml = odt_zip.read("content.xml")
 
-            root = ET.fromstring(content_xml)
+            root = _ET.fromstring(content_xml)
 
             namespaces = {
                 "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",

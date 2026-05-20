@@ -7,10 +7,21 @@ select the highest quality image from a group of similar/duplicate images.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 from typing import Any
+
+from .image_utils import safedir_image_open
+
+try:
+    from PIL import Image as _PILImage
+
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PILImage = None  # type: ignore[assignment]
+    _PIL_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -91,18 +102,13 @@ class ImageQualityAnalyzer:
         self.weights = weights or self.DEFAULT_WEIGHTS
         self._validate_weights()
 
-        # Try to import PIL
-        self.Image: Any = None
-        self._decompression_bomb_error: type[BaseException] | None = None
-        try:
-            from PIL import Image
-
-            self.Image = Image
-            self._decompression_bomb_error = getattr(Image, "DecompressionBombError", None)
-            self._pil_available = True
-        except ImportError:
+        self.Image: Any = _PILImage
+        self._decompression_bomb_error: type[BaseException] | None = (
+            getattr(_PILImage, "DecompressionBombError", None) if _PILImage is not None else None
+        )
+        self._pil_available = _PIL_AVAILABLE
+        if not _PIL_AVAILABLE:
             logger.warning("PIL not available, quality analysis will be limited")
-            self._pil_available = False
 
     def _validate_weights(self) -> None:
         """Validate that weights sum to approximately 1.0."""
@@ -135,10 +141,6 @@ class ImageQualityAnalyzer:
             return None
 
         try:
-            import os
-
-            from .image_utils import safedir_image_open
-
             with safedir_image_open(path) as (img, fd):
                 width, height = img.size
                 resolution = width * height

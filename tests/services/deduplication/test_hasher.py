@@ -257,3 +257,64 @@ class TestFileHasherValidateAlgorithm:
         """Test validating invalid algorithm."""
         with pytest.raises(ValueError, match="Unsupported algorithm"):
             FileHasher.validate_algorithm("sha512")
+
+
+@pytest.mark.unit
+class TestInodePin:
+    """Tests for FileHasher.pin_inode — inode-pinning for TOCTOU prevention."""
+
+    def test_pin_inode_returns_correct_triple(self, tmp_path: Path) -> None:
+        """pin_inode captures (dev, ino, size) matching os.stat on the file."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from services.deduplication.hasher import InodePin
+        from utils.safedir import SafeDir
+
+        f = tmp_path / "sample.txt"
+        f.write_bytes(b"inode-pin test content")
+        st = f.stat()
+
+        with SafeDir.open_root(tmp_path) as sd:
+            pin = FileHasher().pin_inode(sd, "sample.txt")
+
+        assert isinstance(pin, InodePin)
+        assert pin.dev == st.st_dev
+        assert pin.ino == st.st_ino
+        assert pin.size == st.st_size
+
+    def test_pin_inode_rejects_symlink(self, tmp_path: Path) -> None:
+        """pin_inode raises SymlinkRejected when the target is a symlink."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir, SymlinkRejected
+
+        real = tmp_path / "real.txt"
+        real.write_bytes(b"content")
+        link = tmp_path / "link.txt"
+        try:
+            link.symlink_to(real)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(SymlinkRejected):
+                FileHasher().pin_inode(sd, "link.txt")
+
+    def test_pin_inode_raises_for_missing_file(self, tmp_path: Path) -> None:
+        """pin_inode raises FileNotFoundError for a non-existent name."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(FileNotFoundError):
+                FileHasher().pin_inode(sd, "ghost.txt")

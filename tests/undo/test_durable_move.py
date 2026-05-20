@@ -3441,6 +3441,136 @@ class TestSweepEndToEndV2Started:
 
 
 # ---------------------------------------------------------------------------
+# PR5b — inode capture from durable_move (issue #269)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(sys.platform == "win32", reason="lstat inode semantics are POSIX-only")
+class TestDurableMoveInodeCapture:
+    """durable_move returns (dev, ino, size) for callers that record history."""
+
+    def test_same_device_returns_dst_inode(self, tmp_path: Path) -> None:
+        """durable_move returns non-None (dev, ino, size) after same-device move."""
+        from undo.durable_move import durable_move
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_bytes(b"hello inode")
+        journal = tmp_path / "move.journal"
+
+        pin = durable_move(src, dst, journal=journal)
+
+        assert pin is not None, "POSIX same-device move must return inode triple"
+        dev, ino, size = pin
+        st = dst.stat()
+        assert dev == st.st_dev
+        assert ino == st.st_ino
+        assert size == st.st_size
+
+    def test_inode_triple_matches_lstat(self, tmp_path: Path) -> None:
+        """The captured (dev, ino, size) matches os.lstat on the destination."""
+        from undo.durable_move import durable_move
+
+        src = tmp_path / "file.txt"
+        dst = tmp_path / "sub" / "file.txt"
+        src.write_bytes(b"x" * 512)
+        journal = tmp_path / "j.journal"
+
+        pin = durable_move(src, dst, journal=journal)
+
+        assert pin is not None
+        st = os.lstat(dst)
+        assert pin == (st.st_dev, st.st_ino, st.st_size)
+
+    def test_inode_stored_in_history_via_log_operation(self, tmp_path: Path) -> None:
+        """Caller passes (dev, ino) to log_operation; round-trip confirms non-None values."""
+        from history.models import OperationType
+        from history.tracker import OperationHistory
+        from undo.durable_move import durable_move
+
+        src = tmp_path / "a.txt"
+        dst = tmp_path / "b.txt"
+        src.write_bytes(b"history inode test")
+        journal = tmp_path / "h.journal"
+        db = tmp_path / "history.db"
+
+        pin = durable_move(src, dst, journal=journal)
+        assert pin is not None
+        dev, ino, size = pin
+
+        with OperationHistory(db_path=db) as history:
+            history.log_operation(
+                OperationType.MOVE,
+                source_path=src,
+                destination_path=dst,
+                dest_dev=dev,
+                dest_ino=ino,
+            )
+            ops = history.get_operations()
+
+        assert len(ops) == 1
+        op = ops[0]
+        assert op.dest_dev == dev
+        assert op.dest_ino == ino
+
+    def test_legacy_row_has_none_inode(self, tmp_path: Path) -> None:
+        """Operations logged without inode args (pre-PR5 rows) return None."""
+        from history.models import OperationType
+        from history.tracker import OperationHistory
+
+        src = tmp_path / "old.txt"
+        src.write_bytes(b"legacy")
+        db = tmp_path / "history.db"
+
+        with OperationHistory(db_path=db) as history:
+            history.log_operation(OperationType.MOVE, source_path=src, destination_path=src)
+            ops = history.get_operations()
+
+        assert ops[0].dest_dev is None
+        assert ops[0].dest_ino is None
+
+    def test_transaction_log_move_passes_inode(self, tmp_path: Path) -> None:
+        """OperationTransaction.log_move propagates dest_dev/dest_ino to the DB."""
+        from history.tracker import OperationHistory
+        from history.transaction import OperationTransaction
+        from undo.durable_move import durable_move
+
+        src = tmp_path / "txn_src.txt"
+        dst = tmp_path / "txn_dst.txt"
+        src.write_bytes(b"transaction inode")
+        journal = tmp_path / "txn.journal"
+        db = tmp_path / "txn.db"
+
+        pin = durable_move(src, dst, journal=journal)
+        assert pin is not None
+        dev, ino, _ = pin
+
+        with OperationHistory(db_path=db) as history:
+            with OperationTransaction(history) as txn:
+                txn.log_move(src, dst, dest_dev=dev, dest_ino=ino)
+            ops = history.get_operations()
+
+        assert ops[0].dest_dev == dev
+        assert ops[0].dest_ino == ino
+
+    def test_capture_dst_inode_returns_none_on_lstat_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_capture_dst_inode returns None and logs debug when os.lstat raises OSError."""
+        from undo.durable_move import _capture_dst_inode
+
+        def _raise_oserror(_path: object) -> None:
+            raise OSError("permission denied")
+
+        monkeypatch.setattr("undo.durable_move.os.lstat", _raise_oserror)
+
+        result = _capture_dst_inode(tmp_path / "anything.txt")
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

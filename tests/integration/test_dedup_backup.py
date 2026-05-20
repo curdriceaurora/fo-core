@@ -279,9 +279,30 @@ class TestBackupManagerManifest:
         manifest[str(backup_path)]["backup_time"] = "2000-01-01T00:00:00Z"
         backup_mgr.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-        with patch.object(Path, "unlink", side_effect=OSError("busy")) as mock_unlink:
+        # Cleanup now goes through SafeDir.unlink (not Path.unlink directly).
+        with patch("utils.safedir.SafeDir.unlink", side_effect=OSError("busy")):
             removed = backup_mgr.cleanup_old_backups(max_age_days=1)
 
-        mock_unlink.assert_called_once_with()
         assert removed == []
+        assert backup_mgr._load_manifest() == {}
+
+    def test_cleanup_old_backups_removes_file_and_returns_path(
+        self, backup_mgr: BackupManager, tmp_path: Path
+    ) -> None:
+        """_backup_safe_unlink returns True → path appears in removed list."""
+        import sys
+
+        source = _make_file(tmp_path / "old.txt", b"stale")
+        backup_path = backup_mgr.create_backup(source)
+        manifest = backup_mgr._load_manifest()
+        manifest[str(backup_path)]["backup_time"] = "2000-01-01T00:00:00Z"
+        backup_mgr.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir path requires POSIX")
+
+        removed = backup_mgr.cleanup_old_backups(max_age_days=1)
+
+        assert backup_path in removed
+        assert not backup_path.exists()
         assert backup_mgr._load_manifest() == {}

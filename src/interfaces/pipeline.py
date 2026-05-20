@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path, PureWindowsPath
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from utils.safedir import SafeDir
 
 
 @dataclass
@@ -48,6 +51,8 @@ class StageContext:
     dry_run: bool = True
     error: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    # PR6 / #270: SafeDir for destination dir (POSIX only; None on Windows or dry-run).
+    dest_safedir: SafeDir | None = None
 
     @staticmethod
     def _validate_path_component(field_name: str, value: str) -> str:
