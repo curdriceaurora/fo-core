@@ -180,7 +180,79 @@ allowlist:
       Server-side advisory; fo-core only uses the ollama client against a
       trusted local daemon. No patched release as of 2026-05-20.
     expires_on: 2026-11-20
-  # transformers: 8 PYSEC-2025-{211-218} advisories were accepted for 5.8.1 but
-  # pip-audit no longer reports them for the version resolved by `pip install -e .[all]`
-  # (a patched release was available by 2026-05-20). Entries removed — gate will
-  # re-flag if a future faster-whisper update re-introduces an affected version.
+  # transformers — 8 advisories, no patched release available as of 2026-05-20.
+  # Transitive via faster-whisper ([media] extra) on macOS only; `pip install -e .[all]`
+  # resolves transformers ~5.9 on macOS CI. `platform: darwin` limits gate enforcement
+  # to macOS runners. Re-evaluate when transformers ships a patched 5.x release.
+  - advisory_id: PYSEC-2025-211
+    package: transformers
+    version_spec: ">=5.0.0"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly. No patched
+      release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-212
+    package: transformers
+    version_spec: ">=5.0.0"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly. No patched
+      release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-213
+    package: transformers
+    version_spec: ">=5.0.0"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly. No patched
+      release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-214
+    package: transformers
+    version_spec: ">=5.0.0"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly. No patched
+      release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-215
+    package: transformers
+    version_spec: ">=5.0.0"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly. No patched
+      release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-216
+    package: transformers
+    version_spec: ">=5.0.0"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly. No patched
+      release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-217
+    package: transformers
+    version_spec: ">=5.0.0"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly. No patched
+      release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-218
+    package: transformers
+    version_spec: ">=5.0.0"
+    platform: darwin
+    reason: >-
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
+      user-supplied model weights through transformers directly. No patched
+      release as of 2026-05-20.
+    expires_on: 2026-11-20
