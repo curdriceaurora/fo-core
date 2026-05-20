@@ -331,6 +331,71 @@ class TestDedupeSymlinkSafety:
             f"no security_event logged; actions={renderer.actions}"
         )
 
+    def test_dedupe_unlink_success(self, tmp_path: Path) -> None:
+        """_dedupe_unlink removes a regular file and returns True."""
+        from cli.dedupe_v2 import _dedupe_unlink
+
+        victim = tmp_path / "duplicate.txt"
+        victim.write_text("content")
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action, str(path)))
+
+        renderer = _FakeRenderer()
+        result = _dedupe_unlink(victim, renderer)
+
+        assert result is True
+        assert not victim.exists()
+        assert any(a[0] == "removed" for a in renderer.actions)
+
+    def test_dedupe_unlink_inode_mismatch_detected(self, tmp_path: Path) -> None:
+        """_dedupe_unlink refuses if lstat triple differs from pin_inode triple."""
+        import logging
+        from unittest.mock import patch
+
+        from cli.dedupe_v2 import _dedupe_unlink
+        from services.deduplication.hasher import InodePin
+
+        victim = tmp_path / "victim.txt"
+        victim.write_text("content")
+
+        # Fake pin with mismatched ino so the comparison always fails.
+        fake_pin = InodePin(dev=0, ino=0, size=0)
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action, str(path)))
+
+        renderer = _FakeRenderer()
+        security_events: list[str] = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                if "security_event" in self.format(record):
+                    security_events.append(self.format(record))
+
+        handler = _Cap()
+        logging.getLogger("cli.dedupe_v2").addHandler(handler)
+        try:
+            with patch(
+                "services.deduplication.hasher.FileHasher.pin_inode",
+                return_value=fake_pin,
+            ):
+                result = _dedupe_unlink(victim, renderer)
+        finally:
+            logging.getLogger("cli.dedupe_v2").removeHandler(handler)
+
+        assert result is False
+        assert victim.exists(), "file must not be deleted on mismatch"
+        assert any("inode_swap" in e for e in security_events)
+
 
 class TestDestinationSymlinkSafety:
     """Category-dir-replaced-with-symlink (blocked on PR6, #270)."""
