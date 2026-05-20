@@ -523,10 +523,15 @@ class TestUndoSymlinkSafety:
         assert op.dest_ino == st.st_ino
 
         # Step 2: Attacker replaces destination with a different file.
-        destination.unlink()
-        destination.write_bytes(b"attacker content")
+        # Use rename rather than unlink+write so the replacement file gets a
+        # fresh inode even on Linux where deleted inodes are immediately reused.
+        replacement = output_dir / "A.replacement"
+        replacement.write_bytes(b"attacker content")
+        replacement_ino = replacement.stat().st_ino
+        replacement.rename(destination)
         new_st = destination.stat()
-        assert new_st.st_ino != st.st_ino, "sanity: new file must have a different inode"
+        assert new_st.st_ino == replacement_ino, "sanity: rename must preserve inode"
+        assert new_st.st_ino != st.st_ino, "sanity: replacement must have a different inode"
 
         # Step 3: Attempt undo — rollback_move should refuse.
         journal = tmp_path / "test.journal"
