@@ -30,6 +30,7 @@ the SafeDir primitive isn't implemented for it (see #264 → #266).
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -466,23 +467,173 @@ class TestDaemonSymlinkSafety:
 
 
 class TestUndoSymlinkSafety:
-    """Replay TOCTOU (blocked on PR5, #269)."""
+    """Replay TOCTOU — PR5c (#269)."""
 
     def test_undo_refuses_replay_on_inode_change(self, tmp_path: Path) -> None:
         """Undo refuses to overwrite a destination whose (dev, ino) changed.
 
-        Sequence the test will exercise once history records (dev, ino):
+        Sequence:
 
-        1. ``fo organize`` moves ``input/A`` to ``output/cat/A``; history
-           records ``dest_dev`` / ``dest_ino`` from ``os.fstat`` on the open
-           fd.
-        2. ``output/cat/A`` is deleted and replaced by a different file with
-           the same name (different inode).
-        3. ``fo undo`` re-stats the destination; the recorded
-           ``(dest_dev, dest_ino)`` doesn't match.
-        4. Undo refuses, logs a ``security_event``.
+        1. Create ``output/cat/A`` and build a history record that pins its
+           ``(dev, ino)`` via PR5a accessors.
+        2. Delete ``output/cat/A`` and replace it with a new file (different
+           inode) at the same path.
+        3. Call ``RollbackExecutor.rollback_move`` — the inode check fires,
+           sees a mismatch, logs ``security_event undo_inode_mismatch``, and
+           returns ``False``.
 
-        Acceptance: the replacement file at ``output/cat/A`` is untouched
-        and ``input/A`` is not re-created.
+        Acceptance:
+        - ``rollback_move`` returns ``False``
+        - The replacement file at ``output/cat/A`` is untouched
+        - ``input/A`` is NOT re-created
+        - A log record containing ``security_event undo_inode_mismatch`` is emitted
         """
-        pytest.skip("blocked on PR5 (#269) — history (dev, ino) + verify on undo")
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        # Set up paths
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output" / "cat"
+        input_dir.mkdir(parents=True)
+        output_dir.mkdir(parents=True)
+
+        source = input_dir / "A"
+        destination = output_dir / "A"
+
+        # Step 1: Simulate an original organize move — destination exists.
+        destination.write_bytes(b"original content")
+        st = destination.stat()
+
+        # Build a history record with the original inode pinned.
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=source,
+            destination_path=destination,
+            status=OperationStatus.COMPLETED,
+            metadata={
+                "dest_dev": st.st_dev,
+                "dest_ino": st.st_ino,
+            },
+        )
+        assert op.dest_dev == st.st_dev
+        assert op.dest_ino == st.st_ino
+
+        # Step 2: Attacker replaces destination with a different file.
+        destination.unlink()
+        destination.write_bytes(b"attacker content")
+        new_st = destination.stat()
+        assert new_st.st_ino != st.st_ino, "sanity: new file must have a different inode"
+
+        # Step 3: Attempt undo — rollback_move should refuse.
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+
+        with self._capture_security_log() as records:
+            result = executor.rollback_move(op)
+
+        # Acceptance checks
+        assert result is False, "rollback_move must refuse when inode changed"
+        assert destination.read_bytes() == b"attacker content", "replacement file must be untouched"
+        assert not source.exists(), "source must NOT be re-created"
+        assert any("security_event undo_inode_mismatch" in r.getMessage() for r in records), (
+            "a security_event undo_inode_mismatch log record must be emitted"
+        )
+
+    def test_undo_proceeds_when_inode_matches(self, tmp_path: Path) -> None:
+        """Undo succeeds when (dev, ino) still match — happy path."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        dst.write_bytes(b"correct file")
+        st = dst.stat()
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": st.st_dev, "dest_ino": st.st_ino},
+        )
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+        result = executor.rollback_move(op)
+
+        assert result is True
+        assert src.read_bytes() == b"correct file"
+        assert not dst.exists()
+
+    def test_undo_legacy_row_skips_inode_check(self, tmp_path: Path) -> None:
+        """Legacy rows (dest_dev=None) proceed without inode verification."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "legacy_src.txt"
+        dst = tmp_path / "legacy_dst.txt"
+        dst.write_bytes(b"legacy content")
+
+        # No dest_dev / dest_ino in metadata — simulates a pre-PR5 row.
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={},
+        )
+        assert op.dest_dev is None  # pre-PR5 legacy row
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+        result = executor.rollback_move(op)
+
+        assert result is True
+        assert src.read_bytes() == b"legacy content"
+
+    # ------------------------------------------------------------------
+    # Helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _capture_security_log():
+        """Context manager: capture log records from the rollback module."""
+        import contextlib
+
+        @contextlib.contextmanager
+        def _ctx():
+            handler = _ListHandler()
+            log = logging.getLogger("undo.rollback")
+            log.addHandler(handler)
+            try:
+                yield handler.records
+            finally:
+                log.removeHandler(handler)
+
+        return _ctx()
+
+
+class _ListHandler(logging.Handler):
+    """Accumulates LogRecord objects for test assertions."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
