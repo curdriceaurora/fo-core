@@ -367,6 +367,16 @@ class TestAtomicityInvariants:
         new_mode = target.stat().st_mode & 0o7777
         assert new_mode == 0o640, f"mode drifted: expected 0o640, got {oct(new_mode)}"
 
+    def test_chmod_oserror_ignored(self, tmp_path: Path) -> None:
+        """chmod failures are silently ignored — write still succeeds."""
+        from unittest.mock import patch
+
+        target = tmp_path / "existing.txt"
+        target.write_text("original")
+        with patch("os.chmod", side_effect=OSError("chmod denied")):
+            atomic_write_text(target, "new content")
+        assert target.read_text() == "new content"
+
     @pytest.mark.skipif(
         sys.platform == "win32",
         reason="POSIX file-mode bits not meaningful on Windows",

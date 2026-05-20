@@ -377,3 +377,89 @@ class TestContextManager:
         with EmbeddingCache(tmp_path / "cache.db") as cache:
             result = cache.get_or_compute(f, compute=_dummy_compute)
         assert result is not None  # no exception
+
+    def test_context_manager_exit_calls_close(self, tmp_path: Path) -> None:
+        """__exit__ delegates to close() — verified by tracking the call."""
+        from unittest.mock import patch
+
+        db = tmp_path / "cm_exit.db"
+        cache = EmbeddingCache(db)
+        with patch.object(cache, "close") as mock_close:
+            cache.__exit__(None, None, None)
+        mock_close.assert_called_once_with()
+
+
+@pytest.mark.ci
+@pytest.mark.unit
+class TestDbPath:
+    def test_db_path_property_returns_path(self, tmp_path: Path) -> None:
+        """db_path property returns the path supplied at construction."""
+        db = tmp_path / "props.db"
+        cache = EmbeddingCache(db)
+        assert cache.db_path == db
+        cache.close()
+
+
+@pytest.mark.ci
+@pytest.mark.unit
+class TestCloseErrors:
+    def test_close_sqlite_error_ignored(self, tmp_path: Path) -> None:
+        """sqlite3.Error during close() is logged but not re-raised."""
+        import sqlite3
+        from unittest.mock import MagicMock
+
+        cache = EmbeddingCache(tmp_path / "close_err.db")
+        # sqlite3.Connection is a C extension type — its methods are read-only
+        # and cannot be patched via patch.object.  Replace the connection
+        # object entirely with a mock whose commit() raises sqlite3.Error.
+        mock_conn = MagicMock()
+        mock_conn.commit.side_effect = sqlite3.Error("simulated close failure")
+        cache._conn = mock_conn
+        cache.close()  # must not raise
+
+
+@pytest.mark.ci
+@pytest.mark.unit
+class TestPruneOnOpen:
+    def test_prune_orphans_on_open_logs(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """EmbeddingCache prunes stale rows on __init__ and logs when rows were pruned."""
+        import sqlite3
+
+        db = tmp_path / "prune_open.db"
+
+        # Seed the DB with a row pointing to a nonexistent file.
+        conn = sqlite3.connect(str(db))
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS embeddings (
+                file_path TEXT PRIMARY KEY,
+                embedding BLOB NOT NULL,
+                model TEXT NOT NULL,
+                mtime REAL NOT NULL,
+                updated_at TEXT NOT NULL
+            )"""
+        )
+        conn.execute(
+            "INSERT INTO embeddings VALUES (?, ?, ?, ?, ?)",
+            (
+                str(tmp_path / "ghost.txt"),
+                b"\x00" * 8,
+                "tfidf",
+                0.0,
+                "2000-01-01T00:00:00+00:00",
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        import logging
+
+        with caplog.at_level(logging.DEBUG):
+            cache = EmbeddingCache(db)
+
+        # The stale row should have been pruned.
+        row = cache._conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()
+        assert row is not None
+        assert row[0] == 0, "orphan row should be pruned on open"
+        cache.close()

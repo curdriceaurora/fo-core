@@ -473,3 +473,570 @@ class TestErrorHandling:
 
         with pytest.raises(FileReadError):
             read_hdf5_file(h5_path)
+
+
+@pytest.mark.unit
+class TestMissingArgumentsRaisesValueError:
+    """Tests that missing both file_path and fileobj raises ValueError."""
+
+    def test_read_zip_file_no_args_raises(self) -> None:
+        """read_zip_file() with neither file_path nor fileobj raises ValueError."""
+        with pytest.raises(ValueError, match="read_zip_file requires file_path or fileobj"):
+            read_zip_file()
+
+    def test_read_7z_file_no_args_raises(self) -> None:
+        """read_7z_file() with neither file_path nor fileobj raises ValueError."""
+        import utils.readers.archives as _arc
+
+        original = _arc.PY7ZR_AVAILABLE
+        try:
+            _arc.PY7ZR_AVAILABLE = True
+            with pytest.raises(ValueError, match="read_7z_file requires file_path or fileobj"):
+                read_7z_file()
+        finally:
+            _arc.PY7ZR_AVAILABLE = original
+
+    def test_read_tar_file_no_args_raises(self) -> None:
+        """read_tar_file() with neither file_path nor fileobj raises ValueError."""
+        with pytest.raises(ValueError, match="read_tar_file requires file_path or fileobj"):
+            read_tar_file()
+
+    def test_read_rar_file_no_args_raises(self) -> None:
+        """read_rar_file() with neither file_path nor fileobj raises ValueError."""
+        import utils.readers.archives as _arc
+
+        original = _arc.RARFILE_AVAILABLE
+        try:
+            _arc.RARFILE_AVAILABLE = True
+            with pytest.raises(ValueError, match="read_rar_file requires file_path or fileobj"):
+                read_rar_file()
+        finally:
+            _arc.RARFILE_AVAILABLE = original
+
+
+@pytest.mark.unit
+class TestMissingLibraryRaisesImportError:
+    """Tests that missing optional libraries raise ImportError with helpful messages."""
+
+    def test_read_7z_file_py7zr_unavailable_raises_import_error(self, tmp_path: Path) -> None:
+        """read_7z_file() raises ImportError when PY7ZR_AVAILABLE is False."""
+        import utils.readers.archives as _arc
+
+        original = _arc.PY7ZR_AVAILABLE
+        try:
+            _arc.PY7ZR_AVAILABLE = False
+            with pytest.raises(ImportError, match="py7zr is not installed"):
+                read_7z_file(tmp_path / "dummy.7z")
+        finally:
+            _arc.PY7ZR_AVAILABLE = original
+
+    def test_read_rar_file_rarfile_unavailable_raises_import_error(self, tmp_path: Path) -> None:
+        """read_rar_file() raises ImportError when RARFILE_AVAILABLE is False."""
+        import utils.readers.archives as _arc
+
+        original = _arc.RARFILE_AVAILABLE
+        try:
+            _arc.RARFILE_AVAILABLE = False
+            with pytest.raises(ImportError, match="rarfile is not installed"):
+                read_rar_file(tmp_path / "dummy.rar")
+        finally:
+            _arc.RARFILE_AVAILABLE = original
+
+
+@pytest.mark.unit
+class TestArchiveReadersFileobj:
+    """Tests for the fileobj= branch of archive readers (SafeDir-friendly entry point)."""
+
+    def test_read_zip_file_via_fileobj(self, sample_zip_file: Path) -> None:
+        """read_zip_file() accepts an open binary fileobj."""
+        with sample_zip_file.open("rb") as f:
+            result = read_zip_file(fileobj=f)
+        assert "ZIP Archive" in result
+        assert "Total files: 3" in result
+
+    def test_read_zip_file_via_fileobj_with_label(self, sample_zip_file: Path) -> None:
+        """read_zip_file() uses file_path as label when fileobj is given."""
+        with sample_zip_file.open("rb") as f:
+            result = read_zip_file(file_path=sample_zip_file, fileobj=f)
+        assert "sample.zip" in result
+
+    def test_read_zip_file_via_fileobj_default_label(self, sample_zip_file: Path) -> None:
+        """read_zip_file() uses '<fileobj>' label when no file_path given."""
+        with sample_zip_file.open("rb") as f:
+            result = read_zip_file(fileobj=f)
+        assert "<fileobj>" in result
+
+    def test_read_zip_file_via_fileobj_corrupted_raises(self, tmp_path: Path) -> None:
+        """read_zip_file() with a bad fileobj raises FileReadError."""
+        bad = tmp_path / "bad.zip"
+        bad.write_bytes(b"not a zip")
+        with bad.open("rb") as f:
+            with pytest.raises(FileReadError):
+                read_zip_file(fileobj=f)
+
+    def test_read_tar_file_via_fileobj(self, sample_tar_file: Path) -> None:
+        """read_tar_file() accepts an open binary fileobj."""
+        with sample_tar_file.open("rb") as f:
+            result = read_tar_file(fileobj=f)
+        assert "TAR Archive" in result
+        assert "Total files: 3" in result
+
+    def test_read_tar_file_via_fileobj_with_label(self, sample_tar_file: Path) -> None:
+        """read_tar_file() uses file_path as compression hint when fileobj given."""
+        with sample_tar_file.open("rb") as f:
+            result = read_tar_file(file_path=sample_tar_file, fileobj=f)
+        assert "sample.tar.gz" in result
+        assert "Compression: GZ" in result
+
+    def test_read_tar_file_via_fileobj_default_label(self, sample_tar_file: Path) -> None:
+        """read_tar_file() uses '<fileobj>' label and 'Unknown' compression when no path."""
+        with sample_tar_file.open("rb") as f:
+            result = read_tar_file(fileobj=f)
+        assert "<fileobj>" in result
+        assert "Compression: Unknown" in result
+
+    def test_read_tar_file_via_fileobj_corrupted_raises(self, tmp_path: Path) -> None:
+        """read_tar_file() with a bad fileobj raises FileReadError."""
+        bad = tmp_path / "bad.tar"
+        bad.write_bytes(b"not a tar")
+        with bad.open("rb") as f:
+            with pytest.raises(FileReadError):
+                read_tar_file(fileobj=f)
+
+    def test_read_7z_file_via_fileobj(self, tmp_path: Path) -> None:
+        """read_7z_file() fileobj branch works with a mocked py7zr."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import utils.readers.archives as _arc
+
+        fake_file = SimpleNamespace(filename="readme.txt", compressed=100, uncompressed=200)
+        fake_archive = MagicMock()
+        fake_archive.list.return_value = [fake_file]
+        fake_archive.password_protected = False
+        fake_archive.__enter__ = lambda s: fake_archive
+        fake_archive.__exit__ = MagicMock(return_value=False)
+
+        mock_py7zr = MagicMock()
+        mock_py7zr.SevenZipFile.return_value = fake_archive
+
+        dummy = tmp_path / "test.7z"
+        dummy.write_bytes(b"dummy")
+
+        with dummy.open("rb") as f:
+            with (
+                patch.object(_arc, "PY7ZR_AVAILABLE", True),
+                patch.object(_arc, "py7zr", mock_py7zr, create=True),
+            ):
+                result = read_7z_file(fileobj=f)
+
+        assert "7Z Archive" in result
+        assert "readme.txt" in result
+
+    def test_read_7z_file_via_fileobj_with_label(self, tmp_path: Path) -> None:
+        """read_7z_file() uses file_path as label when fileobj is given."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import utils.readers.archives as _arc
+
+        fake_file = SimpleNamespace(filename="doc.txt", compressed=50, uncompressed=100)
+        fake_archive = MagicMock()
+        fake_archive.list.return_value = [fake_file]
+        fake_archive.password_protected = False
+        fake_archive.__enter__ = lambda s: fake_archive
+        fake_archive.__exit__ = MagicMock(return_value=False)
+
+        mock_py7zr = MagicMock()
+        mock_py7zr.SevenZipFile.return_value = fake_archive
+
+        dummy = tmp_path / "labeled.7z"
+        dummy.write_bytes(b"dummy")
+
+        with dummy.open("rb") as f:
+            with (
+                patch.object(_arc, "PY7ZR_AVAILABLE", True),
+                patch.object(_arc, "py7zr", mock_py7zr, create=True),
+            ):
+                result = read_7z_file(file_path=dummy, fileobj=f)
+
+        assert "labeled.7z" in result
+
+    def test_read_7z_file_via_fileobj_error_raises(self, tmp_path: Path) -> None:
+        """read_7z_file() fileobj branch wraps parse errors as FileReadError."""
+        from unittest.mock import MagicMock, patch
+
+        import utils.readers.archives as _arc
+
+        mock_py7zr = MagicMock()
+        mock_py7zr.SevenZipFile.side_effect = RuntimeError("corrupt archive")
+
+        dummy = tmp_path / "bad.7z"
+        dummy.write_bytes(b"dummy")
+
+        with dummy.open("rb") as f:
+            with (
+                patch.object(_arc, "PY7ZR_AVAILABLE", True),
+                patch.object(_arc, "py7zr", mock_py7zr, create=True),
+            ):
+                with pytest.raises(FileReadError):
+                    read_7z_file(fileobj=f)
+
+    def test_read_7z_file_path_error_raises(self, tmp_path: Path) -> None:
+        """read_7z_file() path branch wraps parse errors as FileReadError."""
+        from unittest.mock import MagicMock, patch
+
+        import utils.readers.archives as _arc
+
+        mock_py7zr = MagicMock()
+        mock_py7zr.SevenZipFile.side_effect = RuntimeError("corrupt archive")
+
+        bad = tmp_path / "corrupt.7z"
+        bad.write_bytes(b"not a 7z file")
+
+        with (
+            patch.object(_arc, "PY7ZR_AVAILABLE", True),
+            patch.object(_arc, "py7zr", mock_py7zr, create=True),
+        ):
+            with pytest.raises(FileReadError):
+                read_7z_file(bad)
+
+
+@pytest.mark.unit
+class TestDetectTarCompression:
+    """Tests for _detect_tar_compression helper covering all branches."""
+
+    def test_detect_tar_gz(self) -> None:
+        from utils.readers.archives import _detect_tar_compression
+
+        assert _detect_tar_compression("archive.tar.gz") == "GZ"
+
+    def test_detect_tgz(self) -> None:
+        from utils.readers.archives import _detect_tar_compression
+
+        assert _detect_tar_compression("archive.tgz") == "GZ"
+
+    def test_detect_tar_bz2(self) -> None:
+        from utils.readers.archives import _detect_tar_compression
+
+        assert _detect_tar_compression("archive.tar.bz2") == "BZ2"
+
+    def test_detect_tbz2(self) -> None:
+        from utils.readers.archives import _detect_tar_compression
+
+        assert _detect_tar_compression("archive.tbz2") == "BZ2"
+
+    def test_detect_tar_xz(self) -> None:
+        from utils.readers.archives import _detect_tar_compression
+
+        assert _detect_tar_compression("archive.tar.xz") == "XZ"
+
+    def test_detect_xz(self) -> None:
+        from utils.readers.archives import _detect_tar_compression
+
+        assert _detect_tar_compression("archive.xz") == "XZ"
+
+    def test_detect_plain_tar(self) -> None:
+        from utils.readers.archives import _detect_tar_compression
+
+        assert _detect_tar_compression("archive.tar") == "None"
+
+    def test_detect_unknown(self) -> None:
+        from utils.readers.archives import _detect_tar_compression
+
+        assert _detect_tar_compression("<fileobj>") == "Unknown"
+
+
+@pytest.mark.unit
+class TestArchiveMaxFilesLimit:
+    """Tests that the 'more files' trailer line is emitted when total > max_files."""
+
+    def test_zip_more_files_line(self, tmp_path: Path) -> None:
+        """ZIP: '... and N more files' emitted when total > max_files."""
+        zip_path = tmp_path / "big.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            for i in range(5):
+                zf.writestr(f"f{i}.txt", "x")
+        result = read_zip_file(zip_path, max_files=2)
+        assert "... and 3 more files" in result
+
+    def test_tar_more_files_line(self, tmp_path: Path) -> None:
+        """TAR: '... and N more files' emitted when total > max_files."""
+        tar_path = tmp_path / "big.tar.gz"
+        with tarfile.open(tar_path, "w:gz") as tf:
+            for i in range(5):
+                content = b"x"
+                data = io.BytesIO(content)
+                info = tarfile.TarInfo(name=f"f{i}.txt")
+                info.size = len(content)
+                tf.addfile(info, data)
+        result = read_tar_file(tar_path, max_files=2)
+        assert "... and 3 more files" in result
+
+    def test_7z_more_files_line(self, tmp_path: Path) -> None:
+        """7Z: '... and N more files' emitted when total > max_files."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import utils.readers.archives as _arc
+
+        files = [
+            SimpleNamespace(filename=f"f{i}.txt", compressed=10, uncompressed=20) for i in range(5)
+        ]
+        fake_archive = MagicMock()
+        fake_archive.list.return_value = files
+        fake_archive.password_protected = False
+        fake_archive.__enter__ = lambda s: fake_archive
+        fake_archive.__exit__ = MagicMock(return_value=False)
+
+        mock_py7zr = MagicMock()
+        mock_py7zr.SevenZipFile.return_value = fake_archive
+
+        dummy = tmp_path / "big.7z"
+        dummy.write_bytes(b"dummy")
+
+        with (
+            patch.object(_arc, "PY7ZR_AVAILABLE", True),
+            patch.object(_arc, "py7zr", mock_py7zr, create=True),
+        ):
+            result = read_7z_file(dummy, max_files=2)
+
+        assert "... and 3 more files" in result
+
+
+@pytest.mark.unit
+class TestRarReader:
+    """Tests for the RAR reader, covering _parse_rar and read_rar_file branches."""
+
+    @pytest.fixture(autouse=True)
+    def _require_rarfile(self) -> None:
+        pytest.importorskip("rarfile")
+
+    def test_read_rar_file_via_fileobj_with_mock(self, tmp_path: Path) -> None:
+        """read_rar_file() fileobj branch works when mocked rarfile is available."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        fake_info = SimpleNamespace(filename="doc.txt", compress_size=100, file_size=200)
+        fake_rf = MagicMock()
+        fake_rf.infolist.return_value = [fake_info]
+        fake_rf.needs_password.return_value = False
+        fake_rf.__enter__ = lambda s: fake_rf
+        fake_rf.__exit__ = MagicMock(return_value=False)
+
+        dummy = tmp_path / "test.rar"
+        dummy.write_bytes(b"Rar!")
+
+        with dummy.open("rb") as f:
+            with (
+                patch.object(_arc, "RARFILE_AVAILABLE", True),
+                patch.object(rarfile, "RarFile", return_value=fake_rf),
+            ):
+                result = read_rar_file(fileobj=f)
+
+        assert "RAR Archive" in result
+        assert "doc.txt" in result
+        assert "Total files: 1" in result
+        assert "Encrypted: No" in result
+
+    def test_read_rar_file_via_fileobj_with_label(self, tmp_path: Path) -> None:
+        """read_rar_file() uses file_path as label when fileobj is given."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        fake_info = SimpleNamespace(filename="a.txt", compress_size=10, file_size=20)
+        fake_rf = MagicMock()
+        fake_rf.infolist.return_value = [fake_info]
+        fake_rf.needs_password.return_value = False
+        fake_rf.__enter__ = lambda s: fake_rf
+        fake_rf.__exit__ = MagicMock(return_value=False)
+
+        dummy = tmp_path / "labeled.rar"
+        dummy.write_bytes(b"Rar!")
+
+        with dummy.open("rb") as f:
+            with (
+                patch.object(_arc, "RARFILE_AVAILABLE", True),
+                patch.object(rarfile, "RarFile", return_value=fake_rf),
+            ):
+                result = read_rar_file(file_path=dummy, fileobj=f)
+
+        assert "labeled.rar" in result
+
+    def test_read_rar_file_via_fileobj_default_label(self, tmp_path: Path) -> None:
+        """read_rar_file() uses '<fileobj>' label when no file_path given."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        fake_info = SimpleNamespace(filename="b.txt", compress_size=10, file_size=20)
+        fake_rf = MagicMock()
+        fake_rf.infolist.return_value = [fake_info]
+        fake_rf.needs_password.return_value = False
+        fake_rf.__enter__ = lambda s: fake_rf
+        fake_rf.__exit__ = MagicMock(return_value=False)
+
+        dummy = tmp_path / "test.rar"
+        dummy.write_bytes(b"Rar!")
+
+        with dummy.open("rb") as f:
+            with (
+                patch.object(_arc, "RARFILE_AVAILABLE", True),
+                patch.object(rarfile, "RarFile", return_value=fake_rf),
+            ):
+                result = read_rar_file(fileobj=f)
+
+        assert "<fileobj>" in result
+
+    def test_read_rar_file_via_fileobj_rar_cannot_exec_raises(self, tmp_path: Path) -> None:
+        """read_rar_file() fileobj branch raises FileReadError on RarCannotExec."""
+        from unittest.mock import patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        dummy = tmp_path / "test.rar"
+        dummy.write_bytes(b"Rar!")
+
+        def _raise_cannot_exec(*a: object, **kw: object) -> None:
+            raise rarfile.RarCannotExec("unrar not found")
+
+        with dummy.open("rb") as f:
+            with (
+                patch.object(_arc, "RARFILE_AVAILABLE", True),
+                patch.object(rarfile, "RarFile", side_effect=_raise_cannot_exec),
+            ):
+                with pytest.raises(FileReadError, match="unrar"):
+                    read_rar_file(fileobj=f)
+
+    def test_read_rar_file_via_fileobj_generic_error_raises(self, tmp_path: Path) -> None:
+        """read_rar_file() fileobj branch wraps generic errors as FileReadError."""
+        from unittest.mock import patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        dummy = tmp_path / "test.rar"
+        dummy.write_bytes(b"Rar!")
+
+        def _raise_bad(*a: object, **kw: object) -> None:
+            raise RuntimeError("bad rar data")
+
+        with dummy.open("rb") as f:
+            with (
+                patch.object(_arc, "RARFILE_AVAILABLE", True),
+                patch.object(rarfile, "RarFile", side_effect=_raise_bad),
+            ):
+                with pytest.raises(FileReadError):
+                    read_rar_file(fileobj=f)
+
+    def test_read_rar_file_path_branch_rar_cannot_exec_raises(self, tmp_path: Path) -> None:
+        """read_rar_file() path branch raises FileReadError on RarCannotExec."""
+        from unittest.mock import patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        dummy = tmp_path / "test.rar"
+        dummy.write_bytes(b"Rar!")
+
+        def _raise_cannot_exec(*a: object, **kw: object) -> None:
+            raise rarfile.RarCannotExec("unrar not found")
+
+        with (
+            patch.object(_arc, "RARFILE_AVAILABLE", True),
+            patch.object(rarfile, "RarFile", side_effect=_raise_cannot_exec),
+        ):
+            with pytest.raises(FileReadError, match="unrar"):
+                read_rar_file(dummy)
+
+    def test_read_rar_file_path_branch_generic_error_raises(self, tmp_path: Path) -> None:
+        """read_rar_file() path branch wraps generic errors as FileReadError."""
+        from unittest.mock import patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        dummy = tmp_path / "test.rar"
+        dummy.write_bytes(b"Rar!")
+
+        def _raise_bad(*a: object, **kw: object) -> None:
+            raise RuntimeError("bad rar data")
+
+        with (
+            patch.object(_arc, "RARFILE_AVAILABLE", True),
+            patch.object(rarfile, "RarFile", side_effect=_raise_bad),
+        ):
+            with pytest.raises(FileReadError):
+                read_rar_file(dummy)
+
+    def test_rar_more_files_line(self, tmp_path: Path) -> None:
+        """RAR: '... and N more files' emitted when total > max_files."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        fake_infos = [
+            SimpleNamespace(filename=f"f{i}.txt", compress_size=10, file_size=20) for i in range(5)
+        ]
+        fake_rf = MagicMock()
+        fake_rf.infolist.return_value = fake_infos
+        fake_rf.needs_password.return_value = False
+        fake_rf.__enter__ = lambda s: fake_rf
+        fake_rf.__exit__ = MagicMock(return_value=False)
+
+        dummy = tmp_path / "big.rar"
+        dummy.write_bytes(b"Rar!")
+
+        with (
+            patch.object(_arc, "RARFILE_AVAILABLE", True),
+            patch.object(rarfile, "RarFile", return_value=fake_rf),
+        ):
+            result = read_rar_file(dummy, max_files=2)
+
+        assert "... and 3 more files" in result
+
+    def test_rar_encrypted_detection(self, tmp_path: Path) -> None:
+        """RAR: encrypted archive reports 'Encrypted: Yes'."""
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock, patch
+
+        import rarfile
+
+        import utils.readers.archives as _arc
+
+        fake_info = SimpleNamespace(filename="secret.txt", compress_size=50, file_size=100)
+        fake_rf = MagicMock()
+        fake_rf.infolist.return_value = [fake_info]
+        fake_rf.needs_password.return_value = True
+        fake_rf.__enter__ = lambda s: fake_rf
+        fake_rf.__exit__ = MagicMock(return_value=False)
+
+        dummy = tmp_path / "enc.rar"
+        dummy.write_bytes(b"Rar!")
+
+        with (
+            patch.object(_arc, "RARFILE_AVAILABLE", True),
+            patch.object(rarfile, "RarFile", return_value=fake_rf),
+        ):
+            result = read_rar_file(dummy)
+
+        assert "Encrypted: Yes" in result
