@@ -20,8 +20,17 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import xml.etree.ElementTree as _stdlib_ET  # fallback if defusedxml absent
+import zipfile
 from pathlib import Path
 from typing import BinaryIO
+
+try:
+    # defusedxml prevents entity-bomb (billion-laughs) attacks in ODT XML.
+    # It is a base dependency; the stdlib fallback is a safety net only.
+    import defusedxml.ElementTree as _ET
+except ImportError:  # pragma: no cover
+    _ET = _stdlib_ET  # type: ignore[assignment]
 
 from utils.safedir import SafeDir, SymlinkRejected
 
@@ -410,9 +419,6 @@ class DocumentExtractor:
         display = label or (file_path.name if file_path is not None else "<fileobj>")
 
         try:
-            import xml.etree.ElementTree as ET
-            import zipfile
-
             # ODT files are ZIP archives — zipfile.ZipFile accepts both
             # paths and file-like objects.
             source = fileobj if fileobj is not None else file_path
@@ -421,7 +427,7 @@ class DocumentExtractor:
             with zipfile.ZipFile(source, "r") as odt_zip:
                 content_xml = odt_zip.read("content.xml")
 
-            root = ET.fromstring(content_xml)
+            root = _ET.fromstring(content_xml)
 
             namespaces = {
                 "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",

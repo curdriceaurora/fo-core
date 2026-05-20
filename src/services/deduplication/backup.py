@@ -14,10 +14,14 @@ import json
 import logging
 import os
 import shutil
+import stat as _stat
+import sys
 import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from utils.safedir import SafeDir, SymlinkRejected
 
 # fcntl is Unix-only, not available on Windows
 try:
@@ -28,6 +32,37 @@ except ImportError:
     HAS_FCNTL = False
 
 logger = logging.getLogger(__name__)
+
+
+def _backup_safe_unlink(path: Path, log: logging.Logger) -> None:
+    """Unlink a backup file with inode-mode verification via SafeDir.
+
+    Verifies the target is a regular file (not a symlink) before unlinking.
+    On Windows falls back to a plain unlink.  Swapped inodes / symlinks are
+    logged as security events and skipped rather than raising.
+    """
+    if sys.platform == "win32":
+        try:
+            path.unlink()
+        except OSError:
+            log.debug("Failed to remove backup %s", path, exc_info=True)
+        return
+
+    try:
+        with SafeDir.open_root(path.parent) as safe_dir:
+            st = safe_dir.lstat(path.name)
+            if not _stat.S_ISREG(st.st_mode):
+                log.warning(
+                    "security_event inode_swap_in_backup path=%s mode=0o%o — skipping",
+                    path,
+                    st.st_mode,
+                )
+                return
+            safe_dir.unlink(path.name)
+    except SymlinkRejected:
+        log.warning("security_event symlink_in_backup path=%s — skipping", path)
+    except OSError:
+        log.debug("Failed to remove backup %s", path, exc_info=True)
 
 
 class BackupManager:
@@ -170,7 +205,7 @@ class BackupManager:
 
         cutoff_date = datetime.now(UTC) - timedelta(days=max_age_days)
         manifest = self._load_manifest()
-        removed_backups = []
+        removed_backups: list[Path] = []
 
         # Find and remove old backups
         for backup_key, metadata in list(manifest.items()):
@@ -183,18 +218,10 @@ class BackupManager:
 
                 # Remove backup file if it exists
                 if backup_path.exists():
-                    try:
-                        backup_path.unlink()
-                        removed_backups.append(backup_path)
-                    except OSError:
-                        # Keep retention cleanup non-fatal but observable.
-                        logger.debug(
-                            "Failed to remove old backup file %s during cleanup",
-                            backup_path,
-                            exc_info=True,
-                        )
+                    _backup_safe_unlink(backup_path, logger)
 
-                # Remove from manifest
+                # Remove from manifest regardless of unlink outcome so
+                # stale manifest entries don't accumulate.
                 del manifest[backup_key]
 
         # Save updated manifest

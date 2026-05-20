@@ -38,6 +38,7 @@ dependencies = [
     "ebooklib>=0.20,<1",        # EPUB parsing — 0.20 added isinstance guard around os.path.isdir, required for the SafeDir fileobj branch (PR3c / #267)
     "beautifulsoup4~=4.12",    # HTML/XML parsing
     "lxml~=6.1",               # XML backend for BS4
+    "defusedxml>=0.7.1",       # Safe XML parsing — prevents entity-bomb attacks in ODT files
 
     # File format support (default)
     "mutagen~=1.47",            # Audio metadata extraction
