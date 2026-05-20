@@ -12,7 +12,7 @@ on:
       - ".claude/rules/**"
       - ".claude/README.md"
   pull_request:
-    branches: [main, epic/flatten-src-fo, epic/safedir-readside-pr3]
+    branches: [main, epic/flatten-src-fo, epic/safedir-readside-pr3, epic/safedir-undo-pr5]
     paths-ignore:
       - ".claude/agents/**"
       - ".claude/commands/**"
@@ -211,10 +211,12 @@ jobs:
           print(f'faker {importlib.metadata.version(\"faker\")} importable')
           "
       - name: Erase stale coverage data
-        # coverage erase clears .coverage; find removes .coverage.* parallel
-        # worker files that xdist writes — stale ones from a previous run with
-        # a different branch/statement mode cause DataError on combine (#302).
-        run: coverage erase && find . -maxdepth 1 -name ".coverage.*" -delete
+        # coverage erase clears .coverage; find removes ALL .coverage.* files
+        # (any depth) that xdist workers write.  Stale branch-vs-statement
+        # mismatches cause DataError on combine (#302, #309).
+        run: |
+          coverage erase
+          find . -name ".coverage.*" -delete
       - name: Run tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -237,7 +239,7 @@ jobs:
         # Ratchet: bump --fail-under as coverage improves. Target: 90% per issue #855.
         # Broad refactors and type-cleanup sweeps exceed the signal-to-noise ratio
         # where diff coverage is useful, so we skip the gate for very large PRs.
-        run: diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
+        run: diff-cover coverage.xml --compare-branch=origin/${{ github.base_ref }} --fail-under=80
 
   test-full:
     name: "Test full suite (py${{ matrix.python-version }})"

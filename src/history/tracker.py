@@ -46,6 +46,10 @@ class OperationHistory:
         transaction_id: str | None = None,
         status: OperationStatus = OperationStatus.COMPLETED,
         error_message: str | None = None,
+        dest_dev: int | None = None,
+        dest_ino: int | None = None,
+        source_dev: int | None = None,
+        source_ino: int | None = None,
     ) -> int:
         """Log a file operation to the database.
 
@@ -57,6 +61,15 @@ class OperationHistory:
             transaction_id: ID of the transaction this operation belongs to
             status: Current status of the operation
             error_message: Error message if operation failed
+            dest_dev: Device number of the destination file (from fstat at
+                move time).  Stored in metadata for TOCTOU prevention on undo.
+                Pass None for non-move operations or when unavailable.
+            dest_ino: Inode number of the destination file (from fstat at
+                move time).
+            source_dev: Device number of the source file (from fstat at
+                move time).
+            source_ino: Inode number of the source file (from fstat at
+                move time).
 
         Returns:
             Operation ID
@@ -92,6 +105,16 @@ class OperationHistory:
                 )
             except Exception as e:
                 logger.warning(f"Failed to collect metadata for {source_path}: {e}")
+
+        # Store inode-pin values when provided (PR5 / #269).
+        if dest_dev is not None:
+            metadata["dest_dev"] = dest_dev
+        if dest_ino is not None:
+            metadata["dest_ino"] = dest_ino
+        if source_dev is not None:
+            metadata["source_dev"] = source_dev
+        if source_ino is not None:
+            metadata["source_ino"] = source_ino
 
         # Convert metadata to JSON
         metadata_json = json.dumps(metadata)

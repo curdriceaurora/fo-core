@@ -81,6 +81,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import tempfile
 import time
 import uuid
@@ -105,6 +106,11 @@ except ImportError:  # pragma: no cover - Windows
     _HAS_FCNTL = False
 
 logger = logging.getLogger(__name__)
+
+# PR5b / #269: type alias for the inode-identity triple returned by
+# durable_move after a successful move on POSIX.  ``None`` on Windows
+# (no O_NOFOLLOW / lstat inode semantics) or on any stat failure.
+DstInode = tuple[int, int, int]  # (st_dev, st_ino, st_size)
 
 # Heterogeneous collapse-identity tuple. Three shapes per §3.1:
 # ``("v2", op, op_id)`` / ``("v1", op, src, dst)`` / ``("unknown", op, _hash16)``.
@@ -145,6 +151,28 @@ def _hash16(raw: str) -> str:
     the protocol expects (≤ dozens).
     """
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _capture_dst_inode(dst: Path) -> DstInode | None:
+    """Lstat *dst* and return its inode identity triple.
+
+    Called immediately after the atomic rename / ``os.replace`` so the
+    caller can store ``(st_dev, st_ino, st_size)`` in the history record.
+    Using ``lstat`` (not ``stat``) is deliberate: if ``dst`` is a symlink
+    (``durable_move`` supports symlink moves), we want the symlink inode,
+    not the target.
+
+    Returns ``None`` on Windows or if ``lstat`` fails (caller treats as
+    a legacy row — size+hash fallback at undo time).
+    """
+    if sys.platform == "win32":  # pragma: no cover - Windows
+        return None
+    try:
+        st = os.lstat(dst)
+        return st.st_dev, st.st_ino, st.st_size
+    except OSError:
+        logger.debug("durable_move: lstat failed on %s; cannot capture dst inode", dst)
+        return None
 
 
 @dataclass(frozen=True)
@@ -265,7 +293,7 @@ def _locked(journal: Path, mode: int) -> Iterator[object | None]:
         fh.close()
 
 
-def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
+def durable_move(src: Path, dst: Path, *, journal: Path) -> DstInode | None:
     """Move *src* to *dst* atomically (same device) or durably (EXDEV).
 
     Args:
@@ -280,6 +308,14 @@ def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
             For same-device moves (the fast path) the journal is
             untouched — no crash recovery is needed because the move
             is one syscall.
+
+    Returns:
+        ``(st_dev, st_ino, st_size)`` of *dst* captured via ``lstat``
+        immediately after the move on POSIX. ``None`` on Windows or if
+        the lstat fails. Callers that record history should pass the
+        non-None triple to ``log_operation(dest_dev=..., dest_ino=...)``
+        so ``fo undo`` can verify the file identity before replaying
+        the move (PR5b / PR5c, #269).
 
     Raises:
         FileNotFoundError: If *src* doesn't exist.
@@ -316,6 +352,7 @@ def durable_move(src: Path, dst: Path, *, journal: Path) -> None:
         if exc.errno != errno.EXDEV:
             raise
         _durable_cross_device_move(src, dst, journal=journal)
+    return _capture_dst_inode(dst)
 
 
 def _durable_cross_device_move(src: Path, dst: Path, *, journal: Path) -> None:

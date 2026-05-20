@@ -91,6 +91,8 @@ class OperationTransaction:
         metadata: dict[str, Any] | None = None,
         status: OperationStatus = OperationStatus.COMPLETED,
         error_message: str | None = None,
+        dest_dev: int | None = None,
+        dest_ino: int | None = None,
     ) -> int:
         """Log an operation within this transaction.
 
@@ -101,6 +103,8 @@ class OperationTransaction:
             metadata: Additional metadata
             status: Operation status
             error_message: Error message if operation failed
+            dest_dev: Device number of destination file (from fstat at move time).
+            dest_ino: Inode number of destination file (from fstat at move time).
 
         Returns:
             Operation ID
@@ -116,10 +120,17 @@ class OperationTransaction:
             transaction_id=self.transaction_id,
             status=status,
             error_message=error_message,
+            dest_dev=dest_dev,
+            dest_ino=dest_ino,
         )
 
     def log_move(
-        self, source_path: Path, destination_path: Path, metadata: dict[str, Any] | None = None
+        self,
+        source_path: Path,
+        destination_path: Path,
+        metadata: dict[str, Any] | None = None,
+        dest_dev: int | None = None,
+        dest_ino: int | None = None,
     ) -> int:
         """Log a move operation.
 
@@ -127,6 +138,8 @@ class OperationTransaction:
             source_path: Source file path
             destination_path: Destination file path
             metadata: Additional metadata
+            dest_dev: Device number of destination file captured after the move.
+            dest_ino: Inode number of destination file captured after the move.
 
         Returns:
             Operation ID
@@ -136,6 +149,8 @@ class OperationTransaction:
             source_path=source_path,
             destination_path=destination_path,
             metadata=metadata,
+            dest_dev=dest_dev,
+            dest_ino=dest_ino,
         )
 
     def log_rename(

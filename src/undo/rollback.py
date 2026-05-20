@@ -7,7 +7,9 @@ handling all operation types and transaction management.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
+import sys
 from pathlib import Path
 
 from history.models import Operation, OperationType
@@ -149,6 +151,16 @@ class RollbackExecutor:
     def rollback_move(self, operation: Operation) -> bool:
         """Rollback a move operation (move file back to source).
 
+        PR5c / #269: Before replaying the move, verify that the file
+        currently at ``destination`` is the same inode that was there
+        when the original move landed.  If the history row carries
+        ``dest_dev`` / ``dest_ino`` (recorded by PR5b's
+        ``durable_move`` return value) and the current lstat disagrees,
+        the file was swapped — refuse and log a security event.
+
+        Legacy rows (pre-PR5, ``dest_dev is None``) fall through to the
+        existing behaviour without inode verification.
+
         Args:
             operation: Move operation to rollback
 
@@ -164,6 +176,16 @@ class RollbackExecutor:
 
         logger.info(f"Rolling back move: {destination} -> {source}")
 
+        # PR5c inode verification — POSIX only; requires both fields (partial
+        # rows from broken writes or legacy DBs fall back to legacy path).
+        if (
+            sys.platform != "win32"
+            and operation.dest_dev is not None
+            and operation.dest_ino is not None
+        ):
+            if not self._verify_dst_inode(operation, destination):
+                return False
+
         try:
             # F7: durable_move replaces ``shutil.move`` for files;
             # ``_move`` dispatches to ``shutil.move`` for directories
@@ -177,6 +199,57 @@ class RollbackExecutor:
         except Exception as e:
             logger.error(f"Failed to rollback move operation {operation.id}: {e}")
             return False
+
+    def _verify_dst_inode(self, operation: Operation, destination: Path) -> bool:
+        """Return True iff the file at *destination* matches the recorded inode.
+
+        Called by :meth:`rollback_move` for new-style rows (``dest_dev``
+        is not ``None``).  On mismatch — indicating a swap between the
+        original move and the undo attempt — logs a ``security_event``
+        and returns ``False`` so the caller refuses the replay.
+
+        ``FileNotFoundError`` (destination gone) is treated as a
+        mismatch: if the file is missing we cannot verify identity and
+        must refuse rather than silently skip (which would look like
+        success to the caller).
+        """
+        try:
+            st = os.lstat(destination)
+        except FileNotFoundError:
+            logger.error(
+                "security_event undo_dst_missing op_id=%s path=%s: "
+                "destination absent at undo time; refusing replay",
+                operation.id,
+                destination,
+                exc_info=True,
+            )
+            return False
+        except OSError:
+            logger.error(
+                "security_event undo_dst_lstat_error op_id=%s path=%s: "
+                "cannot stat destination; refusing replay",
+                operation.id,
+                destination,
+                exc_info=True,
+            )
+            return False
+
+        if st.st_dev != operation.dest_dev or st.st_ino != operation.dest_ino:
+            logger.error(
+                "security_event undo_inode_mismatch op_id=%s path=%s: "
+                "recorded (dev=%s ino=%s) != current (dev=%s ino=%s); "
+                "file was replaced — refusing undo replay",
+                operation.id,
+                destination,
+                operation.dest_dev,
+                operation.dest_ino,
+                st.st_dev,
+                st.st_ino,
+                exc_info=True,
+            )
+            return False
+
+        return True
 
     def rollback_rename(self, operation: Operation) -> bool:
         """Rollback a rename operation (rename back to original).

@@ -539,8 +539,10 @@ class OperationValidator:
                 return trash_path
 
         # Fallback: search by filename
+        # safedir: ok — system-managed trash dir (not user-supplied root);
+        # rglob target is self.trash_dir, always under the app state dir.
         filename = operation.source_path.name
-        for item in self.trash_dir.rglob(filename):
+        for item in self.trash_dir.rglob(filename):  # noqa: safedir
             if item.is_file():
                 return item
 
