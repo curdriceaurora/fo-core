@@ -150,6 +150,11 @@ _READ_OPEN_ENFORCED_DIRS: frozenset[str] = frozenset(
         "src/services/search/hybrid_retriever.py",
         "src/core/organizer.py",
         "src/methodologies/para/detection/heuristics.py",
+        # PR6 — watcher, pipeline/stages/{writer,postprocessor}, core/file_ops
+        "src/watcher/handler.py",
+        "src/pipeline/stages/writer.py",
+        "src/pipeline/stages/postprocessor.py",
+        "src/core/file_ops.py",
     }
 )
 

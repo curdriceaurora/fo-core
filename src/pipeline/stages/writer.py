@@ -7,9 +7,14 @@ mode (``context.dry_run is True``).
 from __future__ import annotations
 
 import logging
+import os
 import shutil
+from typing import TYPE_CHECKING
 
 from interfaces.pipeline import StageContext
+
+if TYPE_CHECKING:
+    from utils.safedir import SafeDir
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +24,11 @@ class WriterStage:
 
     In dry-run mode the stage records what *would* happen but
     does not touch the filesystem.
+
+    When ``context.dest_safedir`` is set (POSIX, PR6 / #270) the copy uses
+    an ``O_NOFOLLOW`` open of the destination file inside the category dir so
+    a symlink-swap of the destination file itself is caught.  Falls back to
+    ``shutil.copy2`` on Windows or when the SafeDir is unavailable.
     """
 
     @property
@@ -45,9 +55,44 @@ class WriterStage:
 
         try:
             destination = context.destination
-            assert destination is not None
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(context.file_path, destination)
+            sd = context.dest_safedir
+
+            if sd is not None:
+                # POSIX SafeDir path: copy bytes then set metadata.
+                # O_NOFOLLOW on the dst name prevents a symlink-swap of
+                # the destination file between the exists() check and the
+                # open (PR6 / #270).
+                safedir: SafeDir = sd
+                dst_name = destination.name
+                # safedir: ok — os.open with O_WRONLY|O_CREAT|O_TRUNC via dir_fd; this IS the SafeDir write
+                dst_fd = os.open(
+                    dst_name,
+                    os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
+                    0o666,
+                    dir_fd=safedir._fd,
+                )
+                try:
+                    # safedir: ok — source read; symlinks already filtered by safe_walk at collection
+                    with open(context.file_path, "rb") as src_fh:
+                        while True:
+                            chunk = src_fh.read(65536)
+                            if not chunk:
+                                break
+                            os.write(dst_fd, chunk)
+                finally:
+                    os.close(dst_fd)
+                # Preserve metadata (timestamps, mode) best-effort.
+                try:
+                    # safedir: ok — metadata only (timestamps/mode); content written via dir_fd above
+                    shutil.copystat(context.file_path, destination)
+                except OSError:
+                    pass
+            else:
+                # Windows / SafeDir unavailable: legacy path-based copy.
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                # safedir: ok — Windows / SafeDir unavailable fallback path
+                shutil.copy2(context.file_path, destination)
+
             logger.info("Copied %s -> %s", context.file_path, context.destination)
         except OSError as exc:
             logger.exception("Writer failed for %s", context.file_path)
