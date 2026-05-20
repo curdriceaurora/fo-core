@@ -315,6 +315,40 @@ class TestDocumentExtractor:
         text = extractor.extract_text(odt_path)
         assert "ODT paragraph text" in text
 
+    def test_extract_odt_entity_bomb_refused(self, tmp_path: Path) -> None:
+        """defusedxml neutralises billion-laughs entity expansion in ODT XML."""
+        import io
+        import zipfile
+
+        from services.deduplication.extractor import DocumentExtractor
+
+        # Exponential entity expansion — would hang/OOM without defusedxml.
+        bomb_xml = (
+            '<?xml version="1.0"?>'
+            "<!DOCTYPE bomb ["
+            '  <!ENTITY a "aaaa">'
+            '  <!ENTITY b "&a;&a;&a;&a;">'
+            '  <!ENTITY c "&b;&b;&b;&b;">'
+            '  <!ENTITY d "&c;&c;&c;&c;">'
+            "]>"
+            "<office:document-content"
+            ' xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"'
+            ' xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">'
+            "<office:body><office:text>"
+            "<text:p>&d;</text:p>"
+            "</office:text></office:body></office:document-content>"
+        )
+        odt_bytes = io.BytesIO()
+        with zipfile.ZipFile(odt_bytes, "w") as zf:
+            zf.writestr("content.xml", bomb_xml)
+        odt_path = tmp_path / "bomb.odt"
+        odt_path.write_bytes(odt_bytes.getvalue())
+
+        extractor = DocumentExtractor()
+        # Must return "" quickly — not hang or raise unhandled exception.
+        result = extractor.extract_text(odt_path)
+        assert result == ""
+
     def test_extract_text_latin1_encoding(self, tmp_path: Path) -> None:
         from services.deduplication.extractor import DocumentExtractor
 

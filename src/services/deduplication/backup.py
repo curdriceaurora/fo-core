@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from utils.safedir import SafeDir, SymlinkRejected
+from utils.safedir import SafeDir
 
 # fcntl is Unix-only, not available on Windows
 try:
@@ -34,19 +34,23 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _backup_safe_unlink(path: Path, log: logging.Logger) -> None:
+def _backup_safe_unlink(path: Path, log: logging.Logger) -> bool:
     """Unlink a backup file with inode-mode verification via SafeDir.
 
-    Verifies the target is a regular file (not a symlink) before unlinking.
-    On Windows falls back to a plain unlink.  Swapped inodes / symlinks are
-    logged as security events and skipped rather than raising.
+    Verifies the target is a regular file (not a symlink) via lstat before
+    unlinking.  SafeDir.lstat uses follow_symlinks=False so it stats the
+    entry itself; S_ISREG catches symlinks and any other non-regular type.
+    Returns True if the file was removed, False otherwise.
+
+    On Windows (no SafeDir support) falls back to plain unlink.
     """
     if sys.platform == "win32":
         try:
             path.unlink()
+            return True
         except OSError:
             log.debug("Failed to remove backup %s", path, exc_info=True)
-        return
+            return False
 
     try:
         with SafeDir.open_root(path.parent) as safe_dir:
@@ -57,12 +61,12 @@ def _backup_safe_unlink(path: Path, log: logging.Logger) -> None:
                     path,
                     st.st_mode,
                 )
-                return
+                return False
             safe_dir.unlink(path.name)
-    except SymlinkRejected:
-        log.warning("security_event symlink_in_backup path=%s — skipping", path)
+            return True
     except OSError:
         log.debug("Failed to remove backup %s", path, exc_info=True)
+        return False
 
 
 class BackupManager:
@@ -217,8 +221,8 @@ class BackupManager:
                 backup_path = Path(backup_key)
 
                 # Remove backup file if it exists
-                if backup_path.exists():
-                    _backup_safe_unlink(backup_path, logger)
+                if backup_path.exists() and _backup_safe_unlink(backup_path, logger):
+                    removed_backups.append(backup_path)
 
                 # Remove from manifest regardless of unlink outcome so
                 # stale manifest entries don't accumulate.
