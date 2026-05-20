@@ -299,9 +299,10 @@ class PipelineOrchestrator:
             import contextlib
 
             for stage in self._stages:
-                if hasattr(stage, "close"):
+                close_fn = getattr(stage, "close", None)
+                if close_fn is not None:
                     with contextlib.suppress(Exception):
-                        stage.close()
+                        close_fn()
 
             logger.info("Pipeline stopped")
 
