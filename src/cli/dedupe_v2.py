@@ -11,6 +11,8 @@ Epic D / D4).
 
 from __future__ import annotations
 
+import logging
+import sys
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,6 +22,10 @@ from rich.console import Console
 from cli.dedupe_renderer import Renderer, make_renderer
 from cli.interactive import confirm_action
 from cli.path_validation import resolve_cli_path
+from services.deduplication.hasher import FileHasher, InodePin
+from utils.safedir import SafeDir, SymlinkRejected
+
+logger = logging.getLogger(__name__)
 
 # Module-level Console retained only for the user-confirmation prompt
 # (``confirm_action``), which is interactive and not routed through the
@@ -177,6 +183,63 @@ def scan(
     renderer.end()
 
 
+def _dedupe_unlink(path: Path, renderer: Renderer) -> bool:
+    """Unlink *path* with inode-pin verification via SafeDir.
+
+    Opens the file with O_NOFOLLOW, captures (dev, ino, size) via fstat,
+    then re-checks via lstat before unlinking.  If the inode changed
+    between open and lstat, the unlink is refused and a security event is
+    logged — closing the TOCTOU window between dedupe scan and resolve.
+
+    On Windows (where SafeDir's POSIX primitives are unavailable) falls
+    back to a plain ``path.unlink()``.
+
+    Returns True if the file was removed, False on error or refusal.
+    """
+    if sys.platform == "win32":  # pragma: no cover - platform skip
+        try:
+            path.unlink()
+            renderer.render_resolve_action("removed", path)
+            return True
+        except OSError as exc:
+            renderer.render_resolve_action("error", path, error=str(exc))
+            return False
+
+    hasher = FileHasher()
+    try:
+        with SafeDir.open_root(path.parent) as safe_dir:
+            name = path.name
+            pin: InodePin = hasher.pin_inode(safe_dir, name)
+            st = safe_dir.lstat(name)
+            if (st.st_dev, st.st_ino, st.st_size) != (pin.dev, pin.ino, pin.size):
+                logger.warning(
+                    "security_event inode_swap_detected path=%s "
+                    "pin=(dev=%d,ino=%d,size=%d) lstat=(dev=%d,ino=%d,size=%d)",
+                    path,
+                    pin.dev,
+                    pin.ino,
+                    pin.size,
+                    st.st_dev,
+                    st.st_ino,
+                    st.st_size,
+                )
+                renderer.render_resolve_action(
+                    "error", path, error="inode swap detected — skipping"
+                )
+                return False
+            safe_dir.unlink(name)
+    except SymlinkRejected as exc:
+        logger.warning("security_event symlink_rejected path=%s: %s", path, exc, exc_info=True)
+        renderer.render_resolve_action("error", path, error=str(exc))
+        return False
+    except OSError as exc:
+        logger.warning("Failed to unlink %s: %s", path, exc, exc_info=True)
+        renderer.render_resolve_action("error", path, error=str(exc))
+        return False
+    renderer.render_resolve_action("removed", path)
+    return True
+
+
 @dedupe_app.command()
 def resolve(
     directory: Path = typer.Argument(..., help="Directory to scan for duplicates."),
@@ -271,12 +334,7 @@ def resolve(
             if dry_run:
                 renderer.render_resolve_action("would_remove", fmeta.path)
             else:
-                try:
-                    fmeta.path.unlink()
-                except OSError as exc:
-                    renderer.render_resolve_action("error", fmeta.path, error=str(exc))
-                else:
-                    renderer.render_resolve_action("removed", fmeta.path)
+                if _dedupe_unlink(fmeta.path, renderer):
                     removed += 1
 
     renderer.render_resolve_summary(removed_count=removed, dry_run=dry_run)

@@ -264,22 +264,160 @@ class TestDedupeSymlinkSafety:
     """TOCTOU between hash and unlink (blocked on PR4, #268)."""
 
     def test_dedupe_refuses_unlink_on_inode_swap(self, tmp_path: Path) -> None:
-        """Dedupe refuses to unlink if (dev, ino, size) changed since hash.
+        """Dedupe refuses to unlink if the victim was swapped for a symlink.
 
-        Sequence the test will exercise once inode-pinning lands:
+        Sequence:
 
-        1. Two identical files A and B; A is the victim.
-        2. ``compute_hash(A)`` records ``HashResult(digest, dev, ino, size)``.
-        3. Between hash and unlink, A is replaced by a symlink to the honey
-           file (simulated by manipulating the path between scan and resolve
-           phases).
-        4. Dedupe re-lstats and detects the mismatch, refuses the unlink,
-           logs a ``security_event``.
+        1. Two identical files A (victim) and B (keeper) in the scan root.
+        2. Attacker replaces A with a symlink to a honey file outside the root
+           (simulates swap between scan phase and resolve phase).
+        3. ``_dedupe_unlink`` opens A with O_NOFOLLOW via SafeDir;
+           ``SymlinkRejected`` is raised and caught — unlink is refused.
+        4. Honey file must be intact; a ``security_event`` must be logged.
 
-        Acceptance: honey file still exists, anomaly is logged, exit code
-        reflects the partial-skip.
+        Acceptance: honey file still exists, security event is logged.
         """
-        pytest.skip("blocked on PR4 (#268) — inode pinning in dedupe")
+        import logging
+
+        from cli.dedupe_v2 import _dedupe_unlink
+
+        scan_root = tmp_path / "organize"
+        scan_root.mkdir()
+        honey_dir = tmp_path / "honey"
+        honey_dir.mkdir()
+
+        honey = honey_dir / "secret.txt"
+        honey.write_text("sensitive data")
+        honey_content = honey.read_text()
+
+        victim = scan_root / "duplicate.txt"
+        victim.write_text("identical content")
+        keeper = scan_root / "keeper.txt"
+        keeper.write_text("identical content")
+
+        try:
+            victim.unlink()
+            victim.symlink_to(honey)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action, str(path)))
+
+        renderer = _FakeRenderer()
+        security_events: list[str] = []
+
+        class _CapturingHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                msg = self.format(record)
+                if "security_event" in msg:
+                    security_events.append(msg)
+
+        handler = _CapturingHandler()
+        logging.getLogger("cli.dedupe_v2").addHandler(handler)
+        try:
+            result = _dedupe_unlink(victim, renderer)
+        finally:
+            logging.getLogger("cli.dedupe_v2").removeHandler(handler)
+
+        assert result is False, "unlink should have been refused"
+        assert honey.exists(), "honey file must not be deleted"
+        assert honey.read_text() == honey_content, "honey content must be intact"
+        assert any("security_event" in e for e in security_events), (
+            f"no security_event logged; actions={renderer.actions}"
+        )
+
+    def test_dedupe_unlink_success(self, tmp_path: Path) -> None:
+        """_dedupe_unlink removes a regular file and returns True."""
+        from cli.dedupe_v2 import _dedupe_unlink
+
+        victim = tmp_path / "duplicate.txt"
+        victim.write_text("content")
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action, str(path)))
+
+        renderer = _FakeRenderer()
+        result = _dedupe_unlink(victim, renderer)
+
+        assert result is True
+        assert not victim.exists()
+        assert any(a[0] == "removed" for a in renderer.actions)
+
+    def test_dedupe_unlink_oserror_handled(self, tmp_path: Path) -> None:
+        """_dedupe_unlink returns False and logs on OSError during SafeDir unlink."""
+        from unittest.mock import patch
+
+        from cli.dedupe_v2 import _dedupe_unlink
+
+        victim = tmp_path / "victim.txt"
+        victim.write_text("content")
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action,))
+
+        renderer = _FakeRenderer()
+        with patch("utils.safedir.SafeDir.unlink", side_effect=OSError("busy")):
+            result = _dedupe_unlink(victim, renderer)
+
+        assert result is False
+        assert any(a[0] == "error" for a in renderer.actions)
+
+    def test_dedupe_unlink_inode_mismatch_detected(self, tmp_path: Path) -> None:
+        """_dedupe_unlink refuses if lstat triple differs from pin_inode triple."""
+        import logging
+        from unittest.mock import patch
+
+        from cli.dedupe_v2 import _dedupe_unlink
+        from services.deduplication.hasher import InodePin
+
+        victim = tmp_path / "victim.txt"
+        victim.write_text("content")
+
+        # Fake pin with mismatched ino so the comparison always fails.
+        fake_pin = InodePin(dev=0, ino=0, size=0)
+
+        class _FakeRenderer:
+            def __init__(self) -> None:
+                self.actions: list[tuple[str, ...]] = []
+
+            def render_resolve_action(self, action: str, path: Path, **_: object) -> None:
+                self.actions.append((action, str(path)))
+
+        renderer = _FakeRenderer()
+        security_events: list[str] = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                if "security_event" in self.format(record):
+                    security_events.append(self.format(record))
+
+        handler = _Cap()
+        logging.getLogger("cli.dedupe_v2").addHandler(handler)
+        try:
+            with patch(
+                "services.deduplication.hasher.FileHasher.pin_inode",
+                return_value=fake_pin,
+            ):
+                result = _dedupe_unlink(victim, renderer)
+        finally:
+            logging.getLogger("cli.dedupe_v2").removeHandler(handler)
+
+        assert result is False
+        assert victim.exists(), "file must not be deleted on mismatch"
+        assert any("inode_swap" in e for e in security_events)
 
 
 class TestDestinationSymlinkSafety:

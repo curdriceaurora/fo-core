@@ -8,12 +8,33 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+
+from utils.safedir import SafeDir, SymlinkRejected  # noqa: F401 — re-exported for callers
 
 HashAlgorithm = Literal["md5", "sha256"]
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class InodePin:
+    """Inode identity captured at O_NOFOLLOW open time via os.fstat.
+
+    Used by the dedupe resolve and backup cleanup paths to verify that the
+    file targeted for deletion is still the same inode that was examined
+    during the scan phase, closing the hash→unlink TOCTOU window (#268).
+
+    Callers must re-check (dev, ino, size) via ``safe_dir.lstat(name)``
+    immediately before any destructive operation and refuse on mismatch.
+    """
+
+    dev: int
+    ino: int
+    size: int
 
 
 class FileHasher:
@@ -97,6 +118,27 @@ class FileHasher:
             raise PermissionError(f"Cannot read file: {file_path}") from e
 
         return hasher.hexdigest()
+
+    def pin_inode(self, safe_dir: SafeDir, name: str) -> InodePin:
+        """Open *name* with O_NOFOLLOW and capture (dev, ino, size) from fstat.
+
+        The inode identity is read from the same file descriptor that
+        SafeDir opens — no separate lstat race. Callers must re-verify via
+        ``safe_dir.lstat(name)`` immediately before any destructive
+        operation (unlink, move) and refuse if the triple has changed.
+
+        Raises:
+            SymlinkRejected: If *name* is a symlink at open time.
+            FileNotFoundError: If *name* doesn't exist.
+            OSError: For other open/fstat failures.
+            ValueError: If *name* is not a safe single component.
+        """
+        fd = safe_dir.open_for_reader(name)
+        try:
+            st = os.fstat(fd)
+        finally:
+            os.close(fd)
+        return InodePin(dev=st.st_dev, ino=st.st_ino, size=st.st_size)
 
     def compute_batch(
         self, file_paths: list[Path], algorithm: HashAlgorithm = "sha256"

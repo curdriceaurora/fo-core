@@ -153,6 +153,64 @@ class TestFileHasher:
         with pytest.raises(ValueError, match="Unsupported algorithm"):
             FileHasher.validate_algorithm("sha512")
 
+    def test_pin_inode_returns_correct_triple(self, tmp_path: Path) -> None:
+        """pin_inode captures (dev, ino, size) matching os.stat on the file."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from services.deduplication.hasher import FileHasher, InodePin
+        from utils.safedir import SafeDir
+
+        f = tmp_path / "pintest.txt"
+        f.write_bytes(b"inode pin integration test")
+        st = f.stat()
+
+        with SafeDir.open_root(tmp_path) as sd:
+            pin = FileHasher().pin_inode(sd, "pintest.txt")
+
+        assert isinstance(pin, InodePin)
+        assert pin.dev == st.st_dev
+        assert pin.ino == st.st_ino
+        assert pin.size == st.st_size
+
+    def test_pin_inode_rejects_symlink(self, tmp_path: Path) -> None:
+        """pin_inode raises SymlinkRejected for a symlinked file."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from services.deduplication.hasher import FileHasher
+        from utils.safedir import SafeDir, SymlinkRejected
+
+        real = tmp_path / "real.txt"
+        real.write_bytes(b"real content")
+        link = tmp_path / "link.txt"
+        try:
+            link.symlink_to(real)
+        except OSError:
+            pytest.skip("symlinks not supported on this filesystem")
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(SymlinkRejected):
+                FileHasher().pin_inode(sd, "link.txt")
+
+    def test_pin_inode_raises_for_missing_file(self, tmp_path: Path) -> None:
+        """pin_inode raises FileNotFoundError for a non-existent name."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from services.deduplication.hasher import FileHasher
+        from utils.safedir import SafeDir
+
+        with SafeDir.open_root(tmp_path) as sd:
+            with pytest.raises(FileNotFoundError):
+                FileHasher().pin_inode(sd, "ghost.txt")
+
 
 # ---------------------------------------------------------------------------
 # DocumentExtractor
@@ -314,6 +372,40 @@ class TestDocumentExtractor:
         extractor = DocumentExtractor()
         text = extractor.extract_text(odt_path)
         assert "ODT paragraph text" in text
+
+    def test_extract_odt_entity_bomb_refused(self, tmp_path: Path) -> None:
+        """defusedxml neutralises billion-laughs entity expansion in ODT XML."""
+        import io
+        import zipfile
+
+        from services.deduplication.extractor import DocumentExtractor
+
+        # Exponential entity expansion — would hang/OOM without defusedxml.
+        bomb_xml = (
+            '<?xml version="1.0"?>'
+            "<!DOCTYPE bomb ["
+            '  <!ENTITY a "aaaa">'
+            '  <!ENTITY b "&a;&a;&a;&a;">'
+            '  <!ENTITY c "&b;&b;&b;&b;">'
+            '  <!ENTITY d "&c;&c;&c;&c;">'
+            "]>"
+            "<office:document-content"
+            ' xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"'
+            ' xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">'
+            "<office:body><office:text>"
+            "<text:p>&d;</text:p>"
+            "</office:text></office:body></office:document-content>"
+        )
+        odt_bytes = io.BytesIO()
+        with zipfile.ZipFile(odt_bytes, "w") as zf:
+            zf.writestr("content.xml", bomb_xml)
+        odt_path = tmp_path / "bomb.odt"
+        odt_path.write_bytes(odt_bytes.getvalue())
+
+        extractor = DocumentExtractor()
+        # Must return "" quickly — not hang or raise unhandled exception.
+        result = extractor.extract_text(odt_path)
+        assert result == ""
 
     def test_extract_text_latin1_encoding(self, tmp_path: Path) -> None:
         from services.deduplication.extractor import DocumentExtractor
