@@ -26,7 +26,7 @@ try:
 
     _NUMPY_AVAILABLE = True
 except ImportError:
-    np = None  # type: ignore[assignment]
+    np = None
     _NUMPY_AVAILABLE = False
 
 from PIL.Image import DecompressionBombError
