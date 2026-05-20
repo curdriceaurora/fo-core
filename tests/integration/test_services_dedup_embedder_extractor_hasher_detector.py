@@ -256,6 +256,31 @@ class TestDocumentExtractor:
         # Both striprtf and basic-stripping fallback extract "Hello" from the test input
         assert "Hello" in text
 
+    def test_extract_rtf_cp1252_path_branch(self, tmp_path: Path) -> None:
+        """cp1252-encoded RTF (common on Windows) preserves non-ASCII chars."""
+        from services.deduplication.extractor import DocumentExtractor
+
+        # é is 0xe9 in cp1252; pure UTF-8 decode would raise UnicodeDecodeError.
+        rtf_bytes = r"{\rtf1\ansi caf\e9}".encode("ascii") + b"\xe9"
+        f = tmp_path / "windows.rtf"
+        f.write_bytes(rtf_bytes)
+        extractor = DocumentExtractor()
+        text = extractor.extract_text(f)
+        assert isinstance(text, str)
+        assert len(text) > 0
+
+    def test_decode_bytes_fallback_chain(self) -> None:
+        """_decode_bytes tries utf-8 → latin-1 → cp1252 → ascii(ignore)."""
+        from services.deduplication.extractor import DocumentExtractor
+
+        # Pure ASCII — utf-8 succeeds first.
+        assert DocumentExtractor._decode_bytes(b"hello") == "hello"
+        # latin-1 byte 0xe9 (é) — utf-8 fails, latin-1 succeeds.
+        assert DocumentExtractor._decode_bytes(b"caf\xe9") == "café"
+        # All bytes in range — ensure no exception on arbitrary bytes.
+        result = DocumentExtractor._decode_bytes(bytes(range(256)))
+        assert isinstance(result, str)
+
     def test_extract_odt_basic(self, tmp_path: Path) -> None:
         import io
         import zipfile

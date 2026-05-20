@@ -321,11 +321,12 @@ def read_step_file(
     """Read metadata from a STEP (.step, .stp) CAD file.
 
     STEP files are ISO 10303 standard format for 3D CAD data exchange.
-    This function extracts basic header information from the first 10 KB.
+    This function extracts basic header information from the first ``max_lines``
+    lines, matching the line-based behaviour of ``read_iges_file``.
 
     Args:
         file_path: Path to STEP file (legacy entry point).
-        max_lines: Unused (kept for backward compat).
+        max_lines: Maximum lines to read from the header (default 100).
         fileobj: Open binary file-like (SafeDir-friendly entry point).
             STEP is plain ASCII; the binary stream is decoded UTF-8 with
             errors ignored, matching the legacy path-branch behavior.
@@ -345,7 +346,11 @@ def read_step_file(
         label = Path(file_path).name if file_path is not None else "<fileobj>"
         _check_fd_size(fileobj)
         try:
-            content = fileobj.read(10000).decode("utf-8", errors="ignore")
+            text_stream = io.TextIOWrapper(fileobj, encoding="utf-8", errors="ignore")
+            try:
+                content = "".join(text_stream.readline() for _ in range(max_lines))
+            finally:
+                text_stream.detach()
             try:
                 size_kb = os.fstat(fileobj.fileno()).st_size / 1024
             except (OSError, AttributeError, ValueError):
@@ -361,7 +366,7 @@ def read_step_file(
         with path.open(
             encoding="utf-8", errors="ignore"
         ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
-            content = f.read(10000)
+            content = "".join(f.readline() for _ in range(max_lines))
         size_kb = path.stat().st_size / 1024
         return _parse_step_text(content, path.name, size_kb)
     except (OSError, UnicodeDecodeError, ValueError) as e:
