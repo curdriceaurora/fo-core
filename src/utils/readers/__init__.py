@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -33,9 +32,6 @@ from utils.readers._base import (
     FileTooLargeError,
     _check_file_size,
 )
-
-if TYPE_CHECKING:
-    from utils.safedir import SafeDir
 from utils.readers.archives import (
     read_7z_file,
     read_rar_file,
@@ -63,6 +59,7 @@ from utils.readers.scientific import (
     read_mat_file,
     read_netcdf_file,
 )
+from utils.safedir import SafeDir
 
 __all__ = [
     # Exceptions / constants
@@ -72,6 +69,7 @@ __all__ = [
     # Dispatchers
     "read_file",
     "read_file_via_safedir",
+    "read_file_via_safedir_anchored",
     # Document readers
     "read_text_file",
     "read_docx_file",
@@ -270,5 +268,102 @@ def read_file_via_safedir(
 
     logger.debug(
         f"Extension {ext!r} not yet supported by read_file_via_safedir; caller may fall back"
+    )
+    return None
+
+
+def read_file_via_safedir_anchored(
+    file_path: Path,
+    *,
+    trusted_root: Path,
+    **kwargs: object,
+) -> str | None:
+    """Anchored-traversal variant of :func:`read_file_via_safedir`.
+
+    Walks ``file_path.relative_to(trusted_root)`` one component at a time
+    via :meth:`utils.safedir.SafeDir.open_anchored_reader`, so an ancestor
+    directory swapped to a symlink between enumeration and this read is
+    refused with :class:`utils.safedir.SymlinkRejected` rather than
+    silently dereferenced. Closes the nested-ancestor TOCTOU window
+    (#286) that the parent-rooted ``open_root(file_path.parent)`` pattern
+    leaves open.
+
+    Args:
+        file_path: Absolute path to the file to read. Must be inside
+            *trusted_root* (validated via :meth:`Path.relative_to`, which
+            raises ``ValueError`` otherwise).
+        trusted_root: The anchor directory whose contents are trusted —
+            typically the original scan / organize root the caller walked
+            to find *file_path*. Opened once via
+            :meth:`SafeDir.open_root`; subsequent components are
+            ``O_NOFOLLOW``-walked from there.
+        **kwargs: Forwarded to the dispatched reader.
+
+    Returns:
+        Extracted text content, or ``None`` if the extension isn't in the
+        SafeDir reader registry (mirrors
+        :func:`read_file_via_safedir`'s contract).
+
+    Raises:
+        ValueError: If *file_path* is not under *trusted_root*, or if any
+            component fails name validation.
+        utils.safedir.SymlinkRejected: If any path component (intermediate
+            or leaf) is a symlink at open time.
+        FileReadError: If the reader fails on the file content.
+        FileTooLargeError: If the file exceeds ``MAX_FILE_SIZE_BYTES``.
+
+    See Also:
+        :func:`read_file_via_safedir` — parent-rooted variant. Use this
+        anchored variant whenever the caller has a meaningful
+        ``trusted_root`` (the directory tree it walked); fall back to the
+        parent-rooted variant only for standalone reads without a walk
+        context.
+    """
+    # ``relative_to`` raises ValueError if file_path escapes trusted_root,
+    # which is itself a security violation worth surfacing — let it propagate.
+    relative = file_path.relative_to(trusted_root)
+
+    name_lower = file_path.name.lower()
+    if (
+        name_lower.endswith(".tar.gz")
+        or name_lower.endswith(".tar.bz2")
+        or name_lower.endswith(".tar.xz")
+    ):
+        compound_ext = "." + ".".join(file_path.name.split(".")[-2:]).lower()
+    else:
+        compound_ext = file_path.suffix.lower()
+    ext = file_path.suffix.lower()
+
+    for check_ext in [compound_ext, ext]:
+        for extensions, reader in _SAFEDIR_READERS.items():
+            if check_ext in extensions:
+                with SafeDir.open_root(trusted_root) as root:
+                    fd = root.open_anchored_reader(relative)
+                    # Split fdopen out so the raw fd is closed only when
+                    # ``fdopen`` itself fails to construct the file object
+                    # (e.g. EMFILE). Once ``fdopen`` returns, ``with fileobj``
+                    # owns the close — wrapping it in an outer try/except
+                    # that also calls ``os.close(fd)`` would double-close on
+                    # any exception inside the reader, masking the real error
+                    # with EBADF (Copilot review).
+                    try:
+                        fileobj = os.fdopen(fd, "rb", closefd=True)
+                    except OSError:
+                        os.close(fd)
+                        raise
+                    with fileobj:
+                        try:
+                            return reader(  # type: ignore[operator,no-any-return]
+                                file_path=Path(file_path.name),
+                                fileobj=fileobj,
+                                **kwargs,
+                            )
+                        except Exception as exc:
+                            logger.error(f"Error reading {file_path.name}: {exc}")
+                            raise
+
+    logger.debug(
+        f"Extension {ext!r} not yet supported by "
+        f"read_file_via_safedir_anchored; caller may fall back"
     )
     return None
