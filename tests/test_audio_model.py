@@ -21,7 +21,7 @@ def _restore_audio_transcriber_cache() -> Generator[None, None, None]:
     Prevents state leaking into subsequent tests when running under
     single-threaded -m ci order.
     """
-    from services.audio.transcriber import AudioTranscriber
+    from models.audio_transcriber import AudioTranscriber
 
     original = dict(AudioTranscriber._model_cache)
     try:
