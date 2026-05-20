@@ -237,7 +237,7 @@ jobs:
         # Ratchet: bump --fail-under as coverage improves. Target: 90% per issue #855.
         # Broad refactors and type-cleanup sweeps exceed the signal-to-noise ratio
         # where diff coverage is useful, so we skip the gate for very large PRs.
-        run: diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
+        run: diff-cover coverage.xml --compare-branch=origin/${{ github.base_ref }} --fail-under=80
 
   test-full:
     name: "Test full suite (py${{ matrix.python-version }})"
