@@ -54,6 +54,11 @@ class Operation:
         destination_path: Destination file path (for move/rename/copy)
         file_hash: SHA256 hash of the file
         metadata: Additional metadata (size, type, permissions, etc.)
+            Inode identity for TOCTOU prevention is stored here under the
+            keys ``dest_dev`` / ``dest_ino`` (destination) and
+            ``source_dev`` / ``source_ino`` (source).  Rows written before
+            PR5 have ``None`` for these keys; ``rollback.py`` falls back to
+            size + hash verification for those legacy rows.
         transaction_id: ID of the transaction this operation belongs to
         status: Current status of the operation
         error_message: Error message if operation failed
@@ -71,6 +76,47 @@ class Operation:
     status: OperationStatus = OperationStatus.COMPLETED
     error_message: str | None = None
     created_at: datetime | None = None
+
+    # ------------------------------------------------------------------
+    # Inode-pin accessors (PR5 / #269)
+    #
+    # Stored in metadata rather than new SQL columns so the DB schema
+    # stays at version 1.  Pre-PR5 rows have no keys → return None.
+    # ------------------------------------------------------------------
+
+    @property
+    def dest_dev(self) -> int | None:
+        """Device number of the destination file at move time, or None for legacy rows."""
+        v = self.metadata.get("dest_dev")
+        return int(v) if v is not None else None
+
+    @property
+    def dest_ino(self) -> int | None:
+        """Inode number of the destination file at move time, or None for legacy rows."""
+        v = self.metadata.get("dest_ino")
+        return int(v) if v is not None else None
+
+    @property
+    def source_dev(self) -> int | None:
+        """Device number of the source file at move time, or None for legacy rows."""
+        v = self.metadata.get("source_dev")
+        return int(v) if v is not None else None
+
+    @property
+    def source_ino(self) -> int | None:
+        """Inode number of the source file at move time, or None for legacy rows."""
+        v = self.metadata.get("source_ino")
+        return int(v) if v is not None else None
+
+    def set_dest_inode(self, dev: int, ino: int) -> None:
+        """Record destination inode identity captured at move time."""
+        self.metadata["dest_dev"] = dev
+        self.metadata["dest_ino"] = ino
+
+    def set_source_inode(self, dev: int, ino: int) -> None:
+        """Record source inode identity captured at move time."""
+        self.metadata["source_dev"] = dev
+        self.metadata["source_ino"] = ino
 
     def to_dict(self) -> dict[str, Any]:
         """Convert operation to dictionary.

@@ -677,3 +677,69 @@ class TestTransaction:
         assert d["status"] == "partially_rolled_back"
         restored = Transaction.from_dict(d)
         assert restored.status is TransactionStatus.PARTIALLY_ROLLED_BACK
+
+
+@pytest.mark.unit
+class TestOperationInodePin:
+    """Tests for Operation inode-pin accessors (PR5 / #269)."""
+
+    _NOW = datetime(2026, 1, 1, tzinfo=UTC)
+    _SRC = Path("/organize/root/file.txt")
+
+    def _make_op(self, metadata: dict | None = None) -> Operation:
+        return Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=self._NOW,
+            source_path=self._SRC,
+            destination_path=Path("/organize/documents/file.txt"),
+            metadata=metadata or {},
+        )
+
+    def test_dest_dev_none_for_legacy_row(self) -> None:
+        op = self._make_op()
+        assert op.dest_dev is None
+        assert op.dest_ino is None
+
+    def test_source_dev_none_for_legacy_row(self) -> None:
+        op = self._make_op()
+        assert op.source_dev is None
+        assert op.source_ino is None
+
+    def test_set_dest_inode_stores_in_metadata(self) -> None:
+        op = self._make_op()
+        op.set_dest_inode(dev=7, ino=42)
+        assert op.dest_dev == 7
+        assert op.dest_ino == 42
+        assert op.metadata["dest_dev"] == 7
+        assert op.metadata["dest_ino"] == 42
+
+    def test_set_source_inode_stores_in_metadata(self) -> None:
+        op = self._make_op()
+        op.set_source_inode(dev=3, ino=99)
+        assert op.source_dev == 3
+        assert op.source_ino == 99
+
+    def test_accessors_read_pre_populated_metadata(self) -> None:
+        op = self._make_op(metadata={"dest_dev": 5, "dest_ino": 10})
+        assert op.dest_dev == 5
+        assert op.dest_ino == 10
+
+    def test_round_trip_via_to_dict_from_dict(self) -> None:
+        op = self._make_op()
+        op.set_dest_inode(dev=2, ino=100)
+        op.set_source_inode(dev=2, ino=50)
+
+        restored = Operation.from_dict(op.to_dict())
+        assert restored.dest_dev == 2
+        assert restored.dest_ino == 100
+        assert restored.source_dev == 2
+        assert restored.source_ino == 50
+
+    def test_legacy_row_round_trip_returns_none(self) -> None:
+        """from_dict on a row with no inode keys returns None from all accessors."""
+        op = self._make_op(metadata={"size": 1024})
+        restored = Operation.from_dict(op.to_dict())
+        assert restored.dest_dev is None
+        assert restored.dest_ino is None
+        assert restored.source_dev is None
+        assert restored.source_ino is None
