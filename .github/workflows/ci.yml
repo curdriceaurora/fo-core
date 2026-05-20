@@ -211,7 +211,10 @@ jobs:
           print(f'faker {importlib.metadata.version(\"faker\")} importable')
           "
       - name: Erase stale coverage data
-        run: coverage erase
+        # coverage erase clears .coverage; find removes .coverage.* parallel
+        # worker files that xdist writes — stale ones from a previous run with
+        # a different branch/statement mode cause DataError on combine (#302).
+        run: coverage erase && find . -maxdepth 1 -name ".coverage.*" -delete
       - name: Run tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
