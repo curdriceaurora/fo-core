@@ -173,16 +173,25 @@ def _extract_pdf_pages(doc: object, max_pages: int, label: str) -> str:
 
 
 def _parse_pdf_stream(fileobj: BinaryIO, max_pages: int, label: str) -> str:
-    """Parse PDF from a file-like by reading bytes and using fitz.open(stream=).
+    """Parse PDF from a SafeDir-opened fileobj without loading the full file.
 
-    Used only when the caller already has a fileobj (the SafeDir-friendly
-    entry point); the path branch streams from disk via ``fitz.open(path)``
-    to avoid loading the whole PDF into memory before ``max_pages`` is
-    applied.
+    Uses ``/dev/fd/{fd}`` (POSIX) so PyMuPDF streams lazily from the
+    already-open fd instead of materialising the entire file in memory
+    before the ``max_pages`` limit is applied (issue #298).
+
+    Falls back to ``fileobj.read()`` when the fileobj has no real fd
+    (e.g. ``io.BytesIO`` in tests, or any non-regular-file stream).
     """
-    data = fileobj.read()
-    with fitz.open(stream=data, filetype="pdf") as doc:
-        return _extract_pdf_pages(doc, max_pages, label)
+    try:
+        fd = fileobj.fileno()
+        with fitz.open(f"/dev/fd/{fd}") as doc:
+            return _extract_pdf_pages(doc, max_pages, label)
+    except OSError:
+        # fileno() raises io.UnsupportedOperation (OSError subclass) for
+        # BytesIO and similar in-memory objects — fall back to in-memory open.
+        data = fileobj.read()
+        with fitz.open(stream=data, filetype="pdf") as doc:
+            return _extract_pdf_pages(doc, max_pages, label)
 
 
 def read_pdf_file(

@@ -2,13 +2,33 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytest.importorskip("faster_whisper")
+
 from models.audio_model import AudioModel
 from models.base import ModelConfig, ModelType
+
+
+@pytest.fixture(autouse=True)
+def _restore_audio_transcriber_cache() -> Generator[None, None, None]:
+    """Restore AudioTranscriber._model_cache after each test (T12 / #291).
+
+    Prevents state leaking into subsequent tests when running under
+    single-threaded -m ci order.
+    """
+    from models.audio_transcriber import AudioTranscriber
+
+    original = dict(AudioTranscriber._model_cache)
+    try:
+        yield
+    finally:
+        AudioTranscriber._model_cache.clear()
+        AudioTranscriber._model_cache.update(original)
 
 
 @pytest.mark.unit
