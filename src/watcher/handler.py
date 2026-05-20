@@ -72,6 +72,7 @@ class FileEventHandler(FileSystemEventHandler):
         config: WatcherConfig,
         queue: EventQueue,
         safe_dir: SafeDir | None = None,
+        watch_root: Path | None = None,
     ) -> None:
         """Initialize the event handler.
 
@@ -79,16 +80,22 @@ class FileEventHandler(FileSystemEventHandler):
             config: Watcher configuration for filtering and debouncing.
             queue: Event queue for downstream processing.
             safe_dir: Optional ``SafeDir`` opened on the watch root.  When
-                provided, every non-directory CREATE/MODIFY event is
-                verified through ``safe_dir.open_child(name)`` before
-                being queued.  Symlinks raise ``SymlinkRejected`` — the
-                event is dropped and a ``security_event`` is logged
-                (PR6 / #270).  Pass ``None`` to disable (Windows, tests).
+                provided, direct-child CREATE/MODIFY events are verified
+                through ``safe_dir.open_child(name)`` before being queued.
+                Symlinks raise ``SymlinkRejected`` — the event is dropped
+                and a ``security_event`` is logged (PR6 / #270).
+                Pass ``None`` to disable (Windows, tests).
+            watch_root: Resolved path of the watch root directory.  Must
+                be provided together with *safe_dir* so that
+                ``_safedir_allows`` can determine whether an event path is
+                a direct child of the root (checkable) or lives in a
+                subdirectory (falls through to pipeline-level SafeDir).
         """
         super().__init__()
         self.config = config
         self.queue = queue
         self._safe_dir: SafeDir | None = safe_dir
+        self._watch_root: Path | None = watch_root.resolve() if watch_root is not None else None
 
         # Debounce state: maps file path -> last event timestamp (monotonic)
         self._last_event_times: dict[str, float] = {}
@@ -227,15 +234,46 @@ class FileEventHandler(FileSystemEventHandler):
     def _safedir_allows(self, path: Path) -> bool:
         """Return True iff *path* passes the SafeDir O_NOFOLLOW check.
 
-        Opens the entry by name relative to ``self._safe_dir`` using
-        ``O_NOFOLLOW``.  If the entry is a symlink, ``SymlinkRejected`` is
-        raised by SafeDir — the event must be dropped.  Any other
-        ``OSError`` (e.g. the file was deleted before we could open it)
-        is treated as "allow" so transient races don't silence real events.
+        Only direct children of the watch root are checked — the SafeDir
+        primitive takes a single bare name, so a nested path like
+        ``watch_root/subdir/file.pdf`` cannot be verified in one step.
+        Nested-path events fall through to ``True`` here; the pipeline-
+        level SafeDir in ``PostprocessorStage`` / ``WriterStage`` is the
+        backstop for those entries (PR6 / #270).
+
+        For direct children: opens the entry via ``O_NOFOLLOW``.  If it
+        is a symlink ``SymlinkRejected`` is raised — the event is dropped
+        and a ``security_event`` is logged.  Any other ``OSError`` (e.g.
+        the file was deleted before we could open it) is treated as "allow"
+        so transient races don't silence real events.
         """
         sd = self._safe_dir
         if sd is None:
             return True
+
+        # Only check direct children of the watch root; for nested paths
+        # we can't verify the full chain with a single SafeDir.
+        resolved = path.resolve()
+        watch_root = self._watch_root
+        if watch_root is not None:
+            try:
+                rel = resolved.relative_to(watch_root)
+            except ValueError:
+                # Path is outside the watch root entirely — drop it.
+                logger.error(
+                    "security_event watcher_path_outside_root path=%s: "
+                    "event path is not under watch root, dropped",
+                    path,
+                )
+                return False
+            if len(rel.parts) != 1:
+                # Nested path — can't check with a single open_child;
+                # allow through to pipeline-level SafeDir.
+                logger.debug(
+                    "SafeDir watcher: nested path %s skipped (pipeline will re-check)", path
+                )
+                return True
+
         try:
             from utils.safedir import SymlinkRejected
 

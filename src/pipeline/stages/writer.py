@@ -59,17 +59,14 @@ class WriterStage:
 
             if sd is not None:
                 # POSIX SafeDir path: copy bytes then set metadata.
-                # O_NOFOLLOW on the dst name prevents a symlink-swap of
-                # the destination file between the exists() check and the
-                # open (PR6 / #270).
+                # open_child adds O_NOFOLLOW automatically, rejecting a
+                # symlink-swap of the destination file with SymlinkRejected
+                # (PR6 / #270).
                 safedir: SafeDir = sd
                 dst_name = destination.name
-                # safedir: ok — os.open with O_WRONLY|O_CREAT|O_TRUNC via dir_fd; this IS the SafeDir write
-                dst_fd = os.open(
+                dst_fd = safedir.open_child(
                     dst_name,
-                    os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
-                    0o666,
-                    dir_fd=safedir._fd,
+                    flags=os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
                 )
                 try:
                     # safedir: ok — source read; symlinks already filtered by safe_walk at collection
@@ -78,12 +75,15 @@ class WriterStage:
                             chunk = src_fh.read(65536)
                             if not chunk:
                                 break
-                            os.write(dst_fd, chunk)
+                            view = memoryview(chunk)
+                            written = 0
+                            while written < len(view):
+                                written += os.write(dst_fd, view[written:])
                 finally:
                     os.close(dst_fd)
                 # Preserve metadata (timestamps, mode) best-effort.
                 try:
-                    # safedir: ok — metadata only (timestamps/mode); content written via dir_fd above
+                    # safedir: ok — metadata only (timestamps/mode); content written via open_child above
                     shutil.copystat(context.file_path, destination)
                 except OSError:
                     pass
@@ -95,7 +95,18 @@ class WriterStage:
 
             logger.info("Copied %s -> %s", context.file_path, context.destination)
         except OSError as exc:
-            logger.exception("Writer failed for %s", context.file_path)
+            from utils.safedir import SymlinkRejected
+
+            if isinstance(exc, SymlinkRejected):
+                logger.error(
+                    "security_event writer_symlink_rejected path=%s dst=%s: "
+                    "destination file is a symlink — refusing write",
+                    context.file_path,
+                    context.destination,
+                    exc_info=True,
+                )
+            else:
+                logger.exception("Writer failed for %s", context.file_path)
             context.error = str(exc)
 
         return context

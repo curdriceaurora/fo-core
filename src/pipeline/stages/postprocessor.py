@@ -72,9 +72,10 @@ class PostprocessorStage:
             with contextlib.suppress(Exception):
                 sd.__exit__(None, None, None)
         self._cat_subdirs.clear()
-        if self._root_sd is not None:
+        root_sd = self._root_sd
+        if root_sd is not None:
             with contextlib.suppress(Exception):
-                self._root_sd.__exit__(None, None, None)
+                root_sd.__exit__(None, None, None)
             self._root_sd = None
 
     def _get_category_safedir(self, category: str) -> SafeDir:

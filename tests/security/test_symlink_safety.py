@@ -439,8 +439,9 @@ class TestDestinationSymlinkSafety:
            the attacker location.
 
         Acceptance: attacker directory remains empty; ``context.failed`` is
-        True; a ``security_event`` is logged.
+        True; a ``security_event destination_symlink_swap`` is logged.
         """
+        import logging
 
         from interfaces.pipeline import StageContext
         from pipeline.stages.postprocessor import PostprocessorStage
@@ -460,25 +461,35 @@ class TestDestinationSymlinkSafety:
         src = tmp_path / "doc.txt"
         src.write_bytes(b"sensitive content")
 
-        stage = PostprocessorStage(output_root)
+        security_events: list[str] = []
+
+        class _CapHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                msg = self.format(record)
+                if "security_event" in msg:
+                    security_events.append(msg)
+
+        cap = _CapHandler()
+        postprocessor_log = logging.getLogger("pipeline.stages.postprocessor")
+        postprocessor_log.addHandler(cap)
         try:
-            ctx = StageContext(file_path=src, dry_run=False)
-            ctx.category = "documents"
-            ctx.filename = "doc"
-            result = stage.process(ctx)
+            stage = PostprocessorStage(output_root)
+            try:
+                ctx = StageContext(file_path=src, dry_run=False)
+                ctx.category = "documents"
+                ctx.filename = "doc"
+                result = stage.process(ctx)
+            finally:
+                stage.close()
         finally:
-            stage.close()
+            postprocessor_log.removeHandler(cap)
 
         assert result.failed, "stage must fail when category dir is a symlink"
         assert not any(attacker_dir.iterdir()), "attacker dir must remain empty"
-        assert (
-            "security_event" in "".join(r.getMessage() for r in self._capture_log(stage))
-            or result.error is not None
-        ), "error must be set"
-
-    @staticmethod
-    def _capture_log(stage: object) -> list:
-        return []  # log assertions done via context.error check above
+        assert result.error is not None, "context.error must be set"
+        assert any("destination_symlink_swap" in e for e in security_events), (
+            "security_event destination_symlink_swap must be logged; got: " + str(security_events)
+        )
 
 
 class TestDaemonSymlinkSafety:
