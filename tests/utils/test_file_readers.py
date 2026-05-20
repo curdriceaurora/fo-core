@@ -841,6 +841,7 @@ class TestDocumentsFileobjPaths:
         fileobj = io.BytesIO(b"fake xlsx")
         result = _read_ss(file_path="data.xlsx", fileobj=fileobj)
         assert isinstance(result, str)
+        assert len(result) > 0
 
     def test_read_spreadsheet_unsupported_suffix_raises_file_read_error(self) -> None:
         """read_spreadsheet_file with an unsupported extension raises FileReadError."""
