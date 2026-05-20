@@ -852,9 +852,6 @@ class TestBufferKeyInContext:
 @pytest.mark.unit
 def test_stop_calls_close_on_stages_with_close_method(tmp_path: Path) -> None:
     """stop() calls close() on stages that have the method (e.g. PostprocessorStage)."""
-    from unittest.mock import MagicMock
-
-    from interfaces.pipeline import StageContext
     from pipeline.orchestrator import PipelineOrchestrator
 
     class _FakeStage:

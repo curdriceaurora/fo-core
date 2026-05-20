@@ -352,3 +352,205 @@ class TestFsyncDirectory:
         f = nested / "file.txt"
         f.write_text("content")
         fsync_directory(f)
+
+
+# ---------------------------------------------------------------------------
+# PR6 SafeDir paths — integration coverage
+# ---------------------------------------------------------------------------
+
+
+class TestWriterStageSafeDirIntegration:
+    """Integration coverage for the SafeDir copy path in WriterStage (PR6 / #270)."""
+
+    def test_safedir_copy_writes_content(self, tmp_path: Path) -> None:
+        """WriterStage copies via SafeDir open_child when dest_safedir is set."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        out = tmp_path / "out" / "docs"
+        out.mkdir(parents=True)
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"integration content")
+
+        with SafeDir.open_root(out) as sd:
+            ctx = StageContext(
+                file_path=src,
+                destination=out / "doc.txt",
+                dest_safedir=sd,
+                dry_run=False,
+            )
+            result = WriterStage().process(ctx)
+
+        assert not result.failed
+        assert (out / "doc.txt").read_bytes() == b"integration content"
+
+    def test_safedir_copy_large_file(self, tmp_path: Path) -> None:
+        """SafeDir copy handles multi-chunk files (triggers partial-write loop)."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        out = tmp_path / "out" / "docs"
+        out.mkdir(parents=True)
+        src = tmp_path / "big.bin"
+        data = b"x" * (65536 * 3 + 100)
+        src.write_bytes(data)
+
+        with SafeDir.open_root(out) as sd:
+            ctx = StageContext(
+                file_path=src,
+                destination=out / "big.bin",
+                dest_safedir=sd,
+                dry_run=False,
+            )
+            result = WriterStage().process(ctx)
+
+        assert not result.failed
+        assert (out / "big.bin").read_bytes() == data
+
+    def test_safedir_symlink_rejected_sets_error(self, tmp_path: Path) -> None:
+        """SymlinkRejected from open_child sets context.error (security_event path)."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        out = tmp_path / "out" / "docs"
+        out.mkdir(parents=True)
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"data")
+
+        victim = tmp_path / "victim.txt"
+        victim.write_bytes(b"sensitive")
+        dst = out / "doc.txt"
+        try:
+            dst.symlink_to(victim)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(out) as sd:
+            ctx = StageContext(
+                file_path=src,
+                destination=dst,
+                dest_safedir=sd,
+                dry_run=False,
+            )
+            result = WriterStage().process(ctx)
+
+        assert result.failed
+        assert result.error is not None
+        assert victim.read_bytes() == b"sensitive"
+
+    def test_safedir_oserror_sets_error(self, tmp_path: Path) -> None:
+        """Non-SymlinkRejected OSError in SafeDir copy sets context.error."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        out = tmp_path / "out" / "docs"
+        out.mkdir(parents=True)
+        src = tmp_path / "missing.txt"
+
+        with SafeDir.open_root(out) as sd:
+            ctx = StageContext(
+                file_path=src,
+                destination=out / "missing.txt",
+                dest_safedir=sd,
+                dry_run=False,
+            )
+            result = WriterStage().process(ctx)
+
+        assert result.failed
+        assert result.error is not None
+
+
+class TestPostprocessorSafeDirIntegration:
+    """Integration coverage for SafeDir paths in PostprocessorStage (PR6 / #270)."""
+
+    def test_safedir_roundtrip_two_categories(self, tmp_path: Path) -> None:
+        """Process two files in different categories; close() releases all fds."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        out = tmp_path / "out"
+        out.mkdir()
+        src_a = tmp_path / "a.txt"
+        src_b = tmp_path / "b.txt"
+        src_a.write_bytes(b"a")
+        src_b.write_bytes(b"b")
+
+        stage = PostprocessorStage(output_directory=out)
+        try:
+            r_a = stage.process(
+                StageContext(file_path=src_a, dry_run=False, category="docs", filename="a")
+            )
+            r_b = stage.process(
+                StageContext(file_path=src_b, dry_run=False, category="images", filename="b")
+            )
+        finally:
+            stage.close()
+
+        assert not r_a.failed
+        assert not r_b.failed
+        assert stage._cat_subdirs == {}
+        assert stage._root_sd is None
+
+    def test_safedir_cache_hit_same_category(self, tmp_path: Path) -> None:
+        """Two files in the same category hit the _cat_subdirs cache."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        out = tmp_path / "out"
+        out.mkdir()
+        src1 = tmp_path / "a.txt"
+        src2 = tmp_path / "b.txt"
+        src1.write_bytes(b"a")
+        src2.write_bytes(b"b")
+
+        stage = PostprocessorStage(output_directory=out)
+        try:
+            stage.process(
+                StageContext(file_path=src1, dry_run=False, category="docs", filename="a")
+            )
+            r2 = stage.process(
+                StageContext(file_path=src2, dry_run=False, category="docs", filename="b")
+            )
+        finally:
+            stage.close()
+
+        assert not r2.failed
+
+    def test_no_safedir_plain_mkdir_integration(self, tmp_path: Path) -> None:
+        """_root_sd=None falls back to plain mkdir (exercises the else branch)."""
+        out = tmp_path / "out"
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"hi")
+
+        stage = PostprocessorStage(output_directory=out)
+        stage._root_sd = None
+        stage._cat_subdirs.clear()
+        try:
+            result = stage.process(
+                StageContext(file_path=src, dry_run=False, category="docs", filename="doc")
+            )
+        finally:
+            stage.close()
+
+        assert not result.failed
+        assert (out / "docs").is_dir()
