@@ -581,43 +581,48 @@ class TestImportErrorBranches:
 
     def test_h5py_import_error_branch(self):
         """Line 30-31: H5PY_AVAILABLE = False set when h5py absent."""
+        import importlib
         import sys
         from unittest.mock import patch as _patch
 
-        with _patch.dict(sys.modules, {"h5py": None}):
-            # Force re-execution of the module's try/except block
-            import importlib
+        import utils.readers.scientific as sci_mod
 
-            import utils.readers.scientific as sci_mod
-
-            importlib.reload(sci_mod)
-            assert sci_mod.H5PY_AVAILABLE is False
+        original = sci_mod.H5PY_AVAILABLE
+        try:
+            with _patch.dict(sys.modules, {"h5py": None}):
+                importlib.reload(sci_mod)
+                assert sci_mod.H5PY_AVAILABLE is False
+        finally:
+            sci_mod.H5PY_AVAILABLE = original
 
     def test_netcdf4_import_error_branch(self):
         """Lines 37-38: NETCDF4_AVAILABLE = False set when netCDF4 absent."""
+        import importlib
         import sys
         from unittest.mock import patch as _patch
 
-        with _patch.dict(sys.modules, {"netCDF4": None}):
-            import importlib
+        import utils.readers.scientific as sci_mod
 
-            import utils.readers.scientific as sci_mod
-
-            importlib.reload(sci_mod)
-            assert sci_mod.NETCDF4_AVAILABLE is False
+        original = sci_mod.NETCDF4_AVAILABLE
+        try:
+            with _patch.dict(sys.modules, {"netCDF4": None}):
+                importlib.reload(sci_mod)
+                assert sci_mod.NETCDF4_AVAILABLE is False
+        finally:
+            sci_mod.NETCDF4_AVAILABLE = original
 
     def test_scipy_import_error_branch(self):
         """Lines 44-45: SCIPY_AVAILABLE = False set when scipy absent."""
+        import importlib
         import sys
         from unittest.mock import patch as _patch
 
-        with _patch.dict(
-            sys.modules,
-            {"scipy": None, "scipy.io": None},
-        ):
-            import importlib
+        import utils.readers.scientific as sci_mod
 
-            import utils.readers.scientific as sci_mod
-
-            importlib.reload(sci_mod)
-            assert sci_mod.SCIPY_AVAILABLE is False
+        original = sci_mod.SCIPY_AVAILABLE
+        try:
+            with _patch.dict(sys.modules, {"scipy": None, "scipy.io": None}):
+                importlib.reload(sci_mod)
+                assert sci_mod.SCIPY_AVAILABLE is False
+        finally:
+            sci_mod.SCIPY_AVAILABLE = original
