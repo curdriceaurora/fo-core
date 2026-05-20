@@ -700,3 +700,117 @@ class TestDebounceDictEviction:
         handler._should_process("new/path")
 
         assert "active" in handler._last_event_times
+
+
+# ---------------------------------------------------------------------------
+# PR6 / #270 — SafeDir _safedir_allows branch coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestSafeDirAllows:
+    """Cover new watch_root branches in FileEventHandler._safedir_allows."""
+
+    def _make_handler(
+        self,
+        config: WatcherConfig,
+        queue: EventQueue,
+        safe_dir: object,
+        watch_root: Path | None = None,
+    ) -> FileEventHandler:
+        return FileEventHandler(config, queue, safe_dir=safe_dir, watch_root=watch_root)  # type: ignore[arg-type]
+
+    def test_no_safedir_always_allows(
+        self, default_config: WatcherConfig, queue: EventQueue
+    ) -> None:
+        """When safe_dir is None, _safedir_allows returns True unconditionally."""
+        handler = FileEventHandler(default_config, queue, safe_dir=None)
+        assert handler._safedir_allows(Path("/any/path")) is True
+
+    def test_path_outside_root_returns_false(
+        self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
+    ) -> None:
+        """Path outside watch_root is dropped with security_event log."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+        outside = tmp_path / "outside.txt"
+        outside.write_bytes(b"x")
+
+        with SafeDir.open_root(watch_root) as sd:
+            handler = FileEventHandler(default_config, queue, safe_dir=sd, watch_root=watch_root)
+            result = handler._safedir_allows(outside)
+
+        assert result is False
+
+    def test_nested_path_allowed_through(
+        self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
+    ) -> None:
+        """Nested paths (depth > 1) are allowed through to pipeline-level SafeDir."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        watch_root = tmp_path / "watch"
+        (watch_root / "sub").mkdir(parents=True)
+        nested = watch_root / "sub" / "file.txt"
+        nested.write_bytes(b"x")
+
+        with SafeDir.open_root(watch_root) as sd:
+            handler = FileEventHandler(default_config, queue, safe_dir=sd, watch_root=watch_root)
+            result = handler._safedir_allows(nested)
+
+        assert result is True
+
+    def test_direct_child_regular_file_allowed(
+        self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
+    ) -> None:
+        """A non-symlink direct child is opened successfully → allowed."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+        regular = watch_root / "file.txt"
+        regular.write_bytes(b"data")
+
+        with SafeDir.open_root(watch_root) as sd:
+            handler = FileEventHandler(default_config, queue, safe_dir=sd, watch_root=watch_root)
+            result = handler._safedir_allows(regular)
+
+        assert result is True
+
+    def test_transient_oserror_allows_through(
+        self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
+    ) -> None:
+        """Non-SymlinkRejected OSError (file gone) is treated as allow."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+
+        # Use a Mock SafeDir (SafeDir uses __slots__ so can't monkeypatch attributes).
+        sd_mock = MagicMock()
+        sd_mock.open_child.side_effect = FileNotFoundError("gone")
+
+        handler = FileEventHandler(default_config, queue, safe_dir=sd_mock, watch_root=watch_root)
+        result = handler._safedir_allows(watch_root / "gone.txt")
+
+        assert result is True

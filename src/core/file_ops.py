@@ -44,11 +44,8 @@ def collect_files(path: Path, console: Console) -> list[Path]:
     if path.is_file():
         files.append(path)
     else:
-        for root, dirnames, filenames in os.walk(path):
-            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-            for filename in filenames:
-                if not filename.startswith("."):
-                    files.append(Path(root) / filename)
+        # safe_walk filters symlinks and hidden files/dirs (PR6 / #270).
+        files.extend(safe_walk(path))
 
     console.print(f"[green]✓[/green] Found {len(files)} files")
     return files
@@ -147,6 +144,7 @@ def organize_files(
             if use_hardlinks:
                 os.link(result.file_path, new_path)
             else:
+                # safedir: ok — files collected via safe_walk which already filtered symlinks
                 shutil.copy2(result.file_path, new_path)
 
             if undo_manager is not None and transaction_id is not None:

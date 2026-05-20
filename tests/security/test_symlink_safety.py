@@ -422,48 +422,141 @@ class TestDedupeSymlinkSafety:
 
 
 class TestDestinationSymlinkSafety:
-    """Category-dir-replaced-with-symlink (blocked on PR6, #270)."""
+    """Category-dir-replaced-with-symlink — PR6 (#270)."""
 
     def test_organize_destination_symlink_swap(self, tmp_path: Path) -> None:
-        """A category dir replaced by a symlink between mkdir and rename is rejected.
+        """PostprocessorStage refuses when the category dir is a symlink.
 
-        Sequence the test will exercise once SafeDir-based moves land:
+        Sequence:
 
-        1. ``fo organize`` plans to move ``input/doc.txt`` to
-           ``output/category_X/doc.txt``.
-        2. After ``mkdir`` but before ``rename``, ``output/category_X`` is
-           replaced by a symlink to an attacker-controlled directory outside
-           the organize root.
-        3. The SafeDir-based ``os.rename(src_name, dst_name, dst_dir_fd=...)``
-           opens the dst dir with ``O_NOFOLLOW`` and fails; the file is not
-           written to the attacker location.
+        1. ``PostprocessorStage`` is initialised with an output root.
+        2. After the output root is created, the category subdir is
+           replaced by a symlink pointing outside the root (attacker).
+        3. ``PostprocessorStage.process()`` tries ``safe_dir.mkdir(category)``
+           which raises ``SymlinkRejected`` because ``O_NOFOLLOW`` sees the
+           symlink.
+        4. The stage sets ``context.error`` — the file is NOT written to
+           the attacker location.
 
-        Acceptance: the attacker directory is empty; the operation either
-        fails or lands inside the real output root.
+        Acceptance: attacker directory remains empty; ``context.failed`` is
+        True; a ``security_event destination_symlink_swap`` is logged.
         """
-        pytest.skip("blocked on PR6 (#270) — destination SafeDir + dir_fd=")
+        import logging
+
+        from interfaces.pipeline import StageContext
+        from pipeline.stages.postprocessor import PostprocessorStage
+
+        output_root = tmp_path / "output"
+        output_root.mkdir()
+        attacker_dir = tmp_path / "attacker"
+        attacker_dir.mkdir()
+
+        # Pre-create the category subdir as a symlink to the attacker dir.
+        category_link = output_root / "documents"
+        try:
+            category_link.symlink_to(attacker_dir, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"sensitive content")
+
+        security_events: list[str] = []
+
+        class _CapHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                msg = self.format(record)
+                if "security_event" in msg:
+                    security_events.append(msg)
+
+        cap = _CapHandler()
+        postprocessor_log = logging.getLogger("pipeline.stages.postprocessor")
+        postprocessor_log.addHandler(cap)
+        try:
+            stage = PostprocessorStage(output_root)
+            try:
+                ctx = StageContext(file_path=src, dry_run=False)
+                ctx.category = "documents"
+                ctx.filename = "doc"
+                result = stage.process(ctx)
+            finally:
+                stage.close()
+        finally:
+            postprocessor_log.removeHandler(cap)
+
+        assert result.failed, "stage must fail when category dir is a symlink"
+        assert not any(attacker_dir.iterdir()), "attacker dir must remain empty"
+        assert result.error is not None, "context.error must be set"
+        assert any("destination_symlink_swap" in e for e in security_events), (
+            "security_event destination_symlink_swap must be logged; got: " + str(security_events)
+        )
 
 
 class TestDaemonSymlinkSafety:
-    """Watcher event → open gap (blocked on PR6, #270)."""
+    """Watcher event → open gap — PR6 (#270)."""
 
     def test_daemon_skips_symlink_created_post_start(self, tmp_path: Path) -> None:
-        """A symlink created inside the watch root after daemon start is skipped.
+        """FileEventHandler drops symlink events when SafeDir is injected.
 
-        Sequence the test will exercise once the daemon routes through
-        SafeDir:
+        Sequence:
 
-        1. Daemon starts watching ``organize/``.
-        2. ``organize/report.pdf`` is created as a symlink to the honey file.
-        3. The watcher event handler routes through
-           ``safe_dir.open_child('report.pdf')`` which raises
-           ``SymlinkRejected``.
-        4. Event is dropped; no content reader is invoked.
+        1. Watch root opened as a ``SafeDir`` and injected into
+           ``FileEventHandler``.
+        2. A symlink named ``report.pdf`` is created inside the root
+           pointing at a honey file outside it.
+        3. A synthetic CREATE event for ``report.pdf`` is injected into
+           ``_handle_event``.
+        4. ``_safedir_allows`` opens the entry with ``O_NOFOLLOW`` via
+           the SafeDir, gets ``SymlinkRejected``, logs
+           ``security_event watcher_symlink_rejected``, and returns False.
+        5. The event is NOT enqueued.
 
-        Acceptance: the LLM processor recorder never sees ``_HONEY_CONTENT``;
-        a ``security_event`` is logged.
+        Acceptance: ``queue`` remains empty; a ``security_event`` log is
+        emitted.
         """
-        pytest.skip("blocked on PR6 (#270) — watcher SafeDir routing")
+
+        from watchdog.events import FileCreatedEvent
+
+        from utils.safedir import SafeDir
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue, EventType
+
+        honey = _make_honey(tmp_path)
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+
+        link = watch_root / "report.pdf"
+        try:
+            link.symlink_to(honey)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        queue = EventQueue()
+        config = WatcherConfig(watch_directories=[watch_root], debounce_seconds=0.0)
+
+        security_events: list[str] = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                if "security_event" in record.getMessage():
+                    security_events.append(record.getMessage())
+
+        cap = _Cap()
+        log = logging.getLogger("watcher.handler")
+        log.addHandler(cap)
+        try:
+            with SafeDir.open_root(watch_root) as sd:
+                handler = FileEventHandler(config, queue, safe_dir=sd)
+                event = FileCreatedEvent(str(link))
+                handler._handle_event(event, EventType.CREATED)
+        finally:
+            log.removeHandler(cap)
+
+        assert queue.size == 0, "symlink event must not reach the queue"
+        assert any("watcher_symlink_rejected" in e for e in security_events), (
+            "security_event watcher_symlink_rejected must be logged"
+        )
 
 
 class TestUndoSymlinkSafety:
