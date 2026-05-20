@@ -431,3 +431,224 @@ class TestPipelineComposition:
 
         assert ctx.failed
         assert ctx.destination is None  # postprocessor skipped
+
+
+# ---------------------------------------------------------------------------
+# SafeDir branch coverage (PR6 / #270)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.ci
+@pytest.mark.unit
+class TestPostprocessorSafeDirBranches:
+    """Cover PR6 SafeDir branches in PostprocessorStage."""
+
+    def test_close_releases_cached_category_dirs(self, tmp_path: Path) -> None:
+        """close() iterates _cat_subdirs and calls __exit__ on each fd."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        out = tmp_path / "out"
+        out.mkdir()
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"hi")
+
+        stage = PostprocessorStage(output_directory=out)
+        ctx = StageContext(file_path=src, dry_run=False, category="docs", filename="doc")
+        stage.process(ctx)
+        assert "docs" in stage._cat_subdirs
+        stage.close()
+        assert stage._cat_subdirs == {}
+        assert stage._root_sd is None
+
+    def test_category_dir_already_exists_is_ok(self, tmp_path: Path) -> None:
+        """FileExistsError from mkdir is swallowed; existing real dir is opened."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "docs").mkdir()
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"hi")
+
+        stage = PostprocessorStage(output_directory=out)
+        try:
+            ctx = StageContext(file_path=src, dry_run=False, category="docs", filename="doc")
+            result = stage.process(ctx)
+        finally:
+            stage.close()
+
+        assert not result.failed
+
+    def test_category_safedir_cached_on_second_call(self, tmp_path: Path) -> None:
+        """Second process() for the same category hits the _cat_subdirs cache."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        out = tmp_path / "out"
+        out.mkdir()
+        src1 = tmp_path / "a.txt"
+        src2 = tmp_path / "b.txt"
+        src1.write_bytes(b"a")
+        src2.write_bytes(b"b")
+
+        stage = PostprocessorStage(output_directory=out)
+        try:
+            stage.process(
+                StageContext(file_path=src1, dry_run=False, category="docs", filename="a")
+            )
+            assert "docs" in stage._cat_subdirs
+            result2 = stage.process(
+                StageContext(file_path=src2, dry_run=False, category="docs", filename="b")
+            )
+        finally:
+            stage.close()
+
+        assert not result2.failed
+
+    def test_safedir_generic_exception_falls_back_to_plain_mkdir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-SymlinkRejected exception in _get_category_safedir → plain mkdir fallback."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        out = tmp_path / "out"
+        out.mkdir()
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"hi")
+
+        stage = PostprocessorStage(output_directory=out)
+
+        def _raise(*_a: object, **_kw: object) -> None:
+            raise OSError("simulated non-symlink failure")
+
+        monkeypatch.setattr(stage, "_get_category_safedir", _raise)
+        try:
+            ctx = StageContext(file_path=src, dry_run=False, category="docs", filename="doc")
+            result = stage.process(ctx)
+        finally:
+            stage.close()
+
+        assert not result.failed
+        # Postprocessor sets destination but does not write the file (WriterStage does).
+        assert result.destination is not None
+        assert result.destination.parent.is_dir()
+
+    def test_no_safedir_plain_mkdir(self, tmp_path: Path) -> None:
+        """When _root_sd is None (SafeDir unavailable) stage uses plain mkdir."""
+        out = tmp_path / "out"
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"hi")
+
+        stage = PostprocessorStage(output_directory=out)
+        stage._root_sd = None
+        stage._cat_subdirs.clear()
+        try:
+            ctx = StageContext(file_path=src, dry_run=False, category="docs", filename="doc")
+            result = stage.process(ctx)
+        finally:
+            stage.close()
+
+        assert not result.failed
+        assert (out / "docs").is_dir()
+
+
+@pytest.mark.ci
+@pytest.mark.unit
+class TestWriterSafeDirBranches:
+    """Cover PR6 SafeDir error paths in WriterStage."""
+
+    def test_copystat_oserror_swallowed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """OSError from shutil.copystat is swallowed; write still succeeds."""
+        import shutil
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir path is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        out = tmp_path / "out" / "docs"
+        out.mkdir(parents=True)
+        src = tmp_path / "src.txt"
+        src.write_bytes(b"data")
+
+        monkeypatch.setattr(shutil, "copystat", MagicMock(side_effect=OSError("perm")))
+
+        with SafeDir.open_root(out) as sd:
+            ctx = StageContext(
+                file_path=src,
+                destination=out / "src.txt",
+                dest_safedir=sd,
+                dry_run=False,
+            )
+            result = WriterStage().process(ctx)
+
+        assert not result.failed
+        assert (out / "src.txt").read_bytes() == b"data"
+
+    def test_symlink_rejected_logs_security_event_and_sets_error(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """SymlinkRejected from open_child is logged as security_event and sets error."""
+        import logging
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir path is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        out = tmp_path / "out" / "docs"
+        out.mkdir(parents=True)
+        src = tmp_path / "src.txt"
+        src.write_bytes(b"data")
+
+        # Create a symlink at the destination name.
+        victim = tmp_path / "victim.txt"
+        victim.write_bytes(b"sensitive")
+        dst_path = out / "src.txt"
+        try:
+            dst_path.symlink_to(victim)
+        except OSError:
+            pytest.skip("symlink creation not supported")
+
+        with SafeDir.open_root(out) as sd:
+            ctx = StageContext(
+                file_path=src,
+                destination=dst_path,
+                dest_safedir=sd,
+                dry_run=False,
+            )
+            with caplog.at_level(logging.ERROR, logger="pipeline.stages.writer"):
+                result = WriterStage().process(ctx)
+
+        assert result.failed
+        assert "symlink" in (result.error or "").lower() or result.error is not None
+        assert any("security_event" in r.message for r in caplog.records)
+        assert victim.read_bytes() == b"sensitive"
+
+    def test_generic_oserror_sets_error(self, tmp_path: Path) -> None:
+        """A generic OSError (no dest_safedir) logs exception and sets error."""
+        # Source does not exist → shutil.copy2 raises FileNotFoundError (OSError).
+        src = tmp_path / "nonexistent.txt"
+        dest = tmp_path / "out" / "file.txt"
+        dest.parent.mkdir(parents=True)
+
+        ctx = StageContext(file_path=src, destination=dest, dry_run=False)
+        result = WriterStage().process(ctx)
+
+        assert result.failed
+        assert result.error is not None

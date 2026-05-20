@@ -846,3 +846,30 @@ class TestBufferKeyInContext:
         # the context.extra is not accessible post-call, so we confirm no leak
         # by checking that the pool returns all buffers
         assert orch.buffer_pool.in_use_count == 0
+
+
+@pytest.mark.ci
+@pytest.mark.unit
+def test_stop_calls_close_on_stages_with_close_method(tmp_path: Path) -> None:
+    """stop() calls close() on stages that have the method (e.g. PostprocessorStage)."""
+    from unittest.mock import MagicMock
+
+    from interfaces.pipeline import StageContext
+    from pipeline.orchestrator import PipelineOrchestrator
+
+    class _FakeStage:
+        name = "fake"
+        closed = False
+
+        def process(self, ctx: StageContext) -> StageContext:
+            return ctx
+
+        def close(self) -> None:
+            self.closed = True
+
+    stage = _FakeStage()
+    orch = PipelineOrchestrator(stages=[stage])
+    orch.start()
+    orch.stop()
+
+    assert stage.closed, "stop() must call close() on stages that have it"
