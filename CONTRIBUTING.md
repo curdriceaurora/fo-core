@@ -396,6 +396,10 @@ For details, see `.claude/rules/code-quality-validation.md` and `.claude/rules/d
 > **Test cleanup issues**: before opening a PR for test-only cleanup work,
 > see [Triage Policy](docs/developer/triage-policy.md) for the decision
 > tree on bundling, standalone PRs, or closing.
+>
+> **Adding or modifying a file reader**: fo-core reads user files through a
+> symlink-safe primitive. See [SafeDir Reader Contract](docs/developer/safedir-readers.md)
+> before touching any file-reading code under `src/`.
 
 1. Create a feature branch from `main`: `git checkout -b feature/description`
 2. Make changes with tests
