@@ -300,13 +300,17 @@ class DocumentExtractor:
 
     @staticmethod
     def _decode_bytes(raw: bytes) -> str:
-        """Decode bytes using a utf-8 → latin-1 → cp1252 → ascii fallback chain."""
-        for encoding in ("utf-8", "latin-1", "cp1252", "ascii"):
+        """Decode bytes using a utf-8 → cp1252 → latin-1 fallback chain.
+
+        latin-1 is tried last because it accepts all 256 byte values without
+        error; placing it earlier would make cp1252 unreachable.
+        """
+        for encoding in ("utf-8", "cp1252", "latin-1"):
             try:
                 return raw.decode(encoding)
             except UnicodeDecodeError:
                 continue
-        return raw.decode("utf-8", errors="ignore")
+        return raw.decode("utf-8", errors="ignore")  # unreachable; latin-1 always succeeds
 
     def _extract_text(
         self,

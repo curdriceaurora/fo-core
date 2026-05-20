@@ -257,25 +257,32 @@ class TestDocumentExtractor:
         assert "Hello" in text
 
     def test_extract_rtf_cp1252_path_branch(self, tmp_path: Path) -> None:
-        """cp1252-encoded RTF (common on Windows) preserves non-ASCII chars."""
+        """cp1252-encoded RTF (common on Windows) decodes 0x80-0x9F correctly."""
         from services.deduplication.extractor import DocumentExtractor
 
-        # é is 0xe9 in cp1252; pure UTF-8 decode would raise UnicodeDecodeError.
-        rtf_bytes = r"{\rtf1\ansi caf\e9}".encode("ascii") + b"\xe9"
+        # 0x92 is right single quote (') in cp1252, but a C1 control char in
+        # latin-1.  If the decoder tried latin-1 first it would return a
+        # control character, not the quotation mark.
+        rtf_bytes = rb"{\rtf1\ansi don" + b"\x92" + rb"t}"
         f = tmp_path / "windows.rtf"
         f.write_bytes(rtf_bytes)
         extractor = DocumentExtractor()
         text = extractor.extract_text(f)
         assert isinstance(text, str)
         assert len(text) > 0
+        # cp1252 maps 0x92 → U+2019 RIGHT SINGLE QUOTATION MARK
+        assert "’" in text or "'" in text
 
     def test_decode_bytes_fallback_chain(self) -> None:
-        """_decode_bytes tries utf-8 → latin-1 → cp1252 → ascii(ignore)."""
+        """_decode_bytes tries utf-8 → cp1252 → latin-1 fallback chain."""
         from services.deduplication.extractor import DocumentExtractor
 
         # Pure ASCII — utf-8 succeeds first.
         assert DocumentExtractor._decode_bytes(b"hello") == "hello"
-        # latin-1 byte 0xe9 (é) — utf-8 fails, latin-1 succeeds.
+        # 0x80 is € in cp1252, but a C1 control char in latin-1.
+        # Verifies cp1252 is tried before latin-1.
+        assert DocumentExtractor._decode_bytes(b"\x80") == "€"  # €
+        # 0xe9 is é in both latin-1 and cp1252 — covers the latin-1 fallback path.
         assert DocumentExtractor._decode_bytes(b"caf\xe9") == "café"
         # All bytes in range — ensure no exception on arbitrary bytes.
         result = DocumentExtractor._decode_bytes(bytes(range(256)))
