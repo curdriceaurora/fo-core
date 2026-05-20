@@ -339,16 +339,28 @@ def read_file_via_safedir_anchored(
             if check_ext in extensions:
                 with SafeDir.open_root(trusted_root) as root:
                     fd = root.open_anchored_reader(relative)
+                    # Split fdopen out so the raw fd is closed only when
+                    # ``fdopen`` itself fails to construct the file object
+                    # (e.g. EMFILE). Once ``fdopen`` returns, ``with fileobj``
+                    # owns the close — wrapping it in an outer try/except
+                    # that also calls ``os.close(fd)`` would double-close on
+                    # any exception inside the reader, masking the real error
+                    # with EBADF (Copilot review).
                     try:
-                        with os.fdopen(fd, "rb", closefd=True) as fileobj:
+                        fileobj = os.fdopen(fd, "rb", closefd=True)
+                    except OSError:
+                        os.close(fd)
+                        raise
+                    with fileobj:
+                        try:
                             return reader(  # type: ignore[operator,no-any-return]
                                 file_path=Path(file_path.name),
                                 fileobj=fileobj,
                                 **kwargs,
                             )
-                    except Exception as exc:
-                        logger.error(f"Error reading {file_path.name}: {exc}")
-                        raise
+                        except Exception as exc:
+                            logger.error(f"Error reading {file_path.name}: {exc}")
+                            raise
 
     logger.debug(
         f"Extension {ext!r} not yet supported by "

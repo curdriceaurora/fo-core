@@ -64,11 +64,12 @@ class TestOpenAnchoredReader:
         with SafeDir.open_root(tmp_path) as root:
             fd = root.open_anchored_reader(Path("doc.txt"))
             try:
-                with os.fdopen(fd, "rb", closefd=True) as f:
-                    assert f.read() == b"hello"
-            except BaseException:
+                fileobj = os.fdopen(fd, "rb", closefd=True)
+            except OSError:
                 os.close(fd)
                 raise
+            with fileobj:
+                assert fileobj.read() == b"hello"
 
     def test_walks_nested_relative_path(self, tmp_path: Path) -> None:
         """Multi-component relative_path walks each intermediate via open_subdir."""
@@ -77,11 +78,12 @@ class TestOpenAnchoredReader:
         with SafeDir.open_root(tmp_path) as root:
             fd = root.open_anchored_reader(Path("a/b/c/doc.txt"))
             try:
-                with os.fdopen(fd, "rb", closefd=True) as f:
-                    assert f.read() == b"nested"
-            except BaseException:
+                fileobj = os.fdopen(fd, "rb", closefd=True)
+            except OSError:
                 os.close(fd)
                 raise
+            with fileobj:
+                assert fileobj.read() == b"nested"
 
     def test_intermediate_symlink_refused(self, tmp_path: Path) -> None:
         """Ancestor swapped to symlink between enumeration and read is refused.
