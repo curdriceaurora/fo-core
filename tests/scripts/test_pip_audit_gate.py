@@ -210,16 +210,34 @@ def test_evaluate_fails_when_version_spec_mismatch(tmp_path: Path) -> None:
     assert any(pkg == "pkg" and adv == "GHSA-mismatch" for pkg, _ver, adv in result.unknown_vulns)
 
 
-def test_committed_allowlist_passes_against_empty_audit() -> None:
+def test_committed_allowlist_passes_against_base_audit() -> None:
     """Regression: the committed `.github/accepted-risks.yml` must pass the
-    gate against a no-vulnerability base-project audit.
+    gate against a realistic base-project audit.
 
     Previously the committed file seeded two entries (ecdsa, diskcache) whose
     packages are not installed by `pip install -e .` — the gate correctly
-    flagged both as unused-entry failures (PR #163 review finding). Fix:
-    committed seeds removed; future entries must match the base audit scope.
+    flagged both as unused-entry failures (PR #163 review finding). The file
+    now contains ollama entries; ollama IS in the base install and reports the
+    listed advisories, so the gate should pass.
     """
-    audit = _audit_with_installed([])  # no packages installed, no vulns
+    # Simulate the base pip-audit result: ollama 0.6.2 reports all 6 PYSEC advisories.
+    _OLLAMA_ADVISORIES = [
+        "PYSEC-2025-144",
+        "PYSEC-2025-145",
+        "PYSEC-2025-146",
+        "PYSEC-2025-147",
+        "PYSEC-2026-101",
+        "PYSEC-2026-102",
+    ]
+    audit = {
+        "dependencies": [
+            {
+                "name": "ollama",
+                "version": "0.6.2",
+                "vulns": [{"id": adv} for adv in _OLLAMA_ADVISORIES],
+            }
+        ]
+    }
     result = evaluate(audit, load_allowlist(_COMMITTED_ALLOWLIST), today=date(2026, 4, 22))
     assert result.failed is False, (
         f"Committed allowlist must be valid against base audit scope, got: "
@@ -392,6 +410,100 @@ def test_evaluate_strict_on_invalid_version(tmp_path: Path) -> None:
     assert any(adv == "GHSA-gitinstall" for _, _, adv in result.unknown_vulns), (
         f"Invalid-version vuln must be treated as unmatched, got: {result}"
     )
+
+
+def test_evaluate_platform_entry_skipped_on_non_matching_platform(tmp_path: Path) -> None:
+    """Platform-conditional entries are silently ignored on non-matching platforms.
+
+    An entry with `platform: darwin` must not trigger an "unused entry" failure
+    on a linux runner where that package is simply not installed.
+    """
+    p = tmp_path / "allow.yml"
+    p.write_text(
+        dedent(
+            """
+            allowlist:
+              - advisory_id: PYSEC-maconly
+                package: transformers
+                version_spec: ">=0"
+                platform: darwin
+                reason: "macOS-only transitive dep"
+                expires_on: "2099-12-31"
+            """
+        ).strip()
+    )
+    # Simulate linux runner: transformers not installed.
+    audit = _audit_with_installed([("requests", "2.31.0")])
+    result = evaluate(
+        audit,
+        load_allowlist(p),
+        today=date(2026, 4, 22),
+        current_platform="linux",
+    )
+    assert result.failed is False, (
+        f"Platform-conditional entry for darwin must be skipped on linux, got: {result}"
+    )
+
+
+def test_evaluate_platform_entry_enforced_on_matching_platform(tmp_path: Path) -> None:
+    """Platform-conditional entries ARE enforced when the platform matches.
+
+    An entry with `platform: darwin` that is not matched by any reported
+    vulnerability on a darwin runner must fail the gate (unused entry).
+    """
+    p = tmp_path / "allow.yml"
+    p.write_text(
+        dedent(
+            """
+            allowlist:
+              - advisory_id: PYSEC-maconly
+                package: transformers
+                version_spec: ">=0"
+                platform: darwin
+                reason: "macOS-only transitive dep"
+                expires_on: "2099-12-31"
+            """
+        ).strip()
+    )
+    # Simulate macOS runner: transformers not installed (advisory no longer reported).
+    audit = _audit_with_installed([("requests", "2.31.0")])
+    result = evaluate(
+        audit,
+        load_allowlist(p),
+        today=date(2026, 4, 22),
+        current_platform="darwin",
+    )
+    assert result.failed is True
+    assert any("transformers" in e for e in result.unused_entries), (
+        f"Platform-conditional entry must be enforced on matching platform: {result}"
+    )
+
+
+def test_load_allowlist_parses_optional_platform_field(tmp_path: Path) -> None:
+    """load_allowlist accepts the optional `platform` field and stores it."""
+    p = tmp_path / "allow.yml"
+    p.write_text(
+        dedent(
+            """
+            allowlist:
+              - advisory_id: PYSEC-platform
+                package: somepkg
+                version_spec: ">=0"
+                platform: darwin
+                reason: "macOS only"
+                expires_on: "2099-12-31"
+              - advisory_id: PYSEC-noplatform
+                package: otherpkg
+                version_spec: ">=0"
+                reason: "no platform restriction"
+                expires_on: "2099-12-31"
+            """
+        ).strip()
+    )
+    entries = load_allowlist(p)
+    assert len(entries) == 2
+    assert entries[0].platform == "darwin"
+    assert entries[1].platform is None
 
 
 def test_main_converts_malformed_audit_to_concise_error(tmp_path: Path, capsys) -> None:

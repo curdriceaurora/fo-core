@@ -14,6 +14,9 @@
 #   - version_spec: string, PEP 440 specifier
 #   - reason      : string, why the code path is unreachable for fo-core
 #   - expires_on  : YYYY-MM-DD (≤ 6 months from add date)
+#   - platform    : string, optional sys.platform value (e.g. "darwin");
+#                   when set the entry is silently skipped on non-matching
+#                   platforms — use for macOS-only transitive deps
 
 allowlist:
   - advisory_id: CVE-2025-69872
@@ -178,64 +181,72 @@ allowlist:
       trusted local daemon. No patched release as of 2026-05-20.
     expires_on: 2026-11-20
   # transformers 5.8.1 — 8 advisories, no patched release available as of 2026-05-20.
-  # Transitive via faster-whisper ([media] extra). fo-core never loads
-  # user-supplied model weights or runs untrusted deserialization through
-  # transformers — it is used only for speech-to-text transcription via
-  # faster-whisper's internal pipeline. Re-evaluate when transformers ships
-  # a patched 5.x release.
+  # Transitive via faster-whisper ([media] extra) on macOS only; faster-whisper
+  # is not installed on linux runners (no mlx/apple-silicon support). fo-core
+  # never loads user-supplied model weights or runs untrusted deserialization
+  # through transformers. Re-evaluate when transformers ships a patched 5.x
+  # release. `platform: darwin` limits gate enforcement to macOS runners.
   - advisory_id: PYSEC-2025-211
     package: transformers
     version_spec: "==5.8.1"
+    platform: darwin
     reason: >-
-      Transitive via faster-whisper ([media]). fo-core never loads
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
       user-supplied model weights through transformers directly.
     expires_on: 2026-11-20
   - advisory_id: PYSEC-2025-212
     package: transformers
     version_spec: "==5.8.1"
+    platform: darwin
     reason: >-
-      Transitive via faster-whisper ([media]). fo-core never loads
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
       user-supplied model weights through transformers directly.
     expires_on: 2026-11-20
   - advisory_id: PYSEC-2025-213
     package: transformers
     version_spec: "==5.8.1"
+    platform: darwin
     reason: >-
-      Transitive via faster-whisper ([media]). fo-core never loads
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
       user-supplied model weights through transformers directly.
     expires_on: 2026-11-20
   - advisory_id: PYSEC-2025-214
     package: transformers
     version_spec: "==5.8.1"
+    platform: darwin
     reason: >-
-      Transitive via faster-whisper ([media]). fo-core never loads
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
       user-supplied model weights through transformers directly.
     expires_on: 2026-11-20
   - advisory_id: PYSEC-2025-215
     package: transformers
     version_spec: "==5.8.1"
+    platform: darwin
     reason: >-
-      Transitive via faster-whisper ([media]). fo-core never loads
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
       user-supplied model weights through transformers directly.
     expires_on: 2026-11-20
   - advisory_id: PYSEC-2025-216
     package: transformers
     version_spec: "==5.8.1"
+    platform: darwin
     reason: >-
-      Transitive via faster-whisper ([media]). fo-core never loads
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
       user-supplied model weights through transformers directly.
     expires_on: 2026-11-20
   - advisory_id: PYSEC-2025-217
     package: transformers
     version_spec: "==5.8.1"
+    platform: darwin
     reason: >-
-      Transitive via faster-whisper ([media]). fo-core never loads
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
       user-supplied model weights through transformers directly.
     expires_on: 2026-11-20
   - advisory_id: PYSEC-2025-218
     package: transformers
     version_spec: "==5.8.1"
+    platform: darwin
     reason: >-
-      Transitive via faster-whisper ([media]). fo-core never loads
+      Transitive via faster-whisper ([media], macOS only). fo-core never loads
       user-supplied model weights through transformers directly.
     expires_on: 2026-11-20

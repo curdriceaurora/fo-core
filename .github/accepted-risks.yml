@@ -13,6 +13,8 @@
 #   - version_spec: string, PEP 440 specifier that the installed version must satisfy
 #   - reason      : string, why this is accepted (must cite why the code path is unreachable)
 #   - expires_on  : YYYY-MM-DD
+#   - platform    : string, optional sys.platform value (e.g. "darwin"); when set,
+#                   entry is silently skipped on non-matching platforms
 #
 # IMPORTANT — audit scope:
 # The `audit-dependencies` job in .github/workflows/security.yml installs
