@@ -210,6 +210,8 @@ jobs:
           print(f'pytest-asyncio {pytest_asyncio.__version__} registered as plugin')
           print(f'faker {importlib.metadata.version(\"faker\")} importable')
           "
+      - name: Erase stale coverage data
+        run: coverage erase
       - name: Run tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
