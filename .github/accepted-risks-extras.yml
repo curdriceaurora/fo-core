@@ -133,3 +133,109 @@ allowlist:
       never calls joblib.load() directly; joblib is a transitive sklearn
       dependency used for internal parallelism only.
     expires_on: 2026-11-20
+  # ollama 0.6.2 — same 6 advisories as in accepted-risks.yml, duplicated here
+  # because the extras audit installs .[all] which includes ollama as a base dep.
+  - advisory_id: PYSEC-2025-144
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-145
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-146
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-147
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2026-101
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2026-102
+    package: ollama
+    version_spec: "==0.6.2"
+    reason: >-
+      Server-side advisory; fo-core only uses the ollama client against a
+      trusted local daemon. No patched release as of 2026-05-20.
+    expires_on: 2026-11-20
+  # transformers 5.8.1 — 8 advisories, no patched release available as of 2026-05-20.
+  # Transitive via faster-whisper ([media] extra). fo-core never loads
+  # user-supplied model weights or runs untrusted deserialization through
+  # transformers — it is used only for speech-to-text transcription via
+  # faster-whisper's internal pipeline. Re-evaluate when transformers ships
+  # a patched 5.x release.
+  - advisory_id: PYSEC-2025-211
+    package: transformers
+    version_spec: "==5.8.1"
+    reason: >-
+      Transitive via faster-whisper ([media]). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-212
+    package: transformers
+    version_spec: "==5.8.1"
+    reason: >-
+      Transitive via faster-whisper ([media]). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-213
+    package: transformers
+    version_spec: "==5.8.1"
+    reason: >-
+      Transitive via faster-whisper ([media]). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-214
+    package: transformers
+    version_spec: "==5.8.1"
+    reason: >-
+      Transitive via faster-whisper ([media]). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-215
+    package: transformers
+    version_spec: "==5.8.1"
+    reason: >-
+      Transitive via faster-whisper ([media]). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-216
+    package: transformers
+    version_spec: "==5.8.1"
+    reason: >-
+      Transitive via faster-whisper ([media]). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-217
+    package: transformers
+    version_spec: "==5.8.1"
+    reason: >-
+      Transitive via faster-whisper ([media]). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-218
+    package: transformers
+    version_spec: "==5.8.1"
+    reason: >-
+      Transitive via faster-whisper ([media]). fo-core never loads
+      user-supplied model weights through transformers directly.
+    expires_on: 2026-11-20
