@@ -554,3 +554,33 @@ class TestPostprocessorSafeDirIntegration:
 
         assert not result.failed
         assert (out / "docs").is_dir()
+
+    def test_safedir_generic_exception_fallback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-SymlinkRejected exception in _get_category_safedir falls back to plain mkdir (lines 132-139)."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        out = tmp_path / "out"
+        out.mkdir()
+        src = tmp_path / "doc.txt"
+        src.write_bytes(b"hi")
+
+        stage = PostprocessorStage(output_directory=out)
+
+        def _raise(*_a: object, **_kw: object) -> None:
+            raise OSError("simulated non-symlink failure")
+
+        monkeypatch.setattr(stage, "_get_category_safedir", _raise)
+        try:
+            result = stage.process(
+                StageContext(file_path=src, dry_run=False, category="docs", filename="doc")
+            )
+        finally:
+            stage.close()
+
+        assert not result.failed
+        assert result.destination is not None

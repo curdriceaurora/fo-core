@@ -439,3 +439,40 @@ class TestFileEventHandlerSafeDirIntegration:
         with SafeDir.open_root(watch_root) as sd:
             handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
             assert handler._safedir_allows(link) is False
+
+    def test_no_safedir_allows_all(self, tmp_path: Path) -> None:
+        """_safedir_allows returns True when safe_dir is None (line 252)."""
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue, safe_dir=None, watch_root=watch_root)
+        assert handler._safedir_allows(watch_root / "anything.txt") is True
+
+    def test_transient_oserror_allows_through(self, tmp_path: Path) -> None:
+        """Non-SymlinkRejected OSError from open_child is treated as allow (lines 295-296)."""
+        import sys
+        from unittest.mock import MagicMock
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+
+        sd_mock = MagicMock()
+        sd_mock.open_child.side_effect = FileNotFoundError("gone")
+
+        from watcher.config import WatcherConfig
+        from watcher.handler import FileEventHandler
+        from watcher.queue import EventQueue
+
+        config = WatcherConfig(debounce_seconds=0.0)
+        queue = EventQueue()
+        handler = FileEventHandler(config, queue, safe_dir=sd_mock, watch_root=watch_root)
+        assert handler._safedir_allows(watch_root / "gone.txt") is True
