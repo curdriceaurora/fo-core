@@ -39,3 +39,97 @@ allowlist:
       upstream fix is expected. Re-evaluate when pytest drops the ``py``
       dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
     expires_on: 2026-10-23
+  # torch 2.12.0 — 11 advisories, no patched release available as of 2026-05-20.
+  # fo-core uses torch transitively via imagededup ([dedup-image]) and
+  # faster-whisper ([media]). It never calls torch.load() on user-provided or
+  # untrusted model files; models are downloaded from official HuggingFace
+  # repos at install/first-run time only. Re-evaluate when torch 2.13+ ships.
+  - advisory_id: PYSEC-2025-189
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-190
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-191
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-192
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-193
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-194
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-195
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-196
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-197
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2025-210
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  - advisory_id: PYSEC-2026-139
+    package: torch
+    version_spec: "==2.12.0"
+    reason: >-
+      Pickle-deserialization advisory. fo-core never loads user-supplied model
+      files via torch.load(); models come from trusted HuggingFace repos only.
+    expires_on: 2026-11-20
+  # joblib 1.5.3 — PYSEC-2024-277, no patched release available as of 2026-05-20.
+  # Transitive via scikit-learn ([dedup-text] / [search] extras). fo-core never
+  # calls joblib.load() on untrusted data; joblib is used internally by sklearn
+  # for parallelism only. Re-evaluate when joblib ships a patched release.
+  - advisory_id: PYSEC-2024-277
+    package: joblib
+    version_spec: "==1.5.3"
+    reason: >-
+      Arbitrary code execution via joblib.load() on untrusted data. fo-core
+      never calls joblib.load() directly; joblib is a transitive sklearn
+      dependency used for internal parallelism only.
+    expires_on: 2026-11-20
