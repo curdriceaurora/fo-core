@@ -232,6 +232,10 @@ def read_netcdf_file(
             raise FileReadError(f"Failed to read NetCDF file {label}: {e}") from e
     assert file_path is not None  # narrowed by the early ValueError above
     path = Path(file_path)
+    # Cap path-branch reads at MAX_FILE_SIZE_BYTES — mirrors the fileobj
+    # branch's _check_fd_size and the read_hdf5_file path-branch guard,
+    # so oversized files don't get buffered into memory by netCDF4.
+    _check_file_size(path)
     try:
         with netCDF4.Dataset(path, "r") as nc:
             return _parse_netcdf(nc, path.name)
@@ -308,6 +312,9 @@ def read_mat_file(
             raise FileReadError(f"Failed to read MAT file {label}: {e}") from e
     assert file_path is not None  # narrowed by the early ValueError above
     path = Path(file_path)
+    # Cap path-branch reads at MAX_FILE_SIZE_BYTES — mirrors the fileobj
+    # branch's _check_fd_size and the read_hdf5_file path-branch guard.
+    _check_file_size(path)
     try:
         return _parse_mat(path, path.name)
     except Exception as e:  # Intentional catch-all: scipy.io raises library-specific errors

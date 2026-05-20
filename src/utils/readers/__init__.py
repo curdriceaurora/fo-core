@@ -255,16 +255,26 @@ def read_file_via_safedir(
         for extensions, reader in _SAFEDIR_READERS.items():
             if check_ext in extensions:
                 fd = safe_dir.open_for_reader(name)
+                # Split fdopen out so the raw fd is closed only when
+                # ``fdopen`` itself fails (e.g. EMFILE under fd exhaustion).
+                # Mirrors the anchored variant below; collapsing this back
+                # into a single ``try/with`` would leak the fd if fdopen
+                # raises before the with-block takes ownership.
                 try:
-                    with os.fdopen(fd, "rb", closefd=True) as fileobj:
+                    fileobj = os.fdopen(fd, "rb", closefd=True)
+                except OSError:
+                    os.close(fd)
+                    raise
+                with fileobj:
+                    try:
                         return reader(  # type: ignore[operator,no-any-return]
                             file_path=name_path,
                             fileobj=fileobj,
                             **kwargs,
                         )
-                except Exception as exc:
-                    logger.error(f"Error reading {name}: {exc}")
-                    raise
+                    except Exception as exc:
+                        logger.error(f"Error reading {name}: {exc}")
+                        raise
 
     logger.debug(
         f"Extension {ext!r} not yet supported by read_file_via_safedir; caller may fall back"

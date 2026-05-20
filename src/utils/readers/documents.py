@@ -266,17 +266,23 @@ def read_rtf_file(
 
 
 def _parse_csv(fileobj: BinaryIO, max_rows: int, label: str) -> str:
-    # csv.reader needs text mode; wrap the binary fileobj.
+    # csv.reader needs text mode; wrap the binary fileobj. ``detach()`` in
+    # the finally so TextIOWrapper.__del__ doesn't close the caller-owned
+    # underlying binary stream — same pattern as the CAD readers
+    # (_read_dxf_from_fileobj, read_iges_file).
     text_stream = io.TextIOWrapper(fileobj, encoding="utf-8", errors="ignore", newline="")
-    rows = []
-    reader = csv.reader(text_stream)
-    for i, row in enumerate(reader):
-        if i >= max_rows:
-            break
-        rows.append(",".join(row))
-    text = "\n".join(rows)
-    logger.debug(f"Extracted {len(text)} characters from {len(rows)} rows of {label}")
-    return text
+    try:
+        rows = []
+        reader = csv.reader(text_stream)
+        for i, row in enumerate(reader):
+            if i >= max_rows:
+                break
+            rows.append(",".join(row))
+        text = "\n".join(rows)
+        logger.debug(f"Extracted {len(text)} characters from {len(rows)} rows of {label}")
+        return text
+    finally:
+        text_stream.detach()
 
 
 def _parse_xlsx(fileobj: BinaryIO, max_rows: int, label: str) -> str:

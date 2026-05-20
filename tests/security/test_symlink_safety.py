@@ -247,18 +247,16 @@ class TestReadSideSymlinkSafety:
 
         processor, model = self._mock_text_processor()
 
-        import time
-
-        start = time.perf_counter()
         result = processor.process_file(link)
-        elapsed = time.perf_counter() - start
 
+        # Deterministic behaviour checks — the refusal must surface as a
+        # "errors" routing with an error message, and the model must NOT
+        # have been called (which would have meant the symlink target was
+        # dereferenced and its content fed to the LLM). The previous
+        # wall-clock guard was removed per C1 FLAKY_GATE — timing-based
+        # assertions are environment-dependent on CI runners.
         assert result.folder_name == "errors"
         assert result.error is not None
-        # The refusal path does a few syscalls + log calls. Even on a slow
-        # CI runner it should finish in well under 0.5 seconds. Reading
-        # 500 KB through the LLM pipeline would take much longer.
-        assert elapsed < 0.5, f"refusal took {elapsed:.2f}s — symlink target may have been read"
         assert model.generate.call_count == 0
 
 

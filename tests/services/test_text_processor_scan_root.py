@@ -114,3 +114,8 @@ class TestTextProcessorScanRoot:
         )
         # No error; the parent-rooted SafeDir open succeeded.
         assert result.error is None
+        # Verify the file content was actually read — guards against a
+        # regression where the parent-rooted branch silently returns
+        # empty/None content without surfacing an error.
+        assert result.original_content is not None
+        assert "legitimate content" in result.original_content

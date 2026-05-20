@@ -824,6 +824,10 @@ class AIHeuristic(Heuristic):
                     "SafeDir unavailable; reading %s via legacy reader",
                     file_path.name,
                 )
+                # Intentional fall-through to the legacy path-based open
+                # below — SafeDir's POSIX primitives aren't available, so
+                # we must read via path. Same shape as the other PR3
+                # migrations (organizer, text_processor, etc.).
             except (OSError, ValueError):
                 # ValueError covers SafeDir's name-validation rejection
                 # (filenames with backslash / NUL / path separators).

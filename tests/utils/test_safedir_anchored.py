@@ -136,7 +136,7 @@ class TestOpenAnchoredReader:
     def test_empty_path_rejected(self, tmp_path: Path) -> None:
         """Empty relative_path doesn't identify any file."""
         with SafeDir.open_root(tmp_path) as root:
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match="non-empty"):
                 root.open_anchored_reader(Path(""))
 
 
@@ -185,7 +185,10 @@ class TestReadFileViaSafedirAnchored:
         elsewhere = tmp_path / "elsewhere.txt"
         elsewhere.write_text("outside")
 
-        with pytest.raises(ValueError):
+        # ``Path.relative_to`` raises ValueError with a message containing
+        # "is not in the subpath of" (3.11) or "is not in the descendants of"
+        # (3.12+) — match the stable substring across Python versions.
+        with pytest.raises(ValueError, match=r"not in (the subpath|the descendants)"):
             read_file_via_safedir_anchored(elsewhere, trusted_root=trusted)
 
     def test_unsupported_extension_returns_none(self, tmp_path: Path) -> None:

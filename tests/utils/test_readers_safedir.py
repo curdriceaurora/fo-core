@@ -985,7 +985,7 @@ class TestRequiresFilePathOrFileobj:
         ],
     )
     def test_rejects_both_args_missing(self, reader) -> None:  # type: ignore[no-untyped-def]
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="file_path or fileobj"):
             reader()
 
 
@@ -1036,7 +1036,9 @@ class TestReadFileViaSafedir:
     def test_rejects_bad_name(self, tmp_path: Path) -> None:
         """Component-name validation rides on SafeDir.open_for_reader."""
         with SafeDir.open_root(tmp_path) as sd:
-            with pytest.raises(ValueError):
+            # ``../escape.txt`` contains ``/`` → SafeDir's _validate_name
+            # rejects with "name contains forbidden character".
+            with pytest.raises(ValueError, match="forbidden character"):
                 read_file_via_safedir(sd, "../escape.txt")
 
     def test_reads_real_zip_archive(self, tmp_path: Path) -> None:
