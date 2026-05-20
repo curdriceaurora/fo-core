@@ -15,7 +15,7 @@ Files originally listed in issue #286:
 | `extractor.py` | `src/services/deduplication/extractor.py` |
 | `epub_enhanced.py` | `src/utils/epub_enhanced.py` |
 | `hybrid_retriever.py` | not found in tree (likely renamed/removed) |
-| `organizer/` | `src/core/organizer.py`, `src/services/{audio,video}/organizer.py` |
+| `organizer/` | `src/core/organizer.py`, `src/services/audio/organizer.py`, `src/services/video/organizer.py` |
 | `undo/` | `src/undo/*.py` |
 
 ---
@@ -41,6 +41,7 @@ Files originally listed in issue #286:
 # safedir: ok — system-managed trash dir (not user-supplied root);
 # rglob target is self.trash_dir, always under the app state dir.
 for item in self.trash_dir.rglob(filename):  # noqa: safedir
+    ...
 ```
 
 `self.trash_dir` is constructed from the application's state directory

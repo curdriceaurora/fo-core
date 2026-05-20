@@ -307,7 +307,7 @@ class TestExtractMetricsWithPil:
 
         _cm.__exit__ = MagicMock(return_value=False)
 
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer._extract_metrics_with_pil(p)
         assert m is not None
         assert m.width == 1920
@@ -342,7 +342,7 @@ class TestExtractMetricsWithPil:
 
         _cm.__exit__ = MagicMock(return_value=False)
 
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer._extract_metrics_with_pil(p)
         assert m.has_transparency is True
         assert m.color_depth == 32
@@ -370,7 +370,7 @@ class TestExtractMetricsWithPil:
 
         _cm.__exit__ = MagicMock(return_value=False)
 
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer._extract_metrics_with_pil(p)
         assert m.has_transparency is True
         assert m.color_depth == 8  # P mode
@@ -398,7 +398,7 @@ class TestExtractMetricsWithPil:
 
         _cm.__exit__ = MagicMock(return_value=False)
 
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer._extract_metrics_with_pil(p)
         assert m.has_transparency is True
 
@@ -425,7 +425,7 @@ class TestExtractMetricsWithPil:
 
         _cm.__exit__ = MagicMock(return_value=False)
 
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer._extract_metrics_with_pil(p)
         assert m.color_depth == 24
 
@@ -452,7 +452,7 @@ class TestExtractMetricsWithPil:
 
         _cm.__exit__ = MagicMock(return_value=False)
 
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer._extract_metrics_with_pil(p)
         assert m.aspect_ratio == 0
 
@@ -463,7 +463,7 @@ class TestExtractMetricsWithPil:
 
         # PR3f: quality.py now opens via safedir_image_open.
         with patch(
-            "services.deduplication.image_utils.safedir_image_open",
+            "services.deduplication.quality.safedir_image_open",
             side_effect=OSError("Corrupt image"),
         ):
             m = analyzer._extract_metrics_with_pil(p)
@@ -492,7 +492,7 @@ class TestExtractMetricsWithPil:
 
         _cm.__exit__ = MagicMock(return_value=False)
 
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer._extract_metrics_with_pil(p)
         assert m.is_compressed is True
 
@@ -519,7 +519,7 @@ class TestExtractMetricsWithPil:
 
         _cm.__exit__ = MagicMock(return_value=False)
 
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer._extract_metrics_with_pil(p)
         assert m.is_compressed is False
 
@@ -569,7 +569,7 @@ class TestGetQualityMetrics:
         _cm = MagicMock()
         _cm.__enter__ = MagicMock(return_value=(mock_img, None))
         _cm.__exit__ = MagicMock(return_value=False)
-        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+        with patch("services.deduplication.quality.safedir_image_open", return_value=_cm):
             m = analyzer.get_quality_metrics(p)
         assert m is not None
         assert m.width == 800
