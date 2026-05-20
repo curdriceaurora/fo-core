@@ -3554,6 +3554,21 @@ class TestDurableMoveInodeCapture:
         assert ops[0].dest_dev == dev
         assert ops[0].dest_ino == ino
 
+    def test_capture_dst_inode_returns_none_on_lstat_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_capture_dst_inode returns None and logs debug when os.lstat raises OSError."""
+        from undo.durable_move import _capture_dst_inode
+
+        def _raise_oserror(_path: object) -> None:
+            raise OSError("permission denied")
+
+        monkeypatch.setattr("undo.durable_move.os.lstat", _raise_oserror)
+
+        result = _capture_dst_inode(tmp_path / "anything.txt")
+
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # Helpers
