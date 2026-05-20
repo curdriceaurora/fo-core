@@ -21,6 +21,7 @@ Example::
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from loguru import logger
@@ -58,14 +59,17 @@ from utils.readers.scientific import (
     read_mat_file,
     read_netcdf_file,
 )
+from utils.safedir import SafeDir
 
 __all__ = [
     # Exceptions / constants
     "FileReadError",
     "FileTooLargeError",
     "MAX_FILE_SIZE_BYTES",
-    # Dispatcher
+    # Dispatchers
     "read_file",
+    "read_file_via_safedir",
+    "read_file_via_safedir_anchored",
     # Document readers
     "read_text_file",
     "read_docx_file",
@@ -159,4 +163,217 @@ def read_file(file_path: str | Path, **kwargs: object) -> str | None:
                     raise
 
     logger.warning(f"Unsupported file type: {ext}")
+    return None
+
+
+# Readers that accept the SafeDir-friendly ``fileobj=`` kwarg.
+#
+# Migrated in PR3a (#267): the LLM text-ingestion path — plain text, markdown,
+# DOCX, PDF, RTF, CSV/XLSX, and PowerPoint.
+#
+# Migrated in PR3b (#267): archive readers — ZIP, 7Z, TAR (incl. compound
+# extensions like ``.tar.gz``/``.tar.bz2``/``.tar.xz``), and RAR.
+#
+# Migrated in PR3c (#267): ebook (EPUB) and scientific (HDF5, NetCDF, MAT)
+# readers. NetCDF buffers the stream into memory via ``memory=`` because the
+# netCDF4 C extension doesn't accept file-likes directly; size is capped by
+# ``_check_fd_size`` before the buffer is materialised.
+#
+# Migrated in PR3d (#267): CAD readers — DXF, DWG, STEP, IGES. ezdxf takes a
+# text stream via ``ezdxf.read()`` (binary fileobj is wrapped in
+# ``io.TextIOWrapper``); STEP and IGES are ASCII text formats decoded the
+# same way.
+_SAFEDIR_READERS: dict[tuple[str, ...], object] = {
+    (".txt", ".md"): read_text_file,
+    (".docx",): read_docx_file,
+    (".pdf",): read_pdf_file,
+    (".rtf",): read_rtf_file,
+    (".csv", ".xlsx", ".xls"): read_spreadsheet_file,
+    (".ppt", ".pptx"): read_presentation_file,
+    (".zip",): read_zip_file,
+    (".7z",): read_7z_file,
+    (".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz"): read_tar_file,
+    (".rar",): read_rar_file,
+    (".epub",): read_ebook_file,
+    (".hdf5", ".h5", ".hdf"): read_hdf5_file,
+    (".nc", ".nc4", ".netcdf"): read_netcdf_file,
+    (".mat",): read_mat_file,
+    (".dxf",): read_dxf_file,
+    (".dwg",): read_dwg_file,
+    (".step", ".stp"): read_step_file,
+    (".iges", ".igs"): read_iges_file,
+}
+
+
+def read_file_via_safedir(
+    safe_dir: SafeDir,
+    name: str,
+    **kwargs: object,
+) -> str | None:
+    """Open *name* under *safe_dir* and dispatch to a reader.
+
+    The SafeDir-friendly entry point: ``safe_dir.open_for_reader(name)`` is
+    used to obtain a file descriptor with ``O_NOFOLLOW``, so a symlink
+    swapped in between directory enumeration and read is refused with
+    ``SymlinkRejected`` rather than dereferenced.
+
+    Args:
+        safe_dir: An open :class:`utils.safedir.SafeDir` for the parent
+            directory of *name*.
+        name: Single path component identifying the file inside *safe_dir*.
+        **kwargs: Additional arguments forwarded to the dispatched reader
+            (e.g. ``max_pages`` for PDF).
+
+    Returns:
+        Extracted text content, or ``None`` if the file extension isn't
+        currently supported via the SafeDir path (caller may choose to
+        fall back to legacy ``read_file`` or treat as unsupported). The
+        size-limit check uses ``os.fstat`` on the SafeDir-opened fd so
+        ``FileTooLargeError`` is raised before the reader receives the
+        stream.
+
+    Raises:
+        utils.safedir.SymlinkRejected: If *name* is a symlink.
+        ValueError: If *name* contains path separators or is reserved.
+        FileReadError: If the reader fails on the file content.
+        FileTooLargeError: If the file exceeds ``MAX_FILE_SIZE_BYTES``.
+    """
+    # Build a Path purely for extension parsing — never used for I/O.
+    name_path = Path(name)
+    name_lower = name.lower()
+    if (
+        name_lower.endswith(".tar.gz")
+        or name_lower.endswith(".tar.bz2")
+        or name_lower.endswith(".tar.xz")
+    ):
+        compound_ext = "." + ".".join(name_path.name.split(".")[-2:]).lower()
+    else:
+        compound_ext = name_path.suffix.lower()
+    ext = name_path.suffix.lower()
+
+    for check_ext in [compound_ext, ext]:
+        for extensions, reader in _SAFEDIR_READERS.items():
+            if check_ext in extensions:
+                fd = safe_dir.open_for_reader(name)
+                # Split fdopen out so the raw fd is closed only when
+                # ``fdopen`` itself fails (e.g. EMFILE under fd exhaustion).
+                # Mirrors the anchored variant below; collapsing this back
+                # into a single ``try/with`` would leak the fd if fdopen
+                # raises before the with-block takes ownership.
+                try:
+                    fileobj = os.fdopen(fd, "rb", closefd=True)
+                except OSError:
+                    os.close(fd)
+                    raise
+                with fileobj:
+                    try:
+                        return reader(  # type: ignore[operator,no-any-return]
+                            file_path=name_path,
+                            fileobj=fileobj,
+                            **kwargs,
+                        )
+                    except Exception as exc:
+                        logger.error(f"Error reading {name}: {exc}")
+                        raise
+
+    logger.debug(
+        f"Extension {ext!r} not yet supported by read_file_via_safedir; caller may fall back"
+    )
+    return None
+
+
+def read_file_via_safedir_anchored(
+    file_path: Path,
+    *,
+    trusted_root: Path,
+    **kwargs: object,
+) -> str | None:
+    """Anchored-traversal variant of :func:`read_file_via_safedir`.
+
+    Walks ``file_path.relative_to(trusted_root)`` one component at a time
+    via :meth:`utils.safedir.SafeDir.open_anchored_reader`, so an ancestor
+    directory swapped to a symlink between enumeration and this read is
+    refused with :class:`utils.safedir.SymlinkRejected` rather than
+    silently dereferenced. Closes the nested-ancestor TOCTOU window
+    (#286) that the parent-rooted ``open_root(file_path.parent)`` pattern
+    leaves open.
+
+    Args:
+        file_path: Absolute path to the file to read. Must be inside
+            *trusted_root* (validated via :meth:`Path.relative_to`, which
+            raises ``ValueError`` otherwise).
+        trusted_root: The anchor directory whose contents are trusted —
+            typically the original scan / organize root the caller walked
+            to find *file_path*. Opened once via
+            :meth:`SafeDir.open_root`; subsequent components are
+            ``O_NOFOLLOW``-walked from there.
+        **kwargs: Forwarded to the dispatched reader.
+
+    Returns:
+        Extracted text content, or ``None`` if the extension isn't in the
+        SafeDir reader registry (mirrors
+        :func:`read_file_via_safedir`'s contract).
+
+    Raises:
+        ValueError: If *file_path* is not under *trusted_root*, or if any
+            component fails name validation.
+        utils.safedir.SymlinkRejected: If any path component (intermediate
+            or leaf) is a symlink at open time.
+        FileReadError: If the reader fails on the file content.
+        FileTooLargeError: If the file exceeds ``MAX_FILE_SIZE_BYTES``.
+
+    See Also:
+        :func:`read_file_via_safedir` — parent-rooted variant. Use this
+        anchored variant whenever the caller has a meaningful
+        ``trusted_root`` (the directory tree it walked); fall back to the
+        parent-rooted variant only for standalone reads without a walk
+        context.
+    """
+    # ``relative_to`` raises ValueError if file_path escapes trusted_root,
+    # which is itself a security violation worth surfacing — let it propagate.
+    relative = file_path.relative_to(trusted_root)
+
+    name_lower = file_path.name.lower()
+    if (
+        name_lower.endswith(".tar.gz")
+        or name_lower.endswith(".tar.bz2")
+        or name_lower.endswith(".tar.xz")
+    ):
+        compound_ext = "." + ".".join(file_path.name.split(".")[-2:]).lower()
+    else:
+        compound_ext = file_path.suffix.lower()
+    ext = file_path.suffix.lower()
+
+    for check_ext in [compound_ext, ext]:
+        for extensions, reader in _SAFEDIR_READERS.items():
+            if check_ext in extensions:
+                with SafeDir.open_root(trusted_root) as root:
+                    fd = root.open_anchored_reader(relative)
+                    # Split fdopen out so the raw fd is closed only when
+                    # ``fdopen`` itself fails to construct the file object
+                    # (e.g. EMFILE). Once ``fdopen`` returns, ``with fileobj``
+                    # owns the close — wrapping it in an outer try/except
+                    # that also calls ``os.close(fd)`` would double-close on
+                    # any exception inside the reader, masking the real error
+                    # with EBADF (Copilot review).
+                    try:
+                        fileobj = os.fdopen(fd, "rb", closefd=True)
+                    except OSError:
+                        os.close(fd)
+                        raise
+                    with fileobj:
+                        try:
+                            return reader(  # type: ignore[operator,no-any-return]
+                                file_path=Path(file_path.name),
+                                fileobj=fileobj,
+                                **kwargs,
+                            )
+                        except Exception as exc:
+                            logger.error(f"Error reading {file_path.name}: {exc}")
+                            raise
+
+    logger.debug(
+        f"Extension {ext!r} not yet supported by "
+        f"read_file_via_safedir_anchored; caller may fall back"
+    )
     return None

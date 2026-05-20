@@ -540,7 +540,7 @@ class TestAudioMetadataExtractor:
 
         with patch(
             "services.audio.metadata_extractor.AudioMetadataExtractor._extract_with_mutagen",
-            side_effect=lambda p: (_ for _ in ()).throw(Exception("decode error")),
+            side_effect=Exception("decode error"),
         ):
             with patch(
                 "services.audio.metadata_extractor.AudioMetadataExtractor._extract_with_tinytag",
@@ -1656,7 +1656,10 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="programming")
 
         with (
-            patch("services.text_processor.read_file", return_value="Python programming content"),
+            patch(
+                "services.text_processor.read_file_via_safedir",
+                return_value="Python programming content",
+            ),
             patch(
                 "services.text_processor.truncate_text", return_value="Python programming content"
             ),
@@ -1693,9 +1696,19 @@ class TestTextProcessor:
 
         mock_model = self._make_mock_text_model()
 
-        with patch(
-            "services.text_processor.read_file",
-            side_effect=FileReadError("cannot read file"),
+        # PR3a (#267): TextProcessor reads via SafeDir first, falling back
+        # to legacy ``read_file`` only for non-existent files / unsupported
+        # extensions. Patch both entry points so the error contract is
+        # exercised regardless of which path is taken.
+        with (
+            patch(
+                "services.text_processor.read_file_via_safedir",
+                side_effect=FileReadError("cannot read file"),
+            ),
+            patch(
+                "services.text_processor.read_file",
+                side_effect=FileReadError("cannot read file"),
+            ),
         ):
             processor = TextProcessor(text_model=mock_model)
             result = processor.process_file(fp)
@@ -1721,7 +1734,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(side_effect=gen_side_effect)
 
         with (
-            patch("services.text_processor.read_file", return_value="python content"),
+            patch("services.text_processor.read_file_via_safedir", return_value="python content"),
             patch("services.text_processor.truncate_text", return_value="python content"),
             patch("services.text_processor.clean_text", return_value="programming"),
         ):
@@ -1740,7 +1753,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="programming")
 
         with (
-            patch("services.text_processor.read_file", return_value="hello world"),
+            patch("services.text_processor.read_file_via_safedir", return_value="hello world"),
             patch("services.text_processor.truncate_text", return_value="hello world"),
             patch("services.text_processor.clean_text", return_value="programming"),
         ):
@@ -1759,7 +1772,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="notes")
 
         with (
-            patch("services.text_processor.read_file", return_value="some text"),
+            patch("services.text_processor.read_file_via_safedir", return_value="some text"),
             patch("services.text_processor.truncate_text", return_value="some text"),
             patch("services.text_processor.clean_text", return_value="notes"),
         ):
@@ -1837,13 +1850,22 @@ class TestTextProcessor:
 
         mock_model = self._make_mock_text_model()
 
-        def raise_unexpected(_path: Any) -> None:
+        def raise_unexpected(*_args: Any, **_kwargs: Any) -> None:
             # text_processor catches RuntimeError/ValueError/OSError/AttributeError
             raise OSError("unexpected error")
 
-        with patch(
-            "services.text_processor.read_file",
-            side_effect=raise_unexpected,
+        # PR3a (#267): patch both SafeDir-aware and legacy entry points so
+        # the unexpected-OSError contract holds regardless of which path
+        # is taken.
+        with (
+            patch(
+                "services.text_processor.read_file_via_safedir",
+                side_effect=raise_unexpected,
+            ),
+            patch(
+                "services.text_processor.read_file",
+                side_effect=raise_unexpected,
+            ),
         ):
             processor = TextProcessor(text_model=mock_model)
             result = processor.process_file(fp)
@@ -1861,7 +1883,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="sample")
 
         with (
-            patch("services.text_processor.read_file", return_value="sample text"),
+            patch("services.text_processor.read_file_via_safedir", return_value="sample text"),
             patch("services.text_processor.truncate_text", return_value="sample text"),
             patch("services.text_processor.clean_text", return_value="sample"),
         ):
@@ -1881,7 +1903,7 @@ class TestTextProcessor:
         mock_model.generate = MagicMock(return_value="words")
 
         with (
-            patch("services.text_processor.read_file", return_value=long_content),
+            patch("services.text_processor.read_file_via_safedir", return_value=long_content),
             patch("services.text_processor.truncate_text", return_value=long_content[:5000]),
             patch("services.text_processor.clean_text", return_value="words"),
         ):

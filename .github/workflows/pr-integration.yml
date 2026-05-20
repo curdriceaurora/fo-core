@@ -19,7 +19,7 @@ name: PR Integration Tests
 
 on:
   pull_request:
-    branches: [main, epic/flatten-src-fo]
+    branches: [main, epic/flatten-src-fo, epic/safedir-readside-pr3]
     types: [opened, reopened, ready_for_review, synchronize]
     paths-ignore:
       - ".claude/**"

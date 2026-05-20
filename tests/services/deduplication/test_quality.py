@@ -5,7 +5,7 @@ fallback behavior when PIL is unavailable.
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -297,10 +297,18 @@ class TestExtractMetricsWithPil:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
+        # PR3f: quality.py now opens via safedir_image_open (tuple yield).
 
-        m = analyzer._extract_metrics_with_pil(p)
+        # Patch the helper to yield (mock_img, None).
+
+        _cm = MagicMock()
+
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+
+        _cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer._extract_metrics_with_pil(p)
         assert m is not None
         assert m.width == 1920
         assert m.height == 1080
@@ -324,10 +332,18 @@ class TestExtractMetricsWithPil:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
+        # PR3f: quality.py now opens via safedir_image_open (tuple yield).
 
-        m = analyzer._extract_metrics_with_pil(p)
+        # Patch the helper to yield (mock_img, None).
+
+        _cm = MagicMock()
+
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+
+        _cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer._extract_metrics_with_pil(p)
         assert m.has_transparency is True
         assert m.color_depth == 32
 
@@ -344,10 +360,18 @@ class TestExtractMetricsWithPil:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
+        # PR3f: quality.py now opens via safedir_image_open (tuple yield).
 
-        m = analyzer._extract_metrics_with_pil(p)
+        # Patch the helper to yield (mock_img, None).
+
+        _cm = MagicMock()
+
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+
+        _cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer._extract_metrics_with_pil(p)
         assert m.has_transparency is True
         assert m.color_depth == 8  # P mode
 
@@ -364,10 +388,18 @@ class TestExtractMetricsWithPil:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
+        # PR3f: quality.py now opens via safedir_image_open (tuple yield).
 
-        m = analyzer._extract_metrics_with_pil(p)
+        # Patch the helper to yield (mock_img, None).
+
+        _cm = MagicMock()
+
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+
+        _cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer._extract_metrics_with_pil(p)
         assert m.has_transparency is True
 
     def test_unknown_mode_defaults_to_24_bit(self, analyzer, tmp_path):
@@ -383,10 +415,18 @@ class TestExtractMetricsWithPil:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
+        # PR3f: quality.py now opens via safedir_image_open (tuple yield).
 
-        m = analyzer._extract_metrics_with_pil(p)
+        # Patch the helper to yield (mock_img, None).
+
+        _cm = MagicMock()
+
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+
+        _cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer._extract_metrics_with_pil(p)
         assert m.color_depth == 24
 
     def test_height_zero_aspect_ratio(self, analyzer, tmp_path):
@@ -402,10 +442,18 @@ class TestExtractMetricsWithPil:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
+        # PR3f: quality.py now opens via safedir_image_open (tuple yield).
 
-        m = analyzer._extract_metrics_with_pil(p)
+        # Patch the helper to yield (mock_img, None).
+
+        _cm = MagicMock()
+
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+
+        _cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer._extract_metrics_with_pil(p)
         assert m.aspect_ratio == 0
 
     def test_exception_returns_none(self, analyzer, tmp_path):
@@ -413,11 +461,13 @@ class TestExtractMetricsWithPil:
         p = tmp_path / "corrupt.jpg"
         p.write_bytes(b"\x00" * 100)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.side_effect = OSError("Corrupt image")
-
-        m = analyzer._extract_metrics_with_pil(p)
-        assert m is None
+        # PR3f: quality.py now opens via safedir_image_open.
+        with patch(
+            "services.deduplication.image_utils.safedir_image_open",
+            side_effect=OSError("Corrupt image"),
+        ):
+            m = analyzer._extract_metrics_with_pil(p)
+            assert m is None
 
     def test_webp_format_is_compressed(self, analyzer, tmp_path):
         """WEBP format is correctly flagged as compressed."""
@@ -432,10 +482,18 @@ class TestExtractMetricsWithPil:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
+        # PR3f: quality.py now opens via safedir_image_open (tuple yield).
 
-        m = analyzer._extract_metrics_with_pil(p)
+        # Patch the helper to yield (mock_img, None).
+
+        _cm = MagicMock()
+
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+
+        _cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer._extract_metrics_with_pil(p)
         assert m.is_compressed is True
 
     def test_png_format_not_compressed(self, analyzer, tmp_path):
@@ -451,10 +509,18 @@ class TestExtractMetricsWithPil:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
+        # PR3f: quality.py now opens via safedir_image_open (tuple yield).
 
-        m = analyzer._extract_metrics_with_pil(p)
+        # Patch the helper to yield (mock_img, None).
+
+        _cm = MagicMock()
+
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+
+        _cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer._extract_metrics_with_pil(p)
         assert m.is_compressed is False
 
 
@@ -499,10 +565,12 @@ class TestGetQualityMetrics:
         mock_img.__enter__ = MagicMock(return_value=mock_img)
         mock_img.__exit__ = MagicMock(return_value=False)
 
-        analyzer.Image = MagicMock()
-        analyzer.Image.open.return_value = mock_img
-
-        m = analyzer.get_quality_metrics(p)
+        # PR3f: quality.py now opens via safedir_image_open.
+        _cm = MagicMock()
+        _cm.__enter__ = MagicMock(return_value=(mock_img, None))
+        _cm.__exit__ = MagicMock(return_value=False)
+        with patch("services.deduplication.image_utils.safedir_image_open", return_value=_cm):
+            m = analyzer.get_quality_metrics(p)
         assert m is not None
         assert m.width == 800
         assert m.height == 600

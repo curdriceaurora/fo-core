@@ -359,7 +359,7 @@ class TestRulesExport:
         with patch(_RULE_MGR_PATH, return_value=mock_rule_manager):
             result = runner.invoke(rules_app, ["export", "-o", str(existing_dir)])
         assert result.exit_code == 2
-        assert "not a regular file" in result.output.lower()
+        assert "not a regular file" in " ".join(result.output.lower().split())
 
     @pytest.mark.integration
     @pytest.mark.ci
@@ -440,7 +440,7 @@ class TestRulesImport:
         d.mkdir()
         result = runner.invoke(rules_app, ["import", str(d)])
         assert result.exit_code == 2
-        assert "not a regular file" in result.output.lower()
+        assert "not a regular file" in " ".join(result.output.lower().split())
 
     def test_import_invalid_yaml(self, runner, tmp_path):
         bad_yaml = tmp_path / "bad.yaml"

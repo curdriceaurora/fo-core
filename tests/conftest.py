@@ -238,6 +238,19 @@ def provider_env(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
 # `@pytest.mark.uses_setup_gate`.
 # Those tests configure the on-disk `setup_completed` flag via a
 # tmp_path config dir and need the gate to actually run.
+# Pre-import ``cli.organize`` so the ``_bypass_setup_gate`` patch below
+# can resolve ``cli.organize._check_setup_completed``. ``cli/__init__.py``
+# uses ``__getattr__`` for lazy attribute imports but does NOT pre-register
+# submodules — ``getattr(cli, "organize")`` therefore raises AttributeError
+# the first time ``mock.patch`` resolves the dotted name, unless some
+# earlier test in the session already imported the submodule explicitly.
+# Hook-driven single-test invocations (e.g. ``pre-commit run search-corpus-
+# safety``) have no such earlier import, so the autouse fixture errors at
+# setup and the hook fails. Pre-importing here makes the submodule a real
+# attribute on ``cli`` before any test runs.
+import cli.organize  # noqa: F401,E402
+
+
 @pytest.fixture(autouse=True)
 def _bypass_setup_gate(request: pytest.FixtureRequest) -> object:
     """Default-bypass the global setup gate; opt-out via `uses_setup_gate` marker."""

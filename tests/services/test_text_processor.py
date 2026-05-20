@@ -176,6 +176,31 @@ class TestTextProcessorFileProcessing:
     """Tests for file processing logic."""
 
     @patch("services.text_processor.read_file")
+    @patch(
+        "services.text_processor.SafeDir.open_root",
+        side_effect=NotImplementedError("SafeDir requires POSIX dir_fd / O_NOFOLLOW support"),
+    )
+    def test_process_file_falls_back_when_safedir_unavailable(
+        self,
+        _mock_safedir: MagicMock,
+        mock_legacy_read: MagicMock,
+        text_processor: TextProcessor,
+        mock_text_model: MagicMock,
+    ) -> None:
+        """On Windows (or anywhere SafeDir is unavailable), ``process_file``
+        must fall back to the legacy path-based ``read_file`` so users can
+        still process common documents. Regression test for the Windows
+        ``NotImplementedError`` path."""
+        mock_legacy_read.return_value = "fallback content"
+        mock_text_model.generate.side_effect = ["desc", "folder_cat", "file_name"]
+
+        result = text_processor.process_file("test.txt")
+
+        assert result.error is None
+        assert "fallback" in (result.original_content or "")
+        mock_legacy_read.assert_called_once()
+
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_success(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -197,7 +222,7 @@ class TestTextProcessorFileProcessing:
         assert result.filename == "python_script_test"
         assert "test file about python" in result.original_content
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_path_conversion(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -209,7 +234,7 @@ class TestTextProcessorFileProcessing:
 
         assert result.file_path == Path("/some/path/test.md")
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_unsupported(
         self, mock_read: MagicMock, text_processor: TextProcessor
     ) -> None:
@@ -222,7 +247,7 @@ class TestTextProcessorFileProcessing:
         assert result.folder_name == "unsupported"
         assert result.filename == "test"
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_read_error(
         self, mock_read: MagicMock, text_processor: TextProcessor
     ) -> None:
@@ -234,7 +259,7 @@ class TestTextProcessorFileProcessing:
         assert result.error == "Permission denied"
         assert result.folder_name == "errors"
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_general_exception(
         self, mock_read: MagicMock, text_processor: TextProcessor
     ) -> None:
@@ -246,7 +271,7 @@ class TestTextProcessorFileProcessing:
         assert result.error == "Unexpected failure"
         assert result.folder_name == "errors"
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_toggle_flags(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -265,7 +290,7 @@ class TestTextProcessorFileProcessing:
         assert result.filename == ""
         mock_text_model.generate.assert_not_called()
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_original_content_truncated(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -279,7 +304,7 @@ class TestTextProcessorFileProcessing:
         assert result.original_content is not None
         assert len(result.original_content) == 500
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_has_processing_time(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -291,7 +316,7 @@ class TestTextProcessorFileProcessing:
 
         assert result.processing_time >= 0.0
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_description_only(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:
@@ -311,7 +336,7 @@ class TestTextProcessorFileProcessing:
         assert result.filename == ""
         mock_text_model.generate.assert_called_once()
 
-    @patch("services.text_processor.read_file")
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_folder_uses_content_when_no_description(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:

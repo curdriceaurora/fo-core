@@ -13,6 +13,8 @@ from models import TextModel
 from models.base import BaseModel, ModelConfig, ModelType
 from models.provider_factory import get_text_model
 from utils.file_readers import FileReadError, read_file
+from utils.readers import read_file_via_safedir, read_file_via_safedir_anchored
+from utils.safedir import SafeDir, SymlinkRejected
 from utils.text_processing import (
     clean_text,
     truncate_text,
@@ -120,6 +122,7 @@ class TextProcessor:
         generate_description: bool = True,
         generate_folder: bool = True,
         generate_filename: bool = True,
+        scan_root: str | Path | None = None,
     ) -> ProcessedFile:
         """Process a single text file.
 
@@ -128,6 +131,18 @@ class TextProcessor:
             generate_description: Whether to generate description
             generate_folder: Whether to generate folder name
             generate_filename: Whether to generate filename
+            scan_root: Optional anchor directory the caller walked to
+                find *file_path*. When provided, the SafeDir read uses
+                anchored traversal — every intermediate path component
+                between *scan_root* and *file_path* is opened with
+                ``O_NOFOLLOW`` so a symlink swapped into an ancestor
+                between the walk and this read is refused with
+                ``SymlinkRejected``. Closes the nested-ancestor TOCTOU
+                window (#286) that parent-rooted opening leaves open.
+                When ``None`` (default), falls back to parent-rooted
+                opening: only the final component is symlink-protected.
+                Pass *scan_root* whenever the caller has a meaningful
+                trusted root (the directory tree it walked).
 
         Returns:
             ProcessedFile with metadata
@@ -135,12 +150,56 @@ class TextProcessor:
         import time
 
         file_path = Path(file_path)
+        scan_root_path = Path(scan_root) if scan_root is not None else None
         start_time = time.time()
 
         try:
-            # Read file content
+            # Read file content via SafeDir for the migrated extensions
+            # (txt/md/docx/pdf/rtf/csv/xlsx/pptx — the LLM ingestion path).
+            # When ``scan_root`` is provided, ``read_file_via_safedir_anchored``
+            # walks each intermediate component with ``O_NOFOLLOW`` so a
+            # symlink swapped into ANY ancestor between the walk and this
+            # read is refused — closes both the final-component and the
+            # nested-ancestor TOCTOU windows for the LLM-exfiltration
+            # vector documented in #264. Without ``scan_root``, falls back
+            # to parent-rooted ``read_file_via_safedir`` (final-component
+            # protection only — same as PR3a–PR3i behaviour).
             logger.debug("Reading file: {}", file_path.name)
-            content = read_file(file_path)
+            content: str | None = None
+            try:
+                if scan_root_path is not None:
+                    content = read_file_via_safedir_anchored(file_path, trusted_root=scan_root_path)
+                else:
+                    with SafeDir.open_root(file_path.parent) as safe_dir:
+                        content = read_file_via_safedir(safe_dir, file_path.name)
+            except SymlinkRejected as exc:
+                logger.warning("Refused to read symlinked file {}: {}", file_path, exc)
+                return ProcessedFile(
+                    file_path=file_path,
+                    description="",
+                    folder_name="errors",
+                    filename=file_path.stem,
+                    error=f"Refused to read symlink: {file_path.name}",
+                )
+            except NotImplementedError:
+                # SafeDir requires POSIX dir_fd / O_NOFOLLOW; on Windows
+                # the Windows port is deferred (#264). Fall back to the
+                # legacy path-based reader so Windows users can still
+                # process .txt/.md/.pdf/.docx through TextProcessor.
+                # Tracked for follow-up in PR3b–PR3e.
+                logger.debug(
+                    "SafeDir unavailable on this platform; using legacy reader for {}",
+                    file_path.name,
+                )
+            if content is None:
+                # Either the SafeDir dispatcher returned ``None`` (extension
+                # not yet migrated — archives, ebooks, scientific, CAD,
+                # handled in PR3b–PR3e) OR SafeDir is unavailable (Windows).
+                # Real FS errors from the SafeDir branch propagate to the
+                # outer ``except FileReadError`` / ``except OSError``
+                # handlers — never silently masked by a path-based retry
+                # that could follow a symlink swapped in mid-flight.
+                content = read_file(file_path)
 
             if content is None:
                 return ProcessedFile(

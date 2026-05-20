@@ -108,6 +108,140 @@ _MARKER_WINDOW_ABOVE = 2
 _MARKER_WINDOW_BELOW = 6
 
 
+# Directories / files where bare ``open(path, "r"...)`` / ``Path.open("r"...)`` /
+# ``io.open(path, "r"...)`` read calls are also flagged. Populated by PR3i for
+# every PR3a–PR3h migration target. New bare-open reads in these locations need
+# a ``# safedir: ok — <reason>`` opt-out marker; the legitimate post-migration
+# sites (Windows / NotImplementedError fallback branches, dual-API path
+# branches in the reader libraries) are already marked.
+#
+# Entries can be either directory prefixes (matched via ``startswith(d/)``) or
+# specific file paths (matched via exact equality).
+#
+# Per #267, expanding this set to ``services/deduplication/{hasher,backup,
+# embedder}`` is PR4 scope; ``undo/`` is PR5; ``watcher/`` / ``daemon/`` /
+# ``pipeline/stages/{writer,postprocessor}`` / ``core/file_ops`` is PR6.
+_READ_OPEN_ENFORCED_DIRS: frozenset[str] = frozenset(
+    {
+        # PR3a — text processor + document readers
+        "src/services/text_processor.py",
+        "src/utils/readers/documents.py",
+        # PR3b — archive readers (zip / 7z / tar / rar)
+        "src/utils/readers/archives.py",
+        # PR3c — ebook + scientific readers
+        "src/utils/readers/ebook.py",
+        "src/utils/readers/scientific.py",
+        # PR3d — CAD readers
+        "src/utils/readers/cad.py",
+        # PR3e — dedup document extractor
+        "src/services/deduplication/extractor.py",
+        # PR3f — dedup image readers
+        "src/services/deduplication/image_dedup.py",
+        "src/services/deduplication/image_utils.py",
+        "src/services/deduplication/viewer.py",
+        "src/services/deduplication/quality.py",
+        # PR3g — EPUB enhanced reader
+        "src/utils/epub_enhanced.py",
+        # PR3h — search / organize / PARA detection
+        "src/services/search/hybrid_retriever.py",
+        "src/core/organizer.py",
+        "src/methodologies/para/detection/heuristics.py",
+    }
+)
+
+# Read-mode characters. ``open(...)`` defaults to ``"r"`` so a call with
+# no mode argument is also a read. ``"r+"`` / ``"w+"`` / ``"a+"`` are
+# read-and-write — flagged because they open the underlying file (and
+# could still dereference a symlink). The detector flags any mode whose
+# letter set intersects ``{"r", "+"}`` and is not a pure write
+# (``"w"``/``"a"``/``"x"`` without ``"+"``).
+_WRITE_ONLY_MODE_LETTERS = frozenset("wax")
+
+
+def _is_read_mode(mode_str: str | None) -> bool:
+    """Return True if *mode_str* (or default-``"r"`` when None) reads."""
+    if mode_str is None:
+        return True  # default mode is "r"
+    letters = set(mode_str)
+    # Pure write/append/exclusive ("w", "wb", "a", "x") never reads.
+    if letters & {"r", "+"}:
+        return True
+    if letters & _WRITE_ONLY_MODE_LETTERS:
+        return False
+    # Mode like "b" (no r/w/+/a/x) is malformed; treat as read for safety.
+    return True
+
+
+def _mode_arg(node: ast.Call, mode_position: int) -> str | None:
+    """Extract the literal mode string from *node*, if statically known.
+
+    Args:
+        node: The call AST.
+        mode_position: 0-based index where ``mode`` appears positionally
+            (``Path.open(mode)`` → 0; ``open(file, mode)`` → 1).
+
+    Returns ``None`` when the mode is omitted (treated as default-read by
+    callers) or when it's a non-literal expression we can't reason about
+    statically (also treated conservatively as read).
+    """
+    if len(node.args) > mode_position:
+        arg = node.args[mode_position]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            return arg.value
+        return None  # dynamic — caller treats as read
+    for kw in node.keywords:
+        if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
+            value = kw.value.value
+            if isinstance(value, str):
+                return value
+    return None  # no mode argument → default "r"
+
+
+def _bare_open_violation(node: ast.Call) -> str | None:
+    """Return a synthetic name for a bare-open read, or ``None``.
+
+    Detects:
+      - ``open(path, "r"...)``           → ``"open"``
+      - ``io.open(path, "r"...)``        → ``"io.open"``
+      - ``<X>.open("r"...)`` on Path/file → ``"<receiver>.open"``  (any X
+        — the rail can't statically tell SafeDir from Path, so the
+        marker is the disambiguator)
+
+    The detector only returns a name; the caller checks
+    ``_READ_OPEN_ENFORCED_DIRS`` membership.
+    """
+    func = node.func
+    # `open(...)` builtin — Name node, id == "open"
+    if isinstance(func, ast.Name) and func.id == "open":
+        if _is_read_mode(_mode_arg(node, mode_position=1)):
+            return "open"
+        return None
+    # ``<receiver>.open(...)`` — Attribute node, attr == "open"
+    if isinstance(func, ast.Attribute) and func.attr == "open":
+        # io.open(path, "rb") — receiver is Name "io"
+        if isinstance(func.value, ast.Name) and func.value.id == "io":
+            if _is_read_mode(_mode_arg(node, mode_position=1)):
+                return "io.open"
+            return None
+        # ``path.open("rb")`` — any other receiver. Mode is positional
+        # arg 0 (the receiver doesn't appear in node.args).
+        if _is_read_mode(_mode_arg(node, mode_position=0)):
+            return "Path.open"
+        return None
+    return None
+
+
+def _file_under_enforced_dir(path: Path) -> bool:
+    """Return True if *path* is inside a directory in ``_READ_OPEN_ENFORCED_DIRS``."""
+    if not _READ_OPEN_ENFORCED_DIRS:
+        return False
+    try:
+        rel = path.resolve().relative_to(_SRC_DIR.resolve().parent).as_posix()
+    except (OSError, ValueError):
+        return False
+    return any(rel == d or rel.startswith(d.rstrip("/") + "/") for d in _READ_OPEN_ENFORCED_DIRS)
+
+
 def _call_name(node: ast.Call) -> str | None:
     """Return the dotted name of *node*'s callee, or ``None`` if dynamic.
 
@@ -150,7 +284,24 @@ def _has_opt_out_in_window(marker_lines: set[int], call_line: int, total_lines: 
 
 
 def find_violations(path: Path) -> list[tuple[int, str, str]]:
-    """Return ``[(line_no, call_name, line_text)]`` for each unexempted flagged call."""
+    """Return ``[(line_no, call_name, line_text)]`` for each unexempted flagged call.
+
+    Two detection passes:
+
+    1. Library-call surface (``_FLAGGED_CALLS``) — always-on, all dirs.
+       Catches ``fitz.open`` / ``Image.open`` / ``zipfile.ZipFile`` etc.
+       regardless of which directory the call lives in.
+    2. Bare-``open`` reads (``open`` / ``io.open`` / ``Path.open``) —
+       only flagged when *path* is inside a directory listed in
+       ``_READ_OPEN_ENFORCED_DIRS``. Empty by default for backwards
+       compatibility; PR3i populates it for the migrated reader and
+       dedup directories. Per-directory scoping keeps the baseline
+       count from ballooning when the bare-open class is enabled on
+       a fresh subsystem.
+
+    Opt-out markers (``# safedir: ok — <reason>``) apply to both
+    passes uniformly.
+    """
     try:
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -162,17 +313,29 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
     lines = source.splitlines()
     marker_lines = _collect_marker_comment_lines(source)
     total = len(lines)
+    bare_open_active = _file_under_enforced_dir(path)
     out: list[tuple[int, str, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
+        # Pass 1: library-call surface
         name = _call_name(node)
-        if name is None or name not in _FLAGGED_CALLS:
+        if name is not None and name in _FLAGGED_CALLS:
+            if _has_opt_out_in_window(marker_lines, node.lineno, total):
+                continue
+            excerpt = lines[node.lineno - 1].rstrip() if 1 <= node.lineno <= total else ""
+            out.append((node.lineno, name, excerpt))
+            continue
+        # Pass 2: bare-open read (directory-scoped)
+        if not bare_open_active:
+            continue
+        bare_name = _bare_open_violation(node)
+        if bare_name is None:
             continue
         if _has_opt_out_in_window(marker_lines, node.lineno, total):
             continue
         excerpt = lines[node.lineno - 1].rstrip() if 1 <= node.lineno <= total else ""
-        out.append((node.lineno, name, excerpt))
+        out.append((node.lineno, bare_name, excerpt))
     return out
 
 
