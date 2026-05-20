@@ -611,6 +611,81 @@ class TestUndoSymlinkSafety:
         assert result is True
         assert src.read_bytes() == b"legacy content"
 
+    def test_undo_refuses_when_destination_missing(self, tmp_path: Path) -> None:
+        """Undo refuses when the destination file no longer exists."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+
+        # Record inode from a file we immediately delete to simulate "gone".
+        dst.write_bytes(b"original")
+        st = dst.stat()
+        dst.unlink()
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": st.st_dev, "dest_ino": st.st_ino},
+        )
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+
+        with self._capture_security_log() as records:
+            result = executor.rollback_move(op)
+
+        assert result is False
+        assert not src.exists(), "source must NOT be re-created"
+        assert any("security_event undo_dst_missing" in r.getMessage() for r in records)
+
+    def test_undo_refuses_when_lstat_raises_oserror(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Undo refuses when os.lstat raises a generic OSError."""
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        dst.write_bytes(b"content")
+        st = dst.stat()
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": st.st_dev, "dest_ino": st.st_ino},
+        )
+
+        def _raise_oserror(_path: object) -> None:
+            raise OSError("permission denied")
+
+        monkeypatch.setattr("undo.rollback.os.lstat", _raise_oserror)
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+
+        with self._capture_security_log() as records:
+            result = executor.rollback_move(op)
+
+        assert result is False
+        assert any("security_event undo_dst_lstat_error" in r.getMessage() for r in records)
+
     # ------------------------------------------------------------------
     # Helper
     # ------------------------------------------------------------------
