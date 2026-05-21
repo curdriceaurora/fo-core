@@ -206,7 +206,11 @@ class RollbackExecutor:
     # only for os.fstat — it binds the inode check to the specific file that
     # existed at ``destination`` at the moment of the open, closing the TOCTOU
     # window that a plain ``os.lstat`` call leaves open.
-    _O_VERIFY: int = getattr(os, "O_PATH", os.O_RDONLY) | os.O_NOFOLLOW
+    # O_NOFOLLOW is POSIX-only; Windows has neither it nor O_PATH.  Fallback
+    # to 0 keeps the module importable on Windows — _verify_dst_inode is only
+    # reachable when dest_dev/dest_ino are set, which the POSIX-only inode
+    # capture path (sys.platform != "win32" guard in rollback_move) ensures.
+    _O_VERIFY: int = getattr(os, "O_PATH", os.O_RDONLY) | getattr(os, "O_NOFOLLOW", 0)
 
     def _verify_dst_inode(self, operation: Operation, destination: Path) -> bool:
         """Return True iff the file at *destination* matches the recorded inode.
