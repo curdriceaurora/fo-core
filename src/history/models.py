@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from _compat import StrEnum
+from enum import StrEnum
 
 
 class OperationType(StrEnum):

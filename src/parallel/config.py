@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from _compat import StrEnum
+from enum import StrEnum
 
 
 class ExecutorType(StrEnum):

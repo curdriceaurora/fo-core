@@ -11,7 +11,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
-from _compat import StrEnum
+from enum import StrEnum
 
 
 class ResourceType(StrEnum):

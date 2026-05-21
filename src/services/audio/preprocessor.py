@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from _compat import StrEnum
+from enum import StrEnum
 
 logger = logging.getLogger(__name__)
 

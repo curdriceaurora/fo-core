@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from _compat import StrEnum
+from enum import StrEnum
 
 
 class PriorityStrategy(StrEnum):

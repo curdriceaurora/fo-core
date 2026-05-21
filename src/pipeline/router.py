@@ -10,7 +10,7 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from _compat import StrEnum
+from enum import StrEnum
 
 logger = logging.getLogger(__name__)
 
