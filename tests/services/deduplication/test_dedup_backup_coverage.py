@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import io
+import logging
+import os
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from services.deduplication.backup import BackupManager
+from services.deduplication.backup import BackupManager, _backup_safe_unlink
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.ci, pytest.mark.unit]
 
 
 @pytest.fixture()
@@ -216,3 +221,148 @@ class TestManifest:
         bm.manifest_path.unlink(missing_ok=True)
         result = bm._load_manifest()
         assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# _backup_safe_unlink — new diff lines (PR #335)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
+class TestBackupSafeUnlinkNewPaths:
+    """Cover the new code paths introduced in PR #335 TOCTOU fix."""
+
+    def test_inode_swap_returns_false(self, tmp_path: Path) -> None:
+        """Lines 85-96: inode mismatch between fstat and lstat returns False."""
+
+        target = tmp_path / "swap_target.dat"
+        target.write_text("content", encoding="utf-8")
+
+        real_st = target.stat()
+        # Build a fake fstat with a different inode so (dev, ino, size) != lstat
+        swapped_st = os.stat_result(
+            (
+                real_st.st_mode,
+                real_st.st_ino + 9999,  # different inode
+                real_st.st_dev,
+                real_st.st_nlink,
+                real_st.st_uid,
+                real_st.st_gid,
+                real_st.st_size,
+                real_st.st_atime,
+                real_st.st_mtime,
+                real_st.st_ctime,
+            )
+        )
+
+        with patch("os.fstat", return_value=swapped_st):
+            result = _backup_safe_unlink(target, logging.getLogger("test"))
+
+        assert result is False
+        assert target.exists()  # file was NOT removed
+
+    def test_inode_swap_logs_security_event(self, tmp_path: Path) -> None:
+        """Lines 85-96: inode mismatch emits a security_event WARNING log."""
+        target = tmp_path / "swap_log_target.dat"
+        target.write_text("content", encoding="utf-8")
+
+        real_st = target.stat()
+        swapped_st = os.stat_result(
+            (
+                real_st.st_mode,
+                real_st.st_ino + 9999,
+                real_st.st_dev,
+                real_st.st_nlink,
+                real_st.st_uid,
+                real_st.st_gid,
+                real_st.st_size,
+                real_st.st_atime,
+                real_st.st_mtime,
+                real_st.st_ctime,
+            )
+        )
+
+        log = logging.getLogger("test_swap_log")
+        buf = io.StringIO()
+        handler = logging.StreamHandler(buf)
+        handler.setLevel(logging.WARNING)
+        log.addHandler(handler)
+        log.setLevel(logging.WARNING)
+        try:
+            with patch("os.fstat", return_value=swapped_st):
+                _backup_safe_unlink(target, log)
+            output = buf.getvalue()
+        finally:
+            log.removeHandler(handler)
+
+        assert "security_event" in output
+
+    def test_oserror_from_safe_dir_returns_false(self, tmp_path: Path) -> None:
+        """Line 100: OSError from SafeDir is caught; returns False without raising."""
+
+        target = tmp_path / "oserr_target.dat"
+        target.write_text("content", encoding="utf-8")
+
+        with patch(
+            "services.deduplication.backup.SafeDir.open_root",
+            side_effect=OSError("simulated open failure"),
+        ):
+            result = _backup_safe_unlink(target, logging.getLogger("test"))
+
+        assert result is False
+
+
+# ---------------------------------------------------------------------------
+# cleanup_old_backups — exception handler lines 264-265 (PR #335)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCleanupOldBackupsExceptionHandler:
+    """Lines 264-265: cleanup_old_backups catches OSError/ValueError per-file."""
+
+    def _age_backup(self, bm: BackupManager, backup_path: Path) -> None:
+        """Helper: stamp a manifest entry as 60 days old."""
+        manifest = bm._load_manifest()
+        key = str(backup_path.resolve())
+        old_time = (datetime.now(UTC) - timedelta(days=60)).isoformat().replace("+00:00", "Z")
+        manifest[key]["backup_time"] = old_time
+        bm._save_manifest(manifest)
+
+    def test_oserror_in_unlink_is_skipped(self, bm: BackupManager, sample_file: Path) -> None:
+        """Lines 264-265: OSError from _backup_safe_unlink is caught per-file.
+
+        cleanup_old_backups must continue processing remaining entries
+        instead of aborting the whole pass.
+        """
+        backup_path = bm.create_backup(sample_file)
+        self._age_backup(bm, backup_path)
+
+        with patch(
+            "services.deduplication.backup._backup_safe_unlink",
+            side_effect=OSError("disk full"),
+        ):
+            removed = bm.cleanup_old_backups(max_age_days=30)
+
+        assert removed == []
+        # manifest entry should still be purged even though unlink failed
+        assert bm._load_manifest() == {}
+
+    def test_valueerror_in_unlink_is_skipped(self, bm: BackupManager, sample_file: Path) -> None:
+        """Lines 264-265: ValueError from _backup_safe_unlink is caught per-file.
+
+        A SafeDir ValueError (e.g. backslash in filename) must not abort
+        the entire cleanup pass.
+        """
+        backup_path = bm.create_backup(sample_file)
+        self._age_backup(bm, backup_path)
+
+        with patch(
+            "services.deduplication.backup._backup_safe_unlink",
+            side_effect=ValueError("illegal filename character"),
+        ):
+            removed = bm.cleanup_old_backups(max_age_days=30)
+
+        assert removed == []
+        assert bm._load_manifest() == {}

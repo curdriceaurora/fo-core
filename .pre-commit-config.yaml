@@ -121,6 +121,44 @@ repos:
         files: ^tests/.*\.py$
 
       # ----------------------------------------------------------------
+      # safedir-valueerror: SafeDir call in try/except that omits
+      # ValueError crashes on legal POSIX names containing backslash
+      # (see issue #323). ADVISORY for now; baseline pinned via
+      # tests/ci/test_safedir_valueerror_rail.py.
+      # ----------------------------------------------------------------
+      - id: safedir-valueerror-advisory
+        name: try/except around SafeDir call must catch ValueError (advisory)
+        entry: python3 scripts/check_safedir_valueerror.py --advisory
+        language: system
+        pass_filenames: false
+        files: ^src/.*\.py$
+
+      # ----------------------------------------------------------------
+      # defusedxml-fallback: silent try/except-ImportError fallback from
+      # defusedxml to stdlib xml re-enables billion-laughs / XXE
+      # (see issue #323). ADVISORY for now; baseline pinned via
+      # tests/ci/test_defusedxml_fallback_rail.py.
+      # ----------------------------------------------------------------
+      - id: defusedxml-fallback-advisory
+        name: no silent defusedxml→stdlib xml fallback (advisory)
+        entry: python3 scripts/check_defusedxml_fallback.py --advisory
+        language: system
+        pass_filenames: false
+        files: ^src/.*\.py$
+
+      # ----------------------------------------------------------------
+      # textiowrapper-detach: any reader that wraps a caller-owned
+      # fileobj in io.TextIOWrapper must call .detach() before return
+      # (PR #276 regression rail). ADVISORY; baseline = 0 at landing.
+      # ----------------------------------------------------------------
+      - id: textiowrapper-detach-advisory
+        name: TextIOWrapper around fileobj= must call .detach() (advisory)
+        entry: python3 scripts/check_textiowrapper_detach.py --advisory
+        language: system
+        pass_filenames: false
+        files: ^src/.*\.py$
+
+      # ----------------------------------------------------------------
       # T3-narrow: ban `assert <mock>.called` attribute-style assertion.
       # The canonical mock-library equivalent is `<mock>.assert_called()`
       # (one extra char, more discoverable, consistent with the rest of

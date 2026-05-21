@@ -80,13 +80,15 @@ class WriterStage:
                             while written < len(view):
                                 written += os.write(dst_fd, view[written:])
                 finally:
+                    # 1.7 — Do NOT call shutil.copystat(src, dst_path) after
+                    # os.close(dst_fd): the destination fd is closed before
+                    # copystat re-opens the path, creating a TOCTOU window
+                    # where an attacker can swap the destination for a symlink
+                    # between close and re-open.  Metadata preservation is
+                    # intentionally omitted — the safer choice is to accept
+                    # default timestamps/mode rather than risk writing metadata
+                    # to an attacker-controlled target (#322 / 1.7).
                     os.close(dst_fd)
-                # Preserve metadata (timestamps, mode) best-effort.
-                try:
-                    # safedir: ok — metadata only (timestamps/mode); content written via open_child above
-                    shutil.copystat(context.file_path, destination)
-                except OSError:
-                    pass
             else:
                 # Windows / SafeDir unavailable: legacy path-based copy.
                 destination.parent.mkdir(parents=True, exist_ok=True)
