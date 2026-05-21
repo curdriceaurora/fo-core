@@ -91,6 +91,27 @@ class TestDetectorOnSyntheticInputs:
         )
         assert find_violations(_synth(tmp_path, source)) == []
 
+    def test_detach_in_nested_function_does_not_count(self, tmp_path: Path) -> None:
+        """detach() inside an inner unused helper is not a real fix.
+
+        Regression rail for codex PR-329 finding: the original
+        ``_has_detach_call`` walked the whole function via ``ast.walk``,
+        so a wrapper assigned in the outer scope could be "rescued" by a
+        ``.detach()`` call inside a nested function that may never run.
+        """
+        source = (
+            "import io\n"
+            "def reader(fileobj):\n"
+            "    text_stream = io.TextIOWrapper(fileobj, encoding='utf-8')\n"
+            "    def unused_helper():\n"
+            "        text_stream.detach()  # never called\n"
+            "    return text_stream.read()\n"
+        )
+        violations = find_violations(_synth(tmp_path, source))
+        assert len(violations) == 1, (
+            "expected the outer wrapper to be flagged; detach in unused inner helper must not count"
+        )
+
 
 class TestAdvisoryRunOnLiveTree:
     def test_advisory_exits_zero(self) -> None:

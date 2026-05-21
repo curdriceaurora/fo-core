@@ -59,11 +59,11 @@ _SRC_DIR = _ROOT / "src"
 # Parameter names that suggest a caller-owned binary stream.
 _FILEOBJ_PARAM_NAMES: frozenset[str] = frozenset({"fileobj", "stream"})
 
-# Restrict scope to where PR3a–PR3i moved fileobj contracts.
-_SCOPE_DIRS: tuple[str, ...] = (
-    "src/utils/readers/",
-    "src/utils/epub_enhanced.py",
-)
+# The TextIOWrapper-detach pattern is a general anti-pattern, not specific
+# to readers: any function in ``src/`` that accepts a caller-owned binary
+# stream and wraps it in ``io.TextIOWrapper`` is at risk. Scoping to all
+# of ``src/`` keeps the rail honest as the fileobj contract spreads.
+_SCOPE_DIRS: tuple[str, ...] = ("src/",)
 
 _NOQA_RE = re.compile(r"#\s*textiowrapper-detach:\s*ok\b")
 
@@ -116,10 +116,52 @@ def _function_fileobj_param(func: ast.FunctionDef | ast.AsyncFunctionDef) -> str
     return None
 
 
+_INNER_SCOPE_TYPES: tuple[type[ast.AST], ...] = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.Lambda,
+)
+
+
+def _walk_without_inner_scopes(node: ast.AST) -> list[ast.AST]:
+    """Walk *node*'s descendants without descending into nested scopes.
+
+    A ``.detach()`` call inside a nested function or class body does not
+    execute on the current function's code path. Stopping at scope
+    boundaries means we only credit detach calls that actually run.
+
+    Note: the starting *node* is always entered. Nested-scope nodes
+    encountered during traversal are visited themselves but their bodies
+    are not.
+    """
+    out: list[ast.AST] = []
+    stack: list[ast.AST] = [node]
+    while stack:
+        cur = stack.pop()
+        out.append(cur)
+        if cur is not node and isinstance(cur, _INNER_SCOPE_TYPES):
+            continue
+        for child in ast.iter_child_nodes(cur):
+            stack.append(child)
+    return out
+
+
 def _has_detach_call(body: list[ast.stmt], wrapper_name: str) -> bool:
-    """True if *body* contains a call to ``<wrapper_name>.detach()``."""
+    """True if *body* contains a call to ``<wrapper_name>.detach()``.
+
+    Only counts detach calls in the current scope — does NOT descend into
+    nested functions/classes/lambdas (their bodies don't run on this
+    function's code path; crediting a nested unused helper's detach call
+    would hide a real violation).
+    """
     for stmt in body:
-        for sub in ast.walk(stmt):
+        # A nested-scope statement at the top of the function body
+        # (def inner(), class X, lambda) is its own scope; its body does
+        # NOT execute as part of the enclosing function. Skip entirely.
+        if isinstance(stmt, _INNER_SCOPE_TYPES):
+            continue
+        for sub in _walk_without_inner_scopes(stmt):
             if not isinstance(sub, ast.Call):
                 continue
             func = sub.func

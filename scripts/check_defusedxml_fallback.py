@@ -129,19 +129,46 @@ def _is_xml_module(mod: str) -> bool:
     return mod == "xml" or mod.startswith("xml.")
 
 
-def _module_has_xml_import(tree: ast.AST) -> bool:
-    """True if the module imports any stdlib ``xml.*`` name anywhere."""
+def _module_xml_import_names(tree: ast.AST) -> set[str]:
+    """Return the set of local names bound to stdlib ``xml.*`` imports.
+
+    Handles both forms:
+        import xml.etree.ElementTree as _stdlib_ET   → "_stdlib_ET"
+        import xml.etree.ElementTree                 → "xml" (the root name)
+        from xml.etree import ElementTree as _ET     → "_ET"
+        from xml.etree.ElementTree import parse      → "parse"
+    """
+    names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            if any(_is_xml_module(alias.name) for alias in node.names):
-                return True
+            for alias in node.names:
+                if _is_xml_module(alias.name):
+                    # ``import xml.etree.ElementTree`` binds the *root* name "xml";
+                    # ``import xml.etree.ElementTree as _stdlib_ET`` binds the alias.
+                    names.add(alias.asname or alias.name.split(".")[0])
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             if _is_xml_module(node.module):
+                for alias in node.names:
+                    names.add(alias.asname or alias.name)
+    return names
+
+
+def _handler_references_any(handler: ast.ExceptHandler, names: set[str]) -> bool:
+    """True if the except-body reads or writes any identifier in *names*.
+
+    Closes the false-positive gap codex flagged: a module-level stdlib xml
+    import unrelated to the defusedxml try block (e.g. used elsewhere in
+    the module) should NOT cause the rail to fire unless the handler body
+    actually bridges to that import.
+    """
+    for stmt in handler.body:
+        for sub in ast.walk(stmt):
+            if isinstance(sub, ast.Name) and sub.id in names:
                 return True
     return False
 
 
-def _try_triggers_fallback(node: ast.Try, module_xml_imports: bool) -> bool:
+def _try_triggers_fallback(node: ast.Try, module_xml_names: set[str]) -> bool:
     """True if the Try block silently bridges defusedxml→stdlib xml."""
     body_imports = _imports_in(node.body)
     has_defusedxml = any(_is_module_prefix(mod, "defusedxml") for _, mod in body_imports)
@@ -157,8 +184,10 @@ def _try_triggers_fallback(node: ast.Try, module_xml_imports: bool) -> bool:
         if any(_is_xml_module(mod) for _, mod in handler_imports):
             # Variant 1: stdlib re-import inside except.
             return True
-        if module_xml_imports:
-            # Variant 2: module-level stdlib import, except body assigns/passes.
+        # Variant 2: except body actually references a module-level stdlib
+        # xml import name. The reference (not the mere presence of the
+        # import elsewhere in the module) is what proves the bridge.
+        if module_xml_names and _handler_references_any(handler, module_xml_names):
             return True
     return False
 
@@ -192,12 +221,12 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
 
     lines = text.splitlines()
     noqa_lines = _collect_noqa_lines(text)
-    module_xml_imports = _module_has_xml_import(tree)
+    module_xml_names = _module_xml_import_names(tree)
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Try):
             continue
-        if not _try_triggers_fallback(node, module_xml_imports):
+        if not _try_triggers_fallback(node, module_xml_names):
             continue
         for ln, mod in _imports_in(node.body):
             if not _is_module_prefix(mod, "defusedxml"):

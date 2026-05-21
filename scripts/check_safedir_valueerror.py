@@ -163,6 +163,36 @@ def _safedir_call_lineno(node: ast.AST) -> int | None:
     return None
 
 
+_INNER_SCOPE_TYPES: tuple[type[ast.AST], ...] = (
+    ast.Try,
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.Lambda,
+)
+
+
+def _walk_without_inner_scopes(node: ast.AST) -> list[ast.AST]:
+    """Walk *node*'s descendants without descending into nested scopes.
+
+    Stops at ``ast.Try`` (so a SafeDir call protected by an *inner*
+    try/except that catches ``ValueError`` isn't blamed on the outer try),
+    plus function/class/lambda boundaries. The starting *node* is always
+    visited; nested-scope nodes encountered during traversal are visited
+    themselves but their bodies are not.
+    """
+    out: list[ast.AST] = []
+    stack: list[ast.AST] = [node]
+    while stack:
+        cur = stack.pop()
+        out.append(cur)
+        if cur is not node and isinstance(cur, _INNER_SCOPE_TYPES):
+            continue
+        for child in ast.iter_child_nodes(cur):
+            stack.append(child)
+    return out
+
+
 def find_violations(path: Path) -> list[tuple[int, str]]:
     """Return [(line_number, snippet)] for each unexempted match in *path*."""
     violations: list[tuple[int, str]] = []
@@ -185,8 +215,17 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
         if _try_catches_valueerror(node):
             continue
         # Find SafeDir calls inside the body (not the handlers — bodies only).
+        # Don't descend into nested Try / function / class scopes — those
+        # have their own except clauses; a SafeDir call protected by an
+        # inner try/except that catches ValueError should NOT be blamed on
+        # the outer try (the inner Try is independently visited by
+        # ``ast.walk(tree)`` above and gets its own check).
         for stmt in node.body:
-            for sub in ast.walk(stmt):
+            # A top-level inner scope inside the outer try body is the
+            # scope's responsibility, not the outer try's.
+            if isinstance(stmt, _INNER_SCOPE_TYPES):
+                continue
+            for sub in _walk_without_inner_scopes(stmt):
                 call_line = _safedir_call_lineno(sub)
                 if call_line is None:
                     continue

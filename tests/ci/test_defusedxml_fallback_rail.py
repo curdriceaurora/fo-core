@@ -85,6 +85,39 @@ class TestDetectorOnSyntheticInputs:
         )
         assert find_violations(_synth(tmp_path, source)) == []
 
+    def test_no_flag_when_module_xml_unrelated_to_except(self, tmp_path: Path) -> None:
+        """Unrelated module-level stdlib xml import shouldn't false-positive.
+
+        Regression rail for coderabbit PR-329 finding: variant-2 detection
+        was a module-wide boolean ("any stdlib xml import anywhere"). A
+        defusedxml try block whose except body doesn't actually reference
+        the stdlib xml import should NOT be flagged just because some
+        unrelated code in the same module imports xml.
+        """
+        source = (
+            "import xml.etree.ElementTree as _used_only_for_pretty_print\n"
+            "def pretty(x):\n"
+            "    return _used_only_for_pretty_print.tostring(x)\n"
+            "\n"
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    _ET = None\n"
+        )
+        assert find_violations(_synth(tmp_path, source)) == []
+
+    def test_flag_when_except_actually_references_module_xml(self, tmp_path: Path) -> None:
+        """If the except body DOES reference the stdlib alias, still flag."""
+        source = (
+            "import xml.etree.ElementTree as _stdlib_ET\n"
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    _ET = _stdlib_ET\n"
+        )
+        violations = find_violations(_synth(tmp_path, source))
+        assert len(violations) == 1
+
 
 class TestAdvisoryRunOnLiveTree:
     def test_advisory_exits_zero(self) -> None:

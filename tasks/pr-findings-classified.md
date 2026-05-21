@@ -8,6 +8,24 @@
 **Process**: 5 parallel Explore agents read each thread body, re-checked the
 referenced `path:line` in the current tree, and classified.
 
+## Verification metadata
+
+| Source | How verified | Reproducer |
+|---|---|---|
+| Total thread count (132) | `jq 'select(.kind=="thread" and .is_resolved==false)' \| wc -l` over the regenerated JSONL | run the harvest script |
+| Per-PR breakdown (counts in table below) | same `jq` pipeline grouped by `.pr` | same |
+| STILL_VALID = 24 | manual classification by 5 parallel Explore agents, each verifying `path:line` against current `src/` (transcripts archived in this session) | re-run the audit task with the agent prompts in `tasks/issue-*.md` |
+| Cluster→issue mapping | manual MECE grouping; collectively-exhaustive check by counting per cluster (`7+6+2+2+4+2+1 = 24`) — verified against the STILL_VALID list | `grep -c "STILL_VALID" tasks/chunk-*.jsonl` (intermediates) |
+
+**Contradiction checks performed**:
+
+- Each finding listed at most once across the 7 clusters (mutually exclusive).
+- Total cluster size = STILL_VALID total (collectively exhaustive): 24.
+- Each cluster ties to exactly one filed issue (#322–#328).
+
+**Section range validations**: each cluster's PR/path/line is sourced from the
+agent classification transcripts and the raw JSONL; no synthesis.
+
 ## Triage Summary
 
 | Verdict | Count | Notes |

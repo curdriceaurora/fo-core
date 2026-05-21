@@ -95,10 +95,17 @@ for pr in "${prs[@]}"; do
         --raw-field query="$QUERY" 2>/dev/null \
         || echo '{}')
 
+    # Emit one row per thread *comment* (not per thread) so follow-up
+     # replies that refine or replace the original concern are preserved.
+     # ``comment_index`` is 0-based within the thread; the first row per
+     # thread carries the originating concern, subsequent rows are replies.
     echo "$raw" | jq -c --argjson pr "$pr" '
         .data.repository.pullRequest as $p
         | $p.reviewThreads.nodes[]? as $t
-        | $t.comments.nodes[0] as $c
+        | $t.comments.nodes
+        | to_entries[]
+        | .key as $i
+        | .value as $c
         | {
             pr: $pr,
             pr_title: $p.title,
@@ -107,6 +114,7 @@ for pr in "${prs[@]}"; do
             thread_id: $t.id,
             is_resolved: $t.isResolved,
             is_outdated: $t.isOutdated,
+            comment_index: $i,
             author: ($c.author.login // null),
             path: $c.path,
             line: ($c.line // $c.originalLine),

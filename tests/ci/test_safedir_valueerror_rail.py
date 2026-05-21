@@ -134,6 +134,42 @@ class TestDetectorOnSyntheticInputs:
         )
         assert len(find_violations(_synth(tmp_path, source))) == 1
 
+    def test_inner_try_with_valueerror_protects_outer(self, tmp_path: Path) -> None:
+        """An inner try/except that catches ValueError must shield the call.
+
+        Regression rail for coderabbit PR-329 finding: ``ast.walk`` descended
+        into nested ``ast.Try`` scopes, so a SafeDir call handled by an
+        inner ``except ValueError`` was still flagged against the outer try.
+        """
+        source = (
+            "def f(safe_dir, name):\n"
+            "    try:\n"
+            "        try:\n"
+            "            safe_dir.open_for_reader(name)\n"
+            "        except ValueError:\n"
+            "            return None\n"
+            "    except OSError:\n"
+            "        pass\n"
+        )
+        assert find_violations(_synth(tmp_path, source)) == []
+
+    def test_safedir_call_inside_nested_function_not_blamed(self, tmp_path: Path) -> None:
+        """A SafeDir call inside a nested function is not part of the outer try.
+
+        The outer ``try`` body shouldn't be blamed for what an inner function
+        does; that function has its own scope.
+        """
+        source = (
+            "def f(safe_dir, name):\n"
+            "    try:\n"
+            "        def inner():\n"
+            "            safe_dir.open_for_reader(name)\n"
+            "        return inner\n"
+            "    except OSError:\n"
+            "        pass\n"
+        )
+        assert find_violations(_synth(tmp_path, source)) == []
+
 
 class TestAdvisoryRunOnLiveTree:
     """Run the script against real ``src/`` in advisory mode."""

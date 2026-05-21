@@ -156,7 +156,7 @@ repos:
         entry: python3 scripts/check_textiowrapper_detach.py --advisory
         language: system
         pass_filenames: false
-        files: ^src/utils/.*\.py$
+        files: ^src/.*\.py$
 
       # ----------------------------------------------------------------
       # T3-narrow: ban `assert <mock>.called` attribute-style assertion.
