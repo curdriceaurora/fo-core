@@ -463,13 +463,16 @@ Source of truth: `src/cli/main.py` registers each sub-app with a plain name (`ap
 | `src/cli/doctor.py` | `fo doctor` (single top-level command, not a sub-app) | `path` | 357 |
 | `src/cli/profile.py` | `fo profile import` / `export` | path args (Click group, lazy-loaded) | deferred in main.py:245 |
 
+Out of scope for A2: `fo copilot` (free-text `message`), `fo undo`/`redo`/`history` (operation IDs only),
+`fo version`/`hardware-info`/`config`/`model`/`setup`/`update`/`completion` (no path args).
+
 ## Parallel epics
 
 The SafeDir read-side hardening epic (#264 / #267 PR3 / #268 PR4 / #269 PR5 / #270 PR6)
 addresses TOCTOU and symlink-swap vectors across content readers, dedup, undo, and watcher.
-Tracked separately; not part of the A–G roadmap above.
+SafeDir security primitives are integral to the overall security hardening work and complement
+Epics A–G; they are maintained as a dedicated module and epic series rather than being
+folded into the A–G tracking issues above.
 
 See `docs/internal/safedir-shutil-audit-pr3j.md` for the PR3 closeout audit and
 `docs/developer/safedir-readers.md` for the contributor guide.
-
-Each of the above wires through `validate_within_roots()` as a commit inside `epic-a-cli`. Out of scope for A2: `fo copilot` (free-text `message`), `fo undo`/`redo`/`history` (operation IDs only), `fo version`/`hardware-info`/`config`/`model`/`setup`/`update`/`completion` (no path args).

@@ -288,3 +288,99 @@ class TestSafeDirRouteSelected:
         ) as mock_open_root:
             extractor.extract_text(target)
         mock_open_root.assert_called_once_with(tmp_path)
+
+
+class TestAnchoredTraversalExtractor:
+    """Regression tests for issue #325: component-wise SafeDir traversal
+    via ``scan_root``.
+
+    A symlink swapped into an intermediate directory between the scan root
+    and the leaf file must be refused (``extract_text`` returns ``""``)
+    rather than followed — closes the nested-ancestor TOCTOU window
+    documented in #286/#325.
+    """
+
+    def test_reads_file_via_scan_root(self, extractor: DocumentExtractor, tmp_path: Path) -> None:
+        """Happy path: a real file nested under scan_root is read correctly."""
+        scan_root = tmp_path / "root"
+        subdir = scan_root / "subdir"
+        subdir.mkdir(parents=True)
+        target = subdir / "doc.txt"
+        target.write_text("anchored content")
+
+        result = extractor.extract_text(target, scan_root=scan_root)
+        assert "anchored content" in result
+
+    def test_symlinked_intermediate_dir_is_refused(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """A symlink swapped into an intermediate directory between scan_root
+        and the leaf is refused when scan_root is provided — regression for
+        the nested-ancestor TOCTOU window documented in #286/#325.
+
+        Layout::
+
+            tmp_path/real_outside/secret.txt   <- sensitive file OUTSIDE scan_root
+            tmp_path/scan_root/               <- trusted scan root
+            tmp_path/scan_root/evil_link -> tmp_path/real_outside
+            apparent path: scan_root/evil_link/secret.txt
+
+        Without anchored traversal, ``open_root(file_path.parent)`` would open
+        ``evil_link`` as a plain directory and read secret.txt through it.
+        With anchored traversal, ``open_subdir("evil_link")`` detects the
+        symlink and raises ``SymlinkRejected`` → ``extract_text`` returns ``""``.
+        """
+        outside = tmp_path / "real_outside"
+        outside.mkdir()
+        secret = outside / "secret.txt"
+        secret.write_text("TOP_SECRET_CONTENT")
+
+        scan_root = tmp_path / "scan_root"
+        scan_root.mkdir()
+
+        try:
+            (scan_root / "evil_link").symlink_to(outside)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        apparent_path = scan_root / "evil_link" / "secret.txt"
+        result = extractor.extract_text(apparent_path, scan_root=scan_root)
+        assert result == ""
+        assert "TOP_SECRET_CONTENT" not in result
+
+    def test_scan_root_none_still_uses_parent_rooted_safedir(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """When scan_root=None the existing parent-rooted SafeDir path is used
+        (no regression on the default call-site behaviour).
+        """
+        target = tmp_path / "plain.txt"
+        target.write_text("parent rooted content")
+
+        with patch(
+            "services.deduplication.extractor.SafeDir.open_root",
+            wraps=SafeDir.open_root,
+        ) as mock_open_root:
+            result = extractor.extract_text(target, scan_root=None)
+
+        assert "parent rooted content" in result
+        mock_open_root.assert_called_once_with(tmp_path)
+
+    def test_extract_batch_threads_scan_root(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """extract_batch passes scan_root through to each extract_text call."""
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        f1 = scan_root / "a.txt"
+        f2 = scan_root / "b.txt"
+        f1.write_text("alpha")
+        f2.write_text("beta")
+
+        with patch.object(extractor, "extract_text", wraps=extractor.extract_text) as mock_extract:
+            extractor.extract_batch([f1, f2], scan_root=scan_root)
+
+        calls = mock_extract.call_args_list
+        assert len(calls) == 2
+        for call in calls:
+            assert call.kwargs.get("scan_root") == scan_root
