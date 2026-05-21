@@ -140,6 +140,51 @@ class TestDetectorOnSyntheticInputs:
         violations = find_violations(_synth(tmp_path, source))
         assert len(violations) == 1
 
+    def test_incidental_stdlib_read_without_rebind_does_not_flag(self, tmp_path: Path) -> None:
+        """Reading the stdlib alias for logging — without re-binding the
+        defusedxml target — is not a bridge.
+
+        Regression rail for codex PR-329 round-6 finding: previously the
+        detector flagged any ``ast.Load`` of a stdlib xml alias in the
+        handler, even when the handler genuinely cleared the defusedxml
+        target (fail closed).
+        """
+        source = (
+            "import xml.etree.ElementTree as _stdlib_ET\n"
+            "import logging\n"
+            "logger = logging.getLogger(__name__)\n"
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    logger.warning('defusedxml missing — stdlib alias is %s', _stdlib_ET)\n"
+            "    _ET = None\n"
+        )
+        assert find_violations(_synth(tmp_path, source)) == []
+
+    def test_rebind_to_stdlib_attribute_still_flags(self, tmp_path: Path) -> None:
+        """Re-binding the defusedxml target to ``_stdlib_ET.parse`` IS a bridge."""
+        source = (
+            "import xml.etree.ElementTree as _stdlib_ET\n"
+            "try:\n"
+            "    from defusedxml.ElementTree import parse as _parse\n"
+            "except ImportError:\n"
+            "    _parse = _stdlib_ET.parse\n"
+        )
+        violations = find_violations(_synth(tmp_path, source))
+        assert len(violations) == 1
+
+    def test_rebind_to_unrelated_target_does_not_flag(self, tmp_path: Path) -> None:
+        """``_other = _stdlib_ET`` doesn't bridge — wrong LHS."""
+        source = (
+            "import xml.etree.ElementTree as _stdlib_ET\n"
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    _other = _stdlib_ET  # not the defusedxml target\n"
+            "    _ET = None  # genuine fail-closed\n"
+        )
+        assert find_violations(_synth(tmp_path, source)) == []
+
     def test_class_body_uses_source_order_not_late_binding(self, tmp_path: Path) -> None:
         """Class bodies execute at definition time — source order matters.
 

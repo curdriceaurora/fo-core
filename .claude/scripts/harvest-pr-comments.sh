@@ -88,7 +88,8 @@ QUERY='query($owner: String!, $repo: String!, $number: Int!,
           id
           isResolved
           isOutdated
-          comments(first: 50) {
+          comments(first: 100) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               author { login }
               path
@@ -189,10 +190,84 @@ fetch_meta() {
         | jq -c '.data.repository.pullRequest // {title: null, state: null}'
 }
 
+# Per-thread comment pagination (codex PR #329 thread
+# PRRT_kwDOR_Rkws6DzZfK). When the in-PR query reports a thread with
+# >100 comments, this helper queries that thread node directly with a
+# cursor until all replies are fetched. Echoes each subsequent page's
+# ``nodes`` array as a single JSON line.
+fetch_remaining_thread_comments() {
+    local thread_id="$1"
+    local cursor="$2"
+    local response has_next
+    while :; do
+        if ! response=$(gh api graphql --raw-field query='
+                query($id: ID!, $after: String!) {
+                  node(id: $id) {
+                    ... on PullRequestReviewThread {
+                      comments(first: 100, after: $after) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                          author { login }
+                          path
+                          line
+                          originalLine
+                          body
+                          createdAt
+                        }
+                      }
+                    }
+                  }
+                }' -F id="$thread_id" -F after="$cursor" 2>&1); then
+            echo "Error: failed to paginate thread $thread_id" >&2
+            return 1
+        fi
+        echo "$response" | jq -c '.data.node.comments.nodes // []'
+        has_next=$(echo "$response" | jq -r '.data.node.comments.pageInfo.hasNextPage // false')
+        if [[ "$has_next" != "true" ]]; then
+            return 0
+        fi
+        cursor=$(echo "$response" | jq -r '.data.node.comments.pageInfo.endCursor // empty')
+        if [[ -z "$cursor" ]]; then
+            return 0
+        fi
+    done
+}
+
+# Walk every thread in *threads_json* and, for any thread whose comments
+# connection reports ``hasNextPage``, fetch the remaining comments and
+# merge them into the thread's comments list. Echoes the rewritten JSON
+# array to stdout.
+expand_thread_comment_pages() {
+    local threads_json="$1"
+    local thread_count
+    thread_count=$(echo "$threads_json" | jq 'length')
+    local i thread thread_id has_next cursor extra
+    local out="$threads_json"
+    for ((i = 0; i < thread_count; i++)); do
+        thread=$(echo "$out" | jq -c ".[$i]")
+        has_next=$(echo "$thread" | jq -r '.comments.pageInfo.hasNextPage // false')
+        if [[ "$has_next" != "true" ]]; then
+            continue
+        fi
+        thread_id=$(echo "$thread" | jq -r '.id')
+        cursor=$(echo "$thread" | jq -r '.comments.pageInfo.endCursor // empty')
+        if [[ -z "$cursor" ]]; then
+            continue
+        fi
+        extra=$(fetch_remaining_thread_comments "$thread_id" "$cursor" | jq -cs 'add // []')
+        out=$(echo "$out" | jq -c --argjson i "$i" --argjson extra "$extra" \
+            '.[$i].comments.nodes += $extra')
+    done
+    echo "$out"
+}
+
 for pr in "${prs[@]}"; do
     meta=$(fetch_meta "$pr")
     # Aggregate all pages for each connection via [inputs] in jq.
     threads_json=$(paginate_connection "$pr" reviewThreads | jq -cs 'add // []')
+    # Then expand any thread whose comments connection reports hasNextPage
+    # — long discussions (>100 replies) need per-thread pagination.
+    threads_json=$(expand_thread_comment_pages "$threads_json")
     pr_comments_json=$(paginate_connection "$pr" comments | jq -cs 'add // []')
     reviews_json=$(paginate_connection "$pr" reviews | jq -cs 'add // []')
 

@@ -91,6 +91,33 @@ def _imports_in(stmts: list[ast.stmt]) -> list[tuple[int, str]]:
     return out
 
 
+def _defusedxml_target_names(stmts: list[ast.stmt]) -> set[str]:
+    """Return the local names bound by defusedxml imports in *stmts*.
+
+    A silent fallback requires the except body to *re-bind one of these
+    names* to a stdlib parser. Knowing the exact target name lets the
+    detector distinguish a real bridge (``_ET = _stdlib_ET``) from an
+    incidental read (``logger.warning(_stdlib_ET); _ET = None``).
+
+    Examples:
+        import defusedxml.ElementTree as _ET   → {"_ET"}
+        import defusedxml.ElementTree          → {"defusedxml"}  (root)
+        from defusedxml import ElementTree     → {"ElementTree"}
+        from defusedxml.X import parse as p    → {"p"}
+    """
+    targets: set[str] = set()
+    for stmt in stmts:
+        if isinstance(stmt, ast.Import):
+            for alias in stmt.names:
+                if _is_module_prefix(alias.name, "defusedxml"):
+                    targets.add(alias.asname or alias.name.split(".")[0])
+        elif isinstance(stmt, ast.ImportFrom) and stmt.module is not None:
+            if _is_module_prefix(stmt.module, "defusedxml"):
+                for alias in stmt.names:
+                    targets.add(alias.asname or alias.name)
+    return targets
+
+
 def _is_module_prefix(mod: str, prefix: str) -> bool:
     """True if *mod* equals *prefix* or starts with ``prefix.``."""
     return mod == prefix or mod.startswith(prefix + ".")
@@ -183,19 +210,63 @@ def _collect_scope_xml_names(nodes: list[ast.stmt]) -> set[str]:
     return {name for _, name in _scope_xml_imports_ordered(nodes)}
 
 
-def _handler_references_any(handler: ast.ExceptHandler, names: set[str]) -> bool:
-    """True if the except-body *reads* any identifier in *names*.
+def _expr_reads_any(expr: ast.expr, names: set[str]) -> bool:
+    """True if *expr* reads any identifier in *names* (``ast.Load`` context)."""
+    for sub in ast.walk(expr):
+        if isinstance(sub, ast.Name) and sub.id in names and isinstance(sub.ctx, ast.Load):
+            return True
+    return False
 
-    Only ``ast.Load`` contexts count — a handler that merely *writes* to
-    the stdlib xml name (e.g. ``except ImportError: parse = None``) is not
-    a real bridge to stdlib parsing; it's clearing the binding. The
-    bridge requires that the handler *uses* the stdlib value to fulfil
-    the defusedxml alias.
-    """
-    for stmt in handler.body:
-        for sub in ast.walk(stmt):
-            if isinstance(sub, ast.Name) and sub.id in names and isinstance(sub.ctx, ast.Load):
+
+def _assigns_to_any(targets: list[ast.expr], names: set[str]) -> bool:
+    """True if any ``ast.Name`` in *targets* (including nested tuple/list) is in *names*."""
+    for tgt in targets:
+        for sub in ast.walk(tgt):
+            if isinstance(sub, ast.Name) and sub.id in names:
                 return True
+    return False
+
+
+def _handler_bridges(
+    handler: ast.ExceptHandler,
+    defusedxml_targets: set[str],
+    stdlib_xml_names: set[str],
+) -> bool:
+    """True if the except body re-binds a defusedxml target to a stdlib expression.
+
+    A real silent fallback re-binds the *same* name the ``try:`` would
+    have bound (e.g. ``_ET``) to a value that references a stdlib xml
+    alias visible in scope. An incidental read of the stdlib alias
+    (logging, side-effects) without re-binding is *not* a bridge —
+    that's what the round-6 codex review flagged (false positive on
+    ``logger.warning(_stdlib_ET); _ET = None``).
+
+    Examples that bridge (return True):
+        _ET = _stdlib_ET
+        _ET = _stdlib_ET.parse
+        _ET, _other = _stdlib_ET, None
+        _ET = lambda x: _stdlib_ET.parse(x)
+
+    Examples that do NOT bridge (return False):
+        _ET = None                                   # clearing — fail closed
+        logger.warning("missing %s", _stdlib_ET)     # incidental read
+        _other = _stdlib_ET                          # unrelated binding
+    """
+    if not defusedxml_targets or not stdlib_xml_names:
+        return False
+    for stmt in handler.body:
+        targets: list[ast.expr] = []
+        value: ast.expr | None = None
+        if isinstance(stmt, ast.Assign):
+            targets = list(stmt.targets)
+            value = stmt.value
+        elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
+            targets = [stmt.target]
+            value = stmt.value
+        if value is None or not _assigns_to_any(targets, defusedxml_targets):
+            continue
+        if _expr_reads_any(value, stdlib_xml_names):
+            return True
     return False
 
 
@@ -211,6 +282,7 @@ def _try_triggers_fallback(node: ast.Try, visible_xml_names: set[str]) -> bool:
     has_defusedxml = any(_is_module_prefix(mod, "defusedxml") for _, mod in body_imports)
     if not has_defusedxml:
         return False
+    defusedxml_targets = _defusedxml_target_names(node.body)
     for handler in node.handlers:
         if not _handler_catches_importerror(handler):
             continue
@@ -219,13 +291,18 @@ def _try_triggers_fallback(node: ast.Try, visible_xml_names: set[str]) -> bool:
             continue
         handler_imports = _imports_in(handler.body)
         if any(_is_xml_module(mod) for _, mod in handler_imports):
-            # Variant 1: stdlib re-import inside except.
+            # Variant 1: stdlib re-import inside except. Even without
+            # checking the assign target, an unconditional stdlib import
+            # in the except path defeats the defusedxml contract for
+            # anything that consumes the imported name afterward.
             return True
-        # Variant 2: except body actually reads (ast.Load) a stdlib xml
-        # alias visible in the Try's lexical scope (LEGB). Pure writes
-        # don't count (handler that does `parse = None` is clearing the
-        # binding, not bridging).
-        if visible_xml_names and _handler_references_any(handler, visible_xml_names):
+        # Variant 2: except body actually re-binds a defusedxml target
+        # name to an expression that reads a stdlib xml alias visible in
+        # scope. Incidental reads of stdlib aliases (logging, debug
+        # output) without re-binding the target are NOT bridges (codex
+        # PR #329 round-6 finding — issue with `logger.warning(_stdlib);
+        # _ET = None`).
+        if _handler_bridges(handler, defusedxml_targets, visible_xml_names):
             return True
     return False
 
