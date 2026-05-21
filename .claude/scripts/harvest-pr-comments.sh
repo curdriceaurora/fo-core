@@ -51,14 +51,22 @@ fi
 # false. This avoids silently truncating long PRs (codex PR #329 thread
 # PRRT_kwDOR_Rkws6DyFj4 — issue surfaces on any PR with >100 threads or >50
 # comments/reviews).
+# Variable names match the connection names exactly so that the
+# ``paginate_connection`` helper can derive the cursor param via
+# ``${conn}Cursor`` without a name-mismatch bug. (Round-3 of this script
+# named the threads variable ``threadsCursor`` but sent it as
+# ``reviewThreadsCursor``, so the cursor never advanced and PRs with
+# >100 threads would loop forever — codex thread PRRT_kwDOR_Rkws6Dy_8l.)
 QUERY='query($owner: String!, $repo: String!, $number: Int!,
-            $threadsCursor: String, $commentsCursor: String, $reviewsCursor: String) {
+            $reviewThreadsCursor: String,
+            $commentsCursor: String,
+            $reviewsCursor: String) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $number) {
       title
       mergedAt
       state
-      reviewThreads(first: 100, after: $threadsCursor) {
+      reviewThreads(first: 100, after: $reviewThreadsCursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
           id
@@ -105,28 +113,21 @@ QUERY='query($owner: String!, $repo: String!, $number: Int!,
 paginate_connection() {
     local pr="$1"
     local conn="$2"
-    local cursor="null"
-    local response
+    # Variable name in the query is exactly ``${conn}Cursor`` (e.g.
+    # ``reviewThreadsCursor`` for the ``reviewThreads`` connection).
+    local var="${conn}Cursor"
+    local cursor=""  # empty == null in gh api -F shorthand
+    local response has_next
     while :; do
-        local args=(--field owner="$OWNER" --field repo="$NAME" --field number="$pr")
-        if [[ "$conn" == "reviewThreads" ]]; then
-            if [[ "$cursor" == "null" ]]; then
-                args+=(--field threadsCursor="" -F threadsCursor=)
-            else
-                args+=(--field threadsCursor="$cursor")
-            fi
-        elif [[ "$conn" == "comments" ]]; then
-            args+=(--field commentsCursor="${cursor#null}")
-        elif [[ "$conn" == "reviews" ]]; then
-            args+=(--field reviewsCursor="${cursor#null}")
-        fi
-        # ``--field key=`` is the GraphQL-null shorthand in gh api.
+        # ``-F key=`` sends GraphQL null on the first iteration; an empty
+        # string remains correctly typed because the query declared the
+        # variable as ``String`` (nullable). On subsequent iterations
+        # ``$cursor`` is the opaque endCursor token from the previous page.
         response=$(gh api graphql --raw-field query="$QUERY" \
             -F owner="$OWNER" -F repo="$NAME" -F number="$pr" \
-            -F "${conn}Cursor=${cursor#null}" 2>/dev/null || echo '{}')
+            -F "${var}=${cursor}" 2>/dev/null || echo '{}')
         echo "$response" | jq -c --arg conn "$conn" \
             '.data.repository.pullRequest[$conn].nodes // []'
-        local has_next
         has_next=$(echo "$response" | jq -r --arg conn "$conn" \
             '.data.repository.pullRequest[$conn].pageInfo.hasNextPage // false')
         if [[ "$has_next" != "true" ]]; then
@@ -134,7 +135,7 @@ paginate_connection() {
         fi
         cursor=$(echo "$response" | jq -r --arg conn "$conn" \
             '.data.repository.pullRequest[$conn].pageInfo.endCursor // empty')
-        if [[ -z "$cursor" || "$cursor" == "null" ]]; then
+        if [[ -z "$cursor" ]]; then
             break
         fi
     done

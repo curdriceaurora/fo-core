@@ -140,6 +140,28 @@ class TestDetectorOnSyntheticInputs:
         violations = find_violations(_synth(tmp_path, source))
         assert len(violations) == 1
 
+    def test_xml_import_after_try_does_not_make_it_visible(self, tmp_path: Path) -> None:
+        """An xml import later in the file isn't visible at the Try.
+
+        Regression rail for codex PR-329 round-4 finding
+        (PRRT_kwDOR_Rkws6Dy_8n): my round-3 fix used the full scope-level
+        xml alias set, which conflated names imported AFTER the Try with
+        names imported before. At runtime, a handler that reads
+        ``_stdlib_ET`` would NameError if the import comes later — so
+        that's fail-closed, not silent fallback.
+        """
+        source = (
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    _ET = _stdlib_ET\n"
+            "import xml.etree.ElementTree as _stdlib_ET\n"
+        )
+        # The except body reads `_stdlib_ET`, but that name is imported
+        # AFTER the try at line 5. At runtime: NameError → fail closed.
+        # The rail must NOT flag this.
+        assert find_violations(_synth(tmp_path, source)) == []
+
     def test_handler_assigns_only_does_not_flag(self, tmp_path: Path) -> None:
         """Assignment-only (no Load) doesn't bridge — must NOT flag.
 

@@ -130,13 +130,15 @@ def _is_xml_module(mod: str) -> bool:
     return mod == "xml" or mod.startswith("xml.")
 
 
-def _collect_scope_xml_names(nodes: list[ast.stmt]) -> set[str]:
-    """Return xml import aliases bound *at this scope level*.
+def _scope_xml_imports_ordered(nodes: list[ast.stmt]) -> list[tuple[int, str]]:
+    """Yield ``(lineno, name)`` pairs for xml import aliases at this scope.
 
-    Includes imports inside compound statements (``if``/``try``/``with``/
-    ``for``/``while``) at the same scope, but NOT inside nested function
-    or class bodies — those have their own scope. Used both at module
-    level and at each function level so that LEGB resolution is honoured.
+    Returned in source order. Recurses into compound statements
+    (``if``/``try``/``with``/``for``/``while``) at the same scope level
+    but NOT into nested function/class bodies — those have their own
+    scope. Each pair represents a name bound by an xml import; for a
+    Try at this scope, the names visible at the Try's line are the ones
+    whose lineno is strictly less than the Try's.
 
     Handles both import forms:
         import xml.etree.ElementTree as _stdlib_ET   → "_stdlib_ET"
@@ -144,18 +146,18 @@ def _collect_scope_xml_names(nodes: list[ast.stmt]) -> set[str]:
         from xml.etree import ElementTree as _ET     → "_ET"
         from xml.etree.ElementTree import parse      → "parse"
     """
-    names: set[str] = set()
+    out: list[tuple[int, str]] = []
 
     def _collect(stmts: list[ast.stmt]) -> None:
         for stmt in stmts:
             if isinstance(stmt, ast.Import):
                 for alias in stmt.names:
                     if _is_xml_module(alias.name):
-                        names.add(alias.asname or alias.name.split(".")[0])
+                        out.append((stmt.lineno, alias.asname or alias.name.split(".")[0]))
             elif isinstance(stmt, ast.ImportFrom) and stmt.module is not None:
                 if _is_xml_module(stmt.module):
                     for alias in stmt.names:
-                        names.add(alias.asname or alias.name)
+                        out.append((stmt.lineno, alias.asname or alias.name))
             elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 # Nested scope — its imports aren't bound at this level.
                 continue
@@ -168,7 +170,17 @@ def _collect_scope_xml_names(nodes: list[ast.stmt]) -> set[str]:
                             _collect(sub)
 
     _collect(nodes)
-    return names
+    return out
+
+
+def _collect_scope_xml_names(nodes: list[ast.stmt]) -> set[str]:
+    """Convenience: full set of xml aliases at this scope, ignoring order.
+
+    Used as the outer-scope alias set when recursing into nested function
+    bodies — function bodies use late binding, so they see every name
+    bound in the enclosing scope at call time, regardless of source order.
+    """
+    return {name for _, name in _scope_xml_imports_ordered(nodes)}
 
 
 def _handler_references_any(handler: ast.ExceptHandler, names: set[str]) -> bool:
@@ -255,19 +267,31 @@ def _scan_scope(
 ) -> None:
     """Walk *nodes* with LEGB-resolved xml-alias set *outer_xml_names*.
 
-    Each function/class boundary adds its scope-level xml imports to the
-    visible set, then re-enters the same scan recursively. A try block at
-    this scope is checked against ``local_xml_names`` (which include
-    everything visible by LEGB lookup at that try's location).
+    A Try at this scope is checked against ``outer_xml_names`` plus the
+    xml imports at THIS scope whose source line is strictly before the
+    Try's line — this respects statement order, so a Try whose only
+    bridge alias is imported later in the file is correctly recognised
+    as a runtime NameError (fail-closed) rather than a silent fallback.
+
+    Functions/classes inside this scope are recursed with the FULL local
+    xml alias set as their outer — because Python uses late binding,
+    function bodies see every name in their enclosing scope at call
+    time, regardless of source order.
     """
-    local_xml_names = outer_xml_names | _collect_scope_xml_names(nodes)
+    ordered_imports = _scope_xml_imports_ordered(nodes)
+    full_local_xml = outer_xml_names | {name for _, name in ordered_imports}
+
+    def _visible_at(lineno: int) -> set[str]:
+        return outer_xml_names | {name for ln, name in ordered_imports if ln < lineno}
 
     def _visit(stmt: ast.stmt) -> None:
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            _scan_scope(stmt.body, local_xml_names, lines, noqa_lines, violations)
+            # Late binding: function/class body sees the full outer set.
+            _scan_scope(stmt.body, full_local_xml, lines, noqa_lines, violations)
             return
         if isinstance(stmt, ast.Try):
-            if _try_triggers_fallback(stmt, local_xml_names):
+            visible = _visible_at(stmt.lineno)
+            if _try_triggers_fallback(stmt, visible):
                 _emit_violations(stmt, lines, noqa_lines, violations)
             # Recurse into the Try's body / handlers / orelse / finally —
             # nested try/function/class blocks still need their own scan.
