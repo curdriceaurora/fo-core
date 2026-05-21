@@ -35,11 +35,16 @@ logger = logging.getLogger(__name__)
 
 
 def _backup_safe_unlink(path: Path, log: logging.Logger) -> bool:
-    """Unlink a backup file with inode-mode verification via SafeDir.
+    """Unlink a backup file with inode-swap TOCTOU protection via SafeDir.
 
-    Verifies the target is a regular file (not a symlink) via lstat before
-    unlinking.  SafeDir.lstat uses follow_symlinks=False so it stats the
-    entry itself; S_ISREG catches symlinks and any other non-regular type.
+    Opens the file to capture its (st_dev, st_ino, st_size) via fstat, then
+    re-lstats the name and compares before unlinking.  A mismatch means the
+    directory entry was swapped between open and unlink — a classic
+    inode-swap attack.  On mismatch the operation is aborted and a
+    security_event is logged.
+
+    SafeDir.lstat uses follow_symlinks=False so it stats the entry itself;
+    S_ISREG catches symlinks and any other non-regular type.
     Returns True if the file was removed, False otherwise.
 
     On Windows (no SafeDir support) falls back to plain unlink.
@@ -54,17 +59,45 @@ def _backup_safe_unlink(path: Path, log: logging.Logger) -> bool:
 
     try:
         with SafeDir.open_root(path.parent) as safe_dir:
-            st = safe_dir.lstat(path.name)
-            if not _stat.S_ISREG(st.st_mode):
+            # Open the file (O_RDONLY | O_NOFOLLOW) to pin its inode.
+            child_fd = safe_dir.open_child(path.name)
+            try:
+                fst = os.fstat(child_fd)
+            finally:
+                os.close(child_fd)
+
+            if not _stat.S_ISREG(fst.st_mode):
                 log.warning(
                     "security_event inode_swap_in_backup path=%s mode=0o%o — skipping",
                     path,
-                    st.st_mode,
+                    fst.st_mode,
                 )
                 return False
+
+            # Re-stat the name (lstat, no symlink follow) and compare
+            # (dev, ino, size) to detect a swap between open and unlink.
+            lst = safe_dir.lstat(path.name)
+            if (lst.st_dev, lst.st_ino, lst.st_size) != (
+                fst.st_dev,
+                fst.st_ino,
+                fst.st_size,
+            ):
+                log.warning(
+                    "security_event inode_swap_in_backup path=%s "
+                    "fstat=(%d,%d,%d) lstat=(%d,%d,%d) — skipping",
+                    path,
+                    fst.st_dev,
+                    fst.st_ino,
+                    fst.st_size,
+                    lst.st_dev,
+                    lst.st_ino,
+                    lst.st_size,
+                )
+                return False
+
             safe_dir.unlink(path.name)
             return True
-    except OSError:
+    except (OSError, ValueError):
         log.debug("Failed to remove backup %s", path, exc_info=True)
         return False
 
@@ -220,9 +253,18 @@ class BackupManager:
             if backup_time < cutoff_date:
                 backup_path = Path(backup_key)
 
-                # Remove backup file if it exists
-                if backup_path.exists() and _backup_safe_unlink(backup_path, logger):
-                    removed_backups.append(backup_path)
+                try:
+                    # Remove backup file if it exists.
+                    # ValueError is raised by SafeDir for filenames that
+                    # contain characters illegal on POSIX (e.g. backslash)
+                    # — catch it per-file so one bad name does not abort
+                    # the whole cleanup pass.
+                    if backup_path.exists() and _backup_safe_unlink(backup_path, logger):
+                        removed_backups.append(backup_path)
+                except (OSError, ValueError) as exc:
+                    logger.warning(
+                        "cleanup_old_backups: skipping unlink of %s: %s", backup_path, exc
+                    )
 
                 # Remove from manifest regardless of unlink outcome so
                 # stale manifest entries don't accumulate.
