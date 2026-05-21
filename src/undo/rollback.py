@@ -200,6 +200,17 @@ class RollbackExecutor:
             logger.error(f"Failed to rollback move operation {operation.id}: {e}")
             return False
 
+    # O_PATH (Linux) lets us open any file-system object without reading it and
+    # without following symlinks; it is unavailable on macOS / Darwin so we fall
+    # back to O_RDONLY | O_NOFOLLOW there.  The fd returned by os.open is used
+    # only for os.fstat — it binds the inode check to the specific file that
+    # existed at ``destination`` at the moment of the open, closing the TOCTOU
+    # window that a plain ``os.lstat`` call leaves open.
+    # O_NOFOLLOW is POSIX-only; Windows has neither it nor O_PATH.  getattr
+    # fallback to 0 keeps the module importable on Windows — _verify_dst_inode
+    # is only called when dest_dev/dest_ino are set, which requires a POSIX run.
+    _O_VERIFY: int = getattr(os, "O_PATH", os.O_RDONLY) | getattr(os, "O_NOFOLLOW", 0)
+
     def _verify_dst_inode(self, operation: Operation, destination: Path) -> bool:
         """Return True iff the file at *destination* matches the recorded inode.
 
@@ -208,13 +219,37 @@ class RollbackExecutor:
         original move and the undo attempt — logs a ``security_event``
         and returns ``False`` so the caller refuses the replay.
 
-        ``FileNotFoundError`` (destination gone) is treated as a
+        ``FileNotFoundError`` / ``ENOENT`` (destination gone) is treated as a
         mismatch: if the file is missing we cannot verify identity and
         must refuse rather than silently skip (which would look like
         success to the caller).
+
+        Implementation note — fd-pinned inode check (issue #324 finding 3.1):
+        We open *destination* with ``O_PATH | O_NOFOLLOW`` (Linux) or
+        ``O_RDONLY | O_NOFOLLOW`` (macOS) and call ``os.fstat`` on the
+        resulting fd.  Keeping the fd open until after the comparison binds
+        the inode read to the specific on-disk object at *destination*, so an
+        attacker cannot swap a symlink between our stat and our rename.
+        ``O_NOFOLLOW`` ensures we never follow a symlink at *destination*
+        even if the attacker races to place one there.
+
+        macOS symlink fallback (issue #324 P2): On Linux ``O_PATH`` opens
+        the symlink inode itself without following it, so symlink destinations
+        work fine.  On macOS ``O_RDONLY | O_NOFOLLOW`` raises ``OSError``
+        (ELOOP) for symlink leaf paths.  Since move operations explicitly
+        support symlinks, we detect this case and fall back to ``os.lstat()``,
+        which avoids the fd-binding guarantee but still compares the full
+        ``(st_dev, st_ino)`` triple.
         """
+        fd: int | None = None
         try:
-            st = os.lstat(destination)
+            # macOS (no O_PATH) cannot open a symlink with O_NOFOLLOW — fall
+            # back to lstat-based check.  On Linux O_PATH handles symlinks.
+            if not hasattr(os, "O_PATH") and destination.is_symlink():
+                st = os.lstat(str(destination))
+            else:
+                fd = os.open(str(destination), self._O_VERIFY)
+                st = os.fstat(fd)
         except FileNotFoundError:
             logger.error(
                 "security_event undo_dst_missing op_id=%s path=%s: "
@@ -233,6 +268,12 @@ class RollbackExecutor:
                 exc_info=True,
             )
             return False
+        finally:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass  # best-effort close; inode check already done or failed
 
         if st.st_dev != operation.dest_dev or st.st_ino != operation.dest_ino:
             logger.error(
@@ -245,7 +286,6 @@ class RollbackExecutor:
                 operation.dest_ino,
                 st.st_dev,
                 st.st_ino,
-                exc_info=True,
             )
             return False
 
@@ -375,6 +415,15 @@ class RollbackExecutor:
     def redo_move(self, operation: Operation) -> bool:
         """Redo a move operation (move file to destination again).
 
+        Issue #324 finding 3.2 — EXDEV redo inode baseline refresh:
+        After a successful cross-device (EXDEV) redo, ``destination`` has
+        a brand-new inode (the original src inode no longer exists on the
+        target device).  We stat *destination* after the move and update
+        ``dest_dev`` / ``dest_ino`` on the operation so that any subsequent
+        undo uses the refreshed pin rather than the now-stale pre-redo value.
+        The update is best-effort: a stat failure is logged but does not cause
+        the redo to report failure (the file was already moved successfully).
+
         Args:
             operation: Move operation to redo
 
@@ -396,6 +445,22 @@ class RollbackExecutor:
             # for files, shutil fallback for directories (codex
             # PRRT_kwDOR_Rkws59hT9a).
             self._move(source, destination)
+
+            # Refresh the dest inode baseline so a subsequent undo uses the
+            # correct pin.  On EXDEV moves the inode is always new; on
+            # same-device moves the inode is preserved but a refresh is
+            # harmless.  POSIX only — Windows inodes are unreliable.
+            if sys.platform != "win32":
+                try:
+                    st = os.lstat(destination)
+                    operation.set_dest_inode(st.st_dev, st.st_ino)
+                except OSError as exc:
+                    logger.debug(
+                        "redo_move: could not refresh dest inode for op %s at %s: %s",
+                        operation.id,
+                        destination,
+                        exc,
+                    )
 
             logger.info(f"Successfully redid move operation {operation.id}")
             return True
