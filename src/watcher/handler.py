@@ -294,6 +294,7 @@ class FileEventHandler(FileSystemEventHandler):
                     "symlink loop resolving parent, dropped: %s",
                     path,
                     exc,
+                    exc_info=True,
                 )
                 return False
 
@@ -349,6 +350,7 @@ class FileEventHandler(FileSystemEventHandler):
                 "symlink loop detected during resolve, dropped: %s",
                 path,
                 exc,
+                exc_info=True,
             )
             return False
 

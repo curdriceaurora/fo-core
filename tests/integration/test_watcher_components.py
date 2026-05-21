@@ -366,8 +366,13 @@ class TestFileEventHandlerSafeDirIntegration:
             handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
             assert handler._safedir_allows(regular) is True
 
-    def test_path_outside_root_returns_false(self, tmp_path: Path) -> None:
-        """_safedir_allows rejects a path outside the watch root."""
+    def test_path_outside_root_allowed_through(self, tmp_path: Path) -> None:
+        """_safedir_allows allows paths outside the primary watch root through.
+
+        Paths from secondary watch directories (added via add_directory()) are
+        outside this SafeDir's scope; they are allowed through here and
+        re-checked by the pipeline-level SafeDir backstop (1.4 / #322).
+        """
         import sys
 
         if sys.platform == "win32":
@@ -387,7 +392,7 @@ class TestFileEventHandlerSafeDirIntegration:
         queue = EventQueue()
         with SafeDir.open_root(watch_root) as sd:
             handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
-            assert handler._safedir_allows(outside) is False
+            assert handler._safedir_allows(outside) is True
 
     def test_nested_path_allowed_through(self, tmp_path: Path) -> None:
         """_safedir_allows allows nested paths (checked at pipeline level)."""
@@ -451,7 +456,7 @@ class TestFileEventHandlerSafeDirIntegration:
 
         config = WatcherConfig(debounce_seconds=0.0)
         queue = EventQueue()
-        handler = FileEventHandler(config, queue, safe_dir=None, watch_root=watch_root)
+        handler = FileEventHandler(config, queue)
         assert handler._safedir_allows(watch_root / "anything.txt") is True
 
     def test_transient_oserror_allows_through(self, tmp_path: Path) -> None:
