@@ -253,11 +253,19 @@ def _handler_bridges(
     that's what the round-6 codex review flagged (false positive on
     ``logger.warning(_stdlib_ET); _ET = None``).
 
+    Walks the *entire* except-body subtree (including nested ``if``,
+    ``for``, ``while``, ``with``, ``try`` blocks) — a conditional
+    bridge like ``except ImportError: if cond: _ET = _stdlib_ET`` is
+    still a real fallback when the branch executes (codex PR #329
+    round-8 finding PRRT_kwDOR_Rkws6DztnZ). Doesn't descend into
+    nested ``def`` / ``class`` / ``lambda`` (those have their own scope).
+
     Examples that bridge (return True):
         _ET = _stdlib_ET
         _ET = _stdlib_ET.parse
         _ET, _other = _stdlib_ET, None
         _ET = lambda x: _stdlib_ET.parse(x)
+        if STRICT: raise; else: _ET = _stdlib_ET
 
     Examples that do NOT bridge (return False):
         _ET = None                                   # clearing — fail closed
@@ -267,19 +275,62 @@ def _handler_bridges(
     if not defusedxml_targets or not stdlib_xml_names:
         return False
     for stmt in handler.body:
-        targets: list[ast.expr] = []
-        value: ast.expr | None = None
-        if isinstance(stmt, ast.Assign):
-            targets = list(stmt.targets)
-            value = stmt.value
-        elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
-            targets = [stmt.target]
-            value = stmt.value
-        if value is None or not _assigns_to_any(targets, defusedxml_targets):
-            continue
-        if _expr_reads_any(value, stdlib_xml_names):
-            return True
+        for sub in _walk_excluding_inner_scopes(stmt):
+            targets: list[ast.expr] = []
+            value: ast.expr | None = None
+            if isinstance(sub, ast.Assign):
+                targets = list(sub.targets)
+                value = sub.value
+            elif isinstance(sub, ast.AnnAssign) and sub.value is not None:
+                targets = [sub.target]
+                value = sub.value
+            if value is None or not _assigns_to_any(targets, defusedxml_targets):
+                continue
+            if _expr_reads_any(value, stdlib_xml_names):
+                return True
     return False
+
+
+def _handler_has_stdlib_xml_import(handler: ast.ExceptHandler) -> bool:
+    """True if the except-body subtree imports any stdlib ``xml.*`` name.
+
+    Walks the entire subtree (including nested ``if``/``for``/``while``/
+    ``with``/``try``) so a conditional ``import xml.X`` inside the
+    handler is detected. Doesn't descend into nested ``def``/``class``/
+    ``lambda`` bodies (those have their own scope and bind their own
+    names — they don't bridge the enclosing try's defusedxml target).
+    """
+    for stmt in handler.body:
+        for sub in _walk_excluding_inner_scopes(stmt):
+            if isinstance(sub, ast.Import):
+                if any(_is_xml_module(alias.name) for alias in sub.names):
+                    return True
+            elif isinstance(sub, ast.ImportFrom) and sub.module is not None:
+                if _is_xml_module(sub.module):
+                    return True
+    return False
+
+
+def _walk_excluding_inner_scopes(node: ast.AST) -> list[ast.AST]:
+    """Walk *node*'s descendants without descending into nested scopes.
+
+    Stops at ``ast.FunctionDef`` / ``ast.AsyncFunctionDef`` / ``ast.ClassDef``
+    / ``ast.Lambda`` boundaries. The starting *node* is always visited;
+    nested-scope nodes encountered later are visited themselves but
+    their bodies are not.
+    """
+    out: list[ast.AST] = []
+    stack: list[ast.AST] = [node]
+    while stack:
+        cur = stack.pop()
+        out.append(cur)
+        if cur is not node and isinstance(
+            cur, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+        ):
+            continue
+        for child in ast.iter_child_nodes(cur):
+            stack.append(child)
+    return out
 
 
 def _try_triggers_fallback(node: ast.Try, visible_xml_names: set[str]) -> bool:
@@ -301,12 +352,13 @@ def _try_triggers_fallback(node: ast.Try, visible_xml_names: set[str]) -> bool:
         if _handler_reraises(handler):
             # Fails closed — caller gets ImportError, not silent stdlib.
             continue
-        handler_imports = _imports_in(handler.body)
-        if any(_is_xml_module(mod) for _, mod in handler_imports):
-            # Variant 1: stdlib re-import inside except. Even without
-            # checking the assign target, an unconditional stdlib import
-            # in the except path defeats the defusedxml contract for
-            # anything that consumes the imported name afterward.
+        if _handler_has_stdlib_xml_import(handler):
+            # Variant 1: stdlib xml import anywhere in the except subtree
+            # (including conditional / nested blocks — codex PR #329
+            # round-8 finding PRRT_kwDOR_Rkws6DztnT). Even without
+            # checking the assign target, an stdlib import in the
+            # except path defeats the defusedxml contract for anything
+            # that consumes the imported name afterward.
             return True
         # Variant 2: except body actually re-binds a defusedxml target
         # name to an expression that reads a stdlib xml alias visible in
@@ -353,6 +405,8 @@ def _scan_scope(
     lines: list[str],
     noqa_lines: set[int],
     violations: list[tuple[int, str]],
+    *,
+    inside_class_body: bool = False,
 ) -> None:
     """Walk *nodes* with LEGB-resolved xml-alias set *outer_xml_names*.
 
@@ -362,10 +416,13 @@ def _scan_scope(
     bridge alias is imported later in the file is correctly recognised
     as a runtime NameError (fail-closed) rather than a silent fallback.
 
-    Functions/classes inside this scope are recursed with the FULL local
-    xml alias set as their outer — because Python uses late binding,
-    function bodies see every name in their enclosing scope at call
-    time, regardless of source order.
+    Functions inside this scope normally recurse with the FULL local set
+    as their outer — Python's late binding means function bodies see
+    every name in the enclosing scope at call time, regardless of
+    source order. EXCEPT when *inside_class_body* is True: a method's
+    body does NOT see unqualified class-body names — Python's class
+    scope is hidden from nested function lookup. In that case the
+    method's outer is *this* scope's outer (the class's enclosing scope).
     """
     ordered_imports = _scope_xml_imports_ordered(nodes)
     full_local_xml = outer_xml_names | {name for _, name in ordered_imports}
@@ -375,16 +432,26 @@ def _scan_scope(
 
     def _visit(stmt: ast.stmt) -> None:
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            # Function bodies use late binding — at call time they see
-            # every name in the enclosing scope regardless of source order.
-            _scan_scope(stmt.body, full_local_xml, lines, noqa_lines, violations)
+            # Late binding for function bodies — EXCEPT inside class
+            # bodies, where Python's class scope is hidden from method
+            # lookup (codex PR #329 round-8 finding
+            # PRRT_kwDOR_Rkws6Dztnd). Method outer = class's outer scope.
+            method_outer = outer_xml_names if inside_class_body else full_local_xml
+            _scan_scope(stmt.body, method_outer, lines, noqa_lines, violations)
             return
         if isinstance(stmt, ast.ClassDef):
             # Class bodies execute at *definition* time (like module body),
             # not at call time. They can only see names already bound in
             # the enclosing scope at the class-def line. Same source-order
             # rule as a Try block at the current scope.
-            _scan_scope(stmt.body, _visible_at(stmt.lineno), lines, noqa_lines, violations)
+            _scan_scope(
+                stmt.body,
+                _visible_at(stmt.lineno),
+                lines,
+                noqa_lines,
+                violations,
+                inside_class_body=True,
+            )
             return
         if isinstance(stmt, ast.Try):
             visible = _visible_at(stmt.lineno)

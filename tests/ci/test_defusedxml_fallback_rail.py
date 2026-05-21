@@ -185,6 +185,65 @@ class TestDetectorOnSyntheticInputs:
         )
         assert find_violations(_synth(tmp_path, source)) == []
 
+    def test_conditional_stdlib_import_in_except_is_flagged(self, tmp_path: Path) -> None:
+        """A nested ``if cond: import xml...`` in the except body is still a bridge.
+
+        Regression rail for codex PR-329 round-8 finding
+        (PRRT_kwDOR_Rkws6DztnT): variant-1 only checked direct children
+        of ``handler.body`` and missed conditional stdlib imports.
+        """
+        source = (
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    cond = True\n"
+            "    if cond:\n"
+            "        import xml.etree.ElementTree as _ET\n"
+        )
+        violations = find_violations(_synth(tmp_path, source))
+        assert len(violations) == 1
+
+    def test_conditional_rebind_in_except_is_flagged(self, tmp_path: Path) -> None:
+        """A nested ``if cond: _ET = _stdlib_ET`` in the except body is still a bridge.
+
+        Regression rail for codex PR-329 round-8 finding
+        (PRRT_kwDOR_Rkws6DztnZ): variant-2 only checked direct children
+        of ``handler.body`` and missed conditional rebinds.
+        """
+        source = (
+            "import xml.etree.ElementTree as _stdlib_ET\n"
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    if True:\n"
+            "        _ET = _stdlib_ET\n"
+        )
+        violations = find_violations(_synth(tmp_path, source))
+        assert len(violations) == 1
+
+    def test_class_body_alias_not_visible_inside_method(self, tmp_path: Path) -> None:
+        """Methods can't see unqualified class-body names — must NOT flag.
+
+        Regression rail for codex PR-329 round-8 finding
+        (PRRT_kwDOR_Rkws6Dztnd): a class-body ``import xml...`` is NOT
+        visible to method bodies unqualified (Python class scope is
+        skipped for nested function lookup). A method-local fallback
+        referencing it would raise ``NameError`` at call time → fail
+        closed; rail must NOT flag.
+        """
+        source = (
+            "class Parser:\n"
+            "    import xml.etree.ElementTree as _stdlib_ET\n"
+            "\n"
+            "    def load(self):\n"
+            "        try:\n"
+            "            import defusedxml.ElementTree as _ET\n"
+            "        except ImportError:\n"
+            "            _ET = _stdlib_ET  # NameError at runtime — class scope hidden\n"
+            "        return _ET\n"
+        )
+        assert find_violations(_synth(tmp_path, source)) == []
+
     def test_xml_import_in_prior_except_body_is_visible(self, tmp_path: Path) -> None:
         """A stdlib xml import in an earlier ``except`` body binds at scope.
 
