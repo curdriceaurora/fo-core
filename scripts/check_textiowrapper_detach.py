@@ -213,6 +213,37 @@ def _wrapper_assignments(
     return out
 
 
+def _inline_wrapper_calls(
+    func: ast.FunctionDef | ast.AsyncFunctionDef, fileobj_name: str
+) -> list[int]:
+    """Return line numbers of *inline* ``TextIOWrapper(fileobj, …)`` calls.
+
+    An inline call is one whose result is never bound to a name — e.g.
+    ``return io.TextIOWrapper(fileobj, ...).read()``. There's no wrapper
+    variable to detach, so close-ownership transfers to the wrapper that
+    GC will eventually destroy — closing the caller's stream. Always
+    flag; the fix is to bind the wrapper, ``.read()`` it, then
+    ``.detach()`` it.
+    """
+    # First collect every TextIOWrapper(fileobj, …) call line in this scope
+    # (without descending into nested scopes).
+    all_calls: list[int] = []
+    for stmt in func.body:
+        if isinstance(stmt, _INNER_SCOPE_TYPES):
+            continue
+        for sub in _walk_without_inner_scopes(stmt):
+            if not _is_textiowrapper_call(sub):
+                continue
+            if not isinstance(sub, ast.Call):
+                continue
+            if _first_positional_name(sub) != fileobj_name:
+                continue
+            all_calls.append(sub.lineno)
+    # Subtract the lines we already account for via _wrapper_assignments.
+    bound_lines = {ln for _, ln in _wrapper_assignments(func, fileobj_name)}
+    return [ln for ln in all_calls if ln not in bound_lines]
+
+
 def find_violations(path: Path) -> list[tuple[int, str]]:
     """Return [(line_number, snippet)] for each unexempted match in *path*."""
     violations: list[tuple[int, str]] = []
@@ -238,6 +269,13 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
         for wrapper_var, ln in _wrapper_assignments(node, fileobj):
             if _has_detach_call(node.body, wrapper_var):
                 continue
+            if any(x in noqa_lines for x in range(ln - 2, ln + 7)):
+                continue
+            if 0 < ln <= len(lines):
+                violations.append((ln, lines[ln - 1].rstrip()))
+        # Inline ``TextIOWrapper(fileobj, …)`` calls have no bound name,
+        # so there's no way to detach — always a violation.
+        for ln in _inline_wrapper_calls(node, fileobj):
             if any(x in noqa_lines for x in range(ln - 2, ln + 7)):
                 continue
             if 0 < ln <= len(lines):

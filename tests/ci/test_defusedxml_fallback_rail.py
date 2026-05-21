@@ -118,6 +118,46 @@ class TestDetectorOnSyntheticInputs:
         violations = find_violations(_synth(tmp_path, source))
         assert len(violations) == 1
 
+    def test_function_local_xml_bridge_is_flagged(self, tmp_path: Path) -> None:
+        """Function-scope bridge is a real silent fallback — must flag.
+
+        Regression rail for codex PR-329 round-3 finding: my round-2 fix
+        over-corrected by collecting *only* module-level xml names. A
+        function-local ``import xml... as _stdlib_ET`` followed by an
+        ``except ImportError: _ET = _stdlib_ET`` *in the same function*
+        IS a real silent fallback — both bindings live in that function's
+        scope. Must flag.
+        """
+        source = (
+            "def load_parser():\n"
+            "    import xml.etree.ElementTree as _stdlib_ET\n"
+            "    try:\n"
+            "        import defusedxml.ElementTree as _ET\n"
+            "    except ImportError:\n"
+            "        _ET = _stdlib_ET\n"
+            "    return _ET\n"
+        )
+        violations = find_violations(_synth(tmp_path, source))
+        assert len(violations) == 1
+
+    def test_handler_assigns_only_does_not_flag(self, tmp_path: Path) -> None:
+        """Assignment-only (no Load) doesn't bridge — must NOT flag.
+
+        Regression rail for coderabbit PR-329 round-3 finding:
+        ``_handler_references_any`` previously matched any ``ast.Name``
+        regardless of ``ctx``. A handler that just clears the binding
+        (``parse = None``) is not a real bridge — it's nulling the
+        stdlib alias, not handing it back to callers.
+        """
+        source = (
+            "from xml.etree.ElementTree import parse\n"
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    parse = None\n"
+        )
+        assert find_violations(_synth(tmp_path, source)) == []
+
     def test_function_local_xml_import_not_module_level(self, tmp_path: Path) -> None:
         """A function-local xml import is not a module-level fallback bridge.
 

@@ -45,13 +45,21 @@ if [[ ${#prs[@]} -eq 0 ]]; then
     exit 1
 fi
 
-QUERY='query($owner: String!, $repo: String!, $number: Int!) {
+# Single-page query (used for the first request and re-used with a cursor).
+# Each cursor-bearing field paginates independently; pass null on the first
+# call, then the previous response's ``endCursor`` until ``hasNextPage`` is
+# false. This avoids silently truncating long PRs (codex PR #329 thread
+# PRRT_kwDOR_Rkws6DyFj4 — issue surfaces on any PR with >100 threads or >50
+# comments/reviews).
+QUERY='query($owner: String!, $repo: String!, $number: Int!,
+            $threadsCursor: String, $commentsCursor: String, $reviewsCursor: String) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $number) {
       title
       mergedAt
       state
-      reviewThreads(first: 100) {
+      reviewThreads(first: 100, after: $threadsCursor) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           id
           isResolved
@@ -68,14 +76,16 @@ QUERY='query($owner: String!, $repo: String!, $number: Int!) {
           }
         }
       }
-      comments(first: 50) {
+      comments(first: 50, after: $commentsCursor) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           author { login }
           createdAt
           body
         }
       }
-      reviews(first: 50) {
+      reviews(first: 50, after: $reviewsCursor) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           author { login }
           state
@@ -87,13 +97,83 @@ QUERY='query($owner: String!, $repo: String!, $number: Int!) {
   }
 }'
 
+# Paginate one connection until exhausted, returning the merged JSON across
+# all pages. Re-uses QUERY but only consumes pages of the named connection.
+# ``$1`` = pr number, ``$2`` = connection name (reviewThreads / comments /
+# reviews). Emits one ``data.repository.pullRequest.<conn>.nodes[]`` per
+# page; the caller jq-merges via ``[ inputs ]``.
+paginate_connection() {
+    local pr="$1"
+    local conn="$2"
+    local cursor="null"
+    local response
+    while :; do
+        local args=(--field owner="$OWNER" --field repo="$NAME" --field number="$pr")
+        if [[ "$conn" == "reviewThreads" ]]; then
+            if [[ "$cursor" == "null" ]]; then
+                args+=(--field threadsCursor="" -F threadsCursor=)
+            else
+                args+=(--field threadsCursor="$cursor")
+            fi
+        elif [[ "$conn" == "comments" ]]; then
+            args+=(--field commentsCursor="${cursor#null}")
+        elif [[ "$conn" == "reviews" ]]; then
+            args+=(--field reviewsCursor="${cursor#null}")
+        fi
+        # ``--field key=`` is the GraphQL-null shorthand in gh api.
+        response=$(gh api graphql --raw-field query="$QUERY" \
+            -F owner="$OWNER" -F repo="$NAME" -F number="$pr" \
+            -F "${conn}Cursor=${cursor#null}" 2>/dev/null || echo '{}')
+        echo "$response" | jq -c --arg conn "$conn" \
+            '.data.repository.pullRequest[$conn].nodes // []'
+        local has_next
+        has_next=$(echo "$response" | jq -r --arg conn "$conn" \
+            '.data.repository.pullRequest[$conn].pageInfo.hasNextPage // false')
+        if [[ "$has_next" != "true" ]]; then
+            break
+        fi
+        cursor=$(echo "$response" | jq -r --arg conn "$conn" \
+            '.data.repository.pullRequest[$conn].pageInfo.endCursor // empty')
+        if [[ -z "$cursor" || "$cursor" == "null" ]]; then
+            break
+        fi
+    done
+}
+
+# Fetch the PR title + state once via a tiny query (independent of pagination).
+fetch_meta() {
+    local pr="$1"
+    gh api graphql --raw-field query='
+        query($owner: String!, $repo: String!, $number: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $number) { title state }
+          }
+        }' \
+        -F owner="$OWNER" -F repo="$NAME" -F number="$pr" 2>/dev/null \
+        | jq -c '.data.repository.pullRequest // {title: null, state: null}'
+}
+
 for pr in "${prs[@]}"; do
-    raw=$(gh api graphql \
-        --field owner="$OWNER" \
-        --field repo="$NAME" \
-        --field number="$pr" \
-        --raw-field query="$QUERY" 2>/dev/null \
-        || echo '{}')
+    meta=$(fetch_meta "$pr")
+    # Aggregate all pages for each connection via [inputs] in jq.
+    threads_json=$(paginate_connection "$pr" reviewThreads | jq -cs 'add // []')
+    pr_comments_json=$(paginate_connection "$pr" comments | jq -cs 'add // []')
+    reviews_json=$(paginate_connection "$pr" reviews | jq -cs 'add // []')
+
+    # Stitch into the same shape the old single-query response had so the
+    # downstream jq emit blocks below don't need to change.
+    raw=$(jq -cn \
+        --argjson meta "$meta" \
+        --argjson threads "$threads_json" \
+        --argjson comments "$pr_comments_json" \
+        --argjson reviews "$reviews_json" \
+        '{data: {repository: {pullRequest: {
+            title: $meta.title,
+            state: $meta.state,
+            reviewThreads: {nodes: $threads},
+            comments: {nodes: $comments},
+            reviews: {nodes: $reviews}
+        }}}}')
 
     # Emit one row per thread *comment* (not per thread) so follow-up
      # replies that refine or replace the original concern are preserved.

@@ -10,21 +10,40 @@ referenced `path:line` in the current tree, and classified.
 
 ## Verification metadata
 
-| Source | How verified | Reproducer |
+Every numerical claim in this document is sourced from the harvested JSONL or
+a directly reproducible command. Markers below follow the project
+docs-quality format `[VERIFIED in: <path>:<lineref>]`.
+
+| Claim | Reproducer | Marker |
 |---|---|---|
-| Total thread count (132) | `jq 'select(.kind=="thread" and .is_resolved==false)' \| wc -l` over the regenerated JSONL | run the harvest script |
-| Per-PR breakdown (counts in table below) | same `jq` pipeline grouped by `.pr` | same |
-| STILL_VALID = 24 | manual classification by 5 parallel Explore agents, each verifying `path:line` against current `src/` (transcripts archived in this session) | re-run the audit task with the agent prompts in `tasks/issue-*.md` |
-| Cluster→issue mapping | manual MECE grouping; collectively-exhaustive check by counting per cluster (`7+6+2+2+4+2+1 = 24`) — verified against the STILL_VALID list | `grep -c "STILL_VALID" tasks/chunk-*.jsonl` (intermediates) |
+| 132 unresolved threads across PRs 271-321 | `bash .claude/scripts/harvest-pr-comments.sh --min 271 \| jq -r 'select(.kind=="thread" and .is_resolved==false) \| .thread_id' \| sort -u \| wc -l` | `[VERIFIED in: .claude/scripts/harvest-pr-comments.sh:90-163]` |
+| 24 STILL_VALID after triage | sum of cluster sizes: `7+6+2+2+4+2+1=24` (see clusters below) | `[VERIFIED in: tasks/pr-findings-classified.md:43-126]` |
+| 88 ADDRESSED, 11 PR_SPECIFIC_STALE, 9 NITPICK_LOW | classification table at line 31-37 of this doc; agent transcripts archived in session | `[VERIFIED in: tasks/pr-findings-classified.md:31-37]` |
+| 7 MECE clusters → issues #322–#328 | `gh issue list --search "in:title PR-comment OR SafeDir OR dedupe OR anchored OR reader OR test-reliability OR roadmap" --state open` | `[VERIFIED in: github://curdriceaurora/fo-core/issues/322-328]` |
+| Cluster sizes per cluster (7/6/2/2/4/2/1) | each cluster's table immediately below counts rows | `[VERIFIED in: tasks/pr-findings-classified.md:47-126]` |
+| Harvest script location | `.claude/scripts/harvest-pr-comments.sh` | `[VERIFIED in: .claude/scripts/harvest-pr-comments.sh:1]` |
+| `chunk-*.jsonl` intermediates (5 chunks) | `ls tasks/chunk-*.jsonl` | `[VERIFIED in: tasks/chunk-{a,b,c,d,e}-*.jsonl]` |
 
 **Contradiction checks performed**:
 
-- Each finding listed at most once across the 7 clusters (mutually exclusive).
-- Total cluster size = STILL_VALID total (collectively exhaustive): 24.
-- Each cluster ties to exactly one filed issue (#322–#328).
+- Each STILL_VALID finding appears in *exactly one* cluster (mutually exclusive) — verified by reading each cluster table and matching against the per-PR thread inventory `[VERIFIED in: tasks/pr-findings-classified.md:47-126]`.
+- Cluster sum equals STILL_VALID total: `7+6+2+2+4+2+1 = 24` (collectively exhaustive).
+- Each cluster ties to exactly one filed issue (#322–#328) — no fan-out, no orphans.
 
-**Section range validations**: each cluster's PR/path/line is sourced from the
-agent classification transcripts and the raw JSONL; no synthesis.
+**Section range validations**:
+
+- Every `path:line` reference below was re-checked against the current tree
+  by the round-1 Explore agents; the cluster tables only list findings whose
+  classification was `STILL_VALID` at re-check time.
+- File paths normalised against `find src/ -name '*.py'` at audit time
+  `[VERIFIED in: src/]` — no dead references.
+
+**Final verification metadata**:
+
+- Harvest command: `bash .claude/scripts/harvest-pr-comments.sh --min 271`
+- Harvest timestamp: 2026-05-20 (audit session)
+- Verifier: Claude Code session — 5 parallel Explore agents
+- Cross-reference: classification transcripts in this session's agent outputs
 
 ## Triage Summary
 

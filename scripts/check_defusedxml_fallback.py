@@ -50,6 +50,7 @@ import io
 import re
 import sys
 import tokenize
+from collections.abc import Callable
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -129,69 +130,71 @@ def _is_xml_module(mod: str) -> bool:
     return mod == "xml" or mod.startswith("xml.")
 
 
-def _module_xml_import_names(tree: ast.Module) -> set[str]:
-    """Return the set of *module-level* names bound to stdlib ``xml.*`` imports.
+def _collect_scope_xml_names(nodes: list[ast.stmt]) -> set[str]:
+    """Return xml import aliases bound *at this scope level*.
 
-    Bounded to ``tree.body`` (module scope) — function-local or class-body
-    imports don't count. A function-local ``import xml.etree.ElementTree
-    as _ET`` is only bound inside that function; an ``except ImportError``
-    block at module scope that references ``_ET`` would raise ``NameError``
-    at import time (i.e. fail closed), not silently bridge to the stdlib.
+    Includes imports inside compound statements (``if``/``try``/``with``/
+    ``for``/``while``) at the same scope, but NOT inside nested function
+    or class bodies — those have their own scope. Used both at module
+    level and at each function level so that LEGB resolution is honoured.
 
-    Handles both forms:
+    Handles both import forms:
         import xml.etree.ElementTree as _stdlib_ET   → "_stdlib_ET"
-        import xml.etree.ElementTree                 → "xml" (the root name)
+        import xml.etree.ElementTree                 → "xml"
         from xml.etree import ElementTree as _ET     → "_ET"
         from xml.etree.ElementTree import parse      → "parse"
     """
     names: set[str] = set()
 
-    def _collect(nodes: list[ast.stmt]) -> None:
-        for node in nodes:
-            if isinstance(node, ast.Import):
-                for alias in node.names:
+    def _collect(stmts: list[ast.stmt]) -> None:
+        for stmt in stmts:
+            if isinstance(stmt, ast.Import):
+                for alias in stmt.names:
                     if _is_xml_module(alias.name):
-                        # ``import xml.etree.ElementTree`` binds the *root* "xml";
-                        # ``as _stdlib_ET`` binds the alias.
                         names.add(alias.asname or alias.name.split(".")[0])
-            elif isinstance(node, ast.ImportFrom) and node.module is not None:
-                if _is_xml_module(node.module):
-                    for alias in node.names:
+            elif isinstance(stmt, ast.ImportFrom) and stmt.module is not None:
+                if _is_xml_module(stmt.module):
+                    for alias in stmt.names:
                         names.add(alias.asname or alias.name)
-            elif isinstance(node, ast.Try):
-                # try/except at module scope may also contain xml imports;
-                # those are still module-visible after the try block.
-                _collect(node.body)
-                for handler in node.handlers:
-                    _collect(handler.body)
-                _collect(node.orelse)
-                _collect(node.finalbody)
-            elif isinstance(node, ast.If):
-                # if TYPE_CHECKING: import xml... — still module-visible.
-                _collect(node.body)
-                _collect(node.orelse)
+            elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                # Nested scope — its imports aren't bound at this level.
+                continue
+            else:
+                # Recurse into compound statements at the same scope level.
+                for _field, value in ast.iter_fields(stmt):
+                    if isinstance(value, list):
+                        sub = [x for x in value if isinstance(x, ast.stmt)]
+                        if sub:
+                            _collect(sub)
 
-    _collect(tree.body)
+    _collect(nodes)
     return names
 
 
 def _handler_references_any(handler: ast.ExceptHandler, names: set[str]) -> bool:
-    """True if the except-body reads or writes any identifier in *names*.
+    """True if the except-body *reads* any identifier in *names*.
 
-    Closes the false-positive gap codex flagged: a module-level stdlib xml
-    import unrelated to the defusedxml try block (e.g. used elsewhere in
-    the module) should NOT cause the rail to fire unless the handler body
-    actually bridges to that import.
+    Only ``ast.Load`` contexts count — a handler that merely *writes* to
+    the stdlib xml name (e.g. ``except ImportError: parse = None``) is not
+    a real bridge to stdlib parsing; it's clearing the binding. The
+    bridge requires that the handler *uses* the stdlib value to fulfil
+    the defusedxml alias.
     """
     for stmt in handler.body:
         for sub in ast.walk(stmt):
-            if isinstance(sub, ast.Name) and sub.id in names:
+            if isinstance(sub, ast.Name) and sub.id in names and isinstance(sub.ctx, ast.Load):
                 return True
     return False
 
 
-def _try_triggers_fallback(node: ast.Try, module_xml_names: set[str]) -> bool:
-    """True if the Try block silently bridges defusedxml→stdlib xml."""
+def _try_triggers_fallback(node: ast.Try, visible_xml_names: set[str]) -> bool:
+    """True if the Try block silently bridges defusedxml→stdlib xml.
+
+    *visible_xml_names* is the LEGB-resolved set of stdlib ``xml.*``
+    aliases visible from the scope containing the Try — module scope plus
+    every enclosing function/class scope. This is the set the except
+    handler can legitimately read to bridge to stdlib parsing.
+    """
     body_imports = _imports_in(node.body)
     has_defusedxml = any(_is_module_prefix(mod, "defusedxml") for _, mod in body_imports)
     if not has_defusedxml:
@@ -206,12 +209,82 @@ def _try_triggers_fallback(node: ast.Try, module_xml_names: set[str]) -> bool:
         if any(_is_xml_module(mod) for _, mod in handler_imports):
             # Variant 1: stdlib re-import inside except.
             return True
-        # Variant 2: except body actually references a module-level stdlib
-        # xml import name. The reference (not the mere presence of the
-        # import elsewhere in the module) is what proves the bridge.
-        if module_xml_names and _handler_references_any(handler, module_xml_names):
+        # Variant 2: except body actually reads (ast.Load) a stdlib xml
+        # alias visible in the Try's lexical scope (LEGB). Pure writes
+        # don't count (handler that does `parse = None` is clearing the
+        # binding, not bridging).
+        if visible_xml_names and _handler_references_any(handler, visible_xml_names):
             return True
     return False
+
+
+def _emit_violations(
+    try_node: ast.Try,
+    lines: list[str],
+    noqa_lines: set[int],
+    violations: list[tuple[int, str]],
+) -> None:
+    """Append one violation row per defusedxml import line in *try_node*."""
+    for ln, mod in _imports_in(try_node.body):
+        if not _is_module_prefix(mod, "defusedxml"):
+            continue
+        if any(x in noqa_lines for x in range(ln - 2, ln + 7)):
+            continue
+        if 0 < ln <= len(lines):
+            violations.append((ln, lines[ln - 1].rstrip()))
+
+
+def _recurse_compound(stmt: ast.stmt, visit: Callable[[ast.stmt], None]) -> None:
+    """Recurse ``visit`` into every statement-list child field of *stmt*.
+
+    For if/for/while/with/async variants — preserves scope.
+    """
+    for _field, value in ast.iter_fields(stmt):
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, ast.stmt):
+                    visit(item)
+
+
+def _scan_scope(
+    nodes: list[ast.stmt],
+    outer_xml_names: set[str],
+    lines: list[str],
+    noqa_lines: set[int],
+    violations: list[tuple[int, str]],
+) -> None:
+    """Walk *nodes* with LEGB-resolved xml-alias set *outer_xml_names*.
+
+    Each function/class boundary adds its scope-level xml imports to the
+    visible set, then re-enters the same scan recursively. A try block at
+    this scope is checked against ``local_xml_names`` (which include
+    everything visible by LEGB lookup at that try's location).
+    """
+    local_xml_names = outer_xml_names | _collect_scope_xml_names(nodes)
+
+    def _visit(stmt: ast.stmt) -> None:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            _scan_scope(stmt.body, local_xml_names, lines, noqa_lines, violations)
+            return
+        if isinstance(stmt, ast.Try):
+            if _try_triggers_fallback(stmt, local_xml_names):
+                _emit_violations(stmt, lines, noqa_lines, violations)
+            # Recurse into the Try's body / handlers / orelse / finally —
+            # nested try/function/class blocks still need their own scan.
+            for s in stmt.body:
+                _visit(s)
+            for h in stmt.handlers:
+                for s in h.body:
+                    _visit(s)
+            for s in stmt.orelse:
+                _visit(s)
+            for s in stmt.finalbody:
+                _visit(s)
+            return
+        _recurse_compound(stmt, _visit)
+
+    for stmt in nodes:
+        _visit(stmt)
 
 
 def find_violations(path: Path) -> list[tuple[int, str]]:
@@ -243,21 +316,7 @@ def find_violations(path: Path) -> list[tuple[int, str]]:
 
     lines = text.splitlines()
     noqa_lines = _collect_noqa_lines(text)
-    module_xml_names = _module_xml_import_names(tree)
-
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Try):
-            continue
-        if not _try_triggers_fallback(node, module_xml_names):
-            continue
-        for ln, mod in _imports_in(node.body):
-            if not _is_module_prefix(mod, "defusedxml"):
-                continue
-            if any(x in noqa_lines for x in range(ln - 2, ln + 7)):
-                continue
-            if 0 < ln <= len(lines):
-                violations.append((ln, lines[ln - 1].rstrip()))
-
+    _scan_scope(tree.body, set(), lines, noqa_lines, violations)
     return sorted(set(violations))
 
 

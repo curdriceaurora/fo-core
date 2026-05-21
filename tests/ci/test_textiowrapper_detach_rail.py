@@ -91,6 +91,23 @@ class TestDetectorOnSyntheticInputs:
         )
         assert find_violations(_synth(tmp_path, source)) == []
 
+    def test_inline_textiowrapper_call_is_flagged(self, tmp_path: Path) -> None:
+        """Inline ``TextIOWrapper(fileobj, ...).read()`` has no wrapper var.
+
+        Regression rail for codex PR-329 round-3 finding: an inline use
+        like ``return io.TextIOWrapper(fileobj, ...).read()`` is never
+        bound, so there's no way to call ``.detach()`` — and the wrapper
+        still takes close-ownership on GC. Always a violation.
+        """
+        source = (
+            "import io\n"
+            "def reader(fileobj):\n"
+            "    return io.TextIOWrapper(fileobj, encoding='utf-8').read()\n"
+        )
+        violations = find_violations(_synth(tmp_path, source))
+        assert len(violations) == 1
+        assert violations[0][0] == 3
+
     def test_wrapper_assignment_in_inner_function_not_blamed_on_outer(self, tmp_path: Path) -> None:
         """Wrapper assigned inside an inner helper is the inner's problem.
 
