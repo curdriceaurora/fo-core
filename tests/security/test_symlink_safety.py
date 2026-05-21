@@ -624,7 +624,8 @@ class TestUndoSymlinkSafety:
         replacement.rename(destination)
         new_st = destination.stat()
         assert new_st.st_ino == replacement_ino, "sanity: rename must preserve inode"
-        assert new_st.st_ino != st.st_ino, "sanity: replacement must have a different inode"
+        if new_st.st_ino == st.st_ino:
+            pytest.skip("filesystem reuses inodes immediately; inode-change test is vacuous")
 
         # Step 3: Attempt undo — rollback_move should refuse.
         journal = tmp_path / "test.journal"
