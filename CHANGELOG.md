@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.2] - 2026-05-21
+
+### Security
+
+- **SafeDir watcher TOCTOU hardening** — `FileEventHandler` now inode-pins the
+  move destination before replaying the event; the move is rejected if the inode
+  changes between the open and the stat (PR #282, issue #270).
+- **Undo inode-pin replay verification** — `durable_move` captures
+  `(st_dev, st_ino, st_size)` at move time; `rollback.py` re-reads the triple
+  before any undo replay and aborts if it differs. Pre-beta.2 history records
+  without inode metadata fall back to a size-only check (PR5 / issue #269).
+- **Dedupe TOCTOU hardening** — inode-pin unlink and `defusedxml` fail-closed
+  for ODT parsing (PR #335, issue #323).
+- **Anchored-traversal migration** — `extractor` and `hybrid_retriever` now
+  validate all paths against the configured undo root via `Path.is_relative_to()`
+  (PR #334, issue #325).
+- **3 new AST pre-commit rails** (PR #329, issue #321–#323):
+  - `safedir-valueerror` — flags `try` blocks calling SafeDir methods whose
+    `except` clause omits `ValueError` (name-validation raises it for legal POSIX
+    filenames containing characters SafeDir rejects, e.g. backslash).
+  - `defusedxml-fallback` — flags `try: import defusedxml.X` / `except ImportError`
+    handlers that silently re-enable stdlib XML parsing, restoring XXE/billion-laughs
+    attack surface.
+  - `textiowrapper-detach` — flags `io.TextIOWrapper(fileobj, ...)` constructions
+    that never call `.detach()`, which would silently close the caller's stream on GC.
+- **pip-audit allowlist cleaned** — stale ollama, torch, transformers, and joblib
+  advisories removed after the pip-audit DB no longer reported them (PR #317).
+
+### Fixed
+
+- **Windows: `os.O_NOFOLLOW` fallback** — `rollback.py` now uses
+  `getattr(os, "O_NOFOLLOW", 0)` so the module imports cleanly on Windows, which
+  does not expose `O_NOFOLLOW` (PR #340, issue #339).
+- **Windows CI: 3 pre-existing failures resolved** (PR #342, issue #341):
+  - `_vision_helpers.py` — hardcoded `_EXTENSION_MIME` dict replaces
+    `mimetypes.add_type` / `mimetypes.guess_type` for portable MIME resolution
+    (Windows registry lacks `image/webp`).
+  - `test_atomic_write.py` — concurrent-writers test skipped on Windows; POSIX
+    `rename(2)` atomicity guarantee does not apply there.
+  - `test_durable_move.py` — hardcoded `/a`/`/b` path literals replaced with
+    `tmp_path`-relative paths.
+- **pytest-timeout re-pinned** — `>=2.2.0,<2.4.0` avoids a Windows teardown crash
+  introduced in 2.4.0 (PR #330).
+
+### Changed
+
+- **Coverage hardening** — 7 critical modules lifted to ≥90% line coverage:
+  `rollback`, `durable_move`, `undo_manager`, `safedir`, `handler`, `monitor`,
+  `backup` (PR #319, issue #318).
+
 ## [2.0.0-beta.1] - 2026-05-01
 
 ### Changed
