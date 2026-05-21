@@ -214,30 +214,16 @@ def test_committed_allowlist_passes_against_base_audit() -> None:
     """Regression: the committed `.github/accepted-risks.yml` must pass the
     gate against a realistic base-project audit.
 
-    Previously the committed file seeded two entries (ecdsa, diskcache) whose
-    packages are not installed by `pip install -e .` — the gate correctly
-    flagged both as unused-entry failures (PR #163 review finding). The file
-    now contains ollama entries; ollama IS in the base install and reports the
-    listed advisories, so the gate should pass.
+    The allowlist is currently empty — all previously-listed advisories
+    (ollama PYSEC-2025-144/145/146/147, PYSEC-2026-101/102; joblib
+    PYSEC-2024-277) were removed after the pip-audit vulnerability database
+    stopped reporting them for the installed package versions (2026-05-21).
+    An empty allowlist is valid: an audit with no reported vulnerabilities
+    passes with no unknown, stale, or unused entries.
     """
-    # Simulate the base pip-audit result: ollama 0.6.2 reports all 6 PYSEC advisories.
-    _OLLAMA_ADVISORIES = [
-        "PYSEC-2025-144",
-        "PYSEC-2025-145",
-        "PYSEC-2025-146",
-        "PYSEC-2025-147",
-        "PYSEC-2026-101",
-        "PYSEC-2026-102",
-    ]
-    audit = {
-        "dependencies": [
-            {
-                "name": "ollama",
-                "version": "0.6.2",
-                "vulns": [{"id": adv} for adv in _OLLAMA_ADVISORIES],
-            }
-        ]
-    }
+    # Simulate the base pip-audit result: no vulnerabilities currently reported
+    # for the base install (ollama 0.6.2 advisories are no longer in the DB).
+    audit: dict = {"dependencies": []}
     result = evaluate(audit, load_allowlist(_COMMITTED_ALLOWLIST), today=date(2026, 4, 22))
     assert result.failed is False, (
         f"Committed allowlist must be valid against base audit scope, got: "
