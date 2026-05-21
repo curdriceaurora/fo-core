@@ -263,7 +263,10 @@ class BackupManager:
                         removed_backups.append(backup_path)
                 except (OSError, ValueError) as exc:
                     logger.warning(
-                        "cleanup_old_backups: skipping unlink of %s: %s", backup_path, exc
+                        "cleanup_old_backups: skipping unlink of %s: %s",
+                        backup_path,
+                        exc,
+                        exc_info=True,
                     )
 
                 # Remove from manifest regardless of unlink outcome so
