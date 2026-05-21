@@ -32,6 +32,7 @@ try:
 except ImportError:  # pragma: no cover
     _ET = _stdlib_ET  # type: ignore[assignment]
 
+from utils.readers import read_file_via_safedir_anchored
 from utils.safedir import SafeDir, SymlinkRejected
 
 logger = logging.getLogger(__name__)
@@ -53,17 +54,29 @@ class DocumentExtractor:
         self.supported_extensions = {".pdf", ".docx", ".txt", ".rtf", ".odt", ".md"}
         self._check_dependencies()
 
-    def extract_text(self, file_path: Path) -> str:
+    def extract_text(self, file_path: Path, *, scan_root: Path | None = None) -> str:
         """Extract text from a single document.
 
-        Opens the file via ``SafeDir.open_for_reader`` so a symlink swapped
-        into the organize root between the directory walk and this read is
-        refused — closes the symlink-following surface in the dedup
-        ingestion pipeline (#264). On Windows the path-based fallback is
-        used because SafeDir is POSIX-only.
+        Opens the file via ``SafeDir`` so a symlink swapped into the organize
+        root between the directory walk and this read is refused — closes the
+        symlink-following surface in the dedup ingestion pipeline (#264). On
+        Windows the path-based fallback is used because SafeDir is POSIX-only.
+
+        When *scan_root* is supplied the anchored-traversal variant
+        (:func:`utils.readers.read_file_via_safedir_anchored`) walks every
+        intermediate path component with ``O_NOFOLLOW`` so a symlink swapped
+        into ANY ancestor between *scan_root* and *file_path* is also detected
+        (closes the nested-ancestor TOCTOU window documented in #286/#325).
+        Without *scan_root* the parent-rooted ``SafeDir.open_root`` fallback
+        is used (final-component protection only, matching pre-#294 behaviour).
 
         Args:
-            file_path: Path to document file
+            file_path: Path to document file.
+            scan_root: The trusted root directory that was walked to discover
+                *file_path*.  When provided, every intermediate path component
+                between *scan_root* and *file_path* is validated with
+                ``O_NOFOLLOW``.  Passing ``None`` (the default) retains the
+                parent-rooted SafeDir behaviour.
 
         Returns:
             Extracted text content, or ``""`` when extraction fails for
@@ -92,10 +105,33 @@ class DocumentExtractor:
         if not self.supports_format(file_path):
             raise ValueError(f"Unsupported format: {extension}")
 
-        # Try the SafeDir path first; fall back to the legacy path-branch
-        # only when SafeDir is unavailable (Windows) — never on real FS
-        # errors, which must propagate so the caller sees them.
+        # Try the anchored SafeDir path when scan_root is available; otherwise
+        # fall back to parent-rooted SafeDir; fall back to legacy path-branch
+        # only when SafeDir is unavailable (Windows).
         if sys.platform != "win32":
+            if scan_root is not None:
+                # Anchored traversal: validates every intermediate component
+                # between scan_root and file_path with O_NOFOLLOW (#286/#325).
+                try:
+                    content = read_file_via_safedir_anchored(file_path, trusted_root=scan_root)
+                    if content is not None:
+                        return content
+                    # Extension not in SafeDir registry — fall through to the
+                    # per-format fileobj branch below for full format coverage.
+                except SymlinkRejected as exc:
+                    logger.warning(
+                        "Refused to read symlinked file %s: %s",
+                        file_path,
+                        exc,
+                        exc_info=True,
+                    )
+                    return ""
+                except NotImplementedError:
+                    logger.debug("SafeDir unavailable; using legacy reader for %s", file_path.name)
+                except (OSError, ValueError, ImportError) as e:
+                    logger.error("Error extracting text from %s: %s", file_path, e, exc_info=True)
+                    return ""
+
             try:
                 with SafeDir.open_root(file_path.parent) as safe_dir:
                     fd = safe_dir.open_for_reader(file_path.name)
@@ -163,11 +199,16 @@ class DocumentExtractor:
         logger.warning("No extractor for %s, treating as text", extension)
         return self._extract_text(file_path=file_path)
 
-    def extract_batch(self, file_paths: list[Path]) -> dict[Path, str]:
+    def extract_batch(
+        self, file_paths: list[Path], *, scan_root: Path | None = None
+    ) -> dict[Path, str]:
         """Extract text from multiple documents in batch.
 
         Args:
-            file_paths: List of document paths
+            file_paths: List of document paths.
+            scan_root: Trusted root directory threaded to each
+                :meth:`extract_text` call (see its docstring for the
+                anchored-traversal security guarantee).
 
         Returns:
             Dictionary mapping file paths to extracted text
@@ -176,7 +217,7 @@ class DocumentExtractor:
 
         for file_path in file_paths:
             try:
-                text = self.extract_text(file_path)
+                text = self.extract_text(file_path, scan_root=scan_root)
                 results[file_path] = text
                 logger.debug(f"Extracted {len(text)} chars from {file_path.name}")
             except (OSError, ValueError, ImportError) as e:

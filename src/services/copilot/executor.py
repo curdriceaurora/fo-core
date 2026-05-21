@@ -234,7 +234,7 @@ class CommandExecutor:
         try:
             for entry in safe_walk(search_root):
                 rel = entry.relative_to(search_root)
-                text = read_text_safe(entry)
+                text = read_text_safe(entry, scan_root=search_root)
                 docs.append(f"{entry.stem} {' '.join(rel.parts)} {text}".strip())
                 paths.append(entry)
                 if len(docs) >= 500:  # cap corpus for interactive use
