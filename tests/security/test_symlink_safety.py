@@ -919,6 +919,109 @@ class TestUndoSymlinkSafety:
         assert result is True
         assert dst.exists()
 
+    def test_verify_dst_inode_accepts_moved_symlink_on_macos(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_verify_dst_inode must accept a valid moved symlink on macOS.
+
+        Issue #324 P2: On macOS O_RDONLY|O_NOFOLLOW raises OSError(ELOOP) for
+        symlink leaf paths. The verifier must fall back to lstat-based inode
+        comparison so that legitimate undo of a moved symlink is not refused.
+        """
+        import os
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        target = tmp_path / "target.txt"
+        target.write_bytes(b"content")
+        link = tmp_path / "link.lnk"
+        link.symlink_to(target)
+
+        st = os.lstat(str(link))
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=tmp_path / "original.lnk",
+            destination_path=link,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": st.st_dev, "dest_ino": st.st_ino},
+        )
+
+        journal = tmp_path / "test.journal"
+        executor = RollbackExecutor(
+            validator=OperationValidator(journal_path=journal),
+            journal_path=journal,
+        )
+
+        # Simulate macOS: patch out O_PATH so the fallback branch is taken.
+        monkeypatch.delattr("undo.rollback.os.O_PATH", raising=False)
+
+        result = executor._verify_dst_inode(op, link)
+
+        assert result is True, "valid moved symlink must pass inode verification on macOS"
+
+    def test_redo_operation_persists_refreshed_metadata_to_db(self, tmp_path: Path) -> None:
+        """redo_operation must persist the refreshed dest_dev/dest_ino to the DB.
+
+        Issue #324 P1: set_dest_inode updates the in-memory metadata dict but
+        the DB row is only written during redo_operation's UPDATE. Without the
+        metadata column in that UPDATE, a subsequent reload would see the stale
+        pre-redo inode pin and fail _verify_dst_inode.
+        """
+
+        from history.models import OperationStatus, OperationType
+        from history.tracker import OperationHistory
+        from undo.rollback import RollbackExecutor
+        from undo.undo_manager import UndoManager
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_bytes(b"db-persist test")
+
+        db_path = tmp_path / "history.db"
+        history = OperationHistory(db_path=db_path)
+
+        stale_dev = 9999
+        stale_ino = 8888
+
+        op_id = history.log_operation(
+            operation_type=OperationType.MOVE,
+            source_path=src,
+            destination_path=dst,
+            metadata={"dest_dev": stale_dev, "dest_ino": stale_ino},
+        )
+        history.db.execute_query(
+            "UPDATE operations SET status = ? WHERE id = ?",
+            (OperationStatus.ROLLED_BACK.value, op_id),
+        )
+
+        journal = tmp_path / "test.journal"
+        manager = UndoManager(
+            history=history,
+            executor=RollbackExecutor(
+                validator=OperationValidator(journal_path=journal),
+                journal_path=journal,
+            ),
+            validator=OperationValidator(journal_path=journal),
+        )
+
+        success = manager.redo_operation(op_id)
+
+        assert success is True
+
+        # Reload operation from DB and verify refreshed metadata was persisted.
+        ops = history.get_operations()
+        reloaded = next(o for o in ops if o.id == op_id)
+        assert reloaded.dest_dev is not None
+        assert reloaded.dest_ino is not None
+        assert not (reloaded.dest_dev == stale_dev and reloaded.dest_ino == stale_ino), (
+            "DB must contain refreshed inode pin, not the stale pre-redo values"
+        )
+
     # ------------------------------------------------------------------
     # Helper
     # ------------------------------------------------------------------

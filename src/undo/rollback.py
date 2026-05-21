@@ -206,9 +206,7 @@ class RollbackExecutor:
     # only for os.fstat — it binds the inode check to the specific file that
     # existed at ``destination`` at the moment of the open, closing the TOCTOU
     # window that a plain ``os.lstat`` call leaves open.
-    _O_VERIFY: int = (
-        getattr(os, "O_PATH", os.O_RDONLY) | os.O_NOFOLLOW  # type: ignore[attr-defined]
-    )
+    _O_VERIFY: int = getattr(os, "O_PATH", os.O_RDONLY) | os.O_NOFOLLOW
 
     def _verify_dst_inode(self, operation: Operation, destination: Path) -> bool:
         """Return True iff the file at *destination* matches the recorded inode.
@@ -231,11 +229,24 @@ class RollbackExecutor:
         attacker cannot swap a symlink between our stat and our rename.
         ``O_NOFOLLOW`` ensures we never follow a symlink at *destination*
         even if the attacker races to place one there.
+
+        macOS symlink fallback (issue #324 P2): On Linux ``O_PATH`` opens
+        the symlink inode itself without following it, so symlink destinations
+        work fine.  On macOS ``O_RDONLY | O_NOFOLLOW`` raises ``OSError``
+        (ELOOP) for symlink leaf paths.  Since move operations explicitly
+        support symlinks, we detect this case and fall back to ``os.lstat()``,
+        which avoids the fd-binding guarantee but still compares the full
+        ``(st_dev, st_ino)`` triple.
         """
         fd: int | None = None
         try:
-            fd = os.open(str(destination), self._O_VERIFY)
-            st = os.fstat(fd)
+            # macOS (no O_PATH) cannot open a symlink with O_NOFOLLOW — fall
+            # back to lstat-based check.  On Linux O_PATH handles symlinks.
+            if not hasattr(os, "O_PATH") and destination.is_symlink():
+                st = os.lstat(str(destination))
+            else:
+                fd = os.open(str(destination), self._O_VERIFY)
+                st = os.fstat(fd)
         except FileNotFoundError:
             logger.error(
                 "security_event undo_dst_missing op_id=%s path=%s: "

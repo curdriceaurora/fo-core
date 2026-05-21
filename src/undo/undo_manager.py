@@ -6,6 +6,7 @@ managing undo/redo stacks, and coordinating validation and rollback.
 
 from __future__ import annotations
 
+import json
 import logging
 
 from history.models import Operation, OperationStatus
@@ -252,8 +253,12 @@ class UndoManager:
                         # (copilot PRRT_kwDOR_Rkws59M7U6).
                         raise _RedoAborted(operation.id)
                     conn.execute(
-                        "UPDATE operations SET status = ? WHERE id = ?",
-                        (OperationStatus.COMPLETED.value, operation.id),
+                        "UPDATE operations SET status = ?, metadata = ? WHERE id = ?",
+                        (
+                            OperationStatus.COMPLETED.value,
+                            json.dumps(operation.metadata),
+                            operation.id,
+                        ),
                     )
                     logger.info(f"Successfully redid operation {operation.id}")
         except _RedoAborted as aborted:
@@ -328,12 +333,18 @@ class UndoManager:
         success = self.executor.redo_operation(operation)
 
         if success:
-            # Update operation status back to completed atomically
-            # (B3 — see ``undo_operation`` for the race rationale).
+            # Update status and persist refreshed metadata (e.g. dest_dev/
+            # dest_ino after a cross-device redo — set_dest_inode updates
+            # only the in-memory dict; without this write the next reload
+            # from DB would see the stale pre-redo inode pin).
             with self.history.db.transaction() as conn:
                 conn.execute(
-                    "UPDATE operations SET status = ? WHERE id = ?",
-                    (OperationStatus.COMPLETED.value, operation_id),
+                    "UPDATE operations SET status = ?, metadata = ? WHERE id = ?",
+                    (
+                        OperationStatus.COMPLETED.value,
+                        json.dumps(operation.metadata),
+                        operation_id,
+                    ),
                 )
             logger.info(f"Successfully redid operation {operation_id}")
         else:
