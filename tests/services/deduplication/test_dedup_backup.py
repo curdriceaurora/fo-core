@@ -7,13 +7,15 @@ verification, and statistics computation.
 from __future__ import annotations
 
 import json
+import os
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from services.deduplication.backup import BackupManager
+from services.deduplication.backup import BackupManager, _backup_safe_unlink
 
 pytestmark = [pytest.mark.unit]
 
@@ -378,3 +380,225 @@ class TestManifestOperations:
         # Verify data is written correctly
         loaded = json.loads(manager.manifest_path.read_text(encoding="utf-8"))
         assert loaded == data
+
+
+# ---------------------------------------------------------------------------
+# Fix 2.4 — cleanup_old_backups survives ValueError from SafeDir
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCleanupOldBackupsValueError:
+    """cleanup_old_backups must not abort the whole pass on ValueError (fix 2.4).
+
+    SafeDir raises ValueError for filenames with forbidden characters
+    (e.g. backslash, which is legal on POSIX but rejected by SafeDir's
+    name validator).  The cleanup loop must skip that entry, emit a
+    warning, remove it from the manifest, and continue with the
+    remaining entries.
+    """
+
+    def _add_old_manifest_entry(self, manager: BackupManager, key: str, backup_path: Path) -> None:
+        """Insert a manifest entry with a 60-day-old timestamp."""
+        manifest = manager._load_manifest()
+        old_time = (datetime.now(UTC) - timedelta(days=60)).isoformat().replace("+00:00", "Z")
+        manifest[key] = {
+            "original_path": str(backup_path),
+            "backup_path": key,
+            "backup_time": old_time,
+            "file_size": 0,
+            "original_mtime": old_time,
+        }
+        manager._save_manifest(manifest)
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
+    def test_valueerror_on_unlink_does_not_abort_cleanup(
+        self, manager: BackupManager, sample_file: Path
+    ) -> None:
+        """A ValueError from _backup_safe_unlink is caught; cleanup continues."""
+        # Create a legitimate backup that will be cleaned up
+        backup_path = manager.create_backup(sample_file)
+        manifest = manager._load_manifest()
+        old_time = (datetime.now(UTC) - timedelta(days=60)).isoformat().replace("+00:00", "Z")
+        manifest[str(backup_path)]["backup_time"] = old_time
+        manager._save_manifest(manifest)
+
+        # Inject a manifest entry whose key has a backslash — SafeDir
+        # raises ValueError for it, but cleanup must not propagate it.
+        bad_key = str(manager.backup_dir / "bad\\name.bak")
+        bad_path = Path(bad_key)
+        self._add_old_manifest_entry(manager, bad_key, bad_path)
+
+        removed = manager.cleanup_old_backups(max_age_days=30)
+
+        # The legitimate backup was removed
+        assert backup_path in removed
+        assert not backup_path.exists()
+
+        # Both entries are gone from the manifest (stale entries pruned)
+        final_manifest = manager._load_manifest()
+        assert str(backup_path) not in final_manifest
+        assert bad_key not in final_manifest
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
+    def test_valueerror_from_backup_exists_logged_as_warning(
+        self, manager: BackupManager, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A ValueError raised by backup_path.exists() is caught and logged as WARNING.
+
+        _backup_safe_unlink already swallows ValueError from SafeDir internally
+        (returning False with a debug log).  This test covers the outer
+        except clause in cleanup_old_backups, which fires when backup_path.exists()
+        itself raises (e.g. a filesystem or Path implementation error).
+        """
+        import logging
+
+        bad_key = str(manager.backup_dir / "bad\\name.bak")
+        bad_path = Path(bad_key)
+        self._add_old_manifest_entry(manager, bad_key, bad_path)
+
+        # Patch Path.exists to raise ValueError for the bad key, simulating an
+        # OS or Path error that propagates before we even get to _backup_safe_unlink.
+        original_exists = Path.exists
+
+        def patched_exists(self: Path) -> bool:  # type: ignore[override]
+            if str(self) == bad_key:
+                raise ValueError("simulated path error")
+            return original_exists(self)
+
+        with patch.object(Path, "exists", patched_exists):
+            with caplog.at_level(logging.WARNING, logger="services.deduplication.backup"):
+                manager.cleanup_old_backups(max_age_days=30)
+
+        assert any("skipping unlink" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Fix 2.5 — _backup_safe_unlink inode-swap TOCTOU protection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
+class TestBackupSafeUnlinkInodeSwap:
+    """_backup_safe_unlink must detect inode swaps between open and unlink (fix 2.5)."""
+
+    def test_normal_file_is_removed(self, tmp_path: Path) -> None:
+        """Happy path: a plain regular file is unlinked and True is returned."""
+        target = tmp_path / "backup.dat"
+        target.write_text("content", encoding="utf-8")
+
+        import logging
+
+        result = _backup_safe_unlink(target, logging.getLogger("test"))
+
+        assert result is True
+        assert not target.exists()
+
+    def test_symlink_is_rejected(self, tmp_path: Path) -> None:
+        """A symlink masquerading as a backup file is rejected (returns False)."""
+        real = tmp_path / "real.dat"
+        real.write_text("real", encoding="utf-8")
+        link = tmp_path / "link.dat"
+        link.symlink_to(real)
+
+        import logging
+
+        result = _backup_safe_unlink(link, logging.getLogger("test"))
+
+        assert result is False
+        assert link.exists()  # symlink itself still present
+        assert real.exists()  # real file untouched
+
+    def test_inode_swap_detected_and_rejected(self, tmp_path: Path) -> None:
+        """When fstat and lstat disagree on inode, unlink is aborted."""
+        import logging
+
+        target = tmp_path / "backup.dat"
+        target.write_text("original", encoding="utf-8")
+
+        # Build a fake fstat result pointing at a different inode so that the
+        # (dev, ino, size) triple will not match the real lstat.
+        real_st = target.stat()
+        swapped_st = os.stat_result(
+            (
+                real_st.st_mode,
+                real_st.st_ino + 999,  # different inode
+                real_st.st_dev,
+                real_st.st_nlink,
+                real_st.st_uid,
+                real_st.st_gid,
+                real_st.st_size,
+                real_st.st_atime,
+                real_st.st_mtime,
+                real_st.st_ctime,
+            )
+        )
+
+        log = logging.getLogger("test")
+        with patch("os.fstat", return_value=swapped_st):
+            result = _backup_safe_unlink(target, log)
+
+        assert result is False
+        # File should still exist because unlink was aborted
+        assert target.exists()
+
+    def test_inode_swap_logged_as_security_event(self, tmp_path: Path) -> None:
+        """An inode mismatch triggers a security_event WARNING log entry."""
+        import logging
+
+        target = tmp_path / "backup.dat"
+        target.write_text("original", encoding="utf-8")
+
+        real_st = target.stat()
+        swapped_st = os.stat_result(
+            (
+                real_st.st_mode,
+                real_st.st_ino + 999,
+                real_st.st_dev,
+                real_st.st_nlink,
+                real_st.st_uid,
+                real_st.st_gid,
+                real_st.st_size,
+                real_st.st_atime,
+                real_st.st_mtime,
+                real_st.st_ctime,
+            )
+        )
+
+        log = logging.getLogger("services.deduplication.backup")
+        with patch("os.fstat", return_value=swapped_st):
+            import io
+
+            handler = logging.StreamHandler(io.StringIO())
+            handler.setLevel(logging.WARNING)
+            log.addHandler(handler)
+            try:
+                _backup_safe_unlink(target, log)
+                output = handler.stream.getvalue()
+            finally:
+                log.removeHandler(handler)
+
+        assert "security_event" in output
+
+    def test_valueerror_returns_false(self, tmp_path: Path) -> None:
+        """A ValueError from SafeDir name validation returns False (does not raise)."""
+        import logging
+
+        # SafeDir raises ValueError for names with backslash on POSIX.
+        bad_parent = tmp_path
+        bad_name = bad_parent / "bad\\name.dat"
+
+        result = _backup_safe_unlink(bad_name, logging.getLogger("test"))
+
+        assert result is False
+
+    def test_missing_file_returns_false(self, tmp_path: Path) -> None:
+        """A non-existent file returns False without raising."""
+        import logging
+
+        target = tmp_path / "ghost.dat"  # does not exist
+
+        result = _backup_safe_unlink(target, logging.getLogger("test"))
+
+        assert result is False
