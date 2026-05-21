@@ -198,9 +198,11 @@ fetch_meta() {
 fetch_remaining_thread_comments() {
     local thread_id="$1"
     local cursor="$2"
-    local response has_next
+    local response has_next stderr_file rc
+    stderr_file=$(mktemp)
+    trap 'rm -f "$stderr_file"' RETURN
     while :; do
-        if ! response=$(gh api graphql --raw-field query='
+        if response=$(gh api graphql --raw-field query='
                 query($id: ID!, $after: String!) {
                   node(id: $id) {
                     ... on PullRequestReviewThread {
@@ -217,8 +219,23 @@ fetch_remaining_thread_comments() {
                       }
                     }
                   }
-                }' -F id="$thread_id" -F after="$cursor" 2>&1); then
-            echo "Error: failed to paginate thread $thread_id" >&2
+                }' -F id="$thread_id" -F after="$cursor" 2>"$stderr_file"); then
+            rc=0
+        else
+            rc=$?
+        fi
+        if [[ "$rc" -ne 0 ]] || [[ -z "$response" ]]; then
+            echo "Error: failed to paginate thread $thread_id (rc=$rc)" >&2
+            sed 's/^/  /' "$stderr_file" >&2
+            return 1
+        fi
+        # Mirror paginate_connection's error check — a partial-failure
+        # response (``data`` partial, ``errors`` populated) must be
+        # surfaced, not silently treated as an empty page (codex
+        # PR #329 round-7 finding PRRT_kwDOR_Rkws6Dzk4v).
+        if echo "$response" | jq -e '(.errors | length // 0) > 0' >/dev/null 2>&1; then
+            echo "Error: GraphQL returned errors for thread $thread_id:" >&2
+            echo "$response" | jq -c '.errors' >&2
             return 1
         fi
         echo "$response" | jq -c '.data.node.comments.nodes // []'

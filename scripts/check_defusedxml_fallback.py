@@ -188,6 +188,18 @@ def _scope_xml_imports_ordered(nodes: list[ast.stmt]) -> list[tuple[int, str]]:
             elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 # Nested scope — its imports aren't bound at this level.
                 continue
+            elif isinstance(stmt, ast.Try):
+                # Try has body + handlers + orelse + finalbody. Handlers
+                # are ExceptHandler nodes (NOT ast.stmt), so the generic
+                # ast.iter_fields recursion below would skip them. An
+                # ``except ImportError: import xml.X`` is at the same
+                # scope as the try, so we must include it (codex
+                # PR #329 round-7 finding PRRT_kwDOR_Rkws6Dzk4p).
+                _collect(stmt.body)
+                for handler in stmt.handlers:
+                    _collect(handler.body)
+                _collect(stmt.orelse)
+                _collect(stmt.finalbody)
             else:
                 # Recurse into compound statements at the same scope level.
                 for _field, value in ast.iter_fields(stmt):

@@ -185,6 +185,38 @@ class TestDetectorOnSyntheticInputs:
         )
         assert find_violations(_synth(tmp_path, source)) == []
 
+    def test_xml_import_in_prior_except_body_is_visible(self, tmp_path: Path) -> None:
+        """A stdlib xml import in an earlier ``except`` body binds at scope.
+
+        Regression rail for codex PR-329 round-7 finding
+        (PRRT_kwDOR_Rkws6Dzk4p): ``_scope_xml_imports_ordered`` recursed
+        via ``ast.iter_fields`` on lists of ``ast.stmt`` only, missing
+        ``ExceptHandler`` nodes entirely. A pattern like:
+
+            try:                        # try-1
+                ...
+            except ImportError:
+                import xml.etree.ElementTree as _stdlib_ET
+            try:                        # try-2 — silent bridge below
+                import defusedxml.ElementTree as _ET
+            except ImportError:
+                _ET = _stdlib_ET
+
+        was undetected because ``_stdlib_ET`` was never collected.
+        """
+        source = (
+            "try:\n"
+            "    raise ImportError\n"
+            "except ImportError:\n"
+            "    import xml.etree.ElementTree as _stdlib_ET\n"
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    _ET = _stdlib_ET\n"
+        )
+        violations = find_violations(_synth(tmp_path, source))
+        assert len(violations) == 1, "expected the silent-bridge try block (line 5) to be flagged"
+
     def test_class_body_uses_source_order_not_late_binding(self, tmp_path: Path) -> None:
         """Class bodies execute at definition time — source order matters.
 
