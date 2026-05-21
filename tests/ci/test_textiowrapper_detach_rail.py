@@ -91,6 +91,31 @@ class TestDetectorOnSyntheticInputs:
         )
         assert find_violations(_synth(tmp_path, source)) == []
 
+    def test_wrapper_assignment_in_inner_function_not_blamed_on_outer(self, tmp_path: Path) -> None:
+        """Wrapper assigned inside an inner helper is the inner's problem.
+
+        Regression rail for codex PR-329 second-round finding:
+        `_wrapper_assignments` used `ast.walk(func)` and descended into
+        nested function bodies, so an inner helper that correctly
+        wrapped + detached the outer's fileobj was reported against the
+        outer (because the outer's body has no detach for that wrapper).
+        """
+        source = (
+            "import io\n"
+            "def outer(fileobj):\n"
+            "    def inner():\n"
+            "        text_stream = io.TextIOWrapper(fileobj, encoding='utf-8')\n"
+            "        try:\n"
+            "            return text_stream.read()\n"
+            "        finally:\n"
+            "            text_stream.detach()\n"
+            "    return inner()\n"
+        )
+        # Outer must NOT be flagged — its body has no TextIOWrapper assignment;
+        # inner is its own scope (and is analysed separately with no fileobj
+        # param on its own signature, so it's not flagged either).
+        assert find_violations(_synth(tmp_path, source)) == []
+
     def test_detach_in_nested_function_does_not_count(self, tmp_path: Path) -> None:
         """detach() inside an inner unused helper is not a real fix.
 

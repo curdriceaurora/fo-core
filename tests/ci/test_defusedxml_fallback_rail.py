@@ -118,6 +118,28 @@ class TestDetectorOnSyntheticInputs:
         violations = find_violations(_synth(tmp_path, source))
         assert len(violations) == 1
 
+    def test_function_local_xml_import_not_module_level(self, tmp_path: Path) -> None:
+        """A function-local xml import is not a module-level fallback bridge.
+
+        Regression rail for codex PR-329 second-round finding:
+        `_module_xml_import_names` used `ast.walk(tree)`, collecting xml
+        aliases from inside helper functions. An except body that
+        references such a name would actually raise `NameError` at
+        module-import time (i.e. fail closed), not silently bridge to
+        the stdlib — so it must not be flagged.
+        """
+        source = (
+            "def helper():\n"
+            "    import xml.etree.ElementTree as _local_ET\n"
+            "    return _local_ET\n"
+            "\n"
+            "try:\n"
+            "    import defusedxml.ElementTree as _ET\n"
+            "except ImportError:\n"
+            "    _ET = _local_ET  # would actually be NameError at module load\n"
+        )
+        assert find_violations(_synth(tmp_path, source)) == []
+
 
 class TestAdvisoryRunOnLiveTree:
     def test_advisory_exits_zero(self) -> None:

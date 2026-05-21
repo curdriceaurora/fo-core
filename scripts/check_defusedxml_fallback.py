@@ -129,8 +129,14 @@ def _is_xml_module(mod: str) -> bool:
     return mod == "xml" or mod.startswith("xml.")
 
 
-def _module_xml_import_names(tree: ast.AST) -> set[str]:
-    """Return the set of local names bound to stdlib ``xml.*`` imports.
+def _module_xml_import_names(tree: ast.Module) -> set[str]:
+    """Return the set of *module-level* names bound to stdlib ``xml.*`` imports.
+
+    Bounded to ``tree.body`` (module scope) — function-local or class-body
+    imports don't count. A function-local ``import xml.etree.ElementTree
+    as _ET`` is only bound inside that function; an ``except ImportError``
+    block at module scope that references ``_ET`` would raise ``NameError``
+    at import time (i.e. fail closed), not silently bridge to the stdlib.
 
     Handles both forms:
         import xml.etree.ElementTree as _stdlib_ET   → "_stdlib_ET"
@@ -139,17 +145,33 @@ def _module_xml_import_names(tree: ast.AST) -> set[str]:
         from xml.etree.ElementTree import parse      → "parse"
     """
     names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if _is_xml_module(alias.name):
-                    # ``import xml.etree.ElementTree`` binds the *root* name "xml";
-                    # ``import xml.etree.ElementTree as _stdlib_ET`` binds the alias.
-                    names.add(alias.asname or alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom) and node.module is not None:
-            if _is_xml_module(node.module):
+
+    def _collect(nodes: list[ast.stmt]) -> None:
+        for node in nodes:
+            if isinstance(node, ast.Import):
                 for alias in node.names:
-                    names.add(alias.asname or alias.name)
+                    if _is_xml_module(alias.name):
+                        # ``import xml.etree.ElementTree`` binds the *root* "xml";
+                        # ``as _stdlib_ET`` binds the alias.
+                        names.add(alias.asname or alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                if _is_xml_module(node.module):
+                    for alias in node.names:
+                        names.add(alias.asname or alias.name)
+            elif isinstance(node, ast.Try):
+                # try/except at module scope may also contain xml imports;
+                # those are still module-visible after the try block.
+                _collect(node.body)
+                for handler in node.handlers:
+                    _collect(handler.body)
+                _collect(node.orelse)
+                _collect(node.finalbody)
+            elif isinstance(node, ast.If):
+                # if TYPE_CHECKING: import xml... — still module-visible.
+                _collect(node.body)
+                _collect(node.orelse)
+
+    _collect(tree.body)
     return names
 
 

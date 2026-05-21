@@ -175,28 +175,41 @@ def _has_detach_call(body: list[ast.stmt], wrapper_name: str) -> bool:
 def _wrapper_assignments(
     func: ast.FunctionDef | ast.AsyncFunctionDef, fileobj_name: str
 ) -> list[tuple[str, int]]:
-    """Return [(wrapper_var_name, lineno)] for each TextIOWrapper(fileobj) assignment."""
+    """Return [(wrapper_var_name, lineno)] for each TextIOWrapper(fileobj) assignment.
+
+    Bounded to *func*'s own scope — nested ``def``/``class``/``lambda``
+    bodies are not visited. An inner helper has its own ``fileobj``
+    binding (parameter, local, or closure-imported) and its own
+    detach-call analysis; treating its wrapper as belonging to the outer
+    function produces false positives when the inner function correctly
+    detaches.
+    """
     out: list[tuple[str, int]] = []
-    for stmt in ast.walk(func):
-        target_names: list[str] = []
-        value: ast.expr | None = None
-        if isinstance(stmt, ast.Assign):
-            value = stmt.value
-            for tgt in stmt.targets:
-                if isinstance(tgt, ast.Name):
-                    target_names.append(tgt.id)
-        elif isinstance(stmt, ast.AnnAssign):
-            value = stmt.value
-            if isinstance(stmt.target, ast.Name):
-                target_names.append(stmt.target.id)
-        if value is None or not target_names:
+    for stmt in func.body:
+        # Skip a top-level nested scope outright — its assignments are
+        # the inner scope's responsibility.
+        if isinstance(stmt, _INNER_SCOPE_TYPES):
             continue
-        if not _is_textiowrapper_call(value):
-            continue
-        if _first_positional_name(value) != fileobj_name:
-            continue
-        for name in target_names:
-            out.append((name, stmt.lineno))
+        for sub in _walk_without_inner_scopes(stmt):
+            target_names: list[str] = []
+            value: ast.expr | None = None
+            if isinstance(sub, ast.Assign):
+                value = sub.value
+                for tgt in sub.targets:
+                    if isinstance(tgt, ast.Name):
+                        target_names.append(tgt.id)
+            elif isinstance(sub, ast.AnnAssign):
+                value = sub.value
+                if isinstance(sub.target, ast.Name):
+                    target_names.append(sub.target.id)
+            if value is None or not target_names:
+                continue
+            if not _is_textiowrapper_call(value):
+                continue
+            if _first_positional_name(value) != fileobj_name:
+                continue
+            for name in target_names:
+                out.append((name, sub.lineno))
     return out
 
 
