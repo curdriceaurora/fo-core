@@ -272,6 +272,11 @@ class TestAppendDurable:
 class TestAtomicityInvariants:
     """Cross-cutting guarantees the entire module must uphold."""
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="os.replace raises WinError 5 when destination is open by another thread; "
+        "POSIX rename(2) atomicity guarantee does not apply on Windows",
+    )
     def test_concurrent_writers_leave_one_canonical_file(self, tmp_path: Path) -> None:
         """Two threads racing ``atomic_write_text`` must produce one file.
 
