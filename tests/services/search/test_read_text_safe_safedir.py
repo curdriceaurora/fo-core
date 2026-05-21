@@ -311,3 +311,39 @@ class TestReadTextSafeAnchoredTraversal:
 
         result = read_text_safe(outside, scan_root=scan_root)
         assert result == ""
+
+    def test_scan_root_fdopen_failure_closes_bare_fd(self, tmp_path: Path) -> None:
+        """When ``os.fdopen`` raises after ``open_anchored_reader`` already
+        returned a raw fd, the function must close that fd explicitly to avoid
+        leaking it.  Mirrors ``test_fdopen_failure_closes_bare_fd`` but
+        exercises the ``scan_root is not None`` branch (lines 97-99).
+        """
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "f.txt"
+        target.write_text("never read")
+        sentinel_fd = 4243
+
+        # Build a fake SafeDir context whose open_anchored_reader returns
+        # our sentinel fd.  We patch os.close so the sentinel int doesn't
+        # reach the real close() syscall.
+        fake_safe_dir = MagicMock()
+        fake_safe_dir.open_anchored_reader.return_value = sentinel_fd
+        fake_cm = MagicMock()
+        fake_cm.__enter__.return_value = fake_safe_dir
+        fake_cm.__exit__.return_value = False
+
+        with (
+            patch(
+                "services.search.hybrid_retriever.SafeDir.open_root",
+                return_value=fake_cm,
+            ),
+            patch(
+                "services.search.hybrid_retriever.os.fdopen",
+                side_effect=OSError("fdopen blew up in anchored branch"),
+            ),
+            patch("services.search.hybrid_retriever.os.close") as mock_close,
+        ):
+            result = read_text_safe(target, scan_root=scan_root)
+        assert result == ""
+        mock_close.assert_called_once_with(sentinel_fd)
