@@ -35,7 +35,12 @@ CORPUS_TEXT_LIMIT: int = 4096
 CORPUS_BINARY_PEEK: int = 512
 
 
-def read_text_safe(path: Path, limit: int = CORPUS_TEXT_LIMIT) -> str:
+def read_text_safe(
+    path: Path,
+    limit: int = CORPUS_TEXT_LIMIT,
+    *,
+    scan_root: Path | None = None,
+) -> str:
     """Read up to *limit* bytes from *path* as text, skipping binary files.
 
     Reads only what is needed: opens the file in binary mode, reads at most
@@ -48,10 +53,23 @@ def read_text_safe(path: Path, limit: int = CORPUS_TEXT_LIMIT) -> str:
     vector documented in #264). Windows / non-POSIX platforms fall back
     to the legacy path-based open until the SafeDir Windows port lands.
 
+    When *scan_root* is provided, the read uses
+    :meth:`SafeDir.open_anchored_reader` to walk every intermediate path
+    component between *scan_root* and *path* with ``O_NOFOLLOW``, so a
+    symlink swapped into ANY ancestor directory is detected (closes the
+    nested-ancestor TOCTOU window documented in #286/#325).  Without
+    *scan_root* the parent-rooted ``SafeDir.open_root(path.parent)``
+    behaviour is retained.
+
     Args:
         path: File to read.
         limit: Maximum number of bytes to read (may yield fewer characters for
             multi-byte encodings).
+        scan_root: The trusted root directory that was walked to discover
+            *path*.  When provided, component-wise ``O_NOFOLLOW`` validation
+            is applied to every directory between *scan_root* and *path*.
+            Passing ``None`` (the default) retains the parent-rooted SafeDir
+            behaviour.
 
     Returns:
         Decoded text content, or an empty string if the file is binary,
@@ -67,29 +85,55 @@ def read_text_safe(path: Path, limit: int = CORPUS_TEXT_LIMIT) -> str:
     limit = min(limit, CORPUS_TEXT_LIMIT)
     raw: bytes | None = None
     if sys.platform != "win32":
-        try:
-            with SafeDir.open_root(path.parent) as safe_dir:
-                fd = safe_dir.open_for_reader(path.name)
-                # fdopen takes ownership only once it returns; explicitly
-                # close the bare fd if fdopen itself raises.
-                try:
-                    fileobj = os.fdopen(fd, "rb", closefd=True)
-                except OSError:
-                    os.close(fd)
-                    raise
-                with fileobj:
-                    raw = fileobj.read(limit)
-        except SymlinkRejected as exc:
-            logger.warning("Refused to read symlinked file {}: {}", path, exc)
-            return ""
-        except NotImplementedError:
-            # SafeDir's POSIX primitives unavailable; fall through to
-            # legacy path-based open below.
-            logger.debug("SafeDir unavailable; using legacy reader for {}", path.name)
-        except (OSError, ValueError):
-            # ValueError covers SafeDir's name-validation rejection
-            # (filenames with backslash / NUL / path separators).
-            return ""
+        if scan_root is not None:
+            # Anchored traversal: walks every intermediate component between
+            # scan_root and path with O_NOFOLLOW (#286/#325).
+            try:
+                relative = path.relative_to(scan_root)
+                with SafeDir.open_root(scan_root) as root:
+                    fd = root.open_anchored_reader(relative)
+                    try:
+                        fileobj = os.fdopen(fd, "rb", closefd=True)
+                    except OSError:
+                        os.close(fd)
+                        raise
+                    with fileobj:
+                        raw = fileobj.read(limit)
+            except SymlinkRejected as exc:
+                logger.warning("Refused to read symlinked file {}: {}", path, exc)
+                return ""
+            except NotImplementedError:
+                # SafeDir's POSIX primitives unavailable; fall through to
+                # legacy path-based open below.
+                logger.debug("SafeDir unavailable; using legacy reader for {}", path.name)
+            except (OSError, ValueError):
+                # ValueError covers path.relative_to() when path escapes
+                # scan_root, or SafeDir's name-validation rejection.
+                return ""
+        else:
+            try:
+                with SafeDir.open_root(path.parent) as safe_dir:
+                    fd = safe_dir.open_for_reader(path.name)
+                    # fdopen takes ownership only once it returns; explicitly
+                    # close the bare fd if fdopen itself raises.
+                    try:
+                        fileobj = os.fdopen(fd, "rb", closefd=True)
+                    except OSError:
+                        os.close(fd)
+                        raise
+                    with fileobj:
+                        raw = fileobj.read(limit)
+            except SymlinkRejected as exc:
+                logger.warning("Refused to read symlinked file {}: {}", path, exc)
+                return ""
+            except NotImplementedError:
+                # SafeDir's POSIX primitives unavailable; fall through to
+                # legacy path-based open below.
+                logger.debug("SafeDir unavailable; using legacy reader for {}", path.name)
+            except (OSError, ValueError):
+                # ValueError covers SafeDir's name-validation rejection
+                # (filenames with backslash / NUL / path separators).
+                return ""
     if raw is None:
         try:
             with path.open("rb") as fh:  # safedir: ok — Windows / NotImplementedError fallback
