@@ -7,6 +7,7 @@ coordinates event handling, and supports dynamic directory management.
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -54,7 +55,33 @@ class FileMonitor:
         """
         self.config = config or WatcherConfig()
         self.queue = queue or EventQueue()
-        self.handler = FileEventHandler(self.config, self.queue)
+        # 1.2 — Wire safe_dir/watch_root into the handler at construction time
+        # when a watch root is configured.  A SafeDir is opened on the first
+        # (and usually only) configured watch directory so that direct-child
+        # symlink events are rejected before being enqueued.  On Windows or
+        # when SafeDir is unavailable, fall back to handler-without-safedir.
+        safe_dir = None
+        watch_root: Path | None = None
+        if self.config.watch_directories and sys.platform != "win32":
+            try:
+                from utils.safedir import SafeDir
+
+                watch_root = Path(self.config.watch_directories[0]).resolve()
+                safe_dir = SafeDir.open_root(watch_root)
+            except Exception as exc:
+                logger.warning(
+                    "FileMonitor: cannot open SafeDir for watch root %s: %s — "
+                    "watcher-level symlink check disabled",
+                    self.config.watch_directories[0] if self.config.watch_directories else "(none)",
+                    exc,
+                    exc_info=True,
+                )
+                safe_dir = None
+                watch_root = None
+
+        self.handler = FileEventHandler(
+            self.config, self.queue, safe_dir=safe_dir, watch_root=watch_root
+        )
 
         self._observer: BaseObserver | None = None
         self._watches: dict[str, ObservedWatch] = {}

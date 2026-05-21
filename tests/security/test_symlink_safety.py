@@ -547,7 +547,7 @@ class TestDaemonSymlinkSafety:
         log.addHandler(cap)
         try:
             with SafeDir.open_root(watch_root) as sd:
-                handler = FileEventHandler(config, queue, safe_dir=sd)
+                handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
                 event = FileCreatedEvent(str(link))
                 handler._handle_event(event, EventType.CREATED)
         finally:
