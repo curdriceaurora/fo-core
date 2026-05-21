@@ -12,11 +12,22 @@ import base64
 import mimetypes
 from pathlib import Path
 
-# Ensure .webp is registered — it is absent from the Windows MIME registry
-mimetypes.add_type("image/webp", ".webp")
-
 # Fallback MIME type when extension is not recognised
 _DEFAULT_IMAGE_MIME = "image/jpeg"
+
+# Hardcoded map for common image extensions — more portable than mimetypes.guess_type
+# on Windows, where the registry may not have entries for modern formats (e.g. webp)
+# and mimetypes.init() calls can clobber mimetypes.add_type registrations.
+_EXTENSION_MIME: dict[str, str] = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".tiff": "image/tiff",
+    ".tif": "image/tiff",
+}
 
 
 def image_to_data_url(image_path: Path) -> str:
@@ -32,7 +43,10 @@ def image_to_data_url(image_path: Path) -> str:
         FileNotFoundError: If the file does not exist.
         OSError: If the file cannot be read.
     """
-    mime_type, _ = mimetypes.guess_type(str(image_path))
+    ext = image_path.suffix.lower()
+    mime_type = _EXTENSION_MIME.get(ext)
+    if not mime_type:
+        mime_type, _ = mimetypes.guess_type(str(image_path))
     if not mime_type:
         mime_type = _DEFAULT_IMAGE_MIME
     with open(image_path, "rb") as fh:

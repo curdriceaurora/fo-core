@@ -2848,22 +2848,25 @@ class TestIsPathInFlightCollapseIdentity:
         from undo.durable_move import _append_journal, is_path_in_flight
 
         journal = tmp_path / "move.journal"
+        # Use tmp_path-relative paths so Path(src) resolves correctly on Windows.
+        src = str(tmp_path / "a")
+        dst = str(tmp_path / "b")
         # NB: writer-side dir_move uses v1 envelope; move uses v2.
         # Different ops → different §3.1 identities even with same
         # (src, dst), so the dir_move done can NOT mask the move started.
         _append_journal(
             journal,
-            {"op": "move", "src": "/a", "dst": "/b", "state": "started"},
+            {"op": "move", "src": src, "dst": dst, "state": "started"},
         )
         _append_journal(
             journal,
-            {"op": "dir_move", "src": "/a", "dst": "/b", "state": "done"},
+            {"op": "dir_move", "src": src, "dst": dst, "state": "done"},
         )
         # Without identity-keyed collapse, the dir_move done would
         # overwrite the move started under (src, dst) and this would
         # falsely return False.
-        assert is_path_in_flight(Path("/a"), journal=journal) is True
-        assert is_path_in_flight(Path("/b"), journal=journal) is True
+        assert is_path_in_flight(Path(src), journal=journal) is True
+        assert is_path_in_flight(Path(dst), journal=journal) is True
 
     def test_v2_op_id_distinct_attempts_dont_mask(self, tmp_path: Path) -> None:
         """Two v2 ``move`` retries on the same paths but different
@@ -2872,6 +2875,10 @@ class TestIsPathInFlightCollapseIdentity:
         from undo.durable_move import _append_journal, is_path_in_flight
 
         journal = tmp_path / "move.journal"
+        # Use tmp_path-relative paths so Path(src) resolves correctly on Windows.
+        src = str(tmp_path / "a")
+        dst = str(tmp_path / "b")
+        tmp = str(tmp_path / "a.tmp")
         # Attempt 1: still in flight (started).
         _append_journal(
             journal,
@@ -2879,9 +2886,9 @@ class TestIsPathInFlightCollapseIdentity:
                 "schema": 2,
                 "op": "move",
                 "op_id": "attempt-1",
-                "src": "/a",
-                "dst": "/b",
-                "tmp_path": "/a.tmp",
+                "src": src,
+                "dst": dst,
+                "tmp_path": tmp,
                 "state": "started",
             },
         )
@@ -2892,14 +2899,14 @@ class TestIsPathInFlightCollapseIdentity:
                 "schema": 2,
                 "op": "move",
                 "op_id": "attempt-2",
-                "src": "/a",
-                "dst": "/b",
+                "src": src,
+                "dst": dst,
                 "state": "done",
             },
         )
         # Attempt 1's started must still be visible — its op_id keeps
         # it distinct from attempt 2's done under §3.1 collapse.
-        assert is_path_in_flight(Path("/a"), journal=journal) is True
+        assert is_path_in_flight(Path(src), journal=journal) is True
 
 
 class TestStartedTmpPathDisambiguation:
