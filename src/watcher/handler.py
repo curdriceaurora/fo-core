@@ -90,7 +90,19 @@ class FileEventHandler(FileSystemEventHandler):
                 ``_safedir_allows`` can determine whether an event path is
                 a direct child of the root (checkable) or lives in a
                 subdirectory (falls through to pipeline-level SafeDir).
+
+        Raises:
+            ValueError: If exactly one of *safe_dir* / *watch_root* is
+                provided.  Both must be given together or both omitted —
+                a SafeDir without its root path (or vice-versa) would leave
+                the containment check in an undefined state (#322 / 1.1).
         """
+        # 1.1 — Validate that safe_dir and watch_root are provided together.
+        if (safe_dir is None) != (watch_root is None):
+            raise ValueError(
+                "safe_dir and watch_root must be provided together or both omitted; "
+                f"got safe_dir={safe_dir!r}, watch_root={watch_root!r}"
+            )
         super().__init__()
         self.config = config
         self.queue = queue
@@ -234,45 +246,111 @@ class FileEventHandler(FileSystemEventHandler):
     def _safedir_allows(self, path: Path) -> bool:
         """Return True iff *path* passes the SafeDir O_NOFOLLOW check.
 
-        Only direct children of the watch root are checked — the SafeDir
-        primitive takes a single bare name, so a nested path like
-        ``watch_root/subdir/file.pdf`` cannot be verified in one step.
-        Nested-path events fall through to ``True`` here; the pipeline-
-        level SafeDir in ``PostprocessorStage`` / ``WriterStage`` is the
-        backstop for those entries (PR6 / #270).
+        Containment is tested against the *lstat* path (``path.parent``
+        resolved without following the leaf, joined with ``path.name``) so
+        that a direct-child symlink whose target escapes ``watch_root`` is
+        caught before ``open_child`` is ever called.
 
-        For direct children: opens the entry via ``O_NOFOLLOW``.  If it
-        is a symlink ``SymlinkRejected`` is raised — the event is dropped
-        and a ``security_event`` is logged.  Any other ``OSError`` (e.g.
-        the file was deleted before we could open it) is treated as "allow"
-        so transient races don't silence real events.
+        For direct children (depth == 1) under ``watch_root``: opens the
+        entry via ``O_NOFOLLOW``.  If it is a symlink ``SymlinkRejected``
+        is raised — the event is dropped and a ``security_event`` is
+        logged.  Any other ``OSError`` (e.g. the file was deleted) is
+        treated as "allow" so transient races don't silence real events.
+
+        Paths that are NOT under ``watch_root`` (e.g. from a second watch
+        directory added via ``add_directory()``) are allowed through — they
+        are outside this SafeDir's scope and the pipeline-level SafeDir is
+        their backstop.
+
+        Changes vs. original PR6 implementation (issue #322):
+
+        * 1.3 — ``path.resolve()`` is wrapped to catch ``RuntimeError``
+          ("Symlink loop detected") and treated the same as
+          ``SymlinkRejected`` (log + return False).
+        * 1.4 — Containment check uses the *lstat* path (parent resolved
+          + bare name) via ``os.path.commonpath``, not the resolved symlink
+          target.  A direct-child symlink pointing outside ``watch_root``
+          is now rejected.
+        * 1.5 — Nested paths (depth > 1) under ``watch_root`` now have
+          their ancestry verified too; they are no longer returned ``True``
+          unconditionally.
         """
         sd = self._safe_dir
         if sd is None:
             return True
 
-        # Only check direct children of the watch root; for nested paths
-        # we can't verify the full chain with a single SafeDir.
-        resolved = path.resolve()
         watch_root = self._watch_root
         if watch_root is not None:
+            # 1.4 — Resolve the *parent directory* only (follows symlinks in
+            # the directory tree, which is fine) but not the leaf entry itself.
+            # This gives us the real on-disk location of the containing dir
+            # without following the leaf symlink.
             try:
-                rel = resolved.relative_to(watch_root)
+                lstat_dir = path.parent.resolve()
+            except RuntimeError as exc:
+                # 1.3 — Symlink loop in the parent path components.
+                logger.error(
+                    "security_event watcher_symlink_loop path=%s: "
+                    "symlink loop resolving parent, dropped: %s",
+                    path,
+                    exc,
+                )
+                return False
+
+            lstat_path = lstat_dir / path.name
+
+            # Check whether this path is under the primary watch_root.
+            # ``relative_to`` raises ``ValueError`` for unrelated trees (e.g.
+            # a second directory added via ``add_directory()``); those are
+            # allowed through because they are outside this SafeDir's scope.
+            try:
+                rel = lstat_path.relative_to(watch_root)
             except ValueError:
-                # Path is outside the watch root entirely — drop it.
+                logger.debug(
+                    "SafeDir watcher: path %s outside primary root %s — "
+                    "allowing (pipeline will re-check)",
+                    path,
+                    watch_root,
+                )
+                return True
+
+            # 1.4 — Extra guard: commonpath catches edge cases where
+            # relative_to succeeds but the path would escape (e.g. on
+            # case-insensitive filesystems or future platform quirks).
+            try:
+                common = os.path.commonpath([str(lstat_path), str(watch_root)])
+            except ValueError:
+                common = ""
+            if common != str(watch_root):
                 logger.error(
                     "security_event watcher_path_outside_root path=%s: "
                     "event path is not under watch root, dropped",
                     path,
                 )
                 return False
+
             if len(rel.parts) != 1:
-                # Nested path — can't check with a single open_child;
-                # allow through to pipeline-level SafeDir.
+                # 1.5 — Nested path: ancestry already verified above.
+                # ``open_child`` can't validate the full chain, so allow
+                # through to the pipeline-level SafeDir.
                 logger.debug(
-                    "SafeDir watcher: nested path %s skipped (pipeline will re-check)", path
+                    "SafeDir watcher: nested path %s ancestry verified, "
+                    "skipping open_child (pipeline will re-check)",
+                    path,
                 )
                 return True
+
+        # 1.3 — Wrap path.resolve() to catch symlink-loop RuntimeError.
+        try:
+            path.resolve()
+        except RuntimeError as exc:
+            logger.error(
+                "security_event watcher_symlink_loop path=%s: "
+                "symlink loop detected during resolve, dropped: %s",
+                path,
+                exc,
+            )
+            return False
 
         try:
             from utils.safedir import SymlinkRejected

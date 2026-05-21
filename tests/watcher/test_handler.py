@@ -728,10 +728,16 @@ class TestSafeDirAllows:
         handler = FileEventHandler(default_config, queue, safe_dir=None)
         assert handler._safedir_allows(Path("/any/path")) is True
 
-    def test_path_outside_root_returns_false(
+    def test_path_outside_root_allowed_through(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
     ) -> None:
-        """Path outside watch_root is dropped with security_event log."""
+        """Path outside watch_root is allowed through (may be from a secondary watch dir).
+
+        The SafeDir is anchored to the primary watch root.  Events from other
+        directories added via ``add_directory()`` are outside that root and
+        must NOT be dropped here — the pipeline-level SafeDir is their backstop.
+        (#322 / 1.4 — containment check updated).
+        """
         import sys
 
         if sys.platform == "win32":
@@ -748,7 +754,8 @@ class TestSafeDirAllows:
             handler = FileEventHandler(default_config, queue, safe_dir=sd, watch_root=watch_root)
             result = handler._safedir_allows(outside)
 
-        assert result is False
+        # Allowed through — pipeline SafeDir handles it.
+        assert result is True
 
     def test_nested_path_allowed_through(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
