@@ -140,6 +140,29 @@ class TestDetectorOnSyntheticInputs:
         violations = find_violations(_synth(tmp_path, source))
         assert len(violations) == 1
 
+    def test_class_body_uses_source_order_not_late_binding(self, tmp_path: Path) -> None:
+        """Class bodies execute at definition time — source order matters.
+
+        Regression rail for codex PR-329 round-5 finding
+        (PRRT_kwDOR_Rkws6DzN0E): unlike function bodies (late binding at
+        call time), class bodies execute immediately at the ``class X:``
+        line. An ``except ImportError: _ET = _stdlib_ET`` inside a class
+        body cannot see an ``import xml... as _stdlib_ET`` placed later
+        in the enclosing scope — at class-definition time, the binding
+        doesn't exist yet → NameError (fail closed).
+        """
+        source = (
+            "class Parser:\n"
+            "    try:\n"
+            "        import defusedxml.ElementTree as _ET\n"
+            "    except ImportError:\n"
+            "        _ET = _stdlib_ET\n"
+            "\n"
+            "import xml.etree.ElementTree as _stdlib_ET\n"
+        )
+        # At class-definition time _stdlib_ET is not yet bound → fail closed.
+        assert find_violations(_synth(tmp_path, source)) == []
+
     def test_xml_import_after_try_does_not_make_it_visible(self, tmp_path: Path) -> None:
         """An xml import later in the file isn't visible at the Try.
 

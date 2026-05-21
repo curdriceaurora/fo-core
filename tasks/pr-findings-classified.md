@@ -19,7 +19,7 @@ docs-quality format `[VERIFIED in: <path>:<lineref>]`.
 | 132 unresolved threads across PRs 271-321 | `bash .claude/scripts/harvest-pr-comments.sh --min 271 \| jq -r 'select(.kind=="thread" and .is_resolved==false) \| .thread_id' \| sort -u \| wc -l` | `[VERIFIED in: .claude/scripts/harvest-pr-comments.sh:90-163]` |
 | 24 STILL_VALID after triage | sum of cluster sizes: `7+6+2+2+4+2+1=24` (see clusters below) | `[VERIFIED in: tasks/pr-findings-classified.md:43-126]` |
 | 88 ADDRESSED, 11 PR_SPECIFIC_STALE, 9 NITPICK_LOW | classification table at line 31-37 of this doc; agent transcripts archived in session | `[VERIFIED in: tasks/pr-findings-classified.md:31-37]` |
-| 7 MECE clusters → issues #322–#328 | `gh issue list --search "in:title PR-comment OR SafeDir OR dedupe OR anchored OR reader OR test-reliability OR roadmap" --state open` | `[VERIFIED in: github://curdriceaurora/fo-core/issues/322-328]` |
+| 7 MECE clusters → issues #322–#328 | `gh issue list --state open --json number,title` (each issue body cites the cluster from this file) | `[VERIFIED in: tasks/issue-1-watcher-safedir.md through tasks/issue-7-doc-scope-cleanup.md]` |
 | Cluster sizes per cluster (7/6/2/2/4/2/1) | each cluster's table immediately below counts rows | `[VERIFIED in: tasks/pr-findings-classified.md:47-126]` |
 | Harvest script location | `.claude/scripts/harvest-pr-comments.sh` | `[VERIFIED in: .claude/scripts/harvest-pr-comments.sh:1]` |
 | `chunk-*.jsonl` intermediates (5 chunks) | `ls tasks/chunk-*.jsonl` | `[VERIFIED in: tasks/chunk-{a,b,c,d,e}-*.jsonl]` |

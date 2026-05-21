@@ -32,8 +32,24 @@ if [[ "${1:-}" == "--min" ]]; then
         echo "Error: --min requires a numeric value" >&2
         exit 1
     fi
+    # Use a cap large enough to cover any reasonable audit, then warn
+    # if we hit it (codex PR #329 thread PRRT_kwDOR_Rkws6DzN0B —
+    # ``--limit 200`` was silently truncating). 5000 covers fo-core
+    # 50× over; anything closer to that limit deserves manual paging.
+    pr_limit=5000
+    pr_list_raw=$(gh pr list --state all --limit "$pr_limit" --json number)
+    if [[ -z "$pr_list_raw" ]]; then
+        echo "Error: gh pr list returned no data" >&2
+        exit 1
+    fi
+    pr_list_count=$(echo "$pr_list_raw" | jq 'length')
+    if [[ "$pr_list_count" -ge "$pr_limit" ]]; then
+        echo "Warning: gh pr list returned $pr_list_count PRs (hit --limit $pr_limit cap)." >&2
+        echo "         Older PRs in the >=$min range may be missing." >&2
+        echo "         Pass PR numbers explicitly to override." >&2
+    fi
     mapfile -t prs < <(
-        gh pr list --state all --limit 200 --json number \
+        echo "$pr_list_raw" \
             | jq -r --argjson m "$min" '[.[] | select(.number >= $m)] | sort_by(.number) | .[].number'
     )
 else
@@ -117,15 +133,34 @@ paginate_connection() {
     # ``reviewThreadsCursor`` for the ``reviewThreads`` connection).
     local var="${conn}Cursor"
     local cursor=""  # empty == null in gh api -F shorthand
-    local response has_next
+    local response has_next stderr_file rc
+    stderr_file=$(mktemp)
+    trap 'rm -f "$stderr_file"' RETURN
     while :; do
-        # ``-F key=`` sends GraphQL null on the first iteration; an empty
-        # string remains correctly typed because the query declared the
-        # variable as ``String`` (nullable). On subsequent iterations
-        # ``$cursor`` is the opaque endCursor token from the previous page.
-        response=$(gh api graphql --raw-field query="$QUERY" \
-            -F owner="$OWNER" -F repo="$NAME" -F number="$pr" \
-            -F "${var}=${cursor}" 2>/dev/null || echo '{}')
+        # Fail fast on transient API / auth / GraphQL errors instead of
+        # silently emitting an empty page (codex PR #329 thread
+        # PRRT_kwDOR_Rkws6DzNz-). The previous ``|| echo '{}'`` swallowed
+        # every failure and let the script exit successfully with an
+        # incomplete audit corpus.
+        if response=$(gh api graphql --raw-field query="$QUERY" \
+                -F owner="$OWNER" -F repo="$NAME" -F number="$pr" \
+                -F "${var}=${cursor}" 2>"$stderr_file"); then
+            rc=0
+        else
+            rc=$?
+        fi
+        if [[ "$rc" -ne 0 ]] || [[ -z "$response" ]]; then
+            echo "Error: gh api graphql failed (rc=$rc) for PR #$pr / $conn" >&2
+            sed 's/^/  /' "$stderr_file" >&2
+            return 1
+        fi
+        # GraphQL "data: null + errors: [...]" is a partial-failure shape
+        # that ``--paginate``-style fetches must surface, not skip.
+        if echo "$response" | jq -e '(.errors | length // 0) > 0' >/dev/null 2>&1; then
+            echo "Error: GraphQL returned errors for PR #$pr / $conn:" >&2
+            echo "$response" | jq -c '.errors' >&2
+            return 1
+        fi
         echo "$response" | jq -c --arg conn "$conn" \
             '.data.repository.pullRequest[$conn].nodes // []'
         has_next=$(echo "$response" | jq -r --arg conn "$conn" \

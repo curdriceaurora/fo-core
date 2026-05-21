@@ -285,9 +285,17 @@ def _scan_scope(
         return outer_xml_names | {name for ln, name in ordered_imports if ln < lineno}
 
     def _visit(stmt: ast.stmt) -> None:
-        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            # Late binding: function/class body sees the full outer set.
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            # Function bodies use late binding — at call time they see
+            # every name in the enclosing scope regardless of source order.
             _scan_scope(stmt.body, full_local_xml, lines, noqa_lines, violations)
+            return
+        if isinstance(stmt, ast.ClassDef):
+            # Class bodies execute at *definition* time (like module body),
+            # not at call time. They can only see names already bound in
+            # the enclosing scope at the class-def line. Same source-order
+            # rule as a Try block at the current scope.
+            _scan_scope(stmt.body, _visible_at(stmt.lineno), lines, noqa_lines, violations)
             return
         if isinstance(stmt, ast.Try):
             visible = _visible_at(stmt.lineno)
