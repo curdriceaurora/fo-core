@@ -774,10 +774,16 @@ class TestUndoSymlinkSafety:
         assert not src.exists(), "source must NOT be re-created"
         assert any("security_event undo_dst_missing" in r.getMessage() for r in records)
 
-    def test_undo_refuses_when_lstat_raises_oserror(
+    def test_undo_refuses_when_open_raises_oserror(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Undo refuses when os.lstat raises a generic OSError."""
+        """Undo refuses when os.open raises a generic OSError (e.g. permission denied).
+
+        PR5d / issue #324 finding 3.1: _verify_dst_inode now uses
+        ``os.open`` + ``os.fstat`` rather than ``os.lstat`` to bind the
+        inode check to an open fd and close the TOCTOU window.  This test
+        exercises the OSError path of that new implementation.
+        """
         from datetime import UTC, datetime
 
         from history.models import Operation, OperationStatus, OperationType
@@ -798,10 +804,10 @@ class TestUndoSymlinkSafety:
             metadata={"dest_dev": st.st_dev, "dest_ino": st.st_ino},
         )
 
-        def _raise_oserror(_path: object) -> None:
+        def _raise_oserror(*_args: object, **_kwargs: object) -> int:
             raise OSError("permission denied")
 
-        monkeypatch.setattr("undo.rollback.os.lstat", _raise_oserror)
+        monkeypatch.setattr("undo.rollback.os.open", _raise_oserror)
 
         journal = tmp_path / "test.journal"
         validator = OperationValidator(journal_path=journal)
@@ -812,6 +818,106 @@ class TestUndoSymlinkSafety:
 
         assert result is False
         assert any("security_event undo_dst_lstat_error" in r.getMessage() for r in records)
+
+    def test_redo_move_refreshes_inode_baseline(self, tmp_path: Path) -> None:
+        """redo_move updates dest_dev/dest_ino after a successful move.
+
+        Issue #324 finding 3.2: after a redo (including EXDEV where the
+        new destination gets a fresh inode), the operation's inode pin must
+        be refreshed so that a subsequent undo uses the correct value.
+        """
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src.txt"
+        dst = tmp_path / "dst.txt"
+        src.write_bytes(b"redo content")
+
+        # Simulate a stale inode from before the redo — use obviously wrong values
+        # so we can assert they get replaced.
+        stale_dev: int = 9999
+        stale_ino: int = 8888
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={"dest_dev": stale_dev, "dest_ino": stale_ino},
+        )
+        assert op.dest_dev == stale_dev
+        assert op.dest_ino == stale_ino
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+
+        result = executor.redo_move(op)
+
+        assert result is True
+        assert dst.exists()
+        assert dst.read_bytes() == b"redo content"
+
+        # The inode baseline must be the actual dst inode after the move.
+        actual_st = dst.stat()
+        assert op.dest_dev == actual_st.st_dev, "dest_dev must be refreshed after redo"
+        assert op.dest_ino == actual_st.st_ino, "dest_ino must be refreshed after redo"
+        # The stale values must have been replaced.
+        assert op.dest_dev != stale_dev or op.dest_ino != stale_ino, (
+            "at least one of dev/ino must differ from the stale placeholder"
+        )
+
+    def test_redo_move_inode_refresh_stat_failure_does_not_fail_redo(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stat error during inode refresh is logged but redo still succeeds.
+
+        Issue #324 finding 3.2: the refresh is best-effort; a failed stat
+        must not cause redo_move to return False.
+        """
+        import os
+        from datetime import UTC, datetime
+
+        from history.models import Operation, OperationStatus, OperationType
+        from undo.rollback import RollbackExecutor
+        from undo.validator import OperationValidator
+
+        src = tmp_path / "src2.txt"
+        dst = tmp_path / "dst2.txt"
+        src.write_bytes(b"best-effort")
+
+        op = Operation(
+            operation_type=OperationType.MOVE,
+            timestamp=datetime.now(UTC),
+            source_path=src,
+            destination_path=dst,
+            status=OperationStatus.COMPLETED,
+            metadata={},
+        )
+
+        _real_lstat = os.lstat
+
+        def _lstat_raise_once(path: object) -> os.stat_result:
+            # Only fail for the refresh stat on dst; let other lstat calls pass.
+            if str(path) == str(dst):
+                raise OSError("simulated stat failure")
+            return _real_lstat(path)  # type: ignore[arg-type]
+
+        monkeypatch.setattr("undo.rollback.os.lstat", _lstat_raise_once)
+
+        journal = tmp_path / "test.journal"
+        validator = OperationValidator(journal_path=journal)
+        executor = RollbackExecutor(validator=validator, journal_path=journal)
+
+        result = executor.redo_move(op)
+
+        # File was moved; redo succeeds despite the refresh failure.
+        assert result is True
+        assert dst.exists()
 
     # ------------------------------------------------------------------
     # Helper
