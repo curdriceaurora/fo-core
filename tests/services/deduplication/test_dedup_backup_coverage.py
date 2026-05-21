@@ -14,7 +14,7 @@ import pytest
 
 from services.deduplication.backup import BackupManager, _backup_safe_unlink
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.ci, pytest.mark.unit]
 
 
 @pytest.fixture()
