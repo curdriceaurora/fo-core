@@ -267,7 +267,7 @@ def _do_semantic_search(
         rel_entry = entry.relative_to(search_dir)
         if type_exts is not None and _normalized_extension(entry) not in type_exts:
             continue
-        text = read_text_safe(entry)
+        text = read_text_safe(entry, scan_root=search_dir)
         doc = f"{entry.stem} {' '.join(rel_entry.parts)} {text}".strip()
         documents.append(doc)
         sem_paths.append(entry)

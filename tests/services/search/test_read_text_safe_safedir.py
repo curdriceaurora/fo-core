@@ -191,3 +191,159 @@ class TestReadTextSafeLegacyFallback:
             side_effect=NotImplementedError(),
         ):
             assert read_text_safe(target) == ""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
+class TestReadTextSafeAnchoredTraversal:
+    """Regression tests for issue #325: component-wise O_NOFOLLOW traversal
+    when scan_root is supplied.
+
+    A symlink swapped into an intermediate directory between scan_root and
+    the file must be refused (returns ``""``) rather than followed — closes
+    the nested-ancestor TOCTOU window documented in #286/#325.
+    """
+
+    def test_reads_file_via_scan_root(self, tmp_path: Path) -> None:
+        """Happy path: a real file nested under scan_root is read correctly."""
+        scan_root = tmp_path / "corpus"
+        subdir = scan_root / "sub"
+        subdir.mkdir(parents=True)
+        target = subdir / "note.txt"
+        target.write_text("anchored corpus text")
+
+        result = read_text_safe(target, scan_root=scan_root)
+        assert "anchored corpus text" in result
+
+    def test_symlinked_intermediate_dir_is_refused(self, tmp_path: Path) -> None:
+        """A symlink swapped into an intermediate directory between scan_root
+        and the leaf is refused — regression for the nested-ancestor TOCTOU
+        window documented in #286/#325.
+
+        Layout::
+
+            tmp_path/outside/secret.txt    <- sensitive file OUTSIDE scan_root
+            tmp_path/scan_root/            <- trusted scan root
+            tmp_path/scan_root/evil -> tmp_path/outside   <- symlinked subdir
+            apparent path: scan_root/evil/secret.txt
+
+        Without anchored traversal, ``SafeDir.open_root(path.parent)`` would
+        open ``evil`` as a plain directory and read secret.txt through it.
+        With anchored traversal ``open_anchored_reader`` calls
+        ``open_subdir("evil")`` which detects the symlink and raises
+        ``SymlinkRejected`` → ``read_text_safe`` returns ``""``.
+        """
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        secret = outside / "secret.txt"
+        secret.write_text("SHOULD_NOT_BE_EXFILTRATED")
+
+        scan_root = tmp_path / "scan_root"
+        scan_root.mkdir()
+
+        try:
+            (scan_root / "evil").symlink_to(outside)
+        except OSError:
+            pytest.skip("symlink creation not supported on this filesystem")
+
+        apparent_path = scan_root / "evil" / "secret.txt"
+        result = read_text_safe(apparent_path, scan_root=scan_root)
+        assert result == ""
+        assert "SHOULD_NOT_BE_EXFILTRATED" not in result
+
+    def test_scan_root_none_uses_parent_rooted_safedir(self, tmp_path: Path) -> None:
+        """Default (scan_root=None) still uses the parent-rooted SafeDir path —
+        no regression on existing callers that don't supply scan_root.
+        """
+        target = tmp_path / "plain.txt"
+        target.write_text("parent rooted")
+
+        from utils.safedir import SafeDir as _SafeDir
+
+        with patch(
+            "services.search.hybrid_retriever.SafeDir.open_root",
+            wraps=_SafeDir.open_root,
+        ) as mock_open_root:
+            result = read_text_safe(target)
+
+        assert "parent rooted" in result
+        mock_open_root.assert_called_once_with(tmp_path)
+
+    def test_scan_root_not_implemented_falls_back_to_legacy(self, tmp_path: Path) -> None:
+        """When SafeDir raises NotImplementedError in the anchored branch the
+        function falls through to the legacy path.open() read.
+        """
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "f.txt"
+        target.write_text("fallback content")
+
+        with patch(
+            "services.search.hybrid_retriever.SafeDir.open_root",
+            side_effect=NotImplementedError("no dir_fd"),
+        ):
+            result = read_text_safe(target, scan_root=scan_root)
+        assert result == "fallback content"
+
+    def test_scan_root_oserror_returns_empty(self, tmp_path: Path) -> None:
+        """An OSError from the anchored SafeDir branch returns ``""``."""
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "f.txt"
+        target.write_text("data")
+
+        with patch(
+            "services.search.hybrid_retriever.SafeDir.open_root",
+            side_effect=OSError("permission denied"),
+        ):
+            result = read_text_safe(target, scan_root=scan_root)
+        assert result == ""
+
+    def test_path_outside_scan_root_returns_empty(self, tmp_path: Path) -> None:
+        """If path does not lie under scan_root, relative_to raises ValueError
+        which is caught and ``""`` is returned.
+        """
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        outside_dir = tmp_path / "other"
+        outside_dir.mkdir()
+        outside = outside_dir / "f.txt"
+        outside.write_text("outside content")
+
+        result = read_text_safe(outside, scan_root=scan_root)
+        assert result == ""
+
+    def test_scan_root_fdopen_failure_closes_bare_fd(self, tmp_path: Path) -> None:
+        """When ``os.fdopen`` raises after ``open_anchored_reader`` already
+        returned a raw fd, the function must close that fd explicitly to avoid
+        leaking it.  Mirrors ``test_fdopen_failure_closes_bare_fd`` but
+        exercises the ``scan_root is not None`` branch (lines 97-99).
+        """
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "f.txt"
+        target.write_text("never read")
+        sentinel_fd = 4243
+
+        # Build a fake SafeDir context whose open_anchored_reader returns
+        # our sentinel fd.  We patch os.close so the sentinel int doesn't
+        # reach the real close() syscall.
+        fake_safe_dir = MagicMock()
+        fake_safe_dir.open_anchored_reader.return_value = sentinel_fd
+        fake_cm = MagicMock()
+        fake_cm.__enter__.return_value = fake_safe_dir
+        fake_cm.__exit__.return_value = False
+
+        with (
+            patch(
+                "services.search.hybrid_retriever.SafeDir.open_root",
+                return_value=fake_cm,
+            ),
+            patch(
+                "services.search.hybrid_retriever.os.fdopen",
+                side_effect=OSError("fdopen blew up in anchored branch"),
+            ),
+            patch("services.search.hybrid_retriever.os.close") as mock_close,
+        ):
+            result = read_text_safe(target, scan_root=scan_root)
+        assert result == ""
+        mock_close.assert_called_once_with(sentinel_fd)

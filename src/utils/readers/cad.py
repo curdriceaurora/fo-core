@@ -268,11 +268,25 @@ def read_dwg_file(
         return "\n".join(metadata_parts)
 
 
-def _parse_step_text(content: str, label: str, size_kb: float) -> str:
-    """Extract STEP metadata from the first 10 KB of the file content."""
+_MAX_STEP_BYTES = 512 * 1024  # 512 KB byte cap — guards against adversarial single-line files
+
+
+def _parse_step_text(content: str, label: str, size_kb: float, *, truncated: bool = False) -> str:
+    """Extract STEP metadata from the file content.
+
+    Args:
+        content: Raw text read from the STEP file (possibly truncated).
+        label: Filename used in the log message.
+        size_kb: File size in kilobytes, or -1 if unavailable.
+        truncated: When ``True``, appends a note that the content was cut
+            short at ``_MAX_STEP_BYTES`` so callers can detect incomplete reads.
+    """
     metadata_parts = ["=== STEP File Information ===", f"File: {label}"]
     if size_kb >= 0:
         metadata_parts.append(f"Size: {size_kb:.2f} KB")
+
+    if truncated:
+        metadata_parts.append("[truncated: byte limit exceeded]")
 
     # Extract header section (between HEADER; and ENDSEC;)
     if "HEADER;" in content and "ENDSEC;" in content:
@@ -348,14 +362,26 @@ def read_step_file(
         try:
             text_stream = io.TextIOWrapper(fileobj, encoding="utf-8", errors="ignore")
             try:
-                content = "".join(text_stream.readline() for _ in range(max_lines))
+                lines: list[str] = []
+                total_bytes = 0
+                hit_byte_cap = False
+                for _ in range(max_lines):
+                    line = text_stream.readline()
+                    if not line:
+                        break
+                    total_bytes += len(line.encode("utf-8", errors="ignore"))
+                    if total_bytes > _MAX_STEP_BYTES:
+                        hit_byte_cap = True
+                        break
+                    lines.append(line)
+                content = "".join(lines)
             finally:
                 text_stream.detach()
             try:
                 size_kb = os.fstat(fileobj.fileno()).st_size / 1024
             except (OSError, AttributeError, ValueError):
                 size_kb = -1.0
-            return _parse_step_text(content, label, size_kb)
+            return _parse_step_text(content, label, size_kb, truncated=hit_byte_cap)
         except (OSError, UnicodeDecodeError, ValueError) as e:
             raise FileReadError(f"Failed to read STEP file {label}: {e}") from e
 
@@ -366,9 +392,21 @@ def read_step_file(
         with path.open(
             encoding="utf-8", errors="ignore"
         ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
-            content = "".join(f.readline() for _ in range(max_lines))
+            lines = []
+            total_bytes = 0
+            hit_byte_cap = False
+            for _ in range(max_lines):
+                line = f.readline()
+                if not line:
+                    break
+                total_bytes += len(line.encode("utf-8", errors="ignore"))
+                if total_bytes > _MAX_STEP_BYTES:
+                    hit_byte_cap = True
+                    break
+                lines.append(line)
+            content = "".join(lines)
         size_kb = path.stat().st_size / 1024
-        return _parse_step_text(content, path.name, size_kb)
+        return _parse_step_text(content, path.name, size_kb, truncated=hit_byte_cap)
     except (OSError, UnicodeDecodeError, ValueError) as e:
         raise FileReadError(f"Failed to read STEP file {path}: {e}") from e
 
