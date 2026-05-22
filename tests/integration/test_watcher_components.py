@@ -371,12 +371,18 @@ class TestFileEventHandlerSafeDirIntegration:
             handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
             assert handler._safedir_allows(regular) is True
 
-    def test_path_outside_root_allowed_through(self, tmp_path: Path) -> None:
-        """_safedir_allows allows paths outside the primary watch root through.
+    def test_path_outside_root_rejected(self, tmp_path: Path) -> None:
+        """_safedir_allows rejects paths whose lstat form is outside the primary watch root.
 
-        Paths from secondary watch directories (added via add_directory()) are
-        outside this SafeDir's scope; they are allowed through here and
-        re-checked by the pipeline-level SafeDir backstop (1.4 / #322).
+        S1 fix (issue #347): the old behaviour returned ``True`` (allow) when
+        ``lstat_path.relative_to(watch_root)`` raised ``ValueError``, which was a
+        security bypass — a symlink whose resolved directory escapes the root would
+        pass the watcher-level SafeDir check unchallenged.
+
+        The new behaviour returns ``False`` (reject).  Multi-root ``FileMonitor``
+        configs avoid this by disabling the single-root SafeDir entirely in
+        ``__init__`` (``_safe_dir = None``) when more than one watch directory is
+        configured; the pipeline-level SafeDir is their backstop.
         """
 
         if sys.platform == "win32":
@@ -396,7 +402,7 @@ class TestFileEventHandlerSafeDirIntegration:
         queue = EventQueue()
         with SafeDir.open_root(watch_root) as sd:
             handler = FileEventHandler(config, queue, safe_dir=sd, watch_root=watch_root)
-            assert handler._safedir_allows(outside) is True
+            assert handler._safedir_allows(outside) is False
 
     def test_nested_path_allowed_through(self, tmp_path: Path) -> None:
         """_safedir_allows allows nested paths (checked at pipeline level)."""
