@@ -151,20 +151,31 @@ class FileMonitor:
     def stop(self) -> None:
         """Stop monitoring and clean up resources.
 
-        Stops the watchdog observer and clears all watch state.
-        Safe to call even if the monitor is not running.
+        Stops the watchdog observer, releases the SafeDir file descriptor,
+        and clears all watch state. Safe to call even if the monitor is not
+        running.
         """
         with self._lock:
-            if not self._running or self._observer is None:
-                return
+            if self._running and self._observer is not None:
+                observer = self._observer
+                observer.stop()  # type: ignore[no-untyped-call]
+                observer.join(timeout=5.0)
+                self._observer = None
+                self._watches.clear()
+                self._running = False
+                logger.info("FileMonitor stopped")
 
-            observer = self._observer
-            observer.stop()  # type: ignore[no-untyped-call]
-            observer.join(timeout=5.0)
-            self._observer = None
-            self._watches.clear()
-            self._running = False
-            logger.info("FileMonitor stopped")
+            # Release the directory fd held by the SafeDir regardless of
+            # whether the observer was running.  Each daemon restart opens a
+            # fresh SafeDir in __init__; without this cleanup the old fd leaks
+            # and repeated restarts accumulate toward EMFILE.  __exit__ is
+            # idempotent so calling stop() more than once is safe.
+            if self.handler._safe_dir is not None:
+                try:
+                    self.handler._safe_dir.__exit__(None, None, None)
+                except OSError:
+                    pass  # suppress any stray EBADF
+                self.handler._safe_dir = None
 
     def add_directory(self, path: Path, recursive: bool = True) -> None:
         """Add a directory to be monitored.
@@ -195,21 +206,24 @@ class FileMonitor:
                     self.config.watch_directories.append(path)
 
             # Only disable the single-root containment check when the new
-            # directory is genuinely outside the current watch root.  Paths
-            # that are sub-directories of the existing root still pass
-            # relative_to(watch_root) and do not require disabling the check
-            # (issue #347 P2 follow-up).
+            # directory is genuinely outside the current watch root.  Sub-
+            # directories of the existing root pass relative_to() and do
+            # not require disabling the check (issue #347 P2).
+            # When the check IS disabled, emit a WARNING so operators know
+            # that only the pipeline-level SafeDir backstop is active for
+            # the new directory (issue #348 R2).
             current_root = self.handler._watch_root
             if current_root is not None:
                 try:
                     path.relative_to(current_root)
-                    # path is under the current root — containment check remains active
+                    # path is under the current root — no change needed
                 except ValueError:
-                    # path is outside the current root — disable containment check
+                    # path is outside the current root — disable check + warn
                     self.handler._watch_root = None
-                    logger.debug(
-                        "FileMonitor: disabled watcher-level root containment check "
-                        "(new directory %s outside primary root %s; pipeline SafeDir is backstop)",
+                    logger.warning(
+                        "FileMonitor.add_directory: %s is outside the primary SafeDir root (%s) "
+                        "— watcher-level containment check disabled; "
+                        "pipeline-level SafeDir is the active backstop",
                         path,
                         current_root,
                     )

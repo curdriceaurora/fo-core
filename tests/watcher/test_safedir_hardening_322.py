@@ -116,7 +116,9 @@ class TestFileMonitorPassesSafeDir:
         monitor = FileMonitor(config)
         assert monitor.handler._safe_dir is not None
         assert monitor.handler._watch_root == watch_dir.resolve()
-        monitor.stop()  # releases SafeDir fd cleanly
+        # stop() must close the SafeDir fd (R1 fix — no manual __exit__ workaround needed)
+        monitor.stop()
+        assert monitor.handler._safe_dir is None
 
     def test_handler_has_no_safe_dir_when_no_watch_dir(self) -> None:
         """When no watch directories are configured, handler has no SafeDir."""
@@ -602,3 +604,114 @@ class TestPostprocessorFailsClosedOnSymlinkRejected:
             stage.close()
 
         assert any("security_event" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Issue #348 — R1: stop() closes SafeDir fd; R2: add_directory() warns
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestFileMonitorStopClosesSafeDir:
+    """FileMonitor.stop() must release the SafeDir fd (issue #348 R1)."""
+
+    def test_stop_closes_safe_dir(self, tmp_path: Path) -> None:
+        """stop() sets handler._safe_dir to None, releasing the directory fd."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_dir = tmp_path / "watch"
+        watch_dir.mkdir()
+        config = WatcherConfig(watch_directories=[watch_dir], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+        assert monitor.handler._safe_dir is not None, "pre-condition: SafeDir must be open"
+
+        monitor.stop()
+
+        assert monitor.handler._safe_dir is None
+
+    def test_stop_is_idempotent(self, tmp_path: Path) -> None:
+        """Calling stop() twice must not raise."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_dir = tmp_path / "watch"
+        watch_dir.mkdir()
+        config = WatcherConfig(watch_directories=[watch_dir], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        monitor.stop()
+        monitor.stop()  # second call must not raise
+
+        assert monitor.handler._safe_dir is None
+
+    def test_stop_without_safe_dir_does_not_raise(self) -> None:
+        """stop() on a monitor with no watch directories (no SafeDir) must not raise."""
+        config = WatcherConfig(watch_directories=[], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+        assert monitor.handler._safe_dir is None
+
+        monitor.stop()  # no-op; must not raise
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestFileMonitorAddDirectoryWarns:
+    """add_directory() must warn that secondary dirs are not SafeDir-hardened (#348 R2)."""
+
+    def test_add_directory_logs_warning_when_safe_dir_active(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Adding a second directory while SafeDir is active emits a warning."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        import logging
+
+        watch_dir = tmp_path / "watch"
+        watch_dir.mkdir()
+        second_dir = tmp_path / "second"
+        second_dir.mkdir()
+
+        config = WatcherConfig(watch_directories=[watch_dir], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+        assert monitor.handler._safe_dir is not None, "pre-condition: SafeDir must be open"
+
+        try:
+            with caplog.at_level(logging.WARNING, logger="watcher.monitor"):
+                monitor.add_directory(second_dir, recursive=False)
+
+            warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+            assert any("outside the primary SafeDir root" in msg for msg in warning_messages), (
+                f"expected SafeDir warning, got: {warning_messages}"
+            )
+        finally:
+            monitor.stop()
+
+    def test_add_directory_no_warning_without_safe_dir(
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Adding a directory when no SafeDir is active must not emit a SafeDir warning."""
+        import logging
+
+        second_dir = tmp_path / "second"
+        second_dir.mkdir()
+
+        config = WatcherConfig(watch_directories=[], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+        assert monitor.handler._safe_dir is None
+
+        with caplog.at_level(logging.WARNING, logger="watcher.monitor"):
+            monitor.add_directory(second_dir, recursive=False)
+
+        safedir_warnings = [
+            r.message
+            for r in caplog.records
+            if r.levelno == logging.WARNING and "SafeDir" in r.message
+        ]
+        assert safedir_warnings == [], f"unexpected SafeDir warnings: {safedir_warnings}"
