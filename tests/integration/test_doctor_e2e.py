@@ -133,12 +133,11 @@ def nested_structure_dir(tmp_path: Path) -> Path:
 class TestDoctorCommandInvocation:
     """Tests for basic doctor command invocation and argument handling."""
 
-    def test_doctor_requires_path_argument(self) -> None:
-        """Doctor command requires a path argument."""
+    def test_doctor_no_path_defaults_to_cwd(self) -> None:
+        """Doctor command without a path defaults to the current working directory."""
         result = runner.invoke(app, ["doctor"])
-        assert result.exit_code != 0
-        # Should show error about missing argument
-        assert "path" in result.output.lower() or "argument" in result.output.lower()
+        assert result.exit_code == 0
+        assert "scanning directory" in result.output.lower()
 
     def test_doctor_rejects_nonexistent_path(self) -> None:
         """Doctor command rejects non-existent directories."""

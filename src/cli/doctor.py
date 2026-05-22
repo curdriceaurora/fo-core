@@ -335,10 +335,9 @@ def install_groups(groups: set[str]) -> None:
 
 
 def doctor(
-    path: Path = typer.Argument(
-        ...,
-        help="Directory path to scan for file types.",
-        exists=True,
+    path: Path | None = typer.Argument(
+        None,
+        help="Directory to scan for file types (defaults to current directory).",
         file_okay=False,
         dir_okay=True,
         resolve_path=True,
@@ -363,13 +362,18 @@ def doctor(
     if not json_output and _get_state().json_output:
         json_output = True
 
+    resolved_path: Path = (path or Path.cwd()).resolve()
+    if not resolved_path.is_dir():
+        console.print(f"[red]Error: Not a directory: {resolved_path}[/red]")
+        raise typer.Exit(code=1)
+
     # Scan the directory
-    extension_counts = scan_directory(path)
+    extension_counts = scan_directory(resolved_path)
 
     if not extension_counts:
         if json_output:
             result: dict[str, Any] = {
-                "directory": str(path),
+                "directory": str(resolved_path),
                 "files_found": 0,
                 "extensions": {},
                 "detected_groups": [],
@@ -389,7 +393,7 @@ def doctor(
     if not detected_groups:
         if json_output:
             result = {
-                "directory": str(path),
+                "directory": str(resolved_path),
                 "files_found": sum(extension_counts.values()),
                 "extensions": extension_counts,
                 "detected_groups": [],
@@ -431,7 +435,7 @@ def doctor(
 
     if json_output:
         result = {
-            "directory": str(path),
+            "directory": str(resolved_path),
             "files_found": sum(extension_counts.values()),
             "extensions": extension_counts,
             "detected_groups": groups_info,
@@ -441,7 +445,7 @@ def doctor(
         raise typer.Exit(code=0)
 
     # Display recommendations (non-JSON mode)
-    console.print(f"\n[bold]Scanning directory:[/bold] {path}")
+    console.print(f"\n[bold]Scanning directory:[/bold] {resolved_path}")
     console.print()
     display_recommendations(extension_counts, detected_groups)
 
@@ -453,8 +457,13 @@ def doctor(
     if install:
         install_groups(missing_groups)
     else:
-        # Show summary of what's missing
+        # Show summary of what's missing with actionable install commands
         console.print(
             f"\n[yellow]Found {len(missing_groups)} missing dependency group(s).[/yellow]"
         )
-        console.print("[dim]Run with --install flag to install them automatically.[/dim]")
+        console.print("\nInstall them now:")
+        for group in sorted(missing_groups):
+            console.print(f"  [cyan]pip install fo-core\\[{group}][/cyan]")
+        console.print(
+            f"\nOr install all at once:  [cyan]fo doctor {resolved_path} --install[/cyan]"
+        )
