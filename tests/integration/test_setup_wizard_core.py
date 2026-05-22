@@ -361,26 +361,26 @@ class TestGenerateConfig:
 
         caps = self._make_caps(
             running=True,
-            model_names=["qwen2.5:7b-instruct-q4_K_M", "qwen2.5:3b-instruct-q4_K_M"],
+            model_names=["gemma3:12b", "gemma3:4b"],
         )
         with patch(_CFG_MGR_TARGET):
             wizard = SetupWizard(mode=WizardMode.QUICK_START)
         config = wizard.generate_config(caps)
 
-        assert config.models.text_model == "qwen2.5:7b-instruct-q4_K_M"
+        assert config.models.text_model == "gemma3:12b"
 
     def test_falls_back_to_recommended_small(self) -> None:
         from core.setup_wizard import SetupWizard, WizardMode
 
         caps = self._make_caps(
             running=True,
-            model_names=["qwen2.5:3b-instruct-q4_K_M", "some-other-model:8b"],
+            model_names=["gemma3:4b", "some-other-model:8b"],
         )
         with patch(_CFG_MGR_TARGET):
             wizard = SetupWizard(mode=WizardMode.QUICK_START)
         config = wizard.generate_config(caps)
 
-        assert config.models.text_model == "qwen2.5:3b-instruct-q4_K_M"
+        assert config.models.text_model == "gemma3:4b"
 
     def test_falls_back_to_first_available_model(self) -> None:
         from core.setup_wizard import SetupWizard, WizardMode
