@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-__version__ = "2.0.0-beta.6"
+__version__ = "2.0.0-beta.7"
 
 # Pattern for semantic versioning with optional pre-release and build metadata
 _VERSION_PATTERN = re.compile(

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fo-core"
-version = "2.0.0-beta.6"
+version = "2.0.0-beta.7"
 description = "Streamlined CLI file organizer powered by local AI (Ollama)"
 authors = [
     {name = "fo-core Team", email = "noreply@example.com"}
