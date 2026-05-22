@@ -357,6 +357,7 @@ branch = true
 omit = [
     "*/tests/*",
     "*/test_*.py",
+    "*/readers/_scientific_stub.py",
 ]
 
 [tool.coverage.report]
