@@ -617,6 +617,7 @@ class TestBackupSafeUnlinkInodeSwap:
 
 @pytest.mark.ci
 @pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
 class TestBackupSafeUnlinkIssue350:
     """Targeted tests for the issue #350 refinements."""
