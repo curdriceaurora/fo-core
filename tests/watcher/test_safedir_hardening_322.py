@@ -283,14 +283,20 @@ class TestSafeDirAllowsLstatContainment:
 
         assert result is True
 
-    def test_path_completely_outside_watch_root_allowed_through(
+    def test_path_completely_outside_watch_root_rejected(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
     ) -> None:
-        """A path not under watch_root is allowed through (secondary watch dir).
+        """A path not under watch_root is rejected by the handler (issue #347).
 
-        The SafeDir is only anchored to the primary watch root.  Events from
-        other roots added via ``add_directory()`` are outside that root and
-        must pass through to the pipeline-level SafeDir backstop (#322 / 1.4).
+        ``relative_to(watch_root)`` raises ``ValueError`` when the lstat path
+        cannot be contained within the primary root.  The old code returned
+        ``True`` here (security bypass); the fix returns ``False`` so that
+        escaping-symlink paths cannot slip through (#347).
+
+        In the multi-directory monitor scenario ``FileMonitor.add_directory()``
+        clears ``handler._watch_root`` to ``None`` so that the containment
+        check is disabled before a second directory is added — this test
+        verifies the single-root, single-handler case where the check is active.
         """
         if sys.platform == "win32":
             pytest.skip("SafeDir is POSIX-only")
@@ -303,8 +309,8 @@ class TestSafeDirAllowsLstatContainment:
         handler = FileEventHandler(default_config, queue, safe_dir=sd_mock, watch_root=watch_root)
         result = handler._safedir_allows(outside)
 
-        # Allowed through — pipeline SafeDir handles it.
-        assert result is True
+        # Rejected — lstat path cannot be relativized to watch_root (#347).
+        assert result is False
         # open_child should NOT have been called on a path outside the primary root.
         sd_mock.open_child.assert_not_called()
 
@@ -317,7 +323,7 @@ class TestSafeDirAllowsLstatContainment:
 @pytest.mark.unit
 @pytest.mark.ci
 class TestSafeDirAllowsNestedPaths:
-    """Nested paths under watch_root are ancestry-checked; paths outside are allowed through."""
+    """Nested paths under watch_root are ancestry-checked; paths outside are rejected (issue #347)."""
 
     def test_nested_path_inside_root_allowed(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
@@ -340,14 +346,17 @@ class TestSafeDirAllowsNestedPaths:
 
         assert result is True
 
-    def test_nested_path_outside_root_allowed_through(
+    def test_nested_path_outside_root_rejected(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
     ) -> None:
-        """A nested path outside watch_root is allowed through (secondary watch dir).
+        """A nested path outside watch_root is rejected when watch_root is set (issue #347).
 
-        Events from directories added via ``add_directory()`` may be nested
-        paths that are outside the primary watch root.  These must be allowed
-        through to the pipeline-level SafeDir backstop (#322 / 1.5 revised).
+        Events from secondary watch directories added via ``add_directory()``
+        are handled by ``FileMonitor.add_directory()`` clearing
+        ``handler._watch_root`` to ``None`` before the second directory is
+        registered — so the containment check is disabled for multi-root setups.
+        This test verifies the single-root case where the check is active and
+        outside paths must be rejected.
         """
         if sys.platform == "win32":
             pytest.skip("SafeDir is POSIX-only")
@@ -361,8 +370,8 @@ class TestSafeDirAllowsNestedPaths:
         handler = FileEventHandler(default_config, queue, safe_dir=sd_mock, watch_root=watch_root)
         result = handler._safedir_allows(outside_nested)
 
-        # Allowed through — pipeline SafeDir handles it.
-        assert result is True
+        # Rejected — lstat path is outside watch_root and cannot be relativized (#347).
+        assert result is False
         sd_mock.open_child.assert_not_called()
 
     def test_nested_path_does_not_call_open_child(

@@ -257,10 +257,12 @@ class FileEventHandler(FileSystemEventHandler):
         logged.  Any other ``OSError`` (e.g. the file was deleted) is
         treated as "allow" so transient races don't silence real events.
 
-        Paths that are NOT under ``watch_root`` (e.g. from a second watch
-        directory added via ``add_directory()``) are allowed through — they
-        are outside this SafeDir's scope and the pipeline-level SafeDir is
-        their backstop.
+        Paths whose lstat form cannot be relativized to ``watch_root`` (i.e.
+        ``relative_to`` raises ``ValueError``) are **rejected** — returning
+        ``False``.  The old behavior of allowing them through was a security
+        bypass: a symlink whose resolved target escapes the watch root but
+        whose lstat path also cannot be relativized would pass unchecked
+        (issue #347).
 
         Changes vs. original PR6 implementation (issue #322):
 
@@ -301,19 +303,22 @@ class FileEventHandler(FileSystemEventHandler):
             lstat_path = lstat_dir / path.name
 
             # Check whether this path is under the primary watch_root.
-            # ``relative_to`` raises ``ValueError`` for unrelated trees (e.g.
-            # a second directory added via ``add_directory()``); those are
-            # allowed through because they are outside this SafeDir's scope.
+            # ``relative_to`` raises ``ValueError`` when the lstat path is not
+            # under watch_root at all (e.g. a symlink whose resolved directory
+            # escapes the root, or a second watch directory whose lstat form
+            # falls outside the tree).  Such paths are **rejected** — returning
+            # False — because we cannot verify containment.  The old behaviour
+            # of returning True here was a security bypass: issue #347.
             try:
                 rel = lstat_path.relative_to(watch_root)
             except ValueError:
-                logger.debug(
-                    "SafeDir watcher: path %s outside primary root %s — "
-                    "allowing (pipeline will re-check)",
+                logger.error(
+                    "security_event watcher_path_outside_root path=%s: "
+                    "lstat path cannot be relativized to watch root %s — dropped",
                     path,
                     watch_root,
                 )
-                return True
+                return False
 
             # 1.4 — Extra guard: commonpath catches edge cases where
             # relative_to succeeds but the path would escape (e.g. on

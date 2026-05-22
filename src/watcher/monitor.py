@@ -182,6 +182,19 @@ class FileMonitor:
                 if path not in self.config.watch_directories:
                     self.config.watch_directories.append(path)
 
+            # When a second watch directory is added the single-root containment
+            # check in ``_safedir_allows`` can no longer be applied — events
+            # from the new directory will fail ``relative_to(watch_root)`` and
+            # would be dropped.  Clear ``_watch_root`` so the check is skipped;
+            # security for non-primary directories falls back to the
+            # pipeline-level SafeDir (issue #347).
+            if self.handler._watch_root is not None:
+                self.handler._watch_root = None
+                logger.debug(
+                    "FileMonitor: disabled watcher-level root containment check "
+                    "(multiple watch directories; pipeline SafeDir is backstop)"
+                )
+
             logger.info("Added watch directory: %s (recursive=%s)", path, recursive)
 
     def remove_directory(self, path: Path) -> None:
