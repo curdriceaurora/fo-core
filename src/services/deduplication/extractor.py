@@ -32,7 +32,7 @@ try:
 except ImportError:  # pragma: no cover
     _ET = _stdlib_ET  # type: ignore[assignment]
 
-from utils.readers import read_file_via_safedir_anchored
+from utils.readers import FileReadError
 from utils.safedir import SafeDir, SymlinkRejected
 
 logger = logging.getLogger(__name__)
@@ -110,14 +110,33 @@ class DocumentExtractor:
         # only when SafeDir is unavailable (Windows).
         if sys.platform != "win32":
             if scan_root is not None:
-                # Anchored traversal: validates every intermediate component
-                # between scan_root and file_path with O_NOFOLLOW (#286/#325).
+                # Anchored traversal: open via SafeDir.open_anchored_reader so
+                # every intermediate component between scan_root and file_path
+                # is validated with O_NOFOLLOW.
+                #
+                # S2 fix (issue #349): the old approach called
+                # read_file_via_safedir_anchored and fell through to an
+                # unanchored SafeDir.open_root(file_path.parent) branch when
+                # the extension wasn't in the utils.readers registry (e.g.
+                # ODT), bypassing intermediate-ancestor protection entirely.
+                # open_anchored_reader handles all extensions uniformly.
+                #
+                # C4 fix (issue #349): read_file_via_safedir_anchored routed
+                # through utils.readers defaults (max_pages=5, max_chars=5000),
+                # yielding shorter text when scan_root was set and silently
+                # degrading dedup accuracy.  _extract_from_fileobj uses the
+                # full-file extractors instead.
                 try:
-                    content = read_file_via_safedir_anchored(file_path, trusted_root=scan_root)
-                    if content is not None:
-                        return content
-                    # Extension not in SafeDir registry — fall through to the
-                    # per-format fileobj branch below for full format coverage.
+                    relative = file_path.relative_to(scan_root)  # ValueError if escaped
+                    with SafeDir.open_root(scan_root) as root_sd:
+                        fd = root_sd.open_anchored_reader(relative)
+                        try:
+                            fileobj = os.fdopen(fd, "rb", closefd=True)
+                        except OSError:
+                            os.close(fd)
+                            raise
+                        with fileobj:
+                            return self._extract_from_fileobj(extension, fileobj, file_path.name)
                 except SymlinkRejected as exc:
                     logger.warning(
                         "Refused to read symlinked file %s: %s",
@@ -128,7 +147,9 @@ class DocumentExtractor:
                     return ""
                 except NotImplementedError:
                     logger.debug("SafeDir unavailable; using legacy reader for %s", file_path.name)
-                except (OSError, ValueError, ImportError) as e:
+                except (OSError, ValueError, ImportError, FileReadError) as e:
+                    # C5 fix (issue #349): FileReadError raised by format-specific
+                    # extractors for malformed files was not caught before.
                     logger.error("Error extracting text from %s: %s", file_path, e, exc_info=True)
                     return ""
 

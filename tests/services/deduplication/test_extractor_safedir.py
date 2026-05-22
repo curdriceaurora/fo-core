@@ -384,3 +384,98 @@ class TestAnchoredTraversalExtractor:
         assert len(calls) == 2
         for call in calls:
             assert call.kwargs.get("scan_root") == scan_root
+
+
+# ---------------------------------------------------------------------------
+# Issue #349 — S2, C4, C5 fixes to the anchored scan_root branch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
+class TestAnchoredTraversalIssue349:
+    """Targeted tests for the issue #349 refinements to the scan_root branch."""
+
+    def test_anchored_open_used_for_all_extensions_when_scan_root_set(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """S2: open_anchored_reader must be used for ALL extensions, not just those
+        registered in the utils.readers SafeDir registry.
+
+        The old code called read_file_via_safedir_anchored which returned None for
+        unregistered extensions (e.g. ODT) and fell through to an unanchored
+        SafeDir.open_root(file_path.parent), bypassing intermediate-ancestor
+        protection.  The fix uses open_anchored_reader directly for all extensions.
+        """
+        scan_root = tmp_path / "root"
+        subdir = scan_root / "sub"
+        subdir.mkdir(parents=True)
+        target = subdir / "doc.txt"
+        target.write_text("full anchored content")
+
+        # Patch open_anchored_reader to verify it's called (not open_for_reader
+        # on a parent-rooted SafeDir, which would mean S2 is not fixed).
+        original_open_anchored = SafeDir.open_anchored_reader
+        anchored_calls: list[str] = []
+
+        def spy_anchored(self: SafeDir, relative_path: object) -> int:
+            anchored_calls.append(str(relative_path))
+            return original_open_anchored(self, relative_path)  # type: ignore[arg-type]
+
+        with patch.object(SafeDir, "open_anchored_reader", spy_anchored):
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert result == "full anchored content"
+        assert len(anchored_calls) == 1, (
+            "open_anchored_reader must be called exactly once for anchored traversal"
+        )
+
+    def test_anchored_scan_root_uses_full_file_extractor_not_readers_defaults(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """C4: _extract_from_fileobj must be called, not read_file_via_safedir_anchored.
+
+        read_file_via_safedir_anchored used utils.readers defaults (max_pages=5,
+        max_chars=5000), silently truncating documents.  The fix passes the fd from
+        open_anchored_reader directly to _extract_from_fileobj which uses the full-
+        file extractors.
+        """
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "doc.txt"
+        target.write_text("full document content for dedup")
+
+        with patch.object(
+            extractor, "_extract_from_fileobj", wraps=extractor._extract_from_fileobj
+        ) as mock_extract_fileobj:
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert result == "full document content for dedup"
+        mock_extract_fileobj.assert_called_once()
+
+    def test_fileread_error_from_extractor_returns_empty_string(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """C5: FileReadError raised by a format extractor must be caught and return "".
+
+        The old except clause only caught (OSError, ValueError, ImportError).
+        FileReadError (a distinct Exception subclass) escaped, breaking the
+        documented 'return "" on any extraction failure' contract.
+        """
+        from utils.readers import FileReadError
+
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "corrupt.txt"
+        target.write_bytes(b"\x00" * 100)
+
+        with patch.object(
+            extractor,
+            "_extract_from_fileobj",
+            side_effect=FileReadError("simulated corrupt file"),
+        ):
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert result == "", (
+            "FileReadError from a format extractor must be caught and return empty string"
+        )
