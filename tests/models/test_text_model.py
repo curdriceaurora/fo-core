@@ -234,10 +234,12 @@ class TestTextModel:
         assert config.model_type == ModelType.TEXT
         assert config.quantization == "q4_k_m"
 
-    def test_get_default_config_custom_name(self) -> None:
+    def test_get_default_config_with_custom_model_name(self) -> None:
         """Test retrieving a custom configuration."""
         config = TextModel.get_default_config("custom-model")
         assert config.name == "custom-model"
+        assert config.model_type == ModelType.TEXT
+        assert config.quantization == "q4_k_m"
 
 
 @pytest.mark.unit
