@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import base64
 import mimetypes
+import os
+import sys
 from pathlib import Path
 
 # Fallback MIME type when extension is not recognised
@@ -33,6 +35,12 @@ _EXTENSION_MIME: dict[str, str] = {
 def image_to_data_url(image_path: Path) -> str:
     """Encode an image file as a base64 data URL.
 
+    Opens the file via ``SafeDir`` on POSIX so a symlink swapped into
+    the path between directory enumeration and this read is refused with
+    ``SymlinkRejected`` (raised as ``OSError``) rather than dereferenced
+    (issue #352 S3).  On Windows or when SafeDir is unavailable the
+    direct ``open()`` fallback is used.
+
     Args:
         image_path: Path to the image file.
 
@@ -41,7 +49,8 @@ def image_to_data_url(image_path: Path) -> str:
 
     Raises:
         FileNotFoundError: If the file does not exist.
-        OSError: If the file cannot be read.
+        OSError: If the file cannot be read, or if *image_path* is a
+            symlink (POSIX only).
     """
     ext = image_path.suffix.lower()
     mime_type = _EXTENSION_MIME.get(ext)
@@ -49,8 +58,36 @@ def image_to_data_url(image_path: Path) -> str:
         mime_type, _ = mimetypes.guess_type(str(image_path))
     if not mime_type:
         mime_type = _DEFAULT_IMAGE_MIME
-    with open(image_path, "rb") as fh:
-        encoded = base64.b64encode(fh.read()).decode("utf-8")
+
+    raw: bytes
+    if sys.platform != "win32":
+        try:
+            from utils.safedir import SafeDir, SymlinkRejected
+
+            with SafeDir.open_root(image_path.parent) as sd:
+                fd = sd.open_for_reader(image_path.name)
+                try:
+                    fh = os.fdopen(fd, "rb", closefd=True)
+                except OSError:
+                    os.close(fd)
+                    raise
+                with fh:
+                    raw = fh.read()
+        except (NotImplementedError, ImportError):
+            # SafeDir primitives unavailable — fall through to direct open.
+            with open(
+                image_path, "rb"
+            ) as fh_direct:  # safedir: ok — Windows / NotImplementedError fallback
+                raw = fh_direct.read()
+        except (SymlinkRejected, ValueError) as exc:
+            raise OSError(f"Refused to read symlinked image {image_path}: {exc}") from exc
+    else:  # pragma: no cover — Windows-only branch, not reachable on POSIX CI
+        with open(
+            image_path, "rb"
+        ) as fh_win:  # safedir: ok — Windows / NotImplementedError fallback
+            raw = fh_win.read()
+
+    encoded = base64.b64encode(raw).decode("utf-8")
     return f"data:{mime_type};base64,{encoded}"
 
 

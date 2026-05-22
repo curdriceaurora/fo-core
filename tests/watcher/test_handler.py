@@ -728,15 +728,16 @@ class TestSafeDirAllows:
         handler = FileEventHandler(default_config, queue, safe_dir=None)
         assert handler._safedir_allows(Path("/any/path")) is True
 
-    def test_path_outside_root_allowed_through(
+    def test_path_outside_root_rejected(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
     ) -> None:
-        """Path outside watch_root is allowed through (may be from a secondary watch dir).
+        """Path whose lstat form is outside watch_root is rejected (issue #347).
 
-        The SafeDir is anchored to the primary watch root.  Events from other
-        directories added via ``add_directory()`` are outside that root and
-        must NOT be dropped here — the pipeline-level SafeDir is their backstop.
-        (#322 / 1.4 — containment check updated).
+        ``relative_to`` raises ``ValueError`` when the lstat path cannot be
+        relativized to watch_root.  The old code returned ``True`` (allow),
+        which was a security bypass: a symlink escaping the root but whose
+        lstat path also fails relativization would pass unchecked.  The fix
+        returns ``False`` so containment is enforced conservatively.
         """
         import sys
 
@@ -754,8 +755,39 @@ class TestSafeDirAllows:
             handler = FileEventHandler(default_config, queue, safe_dir=sd, watch_root=watch_root)
             result = handler._safedir_allows(outside)
 
-        # Allowed through — pipeline SafeDir handles it.
-        assert result is True
+        # Rejected — lstat path cannot be relativized to watch_root (#347).
+        assert result is False
+
+    def test_relative_to_valueerror_rejects_path(
+        self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
+    ) -> None:
+        """``ValueError`` from ``relative_to`` returns False, not True (issue #347).
+
+        Uses a MagicMock SafeDir so the test is purely unit-level: we inject a
+        path whose parent resolves to a directory outside watch_root, which
+        causes ``lstat_path.relative_to(watch_root)`` to raise ``ValueError``.
+        The handler must return ``False`` (drop), not ``True`` (allow).
+        """
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_root = tmp_path / "watch"
+        watch_root.mkdir()
+
+        # A path whose parent is completely outside watch_root — relative_to
+        # will raise ValueError without touching the filesystem.
+        escaping = tmp_path / "escape_dir" / "secret.txt"
+        escaping.parent.mkdir(parents=True)
+        escaping.write_bytes(b"secret")
+
+        sd_mock = MagicMock()
+        handler = FileEventHandler(default_config, queue, safe_dir=sd_mock, watch_root=watch_root)
+        result = handler._safedir_allows(escaping)
+
+        # Must be rejected — not allowed through.
+        assert result is False
 
     def test_nested_path_allowed_through(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue

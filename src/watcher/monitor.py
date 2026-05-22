@@ -63,21 +63,33 @@ class FileMonitor:
         safe_dir = None
         watch_root: Path | None = None
         if self.config.watch_directories and sys.platform != "win32":
-            try:
-                from utils.safedir import SafeDir
-
-                watch_root = Path(self.config.watch_directories[0]).resolve()
-                safe_dir = SafeDir.open_root(watch_root)
-            except Exception as exc:
-                logger.warning(
-                    "FileMonitor: cannot open SafeDir for watch root %s: %s — "
-                    "watcher-level symlink check disabled",
-                    self.config.watch_directories[0] if self.config.watch_directories else "(none)",
-                    exc,
-                    exc_info=True,
+            if len(self.config.watch_directories) > 1:
+                # Multi-root startup: the single-root containment check in
+                # _safedir_allows cannot be applied because events from roots
+                # 2..N would fail relative_to(watch_root) and be silently
+                # dropped (issue #347 P1 follow-up).  Skip SafeDir entirely;
+                # the pipeline-level SafeDir is the backstop for all roots.
+                logger.debug(
+                    "FileMonitor: %d watch directories at startup — watcher-level "
+                    "containment check disabled; pipeline SafeDir is backstop",
+                    len(self.config.watch_directories),
                 )
-                safe_dir = None
-                watch_root = None
+            else:
+                try:
+                    from utils.safedir import SafeDir
+
+                    watch_root = Path(self.config.watch_directories[0]).resolve()
+                    safe_dir = SafeDir.open_root(watch_root)
+                except Exception as exc:
+                    logger.warning(
+                        "FileMonitor: cannot open SafeDir for watch root %s: %s — "
+                        "watcher-level symlink check disabled",
+                        self.config.watch_directories[0],
+                        exc,
+                        exc_info=True,
+                    )
+                    safe_dir = None
+                    watch_root = None
 
         self.handler = FileEventHandler(
             self.config, self.queue, safe_dir=safe_dir, watch_root=watch_root
@@ -104,6 +116,35 @@ class FileMonitor:
         with self._lock:
             if self._running:
                 raise RuntimeError("FileMonitor is already running")
+
+            # Reinitialize SafeDir if it was released by a previous stop() call.
+            # stop() always sets handler._safe_dir = None to release the fd; on
+            # restart the handler would run without watcher-level symlink checks
+            # unless we reopen it here (issue #348 P1 follow-up).
+            # Guard: only for single-root configs — __init__ deliberately leaves
+            # _safe_dir=None for multi-root setups so events from roots 2..N are
+            # not silently dropped (issue #347 P1 follow-up).
+            if (
+                self.handler._safe_dir is None
+                and len(self.config.watch_directories) == 1
+                and sys.platform != "win32"
+            ):
+                try:
+                    from utils.safedir import SafeDir
+
+                    watch_root = Path(self.config.watch_directories[0]).resolve()
+                    self.handler._safe_dir = SafeDir.open_root(watch_root)
+                    self.handler._watch_root = watch_root
+                    logger.debug(
+                        "FileMonitor: (re)initialized SafeDir for watch root %s", watch_root
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "FileMonitor: cannot (re)initialize SafeDir on start: %s — "
+                        "watcher-level symlink check disabled",
+                        exc,
+                        exc_info=True,
+                    )
 
             # Try native observer first, fallback to polling if it fails
             try:
@@ -139,20 +180,31 @@ class FileMonitor:
     def stop(self) -> None:
         """Stop monitoring and clean up resources.
 
-        Stops the watchdog observer and clears all watch state.
-        Safe to call even if the monitor is not running.
+        Stops the watchdog observer, releases the SafeDir file descriptor,
+        and clears all watch state. Safe to call even if the monitor is not
+        running.
         """
         with self._lock:
-            if not self._running or self._observer is None:
-                return
+            if self._running and self._observer is not None:
+                observer = self._observer
+                observer.stop()  # type: ignore[no-untyped-call]
+                observer.join(timeout=5.0)
+                self._observer = None
+                self._watches.clear()
+                self._running = False
+                logger.info("FileMonitor stopped")
 
-            observer = self._observer
-            observer.stop()  # type: ignore[no-untyped-call]
-            observer.join(timeout=5.0)
-            self._observer = None
-            self._watches.clear()
-            self._running = False
-            logger.info("FileMonitor stopped")
+            # Release the directory fd held by the SafeDir regardless of
+            # whether the observer was running.  Each daemon restart opens a
+            # fresh SafeDir in __init__; without this cleanup the old fd leaks
+            # and repeated restarts accumulate toward EMFILE.  __exit__ is
+            # idempotent so calling stop() more than once is safe.
+            if self.handler._safe_dir is not None:
+                try:
+                    self.handler._safe_dir.__exit__(None, None, None)
+                except OSError:
+                    pass  # suppress any stray EBADF
+                self.handler._safe_dir = None
 
     def add_directory(self, path: Path, recursive: bool = True) -> None:
         """Add a directory to be monitored.
@@ -181,6 +233,34 @@ class FileMonitor:
                 # If not running, just add to config for when start() is called
                 if path not in self.config.watch_directories:
                     self.config.watch_directories.append(path)
+
+            # Only disable the single-root containment check when the new
+            # directory is genuinely outside the current watch root.  Sub-
+            # directories of the existing root pass relative_to() and do
+            # not require disabling the check (issue #347 P2).
+            # When the check IS disabled, emit a WARNING so operators know
+            # that only the pipeline-level SafeDir backstop is active for
+            # the new directory (issue #348 R2).
+            current_root = self.handler._watch_root
+            if current_root is not None:
+                try:
+                    path.relative_to(current_root)
+                    # path is under the current root — no change needed
+                except ValueError:
+                    # path is outside the current root — close and clear SafeDir
+                    # so _safedir_allows() no longer calls open_child() against
+                    # the old root for events from the new directory.
+                    if self.handler._safe_dir is not None:
+                        self.handler._safe_dir.__exit__(None, None, None)
+                        self.handler._safe_dir = None
+                    self.handler._watch_root = None
+                    logger.warning(
+                        "FileMonitor.add_directory: %s is outside the primary SafeDir root (%s) "
+                        "— watcher-level containment check disabled; "
+                        "pipeline-level SafeDir is the active backstop",
+                        path,
+                        current_root,
+                    )
 
             logger.info("Added watch directory: %s (recursive=%s)", path, recursive)
 
