@@ -59,8 +59,30 @@ def _backup_safe_unlink(path: Path, log: logging.Logger) -> bool:
 
     try:
         with SafeDir.open_root(path.parent) as safe_dir:
+            # R4 fix: lstat BEFORE open_child so FIFOs (and other non-regular
+            # entries) are rejected without attempting the open.  open_child
+            # with O_RDONLY on a FIFO would block until a writer connects,
+            # hanging cleanup indefinitely (issue #350 R4).
+            pre_lst = safe_dir.lstat(path.name)
+            if not _stat.S_ISREG(pre_lst.st_mode):
+                log.warning(
+                    "security_event inode_swap_in_backup path=%s mode=0o%o — "
+                    "non-regular file; skipping (R4 FIFO-hang prevention)",
+                    path,
+                    pre_lst.st_mode,
+                )
+                return False
+
             # Open the file (O_RDONLY | O_NOFOLLOW) to pin its inode.
-            child_fd = safe_dir.open_child(path.name)
+            try:
+                child_fd = safe_dir.open_child(path.name)
+            except PermissionError:
+                # T5 fix (issue #350): write-only files (mode 0o200) cannot be
+                # opened O_RDONLY even by the owner.  The inode-pin is skipped,
+                # but SafeDir's dir_fd still binds the unlink to the correct
+                # directory entry — directory-swap protection is preserved.
+                safe_dir.unlink(path.name)
+                return True
             try:
                 fst = os.fstat(child_fd)
             finally:
@@ -75,29 +97,37 @@ def _backup_safe_unlink(path: Path, log: logging.Logger) -> bool:
                 return False
 
             # Re-stat the name (lstat, no symlink follow) and compare
-            # (dev, ino, size) to detect a swap between open and unlink.
+            # (dev, ino) to detect a swap between open and unlink.
+            # C3 fix (issue #350): omit st_size — a concurrent writer can
+            # legitimately change the size on the same inode between fstat and
+            # lstat, which would be a false-positive swap detection.
             lst = safe_dir.lstat(path.name)
-            if (lst.st_dev, lst.st_ino, lst.st_size) != (
-                fst.st_dev,
-                fst.st_ino,
-                fst.st_size,
-            ):
+            if (lst.st_dev, lst.st_ino) != (fst.st_dev, fst.st_ino):
                 log.warning(
                     "security_event inode_swap_in_backup path=%s "
-                    "fstat=(%d,%d,%d) lstat=(%d,%d,%d) — skipping",
+                    "fstat=(%d,%d) lstat=(%d,%d) — skipping",
                     path,
                     fst.st_dev,
                     fst.st_ino,
-                    fst.st_size,
                     lst.st_dev,
                     lst.st_ino,
-                    lst.st_size,
                 )
                 return False
 
             safe_dir.unlink(path.name)
             return True
-    except (OSError, ValueError):
+    except ValueError as exc:
+        # C1/C2 fix (issue #350): SafeDir raises ValueError for filenames
+        # containing characters it rejects (e.g. backslash).  Log at WARNING
+        # so operators can see this — the old DEBUG log was invisible in prod.
+        log.warning(
+            "security_event backup_name_rejected path=%s: %s — "
+            "filename rejected by SafeDir name validation",
+            path,
+            exc,
+        )
+        return False
+    except OSError:
         log.debug("Failed to remove backup %s", path, exc_info=True)
         return False
 

@@ -615,6 +615,7 @@ class TestBackupSafeUnlinkInodeSwap:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.ci
 @pytest.mark.unit
 @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
 class TestBackupSafeUnlinkIssue350:
@@ -623,20 +624,25 @@ class TestBackupSafeUnlinkIssue350:
     def test_fifo_is_rejected_before_open(self, tmp_path: Path) -> None:
         """R4: a FIFO must be rejected by lstat type-check before open_child is called.
 
-        open_child with O_RDONLY would block indefinitely on a FIFO; lstat checks
-        the type first so we never attempt the open.
+        open_child with O_RDONLY on a FIFO blocks until a writer connects; the
+        pre-open lstat check must fire first so open_child is never reached.
         """
         import logging
         import stat
+        from unittest.mock import patch
+
+        from utils.safedir import SafeDir
 
         fifo = tmp_path / "queue.fifo"
         os.mkfifo(fifo)
         assert stat.S_ISFIFO(fifo.stat().st_mode)
 
-        result = _backup_safe_unlink(fifo, logging.getLogger("test"))
+        with patch.object(SafeDir, "open_child", autospec=True) as mock_open_child:
+            result = _backup_safe_unlink(fifo, logging.getLogger("test"))
 
         assert result is False
         assert fifo.exists(), "FIFO must not be unlinked — type check should reject it"
+        mock_open_child.assert_not_called()
 
     def test_size_change_on_same_inode_does_not_trigger_swap_detection(
         self, tmp_path: Path
@@ -702,24 +708,29 @@ class TestBackupSafeUnlinkIssue350:
         )
 
     def test_write_only_file_is_unlinked_without_fd_pin(self, tmp_path: Path) -> None:
-        """T5: a write-only file (mode 0o200) can still be unlinked.
+        """T5: a write-only file raises PermissionError from open_child; unlink still succeeds.
 
-        open_child with O_RDONLY raises PermissionError on a 0o200 file.  The fix
-        detects this and proceeds with unlink-without-fd-pin (SafeDir's dir_fd still
-        prevents directory swaps).
+        The fix catches PermissionError from open_child and proceeds with
+        unlink-without-fd-pin — SafeDir's dir_fd still prevents directory swaps.
+
+        Uses a deterministic mock rather than chmod(0o200) so the test passes
+        even under privileged users (e.g. root on CI runners).
         """
         import logging
+        from unittest.mock import patch
+
+        from utils.safedir import SafeDir
 
         target = tmp_path / "locked.bak"
         target.write_bytes(b"data")
-        target.chmod(0o200)  # write-only — open O_RDONLY would fail
 
-        try:
+        with patch.object(
+            SafeDir,
+            "open_child",
+            autospec=True,
+            side_effect=PermissionError("simulated write-only file"),
+        ):
             result = _backup_safe_unlink(target, logging.getLogger("test"))
-        finally:
-            # Restore permissions so tmp_path cleanup succeeds
-            if target.exists():
-                target.chmod(0o600)
 
         assert result is True
         assert not target.exists()

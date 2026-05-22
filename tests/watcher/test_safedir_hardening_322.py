@@ -685,6 +685,38 @@ class TestFileMonitorStopClosesSafeDir:
         finally:
             monitor.stop()
 
+    def test_multi_root_stop_start_keeps_safedir_disabled(self, tmp_path: Path) -> None:
+        """stop()/start() on a multi-root monitor must NOT re-enable SafeDir.
+
+        __init__ intentionally leaves _safe_dir=None for multi-root configs so
+        events from roots 2..N are not silently dropped.  start() after stop()
+        must preserve that invariant; re-initialising on watch_directories[0]
+        would cause the other roots to lose their events (issue #347/#348 P1).
+        """
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        dir_a = tmp_path / "a"
+        dir_b = tmp_path / "b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+        config = WatcherConfig(watch_directories=[dir_a, dir_b], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        assert monitor.handler._safe_dir is None, (
+            "pre-condition: multi-root init must leave _safe_dir=None"
+        )
+
+        monitor.stop()
+        monitor.start()
+        try:
+            assert monitor.handler._safe_dir is None, (
+                "start() after stop() on multi-root config must NOT reinitialise SafeDir "
+                "— doing so would cause events from roots 2..N to be silently dropped"
+            )
+        finally:
+            monitor.stop()
+
 
 @pytest.mark.unit
 @pytest.mark.ci
