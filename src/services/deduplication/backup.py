@@ -78,9 +78,18 @@ def _backup_safe_unlink(path: Path, log: logging.Logger) -> bool:
                 child_fd = safe_dir.open_child(path.name)
             except PermissionError:
                 # T5 fix (issue #350): write-only files (mode 0o200) cannot be
-                # opened O_RDONLY even by the owner.  The inode-pin is skipped,
-                # but SafeDir's dir_fd still binds the unlink to the correct
-                # directory entry — directory-swap protection is preserved.
+                # opened O_RDONLY even by the owner.  Compensate for the missing
+                # fd-pin by re-lstat-ing the entry and confirming the inode has
+                # not changed since pre_lst (reduces — but does not eliminate —
+                # the name-swap window between the two lstat calls).
+                post_lst = safe_dir.lstat(path.name)
+                if (post_lst.st_dev, post_lst.st_ino) != (pre_lst.st_dev, pre_lst.st_ino):
+                    log.warning(
+                        "security_event inode_swap_in_backup path=%s — "
+                        "inode changed between lstat calls; skipping",
+                        path,
+                    )
+                    return False
                 safe_dir.unlink(path.name)
                 return True
             try:
