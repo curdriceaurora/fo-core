@@ -70,7 +70,7 @@ def _make_caps_mock(
     *,
     ollama_running: bool = True,
     ollama_installed: bool = True,
-    models: list | None = None,
+    models: list[Any] | None = None,
 ) -> MagicMock:
     """Return a SystemCapabilities mock suitable for CLI-level tests."""
     m = models or []
@@ -210,8 +210,9 @@ class TestSetupNoSubcommand:
             mock_wiz.generate_config.return_value = cfg
             mock_wiz.validate_config.return_value = (True, [])
 
-            _runner.invoke(setup_app, [])
+            result = _runner.invoke(setup_app, [])
 
+        assert result.exit_code == 0
         mock_wiz_cls.assert_called_once_with(mode=WizardMode.QUICK_START)
 
 
