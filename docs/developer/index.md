@@ -15,8 +15,7 @@ cd fo-core
 
 ```bash
 pip install -e ".[dev]"
-ollama pull qwen2.5:3b-instruct-q4_K_M
-ollama pull qwen2.5vl:7b-q4_K_M
+ollama pull gemma3:4b
 ```
 
 ## Main Sections

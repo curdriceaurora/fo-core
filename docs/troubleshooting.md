@@ -32,11 +32,10 @@ export OLLAMA_HOST=http://localhost:12345
 **Solution**:
 
 ```bash
-# Pull the required models
-ollama pull qwen2.5:3b-instruct-q4_K_M      # Text model (~1.9 GB)
-ollama pull qwen2.5vl:7b-q4_K_M             # Vision model (~6.0 GB)
+# Pull the required model
+ollama pull gemma3:4b
 
-# Verify they're installed
+# Verify it's installed
 ollama list
 ```
 
@@ -569,6 +568,35 @@ fo analyze large-video.mp4 --verbose
 ```
 
 ## Image Processing Errors
+
+### Ollama Vision Model Fails to Load (OOM on 8 GB Machines)
+
+**Error**: Ollama returns "model failed to load" when processing images
+
+**Cause**: The vision model exceeds available RAM (common on 8 GB systems). Without
+a circuit breaker, every image in the batch would trigger a separate traceback.
+
+**What fo does**: When Ollama returns "model failed to load", fo trips a circuit
+breaker immediately and skips all remaining images in the batch with a single
+warning message. The rest of the organize run continues normally using text-only
+analysis.
+
+**Solution**:
+
+- Use `gemma3:4b` (the default), which requires ~3 GB for the model weights.
+  On 8 GB machines, close other applications to free RAM before running.
+- For systems with 16 GB RAM, switch to `gemma3:12b` for better accuracy:
+
+```bash
+fo config edit --text-model "gemma3:12b" --vision-model "gemma3:12b"
+ollama pull gemma3:12b
+```
+
+- To skip vision processing entirely and use text-only analysis:
+
+```bash
+fo organize /path/to/input /path/to/output --no-vision
+```
 
 ### Image Deduplication Error
 

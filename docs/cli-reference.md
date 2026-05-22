@@ -531,7 +531,7 @@ Options:
 ```bash
 fo config show
 fo config show --profile work
-fo config edit --text-model qwen2.5:3b-instruct-q4_K_M
+fo config edit --text-model gemma3:4b
 fo config edit --device cuda --methodology para
 fo config edit --profile work --temperature 0.7
 ```
@@ -562,7 +562,7 @@ fo model pull MODEL_NAME
 ```
 
 **Arguments:**
-- `NAME` — Model name to download (e.g. `qwen2.5:3b-instruct-q4_K_M`)
+- `NAME` — Model name to download (e.g. `gemma3:4b`)
 
 #### `model cache`
 
@@ -577,7 +577,7 @@ fo model cache
 ```bash
 fo model list
 fo model list --type vision
-fo model pull qwen2.5:3b-instruct-q4_K_M
+fo model pull gemma3:4b
 fo model cache
 ```
 
