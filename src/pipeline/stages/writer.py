@@ -79,15 +79,18 @@ class WriterStage:
                             written = 0
                             while written < len(view):
                                 written += os.write(dst_fd, view[written:])
+                    # E1 fix (issue #354): preserve mode and timestamps via fd-based
+                    # calls while the destination fd is still open — TOCTOU-free.
+                    # os.fchmod / os.utime on an open fd operate on the inode
+                    # directly, unlike shutil.copystat which re-opens the path and
+                    # creates a window for a symlink-swap attack (#322 / 1.7).
+                    try:
+                        src_stat = os.stat(context.file_path)
+                        os.fchmod(dst_fd, src_stat.st_mode & 0o777)
+                        os.utime(dst_fd, ns=(src_stat.st_atime_ns, src_stat.st_mtime_ns))
+                    except OSError:
+                        pass  # non-fatal: metadata loss is preferable to aborting the copy
                 finally:
-                    # 1.7 — Do NOT call shutil.copystat(src, dst_path) after
-                    # os.close(dst_fd): the destination fd is closed before
-                    # copystat re-opens the path, creating a TOCTOU window
-                    # where an attacker can swap the destination for a symlink
-                    # between close and re-open.  Metadata preservation is
-                    # intentionally omitted — the safer choice is to accept
-                    # default timestamps/mode rather than risk writing metadata
-                    # to an attacker-controlled target (#322 / 1.7).
                     os.close(dst_fd)
             else:
                 # Windows / SafeDir unavailable: legacy path-based copy.

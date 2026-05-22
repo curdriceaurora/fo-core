@@ -7,6 +7,7 @@ custom pipelines.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -586,6 +587,80 @@ class TestWriterSafeDirBranches:
         src.write_bytes(b"data")
 
         monkeypatch.setattr(shutil, "copystat", MagicMock(side_effect=OSError("perm")))
+
+        with SafeDir.open_root(out) as sd:
+            ctx = StageContext(
+                file_path=src,
+                destination=out / "src.txt",
+                dest_safedir=sd,
+                dry_run=False,
+            )
+            result = WriterStage().process(ctx)
+
+        assert not result.failed
+        assert (out / "src.txt").read_bytes() == b"data"
+
+    def test_fd_based_mode_and_timestamps_preserved(self, tmp_path: Path) -> None:
+        """E1 fix (issue #354): WriterStage preserves mode and mtime via fchmod/utime.
+
+        os.fchmod and os.utime on the open dst_fd are TOCTOU-free — no path
+        re-open, unlike the removed shutil.copystat call.
+        """
+        import sys
+        import time
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir path is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        out = tmp_path / "out"
+        out.mkdir()
+        src = tmp_path / "src.txt"
+        src.write_bytes(b"hello")
+
+        # Set a non-default mode and an old mtime on the source.
+        os.chmod(src, 0o640)
+        old_time = time.time() - 3600  # 1 hour ago
+        os.utime(src, (old_time, old_time))
+
+        with SafeDir.open_root(out) as sd:
+            ctx = StageContext(
+                file_path=src,
+                destination=out / "src.txt",
+                dest_safedir=sd,
+                dry_run=False,
+            )
+            result = WriterStage().process(ctx)
+
+        assert not result.failed
+        dst_stat = (out / "src.txt").stat()
+        src_stat = src.stat()
+
+        assert dst_stat.st_mode & 0o777 == src_stat.st_mode & 0o777, (
+            "destination mode must match source mode"
+        )
+        assert abs(dst_stat.st_mtime - src_stat.st_mtime) < 0.1, (
+            "destination mtime must match source mtime"
+        )
+
+    def test_fd_metadata_oserror_does_not_abort_copy(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """E1 fix (issue #354): OSError from fchmod/utime is swallowed; copy still succeeds."""
+        import sys
+
+        if sys.platform == "win32":
+            pytest.skip("SafeDir path is POSIX-only")
+
+        from utils.safedir import SafeDir
+
+        out = tmp_path / "out"
+        out.mkdir()
+        src = tmp_path / "src.txt"
+        src.write_bytes(b"data")
+
+        monkeypatch.setattr(os, "fchmod", MagicMock(side_effect=OSError("perm")))
 
         with SafeDir.open_root(out) as sd:
             ctx = StageContext(
