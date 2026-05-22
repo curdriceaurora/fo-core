@@ -435,3 +435,71 @@ def test_read_iges_with_short_file(tmp_path: Path) -> None:
     # Should still return something
     assert isinstance(result, str)
     assert "IGES" in result
+
+
+# ---------------------------------------------------------------------------
+# Issue #351 R3 — STEP byte cap checked before readline allocates full line
+# ---------------------------------------------------------------------------
+
+
+def test_step_single_oversized_line_does_not_exhaust_budget(tmp_path: Path) -> None:
+    """R3: readline(budget) must prevent a single very long line from allocating
+    memory beyond _MAX_STEP_BYTES before the cap check fires.
+
+    Before the fix, readline() was called without a size argument, so a 1 MB line
+    would be fully materialised in memory before total_bytes was incremented and
+    checked.  The fix passes the remaining budget to readline() so each call
+    allocates at most (budget + 1) characters.
+
+    This test writes a STEP file whose first content line is longer than
+    _MAX_STEP_BYTES.  The reader must still return a non-empty result (it reads
+    the header), must mark the read as truncated, and must not raise OOM or any
+    exception.
+    """
+    from utils.readers.cad import _MAX_STEP_BYTES
+
+    step_path = tmp_path / "bigline.step"
+    # Standard STEP header + one line that is 2× the byte cap
+    header = dedent("""\
+        ISO-10303-21;
+        HEADER;
+        FILE_DESCRIPTION(('Oversized line test'),'2;1');
+        FILE_NAME('bigline.step','2026-01-01T00:00:00',(''),(''),'','','');
+        FILE_SCHEMA(('AP214E3_2010'));
+        ENDSEC;
+        DATA;
+    """)
+    big_line = "A" * (_MAX_STEP_BYTES * 2) + "\n"
+    step_path.write_text(header + big_line, encoding="utf-8")
+
+    result = read_step_file(step_path)
+
+    # The file must be identified as STEP and marked truncated
+    assert isinstance(result, str)
+    assert "STEP" in result
+    assert "truncated" in result.lower() or "[truncated]" in result
+
+
+def test_step_single_oversized_line_via_fileobj(tmp_path: Path) -> None:
+    """Same as above but via the fileobj= branch (issue #351 R3)."""
+    import io
+
+    from utils.readers.cad import _MAX_STEP_BYTES
+
+    header = dedent("""\
+        ISO-10303-21;
+        HEADER;
+        FILE_DESCRIPTION(('Fileobj oversized test'),'2;1');
+        FILE_NAME('test.step','2026-01-01T00:00:00',(''),(''),'','','');
+        FILE_SCHEMA(('AP214E3_2010'));
+        ENDSEC;
+        DATA;
+    """)
+    big_line = "B" * (_MAX_STEP_BYTES * 2) + "\n"
+    content = (header + big_line).encode("utf-8")
+
+    result = read_step_file(fileobj=io.BytesIO(content))
+
+    assert isinstance(result, str)
+    assert "STEP" in result
+    assert "truncated" in result.lower() or "[truncated]" in result

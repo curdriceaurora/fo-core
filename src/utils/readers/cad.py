@@ -366,7 +366,12 @@ def read_step_file(
                 total_bytes = 0
                 hit_byte_cap = False
                 for _ in range(max_lines):
-                    line = text_stream.readline()
+                    # Pass the remaining budget to readline so a single very long
+                    # line cannot exhaust memory before the byte-cap check fires.
+                    # readline(size) reads at most `size` characters; STEP files
+                    # are ASCII so chars ≈ bytes (issue #351 R3).
+                    remaining = _MAX_STEP_BYTES - total_bytes + 1
+                    line = text_stream.readline(remaining)
                     if not line:
                         break
                     total_bytes += len(line.encode("utf-8", errors="ignore"))
@@ -396,7 +401,9 @@ def read_step_file(
             total_bytes = 0
             hit_byte_cap = False
             for _ in range(max_lines):
-                line = f.readline()
+                # Same budget-bound pattern as the fileobj branch (issue #351 R3).
+                remaining = _MAX_STEP_BYTES - total_bytes + 1
+                line = f.readline(remaining)
                 if not line:
                     break
                 total_bytes += len(line.encode("utf-8", errors="ignore"))
