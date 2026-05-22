@@ -654,6 +654,36 @@ class TestFileMonitorStopClosesSafeDir:
 
         monitor.stop()  # no-op; must not raise
 
+    def test_start_after_stop_reinitializes_safe_dir(self, tmp_path: Path) -> None:
+        """start() after stop() must reopen SafeDir so symlink checks remain active.
+
+        stop() clears handler._safe_dir to release the fd.  Without a matching
+        reinitialize in start(), a stop()/start() restart leaves the monitor
+        running with no watcher-level SafeDir — a security regression (issue #348 P1).
+        """
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_dir = tmp_path / "watch"
+        watch_dir.mkdir()
+        config = WatcherConfig(watch_directories=[watch_dir], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        assert monitor.handler._safe_dir is not None, "pre-condition: SafeDir open after init"
+
+        monitor.stop()
+        assert monitor.handler._safe_dir is None, "pre-condition: SafeDir closed after stop()"
+
+        monitor.start()
+        try:
+            assert monitor.handler._safe_dir is not None, (
+                "SafeDir must be reinitialized after start() — "
+                "watcher-level symlink checks were disabled after restart"
+            )
+            assert monitor.handler._watch_root == watch_dir.resolve()
+        finally:
+            monitor.stop()
+
 
 @pytest.mark.unit
 @pytest.mark.ci

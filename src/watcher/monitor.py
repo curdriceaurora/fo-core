@@ -117,6 +117,31 @@ class FileMonitor:
             if self._running:
                 raise RuntimeError("FileMonitor is already running")
 
+            # Reinitialize SafeDir if it was released by a previous stop() call.
+            # stop() always sets handler._safe_dir = None to release the fd; on
+            # restart the handler would run without watcher-level symlink checks
+            # unless we reopen it here (issue #348 P1 follow-up).
+            if (
+                self.handler._safe_dir is None
+                and self.config.watch_directories
+                and sys.platform != "win32"
+            ):
+                try:
+                    from utils.safedir import SafeDir
+
+                    watch_root = Path(self.config.watch_directories[0]).resolve()
+                    self.handler._safe_dir = SafeDir.open_root(watch_root)
+                    self.handler._watch_root = watch_root
+                    logger.debug(
+                        "FileMonitor: (re)initialized SafeDir for watch root %s", watch_root
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "FileMonitor: cannot (re)initialize SafeDir on start: %s — "
+                        "watcher-level symlink check disabled",
+                        exc,
+                    )
+
             # Try native observer first, fallback to polling if it fails
             try:
                 self._observer = Observer()
