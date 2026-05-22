@@ -315,7 +315,7 @@ class TextModel(BaseModel):
             self.client = None
 
     @staticmethod
-    def get_default_config(model_name: str = "qwen2.5:3b-instruct-q4_K_M") -> ModelConfig:
+    def get_default_config(model_name: str = "gemma3:4b") -> ModelConfig:
         """Get default configuration for text model.
 
         Args:

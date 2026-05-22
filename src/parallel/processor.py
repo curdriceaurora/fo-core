@@ -240,7 +240,7 @@ class ParallelProcessor:
         except Exception as exc:
             return FileResult(path=path, success=False, error=str(exc))
 
-    def _process_with_executor(
+    def _process_with_executor(  # noqa: C901 — complexity from nested state-tracking closures
         self,
         exec_instance: ThreadPoolExecutor | ProcessPoolExecutor,
         files: list[Path],
@@ -277,6 +277,10 @@ class ParallelProcessor:
         pending: set[Future[FileResult]] = set()
         future_paths: dict[Future[FileResult], Path] = {}
         future_started: dict[Future[FileResult], float | None] = {}
+        # Queue time is tracked separately: if a task never gets a worker thread
+        # within `timeout` seconds of submission, all workers are saturated by
+        # abandoned tasks and we must abort to avoid an infinite hang.
+        future_queued_at: dict[Future[FileResult], float] = {}
         iterator = iter(files)
         iterator_exhausted = False
 
@@ -291,6 +295,7 @@ class ParallelProcessor:
                 pending.add(future)
                 future_paths[future] = path
                 future_started[future] = None
+                future_queued_at[future] = time.monotonic()
                 return True
             except StopIteration:
                 iterator_exhausted = True
@@ -323,14 +328,38 @@ class ParallelProcessor:
                 pending.remove(future)
                 path = future_paths.pop(future)
                 future_started.pop(future, None)
+                future_queued_at.pop(future, None)
                 yield finalize_result(self._collect_result(future, path))
                 submit_round_of_work()
 
-            # Check for and handle timeouts
+            saturation = self._check_pool_saturation(
+                pending,
+                future_paths,
+                future_started,
+                future_queued_at,
+                timeout,
+                finalize_result,
+            )
+            if saturation is not None:
+                cleanup_state["force_nonblocking_shutdown"] = owns_executor
+                yield from saturation
+                for remaining_path in iterator:
+                    yield finalize_result(
+                        FileResult(
+                            path=remaining_path,
+                            success=False,
+                            error="Aborted: worker pool saturated by hung tasks",
+                            non_retryable=True,
+                        )
+                    )
+                return
+
+            # Check for running-task timeouts
             timeout_handling = self._handle_timeouts(
                 pending,
                 future_paths,
                 future_started,
+                future_queued_at,
                 timeout,
                 poll_interval,
                 finalize_result,
@@ -360,11 +389,60 @@ class ParallelProcessor:
 
             submit_round_of_work()
 
+    def _check_pool_saturation(
+        self,
+        pending: set[Future[FileResult]],
+        future_paths: dict[Future[FileResult], Path],
+        future_started: dict[Future[FileResult], float | None],
+        future_queued_at: dict[Future[FileResult], float],
+        timeout: float,
+        finalize_result: Callable[[FileResult], FileResult],
+    ) -> list[FileResult] | None:
+        """Detect and handle worker-pool saturation caused by abandoned tasks.
+
+        Returns a list of finalized error results for all pending tasks if the
+        pool is saturated (all pending tasks queued for > 2 × timeout without
+        starting), or None if the pool is healthy.  The 2× multiplier gives
+        temporarily-busy pools (abandoned tasks that finish in O(timeout)) time
+        to free a slot before declaring permanent saturation.
+        """
+        if not pending or not all(future_started[f] is None for f in pending):
+            return None
+        now = time.monotonic()
+        stalled = [f for f in pending if (now - future_queued_at.get(f, now)) > timeout * 2]
+        if not stalled:
+            return None
+        logger.warning(
+            "Worker pool saturated: %d queued tasks waited > %.0fs without "
+            "starting. Aborting remaining work.",
+            len(stalled),
+            timeout * 2,
+        )
+        results: list[FileResult] = []
+        for f in list(pending):
+            f.cancel()
+            abort_path = future_paths.pop(f)
+            future_started.pop(f, None)
+            future_queued_at.pop(f, None)
+            pending.discard(f)
+            results.append(
+                finalize_result(
+                    FileResult(
+                        path=abort_path,
+                        success=False,
+                        error="Aborted: worker pool saturated by hung tasks",
+                        non_retryable=True,
+                    )
+                )
+            )
+        return results
+
     def _handle_timeouts(
         self,
         pending: set[Future[FileResult]],
         future_paths: dict[Future[FileResult], Path],
         future_started: dict[Future[FileResult], float | None],
+        future_queued_at: dict[Future[FileResult], float],
         timeout: float,
         poll_interval: float,
         finalize_result: Callable[[FileResult], FileResult],
@@ -375,6 +453,7 @@ class ParallelProcessor:
             pending: Set of pending futures.
             future_paths: Mapping of futures to file paths.
             future_started: Mapping of futures to start times.
+            future_queued_at: Mapping of futures to submission times.
             timeout: Timeout threshold in seconds.
             poll_interval: Polling interval for drift compensation.
             finalize_result: Function to finalize results.
@@ -395,7 +474,7 @@ class ParallelProcessor:
             if future_started[future] is None and future.running():
                 future_started[future] = now - poll_interval
 
-        # Check for timeouts
+        # Check for running-task timeouts
         for future in list(pending):
             start_time = future_started[future]
             if start_time is None:
@@ -408,6 +487,7 @@ class ParallelProcessor:
                     pending.remove(future)
                     del future_paths[future]
                     del future_started[future]
+                    future_queued_at.pop(future, None)
                     timed_out_result = finalize_result(
                         FileResult(
                             path=path,
@@ -421,6 +501,7 @@ class ParallelProcessor:
                     pending.remove(future)
                     completed_path = future_paths.pop(future)
                     future_started.pop(future, None)
+                    future_queued_at.pop(future, None)
                     try:
                         completed_result = finalize_result(future.result())
                     except Exception as exc:
@@ -443,6 +524,7 @@ class ParallelProcessor:
                 pending.remove(future)
                 del future_paths[future]
                 del future_started[future]
+                future_queued_at.pop(future, None)
                 abandoned_result = finalize_result(
                     FileResult(
                         path=path,
