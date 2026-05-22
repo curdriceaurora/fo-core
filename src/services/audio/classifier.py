@@ -10,8 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-
-from _compat import StrEnum
+from enum import StrEnum
 
 from .metadata_extractor import AudioMetadata
 from .transcriber import Segment, TranscriptionResult

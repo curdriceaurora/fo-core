@@ -7,8 +7,7 @@ and conflict detection.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-
-from _compat import StrEnum
+from enum import StrEnum
 
 
 class ConflictType(StrEnum):

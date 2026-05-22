@@ -266,6 +266,31 @@ Rules:
 
 ---
 
+## TextIOWrapper Detach Rail
+
+Any function in `src/utils/readers/` or `src/utils/epub_enhanced.py` that
+constructs `io.TextIOWrapper(fileobj, ...)` must call `.detach()` before the
+function returns. The wrapper takes close-ownership of the underlying binary
+stream by default; failing to detach closes the caller's stream on GC.
+
+```python
+# GOOD — ownership explicitly surrendered before function returns
+def read_step_file(fileobj: BinaryIO) -> str:
+    wrapper = io.TextIOWrapper(fileobj, encoding="utf-8")
+    try:
+        return wrapper.read()
+    finally:
+        wrapper.detach()
+```
+
+This pattern is enforced by the `textiowrapper-detach` advisory rail
+(`scripts/check_textiowrapper_detach.py`, baseline CI test
+`tests/ci/test_textiowrapper_detach_rail.py`). Use the opt-out comment
+`# textiowrapper-detach: ok — <reason>` on the wrapper-assignment line when the
+function intentionally takes ownership of the stream lifecycle.
+
+---
+
 ## The Lint Rail
 
 `scripts/check_safedir_required.py` runs as a pre-commit hook and in

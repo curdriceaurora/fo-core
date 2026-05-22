@@ -7,9 +7,8 @@ such as processing small files first or grouping files by type.
 from __future__ import annotations
 
 from collections.abc import Callable
+from enum import StrEnum
 from pathlib import Path
-
-from _compat import StrEnum
 
 
 class PriorityStrategy(StrEnum):

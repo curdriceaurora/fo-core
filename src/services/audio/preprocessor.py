@@ -10,10 +10,9 @@ from __future__ import annotations
 import logging
 import tempfile
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
-
-from _compat import StrEnum
 
 logger = logging.getLogger(__name__)
 

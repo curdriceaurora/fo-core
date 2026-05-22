@@ -57,6 +57,46 @@ paired tests were removed to keep this document aligned with the active codebase
 If equivalent checks are reintroduced, document the canonical ownership again in
 this file and add corresponding `tests/ci/` coverage in the same change.
 
+## PR-Comment-Derived Rails
+
+Three advisory rails were promoted from the PR #271–#321 comment audit
+(issue #321–#323). Each rail follows the project promotion path: advisory →
+per-file enforcing → globally enforcing. Full rationale and opt-out grammar
+are in `.claude/rules/pr-comment-derived-rails.md`.
+
+| Rail | Detector script | Baseline CI test | Baseline count |
+|------|-----------------|------------------|----------------|
+| `safedir-valueerror` | `scripts/check_safedir_valueerror.py` | `tests/ci/test_safedir_valueerror_rail.py` | 13 sites |
+| `defusedxml-fallback` | `scripts/check_defusedxml_fallback.py` | `tests/ci/test_defusedxml_fallback_rail.py` | 1 site |
+| `textiowrapper-detach` | `scripts/check_textiowrapper_detach.py` | `tests/ci/test_textiowrapper_detach_rail.py` | 0 sites |
+
+**`safedir-valueerror`** — flags a `try:` block calling any SafeDir method
+(`open_for_reader`, `open_root`, `open_subdir`, `open_child`, `pin_inode`,
+`rename_into`) or helper (`safedir_image_open`, `read_file_via_safedir*`) whose
+`except` clause omits `ValueError`. SafeDir name validation raises `ValueError`
+for legal POSIX filenames containing characters it rejects (e.g. backslash).
+
+**`defusedxml-fallback`** — flags `try: import defusedxml.X` paired with an
+`except ImportError:` handler that doesn't `raise` and either re-imports from
+`xml.*` or assigns a module-level stdlib XML import. This silently re-enables
+billion-laughs / XXE / external-DTD attacks.
+
+**`textiowrapper-detach`** — flags any function in `src/utils/readers/` or
+`src/utils/epub_enhanced.py` that constructs `io.TextIOWrapper(fileobj, ...)` but
+never calls `.detach()` on the wrapper. Without `.detach()` the wrapper takes
+close-ownership of the caller's stream on GC. See also the TextIOWrapper section
+in `docs/developer/safedir-readers.md`.
+
+**Opt-out grammar (all three rails):**
+
+```python
+some_safedir_call(...)  # safedir-valueerror: ok — <reason>
+import defusedxml.ET    # defusedxml-fallback: ok — <reason>
+wrapper = io.TextIOWrapper(fileobj, ...)  # textiowrapper-detach: ok — <reason>
+```
+
+---
+
 ## F11-resolve Rail
 
 The F11-resolve rail (issue #216) blocks regressions of the symlink-loop

@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from enum import StrEnum
 from pathlib import Path
-
-from _compat import StrEnum
 
 logger = logging.getLogger(__name__)
 
