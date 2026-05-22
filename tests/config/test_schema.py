@@ -16,8 +16,8 @@ class TestModelPreset:
     def test_defaults(self) -> None:
         """All defaults should be sensible out of the box."""
         preset = ModelPreset()
-        assert preset.text_model == "qwen2.5:3b-instruct-q4_K_M"
-        assert preset.vision_model == "qwen2.5vl:7b-q4_K_M"
+        assert preset.text_model == "gemma3:4b"
+        assert preset.vision_model == "gemma3:4b"
         assert preset.temperature == 0.5
         assert preset.max_tokens == 3000
         assert preset.device == "auto"
@@ -44,7 +44,7 @@ class TestModelPreset:
         """Partially overriding fields keeps other defaults intact."""
         preset = ModelPreset(temperature=0.9)
         assert preset.temperature == 0.9
-        assert preset.text_model == "qwen2.5:3b-instruct-q4_K_M"
+        assert preset.text_model == "gemma3:4b"
         assert preset.device == "auto"
 
 
