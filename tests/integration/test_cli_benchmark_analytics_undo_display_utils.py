@@ -1118,6 +1118,23 @@ class TestAnalyticsCommand:
         mock_svc.export_dashboard.assert_called_once()
         assert mock_svc.export_dashboard.call_args.kwargs["format"] == "text"
 
+    def test_main_entry_point(self, tmp_path: Path) -> None:
+        """analytics.main() calls sys.exit(analytics_command(...))."""
+        from cli.analytics import main
+
+        with (
+            patch("cli.analytics.AnalyticsService") as mock_svc_cls,
+            patch("cli.analytics.sys.exit") as mock_exit,
+        ):
+            mock_svc = MagicMock()
+            mock_svc_cls.return_value = mock_svc
+            mock_svc.generate_dashboard.return_value = _make_full_dashboard(tmp_path)
+            src = tmp_path / "src"
+            src.mkdir()
+            with patch("sys.argv", ["analytics", str(src)]):
+                main()
+        mock_exit.assert_called_once()
+
 
 # ===========================================================================
 # undo_redo.py — dry-run, transaction, verbose, main entry points

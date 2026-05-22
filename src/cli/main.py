@@ -165,7 +165,14 @@ def main_callback(
             encoding="utf-8",
             enqueue=True,
         )
-        ctx.call_on_close(lambda: _ll.remove(_file_sink_id))
+
+        def _remove_file_sink() -> None:
+            try:
+                _ll.remove(_file_sink_id)
+            except ValueError:
+                pass  # sink already removed or was never real (e.g. test spy)
+
+        ctx.call_on_close(_remove_file_sink)
     except OSError:
         pass  # log dir unwritable — degrade gracefully
 
