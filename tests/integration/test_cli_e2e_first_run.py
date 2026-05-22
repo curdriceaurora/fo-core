@@ -32,7 +32,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.ci]
 
 _runner = CliRunner()
 
-_SMALL_MODEL = "qwen2.5:3b-instruct-q4_K_M"
+_SMALL_MODEL = "gemma3:4b"
 
 
 # ---------------------------------------------------------------------------

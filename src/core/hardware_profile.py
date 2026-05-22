@@ -20,8 +20,8 @@ from typing import Any
 from loguru import logger
 
 # Model name constants — must match models/registry.py AVAILABLE_MODELS entries
-_DEFAULT_TEXT_MODEL_SMALL = "qwen2.5:3b-instruct-q4_K_M"
-_DEFAULT_TEXT_MODEL_LARGE = "qwen2.5:7b-instruct-q4_K_M"
+_DEFAULT_TEXT_MODEL_SMALL = "gemma3:4b"
+_DEFAULT_TEXT_MODEL_LARGE = "gemma3:12b"
 
 
 class GpuType(Enum):

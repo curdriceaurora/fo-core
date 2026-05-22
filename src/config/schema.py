@@ -44,8 +44,8 @@ class ModelPreset:
         framework: Inference framework (ollama, llama_cpp, mlx).
     """
 
-    text_model: str = "qwen2.5:3b-instruct-q4_K_M"
-    vision_model: str = "qwen2.5vl:7b-q4_K_M"
+    text_model: str = "gemma3:4b"
+    vision_model: str = "gemma3:4b"
     temperature: float = 0.5
     max_tokens: int = 3000
     device: str = "auto"

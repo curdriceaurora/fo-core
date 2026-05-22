@@ -190,12 +190,14 @@ class SetupWizard:
 
         # Override with available models if Ollama is running
         if capabilities.ollama_status.running and capabilities.installed_models:
-            # Prefer the first installed model that matches our recommendations
+            # Prefer the first installed model that matches our recommendations.
+            # gemma3:4b is the default for all RAM sizes; gemma3:12b for ≥16 GB.
+            # Both handle text and images in a single model, avoiding OOM from
+            # loading separate text and vision models simultaneously.
             available_names = {m.name for m in capabilities.installed_models}
 
-            # Check for recommended models
-            recommended_large = "qwen2.5:7b-instruct-q4_K_M"
-            recommended_small = "qwen2.5:3b-instruct-q4_K_M"
+            recommended_large = "gemma3:12b"
+            recommended_small = "gemma3:4b"
 
             if recommended_large in available_names:
                 text_model = recommended_large
