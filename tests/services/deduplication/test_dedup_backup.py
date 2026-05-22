@@ -435,10 +435,16 @@ class TestCleanupOldBackupsValueError:
         assert backup_path in removed
         assert not backup_path.exists()
 
-        # Both entries are gone from the manifest (stale entries pruned)
+        # The legitimate backup entry is gone (file was deleted).
+        # The bad-name entry is RETAINED — _backup_safe_unlink returned False
+        # for it (SafeDir ValueError), so the file was not removed and the
+        # manifest entry must be kept for retry on the next pass (issue #350 C1/C2).
         final_manifest = manager._load_manifest()
         assert str(backup_path) not in final_manifest
-        assert bad_key not in final_manifest
+        assert bad_key in final_manifest, (
+            "manifest entry for a file that was NOT deleted must be preserved "
+            "so the next cleanup pass can retry (issue #350 C1/C2)"
+        )
 
     @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
     def test_valueerror_from_backup_exists_logged_as_warning(
@@ -602,3 +608,118 @@ class TestBackupSafeUnlinkInodeSwap:
         result = _backup_safe_unlink(target, logging.getLogger("test"))
 
         assert result is False
+
+
+# ---------------------------------------------------------------------------
+# Issue #350 — R4, C3, T5, C1/C2 refinements to _backup_safe_unlink
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
+class TestBackupSafeUnlinkIssue350:
+    """Targeted tests for the issue #350 refinements."""
+
+    def test_fifo_is_rejected_before_open(self, tmp_path: Path) -> None:
+        """R4: a FIFO must be rejected by lstat type-check before open_child is called.
+
+        open_child with O_RDONLY would block indefinitely on a FIFO; lstat checks
+        the type first so we never attempt the open.
+        """
+        import logging
+        import stat
+
+        fifo = tmp_path / "queue.fifo"
+        os.mkfifo(fifo)
+        assert stat.S_ISFIFO(fifo.stat().st_mode)
+
+        result = _backup_safe_unlink(fifo, logging.getLogger("test"))
+
+        assert result is False
+        assert fifo.exists(), "FIFO must not be unlinked — type check should reject it"
+
+    def test_size_change_on_same_inode_does_not_trigger_swap_detection(
+        self, tmp_path: Path
+    ) -> None:
+        """C3: (st_dev, st_ino) comparison — st_size change on same inode must not abort.
+
+        The old code compared (st_dev, st_ino, st_size).  A concurrent writer on the
+        same inode can change st_size between fstat and lstat, causing a false positive
+        that orphans a real backup.  The fix compares only (st_dev, st_ino).
+        """
+        import logging
+
+        target = tmp_path / "backup.dat"
+        target.write_bytes(b"x" * 100)
+        real_st = target.stat()
+
+        # Build an fstat result with same (dev, ino) but different size — simulates
+        # a concurrent write between fstat and lstat.
+        same_ino_different_size = os.stat_result(
+            (
+                real_st.st_mode,
+                real_st.st_ino,  # same inode
+                real_st.st_dev,
+                real_st.st_nlink,
+                real_st.st_uid,
+                real_st.st_gid,
+                real_st.st_size + 50,  # different size — concurrent writer
+                real_st.st_atime,
+                real_st.st_mtime,
+                real_st.st_ctime,
+            )
+        )
+
+        with patch("os.fstat", return_value=same_ino_different_size):
+            result = _backup_safe_unlink(target, logging.getLogger("test"))
+
+        # Must succeed — size difference on same inode is not a swap
+        assert result is True
+        assert not target.exists()
+
+    def test_valueerror_logged_at_warning_level(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """C1/C2: ValueError from SafeDir name validation must be logged at WARNING.
+
+        The old code logged at DEBUG, making it invisible in production.  A filename
+        that SafeDir rejects (e.g. containing backslash) is a notable event that
+        operators should see.
+        """
+        import logging
+
+        bad_path = tmp_path / "bad\\name.bak"
+
+        with caplog.at_level(logging.WARNING, logger="services.deduplication.backup"):
+            result = _backup_safe_unlink(
+                bad_path, logging.getLogger("services.deduplication.backup")
+            )
+
+        assert result is False
+        warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        assert any("backup_name_rejected" in msg for msg in warning_messages), (
+            f"expected backup_name_rejected WARNING, got: {warning_messages}"
+        )
+
+    def test_write_only_file_is_unlinked_without_fd_pin(self, tmp_path: Path) -> None:
+        """T5: a write-only file (mode 0o200) can still be unlinked.
+
+        open_child with O_RDONLY raises PermissionError on a 0o200 file.  The fix
+        detects this and proceeds with unlink-without-fd-pin (SafeDir's dir_fd still
+        prevents directory swaps).
+        """
+        import logging
+
+        target = tmp_path / "locked.bak"
+        target.write_bytes(b"data")
+        target.chmod(0o200)  # write-only — open O_RDONLY would fail
+
+        try:
+            result = _backup_safe_unlink(target, logging.getLogger("test"))
+        finally:
+            # Restore permissions so tmp_path cleanup succeeds
+            if target.exists():
+                target.chmod(0o600)
+
+        assert result is True
+        assert not target.exists()
