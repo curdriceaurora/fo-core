@@ -54,11 +54,19 @@ from utils.readers.documents import (
     read_text_file,
 )
 from utils.readers.ebook import read_ebook_file
-from utils.readers.scientific import (
-    read_hdf5_file,
-    read_mat_file,
-    read_netcdf_file,
-)
+
+try:
+    from utils.readers.scientific import (
+        read_hdf5_file,
+        read_mat_file,
+        read_netcdf_file,
+    )
+except (ImportError, Exception):  # pragma: no cover
+    from utils.readers._scientific_stub import (  # type: ignore[no-redef]
+        read_hdf5_file,
+        read_mat_file,
+        read_netcdf_file,
+    )
 from utils.safedir import SafeDir
 
 __all__ = [
