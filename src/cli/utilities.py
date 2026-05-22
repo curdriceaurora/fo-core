@@ -56,6 +56,8 @@ TYPE_EXTENSIONS: dict[str, set[str]] = {
         ".tiff",
         ".tif",
         ".webp",
+        ".heic",
+        ".heif",
         ".svg",
         ".ico",
     },
