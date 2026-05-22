@@ -121,9 +121,12 @@ class FileMonitor:
             # stop() always sets handler._safe_dir = None to release the fd; on
             # restart the handler would run without watcher-level symlink checks
             # unless we reopen it here (issue #348 P1 follow-up).
+            # Guard: only for single-root configs — __init__ deliberately leaves
+            # _safe_dir=None for multi-root setups so events from roots 2..N are
+            # not silently dropped (issue #347 P1 follow-up).
             if (
                 self.handler._safe_dir is None
-                and self.config.watch_directories
+                and len(self.config.watch_directories) == 1
                 and sys.platform != "win32"
             ):
                 try:
@@ -244,7 +247,12 @@ class FileMonitor:
                     path.relative_to(current_root)
                     # path is under the current root — no change needed
                 except ValueError:
-                    # path is outside the current root — disable check + warn
+                    # path is outside the current root — close and clear SafeDir
+                    # so _safedir_allows() no longer calls open_child() against
+                    # the old root for events from the new directory.
+                    if self.handler._safe_dir is not None:
+                        self.handler._safe_dir.__exit__(None, None, None)
+                        self.handler._safe_dir = None
                     self.handler._watch_root = None
                     logger.warning(
                         "FileMonitor.add_directory: %s is outside the primary SafeDir root (%s) "

@@ -14,6 +14,7 @@ from models._vision_helpers import image_to_data_url
 
 @pytest.mark.ci
 @pytest.mark.unit
+@pytest.mark.integration
 @pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
 class TestImageToDataUrlSafeDirIntegration:
     """image_to_data_url must use SafeDir on POSIX to reject symlinked images (issue #352 S3).

@@ -81,7 +81,7 @@ def image_to_data_url(image_path: Path) -> str:
                 raw = fh_direct.read()
         except (SymlinkRejected, ValueError) as exc:
             raise OSError(f"Refused to read symlinked image {image_path}: {exc}") from exc
-    else:
+    else:  # pragma: no cover — Windows-only branch, not reachable on POSIX CI
         with open(
             image_path, "rb"
         ) as fh_win:  # safedir: ok — Windows / NotImplementedError fallback

@@ -11,6 +11,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -45,7 +46,7 @@ def monitor(watch_dir: Path) -> FileMonitor:
 
 def _wait_for_event_matching(
     monitor: FileMonitor,
-    predicate: Callable[[list], bool],
+    predicate: Callable[[list[Any]], bool],
     timeout: float = 3.0,
 ) -> list:
     """
