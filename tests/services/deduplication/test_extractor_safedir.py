@@ -479,3 +479,36 @@ class TestAnchoredTraversalIssue349:
         assert result == "", (
             "FileReadError from a format extractor must be caught and return empty string"
         )
+
+    def test_not_implemented_error_falls_through_to_parent_rooted_safedir(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """NotImplementedError from SafeDir.open_root(scan_root) falls through to
+        the parent-rooted SafeDir branch, still returning the file content.
+
+        This exercises the ``except NotImplementedError`` clause that handles
+        platforms where SafeDir primitives are unavailable.  When scan_root is
+        supplied but SafeDir raises NotImplementedError, the extractor must
+        silently fall back instead of propagating the error.
+        """
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "fallback.txt"
+        target.write_text("fallback content via parent-rooted path")
+
+        call_args: list[object] = []
+        original_open_root = SafeDir.open_root
+
+        def patched_open_root(path: object) -> object:
+            call_args.append(path)
+            if len(call_args) == 1:
+                raise NotImplementedError("simulated SafeDir unavailable on this platform")
+            return original_open_root(path)  # type: ignore[arg-type]
+
+        with patch("services.deduplication.extractor.SafeDir.open_root", patched_open_root):
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert "fallback content via parent-rooted path" in result, (
+            "NotImplementedError from scan_root SafeDir.open_root must fall through to "
+            "parent-rooted SafeDir branch and still return extracted content"
+        )
