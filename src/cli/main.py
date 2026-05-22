@@ -134,6 +134,48 @@ def main_callback(
         _sink_id = _loguru_logger.add(_sys.stderr, level="DEBUG", backtrace=True, diagnose=False)
         ctx.call_on_close(lambda: _loguru_logger.remove(_sink_id))
 
+    # Rotating JSON file log — always installed so errors outlive the terminal
+    # session.  Uses loguru's built-in rotation + compression instead of a
+    # system logrotate dependency so the app is self-contained.
+    #
+    # Location: {state_dir}/logs/fo.log  (platform-appropriate via XDG / platformdirs)
+    #   macOS:   ~/Library/Application Support/fo/logs/fo.log
+    #   Linux:   ~/.local/state/fo/logs/fo.log
+    #   Windows: %APPDATA%\fo\logs\fo.log
+    #
+    # diagnose=False: never write local variable values to disk — they can
+    # contain secrets, API keys, or PII even in production paths.
+    _file_log_level = "DEBUG" if debug else "WARNING"
+    try:
+        from loguru import logger as _ll
+
+        from config.path_manager import get_canonical_paths
+
+        _log_dir = get_canonical_paths()["logs"]
+        _log_dir.mkdir(parents=True, exist_ok=True)
+        _file_sink_id = _ll.add(
+            _log_dir / "fo.log",
+            level=_file_log_level,
+            rotation="10 MB",
+            retention="7 days",
+            compression="gz",
+            serialize=True,
+            backtrace=False,
+            diagnose=False,
+            encoding="utf-8",
+            enqueue=True,
+        )
+
+        def _remove_file_sink() -> None:
+            try:
+                _ll.remove(_file_sink_id)
+            except ValueError:
+                pass  # sink already removed or was never real (e.g. test spy)
+
+        ctx.call_on_close(_remove_file_sink)
+    except OSError:
+        pass  # log dir unwritable — degrade gracefully
+
     from utils.log_redact import install_on_root
 
     # A.creds: attach the credential-redacting log filter to the root logger
@@ -331,8 +373,8 @@ def history(
     raise typer.Exit(code=code if code is not None else 1)
 
 
-@app.command()
-def recover(  # noqa: G3 (--journal is a read-only path; defaults to system state dir)
+@app.command()  # noqa: G3 (journal is a read-only path from system state dir)
+def recover(
     journal: Path | None = typer.Option(
         None,
         help="Override path to durable_move.journal (defaults to the user state dir).",
