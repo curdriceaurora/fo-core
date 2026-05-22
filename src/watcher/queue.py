@@ -11,9 +11,8 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
-
 from enum import StrEnum
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

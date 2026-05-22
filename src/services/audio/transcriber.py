@@ -9,10 +9,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
-
-from enum import StrEnum
 
 _FASTER_WHISPER_IMPORT_ERROR = (
     "faster-whisper is required for audio transcription. "
