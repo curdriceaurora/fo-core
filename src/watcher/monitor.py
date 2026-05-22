@@ -140,6 +140,7 @@ class FileMonitor:
                         "FileMonitor: cannot (re)initialize SafeDir on start: %s — "
                         "watcher-level symlink check disabled",
                         exc,
+                        exc_info=True,
                     )
 
             # Try native observer first, fallback to polling if it fails
