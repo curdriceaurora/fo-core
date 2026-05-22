@@ -258,4 +258,4 @@ def setup_run(  # noqa: C901
 def setup_callback(ctx: typer.Context) -> None:
     """Default callback - run setup if no subcommand is provided."""
     if ctx.invoked_subcommand is None:
-        ctx.invoke(setup_run)
+        ctx.invoke(setup_run, mode="quick-start", profile="default", dry_run=False)
