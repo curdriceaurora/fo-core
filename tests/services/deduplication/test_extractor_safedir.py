@@ -512,3 +512,45 @@ class TestAnchoredTraversalIssue349:
             "NotImplementedError from scan_root SafeDir.open_root must fall through to "
             "parent-rooted SafeDir branch and still return extracted content"
         )
+
+    def test_osfdopen_failure_in_scan_root_closes_fd_and_returns_empty(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """OSError from os.fdopen in the scan_root branch closes the raw fd
+        and returns ``""`` via the outer ``(OSError, …)`` handler.
+
+        This exercises lines 135-137 of extractor.py — the cleanup path
+        where os.fdopen raises after open_anchored_reader returned a valid fd:
+
+        .. code-block:: python
+
+            try:
+                fileobj = os.fdopen(fd, "rb", closefd=True)  # raises
+            except OSError:        # line 135  ← covered here
+                os.close(fd)       # line 136  ← covered here
+                raise              # line 137  ← covered here
+        """
+        import os as _os
+
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "doc.txt"
+        target.write_bytes(b"content")
+
+        call_count = 0
+        original_fdopen = _os.fdopen
+
+        def patched_fdopen(fd: int, *args: object, **kwargs: object) -> object:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise OSError("simulated os.fdopen failure in scan_root branch")
+            return original_fdopen(fd, *args, **kwargs)  # type: ignore[arg-type]
+
+        with patch("services.deduplication.extractor.os.fdopen", patched_fdopen):
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert result == "", (
+            "OSError from os.fdopen in the scan_root branch must close the fd "
+            "and return empty string via the outer (OSError, ...) handler"
+        )
