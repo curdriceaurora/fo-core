@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from utils.readers import FileTooLargeError
+from utils.readers._base import FileTooLargeError
 
 
 def is_hidden(path: Path) -> bool:
