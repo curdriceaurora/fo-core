@@ -384,3 +384,173 @@ class TestAnchoredTraversalExtractor:
         assert len(calls) == 2
         for call in calls:
             assert call.kwargs.get("scan_root") == scan_root
+
+
+# ---------------------------------------------------------------------------
+# Issue #349 — S2, C4, C5 fixes to the anchored scan_root branch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(sys.platform == "win32", reason="SafeDir is POSIX-only")
+class TestAnchoredTraversalIssue349:
+    """Targeted tests for the issue #349 refinements to the scan_root branch."""
+
+    def test_anchored_open_used_for_all_extensions_when_scan_root_set(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """S2: open_anchored_reader must be used for ALL extensions, not just those
+        registered in the utils.readers SafeDir registry.
+
+        The old code called read_file_via_safedir_anchored which returned None for
+        unregistered extensions (e.g. ODT) and fell through to an unanchored
+        SafeDir.open_root(file_path.parent), bypassing intermediate-ancestor
+        protection.  The fix uses open_anchored_reader directly for all extensions.
+        """
+        scan_root = tmp_path / "root"
+        subdir = scan_root / "sub"
+        subdir.mkdir(parents=True)
+        target = subdir / "doc.txt"
+        target.write_text("full anchored content")
+
+        # Patch open_anchored_reader to verify it's called (not open_for_reader
+        # on a parent-rooted SafeDir, which would mean S2 is not fixed).
+        original_open_anchored = SafeDir.open_anchored_reader
+        anchored_calls: list[str] = []
+
+        def spy_anchored(self: SafeDir, relative_path: object) -> int:
+            anchored_calls.append(str(relative_path))
+            return original_open_anchored(self, relative_path)  # type: ignore[arg-type]
+
+        with patch.object(SafeDir, "open_anchored_reader", spy_anchored):
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert result == "full anchored content"
+        assert len(anchored_calls) == 1, (
+            "open_anchored_reader must be called exactly once for anchored traversal"
+        )
+
+    def test_anchored_scan_root_uses_full_file_extractor_not_readers_defaults(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """C4: _extract_from_fileobj must be called, not read_file_via_safedir_anchored.
+
+        read_file_via_safedir_anchored used utils.readers defaults (max_pages=5,
+        max_chars=5000), silently truncating documents.  The fix passes the fd from
+        open_anchored_reader directly to _extract_from_fileobj which uses the full-
+        file extractors.
+        """
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "doc.txt"
+        target.write_text("full document content for dedup")
+
+        with patch.object(
+            extractor, "_extract_from_fileobj", wraps=extractor._extract_from_fileobj
+        ) as mock_extract_fileobj:
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert result == "full document content for dedup"
+        mock_extract_fileobj.assert_called_once()
+
+    def test_fileread_error_from_extractor_returns_empty_string(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """C5: FileReadError raised by a format extractor must be caught and return "".
+
+        The old except clause only caught (OSError, ValueError, ImportError).
+        FileReadError (a distinct Exception subclass) escaped, breaking the
+        documented 'return "" on any extraction failure' contract.
+        """
+        from utils.readers import FileReadError
+
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "corrupt.txt"
+        target.write_bytes(b"\x00" * 100)
+
+        with patch.object(
+            extractor,
+            "_extract_from_fileobj",
+            side_effect=FileReadError("simulated corrupt file"),
+        ):
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert result == "", (
+            "FileReadError from a format extractor must be caught and return empty string"
+        )
+
+    def test_not_implemented_error_falls_through_to_parent_rooted_safedir(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """NotImplementedError from SafeDir.open_root(scan_root) falls through to
+        the parent-rooted SafeDir branch, still returning the file content.
+
+        This exercises the ``except NotImplementedError`` clause that handles
+        platforms where SafeDir primitives are unavailable.  When scan_root is
+        supplied but SafeDir raises NotImplementedError, the extractor must
+        silently fall back instead of propagating the error.
+        """
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "fallback.txt"
+        target.write_text("fallback content via parent-rooted path")
+
+        call_args: list[object] = []
+        original_open_root = SafeDir.open_root
+
+        def patched_open_root(path: object) -> object:
+            call_args.append(path)
+            if len(call_args) == 1:
+                raise NotImplementedError("simulated SafeDir unavailable on this platform")
+            return original_open_root(path)  # type: ignore[arg-type]
+
+        with patch("services.deduplication.extractor.SafeDir.open_root", patched_open_root):
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert "fallback content via parent-rooted path" in result, (
+            "NotImplementedError from scan_root SafeDir.open_root must fall through to "
+            "parent-rooted SafeDir branch and still return extracted content"
+        )
+
+    def test_osfdopen_failure_in_scan_root_closes_fd_and_returns_empty(
+        self, extractor: DocumentExtractor, tmp_path: Path
+    ) -> None:
+        """OSError from os.fdopen in the scan_root branch closes the raw fd
+        and returns ``""`` via the outer ``(OSError, …)`` handler.
+
+        This exercises lines 135-137 of extractor.py — the cleanup path
+        where os.fdopen raises after open_anchored_reader returned a valid fd:
+
+        .. code-block:: python
+
+            try:
+                fileobj = os.fdopen(fd, "rb", closefd=True)  # raises
+            except OSError:        # line 135  ← covered here
+                os.close(fd)       # line 136  ← covered here
+                raise              # line 137  ← covered here
+        """
+        import os as _os
+
+        scan_root = tmp_path / "root"
+        scan_root.mkdir()
+        target = scan_root / "doc.txt"
+        target.write_bytes(b"content")
+
+        call_count = 0
+        original_fdopen = _os.fdopen
+
+        def patched_fdopen(fd: int, *args: object, **kwargs: object) -> object:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise OSError("simulated os.fdopen failure in scan_root branch")
+            return original_fdopen(fd, *args, **kwargs)  # type: ignore[arg-type]
+
+        with patch("services.deduplication.extractor.os.fdopen", patched_fdopen):
+            result = extractor.extract_text(target, scan_root=scan_root)
+
+        assert result == "", (
+            "OSError from os.fdopen in the scan_root branch must close the fd "
+            "and return empty string via the outer (OSError, ...) handler"
+        )
