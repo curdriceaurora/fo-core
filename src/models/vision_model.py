@@ -14,6 +14,7 @@ except ImportError:
 
 from loguru import logger
 
+from config.defaults import DEFAULT_MODEL
 from models._ollama_response import (
     compute_retry_num_predict,
     format_exhaustion_diagnostics,
@@ -281,7 +282,7 @@ class VisionModel(BaseModel):
 
     @staticmethod
     def get_default_config(
-        model_name: str = "gemma3:4b",
+        model_name: str = DEFAULT_MODEL,
     ) -> ModelConfig:
         """Get default configuration for vision model.
 

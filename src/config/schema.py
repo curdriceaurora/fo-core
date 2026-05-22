@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from config.defaults import DEFAULT_MODEL
+
 # F6 (hardening roadmap #159): single source of truth for the config
 # schema version. Bump this when introducing a breaking change to the
 # serialized shape (new required field, renamed field, type change on
@@ -44,8 +46,8 @@ class ModelPreset:
         framework: Inference framework (ollama, llama_cpp, mlx).
     """
 
-    text_model: str = "gemma3:4b"
-    vision_model: str = "gemma3:4b"
+    text_model: str = DEFAULT_MODEL
+    vision_model: str = DEFAULT_MODEL
     temperature: float = 0.5
     max_tokens: int = 3000
     device: str = "auto"
