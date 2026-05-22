@@ -109,7 +109,7 @@ class TemporalThresholds:
 class AIHeuristicConfig:
     """Configuration for the AI-powered heuristic."""
 
-    model: str = "qwen2.5:3b-instruct-q4_K_M"
+    model: str = "gemma3:4b"
     ollama_url: str = "http://localhost:11434"
     timeout: float = 30.0
     max_content_chars: int = 4096

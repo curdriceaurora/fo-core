@@ -45,7 +45,7 @@ class TestGetModelConfigsFromProfile:
         app_cfg = AppConfig(models=custom_preset)
 
         text_cfg = ModelConfig(name="custom-text:latest", model_type=ModelType.TEXT)
-        vision_cfg = ModelConfig(name="qwen2.5vl:7b-q4_K_M", model_type=ModelType.VISION)
+        vision_cfg = ModelConfig(name="gemma3:4b", model_type=ModelType.VISION)
 
         with patch("config.manager.ConfigManager") as mock_cls:
             mgr = mock_cls.return_value
@@ -58,7 +58,7 @@ class TestGetModelConfigsFromProfile:
         assert result is not None
         text, vision = result
         assert text.name == "custom-text:latest"
-        assert vision.name == "qwen2.5vl:7b-q4_K_M"
+        assert vision.name == "gemma3:4b"
 
     def test_returns_configs_when_vision_model_overridden(self) -> None:
         custom_preset = ModelPreset(vision_model="custom-vision:latest")
