@@ -10,31 +10,33 @@ from pathlib import Path
 from typing import BinaryIO
 
 
-def _unavailable(name: str) -> str:
+def _unavailable(name: str) -> str:  # pragma: no cover
     return (
         f"{name}: scientific readers unavailable — "
         "install fo-core[scientific] to enable HDF5/MAT/NetCDF support."
     )
 
 
-def read_hdf5_file(
-    file_path: Path | None = None,
+def read_hdf5_file(  # pragma: no cover
+    file_path: str | Path | None = None,
+    max_datasets: int = 20,
+    *,
     fileobj: BinaryIO | None = None,
-    max_datasets: int = 10,
 ) -> str:
     return _unavailable("HDF5")
 
 
-def read_mat_file(
-    file_path: Path | None = None,
+def read_mat_file(  # pragma: no cover
+    file_path: str | Path | None = None,
+    *,
     fileobj: BinaryIO | None = None,
 ) -> str:
     return _unavailable("MAT")
 
 
-def read_netcdf_file(
-    file_path: Path | None = None,
+def read_netcdf_file(  # pragma: no cover
+    file_path: str | Path | None = None,
+    *,
     fileobj: BinaryIO | None = None,
-    max_variables: int = 10,
 ) -> str:
     return _unavailable("NetCDF")
