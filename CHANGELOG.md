@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.4] - 2026-05-22
+
+### Security
+
+- **Watcher symlink escape via `ValueError`** — `FileEventHandler._is_secondary_root()`
+  caught `ValueError` from `Path.relative_to()` and returned `True` (allow), permitting
+  a symlink whose resolved path escapes the watch root to pass through. Fix: return
+  `False` on `ValueError` (issue #347, PR #355).
+- **Deduplication anchored-traversal bypass for unregistered extensions** —
+  `DocumentExtractor.extract_text()` fell through to an unanchored
+  `SafeDir.open_root(file_path.parent)` when the extension was not in the
+  `utils.readers` SafeDir registry (e.g. ODT), bypassing intermediate-ancestor
+  protection. Fix: use `open_anchored_reader` directly for all extensions
+  (issue #349, PR #358).
+- **`image_to_data_url()` opened images without SafeDir** — direct `open()` call
+  had no symlink or path-escape check; a symlink swapped in after directory
+  enumeration could exfiltrate an arbitrary file. Fix: open via
+  `SafeDir.open_for_reader` on POSIX (issue #352, PR #360).
+
+### Fixed
+
+- **Multi-root `FileMonitor` silently dropped events** — constructing with
+  `watch_directories=[a, b]` set `_watch_root` from `[0]`, causing events from
+  `[1..N]` to fail `relative_to(watch_root)` and be dropped. Fixed by skipping
+  SafeDir entirely for multi-root configs; pipeline-level SafeDir remains the
+  backstop (issue #347, PR #355).
+- **`FileMonitor.stop()` leaked directory fd** — the SafeDir opened in `__init__`
+  was never closed on `stop()`. On daemon-restart loops this accumulated toward
+  `EMFILE`. Fix: `stop()` calls `SafeDir.__exit__`; `start()` reinitialises for
+  single-root configs (issue #348, PR #356).
+- **Backup manifest orphaned files** — `ValueError` from SafeDir name validation
+  removed the manifest entry without deleting the backup file, making it
+  permanently unrestorable. Fix: only remove manifest entry when the file is
+  confirmed deleted; log `ValueError` at `WARNING` (issue #350, PR #357).
+- **Backup inode identity used `st_size`** — `(st_dev, st_ino, st_size)` triple
+  could return a false-positive mismatch if another process wrote to the same
+  inode between `fstat` and `lstat`. Fix: `(st_dev, st_ino)` only
+  (issue #350, PR #357).
+- **FIFO hang in backup cleanup** — `open_child(name)` on a FIFO blocks until a
+  writer connects. Fix: `lstat` before open; skip non-regular files
+  (issue #350, PR #357).
+- **STEP reader single-line OOM** — the per-line byte cap was checked after
+  `readline()` had already materialised the full line in memory. Fix: pass
+  remaining budget directly to `readline(budget)` (issue #351, PR #359).
+- **`DocumentExtractor` used truncated defaults for dedup text** — the anchored
+  read path routed through `utils.readers` defaults (`max_pages=5`,
+  `max_chars=5000`), silently degrading dedup accuracy. Fix: pass fd from
+  `open_anchored_reader` directly to `_extract_from_fileobj` (issue #349, PR #358).
+- **`FileReadError` escaped `extract_text()` exception handler** — malformed files
+  raised `FileReadError`, which was not in the `except` clause, breaking the
+  documented "return `\"\"` on failure" contract (issue #349, PR #358).
+
+### Changed
+
+- **`WriterStage` now preserves file mode and timestamps** — after the beta.2
+  `shutil.copystat` removal, the destination file always got default
+  mode/timestamps. Fix: `os.fchmod(dst_fd, mode)` and `os.utime(dst_fd, ns=...)`
+  on the open fd before `os.close` — TOCTOU-free (issue #354, PR #362).
+
 ## [2.0.0-beta.3] - 2026-05-21
 
 ### Fixed
