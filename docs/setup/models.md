@@ -2,8 +2,8 @@
 
 ## Supported Models
 
-- `qwen2.5:3b-instruct-q4_K_M` — Default text model (~1.9 GB)
-- `qwen2.5vl:7b-q4_K_M` — Default vision model (~6.0 GB)
+- `gemma3:4b` — Default model for both text and image processing (~3 GB)
+- `gemma3:12b` — Recommended for systems with 16 GB RAM or more (~7 GB)
 - `faster-whisper` — Audio transcription (local, multi-language)
 
 ## Device Support

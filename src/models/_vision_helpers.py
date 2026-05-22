@@ -29,6 +29,8 @@ _EXTENSION_MIME: dict[str, str] = {
     ".bmp": "image/bmp",
     ".tiff": "image/tiff",
     ".tif": "image/tiff",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
 }
 
 

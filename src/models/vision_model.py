@@ -281,7 +281,7 @@ class VisionModel(BaseModel):
 
     @staticmethod
     def get_default_config(
-        model_name: str = "qwen2.5vl:7b-q4_K_M",
+        model_name: str = "gemma3:4b",
     ) -> ModelConfig:
         """Get default configuration for vision model.
 

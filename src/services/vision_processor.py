@@ -49,6 +49,11 @@ class VisionProcessor:
         "health resp",
         "runner has unexpectedly stopped",
         "failed to connect",
+        # Ollama 500 when the model cannot be loaded into memory (e.g. OOM
+        # on machines where the text model is already occupying most RAM).
+        # Retrying would just produce the same error on every image file.
+        "model failed to load",
+        "resource limitations",
     )
 
     def __init__(

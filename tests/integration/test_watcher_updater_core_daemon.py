@@ -1408,12 +1408,12 @@ class TestHardwareProfileDataclass:
     def test_recommended_text_model_small_ram(self) -> None:
         p = self._make_profile(ram_bytes=8 * 1024**3)
         model = p.recommended_text_model()
-        assert "3b" in model
+        assert "4b" in model
 
     def test_recommended_text_model_large_ram(self) -> None:
         p = self._make_profile(ram_bytes=32 * 1024**3)
         model = p.recommended_text_model()
-        assert "7b" in model
+        assert "12b" in model
 
     def test_recommended_workers_minimum_one(self) -> None:
         p = self._make_profile(cpu_cores=1)

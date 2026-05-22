@@ -222,7 +222,7 @@ class TestAIHeuristicConfig:
     def test_default_values(self) -> None:
         """AIHeuristicConfig defaults match expected values."""
         cfg = AIHeuristicConfig()
-        assert cfg.model == "qwen2.5:3b-instruct-q4_K_M"
+        assert cfg.model == "gemma3:4b"
         assert cfg.ollama_url == "http://localhost:11434"
         assert cfg.timeout == 30.0
         assert cfg.max_content_chars == 4096
@@ -250,7 +250,7 @@ class TestAIHeuristicConfig:
             yaml.dump(data, f)
 
         cfg = PARAConfig.load_from_yaml(config_file)
-        assert cfg.ai_heuristic.model == "qwen2.5:3b-instruct-q4_K_M"
+        assert cfg.ai_heuristic.model == "gemma3:4b"
         assert cfg.ai_heuristic.timeout == 30.0
 
     def test_para_config_has_ai_heuristic_field(self) -> None:

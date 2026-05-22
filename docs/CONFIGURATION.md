@@ -13,7 +13,7 @@ You can view and edit configuration using the `config` command:
 fo config show
 
 # Edit specific settings
-fo config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
+fo config edit --text-model "gemma3:4b"
 fo config edit --temperature 0.7
 ```
 
@@ -32,8 +32,8 @@ Settings for Local LLM inference.
 
 ```yaml
 models:
-  text_model: "qwen2.5:3b-instruct-q4_K_M"
-  vision_model: "qwen2.5vl:7b-q4_K_M"
+  text_model: "gemma3:4b"
+  vision_model: "gemma3:4b"
   temperature: 0.5
   max_tokens: 3000
   device: "auto"     # auto, cpu, cuda, mps

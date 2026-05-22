@@ -86,9 +86,8 @@ git clone https://github.com/curdriceaurora/fo-core.git
 cd fo-core
 pip install -e .
 
-# Pull AI models
-ollama pull qwen2.5:3b-instruct-q4_K_M
-ollama pull qwen2.5vl:7b-q4_K_M
+# Pull AI model (handles both text and images)
+ollama pull gemma3:4b
 
 # Organize files
 fo organize ~/Downloads ~/Organized --dry-run

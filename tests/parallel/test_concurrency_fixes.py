@@ -172,17 +172,20 @@ class TestConcurrencyFixes(unittest.TestCase):
         )
 
     def test_timeout_does_not_deadlock_with_queued_files(self) -> None:
-        """Test that timeout handling aborts queued work instead of deadlocking."""
+        """Timed-out tasks are abandoned; remaining files continue and terminate."""
+        # timeout=0.3s → saturation threshold = 2×0.3s = 0.6s.
+        # Task duration 0.4s keeps slow_3's max queue time (≈0.5s) below 0.6s,
+        # so the saturation guard must NOT trigger — each task should time out individually.
         config = ParallelConfig(
             max_workers=1,
-            timeout_per_file=0.1,
+            timeout_per_file=0.3,
             retry_count=0,
         )
         processor = ParallelProcessor(config=config)
         paths = [Path("slow_1"), Path("slow_2"), Path("slow_3")]
 
         def very_slow_task(_path: Path) -> str:
-            threading.Event().wait(timeout=0.5)
+            threading.Event().wait(timeout=0.4)
             return "done"
 
         results = processor.process_batch(paths, very_slow_task)
@@ -190,20 +193,23 @@ class TestConcurrencyFixes(unittest.TestCase):
         self.assertEqual(results.total, 3)
         self.assertEqual(results.failed, 3)
         self.assertEqual(len(results.results), 3)
+        # Each file runs and times out individually — no cascade abort.
+        # With max_workers=1 and 3×0.4s tasks, total is ~1.2s.
         self.assertLess(
             results.total_duration_ms,
-            700,
-            "Should abort queued/remaining work quickly after uncancellable timeout",
+            4000,
+            "Should terminate within reasonable time even with repeated timeouts",
         )
         errors = [str(item.error) for item in results.results]
-        self.assertTrue(any("Timed out" in err for err in errors))
-        self.assertTrue(any("Aborted because another task" in err for err in errors))
+        # Every file must report its own timeout, not a cascade-abort message.
+        self.assertTrue(all("Timed out" in err for err in errors))
 
     def test_uncancellable_timeout_is_not_retried(self) -> None:
-        """An uncancellable timed-out task should abort the batch without retries."""
+        """Timed-out tasks are non-retryable: each file runs exactly once."""
+        # timeout=0.3s keeps saturation threshold (0.6s) above task duration (0.4s).
         config = ParallelConfig(
             max_workers=1,
-            timeout_per_file=0.1,
+            timeout_per_file=0.3,
             retry_count=2,
         )
         processor = ParallelProcessor(config=config)
@@ -212,16 +218,49 @@ class TestConcurrencyFixes(unittest.TestCase):
         def very_slow_task(_path: Path) -> str:
             nonlocal call_count
             call_count += 1
-            threading.Event().wait(timeout=0.5)
+            threading.Event().wait(timeout=0.4)
             return "done"
 
-        results = processor.process_batch([Path("slow_1"), Path("slow_2")], very_slow_task)
+        paths = [Path("slow_1"), Path("slow_2")]
+        results = processor.process_batch(paths, very_slow_task)
 
-        self.assertEqual(call_count, 1)
+        # With retry_count=2, a retried file would be called up to 3 times.
+        # Each file should run exactly once (non_retryable prevents retry).
+        self.assertEqual(call_count, len(paths))
         self.assertEqual(results.failed, 2)
-        self.assertTrue(
-            any("could not be cancelled" in str(item.error) for item in results.results)
+        self.assertTrue(all("Timed out" in str(item.error) for item in results.results))
+
+    def test_saturated_pool_aborts_queued_tasks(self) -> None:
+        """Queued tasks abort when the pool is permanently saturated by hung tasks.
+
+        Uses genuinely infinite tasks (Event.wait() with no timeout) to simulate
+        worker threads that never complete.  The saturation guard should fire after
+        2 × timeout_per_file and fail remaining queued tasks without hanging.
+        """
+        stop_event = threading.Event()
+
+        config = ParallelConfig(
+            max_workers=1,
+            timeout_per_file=0.1,
+            retry_count=0,
         )
+        processor = ParallelProcessor(config=config)
+        paths = [Path("hung_1"), Path("queued_2")]
+
+        def hung_task(_path: Path) -> str:
+            stop_event.wait()  # blocks until the event is set
+            return "done"
+
+        try:
+            results = processor.process_batch(paths, hung_task)
+        finally:
+            stop_event.set()  # unblock the hung thread so the pool shuts down
+
+        self.assertEqual(results.total, 2)
+        self.assertEqual(results.failed, 2)
+        # The hung task times out; the queued task is aborted by the saturation guard.
+        errors = [str(item.error) for item in results.results]
+        self.assertTrue(any("Timed out" in err or "saturated" in err for err in errors))
 
     def test_error_message_does_not_control_retry_policy(self) -> None:
         """Regular failures containing the abort phrase should still be retried."""

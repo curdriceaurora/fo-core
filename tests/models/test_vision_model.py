@@ -293,7 +293,7 @@ class TestVisionModelMisc:
     def test_get_default_config(self) -> None:
         """Test static default config method."""
         config = VisionModel.get_default_config()
-        assert config.name == "qwen2.5vl:7b-q4_K_M"
+        assert config.name == "gemma3:4b"
         assert config.model_type == ModelType.VISION
         assert config.quantization == "q4_k_m"
         assert config.temperature == 0.3

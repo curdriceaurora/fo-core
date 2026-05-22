@@ -151,7 +151,7 @@ class FileOrganizer:
             max_workers=parallel_workers,
             executor_type=ExecutorType.THREAD,
             prefetch_depth=self.prefetch_depth,
-            timeout_per_file=60.0,
+            timeout_per_file=300.0,
             retry_count=1,
         )
         self.parallel_processor = ParallelProcessor(self.parallel_config)

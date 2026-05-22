@@ -57,17 +57,17 @@ class TestHardwareProfile:
         profile = self._make_profile(ram_bytes=32 * 1024**3)
         assert profile.ram_gb == 32.0
 
-    def test_recommends_7b_for_16gb_ram(self) -> None:
+    def test_recommends_large_model_for_16gb_ram(self) -> None:
         profile = self._make_profile(ram_bytes=16 * 1024**3)
-        assert "7b" in profile.recommended_text_model()
+        assert profile.recommended_text_model() == "gemma3:12b"
 
-    def test_recommends_3b_for_8gb_ram(self) -> None:
+    def test_recommends_small_model_for_8gb_ram(self) -> None:
         profile = self._make_profile(ram_bytes=8 * 1024**3)
-        assert "3b" in profile.recommended_text_model()
+        assert profile.recommended_text_model() == "gemma3:4b"
 
-    def test_recommends_3b_for_4gb_ram(self) -> None:
+    def test_recommends_small_model_for_4gb_ram(self) -> None:
         profile = self._make_profile(ram_bytes=4 * 1024**3)
-        assert "3b" in profile.recommended_text_model()
+        assert profile.recommended_text_model() == "gemma3:4b"
 
     def test_recommended_workers_half_cores(self) -> None:
         profile = self._make_profile(cpu_cores=8)

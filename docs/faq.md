@@ -48,10 +48,10 @@ Alternative providers (OpenAI, Claude, llama.cpp, MLX) are available via optiona
 
 We recommend:
 
-- **Text**: qwen2.5:3b-instruct-q4_K_M (~1.9 GB)
-- **Vision**: qwen2.5vl:7b-q4_K_M (~6 GB)
+- **Default (8 GB RAM)**: `gemma3:4b` (~3 GB) — handles both text and image processing
+- **High-RAM (16 GB+)**: `gemma3:12b` for better accuracy
 
-Both are optimized for balance between speed and accuracy.
+`gemma3:4b` is a single multimodal model, so you only need to pull one model.
 
 ## Usage Questions
 

@@ -71,11 +71,10 @@ pip install fo-core
 #### Setup
 
 1. Install Ollama server from [ollama.com](https://ollama.com)
-2. Pull the default models:
+2. Pull the default model:
 
 ```bash
-ollama pull qwen2.5:3b-instruct-q4_K_M
-ollama pull qwen2.5vl:7b-q4_K_M
+ollama pull gemma3:4b
 ```
 
 #### Configuration
@@ -96,15 +95,15 @@ Edit your config file (run `fo config show` to find its location):
 
 ```yaml
 models:
-  text_model: "qwen2.5:3b-instruct-q4_K_M"
-  vision_model: "qwen2.5vl:7b-q4_K_M"
+  text_model: "gemma3:4b"
+  vision_model: "gemma3:4b"
   framework: "ollama"
 ```
 
 Or use the CLI:
 
 ```bash
-fo config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
+fo config edit --text-model "gemma3:4b"
 ```
 
 #### Verification
@@ -593,8 +592,8 @@ Edit your config file (run `fo config show` to find its location):
 ```yaml
 models:
   framework: "ollama"  # or "llama_cpp", "mlx"
-  text_model: "qwen2.5:3b-instruct-q4_K_M"
-  vision_model: "qwen2.5vl:7b-q4_K_M"
+  text_model: "gemma3:4b"
+  vision_model: "gemma3:4b"
 ```
 
 Note: The config file `framework` field supports `ollama`, `llama_cpp`, and `mlx`.
