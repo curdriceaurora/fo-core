@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 
+from config.defaults import DEFAULT_MODEL
 from utils.atomic_write import atomic_write_with
 
 from .categories import PARACategory
@@ -109,7 +110,7 @@ class TemporalThresholds:
 class AIHeuristicConfig:
     """Configuration for the AI-powered heuristic."""
 
-    model: str = "gemma3:4b"
+    model: str = DEFAULT_MODEL
     ollama_url: str = "http://localhost:11434"
     timeout: float = 30.0
     max_content_chars: int = 4096

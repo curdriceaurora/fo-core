@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from config.defaults import DEFAULT_MODEL
 from models.base import ModelConfig, ModelType, TokenExhaustionError
 from models.text_model import TextModel
 
@@ -228,10 +229,15 @@ class TestTextModel:
 
     def test_get_default_config(self) -> None:
         """Test retrieving the default configuration."""
-        config = TextModel.get_default_config("custom-model")
-        assert config.name == "custom-model"
+        config = TextModel.get_default_config()
+        assert config.name == DEFAULT_MODEL
         assert config.model_type == ModelType.TEXT
         assert config.quantization == "q4_k_m"
+
+    def test_get_default_config_custom_name(self) -> None:
+        """Test retrieving a custom configuration."""
+        config = TextModel.get_default_config("custom-model")
+        assert config.name == "custom-model"
 
 
 @pytest.mark.unit

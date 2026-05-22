@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from config.defaults import DEFAULT_MODEL
 from config.schema import AppConfig, ModelPreset, UpdateSettings
 
 # ---------------------------------------------------------------------------
@@ -17,8 +18,8 @@ class TestModelPreset:
 
     def test_default_values(self) -> None:
         preset = ModelPreset()
-        assert preset.text_model == "gemma3:4b"
-        assert preset.vision_model == "gemma3:4b"
+        assert preset.text_model == DEFAULT_MODEL
+        assert preset.vision_model == DEFAULT_MODEL
         assert preset.temperature == 0.5
         assert preset.max_tokens == 3000
         assert preset.device == "auto"

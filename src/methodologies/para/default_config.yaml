@@ -98,7 +98,7 @@ enable_ai_heuristic: false      # Requires Ollama or external AI service
 
 # AI Heuristic Settings (requires Ollama)
 ai_heuristic:
-  model: "qwen2.5:3b-instruct-q4_K_M"
+  model: "gemma3:4b"
   ollama_url: "http://localhost:11434"
   timeout: 30.0
   max_content_chars: 4096

@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from config.defaults import DEFAULT_MODEL
 from config.manager import ConfigManager
 from config.schema import AppConfig, ModelPreset, UpdateSettings
 from models.base import DeviceType, ModelType
@@ -31,8 +32,8 @@ class TestAppConfigDefaults:
 
     def test_model_preset_defaults(self) -> None:
         preset = ModelPreset()
-        assert preset.text_model == "gemma3:4b"
-        assert preset.vision_model == "gemma3:4b"
+        assert preset.text_model == DEFAULT_MODEL
+        assert preset.vision_model == DEFAULT_MODEL
         assert preset.temperature == 0.5
         assert preset.max_tokens == 3000
         assert preset.device == "auto"
@@ -95,7 +96,7 @@ class TestConfigManagerLoadSave:
         assert loaded.models.text_model == "custom-model:latest"
         assert loaded.models.temperature == 0.8
         # Unset fields keep defaults
-        assert loaded.models.vision_model == "gemma3:4b"
+        assert loaded.models.vision_model == DEFAULT_MODEL
         assert loaded.updates.check_on_startup is False
         assert loaded.updates.interval_hours == 72
 
