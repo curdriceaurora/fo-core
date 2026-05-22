@@ -116,8 +116,7 @@ class TestFileMonitorPassesSafeDir:
         monitor = FileMonitor(config)
         assert monitor.handler._safe_dir is not None
         assert monitor.handler._watch_root == watch_dir.resolve()
-        # Release the fd
-        monitor.handler._safe_dir.__exit__(None, None, None)
+        monitor.stop()  # releases SafeDir fd cleanly
 
     def test_handler_has_no_safe_dir_when_no_watch_dir(self) -> None:
         """When no watch directories are configured, handler has no SafeDir."""
@@ -154,8 +153,75 @@ class TestFileMonitorPassesSafeDir:
         sd = monitor.handler._safe_dir
         wr = monitor.handler._watch_root
         assert (sd is None) == (wr is None), "safe_dir and watch_root must be paired"
-        if sd is not None:
-            sd.__exit__(None, None, None)
+        monitor.stop()  # releases SafeDir fd cleanly
+
+
+# ---------------------------------------------------------------------------
+# 1.2b — Multi-root startup + conditional add_directory clear (issue #347)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestFileMonitorMultiRootStartup:
+    """Multi-root configs at startup must not silently drop events (issue #347 P1)."""
+
+    def test_multi_root_startup_disables_containment_check(self, tmp_path: Path) -> None:
+        """With 2+ watch_directories at startup, watch_root is None (no silent drops)."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        d1 = tmp_path / "d1"
+        d2 = tmp_path / "d2"
+        d1.mkdir()
+        d2.mkdir()
+        config = WatcherConfig(watch_directories=[d1, d2], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        # Both safe_dir and watch_root must be None — containment check disabled
+        # so events from d2 are not silently dropped.
+        assert monitor.handler._watch_root is None
+        assert monitor.handler._safe_dir is None
+
+    def test_add_directory_under_root_preserves_containment(self, tmp_path: Path) -> None:
+        """Adding a sub-directory of the primary root must NOT disable containment."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_dir = tmp_path / "watch"
+        subdir = watch_dir / "subdir"
+        watch_dir.mkdir()
+        subdir.mkdir()
+        config = WatcherConfig(watch_directories=[watch_dir], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        assert monitor.handler._watch_root is not None  # pre-condition
+
+        monitor.add_directory(subdir)
+
+        # subdir is under watch_dir — _watch_root must still be set
+        assert monitor.handler._watch_root is not None
+        monitor.stop()
+
+    def test_add_directory_outside_root_disables_containment(self, tmp_path: Path) -> None:
+        """Adding a directory outside the primary root disables containment check."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_dir = tmp_path / "watch"
+        other_dir = tmp_path / "other"
+        watch_dir.mkdir()
+        other_dir.mkdir()
+        config = WatcherConfig(watch_directories=[watch_dir], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        assert monitor.handler._watch_root is not None  # pre-condition
+
+        monitor.add_directory(other_dir)
+
+        # other_dir is outside watch_dir — _watch_root must be cleared
+        assert monitor.handler._watch_root is None
+        monitor.stop()
 
 
 # ---------------------------------------------------------------------------

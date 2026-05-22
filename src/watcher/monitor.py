@@ -63,21 +63,33 @@ class FileMonitor:
         safe_dir = None
         watch_root: Path | None = None
         if self.config.watch_directories and sys.platform != "win32":
-            try:
-                from utils.safedir import SafeDir
-
-                watch_root = Path(self.config.watch_directories[0]).resolve()
-                safe_dir = SafeDir.open_root(watch_root)
-            except Exception as exc:
-                logger.warning(
-                    "FileMonitor: cannot open SafeDir for watch root %s: %s — "
-                    "watcher-level symlink check disabled",
-                    self.config.watch_directories[0] if self.config.watch_directories else "(none)",
-                    exc,
-                    exc_info=True,
+            if len(self.config.watch_directories) > 1:
+                # Multi-root startup: the single-root containment check in
+                # _safedir_allows cannot be applied because events from roots
+                # 2..N would fail relative_to(watch_root) and be silently
+                # dropped (issue #347 P1 follow-up).  Skip SafeDir entirely;
+                # the pipeline-level SafeDir is the backstop for all roots.
+                logger.debug(
+                    "FileMonitor: %d watch directories at startup — watcher-level "
+                    "containment check disabled; pipeline SafeDir is backstop",
+                    len(self.config.watch_directories),
                 )
-                safe_dir = None
-                watch_root = None
+            else:
+                try:
+                    from utils.safedir import SafeDir
+
+                    watch_root = Path(self.config.watch_directories[0]).resolve()
+                    safe_dir = SafeDir.open_root(watch_root)
+                except Exception as exc:
+                    logger.warning(
+                        "FileMonitor: cannot open SafeDir for watch root %s: %s — "
+                        "watcher-level symlink check disabled",
+                        self.config.watch_directories[0],
+                        exc,
+                        exc_info=True,
+                    )
+                    safe_dir = None
+                    watch_root = None
 
         self.handler = FileEventHandler(
             self.config, self.queue, safe_dir=safe_dir, watch_root=watch_root
@@ -182,18 +194,25 @@ class FileMonitor:
                 if path not in self.config.watch_directories:
                     self.config.watch_directories.append(path)
 
-            # When a second watch directory is added the single-root containment
-            # check in ``_safedir_allows`` can no longer be applied — events
-            # from the new directory will fail ``relative_to(watch_root)`` and
-            # would be dropped.  Clear ``_watch_root`` so the check is skipped;
-            # security for non-primary directories falls back to the
-            # pipeline-level SafeDir (issue #347).
-            if self.handler._watch_root is not None:
-                self.handler._watch_root = None
-                logger.debug(
-                    "FileMonitor: disabled watcher-level root containment check "
-                    "(multiple watch directories; pipeline SafeDir is backstop)"
-                )
+            # Only disable the single-root containment check when the new
+            # directory is genuinely outside the current watch root.  Paths
+            # that are sub-directories of the existing root still pass
+            # relative_to(watch_root) and do not require disabling the check
+            # (issue #347 P2 follow-up).
+            current_root = self.handler._watch_root
+            if current_root is not None:
+                try:
+                    path.relative_to(current_root)
+                    # path is under the current root — containment check remains active
+                except ValueError:
+                    # path is outside the current root — disable containment check
+                    self.handler._watch_root = None
+                    logger.debug(
+                        "FileMonitor: disabled watcher-level root containment check "
+                        "(new directory %s outside primary root %s; pipeline SafeDir is backstop)",
+                        path,
+                        current_root,
+                    )
 
             logger.info("Added watch directory: %s (recursive=%s)", path, recursive)
 
