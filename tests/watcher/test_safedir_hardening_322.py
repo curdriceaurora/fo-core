@@ -568,6 +568,7 @@ class TestPostprocessorFailsClosedOnSymlinkRejected:
         # Non-SymlinkRejected: postprocessor falls back and continues.
         assert not result.failed
         assert result.destination is not None
+        assert isinstance(result.destination, Path)
 
     def test_symlink_rejected_logs_security_event(
         self,
