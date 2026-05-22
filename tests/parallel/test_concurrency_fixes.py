@@ -172,7 +172,7 @@ class TestConcurrencyFixes(unittest.TestCase):
         )
 
     def test_timeout_does_not_deadlock_with_queued_files(self) -> None:
-        """Test that timeout handling aborts queued work instead of deadlocking."""
+        """Timed-out tasks are abandoned; remaining files continue and terminate."""
         config = ParallelConfig(
             max_workers=1,
             timeout_per_file=0.1,
@@ -190,17 +190,19 @@ class TestConcurrencyFixes(unittest.TestCase):
         self.assertEqual(results.total, 3)
         self.assertEqual(results.failed, 3)
         self.assertEqual(len(results.results), 3)
+        # Each file runs and times out individually — no cascade abort.
+        # With max_workers=1 and 3×0.5s tasks, total is ~1.5s.
         self.assertLess(
             results.total_duration_ms,
-            700,
-            "Should abort queued/remaining work quickly after uncancellable timeout",
+            4000,
+            "Should terminate within reasonable time even with repeated timeouts",
         )
         errors = [str(item.error) for item in results.results]
-        self.assertTrue(any("Timed out" in err for err in errors))
-        self.assertTrue(any("Aborted because another task" in err for err in errors))
+        # Every file must report its own timeout, not a cascade-abort message.
+        self.assertTrue(all("Timed out" in err for err in errors))
 
     def test_uncancellable_timeout_is_not_retried(self) -> None:
-        """An uncancellable timed-out task should abort the batch without retries."""
+        """Timed-out tasks are non-retryable: each file runs exactly once."""
         config = ParallelConfig(
             max_workers=1,
             timeout_per_file=0.1,
@@ -215,13 +217,14 @@ class TestConcurrencyFixes(unittest.TestCase):
             threading.Event().wait(timeout=0.5)
             return "done"
 
-        results = processor.process_batch([Path("slow_1"), Path("slow_2")], very_slow_task)
+        paths = [Path("slow_1"), Path("slow_2")]
+        results = processor.process_batch(paths, very_slow_task)
 
-        self.assertEqual(call_count, 1)
+        # With retry_count=2, a retried file would be called up to 3 times.
+        # Each file should run exactly once (non_retryable prevents retry).
+        self.assertEqual(call_count, len(paths))
         self.assertEqual(results.failed, 2)
-        self.assertTrue(
-            any("could not be cancelled" in str(item.error) for item in results.results)
-        )
+        self.assertTrue(all("Timed out" in str(item.error) for item in results.results))
 
     def test_error_message_does_not_control_retry_policy(self) -> None:
         """Regular failures containing the abort phrase should still be retried."""

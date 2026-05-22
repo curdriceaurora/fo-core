@@ -7,6 +7,7 @@ retry logic, progress reporting, and graceful shutdown.
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
@@ -24,6 +25,8 @@ from typing import Any, cast
 from parallel.config import ExecutorType, ParallelConfig
 from parallel.executor import create_executor
 from parallel.result import BatchResult, FileResult
+
+logger = logging.getLogger(__name__)
 
 
 def _execute_with_timing(
@@ -333,13 +336,14 @@ class ParallelProcessor:
                 finalize_result,
             )
             if timeout_handling is not None:
-                should_abort, timeout_results = timeout_handling
+                should_abort, needs_nonblocking, timeout_results = timeout_handling
+                if needs_nonblocking:
+                    cleanup_state["force_nonblocking_shutdown"] = owns_executor
                 if not should_abort:
                     yield from timeout_results
                     submit_round_of_work()
                     continue
 
-                cleanup_state["force_nonblocking_shutdown"] = owns_executor
                 yield from timeout_results
                 # Abort remaining files from iterator
                 for remaining_path in iterator:
@@ -364,7 +368,7 @@ class ParallelProcessor:
         timeout: float,
         poll_interval: float,
         finalize_result: Callable[[FileResult], FileResult],
-    ) -> tuple[bool, list[FileResult]] | None:
+    ) -> tuple[bool, bool, list[FileResult]] | None:
         """Check for and handle timed-out tasks.
 
         Args:
@@ -373,12 +377,16 @@ class ParallelProcessor:
             future_started: Mapping of futures to start times.
             timeout: Timeout threshold in seconds.
             poll_interval: Polling interval for drift compensation.
-            owns_executor: Whether we own the executor.
             finalize_result: Function to finalize results.
 
         Returns:
-            None if no timeout was handled, or tuple of
-            (should_abort_processing, finalized_results_to_yield).
+            None if no timeout was handled, or a 3-tuple of
+            (should_abort_processing, needs_nonblocking_shutdown,
+            finalized_results_to_yield).
+
+            should_abort_processing=True means drain the iterator and stop.
+            needs_nonblocking_shutdown=True means set force_nonblocking_shutdown
+            so the executor does not hang waiting for a stuck thread.
         """
         now = time.monotonic()
 
@@ -407,7 +415,7 @@ class ParallelProcessor:
                             error=f"Timed out after {timeout}s",
                         )
                     )
-                    return (False, [timed_out_result])
+                    return (False, False, [timed_out_result])
 
                 if future.done():
                     pending.remove(future)
@@ -419,17 +427,31 @@ class ParallelProcessor:
                         completed_result = finalize_result(
                             FileResult(path=completed_path, success=False, error=str(exc))
                         )
-                    return (False, [completed_result])
+                    return (False, False, [completed_result])
 
-                abort_results = self._abort_remaining_work(
-                    pending,
-                    future_paths,
-                    future_started,
-                    finalize_result,
-                    timed_out_future=future,
-                    timeout=timeout,
+                # Task is running and cannot be cancelled.  Abandon it —
+                # remove from tracking so other files continue normally.
+                # The thread will finish on its own (Ollama will eventually
+                # respond); we set needs_nonblocking_shutdown so the
+                # executor doesn't hang on cleanup waiting for it.
+                logger.warning(
+                    "Task for %s timed out after %.0fs and could not be cancelled "
+                    "(thread still running in background); continuing with remaining files",
+                    path,
+                    timeout,
                 )
-                return (True, abort_results)
+                pending.remove(future)
+                del future_paths[future]
+                del future_started[future]
+                abandoned_result = finalize_result(
+                    FileResult(
+                        path=path,
+                        success=False,
+                        error=f"Timed out after {timeout}s",
+                        non_retryable=True,
+                    )
+                )
+                return (False, True, [abandoned_result])
 
         return None
 
