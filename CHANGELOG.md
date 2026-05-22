@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.3] - 2026-05-21
+
+### Fixed
+
+- **`_compat` module missing from installed wheel** — `fo version` crashed with
+  `ModuleNotFoundError: No module named '_compat'` on a clean `pipx install`
+  because `setuptools packages.find` only discovers packages (directories with
+  `__init__.py`), not bare `.py` files at the `src/` root. All 14 import sites
+  used only `StrEnum`, which is stdlib since Python 3.11 (our minimum). Replaced
+  every `from _compat import StrEnum` with `from enum import StrEnum` and deleted
+  `_compat.py` (#344).
+
 ## [2.0.0-beta.2] - 2026-05-21
 
 ### Security
