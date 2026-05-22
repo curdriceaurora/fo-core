@@ -70,7 +70,7 @@ def _make_caps_mock(
     *,
     ollama_running: bool = True,
     ollama_installed: bool = True,
-    models: list[Any] | None = None,
+    models: list[MagicMock] | None = None,
 ) -> MagicMock:
     """Return a SystemCapabilities mock suitable for CLI-level tests."""
     m = models or []
