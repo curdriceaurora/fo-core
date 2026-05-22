@@ -15,8 +15,7 @@ git clone <repo-url>
 cd fo-core
 
 # 2. Install Ollama and pull models
-ollama pull qwen2.5:3b-instruct-q4_K_M    # Text: ~1.9 GB
-ollama pull qwen2.5vl:7b-q4_K_M           # Vision: ~6.0 GB
+ollama pull gemma3:4b                      # Text + Vision: ~3.0 GB
 
 # 3. Create virtual environment
 python3 -m venv venv

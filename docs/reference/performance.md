@@ -2,9 +2,9 @@
 
 | File Type | Average Time | Model |
 |-----------|-------------|-------|
-| Text (< 1 MB) | 2–5 s | Qwen 2.5 3B |
-| Image | 3–8 s | Qwen 2.5-VL 7B |
-| Video | 5–20 s | Qwen 2.5-VL 7B |
+| Text (< 1 MB) | 2–5 s | gemma3:4b |
+| Image | 3–8 s | gemma3:4b |
+| Video | 5–20 s | gemma3:4b |
 | Audio | 2–10 s | faster-whisper |
 | PDF (text) | 3–10 s | Qwen 2.5 3B |
 
@@ -12,8 +12,8 @@
 
 | Component | RAM |
 |-----------|-----|
-| Qwen 2.5 3B (Q4) | ~2.5 GB |
-| Qwen 2.5-VL 7B (Q4) | ~5.5 GB |
+| gemma3:4b (Q4) | ~3.0 GB |
+| gemma3:12b (Q4) | ~7.0 GB |
 | Base application | ~200 MB |
 
 ## Performance-Sensitive Components
@@ -62,14 +62,14 @@
 | `executor_type` | `THREAD` | `THREAD` (I/O-bound) or `PROCESS` (CPU-bound) |
 | `prefetch_depth` | `2` | Queue-ahead depth per worker |
 | `chunk_size` | `10` | Files submitted per scheduling round |
-| `timeout_per_file` | `60.0` | Seconds before a file processing times out |
+| `timeout_per_file` | `300.0` | Seconds before a file processing times out |
 | `retry_count` | `2` | Retry attempts for failed files |
 
 **Tuning tips**:
 
 - For Ollama-based inference (I/O-bound), use `THREAD` executor
 - For local model inference with GPU, `max_workers=1` prevents GPU contention
-- Increase `timeout_per_file` for large PDFs or videos (120–300 s)
+- The default `timeout_per_file` of 300 s covers Ollama model warmup on first use; one slow file is abandoned and skipped rather than killing the whole batch
 
 ```python
 from parallel.config import ParallelConfig, ExecutorType
@@ -79,7 +79,7 @@ config = ParallelConfig(
     executor_type=ExecutorType.THREAD,
     prefetch_depth=2,
     chunk_size=20,
-    timeout_per_file=120.0,
+    timeout_per_file=300.0,
     retry_count=1,
 )
 ```
@@ -145,7 +145,7 @@ batch_size = sizer.calculate_batch_size(file_sizes, overhead_per_file=1024)
 from optimization.model_cache import ModelCache
 
 cache = ModelCache(max_models=3, ttl_seconds=600)
-model = cache.get_or_load("qwen2.5:3b", loader_fn)
+model = cache.get_or_load("gemma3:4b", loader_fn)
 stats = cache.stats()
 ```
 
@@ -161,7 +161,7 @@ stats = cache.stats()
 from optimization.warmup import ModelWarmup
 
 warmup = ModelWarmup(cache, loader_factory, max_workers=2)
-result = warmup.warmup(["qwen2.5:3b", "qwen2.5vl:7b"])
+result = warmup.warmup(["gemma3:4b"])
 ```
 
 ## Resource Monitor

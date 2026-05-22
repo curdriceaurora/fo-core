@@ -5,7 +5,7 @@
 [![CI](https://github.com/curdriceaurora/fo-core/actions/workflows/ci.yml/badge.svg)](https://github.com/curdriceaurora/fo-core/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-2.0.0--beta.1-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0--beta.5-blue)](CHANGELOG.md)
 
 ---
 
@@ -26,11 +26,10 @@
 pip install fo-core
 ```
 
-Then pull the default AI models (first-time only, ~4 GB total):
+Then pull the default AI model (first-time only, ~3 GB):
 
 ```bash
-ollama pull qwen2.5:3b-instruct-q4_K_M
-ollama pull qwen2.5vl:7b-q4_K_M
+ollama pull gemma3:4b
 ```
 
 Verify optional deps for your files:
@@ -118,7 +117,7 @@ Config lives in `~/.config/fo/config.yaml`. Override the location with the `FO_C
 
 ```bash
 fo config show                                           # view all settings
-fo config edit --text-model qwen2.5:3b-instruct-q4_K_M  # change text model
+fo config edit --text-model gemma3:4b  # change text model
 fo config edit --device auto                             # change device
 ```
 
@@ -146,7 +145,7 @@ See [DEVELOPER.md](DEVELOPER.md) for architecture, local setup, testing, and con
 
 ## Releases
 
-Currently `2.0.0-beta.1`. The acceptance criteria that were required for this
+Currently `2.0.0-beta.5`. The acceptance criteria that were required for this
 promotion and the contract with public pre-release testers are documented in
 [docs/release/beta-criteria.md](docs/release/beta-criteria.md).
 

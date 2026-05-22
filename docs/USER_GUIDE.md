@@ -27,9 +27,8 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install the package
 pip install -e .
 
-# Pull the required AI models
-ollama pull qwen2.5:3b-instruct-q4_K_M    # Text model (~1.9 GB)
-ollama pull qwen2.5vl:7b-q4_K_M           # Vision model (~6.0 GB)
+# Pull the required AI model
+ollama pull gemma3:4b
 
 # Verify the installation
 fo version
@@ -426,8 +425,8 @@ fo config list
 fo config edit
 
 # Edit specific settings directly
-fo config edit --text-model "qwen2.5:3b-instruct-q4_K_M"
-fo config edit --vision-model "qwen2.5vl:7b-q4_K_M"
+fo config edit --text-model "gemma3:4b"
+fo config edit --vision-model "gemma3:4b"
 fo config edit --temperature 0.7
 fo config edit --device auto
 
@@ -452,7 +451,7 @@ fo model list --type vision
 
 ```bash
 # Pull a model by name
-fo model pull qwen2.5:3b-instruct-q4_K_M
+fo model pull gemma3:4b
 ```
 
 ### Cache Management
@@ -489,7 +488,7 @@ fo update install --dry-run
 | Category | Formats |
 |----------|---------|
 | Documents | `.txt`, `.md`, `.pdf`, `.docx`, `.doc`*, `.csv`, `.xlsx`, `.xls`*, `.pptx` |
-| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif` |
+| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif` |
 | Video | `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv` |
 | Audio | `.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg` |
 | Archives | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.rar` |
@@ -524,8 +523,7 @@ ollama ps
 If no models are listed, pull the required models:
 
 ```bash
-ollama pull qwen2.5:3b-instruct-q4_K_M
-ollama pull qwen2.5vl:7b-q4_K_M
+ollama pull gemma3:4b
 ```
 
 ### Verbose Output

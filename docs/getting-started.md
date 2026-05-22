@@ -44,9 +44,8 @@ git clone https://github.com/curdriceaurora/fo-core.git
 cd fo-core
 pip install -e .
 
-# Pull required AI models
-ollama pull qwen2.5:3b-instruct-q4_K_M      # Text model
-ollama pull qwen2.5vl:7b-q4_K_M             # Vision model
+# Pull the required AI model
+ollama pull gemma3:4b
 
 # Verify installation
 fo doctor .
@@ -116,16 +115,14 @@ File Organizer supports two provider modes:
 
 **Option A — Ollama (default, fully local):**
 
-- **Text Model**: `qwen2.5:3b-instruct-q4_K_M` (~1.9 GB)
-- **Vision Model**: `qwen2.5vl:7b-q4_K_M` (~6.0 GB)
+- **Model**: `gemma3:4b` (~3 GB) — handles both text and image processing
 
-These are automatically pulled on first run if Ollama is available.
+This is automatically pulled on first run if Ollama is available.
 
 **Manual pull** (if needed):
 
 ```bash
-ollama pull qwen2.5:3b-instruct-q4_K_M
-ollama pull qwen2.5vl:7b-q4_K_M
+ollama pull gemma3:4b
 ```
 
 **Option B — OpenAI-compatible endpoint (cloud or local API server):**
@@ -322,9 +319,8 @@ curl http://localhost:11434/api/version
 **Solution**:
 
 ```bash
-# Pull models manually
-ollama pull qwen2.5:3b-instruct-q4_K_M
-ollama pull qwen2.5vl:7b-q4_K_M
+# Pull the model manually
+ollama pull gemma3:4b
 
 # Verify models are installed
 ollama list
