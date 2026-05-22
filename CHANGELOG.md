@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.6] - 2026-05-22
+
+### Added
+
+- **Rotating JSON file log** — every CLI invocation now writes WARNING+ events
+  to a platform-appropriate state directory (`~/Library/Application Support/fo/logs/fo.log`
+  on macOS, `~/.local/state/fo/logs/fo.log` on Linux). Policy: 10 MB rotation,
+  7-day retention, gzip compression, NDJSON format. `--debug` lowers the level to
+  DEBUG. `diagnose=False` ensures local variable values (secrets, PII) are never
+  written to disk. Errors survive the terminal session and are available for
+  post-run analysis. (#372)
+
+### Fixed
+
+- **Parallel timeout cascade abort** — timed-out worker threads were previously
+  marking the entire batch as aborted when a future could not be cancelled (threads
+  are not cancellable in Python). Timed-out tasks are now individually failed and
+  abandoned; remaining queued files continue processing normally. A saturation guard
+  detects permanently hung pools (all workers blocked past `2 × timeout_per_file`)
+  and aborts only in that case. Timeout errors are non-retryable. (#370)
+- **Timeout increased to 300 s** — the per-file timeout for vision/text processing
+  was raised from 60 s to 300 s to accommodate large files on slower hardware.
+- **WEBP / HEIC / HEIF support** — these image formats are now recognised by the
+  pipeline router, vision processor, and MIME-type table. (#370)
+- **Vision circuit breaker** — Ollama OOM errors (`model failed to load`,
+  `resource limitations`) now trip the circuit breaker, preventing repeated
+  traceback spam for every subsequent file when a model fails to load. (#370)
+
+### Changed
+
+- **Default model: `gemma3:4b`** — replaces the dual `qwen2.5:3b-instruct` (text)
+  + `qwen2.5vl:7b` (vision) pair with a single multimodal model. Eliminates
+  out-of-memory crashes from loading two large models simultaneously on 8 GB
+  machines. (#370)
+- **Centralized model defaults** — `DEFAULT_MODEL = "gemma3:4b"` and
+  `DEFAULT_LARGE_MODEL = "gemma3:12b"` are now defined once in `config.defaults`
+  and imported everywhere; changing the default going forward requires a single
+  edit. (#375)
+
 ## [2.0.0-beta.5] - 2026-05-22
 
 ### Fixed
