@@ -457,8 +457,13 @@ def doctor(
     if install:
         install_groups(missing_groups)
     else:
-        # Show summary of what's missing
+        # Show summary of what's missing with actionable install commands
         console.print(
             f"\n[yellow]Found {len(missing_groups)} missing dependency group(s).[/yellow]"
         )
-        console.print("[dim]Run with --install flag to install them automatically.[/dim]")
+        console.print("\nInstall them now:")
+        for group in sorted(missing_groups):
+            console.print(f"  [cyan]pip install fo-core\\[{group}][/cyan]")
+        console.print(
+            f"\nOr install all at once:  [cyan]fo doctor {resolved_path} --install[/cyan]"
+        )
