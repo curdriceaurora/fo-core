@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.5] - 2026-05-22
+
+### Fixed
+
+- **`fo setup` crash on first run** — `setup_callback` called `ctx.invoke(setup_run)`
+  without explicit keyword arguments; Click/Typer passed the raw `typer.OptionInfo`
+  default objects as parameter values, causing `AttributeError: 'OptionInfo' object
+  has no attribute 'lower'` on the first call to `mode.lower()`. Fix: pass
+  `mode="quick-start"`, `profile="default"`, `dry_run=False` explicitly
+  (PR #368).
+
+### Tests
+
+- Added `tests/integration/test_cli_e2e_first_run.py` (14 tests) covering the
+  no-subcommand callback path, real config-on-disk write, `_check_setup_completed`
+  gate logic, and validation error paths (PR #368).
+
 ## [2.0.0-beta.4] - 2026-05-22
 
 ### Security
