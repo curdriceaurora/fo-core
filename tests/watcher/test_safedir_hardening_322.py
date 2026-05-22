@@ -116,8 +116,7 @@ class TestFileMonitorPassesSafeDir:
         monitor = FileMonitor(config)
         assert monitor.handler._safe_dir is not None
         assert monitor.handler._watch_root == watch_dir.resolve()
-        # Release the fd
-        monitor.handler._safe_dir.__exit__(None, None, None)
+        monitor.stop()  # releases SafeDir fd cleanly
 
     def test_handler_has_no_safe_dir_when_no_watch_dir(self) -> None:
         """When no watch directories are configured, handler has no SafeDir."""
@@ -154,8 +153,75 @@ class TestFileMonitorPassesSafeDir:
         sd = monitor.handler._safe_dir
         wr = monitor.handler._watch_root
         assert (sd is None) == (wr is None), "safe_dir and watch_root must be paired"
-        if sd is not None:
-            sd.__exit__(None, None, None)
+        monitor.stop()  # releases SafeDir fd cleanly
+
+
+# ---------------------------------------------------------------------------
+# 1.2b — Multi-root startup + conditional add_directory clear (issue #347)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestFileMonitorMultiRootStartup:
+    """Multi-root configs at startup must not silently drop events (issue #347 P1)."""
+
+    def test_multi_root_startup_disables_containment_check(self, tmp_path: Path) -> None:
+        """With 2+ watch_directories at startup, watch_root is None (no silent drops)."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        d1 = tmp_path / "d1"
+        d2 = tmp_path / "d2"
+        d1.mkdir()
+        d2.mkdir()
+        config = WatcherConfig(watch_directories=[d1, d2], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        # Both safe_dir and watch_root must be None — containment check disabled
+        # so events from d2 are not silently dropped.
+        assert monitor.handler._watch_root is None
+        assert monitor.handler._safe_dir is None
+
+    def test_add_directory_under_root_preserves_containment(self, tmp_path: Path) -> None:
+        """Adding a sub-directory of the primary root must NOT disable containment."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_dir = tmp_path / "watch"
+        subdir = watch_dir / "subdir"
+        watch_dir.mkdir()
+        subdir.mkdir()
+        config = WatcherConfig(watch_directories=[watch_dir], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        assert monitor.handler._watch_root is not None  # pre-condition
+
+        monitor.add_directory(subdir)
+
+        # subdir is under watch_dir — _watch_root must still be set
+        assert monitor.handler._watch_root is not None
+        monitor.stop()
+
+    def test_add_directory_outside_root_disables_containment(self, tmp_path: Path) -> None:
+        """Adding a directory outside the primary root disables containment check."""
+        if sys.platform == "win32":
+            pytest.skip("SafeDir is POSIX-only")
+
+        watch_dir = tmp_path / "watch"
+        other_dir = tmp_path / "other"
+        watch_dir.mkdir()
+        other_dir.mkdir()
+        config = WatcherConfig(watch_directories=[watch_dir], debounce_seconds=0.0)
+        monitor = FileMonitor(config)
+
+        assert monitor.handler._watch_root is not None  # pre-condition
+
+        monitor.add_directory(other_dir)
+
+        # other_dir is outside watch_dir — _watch_root must be cleared
+        assert monitor.handler._watch_root is None
+        monitor.stop()
 
 
 # ---------------------------------------------------------------------------
@@ -283,14 +349,20 @@ class TestSafeDirAllowsLstatContainment:
 
         assert result is True
 
-    def test_path_completely_outside_watch_root_allowed_through(
+    def test_path_completely_outside_watch_root_rejected(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
     ) -> None:
-        """A path not under watch_root is allowed through (secondary watch dir).
+        """A path not under watch_root is rejected by the handler (issue #347).
 
-        The SafeDir is only anchored to the primary watch root.  Events from
-        other roots added via ``add_directory()`` are outside that root and
-        must pass through to the pipeline-level SafeDir backstop (#322 / 1.4).
+        ``relative_to(watch_root)`` raises ``ValueError`` when the lstat path
+        cannot be contained within the primary root.  The old code returned
+        ``True`` here (security bypass); the fix returns ``False`` so that
+        escaping-symlink paths cannot slip through (#347).
+
+        In the multi-directory monitor scenario ``FileMonitor.add_directory()``
+        clears ``handler._watch_root`` to ``None`` so that the containment
+        check is disabled before a second directory is added — this test
+        verifies the single-root, single-handler case where the check is active.
         """
         if sys.platform == "win32":
             pytest.skip("SafeDir is POSIX-only")
@@ -303,8 +375,8 @@ class TestSafeDirAllowsLstatContainment:
         handler = FileEventHandler(default_config, queue, safe_dir=sd_mock, watch_root=watch_root)
         result = handler._safedir_allows(outside)
 
-        # Allowed through — pipeline SafeDir handles it.
-        assert result is True
+        # Rejected — lstat path cannot be relativized to watch_root (#347).
+        assert result is False
         # open_child should NOT have been called on a path outside the primary root.
         sd_mock.open_child.assert_not_called()
 
@@ -317,7 +389,7 @@ class TestSafeDirAllowsLstatContainment:
 @pytest.mark.unit
 @pytest.mark.ci
 class TestSafeDirAllowsNestedPaths:
-    """Nested paths under watch_root are ancestry-checked; paths outside are allowed through."""
+    """Nested paths under watch_root are ancestry-checked; paths outside are rejected (issue #347)."""
 
     def test_nested_path_inside_root_allowed(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
@@ -340,14 +412,17 @@ class TestSafeDirAllowsNestedPaths:
 
         assert result is True
 
-    def test_nested_path_outside_root_allowed_through(
+    def test_nested_path_outside_root_rejected(
         self, tmp_path: Path, default_config: WatcherConfig, queue: EventQueue
     ) -> None:
-        """A nested path outside watch_root is allowed through (secondary watch dir).
+        """A nested path outside watch_root is rejected when watch_root is set (issue #347).
 
-        Events from directories added via ``add_directory()`` may be nested
-        paths that are outside the primary watch root.  These must be allowed
-        through to the pipeline-level SafeDir backstop (#322 / 1.5 revised).
+        Events from secondary watch directories added via ``add_directory()``
+        are handled by ``FileMonitor.add_directory()`` clearing
+        ``handler._watch_root`` to ``None`` before the second directory is
+        registered — so the containment check is disabled for multi-root setups.
+        This test verifies the single-root case where the check is active and
+        outside paths must be rejected.
         """
         if sys.platform == "win32":
             pytest.skip("SafeDir is POSIX-only")
@@ -361,8 +436,8 @@ class TestSafeDirAllowsNestedPaths:
         handler = FileEventHandler(default_config, queue, safe_dir=sd_mock, watch_root=watch_root)
         result = handler._safedir_allows(outside_nested)
 
-        # Allowed through — pipeline SafeDir handles it.
-        assert result is True
+        # Rejected — lstat path is outside watch_root and cannot be relativized (#347).
+        assert result is False
         sd_mock.open_child.assert_not_called()
 
     def test_nested_path_does_not_call_open_child(
