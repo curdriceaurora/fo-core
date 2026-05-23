@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError
 from typing import Any
 
 import httpx
@@ -224,8 +225,8 @@ class UpdateChecker:
             Version string from the package metadata.
         """
         try:
-            from version import __version__
+            from importlib.metadata import version as _pkg_version
 
-            return __version__
-        except ImportError:
+            return _pkg_version("fo-core")
+        except PackageNotFoundError:
             return "0.0.0"

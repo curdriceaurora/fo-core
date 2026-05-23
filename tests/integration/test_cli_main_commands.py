@@ -6,6 +6,12 @@ and global callback flags (--verbose, --dry-run, --json, --yes, --no-interactive
 
 from __future__ import annotations
 
+import importlib.metadata
+import os
+import site
+import subprocess
+import sys
+import venv
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -30,10 +36,53 @@ class TestVersionCommand:
         assert "fo" in result.output.lower()
 
     def test_version_shows_version_string(self) -> None:
-        from version import __version__
-
         result = runner.invoke(app, ["version"])
-        assert __version__ in result.output
+        assert importlib.metadata.version("fo-core") in result.output
+
+    def test_installed_entry_point_version_smoke(self, tmp_path: Path) -> None:
+        project_root = Path(__file__).resolve().parents[2]
+        wheel_dir = tmp_path / "wheel"
+        venv_dir = tmp_path / "venv"
+        wheel_dir.mkdir()
+
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "wheel",
+                "--no-deps",
+                "--wheel-dir",
+                str(wheel_dir),
+                str(project_root),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        wheel_path = next(wheel_dir.glob("fo_core-*.whl"))
+
+        venv.EnvBuilder(with_pip=True).create(venv_dir)
+        venv_python = venv_dir / "bin" / "python"
+        env = {**os.environ, "PYTHONPATH": site.getusersitepackages()}
+
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "--no-deps", str(wheel_path)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
+
+        result = subprocess.run(
+            [str(venv_dir / "bin" / "fo"), "--version"],
+            check=True,
+            text=True,
+            capture_output=True,
+            env=env,
+        )
+
+        assert result.stdout.strip() == f"fo {importlib.metadata.version('fo-core')}"
 
 
 def _make_hw_profile() -> SimpleNamespace:

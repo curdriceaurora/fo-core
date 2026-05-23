@@ -14,8 +14,16 @@ runner = CliRunner()
 
 def test_version_command():
     """Test the version command output."""
-    with patch("version.__version__", "1.2.3"):
+    with patch("importlib.metadata.version", return_value="1.2.3"):
         result = runner.invoke(app, ["version"])
+        assert result.exit_code == 0
+        assert "fo 1.2.3" in result.stdout
+
+
+def test_version_flag():
+    """Test the eager --version flag output."""
+    with patch("importlib.metadata.version", return_value="1.2.3"):
+        result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "fo 1.2.3" in result.stdout
 

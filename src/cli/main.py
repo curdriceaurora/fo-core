@@ -47,9 +47,9 @@ def _version_callback(value: bool) -> None:
     """Print the application version for the eager ``--version`` option."""
     if not value:
         return
-    from version import __version__
+    from importlib.metadata import version as _pkg_version
 
-    console.print(f"fo {__version__}")
+    console.print(f"fo {_pkg_version('fo-core')}")
     raise typer.Exit()
 
 
@@ -262,9 +262,9 @@ app.command()(doctor)
 @app.command()
 def version() -> None:
     """Show the application version."""
-    from version import __version__
+    from importlib.metadata import version as _pkg_version
 
-    console.print(f"fo {__version__}")
+    console.print(f"fo {_pkg_version('fo-core')}")
 
 
 @app.command(name="hardware-info")
