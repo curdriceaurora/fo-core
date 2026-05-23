@@ -493,17 +493,13 @@ class TestDatetimeCompatibility:
 
     def test_utc_aware_comparison(self) -> None:
         """UTC-aware datetimes should be comparable."""
-        from datetime import UTC
-
-        t1 = datetime.datetime(2024, 1, 1, tzinfo=UTC)
-        t2 = datetime.datetime(2024, 6, 1, tzinfo=UTC)
+        t1 = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
+        t2 = datetime.datetime(2024, 6, 1, tzinfo=datetime.UTC)
         assert t1 < t2
 
     def test_utc_isoformat(self) -> None:
         """UTC datetime isoformat should include timezone info."""
-        from datetime import UTC
-
-        dt = datetime.datetime(2024, 1, 15, 14, 30, 0, tzinfo=UTC)
+        dt = datetime.datetime(2024, 1, 15, 14, 30, 0, tzinfo=datetime.UTC)
         iso = dt.isoformat()
         assert "+00:00" in iso or "Z" in iso
 

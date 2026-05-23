@@ -296,6 +296,8 @@ class BackupManager:
         cutoff_date = datetime.now(UTC) - timedelta(days=max_age_days)
         manifest = self._load_manifest()
         removed_backups: list[Path] = []
+        # Resolve once so chdir() mid-run can't shift the anchor.
+        backup_root = self.backup_dir.resolve()
 
         # Find and remove old backups
         for backup_key, metadata in list(manifest.items()):
@@ -311,7 +313,7 @@ class BackupManager:
                 # rail); relative_to raises ValueError for outside-root.
                 try:
                     backup_path = Path(backup_key).resolve()
-                    backup_path.relative_to(self.backup_dir.resolve())
+                    backup_path.relative_to(backup_root)
                 except (ValueError, RuntimeError, OSError):
                     logger.warning(
                         "cleanup_old_backups: manifest entry %r is outside the "
