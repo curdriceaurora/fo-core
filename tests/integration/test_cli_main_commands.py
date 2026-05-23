@@ -40,7 +40,7 @@ class TestVersionCommand:
         result = runner.invoke(app, ["version"])
         assert importlib.metadata.version("fo-core") in result.output
 
-    def test_version_works_from_installed_wheel(self, tmp_path: Path) -> None:
+    def test_version_flag_works_from_installed_wheel(self, tmp_path: Path) -> None:
         project_root = Path(__file__).resolve().parents[2]
         wheel_dir = tmp_path / "wheel"
         venv_dir = tmp_path / "venv"
@@ -81,20 +81,24 @@ class TestVersionCommand:
         deps_dir = tmp_path / "deps"
         deps_dir.mkdir()
         project_packages = {
-            "cli",
-            "config",
-            "core",
-            "models",
-            "services",
-            "undo",
-            "updater",
-            "utils",
-            "watcher",
-            "version",
+            entry.stem if entry.is_file() else entry.name
+            for entry in (Path(__file__).resolve().parents[2] / "src").iterdir()
+            if not entry.name.startswith(".") and entry.name != "__pycache__"
+        }
+        required_packages = {
+            "click",
+            "markdown_it",
+            "mdurl",
+            "pygments",
+            "rich",
+            "shellingham",
+            "typer",
+            "typing_extensions",
         }
         user_site = Path(site.getusersitepackages())
-        for entry in user_site.iterdir():
-            if "fo_core" in entry.name or entry.name in project_packages:
+        for package_name in required_packages:
+            entry = user_site / package_name
+            if not entry.exists() or "fo_core" in entry.name or entry.name in project_packages:
                 continue
             target = deps_dir / entry.name
             if entry.is_dir():
