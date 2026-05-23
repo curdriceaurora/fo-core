@@ -30,7 +30,7 @@ try:
     import numpy as np
 
     _NUMPY_AVAILABLE = True
-except ImportError:  # pragma: no cover - numpy is optional (install fo-core[search] or fo-core[dedup-text])
+except ImportError:  # pragma: no cover - numpy is optional (install fo-core[search] or fo-core[dedup-image])
     # The ignore is only emitted when numpy IS resolvable (then mypy sees a
     # type clash with the inferred Module).  When numpy is absent (the
     # type-check job's [dev] env), mypy follows the ImportError branch and
