@@ -309,3 +309,50 @@ class TestBackupManagerManifest:
         assert backup_path in removed
         assert not backup_path.exists()
         assert backup_mgr._load_manifest() == {}
+
+    def test_cleanup_old_backups_drops_stale_safe_name_entry(
+        self, backup_mgr: BackupManager, tmp_path: Path
+    ) -> None:
+        """A missing file with a SafeDir-safe name is treated as a stale entry."""
+        # Inject a manifest entry for a file that doesn't exist but has a
+        # well-formed name — cleanup should drop the entry.
+        stale_key = str(backup_mgr.backup_dir / "vanished.bak")
+        manifest = {
+            stale_key: {
+                "original_path": str(tmp_path / "vanished"),
+                "backup_path": stale_key,
+                "backup_time": "2000-01-01T00:00:00Z",
+                "file_size": 0,
+                "original_mtime": "2000-01-01T00:00:00Z",
+            }
+        }
+        backup_mgr.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        removed = backup_mgr.cleanup_old_backups(max_age_days=1)
+
+        assert removed == []
+        assert stale_key not in backup_mgr._load_manifest()
+
+    def test_cleanup_old_backups_preserves_missing_file_with_unsafe_name(
+        self, backup_mgr: BackupManager, tmp_path: Path
+    ) -> None:
+        """A missing file with a SafeDir-rejected name is preserved for retry."""
+        # backslash makes the name unsafe under SafeDir validation; even though
+        # the file doesn't exist, the manifest entry must be preserved so an
+        # operator can act on it (issue #350 C1/C2).
+        bad_key = str(backup_mgr.backup_dir / "bad\\name.bak")
+        manifest = {
+            bad_key: {
+                "original_path": str(tmp_path / "bad"),
+                "backup_path": bad_key,
+                "backup_time": "2000-01-01T00:00:00Z",
+                "file_size": 0,
+                "original_mtime": "2000-01-01T00:00:00Z",
+            }
+        }
+        backup_mgr.manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        removed = backup_mgr.cleanup_old_backups(max_age_days=1)
+
+        assert removed == []
+        assert bad_key in backup_mgr._load_manifest()

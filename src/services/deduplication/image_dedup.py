@@ -31,7 +31,7 @@ try:
 
     _NUMPY_AVAILABLE = True
 except ImportError:  # pragma: no cover - numpy always installed in CI
-    np = None
+    np = None  # type: ignore[assignment]
     _NUMPY_AVAILABLE = False
 
 from PIL.Image import (  # noqa: E402

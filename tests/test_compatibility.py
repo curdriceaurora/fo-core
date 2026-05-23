@@ -142,6 +142,7 @@ class TestStrEnumBackport:
 
     def test_basic_strenum_creation(self) -> None:
         """Creating a StrEnum subclass should work."""
+
         class Color(StrEnum):
             RED = "red"
             GREEN = "green"
@@ -151,6 +152,7 @@ class TestStrEnumBackport:
 
     def test_strenum_string_equality(self) -> None:
         """StrEnum members should compare equal to their string values."""
+
         class Status(StrEnum):
             ACTIVE = "active"
             INACTIVE = "inactive"
@@ -160,6 +162,7 @@ class TestStrEnumBackport:
 
     def test_strenum_str_conversion(self) -> None:
         """str() on StrEnum member should return the value, not 'Class.MEMBER'."""
+
         class Priority(StrEnum):
             HIGH = "high"
             LOW = "low"
@@ -169,6 +172,7 @@ class TestStrEnumBackport:
 
     def test_strenum_format_string(self) -> None:
         """StrEnum members should work in f-strings and format()."""
+
         class Level(StrEnum):
             INFO = "info"
             WARN = "warn"
@@ -178,6 +182,7 @@ class TestStrEnumBackport:
 
     def test_strenum_is_string_subclass(self) -> None:
         """StrEnum members should be instances of str with their string value."""
+
         class Direction(StrEnum):
             NORTH = "north"
 
@@ -185,6 +190,7 @@ class TestStrEnumBackport:
 
     def test_strenum_is_enum_subclass(self) -> None:
         """StrEnum members should be instances of Enum."""
+
         class Direction(StrEnum):
             NORTH = "north"
 
@@ -192,6 +198,7 @@ class TestStrEnumBackport:
 
     def test_strenum_value_access(self) -> None:
         """StrEnum .value should return the string value."""
+
         class Mode(StrEnum):
             READ = "read"
             WRITE = "write"
@@ -201,6 +208,7 @@ class TestStrEnumBackport:
 
     def test_strenum_iteration(self) -> None:
         """StrEnum should support iteration over members."""
+
         class Suit(StrEnum):
             HEARTS = "hearts"
             DIAMONDS = "diamonds"
@@ -212,6 +220,7 @@ class TestStrEnumBackport:
 
     def test_strenum_lookup_by_value(self) -> None:
         """StrEnum should support lookup by value."""
+
         class Season(StrEnum):
             SPRING = "spring"
             SUMMER = "summer"
@@ -221,6 +230,7 @@ class TestStrEnumBackport:
 
     def test_strenum_in_dict_key(self) -> None:
         """StrEnum members should work as dict keys and match string keys."""
+
         class Key(StrEnum):
             NAME = "name"
             AGE = "age"
@@ -231,6 +241,7 @@ class TestStrEnumBackport:
 
     def test_strenum_hashable(self) -> None:
         """StrEnum members should be hashable and usable in sets."""
+
         class Tag(StrEnum):
             A = "a"
             B = "b"
@@ -248,6 +259,7 @@ class TestStrEnumBackport:
 
     def test_strenum_repr(self) -> None:
         """StrEnum repr should include class name and member name."""
+
         class Flavor(StrEnum):
             VANILLA = "vanilla"
 
@@ -417,6 +429,7 @@ class TestIsinstanceTupleForm:
 
     def test_isinstance_with_enum(self) -> None:
         """isinstance checks with Enum types should work."""
+
         class Color(StrEnum):
             RED = "red"
 
