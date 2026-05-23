@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import os
+import shutil
 import site
 import subprocess
 import sys
@@ -75,9 +76,33 @@ class TestVersionCommand:
             stderr=subprocess.DEVNULL,
         )
 
-        # Reuse the runner's already-installed dev dependencies so the wheel
-        # smoke test can execute without network access.
-        subprocess_env = {**os.environ, "PYTHONPATH": site.getusersitepackages()}
+        # Mirror the runner's dependency packages only; keep fo-core itself
+        # coming from the freshly installed wheel in the temp venv.
+        deps_dir = tmp_path / "deps"
+        deps_dir.mkdir()
+        project_packages = {
+            "cli",
+            "config",
+            "core",
+            "models",
+            "services",
+            "undo",
+            "updater",
+            "utils",
+            "watcher",
+            "version",
+        }
+        user_site = Path(site.getusersitepackages())
+        for entry in user_site.iterdir():
+            if "fo_core" in entry.name or entry.name in project_packages:
+                continue
+            target = deps_dir / entry.name
+            if entry.is_dir():
+                shutil.copytree(entry, target, dirs_exist_ok=True)
+            elif entry.is_file():
+                shutil.copy2(entry, target)
+
+        subprocess_env = {**os.environ, "PYTHONPATH": str(deps_dir)}
         result = subprocess.run(
             [str(venv_dir / scripts_dir_name / fo_executable), "--version"],
             check=True,
