@@ -61,7 +61,7 @@ try:
         read_mat_file,
         read_netcdf_file,
     )
-except (ImportError, Exception):  # pragma: no cover
+except (ImportError, OSError):  # pragma: no cover
     from utils.readers._scientific_stub import (  # type: ignore[no-redef]
         read_hdf5_file,
         read_mat_file,
