@@ -82,7 +82,7 @@ class ImageDeduplicator:
             ValueError: If hash_method is not supported or threshold is invalid
         """
         if not _IMAGEDEDUP_AVAILABLE:
-            if _PY314_PLUS:
+            if _PY314_PLUS:  # pragma: no cover — CI runs on Python 3.11
                 raise ImportError(
                     "imagededup does not yet support Python 3.14+. "
                     "Image deduplication is unavailable on this Python version."
