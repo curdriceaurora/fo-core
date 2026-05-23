@@ -210,8 +210,8 @@ exclude = [
     "test_preference_tracker.py",
 ]
 [tool.ruff.lint]
-# G1-G5 are project-local custom rules checked by scripts/check_*.py.
-# Declaring them external prevents RUF100 from removing valid # noqa: Gx suppressions.
+# G1-G5 are project-local custom rules (scripts/check_*.py).
+# Declaring as external prevents RUF100 from stripping valid noqa suppressions.
 external = ["G1", "G2", "G3", "G4", "G5"]
 select = [
     "E",   # pycodestyle errors

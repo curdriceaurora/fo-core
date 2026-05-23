@@ -135,9 +135,13 @@ class TestDoctorCommandInvocation:
 
     def test_doctor_no_path_defaults_to_cwd(self) -> None:
         """Doctor command without a path defaults to the current working directory."""
+        import os
+
+        cwd = os.getcwd()
         result = runner.invoke(app, ["doctor"])
         assert result.exit_code == 0
         assert "scanning directory" in result.output.lower()
+        assert cwd in result.output
 
     def test_doctor_rejects_nonexistent_path(self) -> None:
         """Doctor command rejects non-existent directories."""

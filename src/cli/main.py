@@ -373,7 +373,7 @@ def history(
     raise typer.Exit(code=code if code is not None else 1)
 
 
-@app.command()  # noqa: G3 (journal is a read-only path from system state dir)
+@app.command()  # noqa: G3 (journal is a read-only path from user state dir)
 def recover(
     journal: Path | None = typer.Option(
         None,
