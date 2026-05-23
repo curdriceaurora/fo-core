@@ -34,9 +34,11 @@ except ImportError:  # pragma: no cover - numpy always installed in CI
     np = None
     _NUMPY_AVAILABLE = False
 
-from PIL.Image import DecompressionBombError
+from PIL.Image import (  # noqa: E402
+    DecompressionBombError,
+)
 
-from .image_utils import SUPPORTED_FORMATS, safedir_image_open
+from .image_utils import SUPPORTED_FORMATS, safedir_image_open  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
