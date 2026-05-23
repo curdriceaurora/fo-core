@@ -132,7 +132,14 @@ def main_callback(
         from loguru import logger as _loguru_logger
 
         _sink_id = _loguru_logger.add(_sys.stderr, level="DEBUG", backtrace=True, diagnose=False)
-        ctx.call_on_close(lambda: _loguru_logger.remove(_sink_id))
+
+        def _remove_debug_sink() -> None:
+            try:
+                _loguru_logger.remove(_sink_id)
+            except ValueError:
+                pass  # already removed
+
+        ctx.call_on_close(_remove_debug_sink)
 
     # Rotating JSON file log — always installed so errors outlive the terminal
     # session.  Uses loguru's built-in rotation + compression instead of a
@@ -173,6 +180,7 @@ def main_callback(
                 pass  # sink already removed or was never real (e.g. test spy)
 
         ctx.call_on_close(_remove_file_sink)
+        ctx.obj.file_log_sink_id = _file_sink_id  # A5: expose ID so callers don't bare-remove
     except OSError:
         pass  # log dir unwritable — degrade gracefully
 

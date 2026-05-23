@@ -24,6 +24,10 @@ class CLIState:
     # console.print_exception(). This is the contract `fo --debug <cmd>`
     # offers beta testers for filing actionable bug reports.
     debug: bool = False
+    # Loguru sink ID for the rotating file handler installed by main_callback.
+    # Stored here so commands can check it exists without removing it.
+    # Only main_callback's _remove_file_sink() should call logger.remove() on it.
+    file_log_sink_id: int | None = None
 
 
 def _get_state() -> CLIState:
