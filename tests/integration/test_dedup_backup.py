@@ -284,7 +284,10 @@ class TestBackupManagerManifest:
             removed = backup_mgr.cleanup_old_backups(max_age_days=1)
 
         assert removed == []
-        assert backup_mgr._load_manifest() == {}
+        # When unlink fails but the file is still on disk, the manifest
+        # entry is preserved so the next cleanup pass can retry
+        # (issue #350 C1/C2).
+        assert str(backup_path) in backup_mgr._load_manifest()
 
     def test_cleanup_old_backups_removes_file_and_returns_path(
         self, backup_mgr: BackupManager, tmp_path: Path

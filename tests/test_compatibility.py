@@ -17,10 +17,9 @@ Test areas:
 from __future__ import annotations
 
 import datetime
-import importlib
 import sys
 from dataclasses import dataclass, field, fields
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any, get_type_hints
 
@@ -141,16 +140,8 @@ class TestFutureAnnotations:
 class TestStrEnumBackport:
     """Verify the StrEnum backport works identically to the 3.11+ stdlib version."""
 
-    def test_import_from_compat(self) -> None:
-        """StrEnum should be importable from _compat module."""
-        from _compat import StrEnum
-
-        assert StrEnum is not None
-
     def test_basic_strenum_creation(self) -> None:
         """Creating a StrEnum subclass should work."""
-        from _compat import StrEnum
-
         class Color(StrEnum):
             RED = "red"
             GREEN = "green"
@@ -160,8 +151,6 @@ class TestStrEnumBackport:
 
     def test_strenum_string_equality(self) -> None:
         """StrEnum members should compare equal to their string values."""
-        from _compat import StrEnum
-
         class Status(StrEnum):
             ACTIVE = "active"
             INACTIVE = "inactive"
@@ -171,8 +160,6 @@ class TestStrEnumBackport:
 
     def test_strenum_str_conversion(self) -> None:
         """str() on StrEnum member should return the value, not 'Class.MEMBER'."""
-        from _compat import StrEnum
-
         class Priority(StrEnum):
             HIGH = "high"
             LOW = "low"
@@ -182,8 +169,6 @@ class TestStrEnumBackport:
 
     def test_strenum_format_string(self) -> None:
         """StrEnum members should work in f-strings and format()."""
-        from _compat import StrEnum
-
         class Level(StrEnum):
             INFO = "info"
             WARN = "warn"
@@ -193,8 +178,6 @@ class TestStrEnumBackport:
 
     def test_strenum_is_string_subclass(self) -> None:
         """StrEnum members should be instances of str with their string value."""
-        from _compat import StrEnum
-
         class Direction(StrEnum):
             NORTH = "north"
 
@@ -202,8 +185,6 @@ class TestStrEnumBackport:
 
     def test_strenum_is_enum_subclass(self) -> None:
         """StrEnum members should be instances of Enum."""
-        from _compat import StrEnum
-
         class Direction(StrEnum):
             NORTH = "north"
 
@@ -211,8 +192,6 @@ class TestStrEnumBackport:
 
     def test_strenum_value_access(self) -> None:
         """StrEnum .value should return the string value."""
-        from _compat import StrEnum
-
         class Mode(StrEnum):
             READ = "read"
             WRITE = "write"
@@ -222,8 +201,6 @@ class TestStrEnumBackport:
 
     def test_strenum_iteration(self) -> None:
         """StrEnum should support iteration over members."""
-        from _compat import StrEnum
-
         class Suit(StrEnum):
             HEARTS = "hearts"
             DIAMONDS = "diamonds"
@@ -235,8 +212,6 @@ class TestStrEnumBackport:
 
     def test_strenum_lookup_by_value(self) -> None:
         """StrEnum should support lookup by value."""
-        from _compat import StrEnum
-
         class Season(StrEnum):
             SPRING = "spring"
             SUMMER = "summer"
@@ -246,8 +221,6 @@ class TestStrEnumBackport:
 
     def test_strenum_in_dict_key(self) -> None:
         """StrEnum members should work as dict keys and match string keys."""
-        from _compat import StrEnum
-
         class Key(StrEnum):
             NAME = "name"
             AGE = "age"
@@ -258,8 +231,6 @@ class TestStrEnumBackport:
 
     def test_strenum_hashable(self) -> None:
         """StrEnum members should be hashable and usable in sets."""
-        from _compat import StrEnum
-
         class Tag(StrEnum):
             A = "a"
             B = "b"
@@ -269,8 +240,6 @@ class TestStrEnumBackport:
 
     def test_strenum_type_error_on_non_string(self) -> None:
         """StrEnum should reject non-string values."""
-        from _compat import StrEnum
-
         # On Python 3.11+ the native StrEnum raises TypeError too
         with pytest.raises((TypeError, ValueError)):
 
@@ -279,8 +248,6 @@ class TestStrEnumBackport:
 
     def test_strenum_repr(self) -> None:
         """StrEnum repr should include class name and member name."""
-        from _compat import StrEnum
-
         class Flavor(StrEnum):
             VANILLA = "vanilla"
 
@@ -450,8 +417,6 @@ class TestIsinstanceTupleForm:
 
     def test_isinstance_with_enum(self) -> None:
         """isinstance checks with Enum types should work."""
-        from _compat import StrEnum
-
         class Color(StrEnum):
             RED = "red"
 
@@ -467,18 +432,6 @@ class TestIsinstanceTupleForm:
 @pytest.mark.unit
 class TestImportPaths:
     """Verify that all critical import paths resolve correctly."""
-
-    def test_import_compat_module(self) -> None:
-        """The _compat module should be importable."""
-        mod = importlib.import_module("_compat")
-        assert hasattr(mod, "StrEnum")
-        assert hasattr(mod, "UTC")
-
-    def test_import_strenum_from_compat(self) -> None:
-        """StrEnum should be importable from _compat."""
-        from _compat import StrEnum
-
-        assert issubclass(StrEnum, Enum)
 
     def test_import_para_categories(self) -> None:
         """PARACategory should be importable."""
@@ -498,13 +451,6 @@ class TestImportPaths:
         from undo.models import ConflictType
 
         assert issubclass(ConflictType, Enum)
-
-    def test_compat_all_exports(self) -> None:
-        """_compat.__all__ should list all public exports."""
-        import _compat
-
-        assert "StrEnum" in _compat.__all__
-        assert "UTC" in _compat.__all__
 
 
 # ===================================================================
@@ -526,29 +472,15 @@ class TestDatetimeCompatibility:
         utc = datetime.UTC
         assert utc.utcoffset(None) == datetime.timedelta(0)
 
-    def test_utc_from_compat(self) -> None:
-        """UTC constant from _compat should match datetime.UTC."""
-        from _compat import UTC
-
-        assert UTC is datetime.UTC
-
     def test_datetime_now_with_utc(self) -> None:
         """Creating UTC-aware datetimes should use datetime.UTC."""
         now = datetime.datetime.now(tz=datetime.UTC)
         assert now.tzinfo is not None
         assert now.tzinfo == datetime.UTC
 
-    def test_datetime_now_with_compat_utc(self) -> None:
-        """Creating UTC-aware datetimes with _compat.UTC should work."""
-        from _compat import UTC
-
-        now = datetime.datetime.now(tz=UTC)
-        assert now.tzinfo is not None
-        assert now.tzinfo == datetime.UTC
-
     def test_utc_aware_comparison(self) -> None:
         """UTC-aware datetimes should be comparable."""
-        from _compat import UTC
+        from datetime import UTC
 
         t1 = datetime.datetime(2024, 1, 1, tzinfo=UTC)
         t2 = datetime.datetime(2024, 6, 1, tzinfo=UTC)
@@ -556,7 +488,7 @@ class TestDatetimeCompatibility:
 
     def test_utc_isoformat(self) -> None:
         """UTC datetime isoformat should include timezone info."""
-        from _compat import UTC
+        from datetime import UTC
 
         dt = datetime.datetime(2024, 1, 15, 14, 30, 0, tzinfo=UTC)
         iso = dt.isoformat()

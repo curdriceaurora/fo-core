@@ -334,7 +334,8 @@ class TestCleanupOldBackupsExceptionHandler:
         """Lines 264-265: OSError from _backup_safe_unlink is caught per-file.
 
         cleanup_old_backups must continue processing remaining entries
-        instead of aborting the whole pass.
+        instead of aborting the whole pass.  The manifest entry is
+        preserved so the next pass can retry (issue #350 C1/C2).
         """
         backup_path = bm.create_backup(sample_file)
         self._age_backup(bm, backup_path)
@@ -346,14 +347,15 @@ class TestCleanupOldBackupsExceptionHandler:
             removed = bm.cleanup_old_backups(max_age_days=30)
 
         assert removed == []
-        # manifest entry should still be purged even though unlink failed
-        assert bm._load_manifest() == {}
+        # Entry preserved so retry can happen on the next pass.
+        assert str(backup_path.resolve()) in bm._load_manifest()
 
     def test_valueerror_in_unlink_is_skipped(self, bm: BackupManager, sample_file: Path) -> None:
         """Lines 264-265: ValueError from _backup_safe_unlink is caught per-file.
 
         A SafeDir ValueError (e.g. backslash in filename) must not abort
-        the entire cleanup pass.
+        the entire cleanup pass.  The manifest entry is preserved so the
+        next pass can retry (issue #350 C1/C2).
         """
         backup_path = bm.create_backup(sample_file)
         self._age_backup(bm, backup_path)
@@ -365,4 +367,5 @@ class TestCleanupOldBackupsExceptionHandler:
             removed = bm.cleanup_old_backups(max_age_days=30)
 
         assert removed == []
-        assert bm._load_manifest() == {}
+        # Entry preserved so retry can happen on the next pass.
+        assert str(backup_path.resolve()) in bm._load_manifest()

@@ -832,7 +832,7 @@ class TestMissingImagededupDep:
         original = _mod._IMAGEDEDUP_AVAILABLE
         try:
             _mod._IMAGEDEDUP_AVAILABLE = False
-            with pytest.raises(ImportError, match="pip install 'fo-core\\[dedup\\]'"):
+            with pytest.raises(ImportError, match="pip install 'fo-core\\[dedup-image\\]'"):
                 ImageDeduplicator()
         finally:
             _mod._IMAGEDEDUP_AVAILABLE = original
