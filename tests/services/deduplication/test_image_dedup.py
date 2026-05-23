@@ -829,10 +829,13 @@ class TestMissingImagededupDep:
         """ImportError is raised with install hint when imagededup is absent."""
         import services.deduplication.image_dedup as _mod
 
-        original = _mod._IMAGEDEDUP_AVAILABLE
+        original_avail = _mod._IMAGEDEDUP_AVAILABLE
+        original_py314 = _mod._PY314_PLUS
         try:
             _mod._IMAGEDEDUP_AVAILABLE = False
-            with pytest.raises(ImportError, match="pip install 'fo-core\\[dedup\\]'"):
+            _mod._PY314_PLUS = False  # ensure pip-install branch, not py314 guard
+            with pytest.raises(ImportError, match="pip install 'fo-core\\[dedup-image\\]'"):
                 ImageDeduplicator()
         finally:
-            _mod._IMAGEDEDUP_AVAILABLE = original
+            _mod._IMAGEDEDUP_AVAILABLE = original_avail
+            _mod._PY314_PLUS = original_py314

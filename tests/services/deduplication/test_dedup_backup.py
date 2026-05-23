@@ -735,3 +735,79 @@ class TestBackupSafeUnlinkIssue350:
 
         assert result is True
         assert not target.exists()
+
+
+# ---------------------------------------------------------------------------
+# _is_safedir_safe_name helper
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestIsSafedirSafeName:
+    """The helper mirrors SafeDir._validate_name's component check."""
+
+    def test_reserved_names_are_unsafe(self) -> None:
+        from services.deduplication.backup import _is_safedir_safe_name
+
+        assert _is_safedir_safe_name("") is False
+        assert _is_safedir_safe_name(".") is False
+        assert _is_safedir_safe_name("..") is False
+
+    def test_path_separator_chars_are_unsafe(self) -> None:
+        from services.deduplication.backup import _is_safedir_safe_name
+
+        assert _is_safedir_safe_name("a/b.bak") is False
+        assert _is_safedir_safe_name("a\\b.bak") is False
+        assert _is_safedir_safe_name("with\x00null") is False
+
+    def test_plain_names_are_safe(self) -> None:
+        from services.deduplication.backup import _is_safedir_safe_name
+
+        assert _is_safedir_safe_name("backup.bak") is True
+        assert _is_safedir_safe_name("file-with-dashes_and_underscores.txt") is True
+
+
+# ---------------------------------------------------------------------------
+# cleanup_old_backups: manifest entries pointing outside backup_dir
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+@pytest.mark.skipif(sys.platform == "win32", reason="path resolution is POSIX-specific")
+class TestCleanupOldBackupsOutsideBackupDir:
+    """A corrupted manifest pointing outside backup_dir must be skipped."""
+
+    def test_entry_outside_backup_dir_is_skipped_and_preserved(
+        self, manager: BackupManager, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Manifest entry whose resolved path falls outside backup_dir is skipped.
+
+        The entry is preserved in the manifest so an operator can inspect
+        the corruption — silent deletion would mask a tampering event.
+        """
+        import logging
+
+        # Point the manifest at a path well outside backup_dir.
+        outside_key = str(tmp_path / "elsewhere.bak")
+        manifest = manager._load_manifest()
+        old_time = (datetime.now(UTC) - timedelta(days=60)).isoformat().replace("+00:00", "Z")
+        manifest[outside_key] = {
+            "original_path": str(tmp_path / "original"),
+            "backup_path": outside_key,
+            "backup_time": old_time,
+            "file_size": 0,
+            "original_mtime": old_time,
+        }
+        manager._save_manifest(manifest)
+
+        with caplog.at_level(logging.WARNING, logger="services.deduplication.backup"):
+            removed = manager.cleanup_old_backups(max_age_days=30)
+
+        assert removed == []
+        # The corrupt entry stays so it can be inspected.
+        assert outside_key in manager._load_manifest()
+        assert any("outside the backup directory" in r.message for r in caplog.records), (
+            f"expected outside-dir WARNING, got: {[r.message for r in caplog.records]}"
+        )

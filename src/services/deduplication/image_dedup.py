@@ -30,8 +30,12 @@ try:
     import numpy as np
 
     _NUMPY_AVAILABLE = True
-except ImportError:  # pragma: no cover - numpy always installed in CI
-    np = None
+except ImportError:  # pragma: no cover - numpy is optional (fo-core[search]/[dedup-image])
+    # The ignore is only emitted when numpy IS resolvable (then mypy sees a
+    # type clash with the inferred Module).  When numpy is absent (the
+    # type-check job's [dev] env), mypy follows the ImportError branch and
+    # the ignore would otherwise be flagged "unused-ignore".  Suppress both.
+    np = None  # type: ignore[assignment,unused-ignore]
     _NUMPY_AVAILABLE = False
 
 from PIL.Image import (  # noqa: E402
@@ -78,7 +82,7 @@ class ImageDeduplicator:
 
         Raises:
             ImportError: If imagededup is not installed.
-                Install with: ``pip install 'fo-core[dedup]'``
+                Install with: ``pip install 'fo-core[dedup-image]'``
             ValueError: If hash_method is not supported or threshold is invalid
         """
         if not _IMAGEDEDUP_AVAILABLE:

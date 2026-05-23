@@ -12,7 +12,11 @@ from unittest.mock import patch
 
 import pytest
 
-from services.deduplication.backup import BackupManager, _backup_safe_unlink
+from services.deduplication.backup import (
+    BackupManager,
+    _backup_safe_unlink,
+    _is_safedir_safe_name,
+)
 
 pytestmark = [pytest.mark.ci, pytest.mark.unit]
 
@@ -334,7 +338,8 @@ class TestCleanupOldBackupsExceptionHandler:
         """Lines 264-265: OSError from _backup_safe_unlink is caught per-file.
 
         cleanup_old_backups must continue processing remaining entries
-        instead of aborting the whole pass.
+        instead of aborting the whole pass.  The manifest entry is
+        preserved so the next pass can retry (issue #350 C1/C2).
         """
         backup_path = bm.create_backup(sample_file)
         self._age_backup(bm, backup_path)
@@ -346,14 +351,15 @@ class TestCleanupOldBackupsExceptionHandler:
             removed = bm.cleanup_old_backups(max_age_days=30)
 
         assert removed == []
-        # manifest entry should still be purged even though unlink failed
-        assert bm._load_manifest() == {}
+        # Entry preserved so retry can happen on the next pass.
+        assert str(backup_path.resolve()) in bm._load_manifest()
 
     def test_valueerror_in_unlink_is_skipped(self, bm: BackupManager, sample_file: Path) -> None:
         """Lines 264-265: ValueError from _backup_safe_unlink is caught per-file.
 
         A SafeDir ValueError (e.g. backslash in filename) must not abort
-        the entire cleanup pass.
+        the entire cleanup pass.  The manifest entry is preserved so the
+        next pass can retry (issue #350 C1/C2).
         """
         backup_path = bm.create_backup(sample_file)
         self._age_backup(bm, backup_path)
@@ -365,4 +371,62 @@ class TestCleanupOldBackupsExceptionHandler:
             removed = bm.cleanup_old_backups(max_age_days=30)
 
         assert removed == []
-        assert bm._load_manifest() == {}
+        # Entry preserved so retry can happen on the next pass.
+        assert str(backup_path.resolve()) in bm._load_manifest()
+
+
+# ---------------------------------------------------------------------------
+# _is_safedir_safe_name — line 47 (reserved names return False)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestIsSafedirSafeName:
+    """Line 47: _is_safedir_safe_name returns False for reserved path components."""
+
+    def test_empty_string_is_not_safe(self) -> None:
+        assert _is_safedir_safe_name("") is False
+
+    def test_dot_is_not_safe(self) -> None:
+        assert _is_safedir_safe_name(".") is False
+
+    def test_dotdot_is_not_safe(self) -> None:
+        assert _is_safedir_safe_name("..") is False
+
+    def test_normal_name_is_safe(self) -> None:
+        assert _is_safedir_safe_name("backup_2024.tar.gz") is True
+
+    def test_forbidden_char_is_not_safe(self) -> None:
+        assert _is_safedir_safe_name("bad\\name") is False
+
+
+# ---------------------------------------------------------------------------
+# cleanup_old_backups — path-containment guard lines 315-316, 322
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestCleanupOutOfRootManifestEntry:
+    """Lines 315-316, 322: manifest entries outside backup_dir are skipped."""
+
+    def test_out_of_root_entry_is_skipped_and_preserved(
+        self, bm: BackupManager, tmp_path: Path
+    ) -> None:
+        old_time = (datetime.now(UTC) - timedelta(days=60)).isoformat().replace("+00:00", "Z")
+        outside_key = str(tmp_path / "outside_file.txt")
+        bm._save_manifest(
+            {
+                outside_key: {
+                    "original_path": "/some/original.txt",
+                    "backup_path": outside_key,
+                    "backup_time": old_time,
+                    "file_size": 0,
+                    "original_mtime": old_time,
+                }
+            }
+        )
+
+        removed = bm.cleanup_old_backups(max_age_days=30)
+
+        assert removed == []
+        assert outside_key in bm._load_manifest()

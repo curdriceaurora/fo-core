@@ -33,6 +33,20 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Path components SafeDir rejects (mirrors utils.safedir._INVALID_NAME_CHARS and
+# _RESERVED_NAMES).  Used to decide whether a missing backup file represents a
+# stale manifest entry safe to drop, or a name we should preserve so an operator
+# can investigate (issue #350 C1/C2).
+_SAFEDIR_FORBIDDEN_CHARS = frozenset({"/", "\\", "\x00"})
+_SAFEDIR_RESERVED_NAMES = frozenset({"", ".", ".."})
+
+
+def _is_safedir_safe_name(name: str) -> bool:
+    """Return True iff ``name`` would pass SafeDir's component validation."""
+    if name in _SAFEDIR_RESERVED_NAMES:
+        return False
+    return not any(ch in _SAFEDIR_FORBIDDEN_CHARS for ch in name)
+
 
 def _backup_safe_unlink(path: Path, log: logging.Logger) -> bool:
     """Unlink a backup file with inode-swap TOCTOU protection via SafeDir.
@@ -282,6 +296,8 @@ class BackupManager:
         cutoff_date = datetime.now(UTC) - timedelta(days=max_age_days)
         manifest = self._load_manifest()
         removed_backups: list[Path] = []
+        # Resolve once so chdir() mid-run can't shift the anchor.
+        backup_root = self.backup_dir.resolve()
 
         # Find and remove old backups
         for backup_key, metadata in list(manifest.items()):
@@ -290,16 +306,41 @@ class BackupManager:
                 backup_time = backup_time.replace(tzinfo=UTC)
 
             if backup_time < cutoff_date:
-                backup_path = Path(backup_key)
-
+                # Guard against a corrupted or tampered manifest: skip any
+                # entry whose resolved path falls outside backup_dir.
+                # Path.resolve() raises RuntimeError on Python <3.13 for
+                # symlink loops and OSError on Python ≥3.13 (F11-resolve
+                # rail); relative_to raises ValueError for outside-root.
                 try:
-                    # Remove backup file if it exists.
-                    # ValueError is raised by SafeDir for filenames that
-                    # contain characters illegal on POSIX (e.g. backslash)
-                    # — catch it per-file so one bad name does not abort
-                    # the whole cleanup pass.
-                    if backup_path.exists() and _backup_safe_unlink(backup_path, logger):
-                        removed_backups.append(backup_path)
+                    backup_path = Path(backup_key).resolve()
+                    backup_path.relative_to(backup_root)
+                except (ValueError, RuntimeError, OSError):
+                    logger.warning(
+                        "cleanup_old_backups: manifest entry %r is outside the "
+                        "backup directory or cannot be resolved — skipping",
+                        backup_key,
+                        exc_info=True,
+                    )
+                    continue
+
+                # Drop the manifest entry only when the file was actually
+                # unlinked OR when it's confirmed gone with a SafeDir-safe
+                # name.  Entries for names SafeDir rejects (e.g. backslash)
+                # are preserved so a human / next pass can inspect them
+                # instead of silently losing data (issue #350 C1/C2).
+                try:
+                    if backup_path.exists():
+                        if _backup_safe_unlink(backup_path, logger):
+                            removed_backups.append(backup_path)
+                            del manifest[backup_key]
+                        # else: unlink failed (bad name or OS error) —
+                        # preserve entry for retry.
+                    elif _is_safedir_safe_name(backup_path.name):
+                        # File is gone and name is well-formed — drop the
+                        # stale manifest entry.
+                        del manifest[backup_key]
+                    # else: file missing AND name is unsafe; preserve so
+                    # the next cleanup pass (or an operator) can act on it.
                 except (OSError, ValueError) as exc:
                     logger.warning(
                         "cleanup_old_backups: skipping unlink of %s: %s",
@@ -307,10 +348,7 @@ class BackupManager:
                         exc,
                         exc_info=True,
                     )
-
-                # Remove from manifest regardless of unlink outcome so
-                # stale manifest entries don't accumulate.
-                del manifest[backup_key]
+                    # Preserve the manifest entry for retry on the next pass.
 
         # Save updated manifest
         self._save_manifest(manifest)
