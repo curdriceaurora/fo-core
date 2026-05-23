@@ -20,6 +20,7 @@ from cli.lazy import LazyTyperGroup
 from cli.organize import organize, preview
 from cli.state import CLIState, _get_state, _merge_flag
 from cli.utilities import analyze, search
+from config.path_manager import get_canonical_paths
 from undo._journal import default_journal_path as _default_journal_path
 from undo.durable_move import sweep as _durable_move_sweep
 
@@ -155,8 +156,6 @@ def main_callback(
     _file_log_level = "DEBUG" if debug else "WARNING"
     try:
         from loguru import logger as _ll
-
-        from config.path_manager import get_canonical_paths
 
         _log_dir = get_canonical_paths()["logs"]
         _log_dir.mkdir(parents=True, exist_ok=True)
