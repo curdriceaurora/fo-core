@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-beta.7] - 2026-05-22
+
+### Added
+
+- **`fo doctor` optional PATH** — `fo doctor` with no arguments now scans the
+  current working directory instead of requiring a path. Actionable install
+  commands (per-group pip lines + `fo doctor --install` one-liner) are shown
+  when dependencies are missing. (#377)
+
+### Fixed
+
+- **Startup crash on Python 3.14** — `fo --help` and every other command was
+  importing scipy at startup via a three-hop chain:
+  `undo/durable_move → utils/__init__ → utils/readers → scipy`. scipy's C
+  extension init is slow and raises `KeyboardInterrupt` on Ctrl-C before the
+  CLI is ready. Fixed by importing `FileTooLargeError` from `utils.readers._base`
+  directly (bypassing the readers chain) and guarding the scientific reader
+  import with a try/except that falls back to lightweight stubs when
+  scipy/h5py are absent or fail to load. (#379)
+- **`imagededup` gated to Python < 3.14** — `fo-core[all]` and
+  `fo-core[dedup-image]` no longer fail to install on Python 3.14 due to
+  imagededup's Cython linker bug on arm64. (#377)
+
 ## [2.0.0-beta.6] - 2026-05-22
 
 ### Added
