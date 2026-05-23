@@ -175,11 +175,11 @@ class TestModelRegistry:
 
     def test_default_text_model_present(self) -> None:
         names = [m.name for m in AVAILABLE_MODELS]
-        assert "qwen2.5:3b-instruct-q4_K_M" in names
+        assert "gemma3:4b" in names
 
     def test_default_vision_model_present(self) -> None:
         names = [m.name for m in AVAILABLE_MODELS]
-        assert "qwen2.5vl:7b-q4_K_M" in names
+        assert "gemma3:4b" in names
 
     def test_model_types_are_valid(self) -> None:
         valid_types = {t.value for t in ModelType}

@@ -242,7 +242,7 @@ repos:
 
       - id: pytest-affected
         name: pytest (affected tests)
-        entry: bash -c "if ! PATHS=$(python scripts/select_tests_for_changes.py --staged --format args); then echo 'affected-test selector failed' >&2; exit 1; fi; [ -z \"$PATHS\" ] && exit 0; pytest $PATHS -q --override-ini='addopts=' --timeout=60"
+        entry: bash -c "if ! PATHS=$(python3 scripts/select_tests_for_changes.py --staged --format args); then echo 'affected-test selector failed' >&2; exit 1; fi; [ -z \"$PATHS\" ] && exit 0; pytest $PATHS -q --override-ini='addopts=' --timeout=60"
         language: system
         pass_filenames: false
         stages: [pre-commit]
@@ -326,7 +326,7 @@ repos:
       # ----------------------------------------------------------------
       - id: predicate-negative-coverage
         name: T10 predicate negative-case coverage
-        entry: python .claude/scripts/check_predicate_negative_coverage.py
+        entry: python3 .claude/scripts/check_predicate_negative_coverage.py
         language: system
         files: ^(src/review_regressions/|tests/unit/review_regressions/test_)
         pass_filenames: true

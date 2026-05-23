@@ -406,10 +406,17 @@ class ParallelProcessor:
         temporarily-busy pools (abandoned tasks that finish in O(timeout)) time
         to free a slot before declaring permanent saturation.
         """
-        if not pending or not all(future_started[f] is None for f in pending):
+        if not pending:
             return None
         now = time.monotonic()
-        stalled = [f for f in pending if (now - future_queued_at.get(f, now)) > timeout * 2]
+        # Only futures that have never started (future_started[f] is None) AND
+        # have been queued for longer than 2×timeout count as stalled. Futures
+        # already picked up by a worker have a float start time and are excluded.
+        stalled = [
+            f
+            for f in pending
+            if future_started.get(f) is None and (now - future_queued_at.get(f, now)) > timeout * 2
+        ]
         if not stalled:
             return None
         logger.warning(
@@ -448,6 +455,14 @@ class ParallelProcessor:
         finalize_result: Callable[[FileResult], FileResult],
     ) -> tuple[bool, bool, list[FileResult]] | None:
         """Check for and handle timed-out tasks.
+
+        ``non_retryable=True`` is set **only** on the uncancellable-running
+        branch — where ``future.cancel()`` returned ``False`` because a thread
+        is actively executing the task. Retrying such a task would submit a
+        new future while the original thread is still running, risking resource
+        exhaustion. Futures that were cancelled successfully (task never
+        started) do *not* receive ``non_retryable=True`` and may be retried
+        by the caller.
 
         Args:
             pending: Set of pending futures.

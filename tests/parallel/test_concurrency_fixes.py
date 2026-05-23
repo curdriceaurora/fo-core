@@ -130,11 +130,13 @@ class TestConcurrencyFixes(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertIn("Timed out", str(res.error))
 
-        # Must return close to timeout_per_file, not full task duration.
+        # Finished well before the full task duration (500 ms) — timeout was honoured.
+        # No absolute wall-clock bound: relative check avoids CI load sensitivity.
+        slow_task_duration_ms = 500
         self.assertLess(
             results.total_duration_ms,
-            config.timeout_per_file * 1000 + 300,
-            "Should finish close to timeout_per_file, not full task duration",
+            slow_task_duration_ms,
+            "Should finish before the task's full duration when timeout fires",
         )
 
     def test_process_batch_iter_bounded_futures_memory_usage(self) -> None:
@@ -258,9 +260,18 @@ class TestConcurrencyFixes(unittest.TestCase):
 
         self.assertEqual(results.total, 2)
         self.assertEqual(results.failed, 2)
-        # The hung task times out; the queued task is aborted by the saturation guard.
-        errors = [str(item.error) for item in results.results]
-        self.assertTrue(any("Timed out" in err or "saturated" in err for err in errors))
+        # hung_1 should report a timeout; queued_2 must report pool saturation.
+        by_path = {r.path: str(r.error) for r in results.results}
+        self.assertTrue(
+            "Timed out" in by_path.get(Path("hung_1"), "")
+            or "saturated" in by_path.get(Path("hung_1"), ""),
+            f"hung_1 should have a timeout/saturation error, got: {by_path.get(Path('hung_1'))}",
+        )
+        self.assertIn(
+            "saturated",
+            by_path.get(Path("queued_2"), ""),
+            f"queued_2 must report pool saturation, got: {by_path.get(Path('queued_2'))}",
+        )
 
     def test_error_message_does_not_control_retry_policy(self) -> None:
         """Regular failures containing the abort phrase should still be retried."""

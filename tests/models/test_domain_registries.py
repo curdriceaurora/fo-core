@@ -144,11 +144,15 @@ class TestRegistryFacade:
         assert "audio" in types
         assert len(models) >= 6
 
-    def test_available_models_backward_compat(self) -> None:
+    def test_available_models_contains_defaults_and_legacy(self) -> None:
         from models.registry import AVAILABLE_MODELS
 
         assert len(AVAILABLE_MODELS) >= 6
         names = {m.name for m in AVAILABLE_MODELS}
+        # Current defaults
+        assert "gemma3:4b" in names
+        assert "gemma3:12b" in names
+        # Legacy models kept for backward compatibility
         assert "qwen2.5:3b-instruct-q4_K_M" in names
 
 
