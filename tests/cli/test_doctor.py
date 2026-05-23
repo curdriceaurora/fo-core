@@ -21,7 +21,12 @@ import typer
 from cli.doctor import (
     DEPENDENCY_CHECK_PACKAGES,
     EXTENSION_REGISTRY,
+    GROUP_TO_EXTRA,
     SYSTEM_PREREQUISITES,
+    _detect_install_method,
+    _get_extra_name,
+    _groups_to_extras,
+    _is_broken_combo,
     _normalized_extension,
     display_recommendations,
     doctor,
@@ -200,6 +205,160 @@ class TestGetMissingGroups:
         with patch("cli.doctor.is_group_installed", return_value=False):
             result = get_missing_groups(detected)
             assert result == set()
+
+
+@pytest.mark.unit
+class TestInstallMethodDetection:
+    """Tests for _detect_install_method function."""
+
+    def test_detect_pipx(self):
+        """Should detect pipx when sys.executable is in pipx venvs directory."""
+        with patch("cli.doctor.sys.executable", "/home/user/.local/pipx/venvs/fo-core/bin/python"):
+            with patch("cli.doctor.os.path.expanduser", return_value="/home/user/.local/pipx/venvs/"):
+                result = _detect_install_method()
+                assert result == "pipx"
+
+    def test_detect_pip_regular_venv(self):
+        """Should detect pip for regular virtualenv."""
+        with patch("cli.doctor.sys.executable", "/home/user/myenv/bin/python"):
+            with patch("cli.doctor.os.path.expanduser", return_value="/home/user/.local/pipx/venvs/"):
+                result = _detect_install_method()
+                assert result == "pip"
+
+    def test_detect_pip_system(self):
+        """Should detect pip for system Python."""
+        with patch("cli.doctor.sys.executable", "/usr/bin/python3"):
+            with patch("cli.doctor.os.path.expanduser", return_value="/home/user/.local/pipx/venvs/"):
+                result = _detect_install_method()
+                assert result == "pip"
+
+
+@pytest.mark.unit
+class TestGetExtraName:
+    """Tests for _get_extra_name function."""
+
+    def test_audio_maps_to_media(self):
+        assert _get_extra_name("audio") == "media"
+
+    def test_video_maps_to_media(self):
+        assert _get_extra_name("video") == "media"
+
+    def test_archive_maps_to_media(self):
+        assert _get_extra_name("archive") == "media"
+
+    def test_scientific_maps_to_scientific(self):
+        assert _get_extra_name("scientific") == "scientific"
+
+    def test_cad_maps_to_cad(self):
+        assert _get_extra_name("cad") == "cad"
+
+    def test_dedup_maps_to_dedup_image(self):
+        assert _get_extra_name("dedup") == "dedup-image"
+
+    def test_parsers_returns_none(self):
+        """parsers is a core dependency, not an extra."""
+        assert _get_extra_name("parsers") is None
+
+    def test_unknown_group_returns_none(self):
+        assert _get_extra_name("unknown") is None
+
+
+@pytest.mark.unit
+class TestGroupsToExtras:
+    """Tests for _groups_to_extras function."""
+
+    def test_single_group(self):
+        groups = {"audio"}
+        result = _groups_to_extras(groups)
+        assert result == ["media"]
+
+    def test_multiple_groups_same_extra(self):
+        """audio and video both map to media, should dedupe."""
+        groups = {"audio", "video"}
+        result = _groups_to_extras(groups)
+        assert result == ["media"]
+
+    def test_multiple_groups_different_extras(self):
+        groups = {"audio", "scientific"}
+        result = _groups_to_extras(groups)
+        assert result == ["media", "scientific"]  # sorted
+
+    def test_filters_out_none(self):
+        """parsers maps to None, should be filtered."""
+        groups = {"audio", "parsers"}
+        result = _groups_to_extras(groups)
+        assert result == ["media"]
+
+    def test_filters_out_broken_combos(self):
+        """dedup on Python 3.14+ should be filtered."""
+        groups = {"audio", "dedup"}
+        with patch("cli.doctor.sys.version_info", (3, 14, 0, "final", 0)):
+            result = _groups_to_extras(groups)
+            assert result == ["media"]  # dedup filtered out
+
+    def test_empty_groups(self):
+        groups = set()
+        result = _groups_to_extras(groups)
+        assert result == []
+
+
+@pytest.mark.unit
+class TestIsBrokenCombo:
+    """Tests for _is_broken_combo function."""
+
+    def test_dedup_on_python_313(self):
+        """dedup should work on Python 3.13."""
+        with patch("cli.doctor.sys.version_info", (3, 13, 0, "final", 0)):
+            result = _is_broken_combo("dedup")
+            assert result is None
+
+    def test_dedup_on_python_314(self):
+        """dedup should be broken on Python 3.14+."""
+        with patch("cli.doctor.sys.version_info", (3, 14, 0, "final", 0)):
+            result = _is_broken_combo("dedup")
+            assert result is not None
+            assert "imagededup" in result
+            assert "3.14" in result
+
+    def test_dedup_on_python_315(self):
+        """dedup should be broken on Python 3.15+."""
+        with patch("cli.doctor.sys.version_info", (3, 15, 0, "final", 0)):
+            result = _is_broken_combo("dedup")
+            assert result is not None
+
+    def test_audio_not_broken(self):
+        """audio should never be broken."""
+        result = _is_broken_combo("audio")
+        assert result is None
+
+    def test_video_not_broken(self):
+        """video should never be broken."""
+        result = _is_broken_combo("video")
+        assert result is None
+
+
+@pytest.mark.unit
+class TestGroupToExtraMapping:
+    """Tests for GROUP_TO_EXTRA registry consistency."""
+
+    def test_all_groups_in_registry_have_mapping(self):
+        """All groups in EXTENSION_REGISTRY should have a mapping (or explicitly omitted)."""
+        detected_groups = set(EXTENSION_REGISTRY.values())
+        # parsers is explicitly omitted (core dependency)
+        # dedup is not in EXTENSION_REGISTRY (no file extension maps to it)
+        expected_groups = (set(GROUP_TO_EXTRA.keys()) | {"parsers"}) - {"dedup"}
+        assert detected_groups == expected_groups
+
+    def test_media_groups_map_to_media(self):
+        """audio, video, archive should all map to media."""
+        assert GROUP_TO_EXTRA["audio"] == "media"
+        assert GROUP_TO_EXTRA["video"] == "media"
+        assert GROUP_TO_EXTRA["archive"] == "media"
+
+    def test_standalone_groups_map_to_themselves(self):
+        """scientific and cad should map to their own extras."""
+        assert GROUP_TO_EXTRA["scientific"] == "scientific"
+        assert GROUP_TO_EXTRA["cad"] == "cad"
 
 
 # ============================================================================
