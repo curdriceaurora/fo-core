@@ -72,6 +72,20 @@ class UpdateSettings:
 
 
 @dataclass
+class VisionSettings:
+    """Vision model configuration.
+
+    Args:
+        max_long_edge: Maximum length of longest image edge before downscaling.
+            Large images are resized to this dimension (preserving aspect ratio)
+            before being sent to the vision model. Default: 1024 px.
+            Min: 256, Max: 4096.
+    """
+
+    max_long_edge: int = 1024
+
+
+@dataclass
 class AppConfig:
     """Top-level application configuration.
 
@@ -86,6 +100,7 @@ class AppConfig:
         setup_completed: Whether the guided setup wizard has been completed.
         models: AI model preset configuration.
         updates: Auto-update preferences.
+        vision: Vision model configuration.
         watcher: Watcher module config overrides.
         daemon: Daemon module config overrides.
         parallel: Parallel processing config overrides.
@@ -102,6 +117,7 @@ class AppConfig:
     setup_completed: bool = False
     models: ModelPreset = field(default_factory=ModelPreset)
     updates: UpdateSettings = field(default_factory=UpdateSettings)
+    vision: VisionSettings = field(default_factory=VisionSettings)
 
     # Module-specific config overrides stored as dicts.
     # Delegated to module config constructors by ConfigManager.

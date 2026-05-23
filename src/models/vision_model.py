@@ -150,13 +150,29 @@ class VisionModel(BaseModel):
         ):
             raise ValueError("Provide exactly one of image_path or image_data")
 
+        # Extract max_image_long_edge from kwargs (passed by VisionProcessor)
+        max_image_long_edge = kwargs.pop("max_image_long_edge", 1024)
+
         # Prepare image input
         images: list[str | bytes]
         if image_path is not None:
             image_path = Path(image_path)
             if not image_path.exists():
                 raise FileNotFoundError(f"Image not found: {image_path}")
-            images = [str(image_path)]
+
+            # Downscale image if needed
+            from models._vision_helpers import downscale_image_if_needed
+
+            image_data_or_path, was_downscaled = downscale_image_if_needed(
+                image_path, max_image_long_edge
+            )
+
+            if was_downscaled:
+                # image_data_or_path is bytes
+                images = [image_data_or_path]  # type: ignore[list-item]
+            else:
+                # image_data_or_path is still a Path
+                images = [str(image_data_or_path)]
         else:
             # For bytes data, we'll need to save temporarily or use base64
             # Ollama expects file paths or URLs
