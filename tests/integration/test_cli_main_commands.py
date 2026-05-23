@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import os
+import site
 import subprocess
 import sys
 import venv
@@ -38,7 +39,7 @@ class TestVersionCommand:
         result = runner.invoke(app, ["version"])
         assert importlib.metadata.version("fo-core") in result.output
 
-    def test_installed_entry_point_version_smoke(self, tmp_path: Path) -> None:
+    def test_version_works_from_installed_wheel(self, tmp_path: Path) -> None:
         project_root = Path(__file__).resolve().parents[2]
         wheel_dir = tmp_path / "wheel"
         venv_dir = tmp_path / "venv"
@@ -64,7 +65,7 @@ class TestVersionCommand:
         )
         wheel_path = next(wheel_dir.glob("fo_core-*.whl"))
 
-        venv.EnvBuilder(with_pip=True, system_site_packages=True).create(venv_dir)
+        venv.EnvBuilder(with_pip=True).create(venv_dir)
         venv_python = venv_dir / scripts_dir_name / python_executable
 
         subprocess.run(
@@ -74,11 +75,15 @@ class TestVersionCommand:
             stderr=subprocess.DEVNULL,
         )
 
+        # Reuse the runner's already-installed dev dependencies so the wheel
+        # smoke test can execute without network access.
+        subprocess_env = {**os.environ, "PYTHONPATH": str(Path(site.getusersitepackages()))}
         result = subprocess.run(
             [str(venv_dir / scripts_dir_name / fo_executable), "--version"],
             check=True,
             text=True,
             capture_output=True,
+            env=subprocess_env,
         )
 
         assert result.stdout.strip() == f"fo {importlib.metadata.version('fo-core')}"
@@ -298,10 +303,8 @@ class TestVersionFlag:
 
     def test_version_flag_prints_version(self) -> None:
         """--version flag outputs the version string."""
-        from version import __version__
-
         result = runner.invoke(app, ["--version"])
-        assert __version__ in result.output
+        assert importlib.metadata.version("fo-core") in result.output
 
 
 class TestAnalyticsCommand:
