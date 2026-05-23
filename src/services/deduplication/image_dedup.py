@@ -31,7 +31,11 @@ try:
 
     _NUMPY_AVAILABLE = True
 except ImportError:  # pragma: no cover - numpy always installed in CI
-    np = None  # type: ignore[assignment]
+    # The ignore is only emitted when numpy IS resolvable (then mypy sees a
+    # type clash with the inferred Module).  When numpy is absent (the
+    # type-check job's [dev] env), mypy follows the ImportError branch and
+    # the ignore would otherwise be flagged "unused-ignore".  Suppress both.
+    np = None  # type: ignore[assignment,unused-ignore]
     _NUMPY_AVAILABLE = False
 
 from PIL.Image import (  # noqa: E402
