@@ -77,7 +77,7 @@ class TestVersionCommand:
 
         # Reuse the runner's already-installed dev dependencies so the wheel
         # smoke test can execute without network access.
-        subprocess_env = {**os.environ, "PYTHONPATH": str(Path(site.getusersitepackages()))}
+        subprocess_env = {**os.environ, "PYTHONPATH": site.getusersitepackages()}
         result = subprocess.run(
             [str(venv_dir / scripts_dir_name / fo_executable), "--version"],
             check=True,
