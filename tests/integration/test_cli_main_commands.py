@@ -32,8 +32,14 @@ _PROJECT_PACKAGE_NAMES = {
 }
 
 
-def _should_skip_dependency_package(entry_name: str) -> bool:
+def _is_project_package(entry_name: str) -> bool:
     return "fo_core" in entry_name or entry_name in _PROJECT_PACKAGE_NAMES
+
+
+def _dependency_search_roots() -> list[Path]:
+    roots = [Path(site.getusersitepackages())]
+    roots.extend(Path(path) for path in site.getsitepackages())
+    return roots
 
 
 class TestVersionCommand:
@@ -49,7 +55,7 @@ class TestVersionCommand:
         result = runner.invoke(app, ["version"])
         assert importlib.metadata.version("fo-core") in result.output
 
-    def test_version_flag_works_from_installed_wheel(self, tmp_path: Path) -> None:
+    def test_version_flag_installed_wheel(self, tmp_path: Path) -> None:
         project_root = Path(__file__).resolve().parents[2]
         wheel_dir = tmp_path / "wheel"
         venv_dir = tmp_path / "venv"
@@ -99,10 +105,14 @@ class TestVersionCommand:
             "typer",
             "typing_extensions",
         }
-        user_site = Path(site.getusersitepackages())
         for package_name in required_packages:
-            entry = user_site / package_name
-            if not entry.exists() or _should_skip_dependency_package(entry.name):
+            entry = None
+            for root in _dependency_search_roots():
+                candidate = root / package_name
+                if candidate.exists():
+                    entry = candidate
+                    break
+            if entry is None or _is_project_package(entry.name):
                 continue
             target = deps_dir / entry.name
             if entry.is_dir():
