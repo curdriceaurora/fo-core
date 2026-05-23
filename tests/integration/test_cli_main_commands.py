@@ -25,6 +25,15 @@ from cli.main import app
 pytestmark = [pytest.mark.integration]
 
 runner = CliRunner()
+_PROJECT_PACKAGE_NAMES = {
+    entry.stem if entry.is_file() else entry.name
+    for entry in (Path(__file__).resolve().parents[2] / "src").iterdir()
+    if not entry.name.startswith(".") and entry.name != "__pycache__"
+}
+
+
+def _should_skip_dependency_package(entry_name: str) -> bool:
+    return "fo_core" in entry_name or entry_name in _PROJECT_PACKAGE_NAMES
 
 
 class TestVersionCommand:
@@ -80,11 +89,6 @@ class TestVersionCommand:
         # coming from the freshly installed wheel in the temp venv.
         deps_dir = tmp_path / "deps"
         deps_dir.mkdir()
-        project_packages = {
-            entry.stem if entry.is_file() else entry.name
-            for entry in (Path(__file__).resolve().parents[2] / "src").iterdir()
-            if not entry.name.startswith(".") and entry.name != "__pycache__"
-        }
         required_packages = {
             "click",
             "markdown_it",
@@ -98,7 +102,7 @@ class TestVersionCommand:
         user_site = Path(site.getusersitepackages())
         for package_name in required_packages:
             entry = user_site / package_name
-            if not entry.exists() or "fo_core" in entry.name or entry.name in project_packages:
+            if not entry.exists() or _should_skip_dependency_package(entry.name):
                 continue
             target = deps_dir / entry.name
             if entry.is_dir():
