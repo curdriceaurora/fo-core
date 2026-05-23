@@ -304,18 +304,20 @@ class BackupManager:
                 backup_time = backup_time.replace(tzinfo=UTC)
 
             if backup_time < cutoff_date:
-                backup_path = Path(backup_key).resolve()
-
                 # Guard against a corrupted or tampered manifest: skip any
                 # entry whose resolved path falls outside backup_dir.
+                # Path.resolve() raises RuntimeError on Python <3.13 for
+                # symlink loops and OSError on Python ≥3.13 (F11-resolve
+                # rail); relative_to raises ValueError for outside-root.
                 try:
+                    backup_path = Path(backup_key).resolve()
                     backup_path.relative_to(self.backup_dir.resolve())
-                except ValueError:
+                except (ValueError, RuntimeError, OSError):
                     logger.warning(
-                        "cleanup_old_backups: manifest entry %r resolves to %s "
-                        "which is outside the backup directory — skipping",
+                        "cleanup_old_backups: manifest entry %r is outside the "
+                        "backup directory or cannot be resolved — skipping",
                         backup_key,
-                        backup_path,
+                        exc_info=True,
                     )
                     continue
 
