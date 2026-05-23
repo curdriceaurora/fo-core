@@ -39,7 +39,7 @@ def _make_hardware(ram_gb: float = 16.0, cpu_cores: int = 8) -> MagicMock:
     hw.gpu_type = GpuType.NONE
     hw.ram_gb = ram_gb
     hw.cpu_cores = cpu_cores
-    hw.recommended_text_model.return_value = "qwen2.5:3b-instruct-q4_K_M"
+    hw.recommended_text_model.return_value = "gemma3:4b" if ram_gb < 16 else "gemma3:12b"
     hw.to_dict.return_value = {
         "gpu_type": "none",
         "vram_gb": 0.0,
@@ -337,10 +337,11 @@ class TestGenerateConfig:
         *,
         running: bool = True,
         model_names: list[str] | None = None,
+        ram_gb: float = 16.0,
     ):
         from core.setup_wizard import SystemCapabilities
 
-        hw = _make_hardware()
+        hw = _make_hardware(ram_gb=ram_gb)
         ollama = _make_ollama_status(running=running)
         models = [_make_installed_model(n) for n in (model_names or [])]
         return SystemCapabilities(hardware=hw, ollama_status=ollama, installed_models=models)
@@ -391,6 +392,38 @@ class TestGenerateConfig:
         config = wizard.generate_config(caps)
 
         assert config.models.text_model == "custom-model:latest"
+
+    def test_large_model_sets_vision_model_too(self) -> None:
+        """A2: when gemma3:12b is selected, vision_model must match (multimodal)."""
+        from core.setup_wizard import SetupWizard, WizardMode
+
+        caps = self._make_caps(
+            running=True,
+            model_names=["gemma3:12b", "gemma3:4b"],
+            ram_gb=32.0,
+        )
+        with patch(_CFG_MGR_TARGET):
+            wizard = SetupWizard(mode=WizardMode.QUICK_START)
+        config = wizard.generate_config(caps)
+
+        assert config.models.text_model == "gemma3:12b"
+        assert config.models.vision_model == "gemma3:12b"
+
+    def test_large_model_skipped_on_low_ram(self) -> None:
+        """A3: gemma3:12b installed but RAM < 16 GB → stay on gemma3:4b."""
+        from core.setup_wizard import SetupWizard, WizardMode
+
+        caps = self._make_caps(
+            running=True,
+            model_names=["gemma3:12b", "gemma3:4b"],
+            ram_gb=8.0,
+        )
+        with patch(_CFG_MGR_TARGET):
+            wizard = SetupWizard(mode=WizardMode.QUICK_START)
+        config = wizard.generate_config(caps)
+
+        assert config.models.text_model == "gemma3:4b"
+        assert config.models.vision_model == "gemma3:4b"
 
     def test_power_user_custom_text_model_override(self) -> None:
         from core.setup_wizard import SetupWizard, WizardMode

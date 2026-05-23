@@ -210,9 +210,9 @@ exclude = [
     "test_preference_tracker.py",
 ]
 [tool.ruff.lint]
-# G3 is a project-local custom rule checked by scripts/check_cli_path_validation.py.
-# Declaring it as external prevents RUF100 from removing valid # noqa: G3 suppressions.
-external = ["G3"]
+# G1-G5 are project-local custom rules checked by scripts/check_*.py.
+# Declaring them external prevents RUF100 from removing valid # noqa: Gx suppressions.
+external = ["G1", "G2", "G3", "G4", "G5"]
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings

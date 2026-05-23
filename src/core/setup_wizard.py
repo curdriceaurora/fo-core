@@ -187,11 +187,12 @@ class SetupWizard:
         # Start with hardware-based recommendations
         hardware = capabilities.hardware
         text_model = hardware.recommended_text_model()
+        vision_model = text_model  # gemma3 is multimodal; keep text and vision in sync
 
         # Override with available models if Ollama is running
         if capabilities.ollama_status.running and capabilities.installed_models:
             # Prefer the first installed model that matches our recommendations.
-            # gemma3:4b is the default for all RAM sizes; gemma3:12b for ≥16 GB.
+            # gemma3:4b for all RAM sizes; gemma3:12b only on ≥16 GB hosts (A3).
             # Both handle text and images in a single model, avoiding OOM from
             # loading separate text and vision models simultaneously.
             available_names = {m.name for m in capabilities.installed_models}
@@ -199,19 +200,23 @@ class SetupWizard:
             recommended_large = "gemma3:12b"
             recommended_small = "gemma3:4b"
 
-            if recommended_large in available_names:
+            if recommended_large in available_names and hardware.ram_gb >= 16:
                 text_model = recommended_large
+                vision_model = recommended_large  # A2: keep vision in sync
             elif recommended_small in available_names:
                 text_model = recommended_small
+                vision_model = recommended_small
             elif capabilities.installed_models:
                 # Fallback to first available model
                 text_model = capabilities.installed_models[0].name
+                vision_model = text_model
                 logger.info("Using first available model: {}", text_model)
 
         # Create model preset with auto-detected framework
         # Framework will be set based on custom_settings or left as default
         models = ModelPreset(
             text_model=text_model,
+            vision_model=vision_model,
             temperature=0.5,
             max_tokens=3000,
             device="auto",

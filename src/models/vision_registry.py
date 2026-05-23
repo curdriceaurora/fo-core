@@ -31,11 +31,29 @@ class VisionModelInfo(ModelInfo):
 
 VISION_MODELS: list[VisionModelInfo] = [
     VisionModelInfo(
+        name="gemma3:4b",
+        model_type="vision",
+        size="3.3 GB",
+        quantization="",
+        description="Default text+vision model - multimodal, fits 8 GB RAM.",
+        supported_formats=["jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp", "heic", "heif"],
+        max_resolution=(2048, 2048),
+    ),
+    VisionModelInfo(
+        name="gemma3:12b",
+        model_type="vision",
+        size="8.1 GB",
+        quantization="",
+        description="Larger multimodal model - higher quality, requires ≥16 GB RAM.",
+        supported_formats=["jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp", "heic", "heif"],
+        max_resolution=(2048, 2048),
+    ),
+    VisionModelInfo(
         name="qwen2.5vl:7b-q4_K_M",
         model_type="vision",
         size="6.0 GB",
         quantization="q4_K_M",
-        description="Default vision model - image & video understanding.",
+        description="Legacy vision model - image & video understanding.",
         supported_formats=["jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp"],
         max_resolution=(2048, 2048),
     ),
