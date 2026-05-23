@@ -367,11 +367,13 @@ class TestDetectVersion:
         checker = UpdateChecker()
         assert checker.current_version == "0.0.0"
 
+    @pytest.mark.ci
     def test_detect_import_error(self):
         with patch("updater.checker._pkg_version", side_effect=PackageNotFoundError):
             result = UpdateChecker._detect_version()
             assert result == "0.0.0"
 
+    @pytest.mark.ci
     @patch("updater.checker._pkg_version", return_value="2.0.0")
     def test_detect_version_success(self, mock_version):
         """_detect_version returns the installed version string when available."""

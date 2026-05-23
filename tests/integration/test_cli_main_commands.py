@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import importlib.metadata
 import os
-import shutil
 import site
 import subprocess
 import sys
@@ -91,37 +90,12 @@ class TestVersionCommand:
             stderr=subprocess.DEVNULL,
         )
 
-        # Mirror the runner's dependency packages only; keep fo-core itself
-        # coming from the freshly installed wheel in the temp venv.
-        deps_dir = tmp_path / "deps"
-        deps_dir.mkdir()
-        required_packages = {
-            "annotated_doc",
-            "click",
-            "markdown_it",
-            "mdurl",
-            "pygments",
-            "rich",
-            "shellingham",
-            "typer",
-            "typing_extensions",
-        }
-        for package_name in required_packages:
-            entry = None
-            for root in _dependency_search_roots():
-                candidate = root / package_name
-                if candidate.exists():
-                    entry = candidate
-                    break
-            if entry is None or _is_project_package(entry.name):
-                continue
-            target = deps_dir / entry.name
-            if entry.is_dir():
-                shutil.copytree(entry, target, dirs_exist_ok=True)
-            elif entry.is_file():
-                shutil.copy2(entry, target)
-
-        subprocess_env = {**os.environ, "PYTHONPATH": str(deps_dir)}
+        # Point PYTHONPATH at the runner's site-packages so all runtime deps
+        # (loguru, click, typer, rich, etc.) are importable without copying them.
+        # Editable-install .pth files in those directories are NOT processed from
+        # PYTHONPATH, so fo-core itself resolves to the wheel installed above.
+        deps_paths = [str(p) for p in _dependency_search_roots() if p.exists()]
+        subprocess_env = {**os.environ, "PYTHONPATH": os.pathsep.join(deps_paths)}
         result = subprocess.run(
             [str(venv_dir / scripts_dir_name / fo_executable), "--version"],
             check=True,
