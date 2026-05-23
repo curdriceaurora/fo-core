@@ -9,6 +9,7 @@ for efficient perceptual hashing and Hamming distance calculations.
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
@@ -21,6 +22,10 @@ except ImportError:
     AHash = DHash = PHash = None
     _IMAGEDEDUP_AVAILABLE = False
 
+# imagededup is not packaged for Python ≥ 3.14 (upstream has not released a
+# compatible wheel).  We detect this early so the error message is actionable.
+_PY314_PLUS = sys.version_info >= (3, 14)
+
 try:
     import numpy as np
 
@@ -29,9 +34,11 @@ except ImportError:  # pragma: no cover - numpy always installed in CI
     np = None
     _NUMPY_AVAILABLE = False
 
-from PIL.Image import DecompressionBombError
+from PIL.Image import (  # noqa: E402
+    DecompressionBombError,
+)
 
-from .image_utils import SUPPORTED_FORMATS, safedir_image_open
+from .image_utils import SUPPORTED_FORMATS, safedir_image_open  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +82,14 @@ class ImageDeduplicator:
             ValueError: If hash_method is not supported or threshold is invalid
         """
         if not _IMAGEDEDUP_AVAILABLE:
+            if _PY314_PLUS:  # pragma: no cover — CI runs on Python 3.11
+                raise ImportError(
+                    "imagededup does not yet support Python 3.14+. "
+                    "Image deduplication is unavailable on this Python version."
+                )
             raise ImportError(
                 "imagededup is required for image deduplication. "
-                "Install it with: pip install 'fo-core[dedup]'"
+                "Install it with: pip install 'fo-core[dedup-image]'"
             )
 
         if hash_method not in ("phash", "dhash", "ahash"):
