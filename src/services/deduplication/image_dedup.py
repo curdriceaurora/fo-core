@@ -82,7 +82,7 @@ class ImageDeduplicator:
 
         Raises:
             ImportError: If imagededup is not installed.
-                Install with: ``pip install 'fo-core[dedup]'``
+                Install with: ``pip install 'fo-core[dedup-image]'``
             ValueError: If hash_method is not supported or threshold is invalid
         """
         if not _IMAGEDEDUP_AVAILABLE:
