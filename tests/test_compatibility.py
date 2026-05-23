@@ -132,13 +132,13 @@ class TestFutureAnnotations:
 
 
 # ===================================================================
-# Section 2: StrEnum backport tests
+# Section 2: StrEnum (stdlib) tests
 # ===================================================================
 
 
 @pytest.mark.unit
-class TestStrEnumBackport:
-    """Verify the StrEnum backport works identically to the 3.11+ stdlib version."""
+class TestStrEnumStdlib:
+    """Verify that the stdlib StrEnum (Python 3.11+) works correctly."""
 
     def test_basic_strenum_creation(self) -> None:
         """Creating a StrEnum subclass should work."""

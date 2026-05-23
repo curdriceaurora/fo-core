@@ -304,7 +304,20 @@ class BackupManager:
                 backup_time = backup_time.replace(tzinfo=UTC)
 
             if backup_time < cutoff_date:
-                backup_path = Path(backup_key)
+                backup_path = Path(backup_key).resolve()
+
+                # Guard against a corrupted or tampered manifest: skip any
+                # entry whose resolved path falls outside backup_dir.
+                try:
+                    backup_path.relative_to(self.backup_dir.resolve())
+                except ValueError:
+                    logger.warning(
+                        "cleanup_old_backups: manifest entry %r resolves to %s "
+                        "which is outside the backup directory — skipping",
+                        backup_key,
+                        backup_path,
+                    )
+                    continue
 
                 # Drop the manifest entry only when the file was actually
                 # unlinked OR when it's confirmed gone with a SafeDir-safe
