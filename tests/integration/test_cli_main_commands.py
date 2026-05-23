@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import importlib.metadata
 import os
-import site
 import subprocess
 import sys
 import venv
@@ -43,6 +42,9 @@ class TestVersionCommand:
         project_root = Path(__file__).resolve().parents[2]
         wheel_dir = tmp_path / "wheel"
         venv_dir = tmp_path / "venv"
+        scripts_dir_name = "Scripts" if os.name == "nt" else "bin"
+        fo_executable = "fo.exe" if os.name == "nt" else "fo"
+        python_executable = "python.exe" if os.name == "nt" else "python"
         wheel_dir.mkdir()
 
         subprocess.run(
@@ -62,24 +64,21 @@ class TestVersionCommand:
         )
         wheel_path = next(wheel_dir.glob("fo_core-*.whl"))
 
-        venv.EnvBuilder(with_pip=True).create(venv_dir)
-        venv_python = venv_dir / "bin" / "python"
-        env = {**os.environ, "PYTHONPATH": site.getusersitepackages()}
+        venv.EnvBuilder(with_pip=True, system_site_packages=True).create(venv_dir)
+        venv_python = venv_dir / scripts_dir_name / python_executable
 
         subprocess.run(
             [str(venv_python), "-m", "pip", "install", "--no-deps", str(wheel_path)],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            env=env,
         )
 
         result = subprocess.run(
-            [str(venv_dir / "bin" / "fo"), "--version"],
+            [str(venv_dir / scripts_dir_name / fo_executable), "--version"],
             check=True,
             text=True,
             capture_output=True,
-            env=env,
         )
 
         assert result.stdout.strip() == f"fo {importlib.metadata.version('fo-core')}"
