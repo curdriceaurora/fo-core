@@ -161,3 +161,72 @@ def test_no_debug_omits_traceback_on_organize_error(
     assert "boom-quiet" in result.output
     # No "Traceback" header from Rich's print_exception.
     assert "Traceback" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# C5: Rotating file log integration tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_rotating_log_file_created(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """main_callback creates fo.log under the canonical logs directory."""
+    log_dir = tmp_path / "logs"
+
+    def _fake_paths() -> dict[str, Path]:
+        return {"logs": log_dir}
+
+    monkeypatch.setattr("config.path_manager.get_canonical_paths", _fake_paths)
+    monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["version"])
+    assert result.exit_code == 0
+    assert log_dir.exists(), "log directory should be created"
+    log_files = list(log_dir.glob("fo.log*"))
+    assert log_files, "fo.log should be created in the logs directory"
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_debug_flag_lowers_file_log_level(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """--debug sets the file sink level to DEBUG instead of WARNING."""
+    captured: list[dict[str, Any]] = []
+
+    original_add = __import__("loguru").logger.add
+
+    def _spy_add(_sink: Any, **kwargs: Any) -> int:
+        captured.append({"sink": str(_sink), **kwargs})
+        return original_add(_sink, **kwargs)
+
+    log_dir = tmp_path / "logs"
+    monkeypatch.setattr("config.path_manager.get_canonical_paths", lambda: {"logs": log_dir})
+    monkeypatch.setattr("loguru.logger.add", _spy_add)
+    monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["--debug", "version"])
+    assert result.exit_code == 0
+
+    file_sinks = [c for c in captured if "fo.log" in c.get("sink", "")]
+    assert file_sinks, "file sink should have been added"
+    assert file_sinks[0].get("level") == "DEBUG"
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_unwritable_log_dir_degrades_gracefully(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unwritable log directory causes graceful degradation — CLI exits 0."""
+
+    def _raise_oserror() -> dict[str, Path]:
+        raise OSError("permission denied")
+
+    monkeypatch.setattr("config.path_manager.get_canonical_paths", _raise_oserror)
+    monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["version"])
+    assert result.exit_code == 0
