@@ -73,15 +73,17 @@ def test_debug_flag_installs_loguru_debug_handler(
 @pytest.mark.unit
 @pytest.mark.ci
 def test_no_debug_flag_skips_handler(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Without --debug, the callback must not install our DEBUG sink.
+    """Without --debug, the callback must not install our stderr DEBUG sink.
 
     Loguru's default sink stays in place; we only assert that we don't
-    *additionally* attach one (no-debug path stays zero-overhead).
+    *additionally* attach a DEBUG stderr handler (no-debug path keeps
+    stderr zero-overhead). The session log DEBUG handler is always
+    installed (for post-run analysis), but it writes to a file, not stderr.
     """
     captured: list[dict[str, Any]] = []
 
     def _spy_add(_sink: Any, **kwargs: Any) -> int:
-        captured.append(kwargs)
+        captured.append({"sink": str(_sink), **kwargs})
         return 1
 
     monkeypatch.setattr("loguru.logger.add", _spy_add)
@@ -89,7 +91,13 @@ def test_no_debug_flag_skips_handler(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert all(c.get("level") != "DEBUG" for c in captured)
+    # No DEBUG handler to stderr (sys.stderr) without --debug flag
+    # (session log DEBUG handler writes to a file, not stderr)
+    stderr_debug_handlers = [
+        c for c in captured
+        if c.get("level") == "DEBUG" and "stderr" in str(c.get("sink", "")).lower()
+    ]
+    assert len(stderr_debug_handlers) == 0, "No DEBUG stderr handler without --debug"
 
 
 @pytest.mark.integration
