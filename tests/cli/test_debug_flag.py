@@ -177,7 +177,7 @@ def test_rotating_log_file_created(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     def _fake_paths() -> dict[str, Path]:
         return {"logs": log_dir}
 
-    monkeypatch.setattr("cli.main.get_canonical_paths", _fake_paths)
+    monkeypatch.setattr("config.path_manager.get_canonical_paths", _fake_paths)
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
@@ -201,7 +201,7 @@ def test_debug_flag_lowers_file_log_level(monkeypatch: pytest.MonkeyPatch, tmp_p
         return original_add(_sink, **kwargs)
 
     log_dir = tmp_path / "logs"
-    monkeypatch.setattr("cli.main.get_canonical_paths", lambda: {"logs": log_dir})
+    monkeypatch.setattr("config.path_manager.get_canonical_paths", lambda: {"logs": log_dir})
     monkeypatch.setattr("loguru.logger.add", _spy_add)
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
@@ -224,7 +224,7 @@ def test_unwritable_log_dir_degrades_gracefully(
     def _raise_oserror() -> dict[str, Path]:
         raise OSError("permission denied")
 
-    monkeypatch.setattr("cli.main.get_canonical_paths", _raise_oserror)
+    monkeypatch.setattr("config.path_manager.get_canonical_paths", _raise_oserror)
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
