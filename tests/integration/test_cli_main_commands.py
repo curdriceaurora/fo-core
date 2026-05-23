@@ -96,6 +96,7 @@ class TestVersionCommand:
         deps_dir = tmp_path / "deps"
         deps_dir.mkdir()
         required_packages = {
+            "annotated_doc",
             "click",
             "markdown_it",
             "mdurl",

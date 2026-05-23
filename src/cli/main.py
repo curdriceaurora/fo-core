@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Any, cast
 
@@ -47,7 +48,6 @@ def _version_callback(value: bool) -> None:
     """Print the application version for the eager ``--version`` option."""
     if not value:
         return
-    from importlib.metadata import version as _pkg_version
 
     console.print(f"fo {_pkg_version('fo-core')}")
     raise typer.Exit()
@@ -262,8 +262,6 @@ app.command()(doctor)
 @app.command()
 def version() -> None:
     """Show the application version."""
-    from importlib.metadata import version as _pkg_version
-
     console.print(f"fo {_pkg_version('fo-core')}")
 
 
