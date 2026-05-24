@@ -175,19 +175,21 @@ class TestConcurrencyFixes(unittest.TestCase):
 
     def test_timeout_does_not_deadlock_with_queued_files(self) -> None:
         """Timed-out tasks are abandoned; remaining files continue and terminate."""
-        # timeout=0.3s → saturation threshold = 2×0.3s = 0.6s.
-        # Task duration 0.4s keeps slow_3's max queue time (≈0.5s) below 0.6s,
-        # so the saturation guard must NOT trigger — each task should time out individually.
+        # timeout=0.5s → saturation threshold = 2×0.5s = 1.0s.
+        # Task duration 0.8s keeps slow_3's max queue time (≈0.3s) well below 1.0s,
+        # so the saturation guard must NOT trigger — each task times out individually.
+        # Margins are deliberately wide (0.3s stuck-time vs 1.0s threshold) to
+        # absorb the thread-scheduling variance seen on macOS GitHub Actions runners.
         config = ParallelConfig(
             max_workers=1,
-            timeout_per_file=0.3,
+            timeout_per_file=0.5,
             retry_count=0,
         )
         processor = ParallelProcessor(config=config)
         paths = [Path("slow_1"), Path("slow_2"), Path("slow_3")]
 
         def very_slow_task(_path: Path) -> str:
-            threading.Event().wait(timeout=0.4)
+            threading.Event().wait(timeout=0.8)
             return "done"
 
         results = processor.process_batch(paths, very_slow_task)
@@ -196,7 +198,7 @@ class TestConcurrencyFixes(unittest.TestCase):
         self.assertEqual(results.failed, 3)
         self.assertEqual(len(results.results), 3)
         # Each file runs and times out individually — no cascade abort.
-        # With max_workers=1 and 3×0.4s tasks, total is ~1.2s.
+        # With max_workers=1 and 3×0.5s timeouts, total is ~1.5s.
         self.assertLess(
             results.total_duration_ms,
             4000,
@@ -208,10 +210,11 @@ class TestConcurrencyFixes(unittest.TestCase):
 
     def test_uncancellable_timeout_is_not_retried(self) -> None:
         """Timed-out tasks are non-retryable: each file runs exactly once."""
-        # timeout=0.3s keeps saturation threshold (0.6s) above task duration (0.4s).
+        # timeout=0.5s keeps saturation threshold (1.0s) well above task duration (0.8s).
+        # Margins deliberately wide to absorb macOS GitHub Actions thread-scheduling variance.
         config = ParallelConfig(
             max_workers=1,
-            timeout_per_file=0.3,
+            timeout_per_file=0.5,
             retry_count=2,
         )
         processor = ParallelProcessor(config=config)
@@ -220,7 +223,7 @@ class TestConcurrencyFixes(unittest.TestCase):
         def very_slow_task(_path: Path) -> str:
             nonlocal call_count
             call_count += 1
-            threading.Event().wait(timeout=0.4)
+            threading.Event().wait(timeout=0.8)
             return "done"
 
         paths = [Path("slow_1"), Path("slow_2")]

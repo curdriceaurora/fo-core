@@ -415,7 +415,9 @@ class ParallelProcessor:
         stalled = [
             f
             for f in pending
-            if future_started.get(f) is None and (now - future_queued_at.get(f, now)) > timeout * 2
+            if future_started.get(f) is None
+            and not f.running()
+            and (now - future_queued_at.get(f, now)) > timeout * 2
         ]
         if not stalled:
             return None
@@ -557,6 +559,13 @@ class ParallelProcessor:
                         non_retryable=True,
                     )
                 )
+                # The abandoned thread still occupies the worker slot until it
+                # exits naturally.  Reset the saturation-detection clock for all
+                # remaining queued futures so the 2×timeout guard doesn't fire
+                # while that thread is still winding down.
+                _reset_time = time.monotonic()
+                for _remaining in pending:
+                    future_queued_at[_remaining] = _reset_time
                 return (False, True, [abandoned_result])
 
         return None
