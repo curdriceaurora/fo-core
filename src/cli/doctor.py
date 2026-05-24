@@ -8,6 +8,7 @@ which optional dependency groups should be installed based on detected file type
 import importlib.util
 import json
 import logging
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -82,6 +83,90 @@ SYSTEM_PREREQUISITES: dict[str, list[str]] = {
     "audio": ["FFmpeg (required)", "CUDA GPU (optional, for acceleration)"],
     "archive": ["unrar tool (required for RAR files)"],
 }
+
+# Group-to-extra mapping: maps internal group names to pyproject.toml extra names.
+# Audio and video are bundled under "media", archive under "media" as well (for py7zr).
+# Note: "parsers" is not an extra — those packages are core dependencies.
+GROUP_TO_EXTRA: dict[str, str] = {
+    "audio": "media",
+    "video": "media",
+    "archive": "media",  # py7zr is in media extra
+    "scientific": "scientific",
+    "cad": "cad",
+    "dedup": "dedup-image",  # imagededup extra
+    # "parsers" intentionally omitted — not an extra, core deps
+}
+
+# Known problematic combinations that should emit warnings instead of install commands
+KNOWN_BROKEN_COMBOS: dict[str, str] = {
+    "dedup-image-py314+": (
+        "imagededup does not build on Python 3.14+ (arm64 linker error). "
+        "This will be fixed in a future release."
+    ),
+}
+
+
+def _detect_install_method() -> str:
+    """Detect whether fo was installed via pipx or pip.
+
+    Returns:
+        "pipx" if running in a pipx venv, "pip" otherwise
+    """
+    exe_path = sys.executable
+    # Check PIPX_HOME env var first (user-configured or set by pipx itself)
+    pipx_home = os.environ.get("PIPX_HOME")
+    if pipx_home:
+        if exe_path.startswith(os.path.join(pipx_home, "venvs") + os.sep):
+            return "pipx"
+    # Check both the old (~/.local/pipx) and new (~/.local/share/pipx) default locations
+    for base in ("~/.local/pipx/venvs/", "~/.local/share/pipx/venvs/"):
+        if exe_path.startswith(os.path.expanduser(base)):
+            return "pipx"
+    return "pip"
+
+
+def _is_broken_combo(group: str) -> str | None:
+    """Check if a group has known installation issues.
+
+    Args:
+        group: The dependency group name
+
+    Returns:
+        Warning message if broken, None otherwise
+    """
+    # Check for dedup-image on Python 3.14+
+    if group == "dedup" and sys.version_info >= (3, 14):
+        return KNOWN_BROKEN_COMBOS["dedup-image-py314+"]
+    return None
+
+
+def _get_extra_name(group: str) -> str | None:
+    """Get the canonical extra name for a group.
+
+    Args:
+        group: The internal group name (e.g., "audio", "video")
+
+    Returns:
+        The extra name from pyproject.toml (e.g., "media"), or None if not an extra
+    """
+    return GROUP_TO_EXTRA.get(group)
+
+
+def _groups_to_extras(groups: set[str]) -> list[str]:
+    """Convert group names to unique extra names.
+
+    Args:
+        groups: Set of internal group names
+
+    Returns:
+        Sorted list of unique extra names, filtering out None and broken combos
+    """
+    extras = set()
+    for group in groups:
+        extra = _get_extra_name(group)
+        if extra and not _is_broken_combo(group):
+            extras.add(extra)
+    return sorted(extras)
 
 
 def is_group_installed(group: str) -> bool:
@@ -191,6 +276,8 @@ def display_recommendations(
         extension_counts: Dictionary mapping extensions to file counts
         detected_groups: Set of detected dependency groups
     """
+    install_method = _detect_install_method()
+
     # Calculate file counts per group
     group_file_counts: dict[str, int] = {}
     for ext, count in extension_counts.items():
@@ -208,12 +295,31 @@ def display_recommendations(
     # Add rows for each detected group, sorted by name for consistency
     for group in sorted(detected_groups):
         file_count = group_file_counts.get(group, 0)
-        # Escape square brackets for Rich markup
-        install_cmd = f"pip install fo-core\\[{group}]"
-        prerequisites = ", ".join(SYSTEM_PREREQUISITES.get(group, ["-"]))
 
         # Check if group is already installed
         is_installed = is_group_installed(group)
+
+        # Check for broken combos
+        broken_msg = _is_broken_combo(group)
+
+        # Get the canonical extra name
+        extra_name = _get_extra_name(group)
+
+        # Generate install command
+        if broken_msg:
+            install_cmd = f"[yellow]⚠ {broken_msg}[/yellow]"
+        elif not extra_name:
+            # No extra for this group (e.g., parsers are core)
+            install_cmd = "[dim](core dependency)[/dim]"
+        else:
+            if install_method == "pipx":
+                # Escape square brackets for Rich markup
+                install_cmd = f'pipx inject fo-core "fo-core\\[{extra_name}]" --force'
+            else:
+                # Escape square brackets for Rich markup; quote for shell safety
+                install_cmd = f'pip install "fo-core\\[{extra_name}]"'
+
+        prerequisites = ", ".join(SYSTEM_PREREQUISITES.get(group, ["-"]))
 
         # Color code based on installation status
         if is_installed:
@@ -236,12 +342,29 @@ def display_recommendations(
 
 
 def _install_single_group(group: str) -> bool:
-    """Install a single optional dependency group via pip.
+    """Install a single optional dependency group via pip or pipx.
 
     Returns True on success, False on failure.
     """
-    install_cmd = [sys.executable, "-m", "pip", "install", f"fo-core[{group}]"]
-    console.print(f"\n[bold]Installing {group}...[/bold]")
+    install_method = _detect_install_method()
+    extra_name = _get_extra_name(group)
+
+    if not extra_name:
+        console.print(f"[yellow]⚠ {group} is a core dependency, no installation needed[/yellow]")
+        return True
+
+    # Check for broken combos
+    broken_msg = _is_broken_combo(group)
+    if broken_msg:
+        console.print(f"[yellow]⚠ Skipping {group}: {broken_msg}[/yellow]")
+        return False
+
+    if install_method == "pipx":
+        install_cmd = ["pipx", "inject", "fo-core", f"fo-core[{extra_name}]", "--force"]
+    else:
+        install_cmd = [sys.executable, "-m", "pip", "install", f"fo-core[{extra_name}]"]
+
+    console.print(f"\n[bold]Installing {group} (extra: {extra_name})...[/bold]")
 
     try:
         result = subprocess.run(
@@ -258,7 +381,10 @@ def _install_single_group(group: str) -> bool:
 
         console.print(f"[red]✗ Failed to install {group} (exit code {result.returncode})[/red]")
     except FileNotFoundError:
-        console.print("[red]✗ Cannot find 'pip' executable. Is pip installed?[/red]")
+        if install_method == "pipx":
+            console.print("[red]✗ Cannot find 'pipx' executable. Is pipx installed?[/red]")
+        else:
+            console.print("[red]✗ Cannot find 'pip' executable. Is pip installed?[/red]")
     except subprocess.TimeoutExpired:
         console.print(f"[red]✗ Timed out installing {group}[/red]")
     except (subprocess.SubprocessError, OSError) as exc:
@@ -267,8 +393,8 @@ def _install_single_group(group: str) -> bool:
     return False
 
 
-def install_groups(groups: set[str]) -> None:
-    """Interactively install optional dependency groups using pip.
+def install_groups(groups: set[str]) -> None:  # noqa: C901
+    """Interactively install optional dependency groups using pip or pipx.
 
     Prompts the user for confirmation before installing.
     Respects the global dry-run flag (via ``_get_state().dry_run``) to skip actual installation.
@@ -281,6 +407,8 @@ def install_groups(groups: set[str]) -> None:
     if not groups:
         console.print("[yellow]No groups to install.[/yellow]")
         return
+
+    install_method = _detect_install_method()
 
     # Display groups to be installed
     groups_list = sorted(groups)
@@ -311,7 +439,13 @@ def install_groups(groups: set[str]) -> None:
     if _get_state().dry_run:
         console.print("[yellow]Dry-run mode: skipping actual installation.[/yellow]")
         for group in groups_list:
-            console.print(f"  [dim]Would install: fo-core[{group}][/dim]")
+            extra_name = _get_extra_name(group) or group
+            if install_method == "pipx":
+                console.print(
+                    f'  [dim]Would run: pipx inject fo-core "fo-core\\[{extra_name}]" --force[/dim]'
+                )
+            else:
+                console.print(f"  [dim]Would install: fo-core\\[{extra_name}][/dim]")
         return
 
     # Install each group
@@ -329,12 +463,22 @@ def install_groups(groups: set[str]) -> None:
         )
         console.print("\n[dim]You can retry failed installations manually:[/dim]")
         for group in failed_groups:
-            console.print(f"  [dim]pip install fo-core[{group}][/dim]")
+            extra_name = _get_extra_name(group) or group
+            if install_method == "pipx":
+                console.print(f'  [dim]pipx inject fo-core "fo-core\\[{extra_name}]" --force[/dim]')
+            else:
+                console.print(f'  [dim]pip install "fo-core\\[{extra_name}]"[/dim]')
+
+        # Add uv cache clean hint for pipx
+        if install_method == "pipx":
+            console.print('\n[dim]If install fails with "no version found", run:[/dim]')
+            console.print("  [dim]uv cache clean[/dim]")
+            console.print("  [dim]then retry.[/dim]")
     else:
         console.print(f"[green]✓ All {len(groups_list)} group(s) installed successfully![/green]")
 
 
-def doctor(
+def doctor(  # noqa: C901
     path: Path | None = typer.Argument(
         None,
         help="Directory to scan for file types (defaults to current directory).",
@@ -417,18 +561,30 @@ def doctor(
     missing_groups = get_missing_groups(detected_groups)
 
     # Build group information
+    install_method = _detect_install_method()
     groups_info: list[dict[str, Any]] = []
     for group in sorted(detected_groups):
         file_count = group_file_counts.get(group, 0)
         is_installed = is_group_installed(group)
         prerequisites = SYSTEM_PREREQUISITES.get(group, [])
+        extra_name = _get_extra_name(group)
+
+        broken_msg = _is_broken_combo(group)
+        if broken_msg:
+            install_command = f"(broken: {broken_msg})"
+        elif install_method == "pipx" and extra_name:
+            install_command = f'pipx inject fo-core "fo-core[{extra_name}]" --force'
+        elif extra_name:
+            install_command = f"pip install fo-core[{extra_name}]"
+        else:
+            install_command = "(core dependency)"
 
         groups_info.append(
             {
                 "group": group,
                 "files_found": file_count,
                 "installed": is_installed,
-                "install_command": f"pip install fo-core[{group}]",
+                "install_command": install_command,
                 "prerequisites": prerequisites,
             }
         )
@@ -458,12 +614,64 @@ def doctor(
         install_groups(missing_groups)
     else:
         # Show summary of what's missing with actionable install commands
-        console.print(
-            f"\n[yellow]Found {len(missing_groups)} missing dependency group(s).[/yellow]"
-        )
-        console.print("\nInstall them now:")
+        # Separate groups by whether they can be installed or are broken/core
+        installable = []
+        warnings_shown = []
+
         for group in sorted(missing_groups):
-            console.print(f"  [cyan]pip install fo-core\\[{group}][/cyan]")
-        console.print(
-            f"\nOr install all at once:  [cyan]fo doctor {resolved_path} --install[/cyan]"
-        )
+            broken_msg = _is_broken_combo(group)
+            if broken_msg:
+                warnings_shown.append((group, broken_msg))
+            elif _get_extra_name(group):
+                installable.append(group)
+
+        # Convert installable groups to unique extras
+        extras = _groups_to_extras(set(installable))
+
+        if installable:
+            # Group names with their corresponding extra
+            group_to_extra_display: dict[str, list[str]] = {}
+            for group in installable:
+                extra = _get_extra_name(group)
+                if extra:
+                    if extra not in group_to_extra_display:
+                        group_to_extra_display[extra] = []
+                    group_to_extra_display[extra].append(group)
+
+            console.print(
+                f"\n[yellow]Found {len(installable)} missing dependency group(s).[/yellow]"
+            )
+            console.print("\nInstall them now:")
+            for extra in extras:
+                groups_for_extra = group_to_extra_display.get(extra, [])
+                group_names = " + ".join(groups_for_extra) if groups_for_extra else extra
+                if install_method == "pipx":
+                    console.print(
+                        f'  [cyan]pipx inject fo-core "fo-core\\[{extra}]" --force[/cyan]        # {group_names}'
+                    )
+                else:
+                    console.print(
+                        f'  [cyan]pip install "fo-core\\[{extra}]"[/cyan]        # {group_names}'
+                    )
+
+            if len(extras) > 1:
+                all_extras = ",".join(extras)
+                console.print("\nOr install all at once:")
+                if install_method == "pipx":
+                    console.print(
+                        f'  [cyan]pipx inject fo-core "fo-core\\[{all_extras}]" --force[/cyan]'
+                    )
+                else:
+                    console.print(f'  [cyan]pip install "fo-core\\[{all_extras}]"[/cyan]')
+
+            # Add uv cache clean hint for pipx
+            if install_method == "pipx":
+                console.print('\nIf install fails with "no version found", run:')
+                console.print("  [cyan]uv cache clean[/cyan]")
+                console.print("then retry.")
+
+        # Show warnings for broken combos
+        if warnings_shown:
+            console.print()
+            for group, msg in warnings_shown:
+                console.print(f"[yellow]⚠️  {group} skipped — {msg}[/yellow]")

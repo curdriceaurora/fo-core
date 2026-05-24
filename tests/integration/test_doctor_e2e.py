@@ -629,10 +629,11 @@ class TestDoctorRecommendations:
     def test_recommendations_show_install_commands(self, audio_files_dir: Path) -> None:
         """Recommendations include pip install commands."""
         with patch("cli.doctor.is_group_installed", return_value=False):
-            result = runner.invoke(app, ["doctor", str(audio_files_dir)])
-            assert result.exit_code == 0
-            assert "pip install" in result.output.lower()
-            assert "fo-core[audio]" in result.output
+            with patch("cli.doctor._detect_install_method", return_value="pip"):
+                result = runner.invoke(app, ["doctor", str(audio_files_dir)])
+                assert result.exit_code == 0
+                assert "pip install" in result.output.lower()
+                assert "fo-core[media]" in result.output
 
     def test_recommendations_show_prerequisites(self, audio_files_dir: Path) -> None:
         """Recommendations display system prerequisites."""
