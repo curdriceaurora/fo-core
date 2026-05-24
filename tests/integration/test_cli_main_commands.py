@@ -6,6 +6,12 @@ and global callback flags (--verbose, --dry-run, --json, --yes, --no-interactive
 
 from __future__ import annotations
 
+import importlib.metadata
+import os
+import site
+import subprocess
+import sys
+import venv
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -18,6 +24,21 @@ from cli.main import app
 pytestmark = [pytest.mark.integration]
 
 runner = CliRunner()
+_PROJECT_PACKAGE_NAMES = {
+    entry.stem if entry.is_file() else entry.name
+    for entry in (Path(__file__).resolve().parents[2] / "src").iterdir()
+    if not entry.name.startswith(".") and entry.name != "__pycache__"
+}
+
+
+def _is_project_package(entry_name: str) -> bool:
+    return "fo_core" in entry_name or entry_name in _PROJECT_PACKAGE_NAMES
+
+
+def _dependency_search_roots() -> list[Path]:
+    roots = [Path(site.getusersitepackages())]
+    roots.extend(Path(path) for path in site.getsitepackages())
+    return roots
 
 
 class TestVersionCommand:
@@ -30,10 +51,60 @@ class TestVersionCommand:
         assert "fo" in result.output.lower()
 
     def test_version_shows_version_string(self) -> None:
-        from version import __version__
-
         result = runner.invoke(app, ["version"])
-        assert __version__ in result.output
+        assert importlib.metadata.version("fo-core") in result.output
+
+    def test_version_flag_installed_wheel(self, tmp_path: Path) -> None:
+        project_root = Path(__file__).resolve().parents[2]
+        wheel_dir = tmp_path / "wheel"
+        venv_dir = tmp_path / "venv"
+        scripts_dir_name = "Scripts" if os.name == "nt" else "bin"
+        fo_executable = "fo.exe" if os.name == "nt" else "fo"
+        python_executable = "python.exe" if os.name == "nt" else "python"
+        wheel_dir.mkdir()
+
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "wheel",
+                "--no-deps",
+                "--wheel-dir",
+                str(wheel_dir),
+                str(project_root),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        wheel_path = next(wheel_dir.glob("fo_core-*.whl"))
+
+        venv.EnvBuilder(with_pip=True).create(venv_dir)
+        venv_python = venv_dir / scripts_dir_name / python_executable
+
+        subprocess.run(
+            [str(venv_python), "-m", "pip", "install", "--no-deps", str(wheel_path)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        # Point PYTHONPATH at the runner's site-packages so all runtime deps
+        # (loguru, click, typer, rich, etc.) are importable without copying them.
+        # Editable-install .pth files in those directories are NOT processed from
+        # PYTHONPATH, so fo-core itself resolves to the wheel installed above.
+        deps_paths = [str(p) for p in _dependency_search_roots() if p.exists()]
+        subprocess_env = {**os.environ, "PYTHONPATH": os.pathsep.join(deps_paths)}
+        result = subprocess.run(
+            [str(venv_dir / scripts_dir_name / fo_executable), "--version"],
+            check=True,
+            text=True,
+            capture_output=True,
+            env=subprocess_env,
+        )
+
+        assert result.stdout.strip() == f"fo {importlib.metadata.version('fo-core')}"
 
 
 def _make_hw_profile() -> SimpleNamespace:
@@ -250,10 +321,8 @@ class TestVersionFlag:
 
     def test_version_flag_prints_version(self) -> None:
         """--version flag outputs the version string."""
-        from version import __version__
-
         result = runner.invoke(app, ["--version"])
-        assert __version__ in result.output
+        assert importlib.metadata.version("fo-core") in result.output
 
 
 class TestAnalyticsCommand:

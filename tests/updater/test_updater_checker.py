@@ -6,6 +6,7 @@ get_latest_release, _fetch_latest_release, _parse_release, _detect_version.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -366,18 +367,19 @@ class TestDetectVersion:
         checker = UpdateChecker()
         assert checker.current_version == "0.0.0"
 
+    @pytest.mark.ci
     def test_detect_import_error(self):
-        with patch.dict("sys.modules", {"version": None}):
+        with patch("updater.checker._pkg_version", side_effect=PackageNotFoundError):
             result = UpdateChecker._detect_version()
             assert result == "0.0.0"
 
-    def test_detect_version_success(self):
-        """_detect_version returns the real __version__ string when import succeeds."""
-        from version import __version__
-
+    @pytest.mark.ci
+    @patch("updater.checker._pkg_version", return_value="2.0.0")
+    def test_detect_version_success(self, mock_version):
+        """_detect_version returns the installed version string when available."""
         result = UpdateChecker._detect_version()
-        assert result == __version__
-        assert result != "0.0.0"
+        assert result == "2.0.0"
+        mock_version.assert_called_once_with("fo-core")
 
 
 # ---------------------------------------------------------------------------
