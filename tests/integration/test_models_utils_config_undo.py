@@ -166,6 +166,91 @@ class TestSplitDataUrl:
 
 
 # ===========================================================================
+# downscale_image_if_needed
+# ===========================================================================
+
+
+class TestDownscaleImageIfNeeded:
+    def test_small_image_returned_unchanged(self, tmp_path: Path) -> None:
+        try:
+            from PIL import Image
+        except ImportError:
+            pytest.skip("PIL not available")
+
+        img_path = tmp_path / "small.png"
+        Image.new("RGB", (800, 600), color=(255, 0, 0)).save(img_path)
+
+        from models._vision_helpers import downscale_image_if_needed
+
+        result, was_downscaled = downscale_image_if_needed(img_path, max_long_edge=1024)
+
+        assert was_downscaled is False
+        assert result == img_path
+
+    def test_large_landscape_image_downscaled(self, tmp_path: Path) -> None:
+        try:
+            import io
+
+            from PIL import Image
+        except ImportError:
+            pytest.skip("PIL not available")
+
+        img_path = tmp_path / "large.jpg"
+        Image.new("RGB", (4000, 3000), color=(100, 150, 200)).save(img_path)
+
+        from models._vision_helpers import downscale_image_if_needed
+
+        result, was_downscaled = downscale_image_if_needed(img_path, max_long_edge=1024)
+
+        assert was_downscaled is True
+        assert isinstance(result, bytes)
+        img = Image.open(io.BytesIO(result))
+        assert img.size == (1024, 768)
+
+    def test_large_portrait_image_downscaled(self, tmp_path: Path) -> None:
+        try:
+            import io
+
+            from PIL import Image
+        except ImportError:
+            pytest.skip("PIL not available")
+
+        img_path = tmp_path / "portrait.png"
+        Image.new("RGB", (2000, 3000), color=(50, 100, 150)).save(img_path)
+
+        from models._vision_helpers import downscale_image_if_needed
+
+        result, was_downscaled = downscale_image_if_needed(img_path, max_long_edge=1024)
+
+        assert was_downscaled is True
+        assert isinstance(result, bytes)
+        img = Image.open(io.BytesIO(result))
+        assert img.size[1] == 1024
+
+    def test_nonexistent_file_returns_path(self, tmp_path: Path) -> None:
+        from models._vision_helpers import downscale_image_if_needed
+
+        missing = tmp_path / "no_such_file.png"
+        result, was_downscaled = downscale_image_if_needed(missing)
+
+        assert was_downscaled is False
+        assert result == missing
+
+    def test_pil_unavailable_raises(self, tmp_path: Path) -> None:
+        import sys
+        from unittest.mock import patch
+
+        from models._vision_helpers import downscale_image_if_needed
+
+        img_path = tmp_path / "test.png"
+        img_path.touch()
+
+        with patch.dict(sys.modules, {"PIL": None, "PIL.Image": None}):
+            with pytest.raises(ImportError, match="PIL/Pillow is required"):
+                downscale_image_if_needed(img_path)
+
+
+# ===========================================================================
 # audio_model
 # ===========================================================================
 

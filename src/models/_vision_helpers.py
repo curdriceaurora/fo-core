@@ -9,10 +9,13 @@ cross-imports the other.
 from __future__ import annotations
 
 import base64
+import io
 import mimetypes
 import os
 import sys
 from pathlib import Path
+
+from loguru import logger
 
 # Fallback MIME type when extension is not recognised
 _DEFAULT_IMAGE_MIME = "image/jpeg"
@@ -32,6 +35,85 @@ _EXTENSION_MIME: dict[str, str] = {
     ".heic": "image/heic",
     ".heif": "image/heif",
 }
+
+
+def downscale_image_if_needed(
+    image_path: Path, max_long_edge: int = 1024
+) -> tuple[Path | bytes, bool]:
+    """Downscale an image if it exceeds the maximum dimension.
+
+    Large images are resized to fit within max_long_edge on the longest side,
+    preserving aspect ratio. This reduces inference time for vision models
+    without significantly impacting quality for high-level tasks like
+    categorization and filename generation.
+
+    Args:
+        image_path: Path to the image file.
+        max_long_edge: Maximum length of the longest edge in pixels.
+            Images with either dimension exceeding this are downscaled.
+
+    Returns:
+        A tuple of (image_data, was_downscaled) where:
+        - image_data is either the original Path (if no downscaling) or
+          bytes of the downscaled image
+        - was_downscaled is True if the image was resized
+
+    Raises:
+        ImportError: If PIL/Pillow is not available.
+        OSError: If the image cannot be opened or processed.
+    """
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise ImportError(
+            "PIL/Pillow is required for image downscaling. Install with: pip install Pillow"
+        ) from exc
+
+    try:
+        with Image.open(image_path) as img:
+            width, height = img.size
+            max_dim = max(width, height)
+
+            # No downscaling needed
+            if max_dim <= max_long_edge:
+                return image_path, False
+
+            # Calculate new dimensions preserving aspect ratio
+            if width > height:
+                new_width = max_long_edge
+                new_height = int(height * (max_long_edge / width))
+            else:
+                new_height = max_long_edge
+                new_width = int(width * (max_long_edge / height))
+
+            logger.debug(
+                "Downscaling {} from {}×{} → {}×{} before vision inference",
+                image_path.name,
+                width,
+                height,
+                new_width,
+                new_height,
+            )
+
+            # Resize using LANCZOS for best quality
+            resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+            # Save to bytes buffer in original format
+            buffer = io.BytesIO()
+            # Preserve original format; default to JPEG if unknown
+            format_str = img.format or "JPEG"
+            resized.save(buffer, format=format_str)
+            buffer.seek(0)
+
+            return buffer.getvalue(), True
+
+    except Exception as exc:
+        logger.warning(
+            "Failed to downscale image {}: {}; using original",
+            image_path.name,
+            exc,
+        )
+        return image_path, False
 
 
 def image_to_data_url(image_path: Path) -> str:

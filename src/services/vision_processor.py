@@ -62,6 +62,7 @@ class VisionProcessor:
         config: ModelConfig | None = None,
         *,
         backend_cooldown_seconds: float = 20.0,
+        max_image_long_edge: int = 1024,
     ) -> None:
         """Initialize vision processor.
 
@@ -75,6 +76,10 @@ class VisionProcessor:
                 regardless of any global provider setting.
             backend_cooldown_seconds: Cooldown period for fatal backend
                 failures before retrying model calls.
+            max_image_long_edge: Maximum length of longest image edge before
+                downscaling. Large images are resized to this dimension
+                (preserving aspect ratio) before being sent to the vision model.
+                Default: 1024 px. Min: 256, Max: 4096.
         """
         if vision_model is not None:
             if vision_model.config.model_type not in (ModelType.VISION, ModelType.VIDEO):
@@ -90,6 +95,7 @@ class VisionProcessor:
             self._owns_model = True
 
         self._backend_cooldown_seconds = backend_cooldown_seconds
+        self._max_image_long_edge = max(256, min(4096, max_image_long_edge))
         self._circuit_lock = threading.Lock()
         self._circuit_opened_at: float | None = None
         self._circuit_reason: str | None = None
@@ -529,6 +535,8 @@ FILENAME:"""
             raise RuntimeError(f"Vision backend circuit open: {reason}")
 
         try:
+            # Pass max_image_long_edge to the vision model
+            kwargs["max_image_long_edge"] = self._max_image_long_edge
             return self.vision_model.generate(**kwargs)
         except Exception as exc:  # Intentional catch-all: circuit-breaker for any backend error
             if self._is_fatal_backend_error(exc):
