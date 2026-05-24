@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError
 from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
-from cli.main import app
+from cli.main import _fo_version, app
 
 runner = CliRunner()
+
+
+@pytest.mark.ci
+def test_fo_version_returns_version_string() -> None:
+    """_fo_version() returns the installed version string."""
+    with patch("cli.main._pkg_version", return_value="9.9.9"):
+        assert _fo_version() == "9.9.9"
+
+
+@pytest.mark.ci
+def test_fo_version_fallback_on_package_not_found() -> None:
+    """_fo_version() returns 'unknown' when the package isn't installed."""
+    with patch("cli.main._pkg_version", side_effect=PackageNotFoundError):
+        assert _fo_version() == "unknown"
 
 
 @pytest.mark.ci
