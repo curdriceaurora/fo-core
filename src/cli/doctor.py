@@ -308,7 +308,7 @@ def display_recommendations(
         else:
             if install_method == "pipx":
                 # Escape square brackets for Rich markup
-                install_cmd = f"pipx inject fo-core \"fo-core\\[{extra_name}]\" --force"
+                install_cmd = f'pipx inject fo-core "fo-core\\[{extra_name}]" --force'
             else:
                 # Escape square brackets for Rich markup
                 install_cmd = f"pip install fo-core\\[{extra_name}]"
@@ -387,7 +387,7 @@ def _install_single_group(group: str) -> bool:
     return False
 
 
-def install_groups(groups: set[str]) -> None:
+def install_groups(groups: set[str]) -> None:  # noqa: C901
     """Interactively install optional dependency groups using pip or pipx.
 
     Prompts the user for confirmation before installing.
@@ -435,7 +435,9 @@ def install_groups(groups: set[str]) -> None:
         for group in groups_list:
             extra_name = _get_extra_name(group) or group
             if install_method == "pipx":
-                console.print(f"  [dim]Would run: pipx inject fo-core \"fo-core[{extra_name}]\" --force[/dim]")
+                console.print(
+                    f'  [dim]Would run: pipx inject fo-core "fo-core[{extra_name}]" --force[/dim]'
+                )
             else:
                 console.print(f"  [dim]Would install: fo-core[{extra_name}][/dim]")
         return
@@ -457,20 +459,20 @@ def install_groups(groups: set[str]) -> None:
         for group in failed_groups:
             extra_name = _get_extra_name(group) or group
             if install_method == "pipx":
-                console.print(f"  [dim]pipx inject fo-core \"fo-core[{extra_name}]\" --force[/dim]")
+                console.print(f'  [dim]pipx inject fo-core "fo-core[{extra_name}]" --force[/dim]')
             else:
                 console.print(f"  [dim]pip install fo-core[{extra_name}][/dim]")
 
         # Add uv cache clean hint for pipx
         if install_method == "pipx":
-            console.print("\n[dim]If install fails with \"no version found\", run:[/dim]")
+            console.print('\n[dim]If install fails with "no version found", run:[/dim]')
             console.print("  [dim]uv cache clean[/dim]")
             console.print("  [dim]then retry.[/dim]")
     else:
         console.print(f"[green]✓ All {len(groups_list)} group(s) installed successfully![/green]")
 
 
-def doctor(
+def doctor(  # noqa: C901
     path: Path | None = typer.Argument(
         None,
         help="Directory to scan for file types (defaults to current directory).",
@@ -562,7 +564,7 @@ def doctor(
         extra_name = _get_extra_name(group)
 
         if install_method == "pipx" and extra_name:
-            install_command = f"pipx inject fo-core \"fo-core[{extra_name}]\" --force"
+            install_command = f'pipx inject fo-core "fo-core[{extra_name}]" --force'
         elif extra_name:
             install_command = f"pip install fo-core[{extra_name}]"
         else:
@@ -637,21 +639,27 @@ def doctor(
                 groups_for_extra = group_to_extra_display.get(extra, [])
                 group_names = " + ".join(groups_for_extra) if groups_for_extra else extra
                 if install_method == "pipx":
-                    console.print(f"  [cyan]pipx inject fo-core \"fo-core\\[{extra}]\" --force[/cyan]        # {group_names}")
+                    console.print(
+                        f'  [cyan]pipx inject fo-core "fo-core\\[{extra}]" --force[/cyan]        # {group_names}'
+                    )
                 else:
-                    console.print(f"  [cyan]pip install \"fo-core\\[{extra}]\"[/cyan]        # {group_names}")
+                    console.print(
+                        f'  [cyan]pip install "fo-core\\[{extra}]"[/cyan]        # {group_names}'
+                    )
 
             if len(extras) > 1:
                 all_extras = ",".join(extras)
                 console.print("\nOr install all at once:")
                 if install_method == "pipx":
-                    console.print(f"  [cyan]pipx inject fo-core \"fo-core\\[{all_extras}]\" --force[/cyan]")
+                    console.print(
+                        f'  [cyan]pipx inject fo-core "fo-core\\[{all_extras}]" --force[/cyan]'
+                    )
                 else:
-                    console.print(f"  [cyan]pip install \"fo-core\\[{all_extras}]\"[/cyan]")
+                    console.print(f'  [cyan]pip install "fo-core\\[{all_extras}]"[/cyan]')
 
             # Add uv cache clean hint for pipx
             if install_method == "pipx":
-                console.print("\nIf install fails with \"no version found\", run:")
+                console.print('\nIf install fails with "no version found", run:')
                 console.print("  [cyan]uv cache clean[/cyan]")
                 console.print("then retry.")
 
