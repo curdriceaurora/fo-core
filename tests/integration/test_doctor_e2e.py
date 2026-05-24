@@ -632,7 +632,7 @@ class TestDoctorRecommendations:
             result = runner.invoke(app, ["doctor", str(audio_files_dir)])
             assert result.exit_code == 0
             assert "pip install" in result.output.lower()
-            assert "fo-core[audio]" in result.output
+            assert "fo-core[media]" in result.output
 
     def test_recommendations_show_prerequisites(self, audio_files_dir: Path) -> None:
         """Recommendations display system prerequisites."""

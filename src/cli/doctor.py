@@ -623,7 +623,7 @@ def doctor(  # noqa: C901
 
         if installable:
             # Group names with their corresponding extra
-            group_to_extra_display: dict[str, str] = {}
+            group_to_extra_display: dict[str, list[str]] = {}
             for group in installable:
                 extra = _get_extra_name(group)
                 if extra:
