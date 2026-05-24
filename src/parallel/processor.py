@@ -415,7 +415,9 @@ class ParallelProcessor:
         stalled = [
             f
             for f in pending
-            if future_started.get(f) is None and (now - future_queued_at.get(f, now)) > timeout * 2
+            if future_started.get(f) is None
+            and not f.running()
+            and (now - future_queued_at.get(f, now)) > timeout * 2
         ]
         if not stalled:
             return None
@@ -513,17 +515,26 @@ class ParallelProcessor:
                     return (False, False, [timed_out_result])
 
                 if future.done():
+                    # Task completed in the narrow window between cancel() and
+                    # done() — a race that only occurs on some OS schedulers
+                    # (commonly macOS).  The processor had already decided this
+                    # task exceeded the timeout; discard the result and report a
+                    # consistent timeout so callers see uniform behaviour across
+                    # platforms.  Mark non_retryable: the task was too slow once
+                    # and will be too slow again.
                     pending.remove(future)
-                    completed_path = future_paths.pop(future)
-                    future_started.pop(future, None)
+                    del future_paths[future]
+                    del future_started[future]
                     future_queued_at.pop(future, None)
-                    try:
-                        completed_result = finalize_result(future.result())
-                    except Exception as exc:
-                        completed_result = finalize_result(
-                            FileResult(path=completed_path, success=False, error=str(exc))
+                    race_timeout_result = finalize_result(
+                        FileResult(
+                            path=path,
+                            success=False,
+                            error=f"Timed out after {timeout}s",
+                            non_retryable=True,
                         )
-                    return (False, False, [completed_result])
+                    )
+                    return (False, False, [race_timeout_result])
 
                 # Task is running and cannot be cancelled.  Abandon it —
                 # remove from tracking so other files continue normally.
@@ -548,6 +559,13 @@ class ParallelProcessor:
                         non_retryable=True,
                     )
                 )
+                # The abandoned thread still occupies the worker slot until it
+                # exits naturally.  Reset the saturation-detection clock for all
+                # remaining queued futures so the 2×timeout guard doesn't fire
+                # while that thread is still winding down.
+                _reset_time = time.monotonic()
+                for _remaining in pending:
+                    future_queued_at[_remaining] = _reset_time
                 return (False, True, [abandoned_result])
 
         return None
