@@ -8,6 +8,9 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import time
+import uuid
+from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
@@ -70,13 +73,39 @@ _SETUP_GATE_ALLOWLIST: frozenset[str] = frozenset(
         "recover",
         "config",
         "hardware-info",
+        "logs",  # Allow `fo logs` pre-setup for diagnostics
     }
 )
 """Commands that work pre-setup. They're either bootstrap (`setup`,
-`config`), read-only diagnostics (`doctor`, `version`, `hardware-info`),
-the updater, or emergency recovery. Adding a command here relaxes the
-first-run gate for it — verify the command doesn't write or organize
-files first."""
+`config`), read-only diagnostics (`doctor`, `version`, `hardware-info`,
+`logs`), the updater, or emergency recovery. Adding a command here
+relaxes the first-run gate for it — verify the command doesn't write
+or organize files first."""
+
+
+def _cleanup_old_session_logs(logs_dir: Path, retention_days: int = 3) -> None:
+    """Remove session log files older than retention_days.
+
+    Session logs have filenames like: fo-2026-05-23T12-34-56-abc123.log
+
+    Parameters:
+        logs_dir (Path): The logs directory containing session subdirectory.
+        retention_days (int): Number of days to retain session logs (default: 3).
+    """
+    session_log_dir = logs_dir / "sessions"
+    if not session_log_dir.exists():
+        return
+
+    cutoff_time = time.time() - (retention_days * 86400)  # 86400 seconds per day
+    try:
+        for log_file in session_log_dir.glob("fo-*.log"):
+            if log_file.stat().st_mtime < cutoff_time:
+                try:
+                    log_file.unlink()
+                except OSError:
+                    pass  # Skip files we can't delete (permissions, in-use, etc.)
+    except OSError:
+        pass  # If we can't read the directory, skip cleanup gracefully
 
 
 @app.callback()
@@ -108,7 +137,7 @@ def main_callback(
 ) -> None:
     """Initialize global CLI state and perform startup bookkeeping.
 
-    Sets ctx.obj to a CLIState containing the provided flags (with CLIState.no_interactive set to the inverse of `interactive`), installs the credential-redacting log filter on the root logger, and runs a durable-move recovery sweep on the default journal to clean up interrupted operations. The startup sweep is skipped when the invoked subcommand is "recover"; if the sweep raises an exception it is logged at WARNING and execution continues.
+    Sets ctx.obj to a CLIState containing the provided flags (with CLIState.no_interactive set to the inverse of `interactive`), generates a unique session ID for this invocation, installs the credential-redacting log filter on the root logger, sets up per-run session logging, and runs a durable-move recovery sweep on the default journal to clean up interrupted operations. The startup sweep is skipped when the invoked subcommand is "recover"; if the sweep raises an exception it is logged at WARNING and execution continues.
 
     Parameters:
         ctx (typer.Context): Typer invocation context used to store CLIState.
@@ -116,6 +145,13 @@ def main_callback(
         version_flag (bool): Eager version callback value (accepted and ignored here).
     """
     _ = version_flag
+
+    # Generate unique session ID for this CLI invocation
+    # Format: YYYY-MM-DDTHH-MM-SS-{short_uuid}
+    session_timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S")
+    session_uuid = str(uuid.uuid4())[:8]  # First 8 chars of UUID for brevity
+    session_id = f"{session_timestamp}-{session_uuid}"
+
     ctx.obj = CLIState(
         verbose=verbose,
         dry_run=dry_run,
@@ -123,6 +159,7 @@ def main_callback(
         yes=yes,
         no_interactive=not interactive,
         debug=debug,
+        session_id=session_id,
     )
 
     if debug:
@@ -189,8 +226,56 @@ def main_callback(
 
         ctx.call_on_close(_remove_file_sink)
         ctx.obj.file_log_sink_id = _file_sink_id  # A5: expose ID so callers don't bare-remove
-    except OSError:
+    except OSError:  # pragma: no cover
         pass  # log dir unwritable — degrade gracefully
+
+    # Per-run session log — always DEBUG level for post-run analysis
+    # Location: {state_dir}/logs/sessions/fo-YYYY-MM-DDTHH-MM-SS-{uuid}.log
+    # Retention: 3 days (cleaned up on next CLI startup)
+    #
+    # These logs capture full DEBUG output for every CLI invocation
+    # regardless of the --debug flag, enabling post-run diagnosis.
+    # The session_id is injected into every log record via a custom patcher.
+    try:
+        from loguru import logger as _session_logger
+
+        from config.path_manager import get_canonical_paths as _get_session_paths
+
+        _session_log_dir = _get_session_paths()["logs"]
+        _session_subdir = _session_log_dir / "sessions"
+        _session_subdir.mkdir(parents=True, exist_ok=True)
+
+        # Clean up old session logs (3-day retention)
+        _cleanup_old_session_logs(_session_log_dir, retention_days=3)
+
+        # Session log filename: fo-2026-05-23T12-34-56-abc123.log
+        _session_log_file = _session_subdir / f"fo-{session_id}.log"
+
+        def _session_filter(record: Any) -> bool:
+            record["extra"]["session_id"] = session_id
+            return True
+
+        _session_sink_id = _session_logger.add(
+            _session_log_file,
+            level="DEBUG",  # Always DEBUG for full diagnostics
+            serialize=True,  # NDJSON format for structured analysis
+            backtrace=False,
+            diagnose=False,
+            encoding="utf-8",
+            enqueue=True,
+            filter=_session_filter,
+        )
+
+        def _remove_session_sink() -> None:
+            try:
+                _session_logger.remove(_session_sink_id)
+            except ValueError:
+                pass  # sink already removed
+
+        ctx.call_on_close(_remove_session_sink)
+        ctx.obj.session_log_sink_id = _session_sink_id
+    except OSError:
+        pass  # session log dir unwritable — degrade gracefully
 
     from utils.log_redact import install_on_root
 
@@ -265,6 +350,38 @@ app.command()(preview)
 app.command()(search)
 app.command()(analyze)
 app.command()(doctor)
+
+
+@app.command()
+def logs(
+    ctx: typer.Context,
+    follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output (tail -f)."),
+    lines: int = typer.Option(50, "--lines", "-n", help="Number of lines to show."),
+    session: bool = typer.Option(
+        False,
+        "--session",
+        help="Show latest session log instead of main fo.log.",
+    ),
+    list_sessions: bool = typer.Option(
+        False,
+        "--list",
+        "-l",
+        help="List all available session logs.",
+    ),
+) -> None:
+    """View or tail fo log files."""
+    from cli.logs import logs_command
+    from cli.state import _get_state
+
+    _ = ctx  # ctx is used implicitly by _get_state via click.get_current_context
+    state = _get_state()
+    logs_command(
+        follow=follow,
+        lines=lines,
+        session=session,
+        list_sessions=list_sessions,
+        current_session_id=state.session_id,
+    )
 
 
 @app.command()

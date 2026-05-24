@@ -28,6 +28,12 @@ class CLIState:
     # Stored here so commands can check it exists without removing it.
     # Only main_callback's _remove_file_sink() should call logger.remove() on it.
     file_log_sink_id: int | None = None
+    # Session ID for this CLI invocation (UUID4 suffix for uniqueness).
+    # Used to correlate all log records from a single run in the session log.
+    session_id: str | None = None
+    # Loguru sink ID for the per-run session log handler.
+    # Stored here for cleanup on CLI exit.
+    session_log_sink_id: int | None = None
 
 
 def _get_state() -> CLIState:
