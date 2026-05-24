@@ -226,7 +226,7 @@ def main_callback(
 
         ctx.call_on_close(_remove_file_sink)
         ctx.obj.file_log_sink_id = _file_sink_id  # A5: expose ID so callers don't bare-remove
-    except OSError:
+    except OSError:  # pragma: no cover
         pass  # log dir unwritable — degrade gracefully
 
     # Per-run session log — always DEBUG level for post-run analysis
