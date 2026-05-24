@@ -67,10 +67,10 @@ def logs_command(
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted[/yellow]")
-        raise typer.Exit(130)
+        raise typer.Exit(130) from None
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def _list_session_logs(log_dir: Path) -> None:
@@ -80,7 +80,9 @@ def _list_session_logs(log_dir: Path) -> None:
         console.print("[yellow]No session logs directory found.[/yellow]")
         return
 
-    session_files = sorted(session_dir.glob("fo-*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    session_files = sorted(
+        session_dir.glob("fo-*.log"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
 
     if not session_files:
         console.print("[yellow]No session logs found.[/yellow]")
@@ -91,13 +93,6 @@ def _list_session_logs(log_dir: Path) -> None:
 
     for log_file in session_files:
         # Extract timestamp from filename: fo-2026-05-23T12-34-56-abc123.log
-        name = log_file.stem  # fo-2026-05-23T12-34-56-abc123
-        parts = name.split("-", 1)
-        if len(parts) == 2:
-            timestamp_part = parts[1]  # 2026-05-23T12-34-56-abc123
-        else:
-            timestamp_part = name
-
         size_mb = log_file.stat().st_size / (1024 * 1024)
         console.print(f"  {log_file.name:60s}  {size_mb:6.2f} MB")
 
@@ -127,12 +122,12 @@ def _show_last_lines(log_file: Path, num_lines: int) -> None:
                 # Write directly to stdout for proper CliRunner capture
                 sys.stdout.write(line)
                 sys.stdout.flush()
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         console.print(f"[red]File not found: {log_file}[/red]")
-        raise typer.Exit(1)
-    except PermissionError:
+        raise typer.Exit(1) from e
+    except PermissionError as e:
         console.print(f"[red]Permission denied: {log_file}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def _tail_follow(log_file: Path) -> None:
@@ -152,9 +147,9 @@ def _tail_follow(log_file: Path) -> None:
                     sys.stdout.flush()
                 else:
                     time.sleep(0.1)  # Wait a bit before checking again
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         console.print(f"[red]File not found: {log_file}[/red]")
-        raise typer.Exit(1)
-    except PermissionError:
+        raise typer.Exit(1) from e
+    except PermissionError as e:
         console.print(f"[red]Permission denied: {log_file}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e

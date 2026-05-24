@@ -76,9 +76,7 @@ def test_session_id_generated_on_invocation(
 
 @pytest.mark.unit
 @pytest.mark.ci
-def test_session_log_always_debug_level(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_session_log_always_debug_level(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Session log is always DEBUG level, even without --debug flag."""
     captured: list[dict[str, Any]] = []
     original_add = __import__("loguru").logger.add
@@ -105,9 +103,7 @@ def test_session_log_always_debug_level(
 
 @pytest.mark.unit
 @pytest.mark.ci
-def test_session_log_uses_ndjson_format(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_session_log_uses_ndjson_format(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Session log uses serialize=True for NDJSON format."""
     captured: list[dict[str, Any]] = []
     original_add = __import__("loguru").logger.add
@@ -136,8 +132,6 @@ def test_session_id_injected_in_log_records(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Session ID is injected into every log record via custom filter."""
-    from loguru import logger
-
     log_dir = tmp_path / "logs"
     monkeypatch.setattr("config.path_manager.get_canonical_paths", lambda: {"logs": log_dir})
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
@@ -182,6 +176,7 @@ def test_old_session_logs_cleaned_up(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     old_log.touch()
     # Python's Path.touch() doesn't support setting mtime, use os.utime
     import os
+
     os.utime(old_log, (four_days_ago, four_days_ago))
 
     # Create a recent session log (1 day ago)
@@ -248,6 +243,7 @@ def test_logs_command_shows_main_log(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
     # Capture stdout
     import io
+
     captured_output = io.StringIO()
     monkeypatch.setattr("sys.stdout", captured_output)
 
@@ -261,9 +257,7 @@ def test_logs_command_shows_main_log(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 @pytest.mark.unit
 @pytest.mark.ci
-def test_logs_command_shows_latest_session(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_logs_command_shows_latest_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """fo logs --session shows the most recent session log."""
     from cli.logs import logs_command
 
@@ -280,6 +274,7 @@ def test_logs_command_shows_latest_session(
 
     # Set mtime to ensure ordering
     import os
+
     old_time = time.time() - 86400  # 1 day ago
     os.utime(old_session, (old_time, old_time))
 
@@ -287,6 +282,7 @@ def test_logs_command_shows_latest_session(
 
     # Capture stdout
     import io
+
     captured_output = io.StringIO()
     monkeypatch.setattr("sys.stdout", captured_output)
 
@@ -317,6 +313,7 @@ def test_logs_command_lists_sessions(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
     # Capture stdout
     import io
+
     captured_output = io.StringIO()
     monkeypatch.setattr("sys.stdout", captured_output)
 
@@ -331,9 +328,7 @@ def test_logs_command_lists_sessions(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 @pytest.mark.unit
 @pytest.mark.ci
-def test_logs_command_no_sessions_found(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_logs_command_no_sessions_found(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """fo logs --session exits with error when no session logs exist."""
     from cli.logs import logs_command
 
@@ -351,9 +346,7 @@ def test_logs_command_no_sessions_found(
 
 @pytest.mark.unit
 @pytest.mark.ci
-def test_logs_command_main_log_not_found(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_logs_command_main_log_not_found(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """fo logs exits with error when main fo.log doesn't exist."""
     from cli.logs import logs_command
 

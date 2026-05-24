@@ -251,9 +251,9 @@ def main_callback(
         # Session log filename: fo-2026-05-23T12-34-56-abc123.log
         _session_log_file = _session_subdir / f"fo-{session_id}.log"
 
-        # Custom patcher to inject session_id into every log record
-        def _inject_session_id(record: dict) -> None:
+        def _session_filter(record: Any) -> bool:
             record["extra"]["session_id"] = session_id
+            return True
 
         _session_sink_id = _session_logger.add(
             _session_log_file,
@@ -263,8 +263,7 @@ def main_callback(
             diagnose=False,
             encoding="utf-8",
             enqueue=True,
-            # Inject session_id via patcher so every record includes it
-            filter=lambda record: (_inject_session_id(record), True)[1],
+            filter=_session_filter,
         )
 
         def _remove_session_sink() -> None:
