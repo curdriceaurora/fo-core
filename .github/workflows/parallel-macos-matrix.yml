@@ -1,0 +1,113 @@
+name: Parallel Timeout Acceptance Matrix
+
+# On-demand acceptance gate for fixes to the parallel timeout race condition
+# (issue #399). Run this workflow manually to verify all platforms pass.
+#
+# Usage: Actions → "Parallel Timeout Acceptance Matrix" → "Run workflow"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or commit SHA to test (default: current branch)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  test-linux:
+    name: "Parallel tests — Linux (py${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev]"
+      - name: Run parallel test suite
+        run: |
+          pytest tests/parallel/ \
+            --strict-markers \
+            --timeout=60 \
+            -n auto \
+            --dist=loadgroup \
+            --override-ini="addopts=" \
+            -v
+
+  test-macos:
+    name: "Parallel tests — macOS (py3.12)"
+    runs-on: macos-latest
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev]"
+      - name: Run parallel test suite
+        run: |
+          pytest tests/parallel/ \
+            --strict-markers \
+            --timeout=60 \
+            -n auto \
+            --dist=loadgroup \
+            --override-ini="addopts=" \
+            -v
+
+  test-windows:
+    name: "Parallel tests — Windows (py3.12)"
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60  # v4.0.0
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: pip install -e ".[dev]"
+      - name: Run parallel test suite
+        # -n auto omitted: xdist on Windows propagates CTRL_C_EVENT as
+        # KeyboardInterrupt causing exit code 1 when all tests pass.
+        # --timeout omitted: pytest-timeout thread-mode fires during teardown on Windows.
+        run: |
+          pytest tests/parallel/ ^
+            --strict-markers ^
+            --override-ini="addopts=" ^
+            -v
