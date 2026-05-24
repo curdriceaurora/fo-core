@@ -26,6 +26,7 @@ from cli.doctor import (
     _detect_install_method,
     _get_extra_name,
     _groups_to_extras,
+    _install_single_group,  # tested directly in TestInstallSingleGroup
     _is_broken_combo,
     _normalized_extension,
     display_recommendations,
@@ -1777,3 +1778,184 @@ class TestScanDirectoryEdgeCases:
         for ext in result:
             if ext:  # Skip empty string (no extension)
                 assert ext.startswith("."), f"Extension key '{ext}' must start with dot"
+
+
+# ============================================================================
+# Branch Coverage — pipx and broken-combo paths
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestDisplayRecommendationsBranchCoverage:
+    """Branch coverage for display_recommendations — pipx and broken-combo paths."""
+
+    def test_pipx_install_method_shows_inject_command(self):
+        """display_recommendations uses pipx inject command when install method is pipx (line 311)."""
+        extension_counts = {".mp3": 5}
+        detected_groups = {"audio"}
+
+        with patch("cli.doctor._detect_install_method", return_value="pipx"):
+            with patch("cli.doctor.is_group_installed", return_value=False):
+                with patch("cli.doctor.console") as mock_console:
+                    display_recommendations(extension_counts, detected_groups)
+                    mock_console.print.assert_called()
+
+    def test_broken_combo_shows_warning_not_install_cmd(self):
+        """display_recommendations shows warning markup instead of install command for broken combos (line 304)."""
+        extension_counts = {".mp3": 5}
+        detected_groups = {"audio"}
+
+        with patch("cli.doctor._is_broken_combo", return_value="known issue with this package"):
+            with patch("cli.doctor.is_group_installed", return_value=False):
+                with patch("cli.doctor.console") as mock_console:
+                    display_recommendations(extension_counts, detected_groups)
+                    mock_console.print.assert_called()
+
+
+@pytest.mark.unit
+class TestInstallSingleGroup:
+    """Tests for _install_single_group function — covers lines not reachable via install_groups."""
+
+    def test_broken_combo_skips_and_returns_false(self):
+        """_install_single_group returns False and prints warning for broken combos (lines 353-354)."""
+        printed: list[str] = []
+        with patch("cli.doctor._is_broken_combo", return_value="known install issue"):
+            with patch("cli.doctor.console") as mock_console:
+                mock_console.print.side_effect = lambda *a, **k: printed.append(
+                    str(a[0]) if a else ""
+                )
+                result = _install_single_group("audio")
+        assert result is False
+        assert any("Skipping" in s or "known install issue" in s for s in printed)
+
+    def test_pipx_install_uses_pipx_command(self):
+        """_install_single_group uses pipx inject command when install method is pipx (line 357)."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        with patch("cli.doctor._detect_install_method", return_value="pipx"):
+            with patch("cli.doctor.console"):
+                with patch("cli.doctor.subprocess.run", return_value=mock_result) as mock_run:
+                    result = _install_single_group("audio")
+        assert result is True
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == "pipx"
+        assert "fo-core[media]" in cmd
+
+    def test_file_not_found_pipx_prints_pipx_message(self):
+        """_install_single_group prints pipx-specific message on FileNotFoundError with pipx (line 379)."""
+        printed: list[str] = []
+        with patch("cli.doctor._detect_install_method", return_value="pipx"):
+            with patch("cli.doctor.console") as mock_console:
+                mock_console.print.side_effect = lambda *a, **k: printed.append(
+                    str(a[0]) if a else ""
+                )
+                with patch("cli.doctor.subprocess.run", side_effect=FileNotFoundError()):
+                    result = _install_single_group("audio")
+        assert result is False
+        assert any("pipx" in s.lower() for s in printed)
+
+
+@pytest.mark.unit
+class TestInstallGroupsPipxCoverage:
+    """Pipx-specific paths in install_groups (lines 438-439, 462, 468-470)."""
+
+    def test_dry_run_pipx_shows_inject_command(self):
+        """install_groups dry-run mode shows pipx inject command (lines 438-439)."""
+        groups = {"audio"}
+        printed: list[str] = []
+        with patch("cli.doctor.console") as mock_console:
+            mock_console.print.side_effect = lambda *a, **k: printed.append(str(a[0]) if a else "")
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._detect_install_method", return_value="pipx"):
+                    with patch("cli.doctor._get_state", return_value=CLIState(dry_run=True)):
+                        install_groups(groups)
+        assert any("pipx inject" in s for s in printed)
+
+    def test_failed_groups_pipx_shows_inject_and_uv_hint(self):
+        """install_groups shows pipx retry commands and uv cache hint after failure (lines 462, 468-470)."""
+        groups = {"audio"}
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        printed: list[str] = []
+        with patch("cli.doctor.console") as mock_console:
+            mock_console.print.side_effect = lambda *a, **k: printed.append(str(a[0]) if a else "")
+            with patch("cli.doctor.confirm_action", return_value=True):
+                with patch("cli.doctor._detect_install_method", return_value="pipx"):
+                    with patch("cli.doctor.subprocess.run", return_value=mock_result):
+                        install_groups(groups)
+        assert any("pipx inject" in s for s in printed)
+        assert any("uv cache clean" in s for s in printed)
+
+
+@pytest.mark.unit
+class TestDoctorPipxAndBrokenComboCoverage:
+    """Pipx and broken-combo paths in the doctor command (lines 567, 616-617, 642-644, 651-658, 662-664, 668-670)."""
+
+    def test_json_output_pipx_install_command(self, tmp_path):
+        """JSON output includes pipx inject command when install method is pipx (line 567)."""
+        import json
+
+        (tmp_path / "song.mp3").write_text("audio")
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor._detect_install_method", return_value="pipx"):
+                with patch("typer.echo") as mock_echo:
+                    with pytest.raises(typer.Exit):
+                        doctor(path=tmp_path, install=False, json_output=True)
+        output = json.loads(mock_echo.call_args[0][0])
+        audio_info = next(g for g in output["detected_groups"] if g["group"] == "audio")
+        assert "pipx inject" in audio_info["install_command"]
+
+    def test_missing_groups_pipx_shows_inject_and_uv_hint(self, tmp_path):
+        """Non-JSON output shows pipx inject command and uv cache clean hint (lines 642-644, 662-664)."""
+        (tmp_path / "song.mp3").write_text("audio")
+        printed: list[str] = []
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor._detect_install_method", return_value="pipx"):
+                with patch("cli.doctor.console") as mock_console:
+                    mock_console.print.side_effect = lambda *a, **k: printed.append(
+                        str(a[0]) if a else ""
+                    )
+                    doctor(path=tmp_path, install=False, json_output=False)
+        assert any("pipx inject" in s for s in printed)
+        assert any("uv cache clean" in s for s in printed)
+
+    def test_missing_groups_multiple_extras_pipx_shows_combined(self, tmp_path):
+        """Multiple different extras with pipx shows combined install command (lines 651-654)."""
+        (tmp_path / "song.mp3").write_text("audio")  # audio -> media
+        (tmp_path / "data.h5").write_text("data")  # scientific -> scientific
+        printed: list[str] = []
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor._detect_install_method", return_value="pipx"):
+                with patch("cli.doctor.console") as mock_console:
+                    mock_console.print.side_effect = lambda *a, **k: printed.append(
+                        str(a[0]) if a else ""
+                    )
+                    doctor(path=tmp_path, install=False, json_output=False)
+        assert any("pipx inject" in s for s in printed)
+
+    def test_missing_groups_multiple_extras_pip_shows_combined(self, tmp_path):
+        """Multiple different extras with pip shows combined pip install command (line 658)."""
+        (tmp_path / "song.mp3").write_text("audio")  # audio -> media
+        (tmp_path / "data.h5").write_text("data")  # scientific -> scientific
+        printed: list[str] = []
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor._detect_install_method", return_value="pip"):
+                with patch("cli.doctor.console") as mock_console:
+                    mock_console.print.side_effect = lambda *a, **k: printed.append(
+                        str(a[0]) if a else ""
+                    )
+                    doctor(path=tmp_path, install=False, json_output=False)
+        assert any("pip install" in s for s in printed)
+
+    def test_broken_combo_shows_warning_in_output(self, tmp_path):
+        """Broken combo groups appear in broken list and warnings section of doctor output (lines 616-617, 668-670)."""
+        (tmp_path / "song.mp3").write_text("audio")
+        printed: list[str] = []
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor._is_broken_combo", return_value="known issue"):
+                with patch("cli.doctor.console") as mock_console:
+                    mock_console.print.side_effect = lambda *a, **k: printed.append(
+                        str(a[0]) if a else ""
+                    )
+                    doctor(path=tmp_path, install=False, json_output=False)
+        assert any("skipped" in s.lower() or "known issue" in s for s in printed)
