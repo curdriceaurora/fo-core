@@ -94,7 +94,8 @@ def test_no_debug_flag_skips_handler(monkeypatch: pytest.MonkeyPatch) -> None:
     # No DEBUG handler to stderr (sys.stderr) without --debug flag
     # (session log DEBUG handler writes to a file, not stderr)
     stderr_debug_handlers = [
-        c for c in captured
+        c
+        for c in captured
         if c.get("level") == "DEBUG" and "stderr" in str(c.get("sink", "")).lower()
     ]
     assert len(stderr_debug_handlers) == 0, "No DEBUG stderr handler without --debug"

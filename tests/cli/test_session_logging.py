@@ -360,3 +360,240 @@ def test_logs_command_main_log_not_found(monkeypatch: pytest.MonkeyPatch, tmp_pa
         logs_command(follow=False, lines=50, session=False, list_sessions=False)
 
     assert exc_info.value.exit_code == 1
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_logs_command_follow_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """fo logs --follow shows tail then follows the file."""
+    from cli.logs import logs_command
+
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    main_log = log_dir / "fo.log"
+    main_log.write_text("existing line\n")
+
+    monkeypatch.setattr("cli.logs.get_canonical_paths", lambda: {"logs": log_dir})
+
+    call_count = 0
+
+    def _fake_sleep(_: float) -> None:
+        nonlocal call_count
+        call_count += 1
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("cli.logs.time.sleep", _fake_sleep)
+
+    import io
+
+    captured_output = io.StringIO()
+    monkeypatch.setattr("sys.stdout", captured_output)
+
+    with pytest.raises(typer.Exit) as exc_info:
+        logs_command(follow=True, lines=5, session=False, list_sessions=False)
+
+    assert exc_info.value.exit_code == 130
+    assert "existing line" in captured_output.getvalue()
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_logs_command_exception_handler(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Generic exception in logs_command is caught and exits with code 1."""
+    from cli.logs import logs_command
+
+    def _raise_oserror() -> dict[str, Path]:
+        raise OSError("disk error")
+
+    monkeypatch.setattr("cli.logs.get_canonical_paths", _raise_oserror)
+
+    with pytest.raises(typer.Exit) as exc_info:
+        logs_command(follow=False, lines=50, session=False, list_sessions=False)
+
+    assert exc_info.value.exit_code == 1
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_list_session_logs_no_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """_list_session_logs prints a warning when sessions/ dir doesn't exist."""
+    from cli.logs import _list_session_logs
+
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    # No sessions subdirectory
+
+    messages: list[str] = []
+    monkeypatch.setattr(
+        "cli.logs.console", type("C", (), {"print": lambda self, m: messages.append(m)})()
+    )
+
+    _list_session_logs(log_dir)
+
+    assert any("No session logs directory" in m for m in messages)
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_list_session_logs_empty_directory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """_list_session_logs prints a warning when sessions/ dir exists but is empty."""
+    from cli.logs import _list_session_logs
+
+    log_dir = tmp_path / "logs"
+    session_dir = log_dir / "sessions"
+    session_dir.mkdir(parents=True)
+    # No log files inside
+
+    messages: list[str] = []
+    monkeypatch.setattr(
+        "cli.logs.console", type("C", (), {"print": lambda self, m: messages.append(m)})()
+    )
+
+    _list_session_logs(log_dir)
+
+    assert any("No session logs found" in m for m in messages)
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_get_latest_session_log_all_excluded(tmp_path: Path) -> None:
+    """_get_latest_session_log returns None when all files match the exclusion."""
+    from cli.logs import _get_latest_session_log
+
+    log_dir = tmp_path / "logs"
+    session_dir = log_dir / "sessions"
+    session_dir.mkdir(parents=True)
+
+    session_file = session_dir / "fo-2026-05-24T10-00-00-abc12345.log"
+    session_file.write_text("session\n")
+
+    result = _get_latest_session_log(log_dir, exclude_session_id="2026-05-24T10-00-00-abc12345")
+    assert result is None
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_show_last_lines_file_not_found(tmp_path: Path) -> None:
+    """_show_last_lines raises typer.Exit(1) when file doesn't exist."""
+    from cli.logs import _show_last_lines
+
+    missing = tmp_path / "nonexistent.log"
+
+    with pytest.raises(typer.Exit) as exc_info:
+        _show_last_lines(missing, 10)
+
+    assert exc_info.value.exit_code == 1
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_tail_follow_file_not_found(tmp_path: Path) -> None:
+    """_tail_follow raises typer.Exit(1) when file doesn't exist."""
+    from cli.logs import _tail_follow
+
+    missing = tmp_path / "nonexistent.log"
+
+    with pytest.raises(typer.Exit) as exc_info:
+        _tail_follow(missing)
+
+    assert exc_info.value.exit_code == 1
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_tail_follow_shows_existing_lines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """_tail_follow outputs existing lines before entering follow mode."""
+    from cli.logs import _tail_follow
+
+    log_file = tmp_path / "test.log"
+    log_file.write_text("line A\nline B\nline C\n")
+
+    monkeypatch.setattr("cli.logs.time.sleep", lambda _: (_ for _ in ()).throw(KeyboardInterrupt()))
+
+    import io
+
+    captured = io.StringIO()
+    monkeypatch.setattr("sys.stdout", captured)
+
+    with pytest.raises(KeyboardInterrupt):
+        _tail_follow(log_file, num_lines=2)
+
+    output = captured.getvalue()
+    assert "line B" in output
+    assert "line C" in output
+    assert "line A" not in output  # Only last 2 lines
+
+
+# ---------------------------------------------------------------------------
+# main.py _cleanup_old_session_logs coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_cleanup_old_session_logs_no_dir(tmp_path: Path) -> None:
+    """_cleanup_old_session_logs is a no-op when sessions/ dir doesn't exist."""
+    from cli.main import _cleanup_old_session_logs
+
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    # No sessions subdirectory
+
+    # Should not raise
+    _cleanup_old_session_logs(log_dir)
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_cleanup_old_session_logs_oserror_on_unlink(tmp_path: Path) -> None:
+    """_cleanup_old_session_logs silently ignores OSError on file unlink."""
+    import os
+
+    from cli.main import _cleanup_old_session_logs
+
+    log_dir = tmp_path / "logs"
+    session_dir = log_dir / "sessions"
+    session_dir.mkdir(parents=True)
+
+    old_log = session_dir / "fo-2026-01-01T00-00-00-old12345.log"
+    old_log.write_text("old\n")
+    four_days_ago = time.time() - (4 * 86400)
+    os.utime(old_log, (four_days_ago, four_days_ago))
+
+    original_unlink = Path.unlink
+
+    def _raise_on_unlink(self: Path, missing_ok: bool = False) -> None:
+        raise OSError("permission denied")
+
+    Path.unlink = _raise_on_unlink  # type: ignore[method-assign]
+    try:
+        _cleanup_old_session_logs(log_dir)
+    finally:
+        Path.unlink = original_unlink  # type: ignore[method-assign]
+
+    # Should not raise; file still exists since unlink was mocked
+    assert old_log.exists()
+
+
+# ---------------------------------------------------------------------------
+# fo logs Typer command (via app runner) coverage
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+def test_logs_typer_command_via_app(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """fo logs works when invoked via the Typer app (covers main.py logs command)."""
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    main_log = log_dir / "fo.log"
+    main_log.write_text("app log line\n")
+
+    monkeypatch.setattr("config.path_manager.get_canonical_paths", lambda: {"logs": log_dir})
+    monkeypatch.setattr("cli.logs.get_canonical_paths", lambda: {"logs": log_dir})
+    monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["logs"])
+    assert result.exit_code == 0
+    assert "app log line" in result.output

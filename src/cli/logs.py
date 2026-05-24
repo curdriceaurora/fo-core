@@ -64,7 +64,7 @@ def logs_command(
                 raise typer.Exit(1)
 
         if follow:
-            _tail_follow(log_file)
+            _tail_follow(log_file, lines)
         else:
             _show_last_lines(log_file, lines)
 
@@ -142,11 +142,14 @@ def _show_last_lines(log_file: Path, num_lines: int) -> None:
         raise typer.Exit(1) from e
 
 
-def _tail_follow(log_file: Path) -> None:
-    """Follow a log file like 'tail -f'."""
+def _tail_follow(log_file: Path, num_lines: int = 10) -> None:
+    """Follow a log file like 'tail -f', showing the last num_lines lines first."""
     try:
         with log_file.open("r", encoding="utf-8", errors="replace") as f:
-            f.seek(0, 2)
+            tail = deque(f, maxlen=num_lines)
+            for line in tail:
+                sys.stdout.write(line)
+            sys.stdout.flush()
             console.print(f"[dim]Following {log_file} (Ctrl+C to stop)...[/dim]\n")
 
             while True:
