@@ -8,7 +8,7 @@ import pytest
 
 from models._vision_helpers import downscale_image_if_needed
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
 
 @pytest.fixture
@@ -35,9 +35,7 @@ def create_test_image(tmp_path: Path):
 class TestDownscaleImageIfNeeded:
     """Tests for downscale_image_if_needed function."""
 
-    def test_no_downscaling_needed_small_image(
-        self, create_test_image
-    ) -> None:
+    def test_no_downscaling_needed_small_image(self, create_test_image) -> None:
         """Test that small images are not downscaled."""
         img_path = create_test_image(800, 600)
 
@@ -46,9 +44,7 @@ class TestDownscaleImageIfNeeded:
         assert was_downscaled is False
         assert result == img_path
 
-    def test_no_downscaling_at_threshold(
-        self, create_test_image
-    ) -> None:
+    def test_no_downscaling_at_threshold(self, create_test_image) -> None:
         """Test that images exactly at threshold are not downscaled."""
         img_path = create_test_image(1024, 768)
 
@@ -57,9 +53,7 @@ class TestDownscaleImageIfNeeded:
         assert was_downscaled is False
         assert result == img_path
 
-    def test_downscaling_large_width(
-        self, create_test_image
-    ) -> None:
+    def test_downscaling_large_width(self, create_test_image) -> None:
         """Test downscaling when width exceeds threshold."""
         img_path = create_test_image(4000, 3000)
 
@@ -70,8 +64,9 @@ class TestDownscaleImageIfNeeded:
 
         # Verify the downscaled image dimensions
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             img = Image.open(io.BytesIO(result))
             width, height = img.size
@@ -80,9 +75,7 @@ class TestDownscaleImageIfNeeded:
         except ImportError:
             pytest.skip("PIL/Pillow not available for verification")
 
-    def test_downscaling_large_height(
-        self, create_test_image
-    ) -> None:
+    def test_downscaling_large_height(self, create_test_image) -> None:
         """Test downscaling when height exceeds threshold."""
         img_path = create_test_image(2000, 3000)
 
@@ -93,8 +86,9 @@ class TestDownscaleImageIfNeeded:
 
         # Verify the downscaled image dimensions
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             img = Image.open(io.BytesIO(result))
             width, height = img.size
@@ -104,9 +98,7 @@ class TestDownscaleImageIfNeeded:
         except ImportError:
             pytest.skip("PIL/Pillow not available for verification")
 
-    def test_aspect_ratio_preserved(
-        self, create_test_image
-    ) -> None:
+    def test_aspect_ratio_preserved(self, create_test_image) -> None:
         """Test that aspect ratio is preserved during downscaling."""
         img_path = create_test_image(3024, 1964)
 
@@ -115,8 +107,9 @@ class TestDownscaleImageIfNeeded:
         assert was_downscaled is True
 
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             original_aspect = 3024 / 1964
             img = Image.open(io.BytesIO(result))
@@ -128,9 +121,7 @@ class TestDownscaleImageIfNeeded:
         except ImportError:
             pytest.skip("PIL/Pillow not available for verification")
 
-    def test_custom_max_long_edge(
-        self, create_test_image
-    ) -> None:
+    def test_custom_max_long_edge(self, create_test_image) -> None:
         """Test downscaling with custom max_long_edge parameter."""
         img_path = create_test_image(2048, 1536)
 
@@ -139,8 +130,9 @@ class TestDownscaleImageIfNeeded:
         assert was_downscaled is True
 
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             img = Image.open(io.BytesIO(result))
             width, height = img.size
@@ -149,9 +141,7 @@ class TestDownscaleImageIfNeeded:
         except ImportError:
             pytest.skip("PIL/Pillow not available for verification")
 
-    def test_nonexistent_file_returns_original_path(
-        self, tmp_path: Path
-    ) -> None:
+    def test_nonexistent_file_returns_original_path(self, tmp_path: Path) -> None:
         """Test that nonexistent file returns original path with warning."""
         nonexistent = tmp_path / "nonexistent.png"
 
@@ -161,9 +151,19 @@ class TestDownscaleImageIfNeeded:
         assert was_downscaled is False
         assert result == nonexistent
 
-    def test_image_format_preserved(
-        self, create_test_image
-    ) -> None:
+    def test_pil_unavailable_raises_import_error(self, tmp_path: Path) -> None:
+        """Test that ImportError is raised when PIL is not available."""
+        import sys
+        from unittest.mock import patch
+
+        img_path = tmp_path / "test.png"
+        img_path.touch()
+
+        with patch.dict(sys.modules, {"PIL": None, "PIL.Image": None}):
+            with pytest.raises(ImportError, match="PIL/Pillow is required"):
+                downscale_image_if_needed(img_path)
+
+    def test_image_format_preserved(self, create_test_image) -> None:
         """Test that image format is preserved during downscaling."""
         # Create a JPEG image
         img_path = create_test_image(2000, 1500, "test.jpg")
@@ -173,8 +173,9 @@ class TestDownscaleImageIfNeeded:
         assert was_downscaled is True
 
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             img = Image.open(io.BytesIO(result))
             # Format should be JPEG

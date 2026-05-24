@@ -403,6 +403,32 @@ class TestVisionModelTokenExhaustion:
 
         assert mock_client.generate.call_count == 1
 
+    def test_generate_passes_downscaled_bytes_to_client(
+        self, vision_model_config: ModelConfig, tmp_path: Path
+    ) -> None:
+        """Test that a large image is downscaled to bytes before calling client."""
+        try:
+            from PIL import Image as PILImage
+        except ImportError:
+            pytest.skip("PIL not available")
+
+        large_img = tmp_path / "large.jpg"
+        PILImage.new("RGB", (3000, 2000), color=(100, 150, 200)).save(large_img)
+
+        model, mock_client = _make_initialized_model(vision_model_config)
+        mock_client.generate.return_value = {
+            "response": "A large image",
+            "done": True,
+            "total_duration": 1_000_000_000,
+        }
+
+        result = model.generate("Describe this", image_path=large_img, max_image_long_edge=512)
+
+        assert result == "A large image"
+        mock_client.generate.assert_called_once()
+        _, call_kwargs = mock_client.generate.call_args
+        assert isinstance(call_kwargs["images"][0], bytes)
+
     def test_no_retry_when_response_adequate(self, vision_model_config: ModelConfig) -> None:
         """Long response with done_reason=length does NOT trigger retry."""
         model, mock_client = _make_initialized_model(vision_model_config)

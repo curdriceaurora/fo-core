@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def test_vision_processor_downscales_large_image(large_test_image: Path) -> None
     )
 
     # Verify the model was called
-    assert mock_model.generate.called
+    mock_model.generate.assert_called()
     call_kwargs = mock_model.generate.call_args[1]
 
     # Verify max_image_long_edge was passed
