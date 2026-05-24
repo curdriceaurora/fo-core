@@ -113,9 +113,15 @@ def _detect_install_method() -> str:
         "pipx" if running in a pipx venv, "pip" otherwise
     """
     exe_path = sys.executable
-    pipx_venvs = os.path.expanduser("~/.local/pipx/venvs/")
-    if exe_path.startswith(pipx_venvs):
-        return "pipx"
+    # Check PIPX_HOME env var first (user-configured or set by pipx itself)
+    pipx_home = os.environ.get("PIPX_HOME")
+    if pipx_home:
+        if exe_path.startswith(os.path.join(pipx_home, "venvs") + os.sep):
+            return "pipx"
+    # Check both the old (~/.local/pipx) and new (~/.local/share/pipx) default locations
+    for base in ("~/.local/pipx/venvs/", "~/.local/share/pipx/venvs/"):
+        if exe_path.startswith(os.path.expanduser(base)):
+            return "pipx"
     return "pip"
 
 
@@ -310,8 +316,8 @@ def display_recommendations(
                 # Escape square brackets for Rich markup
                 install_cmd = f'pipx inject fo-core "fo-core\\[{extra_name}]" --force'
             else:
-                # Escape square brackets for Rich markup
-                install_cmd = f"pip install fo-core\\[{extra_name}]"
+                # Escape square brackets for Rich markup; quote for shell safety
+                install_cmd = f'pip install "fo-core\\[{extra_name}]"'
 
         prerequisites = ", ".join(SYSTEM_PREREQUISITES.get(group, ["-"]))
 
@@ -436,10 +442,10 @@ def install_groups(groups: set[str]) -> None:  # noqa: C901
             extra_name = _get_extra_name(group) or group
             if install_method == "pipx":
                 console.print(
-                    f'  [dim]Would run: pipx inject fo-core "fo-core[{extra_name}]" --force[/dim]'
+                    f'  [dim]Would run: pipx inject fo-core "fo-core\\[{extra_name}]" --force[/dim]'
                 )
             else:
-                console.print(f"  [dim]Would install: fo-core[{extra_name}][/dim]")
+                console.print(f"  [dim]Would install: fo-core\\[{extra_name}][/dim]")
         return
 
     # Install each group
@@ -459,9 +465,9 @@ def install_groups(groups: set[str]) -> None:  # noqa: C901
         for group in failed_groups:
             extra_name = _get_extra_name(group) or group
             if install_method == "pipx":
-                console.print(f'  [dim]pipx inject fo-core "fo-core[{extra_name}]" --force[/dim]')
+                console.print(f'  [dim]pipx inject fo-core "fo-core\\[{extra_name}]" --force[/dim]')
             else:
-                console.print(f"  [dim]pip install fo-core[{extra_name}][/dim]")
+                console.print(f'  [dim]pip install "fo-core\\[{extra_name}]"[/dim]')
 
         # Add uv cache clean hint for pipx
         if install_method == "pipx":
@@ -563,7 +569,10 @@ def doctor(  # noqa: C901
         prerequisites = SYSTEM_PREREQUISITES.get(group, [])
         extra_name = _get_extra_name(group)
 
-        if install_method == "pipx" and extra_name:
+        broken_msg = _is_broken_combo(group)
+        if broken_msg:
+            install_command = f"(broken: {broken_msg})"
+        elif install_method == "pipx" and extra_name:
             install_command = f'pipx inject fo-core "fo-core[{extra_name}]" --force'
         elif extra_name:
             install_command = f"pip install fo-core[{extra_name}]"
@@ -605,17 +614,15 @@ def doctor(  # noqa: C901
         install_groups(missing_groups)
     else:
         # Show summary of what's missing with actionable install commands
-        # Separate groups by whether they can be installed or are broken
+        # Separate groups by whether they can be installed or are broken/core
         installable = []
-        broken = []
         warnings_shown = []
 
         for group in sorted(missing_groups):
             broken_msg = _is_broken_combo(group)
             if broken_msg:
-                broken.append(group)
                 warnings_shown.append((group, broken_msg))
-            else:
+            elif _get_extra_name(group):
                 installable.append(group)
 
         # Convert installable groups to unique extras

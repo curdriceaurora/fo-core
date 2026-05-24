@@ -241,6 +241,26 @@ class TestInstallMethodDetection:
                 result = _detect_install_method()
                 assert result == "pip"
 
+    def test_detect_pipx_new_share_location(self):
+        """Should detect pipx when executable is in ~/.local/share/pipx/venvs/ (new default)."""
+        import os
+
+        share_dir = os.path.expanduser("~/.local/share/pipx/venvs/")
+        fake_exe = share_dir + "fo-core/bin/python"
+        with patch("cli.doctor.sys.executable", fake_exe):
+            result = _detect_install_method()
+            assert result == "pipx"
+
+    def test_detect_pipx_via_pipx_home_env(self):
+        """Should detect pipx when executable is under PIPX_HOME/venvs/."""
+
+        custom_home = "/custom/pipx"
+        fake_exe = "/custom/pipx/venvs/fo-core/bin/python"
+        with patch("cli.doctor.sys.executable", fake_exe):
+            with patch.dict("os.environ", {"PIPX_HOME": custom_home}):
+                result = _detect_install_method()
+                assert result == "pipx"
+
 
 @pytest.mark.unit
 class TestGetExtraName:
@@ -572,24 +592,25 @@ class TestInstallGroups:
 
         with patch("cli.doctor.console") as mock_console:
             with patch("cli.doctor.confirm_action", return_value=True):
-                with patch("cli.doctor.subprocess.run", return_value=mock_result) as mock_run:
-                    install_groups(groups)
+                with patch("cli.doctor._detect_install_method", return_value="pip"):
+                    with patch("cli.doctor.subprocess.run", return_value=mock_result) as mock_run:
+                        install_groups(groups)
 
-                    # Verify subprocess was called with correct command
-                    mock_run.assert_called_once()
-                    call_args = mock_run.call_args
-                    assert call_args[0][0] == [
-                        sys.executable,
-                        "-m",
-                        "pip",
-                        "install",
-                        "fo-core[media]",
-                    ]
-                    assert call_args[1]["check"] is False
+                        # Verify subprocess was called with correct command
+                        mock_run.assert_called_once()
+                        call_args = mock_run.call_args
+                        assert call_args[0][0] == [
+                            sys.executable,
+                            "-m",
+                            "pip",
+                            "install",
+                            "fo-core[media]",
+                        ]
+                        assert call_args[1]["check"] is False
 
-                    # Should display success message
-                    calls = [str(call) for call in mock_console.print.call_args_list]
-                    assert any("successfully installed" in call.lower() for call in calls)
+                        # Should display success message
+                        calls = [str(call) for call in mock_console.print.call_args_list]
+                        assert any("successfully installed" in call.lower() for call in calls)
 
     def test_failed_installation(self):
         groups = {"audio"}
@@ -1948,7 +1969,7 @@ class TestDoctorPipxAndBrokenComboCoverage:
         assert any("pip install" in s for s in printed)
 
     def test_broken_combo_shows_warning_in_output(self, tmp_path):
-        """Broken combo groups appear in broken list and warnings section of doctor output (lines 616-617, 668-670)."""
+        """Broken combo groups appear in warnings section of doctor output (lines 616-617, 668-670)."""
         (tmp_path / "song.mp3").write_text("audio")
         printed: list[str] = []
         with patch("cli.doctor.is_group_installed", return_value=False):
@@ -1959,3 +1980,17 @@ class TestDoctorPipxAndBrokenComboCoverage:
                     )
                     doctor(path=tmp_path, install=False, json_output=False)
         assert any("skipped" in s.lower() or "known issue" in s for s in printed)
+
+    def test_json_output_broken_combo_install_command(self, tmp_path):
+        """JSON output install_command reflects broken-combo status instead of install command."""
+        import json
+
+        (tmp_path / "song.mp3").write_text("audio")
+        with patch("cli.doctor.is_group_installed", return_value=False):
+            with patch("cli.doctor._is_broken_combo", return_value="known issue"):
+                with patch("typer.echo") as mock_echo:
+                    with pytest.raises(typer.Exit):
+                        doctor(path=tmp_path, install=False, json_output=True)
+        output = json.loads(mock_echo.call_args[0][0])
+        audio_info = next(g for g in output["detected_groups"] if g["group"] == "audio")
+        assert "broken" in audio_info["install_command"].lower()
