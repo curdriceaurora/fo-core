@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Any, cast
@@ -25,6 +26,13 @@ from undo._journal import default_journal_path as _default_journal_path
 from undo.durable_move import sweep as _durable_move_sweep
 
 console = Console()
+
+
+def _fo_version() -> str:
+    try:
+        return _pkg_version("fo-core")
+    except _PackageNotFoundError:
+        return "unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +57,7 @@ def _version_callback(value: bool) -> None:
     if not value:
         return
 
-    console.print(f"fo {_pkg_version('fo-core')}")
+    console.print(f"fo {_fo_version()}")
     raise typer.Exit()
 
 
@@ -262,7 +270,7 @@ app.command()(doctor)
 @app.command()
 def version() -> None:
     """Show the application version."""
-    console.print(f"fo {_pkg_version('fo-core')}")
+    console.print(f"fo {_fo_version()}")
 
 
 @app.command(name="hardware-info")

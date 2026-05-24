@@ -15,7 +15,7 @@ runner = CliRunner()
 @pytest.mark.ci
 def test_version_command():
     """Test the version command output."""
-    with patch("cli.main._pkg_version", return_value="1.2.3"):
+    with patch("cli.main._fo_version", return_value="1.2.3"):
         result = runner.invoke(app, ["version"])
         assert result.exit_code == 0
         assert "fo 1.2.3" in result.stdout
@@ -24,7 +24,7 @@ def test_version_command():
 @pytest.mark.ci
 def test_version_flag():
     """Test the eager --version flag output."""
-    with patch("cli.main._pkg_version", return_value="1.2.3"):
+    with patch("cli.main._fo_version", return_value="1.2.3"):
         result = runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "fo 1.2.3" in result.stdout
