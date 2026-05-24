@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sys
+import time
+from collections import deque
 from pathlib import Path
 
 import typer
@@ -27,6 +29,7 @@ def logs_command(
         "-l",
         help="List all available session logs.",
     ),
+    current_session_id: str | None = None,
 ) -> None:
     """View or tail fo log files.
 
@@ -50,7 +53,7 @@ def logs_command(
             return
 
         if session:
-            log_file = _get_latest_session_log(log_dir)
+            log_file = _get_latest_session_log(log_dir, exclude_session_id=current_session_id)
             if log_file is None:
                 console.print("[yellow]No session logs found.[/yellow]")
                 raise typer.Exit(1)
@@ -65,6 +68,8 @@ def logs_command(
         else:
             _show_last_lines(log_file, lines)
 
+    except (typer.Exit, SystemExit):
+        raise
     except KeyboardInterrupt:
         console.print("\n[yellow]Interrupted[/yellow]")
         raise typer.Exit(130) from None
@@ -92,36 +97,43 @@ def _list_session_logs(log_dir: Path) -> None:
     console.print(f"Location: {session_dir}\n")
 
     for log_file in session_files:
-        # Extract timestamp from filename: fo-2026-05-23T12-34-56-abc123.log
         size_mb = log_file.stat().st_size / (1024 * 1024)
         console.print(f"  {log_file.name:60s}  {size_mb:6.2f} MB")
 
 
-def _get_latest_session_log(log_dir: Path) -> Path | None:
-    """Get the most recent session log file."""
+def _get_latest_session_log(log_dir: Path, exclude_session_id: str | None = None) -> Path | None:
+    """Get the most recent session log file, optionally excluding the current session.
+
+    Args:
+        log_dir: Directory containing the sessions/ subdirectory.
+        exclude_session_id: Session ID of the current invocation to skip.
+            When provided, the log file whose name contains this ID is excluded
+            so `fo logs --session` shows the *previous* run, not the empty file
+            created by the current `fo logs` invocation.
+    """
     session_dir = log_dir / "sessions"
     if not session_dir.exists():
         return None
 
-    session_files = list(session_dir.glob("fo-*.log"))
+    session_files = [
+        p
+        for p in session_dir.glob("fo-*.log")
+        if exclude_session_id is None or exclude_session_id not in p.name
+    ]
     if not session_files:
         return None
 
-    # Sort by modification time, most recent first
     return max(session_files, key=lambda p: p.stat().st_mtime)
 
 
 def _show_last_lines(log_file: Path, num_lines: int) -> None:
-    """Show the last N lines of a log file."""
+    """Show the last N lines of a log file using a bounded deque (no full-file read)."""
     try:
         with log_file.open("r", encoding="utf-8", errors="replace") as f:
-            # Read all lines and show the last num_lines
-            lines = f.readlines()
-            start_idx = max(0, len(lines) - num_lines)
-            for line in lines[start_idx:]:
-                # Write directly to stdout for proper CliRunner capture
-                sys.stdout.write(line)
-                sys.stdout.flush()
+            tail = deque(f, maxlen=num_lines)
+        for line in tail:
+            sys.stdout.write(line)
+        sys.stdout.flush()
     except FileNotFoundError as e:
         console.print(f"[red]File not found: {log_file}[/red]")
         raise typer.Exit(1) from e
@@ -132,11 +144,8 @@ def _show_last_lines(log_file: Path, num_lines: int) -> None:
 
 def _tail_follow(log_file: Path) -> None:
     """Follow a log file like 'tail -f'."""
-    import time
-
     try:
         with log_file.open("r", encoding="utf-8", errors="replace") as f:
-            # Seek to end of file
             f.seek(0, 2)
             console.print(f"[dim]Following {log_file} (Ctrl+C to stop)...[/dim]\n")
 
@@ -146,7 +155,7 @@ def _tail_follow(log_file: Path) -> None:
                     sys.stdout.write(line)
                     sys.stdout.flush()
                 else:
-                    time.sleep(0.1)  # Wait a bit before checking again
+                    time.sleep(0.1)
     except FileNotFoundError as e:
         console.print(f"[red]File not found: {log_file}[/red]")
         raise typer.Exit(1) from e

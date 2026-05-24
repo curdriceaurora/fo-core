@@ -354,6 +354,7 @@ app.command()(doctor)
 
 @app.command()
 def logs(
+    ctx: typer.Context,
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output (tail -f)."),
     lines: int = typer.Option(50, "--lines", "-n", help="Number of lines to show."),
     session: bool = typer.Option(
@@ -370,8 +371,17 @@ def logs(
 ) -> None:
     """View or tail fo log files."""
     from cli.logs import logs_command
+    from cli.state import _get_state
 
-    logs_command(follow=follow, lines=lines, session=session, list_sessions=list_sessions)
+    _ = ctx  # ctx is used implicitly by _get_state via click.get_current_context
+    state = _get_state()
+    logs_command(
+        follow=follow,
+        lines=lines,
+        session=session,
+        list_sessions=list_sessions,
+        current_session_id=state.session_id,
+    )
 
 
 @app.command()
