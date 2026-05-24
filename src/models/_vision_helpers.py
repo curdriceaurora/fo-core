@@ -66,8 +66,7 @@ def downscale_image_if_needed(
         from PIL import Image
     except ImportError as exc:
         raise ImportError(
-            "PIL/Pillow is required for image downscaling. "
-            "Install with: pip install Pillow"
+            "PIL/Pillow is required for image downscaling. Install with: pip install Pillow"
         ) from exc
 
     try:
