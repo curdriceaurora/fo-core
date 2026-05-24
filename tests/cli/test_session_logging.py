@@ -508,7 +508,10 @@ def test_tail_follow_shows_existing_lines(monkeypatch: pytest.MonkeyPatch, tmp_p
     log_file = tmp_path / "test.log"
     log_file.write_text("line A\nline B\nline C\n")
 
-    monkeypatch.setattr("cli.logs.time.sleep", lambda _: (_ for _ in ()).throw(KeyboardInterrupt()))
+    def _raise_keyboard_interrupt(_: float) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("cli.logs.time.sleep", _raise_keyboard_interrupt)
 
     import io
 
