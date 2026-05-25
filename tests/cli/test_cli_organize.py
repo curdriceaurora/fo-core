@@ -168,6 +168,83 @@ class TestOrganize:
         mock_cls.assert_not_called()
 
     @patch("core.organizer.FileOrganizer")
+    @patch("config.manager.ConfigManager")
+    def test_organize_timeout_omitted_reads_from_app_config(
+        self, mock_config_cls: MagicMock, mock_org_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """When --timeout-per-file is omitted, AppConfig.processing.timeout_per_file wins (#396)."""
+        from config.schema import AppConfig, ProcessingSettings
+
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        mock_manager = MagicMock()
+        mock_manager.load.return_value = AppConfig(
+            processing=ProcessingSettings(timeout_per_file=120.0)
+        )
+        mock_config_cls.return_value = mock_manager
+
+        mock_org_cls.return_value.organize.return_value = _mock_result()
+
+        result = runner.invoke(app, ["organize", str(input_dir), str(output_dir)])
+        assert result.exit_code == 0
+        assert mock_org_cls.call_args.kwargs["timeout_per_file"] == 120.0
+
+    @patch("core.organizer.FileOrganizer")
+    @patch("config.manager.ConfigManager")
+    def test_organize_explicit_flag_overrides_app_config(
+        self, mock_config_cls: MagicMock, mock_org_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """Explicit --timeout-per-file beats AppConfig.processing.timeout_per_file."""
+        from config.schema import AppConfig, ProcessingSettings
+
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        mock_manager = MagicMock()
+        mock_manager.load.return_value = AppConfig(
+            processing=ProcessingSettings(timeout_per_file=120.0)
+        )
+        mock_config_cls.return_value = mock_manager
+        mock_org_cls.return_value.organize.return_value = _mock_result()
+
+        result = runner.invoke(
+            app,
+            [
+                "organize",
+                str(input_dir),
+                str(output_dir),
+                "--timeout-per-file",
+                "45",
+            ],
+        )
+        assert result.exit_code == 0
+        assert mock_org_cls.call_args.kwargs["timeout_per_file"] == 45.0
+        # Config wasn't even consulted because the flag was explicit.
+        mock_manager.load.assert_not_called()
+
+    @patch("core.organizer.FileOrganizer")
+    @patch("config.manager.ConfigManager", side_effect=RuntimeError("config broken"))
+    def test_organize_config_load_failure_falls_back_to_dataclass_default(
+        self, mock_config_cls: MagicMock, mock_org_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """If ConfigManager raises, the resolver degrades to ProcessingSettings()'s 300.0 default."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        mock_org_cls.return_value.organize.return_value = _mock_result()
+
+        result = runner.invoke(app, ["organize", str(input_dir), str(output_dir)])
+        assert result.exit_code == 0
+        assert mock_org_cls.call_args.kwargs["timeout_per_file"] == 300.0
+
+    @patch("core.organizer.FileOrganizer")
     def test_organize_dry_run(self, mock_cls: MagicMock, tmp_path: Path) -> None:
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"

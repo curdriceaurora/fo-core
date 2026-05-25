@@ -104,6 +104,32 @@ def _resolve_parallel_settings(
     return (1 if sequential else max_workers, 0 if (sequential or no_prefetch) else prefetch_depth)
 
 
+def _resolve_timeout_per_file(flag_value: float | None) -> float:
+    """Pick the effective per-file timeout (#396).
+
+    Resolution order:
+    1. ``--timeout-per-file`` flag value when the user passed it.
+    2. ``AppConfig.processing.timeout_per_file`` from the persisted config.
+    3. The ProcessingSettings dataclass default (300.0) when no config is
+       on disk.
+
+    Config-loading errors degrade silently to the dataclass default; the
+    organizer's own __init__ guard will still reject any non-positive value.
+    """
+    if flag_value is not None:
+        return flag_value
+    try:
+        from config.manager import ConfigManager
+
+        manager = ConfigManager()
+        app_config = manager.load()
+        return app_config.processing.timeout_per_file
+    except Exception:
+        from config.schema import ProcessingSettings
+
+        return ProcessingSettings().timeout_per_file
+
+
 def organize(
     input_dir: Path = typer.Argument(..., help="Directory containing files to organize."),
     output_dir: Path = typer.Argument(..., help="Destination directory for organized files."),
@@ -158,15 +184,16 @@ def organize(
             "Default: 600 (10 min). Set to 0 to disable the cap entirely."
         ),
     ),
-    timeout_per_file: float = typer.Option(
-        300.0,
+    timeout_per_file: float | None = typer.Option(
+        None,
         "--timeout-per-file",
         min=1.0,
         help=(
-            "Per-file processing timeout in seconds (default: 300). Values "
+            "Per-file processing timeout in seconds. When omitted, the value from "
+            "AppConfig.processing.timeout_per_file is used (default: 300). Values "
             "below ~60s tend to false-positive on vision models running large "
             "images; values above ~600s reduce the protection against genuine "
-            "hangs. Set via config: `fo config set processing.timeout_per_file 600`."
+            "hangs. Persistent: `fo config set processing.timeout_per_file 600`."
         ),
     ),
     show_skipped: bool = typer.Option(
@@ -211,6 +238,7 @@ def organize(
     try:
         from core.organizer import FileOrganizer
 
+        effective_timeout_per_file = _resolve_timeout_per_file(timeout_per_file)
         organizer = FileOrganizer(
             dry_run=dry_run or _get_state().dry_run,
             parallel_workers=resolved_workers,
@@ -221,7 +249,7 @@ def organize(
             # `--max-transcribe-seconds 0` is the documented "disable the cap"
             # value; convert to None for the organizer (None means uncapped).
             max_transcribe_seconds=max_transcribe_seconds if max_transcribe_seconds > 0 else None,
-            timeout_per_file=timeout_per_file,
+            timeout_per_file=effective_timeout_per_file,
         )
         if json_output:
             # Silence the Rich progress + summary by swapping in a no-op
@@ -295,13 +323,14 @@ def preview(
             "Default: 600 (10 min). Set to 0 to disable the cap entirely."
         ),
     ),
-    timeout_per_file: float = typer.Option(
-        300.0,
+    timeout_per_file: float | None = typer.Option(
+        None,
         "--timeout-per-file",
         min=1.0,
         help=(
-            "Per-file processing timeout in seconds (default: 300). Issue #396 — "
-            "tune to your hardware + model. Set via config: "
+            "Per-file processing timeout in seconds. When omitted, the value "
+            "from AppConfig.processing.timeout_per_file is used (default: 300). "
+            "Issue #396 — tune to your hardware + model. Persistent: "
             "`fo config set processing.timeout_per_file 600`."
         ),
     ),
@@ -321,6 +350,7 @@ def preview(
     try:
         from core.organizer import FileOrganizer
 
+        effective_timeout_per_file = _resolve_timeout_per_file(timeout_per_file)
         organizer = FileOrganizer(
             dry_run=True,
             parallel_workers=resolved_workers,
@@ -329,7 +359,7 @@ def preview(
             no_prefetch=no_prefetch,
             transcribe_audio=transcribe_audio,
             max_transcribe_seconds=max_transcribe_seconds if max_transcribe_seconds > 0 else None,
-            timeout_per_file=timeout_per_file,
+            timeout_per_file=effective_timeout_per_file,
         )
         result = organizer.organize(input_dir, input_dir)
         console.print(f"[green]Preview:[/green] {result.total_files} files would be organized")
