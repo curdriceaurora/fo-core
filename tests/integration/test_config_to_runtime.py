@@ -17,7 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from config.provider_env import get_model_configs
-from config.schema import AppConfig, ModelPreset
+from config.schema import AppConfig, ModelPreset, ProcessingSettings
 from core.organizer import FileOrganizer
 from models.base import ModelConfig, ModelType
 from services.text_processor import TextProcessor
@@ -184,3 +184,42 @@ class TestConfigTemperature:
         processor.initialize()
 
         assert processor.text_model.config.temperature == 0.5
+
+
+class TestProcessingSettingsToOrganizer:
+    """ProcessingSettings.timeout_per_file flows into the live organizer (#396)."""
+
+    def test_default_processing_settings_yield_300s_timeout(self) -> None:
+        """AppConfig().processing.timeout_per_file matches the FileOrganizer default."""
+        app_cfg = AppConfig()
+        assert isinstance(app_cfg.processing, ProcessingSettings)
+        assert app_cfg.processing.timeout_per_file == 300.0
+
+        # The same value lands in a fresh FileOrganizer's ParallelConfig.
+        org = FileOrganizer(
+            text_model_config=make_text_config(),
+            vision_model_config=make_vision_config(),
+            dry_run=True,
+            timeout_per_file=app_cfg.processing.timeout_per_file,
+        )
+        assert org.parallel_config.timeout_per_file == 300.0
+
+    def test_custom_processing_settings_propagate_through_organizer(self) -> None:
+        """A non-default timeout in AppConfig.processing reaches ParallelConfig."""
+        app_cfg = AppConfig(processing=ProcessingSettings(timeout_per_file=120.0))
+        assert app_cfg.processing.timeout_per_file == 120.0
+
+        org = FileOrganizer(
+            text_model_config=make_text_config(),
+            vision_model_config=make_vision_config(),
+            dry_run=True,
+            timeout_per_file=app_cfg.processing.timeout_per_file,
+        )
+        assert org.parallel_config.timeout_per_file == 120.0
+
+    def test_processing_settings_rejects_zero_and_negative(self) -> None:
+        """__post_init__ validation rejects non-positive values."""
+        with pytest.raises(ValueError, match="must be > 0"):
+            ProcessingSettings(timeout_per_file=0.0)
+        with pytest.raises(ValueError, match="must be > 0"):
+            ProcessingSettings(timeout_per_file=-1.0)
