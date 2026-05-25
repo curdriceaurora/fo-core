@@ -271,6 +271,23 @@ ignore_missing_imports = true
 # result via `str(...)` to preserve downstream types). Unblocks CI after PR #167.
 untyped_calls_exclude = ["striprtf"]
 
+# These modules import third-party packages that ship no stubs (e.g. PyYAML,
+# which is a runtime dependency but its stubs are easy to miss in system
+# pre-commit environments because the mypy hook intentionally uses
+# `language: system`). The override suppresses all import-untyped errors in
+# these modules, not just PyYAML — strict checking still applies to our own
+# logic within each module.
+[[tool.mypy.overrides]]
+module = [
+    "cli.rules",
+    "config.manager",
+    "config.provider_env",
+    "integrations.obsidian",
+    "methodologies.para.config",
+    "services.copilot.rules.rule_manager",
+]
+disable_error_code = ["import-untyped"]
+
 # Optional-dep model wrappers: mlx_lm and llama_cpp have no stubs and their
 # type signatures are only visible when the packages are installed.  The files
 # already carry `# pyre-ignore-all-errors` for the same reason.

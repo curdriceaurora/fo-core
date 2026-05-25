@@ -113,11 +113,11 @@ class TestSessionLogCreation:
     """Session log files are created at CLI startup."""
 
     def test_each_invocation_creates_session_log(self) -> None:
-        """Invoking any fo command creates a session log in sessions/."""
+        """Invoking a startup-managed command creates a session log in sessions/."""
         paths = get_canonical_paths()
         log_dir: Path = paths["logs"]
 
-        result = runner.invoke(app, ["version"])
+        result = runner.invoke(app, ["logs", "--list"])
         assert result.exit_code == 0
 
         session_dir = log_dir / "sessions"
@@ -137,6 +137,6 @@ class TestSessionLogCreation:
         four_days_ago = time.time() - (4 * 86400)
         os.utime(old_log, (four_days_ago, four_days_ago))
 
-        result = runner.invoke(app, ["version"])
+        result = runner.invoke(app, ["logs", "--list"])
         assert result.exit_code == 0
         assert not old_log.exists(), "stale session log should be removed"

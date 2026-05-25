@@ -61,7 +61,7 @@ def test_debug_flag_installs_loguru_debug_handler(
     monkeypatch.setattr("loguru.logger.remove", _noop_remove)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["--debug", "version"])
+    result = runner.invoke(app, ["--debug", "logs", "--list"])
     assert result.exit_code == 0
     debug_handlers = [c for c in captured if c.get("level") == "DEBUG"]
     assert len(debug_handlers) >= 1
@@ -89,7 +89,7 @@ def test_no_debug_flag_skips_handler(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("loguru.logger.add", _spy_add)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["logs", "--list"])
     assert result.exit_code == 0
     # No DEBUG handler to stderr (sys.stderr) without --debug flag
     # (session log DEBUG handler writes to a file, not stderr)
@@ -190,7 +190,7 @@ def test_rotating_log_file_created(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["hardware-info"])
     assert result.exit_code == 0
     assert log_dir.exists(), "log directory should be created"
     log_files = list(log_dir.glob("fo.log*"))
@@ -215,7 +215,7 @@ def test_debug_flag_lowers_file_log_level(monkeypatch: pytest.MonkeyPatch, tmp_p
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["--debug", "version"])
+    result = runner.invoke(app, ["--debug", "logs", "--list"])
     assert result.exit_code == 0
 
     file_sinks = [c for c in captured if "fo.log" in c.get("sink", "")]
@@ -237,5 +237,5 @@ def test_unwritable_log_dir_degrades_gracefully(
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["hardware-info"])
     assert result.exit_code == 0

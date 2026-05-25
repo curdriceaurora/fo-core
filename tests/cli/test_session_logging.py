@@ -57,7 +57,7 @@ def test_session_id_generated_on_invocation(
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["logs", "--list"])
     assert result.exit_code == 0
 
     # Session log directory should be created
@@ -92,7 +92,7 @@ def test_session_log_always_debug_level(monkeypatch: pytest.MonkeyPatch, tmp_pat
 
     runner = CliRunner()
     # Run WITHOUT --debug flag
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["logs", "--list"])
     assert result.exit_code == 0
 
     # Find session log sink (in sessions/ subdirectory)
@@ -118,7 +118,7 @@ def test_session_log_uses_ndjson_format(monkeypatch: pytest.MonkeyPatch, tmp_pat
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["logs", "--list"])
     assert result.exit_code == 0
 
     session_sinks = [c for c in captured if "sessions" in c.get("sink", "")]
@@ -137,7 +137,7 @@ def test_session_id_injected_in_log_records(
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["logs", "--list"])
     assert result.exit_code == 0
 
     # Find the session log file
@@ -187,7 +187,7 @@ def test_old_session_logs_cleaned_up(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["logs", "--list"])
     assert result.exit_code == 0
 
     # Old log should be deleted
@@ -218,7 +218,7 @@ def test_unwritable_session_log_dir_degrades_gracefully(
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["version"])
+    result = runner.invoke(app, ["hardware-info"])
     # Should degrade gracefully and still exit 0
     assert result.exit_code == 0
 
