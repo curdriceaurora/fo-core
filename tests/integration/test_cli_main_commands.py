@@ -354,4 +354,4 @@ class TestEntryPoint:
 
         with patch("cli.main.app") as mock_app:
             main()
-        mock_app.assert_called_once()
+        mock_app.assert_called_once_with(standalone_mode=False)

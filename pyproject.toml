@@ -271,10 +271,12 @@ ignore_missing_imports = true
 # result via `str(...)` to preserve downstream types). Unblocks CI after PR #167.
 untyped_calls_exclude = ["striprtf"]
 
-# PyYAML is a runtime dependency, but its stubs are easy to miss in system
+# These modules import third-party packages that ship no stubs (e.g. PyYAML,
+# which is a runtime dependency but its stubs are easy to miss in system
 # pre-commit environments because the mypy hook intentionally uses
-# `language: system`. Keep the exemption scoped to the third-party import so
-# strict checking still applies to our config/parsing code.
+# `language: system`). The override suppresses all import-untyped errors in
+# these modules, not just PyYAML — strict checking still applies to our own
+# logic within each module.
 [[tool.mypy.overrides]]
 module = [
     "cli.rules",
