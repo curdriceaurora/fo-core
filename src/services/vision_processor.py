@@ -57,7 +57,13 @@ def compute_vision_timeout(
 
 @dataclass
 class ProcessedImage:
-    """Result of image processing."""
+    """Result of image processing.
+
+    The ``source`` field indicates how the categorization was produced:
+    ``"vision"`` is the normal AI-model path; ``"fallback_exif"`` and
+    ``"fallback_filename"`` mark low-confidence placements assigned by
+    the metadata-only fallback (#406) when the vision call timed out.
+    """
 
     file_path: Path
     description: str
@@ -67,6 +73,7 @@ class ProcessedImage:
     extracted_text: str | None = None
     processing_time: float = 0.0
     error: str | None = None
+    source: str = "vision"
 
 
 class VisionProcessor:

@@ -76,6 +76,14 @@ def show_summary(
     console.print(f"  [green]Processed: {result.processed_files}[/green]")
     console.print(f"  [yellow]Skipped: {result.skipped_files}[/yellow]")
     console.print(f"  [red]Failed: {result.failed_files}[/red]")
+    if result.fallback_files:
+        # #406: Vision timeouts that took the metadata-only path. They're
+        # included in `processed_files` but flagged separately so the user
+        # knows N placements are low-confidence and should be reviewed.
+        console.print(
+            f"  [yellow]Categorized via fallback "
+            f"(review recommended): {result.fallback_files}[/yellow]"
+        )
     if result.deduplicated_files:
         console.print(f"  [dim]Duplicates removed: {result.deduplicated_files}[/dim]")
     if result.errors:
