@@ -1835,3 +1835,47 @@ class TestHistoryExporter:
         assert stats["operations_exported"] == 3
         assert isinstance(stats["transactions_exported"], int)
         assert stats["transactions_exported"] >= 0
+
+
+# ---------------------------------------------------------------------------
+# TestUndoPackageLazyExports — covers PEP 562 __getattr__ in undo/__init__.py
+# (added with PR #404 C3 so the `import undo` cost stays low)
+# ---------------------------------------------------------------------------
+
+
+class TestUndoPackageLazyExports:
+    """Exercise the PEP 562 lazy re-exports declared on the ``undo`` package."""
+
+    def test_lazy_rollback_executor_resolves(self) -> None:
+        import undo
+        from undo.rollback import RollbackExecutor as Direct
+
+        # Triggers __getattr__("RollbackExecutor") which imports undo.rollback
+        # under the hood and returns the same class.
+        assert undo.RollbackExecutor is Direct
+
+    def test_lazy_undo_manager_resolves(self) -> None:
+        import undo
+        from undo.undo_manager import UndoManager as Direct
+
+        assert undo.UndoManager is Direct
+
+    def test_lazy_history_viewer_resolves(self) -> None:
+        import undo
+        from undo.viewer import HistoryViewer as Direct
+
+        assert undo.HistoryViewer is Direct
+
+    def test_lazy_validation_result_resolves(self) -> None:
+        import undo
+        from undo.models import ValidationResult as Direct
+
+        assert undo.ValidationResult is Direct
+
+    def test_unknown_attribute_raises_attribute_error(self) -> None:
+        import undo
+
+        with pytest.raises(AttributeError) as excinfo:
+            _ = undo.nonexistent_thing  # type: ignore[attr-defined]
+        assert "nonexistent_thing" in str(excinfo.value)
+        assert "undo" in str(excinfo.value)
