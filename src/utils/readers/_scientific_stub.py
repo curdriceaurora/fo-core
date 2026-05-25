@@ -11,6 +11,7 @@ from typing import BinaryIO
 
 
 def _unavailable(name: str) -> str:  # pragma: no cover
+    """Return the user-facing message shown when a scientific reader is unavailable."""
     return (
         f"{name}: scientific readers unavailable — "
         "install fo-core[scientific] to enable HDF5/MAT/NetCDF support."
@@ -23,6 +24,7 @@ def read_hdf5_file(  # pragma: no cover
     *,
     fileobj: BinaryIO | None = None,
 ) -> str:
+    """Stub for HDF5 reader; returns an install-hint string when h5py is absent."""
     return _unavailable("HDF5")
 
 
@@ -31,6 +33,7 @@ def read_mat_file(  # pragma: no cover
     *,
     fileobj: BinaryIO | None = None,
 ) -> str:
+    """Stub for MAT reader; returns an install-hint string when scipy is absent."""
     return _unavailable("MAT")
 
 
@@ -39,4 +42,5 @@ def read_netcdf_file(  # pragma: no cover
     *,
     fileobj: BinaryIO | None = None,
 ) -> str:
+    """Stub for NetCDF reader; returns an install-hint string when netCDF4 is absent."""
     return _unavailable("NetCDF")
