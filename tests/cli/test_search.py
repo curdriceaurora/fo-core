@@ -16,6 +16,15 @@ runner = CliRunner()
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
+def _skip_without_semantic_deps() -> None:
+    """Skip semantic-search tests unless optional search dependencies import cleanly."""
+    try:
+        __import__("rank_bm25")
+        __import__("sklearn")
+    except ImportError as exc:
+        pytest.skip(f"semantic search dependencies unavailable: {exc}")
+
+
 def _strip_ansi(text: str) -> str:
     """Remove ANSI escape codes from *text* for portable string assertions."""
     return _ANSI_RE.sub("", text)
@@ -189,7 +198,7 @@ def test_search_semantic_flag_in_help():
 
 def test_search_semantic_finds_relevant_files(tmp_path: Path):
     """--semantic returns files relevant to the query."""
-    pytest.importorskip("rank_bm25")
+    _skip_without_semantic_deps()
     (tmp_path / "finance.txt").write_text("quarterly finance budget report")
     (tmp_path / "notes.txt").write_text("meeting notes agenda items")
 
@@ -201,14 +210,14 @@ def test_search_semantic_finds_relevant_files(tmp_path: Path):
 
 def test_search_semantic_empty_dir_exits_zero(tmp_path: Path):
     """--semantic on empty directory exits 0 with no-files message."""
-    pytest.importorskip("rank_bm25")
+    _skip_without_semantic_deps()
     result = runner.invoke(app, ["search", "anything", str(tmp_path), "--semantic"])
     assert result.exit_code == 0
 
 
 def test_search_semantic_json_output(tmp_path: Path):
     """--semantic --json emits a valid JSON array with score field."""
-    pytest.importorskip("rank_bm25")
+    _skip_without_semantic_deps()
     (tmp_path / "doc.txt").write_text("finance quarterly report")
 
     result = runner.invoke(app, ["search", "finance", str(tmp_path), "--semantic", "--json"])
@@ -226,7 +235,7 @@ def test_search_semantic_json_output(tmp_path: Path):
 
 def test_search_semantic_respects_limit(tmp_path: Path):
     """--semantic --limit N returns at most N results."""
-    pytest.importorskip("rank_bm25")
+    _skip_without_semantic_deps()
     for i in range(5):
         (tmp_path / f"file_{i}.txt").write_text(f"document {i} finance report")
 

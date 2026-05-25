@@ -344,24 +344,14 @@ class TestAnalyticsCommand:
 
 
 class TestEntryPoint:
-    """Tests for _register_profile_command and main() entry point."""
+    """Tests for the main() entry point."""
 
-    def test_register_profile_command_does_not_raise(self) -> None:
-        """_register_profile_command() runs without error (ImportError is silenced)."""
-        from cli.main import _register_profile_command
-
-        _register_profile_command()  # should not raise
-
-    def test_main_calls_register_and_app(self) -> None:
-        """main() calls _register_profile_command then app()."""
+    def test_main_calls_app(self) -> None:
+        """main() delegates directly to the Typer app."""
         from unittest.mock import patch
 
         from cli.main import main
 
-        with (
-            patch("cli.main._register_profile_command") as mock_reg,
-            patch("cli.main.app") as mock_app,
-        ):
+        with patch("cli.main.app") as mock_app:
             main()
-        mock_reg.assert_called_once()
         mock_app.assert_called_once()

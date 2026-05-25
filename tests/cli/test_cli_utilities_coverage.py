@@ -18,6 +18,15 @@ pytestmark = [pytest.mark.ci, pytest.mark.unit]
 runner = CliRunner()
 
 
+def _skip_without_semantic_deps() -> None:
+    """Skip semantic-search tests unless optional search dependencies import cleanly."""
+    try:
+        __import__("rank_bm25")
+        __import__("sklearn")
+    except ImportError as exc:
+        pytest.skip(f"semantic search dependencies unavailable: {exc}")
+
+
 def _make_app() -> typer.Typer:
     """Build a minimal Typer app wrapping the utilities functions."""
     from cli.utilities import analyze, search
@@ -147,10 +156,9 @@ class TestSearchResults:
 class TestSemanticSearchHiddenFileFiltering:
     """Covers line 156 — is_hidden(rel_entry) in semantic corpus builder."""
 
-    pytest.importorskip("rank_bm25")
-
     def test_hidden_files_excluded_from_semantic_corpus(self, tmp_path: Path) -> None:
         """Hidden files are excluded from the semantic corpus (relative path check)."""
+        _skip_without_semantic_deps()
         app = _make_app()
         (tmp_path / "report.txt").write_text("quarterly budget finance report")
         (tmp_path / "other.txt").write_text("meeting notes and agenda items")
@@ -162,6 +170,7 @@ class TestSemanticSearchHiddenFileFiltering:
 
     def test_relative_path_used_for_hidden_check(self, tmp_path: Path) -> None:
         """Files inside dot-prefixed dirs are excluded via relative path."""
+        _skip_without_semantic_deps()
         app = _make_app()
         (tmp_path / "report.txt").write_text("quarterly budget finance report")
         (tmp_path / "notes.txt").write_text("meeting agenda items budget")
@@ -174,6 +183,7 @@ class TestSemanticSearchHiddenFileFiltering:
 
     def test_semantic_archive_filter_accepts_tar_gz(self, tmp_path: Path) -> None:
         """Semantic search respects compound archive extensions like .tar.gz."""
+        _skip_without_semantic_deps()
         app = _make_app()
         (tmp_path / "dataset.tar.gz").write_text("finance archive bundle")
         (tmp_path / "notes.txt").write_text("finance notes")
@@ -188,6 +198,7 @@ class TestSemanticSearchHiddenFileFiltering:
 
     def test_semantic_type_filter_applies_before_document_limit(self, tmp_path: Path) -> None:
         """Archive matches should still be indexed even if many earlier text files exist."""
+        _skip_without_semantic_deps()
         app = _make_app()
         for index in range(250):
             (tmp_path / f"notes_{index:03d}.txt").write_text("finance notes")

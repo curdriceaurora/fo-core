@@ -19,6 +19,7 @@ LAZY_COMMANDS: dict[str, tuple[str, str, str]] = {
     "copilot": ("cli.copilot", "copilot_app", "AI assistant for file operations."),
     "daemon": ("cli.daemon", "daemon_app", "Run the background file watcher."),
     "dedupe": ("cli.dedupe_v2", "dedupe_app", "Find and manage duplicate files."),
+    "profile": ("cli.profile", "profile_command", "Manage intelligence profiles."),
     "rules": ("cli.rules", "rules_app", "Manage automated organization rules."),
     "setup": ("cli.setup", "setup_app", "Initial configuration wizard."),
     "suggest": ("cli.suggest", "suggest_app", "Get AI suggestions for files."),

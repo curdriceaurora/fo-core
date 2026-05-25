@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from typer.testing import CliRunner
 
@@ -146,7 +148,6 @@ class TestMainEntryPoint:
         from cli.main import main
 
         with (
-            patch("cli.main._register_profile_command"),
             patch("cli.main.app", side_effect=KeyboardInterrupt()),
             patch("sys.exit") as mock_exit,
             patch("cli.main.console.print") as mock_print,
@@ -166,7 +167,6 @@ class TestMainEntryPoint:
         from cli.main import main
 
         with (
-            patch("cli.main._register_profile_command"),
             patch("cli.main.app", side_effect=click.exceptions.Abort()),
             patch("sys.exit") as mock_exit,
             patch("cli.main.console.print") as mock_print,
@@ -187,7 +187,6 @@ class TestMainEntryPoint:
         from cli.main import main
 
         with (
-            patch("cli.main._register_profile_command"),
             patch("cli.main.app", side_effect=click.exceptions.Exit(code=2)),
             patch("sys.exit") as mock_exit,
         ):
@@ -200,7 +199,6 @@ class TestMainEntryPoint:
         from cli.main import main
 
         with (
-            patch("cli.main._register_profile_command"),
             patch("cli.main.app", side_effect=BrokenPipeError()),
             patch("sys.exit") as mock_exit,
             patch("cli.main.os.open"),
@@ -218,9 +216,12 @@ class TestMainEntryPoint:
 
         Runs a separate Python process that imports `cli.main.app` and fails the test if any of the modules `sqlalchemy`, `pydantic`, or `watchdog` are present in that process's `sys.modules`.
         """
+        import os
         import subprocess
         import sys
 
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
         code = (
             "import sys\n"
             "from cli.main import app\n"
@@ -234,6 +235,7 @@ class TestMainEntryPoint:
         result = subprocess.run(
             [sys.executable, "-c", code],
             capture_output=True,
+            env=env,
             text=True,
             timeout=30,
             check=False,

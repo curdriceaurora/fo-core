@@ -25,8 +25,6 @@ from cli.lazy import LazyTyperGroup
 from cli.organize import organize, preview
 from cli.state import CLIState, _get_state, _merge_flag
 from cli.utilities import analyze, search
-from undo._journal import default_journal_path as _default_journal_path
-from undo.durable_move import sweep as _durable_move_sweep
 
 console = Console()
 
@@ -81,6 +79,29 @@ _SETUP_GATE_ALLOWLIST: frozenset[str] = frozenset(
 `logs`), the updater, or emergency recovery. Adding a command here
 relaxes the first-run gate for it — verify the command doesn't write
 or organize files first."""
+
+_ZERO_STARTUP_COMMANDS: frozenset[str] = frozenset({"version"})
+"""Commands whose contract is pure metadata output.
+
+These commands should not pay for log sinks, setup checks, durable-move
+recovery, or state-directory scans. Keep this list intentionally tiny:
+adding commands here bypasses startup bookkeeping that exists to protect
+filesystem-mutating workflows.
+"""
+
+
+def _default_journal_path() -> Path:
+    """Resolve the durable-move journal only when recovery actually runs."""
+    from undo._journal import default_journal_path
+
+    return default_journal_path()
+
+
+def _durable_move_sweep(journal: Path) -> None:
+    """Run durable-move recovery without importing undo during CLI module load."""
+    from undo.durable_move import sweep
+
+    sweep(journal)
 
 
 def _cleanup_old_session_logs(logs_dir: Path, retention_days: int = 3) -> None:
@@ -145,6 +166,9 @@ def main_callback(
         version_flag (bool): Eager version callback value (accepted and ignored here).
     """
     _ = version_flag
+
+    if ctx.invoked_subcommand in _ZERO_STARTUP_COMMANDS:
+        return
 
     # Generate unique session ID for this CLI invocation
     # Format: YYYY-MM-DDTHH-MM-SS-{short_uuid}
@@ -548,28 +572,6 @@ def analytics(
 
 
 # ---------------------------------------------------------------------------
-# Profile sub-app — Click interop (deferred to reduce startup latency)
-# ---------------------------------------------------------------------------
-
-# NOTE: profile_command registration is deferred to main() to avoid loading
-# cli.profile (and its heavy intelligence service chain) at
-# module import time.  Typer wraps Click, so we register it just before app().
-
-
-def _register_profile_command() -> None:
-    """Lazily register the Click-based profile sub-command."""
-    try:
-        from cli.profile import profile_command as _profile_click_group
-
-        typer_click_object = typer.main.get_group(app)
-        typer_click_object.add_command(_profile_click_group, "profile")
-    except ImportError:
-        # Profile module may fail to import if intelligence services
-        # are not installed; we degrade gracefully.
-        pass
-
-
-# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -577,19 +579,17 @@ def _register_profile_command() -> None:
 def main() -> None:
     """Run the fo command-line application.
 
-    Registers the deferred profile command and invokes the Typer app with
-    ``standalone_mode=False`` so that ``KeyboardInterrupt`` and
-    ``BrokenPipeError`` propagate out of Click for our handlers to see — under
-    Click's default standalone mode the framework catches both internally and
-    our outer ``except`` clauses would never fire (codex review on PR #230).
+    Invokes the Typer app with ``standalone_mode=False`` so that
+    ``KeyboardInterrupt`` and ``BrokenPipeError`` propagate out of Click for our
+    handlers to see — under Click's default standalone mode the framework
+    catches both internally and our outer ``except`` clauses would never fire
+    (codex review on PR #230).
 
     Exit codes:
         130 — user pressed Ctrl+C (POSIX SIGINT).
           0 — stdout consumer closed the pipe (e.g. ``fo ... | head``).
         Other typer/click exits propagate their own ``exit_code``.
     """
-    _register_profile_command()
-
     try:
         app(standalone_mode=False)
     except (KeyboardInterrupt, click.exceptions.Abort):

@@ -37,6 +37,24 @@ def test_version_command():
 
 
 @pytest.mark.ci
+def test_version_command_skips_startup_bookkeeping(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`fo version` should print metadata without log sinks or recovery sweeps."""
+    log_sink_calls: list[object] = []
+    sweep_calls: list[object] = []
+
+    monkeypatch.setattr("loguru.logger.add", lambda sink, **_kwargs: log_sink_calls.append(sink))
+    monkeypatch.setattr("cli.main._durable_move_sweep", lambda journal: sweep_calls.append(journal))
+
+    with patch("cli.main._fo_version", return_value="1.2.3"):
+        result = runner.invoke(app, ["version"])
+
+    assert result.exit_code == 0
+    assert "fo 1.2.3" in result.stdout
+    assert log_sink_calls == []
+    assert sweep_calls == []
+
+
+@pytest.mark.ci
 def test_version_flag():
     """Test the eager --version flag output."""
     with patch("cli.main._fo_version", return_value="1.2.3"):

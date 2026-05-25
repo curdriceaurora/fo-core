@@ -827,9 +827,9 @@ class TestCLIIntegration:
         for f in preexisting:
             root.removeFilter(f)
         try:
-            # Invoke a real command so main_callback runs (``--help`` and
-            # ``--version`` are eager and short-circuit the callback).
-            result = CliRunner().invoke(app, ["version"])
+            # Invoke a real command so main_callback runs (``--help``,
+            # ``--version``, and ``version`` are zero-startup paths).
+            result = CliRunner().invoke(app, ["logs", "--list"])
             assert result.exit_code == 0
             # Filter attached to root.
             attached = [f for f in root.filters if isinstance(f, CredentialRedactingFilter)]
