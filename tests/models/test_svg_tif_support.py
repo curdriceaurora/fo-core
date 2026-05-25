@@ -18,6 +18,7 @@ import pytest
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
 _MINIMAL_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="red"/></svg>'
+_WIDE_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="blue"/></svg>'
 
 
 class TestExtensionRegistration:
@@ -124,6 +125,36 @@ class TestDownscaleHandlesSvg:
         result, _ = downscale_image_if_needed(svg_file)
 
         assert isinstance(result, bytes)
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_svg_downscales_wide_image(self, tmp_path: Path) -> None:
+        """Wide SVG (width > height) exercises the if-branch in the downscale path."""
+        pytest.importorskip("fitz")
+        pytest.importorskip("PIL")
+        from models._vision_helpers import downscale_image_if_needed
+
+        svg_file = tmp_path / "wide.svg"
+        svg_file.write_bytes(_WIDE_SVG)
+        # max_long_edge=50 forces downscale since SVG rasterizes to ~200x100
+        result, was_converted = downscale_image_if_needed(svg_file, max_long_edge=50)
+
+        assert isinstance(result, bytes)
+        assert was_converted is True
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_svg_downscales_square_image(self, tmp_path: Path) -> None:
+        """Square SVG (width == height) exercises the else-branch in the downscale path."""
+        pytest.importorskip("fitz")
+        pytest.importorskip("PIL")
+        from models._vision_helpers import downscale_image_if_needed
+
+        svg_file = tmp_path / "square.svg"
+        svg_file.write_bytes(_MINIMAL_SVG)
+        # max_long_edge=50 forces downscale since SVG rasterizes to 100x100
+        result, was_converted = downscale_image_if_needed(svg_file, max_long_edge=50)
+
+        assert isinstance(result, bytes)
+        assert was_converted is True
         assert result[:8] == b"\x89PNG\r\n\x1a\n"
 
     def test_svg_fallback_on_pil_failure(self, tmp_path: Path) -> None:
