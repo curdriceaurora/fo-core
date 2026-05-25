@@ -177,7 +177,7 @@ class VisionProcessor:
         # inferences with image size before any enforcement wiring lands.
         try:
             _adaptive_timeout = compute_vision_timeout(
-                file_path.stat().st_size if file_path.exists() else 0,
+                file_path.stat().st_size,
             )
             logger.debug(
                 "Adaptive vision timeout for {}: {:.1f}s",

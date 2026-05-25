@@ -722,7 +722,7 @@ class TestProcessFileLogsAdaptiveTimeout:
         ]
         assert len(adaptive_logs) == 1
         # Message should include the file name and the numeric timeout
-        msg, *args = adaptive_logs[0].args
+        _msg, *args = adaptive_logs[0].args
         assert "shot.png" in args
         # Computed value should be in [base, max]
         assert 30.0 <= args[1] <= 300.0
