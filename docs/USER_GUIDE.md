@@ -488,7 +488,7 @@ fo update install --dry-run
 | Category | Formats |
 |----------|---------|
 | Documents | `.txt`, `.md`, `.pdf`, `.docx`, `.doc`*, `.csv`, `.xlsx`, `.xls`*, `.pptx` |
-| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif` |
+| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif`, `.svg` |
 | Video | `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv` |
 | Audio | `.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg` |
 | Archives | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.rar` |

@@ -15,10 +15,15 @@ import os
 import sys
 from pathlib import Path
 
+import fitz  # PyMuPDF — core dep; also handles SVG rasterization
 from loguru import logger
 
 # Fallback MIME type when extension is not recognised
 _DEFAULT_IMAGE_MIME = "image/jpeg"
+
+# Maximum pixel dimension for SVG rasterization — guards against OOM from
+# SVGs with very large intrinsic width/height before downscaling is applied.
+_SVG_MAX_RENDER_EDGE = 4096
 
 # Hardcoded map for common image extensions — more portable than mimetypes.guess_type
 # on Windows, where the registry may not have entries for modern formats (e.g. webp)
@@ -34,7 +39,80 @@ _EXTENSION_MIME: dict[str, str] = {
     ".tif": "image/tiff",
     ".heic": "image/heic",
     ".heif": "image/heif",
+    ".svg": "image/svg+xml",
 }
+
+
+def _rasterize_svg_bytes_to_png(svg_data: bytes) -> bytes:
+    """Rasterize SVG bytes to PNG bytes via PyMuPDF, without touching the filesystem.
+
+    Render size is capped at _SVG_MAX_RENDER_EDGE on the longest side so that
+    an SVG with an enormous intrinsic width/height cannot exhaust memory before
+    the caller's downscale step runs.
+    """
+    doc = fitz.open(stream=svg_data, filetype="svg")
+    try:
+        page = doc[0]
+        w, h = page.rect.width, page.rect.height
+        scale = min(1.0, _SVG_MAX_RENDER_EDGE / max(w, h, 1))
+        mat = fitz.Matrix(scale, scale) if scale < 1.0 else fitz.Identity
+        pix = page.get_pixmap(matrix=mat)
+        return bytes(pix.tobytes("png"))
+    finally:
+        doc.close()
+
+
+def _read_image_bytes_safedir(image_path: Path) -> bytes:
+    """Read image file bytes via SafeDir on POSIX, direct open on Windows.
+
+    Refuses symlinks on POSIX (issue #352 S3).
+    """
+    if sys.platform != "win32":
+        try:
+            from utils.safedir import SafeDir, SymlinkRejected
+
+            with SafeDir.open_root(image_path.parent) as sd:
+                fd = sd.open_for_reader(image_path.name)
+                try:
+                    fh = os.fdopen(fd, "rb", closefd=True)
+                except OSError:
+                    os.close(fd)
+                    raise
+                with fh:
+                    return fh.read()
+        except (NotImplementedError, ImportError):
+            with open(
+                image_path, "rb"
+            ) as fh_direct:  # safedir: ok — Windows / NotImplementedError fallback
+                return fh_direct.read()
+        except (SymlinkRejected, ValueError) as exc:
+            raise OSError(f"Refused to read symlinked image {image_path}: {exc}") from exc
+    else:  # pragma: no cover — Windows-only branch, not reachable on POSIX CI
+        with open(
+            image_path, "rb"
+        ) as fh_win:  # safedir: ok — Windows / NotImplementedError fallback
+            return fh_win.read()
+
+
+def rasterize_svg_to_png_bytes(svg_path: Path) -> bytes:
+    """Rasterize an SVG file to PNG bytes using PyMuPDF (fitz).
+
+    PyMuPDF is a core dependency (used for PDF extraction), so no additional
+    packages are required.  The file is read via SafeDir on POSIX to prevent
+    symlink attacks (issue #352 S3).
+
+    Args:
+        svg_path: Path to the .svg file.
+
+    Returns:
+        PNG image as raw bytes.
+
+    Raises:
+        OSError: If the SVG cannot be opened or rendered, or if *svg_path*
+            is a symlink (POSIX only).
+    """
+    svg_data = _read_image_bytes_safedir(svg_path)
+    return _rasterize_svg_bytes_to_png(svg_data)
 
 
 def downscale_image_if_needed(
@@ -53,15 +131,54 @@ def downscale_image_if_needed(
             Images with either dimension exceeding this are downscaled.
 
     Returns:
-        A tuple of (image_data, was_downscaled) where:
-        - image_data is either the original Path (if no downscaling) or
-          bytes of the downscaled image
-        - was_downscaled is True if the image was resized
+        A tuple of (image_data, was_converted) where:
+        - image_data is either the original Path (if no conversion) or
+          bytes of the processed image
+        - was_converted is True if the image was resized **or** converted
+          to PNG (SVG files are always rasterized to PNG bytes, even when
+          no downscaling is needed)
 
     Raises:
         ImportError: If PIL/Pillow is not available.
         OSError: If the image cannot be opened or processed.
     """
+    # SVG cannot be opened by Pillow — rasterize via fitz first, then downscale the PNG
+    if image_path.suffix.lower() == ".svg":
+        png_bytes = rasterize_svg_to_png_bytes(image_path)
+        try:
+            from PIL import Image
+
+            with Image.open(io.BytesIO(png_bytes)) as img:
+                width, height = img.size
+                if max(width, height) <= max_long_edge:
+                    return png_bytes, True
+                if width > height:
+                    new_width = max_long_edge
+                    new_height = int(height * (max_long_edge / width))
+                else:
+                    new_height = max_long_edge
+                    new_width = int(width * (max_long_edge / height))
+                logger.debug(
+                    "Downscaling rasterized SVG {} from {}×{} → {}×{} before vision inference",
+                    image_path.name,
+                    width,
+                    height,
+                    new_width,
+                    new_height,
+                )
+                resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                buf = io.BytesIO()
+                resized.save(buf, format="PNG")
+                buf.seek(0)
+                return buf.getvalue(), True
+        except Exception as exc:
+            logger.warning(
+                "Failed to downscale rasterized SVG {}: {}; using rasterized PNG",
+                image_path.name,
+                exc,
+            )
+            return png_bytes, True
+
     try:
         from PIL import Image
     except ImportError as exc:
@@ -137,40 +254,19 @@ def image_to_data_url(image_path: Path) -> str:
             symlink (POSIX only).
     """
     ext = image_path.suffix.lower()
+
+    # SVG: read via SafeDir then rasterize to PNG via fitz
+    if ext == ".svg":
+        png_bytes = rasterize_svg_to_png_bytes(image_path)
+        return bytes_to_data_url(png_bytes, "image/png")
+
     mime_type = _EXTENSION_MIME.get(ext)
     if not mime_type:
         mime_type, _ = mimetypes.guess_type(str(image_path))
     if not mime_type:
         mime_type = _DEFAULT_IMAGE_MIME
 
-    raw: bytes
-    if sys.platform != "win32":
-        try:
-            from utils.safedir import SafeDir, SymlinkRejected
-
-            with SafeDir.open_root(image_path.parent) as sd:
-                fd = sd.open_for_reader(image_path.name)
-                try:
-                    fh = os.fdopen(fd, "rb", closefd=True)
-                except OSError:
-                    os.close(fd)
-                    raise
-                with fh:
-                    raw = fh.read()
-        except (NotImplementedError, ImportError):
-            # SafeDir primitives unavailable — fall through to direct open.
-            with open(
-                image_path, "rb"
-            ) as fh_direct:  # safedir: ok — Windows / NotImplementedError fallback
-                raw = fh_direct.read()
-        except (SymlinkRejected, ValueError) as exc:
-            raise OSError(f"Refused to read symlinked image {image_path}: {exc}") from exc
-    else:  # pragma: no cover — Windows-only branch, not reachable on POSIX CI
-        with open(
-            image_path, "rb"
-        ) as fh_win:  # safedir: ok — Windows / NotImplementedError fallback
-            raw = fh_win.read()
-
+    raw = _read_image_bytes_safedir(image_path)
     encoded = base64.b64encode(raw).decode("utf-8")
     return f"data:{mime_type};base64,{encoded}"
 

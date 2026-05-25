@@ -66,9 +66,11 @@ IMAGE_EXTENSIONS: frozenset[str] = frozenset(
         ".gif",
         ".bmp",
         ".tiff",
+        ".tif",
         ".webp",
         ".heic",
         ".heif",
+        ".svg",
     }
 )
 VIDEO_EXTENSIONS: frozenset[str] = frozenset(
