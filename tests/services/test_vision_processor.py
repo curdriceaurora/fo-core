@@ -7,10 +7,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from config.schema import ProcessingSettings
 from models.base import ModelType
-from services.vision_processor import ProcessedImage, VisionProcessor
+from services.vision_processor import ProcessedImage, VisionProcessor, compute_vision_timeout
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
 
 @pytest.fixture
@@ -616,3 +617,134 @@ class TestVisionProcessorLifecycle:
 
         # Cleanup should not call model.cleanup since we don't own the model
         mock_vision_model.cleanup.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# compute_vision_timeout — adaptive per-image timeout (#407)
+# ---------------------------------------------------------------------------
+
+
+class TestComputeVisionTimeout:
+    """Boundary tests for compute_vision_timeout(file_size_bytes, settings)."""
+
+    def test_zero_byte_file_returns_base_timeout(self) -> None:
+        """A 0-byte image gets exactly base_timeout (size contribution = 0)."""
+        settings = ProcessingSettings()  # base=30, per_mb=15, max=300
+        assert compute_vision_timeout(0, settings) == 30.0
+
+    def test_100kb_image_under_35s(self) -> None:
+        """Per the issue: 100KB image must be ≤ 35s with defaults."""
+        # 100 KB ≈ 0.0977 MB → 30 + 0.0977*15 ≈ 31.46s
+        assert compute_vision_timeout(100 * 1024) <= 35.0
+
+    def test_10mb_image_at_or_below_base_plus_150(self) -> None:
+        """Per the issue: 10MB image must be ≤ min(base + 150, max) with defaults."""
+        # 10 MB → 30 + 10*15 = 180s; min(30+150, 300) = 180 → exactly at bound
+        result = compute_vision_timeout(10 * 1024 * 1024)
+        assert result == 180.0
+        assert result <= min(30.0 + 150.0, 300.0)
+
+    def test_huge_image_clamped_to_max(self) -> None:
+        """A 100MB image would raw=1530s; clamped to vision_max_timeout_s=300s."""
+        assert compute_vision_timeout(100 * 1024 * 1024) == 300.0
+
+    def test_exactly_at_max_threshold(self) -> None:
+        """A file size yielding raw == max returns max exactly."""
+        settings = ProcessingSettings()
+        # raw = 300 means size_mb = (300 - 30) / 15 = 18MB exactly
+        size_at_max = 18 * 1024 * 1024
+        assert compute_vision_timeout(size_at_max, settings) == 300.0
+
+    def test_above_max_clamps_not_panics(self) -> None:
+        """Sizes that would overshoot max return exactly max (not max + 1)."""
+        settings = ProcessingSettings()
+        # raw would be ~1500s
+        assert compute_vision_timeout(100 * 1024 * 1024, settings) == 300.0
+
+    def test_negative_size_treated_as_zero(self) -> None:
+        """Defensive: a bogus negative size falls back to base, not below it."""
+        assert compute_vision_timeout(-1024, ProcessingSettings()) == 30.0
+
+    def test_settings_none_uses_defaults(self) -> None:
+        """Omitting settings is equivalent to passing ProcessingSettings()."""
+        assert compute_vision_timeout(0) == compute_vision_timeout(0, ProcessingSettings())
+        assert compute_vision_timeout(5 * 1024 * 1024) == compute_vision_timeout(
+            5 * 1024 * 1024, ProcessingSettings()
+        )
+
+    def test_custom_settings_propagate(self) -> None:
+        """Non-default ProcessingSettings produce a correspondingly different result."""
+        settings = ProcessingSettings(
+            vision_base_timeout_s=60.0,
+            vision_per_mb_factor_s=5.0,
+            vision_max_timeout_s=120.0,
+        )
+        # 10MB → 60 + 50 = 110s (within max=120) → 110.0
+        assert compute_vision_timeout(10 * 1024 * 1024, settings) == 110.0
+        # 30MB → raw=210, clamped to 120
+        assert compute_vision_timeout(30 * 1024 * 1024, settings) == 120.0
+
+    def test_zero_per_mb_factor_yields_flat_timeout(self) -> None:
+        """vision_per_mb_factor_s=0 means every image gets exactly base."""
+        settings = ProcessingSettings(vision_per_mb_factor_s=0.0)
+        assert compute_vision_timeout(0, settings) == 30.0
+        assert compute_vision_timeout(1024 * 1024, settings) == 30.0
+        assert compute_vision_timeout(50 * 1024 * 1024, settings) == 30.0
+
+
+class TestProcessFileLogsAdaptiveTimeout:
+    """process_file emits the adaptive timeout at DEBUG (#407)."""
+
+    def test_logs_computed_timeout_on_existing_file(
+        self,
+        mock_vision_model: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """A real image file is stat()'d and the adaptive timeout logged at DEBUG."""
+        img = tmp_path / "shot.png"
+        img.write_bytes(b"\x89PNG" + b"\x00" * 50_000)
+
+        processor = VisionProcessor(vision_model=mock_vision_model)
+
+        with patch("services.vision_processor.logger") as mock_logger:
+            processor.process_file(
+                img,
+                generate_description=False,
+                generate_folder=False,
+                generate_filename=False,
+                perform_ocr=False,
+            )
+
+        adaptive_logs = [
+            call
+            for call in mock_logger.debug.call_args_list
+            if call.args and "Adaptive vision timeout" in str(call.args[0])
+        ]
+        assert len(adaptive_logs) == 1
+        # Message should include the file name and the numeric timeout
+        msg, *args = adaptive_logs[0].args
+        assert "shot.png" in args
+        # Computed value should be in [base, max]
+        assert 30.0 <= args[1] <= 300.0
+
+    def test_stat_failure_does_not_break_processing(
+        self,
+        mock_vision_model: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        """An OSError from stat() must not block the real processing path."""
+        img = tmp_path / "shot.png"
+        img.write_bytes(b"\x89PNG" + b"\x00" * 10)
+
+        processor = VisionProcessor(vision_model=mock_vision_model)
+
+        with patch("pathlib.Path.stat", side_effect=PermissionError("denied")):
+            result = processor.process_file(
+                img,
+                generate_description=False,
+                generate_folder=False,
+                generate_filename=False,
+                perform_ocr=False,
+            )
+
+        assert isinstance(result, ProcessedImage)

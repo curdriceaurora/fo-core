@@ -99,15 +99,46 @@ class ProcessingSettings:
             running Ollama call — see issue #396 — so the timeout only
             governs when we stop waiting, not when the underlying thread
             actually terminates.
+        vision_base_timeout_s: Floor of the adaptive vision timeout (#407).
+            Every image gets at least this many seconds. Default 30s —
+            enough for a small screenshot on a fast vision model.
+        vision_per_mb_factor_s: Per-MB scaling factor for the adaptive
+            vision timeout (#407). The computed timeout is
+            ``vision_base_timeout_s + file_size_mb * vision_per_mb_factor_s``,
+            then clamped to ``vision_max_timeout_s``. Default 15s/MB.
+        vision_max_timeout_s: Ceiling of the adaptive vision timeout (#407).
+            Should not exceed ``timeout_per_file`` (the dispatcher's hard
+            kill-switch). Default 300s — same as ``timeout_per_file`` so
+            the adaptive value never silently outlives the dispatcher.
     """
 
     timeout_per_file: float = 300.0
+    vision_base_timeout_s: float = 30.0
+    vision_per_mb_factor_s: float = 15.0
+    vision_max_timeout_s: float = 300.0
 
     def __post_init__(self) -> None:
-        """Reject non-positive timeouts at construction time."""
+        """Reject invalid timeout values at construction time (#396, #407)."""
         if self.timeout_per_file <= 0:
             raise ValueError(
                 f"processing.timeout_per_file must be > 0, got {self.timeout_per_file}"
+            )
+        if self.vision_base_timeout_s <= 0:
+            raise ValueError(
+                f"processing.vision_base_timeout_s must be > 0, got {self.vision_base_timeout_s}"
+            )
+        if self.vision_per_mb_factor_s < 0:
+            raise ValueError(
+                f"processing.vision_per_mb_factor_s must be >= 0, got {self.vision_per_mb_factor_s}"
+            )
+        if self.vision_max_timeout_s <= 0:
+            raise ValueError(
+                f"processing.vision_max_timeout_s must be > 0, got {self.vision_max_timeout_s}"
+            )
+        if self.vision_base_timeout_s > self.vision_max_timeout_s:
+            raise ValueError(
+                f"processing.vision_base_timeout_s ({self.vision_base_timeout_s}) "
+                f"must be <= vision_max_timeout_s ({self.vision_max_timeout_s})"
             )
 
 

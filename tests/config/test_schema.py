@@ -188,3 +188,35 @@ class TestProcessingSettings:
         config1 = AppConfig()
         config2 = AppConfig()
         assert config1.processing is not config2.processing
+
+    def test_adaptive_vision_timeout_defaults(self) -> None:
+        """Adaptive vision timeout fields default to 30/15/300 (#407)."""
+        settings = ProcessingSettings()
+        assert settings.vision_base_timeout_s == 30.0
+        assert settings.vision_per_mb_factor_s == 15.0
+        assert settings.vision_max_timeout_s == 300.0
+
+    def test_vision_base_zero_rejected(self) -> None:
+        """vision_base_timeout_s <= 0 is rejected."""
+        with pytest.raises(ValueError, match="vision_base_timeout_s must be > 0"):
+            ProcessingSettings(vision_base_timeout_s=0.0)
+
+    def test_vision_per_mb_factor_negative_rejected(self) -> None:
+        """vision_per_mb_factor_s < 0 is rejected (zero is allowed: flat timeout)."""
+        with pytest.raises(ValueError, match="vision_per_mb_factor_s must be >= 0"):
+            ProcessingSettings(vision_per_mb_factor_s=-1.0)
+
+    def test_vision_per_mb_factor_zero_allowed(self) -> None:
+        """vision_per_mb_factor_s == 0 is fine — yields a flat base timeout per file."""
+        settings = ProcessingSettings(vision_per_mb_factor_s=0.0)
+        assert settings.vision_per_mb_factor_s == 0.0
+
+    def test_vision_max_zero_rejected(self) -> None:
+        """vision_max_timeout_s <= 0 is rejected."""
+        with pytest.raises(ValueError, match="vision_max_timeout_s must be > 0"):
+            ProcessingSettings(vision_max_timeout_s=0.0)
+
+    def test_vision_base_greater_than_max_rejected(self) -> None:
+        """Base above max is nonsensical (clamp would always trigger)."""
+        with pytest.raises(ValueError, match="must be <= vision_max_timeout_s"):
+            ProcessingSettings(vision_base_timeout_s=400.0, vision_max_timeout_s=300.0)
