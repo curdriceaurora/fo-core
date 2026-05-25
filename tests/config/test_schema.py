@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 
 from config.defaults import DEFAULT_MODEL
-from config.schema import AppConfig, ModelPreset, UpdateSettings
+from config.schema import AppConfig, ModelPreset, ProcessingSettings, UpdateSettings
 
-pytestmark = [pytest.mark.unit, pytest.mark.smoke]
+pytestmark = [pytest.mark.unit, pytest.mark.smoke, pytest.mark.ci]
 
 
 @pytest.mark.unit
@@ -151,3 +151,40 @@ class TestAppConfig:
         config1 = AppConfig()
         config2 = AppConfig()
         assert config1.updates is not config2.updates
+
+
+@pytest.mark.unit
+class TestProcessingSettings:
+    """Test suite for ProcessingSettings dataclass (#396)."""
+
+    def test_default_timeout_per_file_is_300s(self) -> None:
+        """Default timeout matches the previous hardcoded value (issue #396)."""
+        settings = ProcessingSettings()
+        assert settings.timeout_per_file == 300.0
+
+    def test_custom_timeout_per_file(self) -> None:
+        """Custom timeout values override the default."""
+        assert ProcessingSettings(timeout_per_file=60.0).timeout_per_file == 60.0
+        assert ProcessingSettings(timeout_per_file=900.0).timeout_per_file == 900.0
+
+    def test_zero_timeout_rejected(self) -> None:
+        """Zero timeout is rejected — it would abandon every task immediately."""
+        with pytest.raises(ValueError, match="must be > 0"):
+            ProcessingSettings(timeout_per_file=0.0)
+
+    def test_negative_timeout_rejected(self) -> None:
+        """Negative timeout is rejected at construction."""
+        with pytest.raises(ValueError, match="must be > 0"):
+            ProcessingSettings(timeout_per_file=-30.0)
+
+    def test_appconfig_processing_default(self) -> None:
+        """AppConfig.processing is a ProcessingSettings with default timeout."""
+        config = AppConfig()
+        assert isinstance(config.processing, ProcessingSettings)
+        assert config.processing.timeout_per_file == 300.0
+
+    def test_processing_factory_creates_independent_instances(self) -> None:
+        """Each AppConfig should get its own ProcessingSettings instance."""
+        config1 = AppConfig()
+        config2 = AppConfig()
+        assert config1.processing is not config2.processing

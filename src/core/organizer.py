@@ -98,6 +98,7 @@ class FileOrganizer:
         enable_vision: bool = True,
         transcribe_audio: bool = False,
         max_transcribe_seconds: float | None = 600.0,
+        timeout_per_file: float = 300.0,
     ) -> None:
         """Initialize file organizer.
 
@@ -124,7 +125,17 @@ class FileOrganizer:
                 Whisper "tiny" is roughly 5-10x realtime on CPU; the 600s
                 default keeps a single file under ~2 minutes of CPU work.
                 ``None`` disables the cap.
+            timeout_per_file: Per-file dispatcher timeout in seconds.
+                Default 300 (5 min). Issue #396 — set this lower
+                (e.g. 90) when your model returns quickly for the
+                workload; raise it (e.g. 600) when working with large
+                images and a slow vision model. The dispatcher cannot
+                cancel a blocking Ollama call, so a too-low value
+                abandons in-flight work that keeps holding the model's
+                generation slot.
         """
+        if timeout_per_file <= 0:
+            raise ValueError(f"timeout_per_file must be > 0, got {timeout_per_file}")
         if text_model_config is None or vision_model_config is None:
             from config.provider_env import get_model_configs
 
@@ -149,11 +160,12 @@ class FileOrganizer:
             logger.info("Prefetch disabled (no_prefetch=True)")
         self.console = Console()
 
+        self.timeout_per_file = timeout_per_file
         self.parallel_config = ParallelConfig(
             max_workers=parallel_workers,
             executor_type=ExecutorType.THREAD,
             prefetch_depth=self.prefetch_depth,
-            timeout_per_file=300.0,
+            timeout_per_file=timeout_per_file,
             retry_count=1,
         )
         self.parallel_processor = ParallelProcessor(self.parallel_config)
