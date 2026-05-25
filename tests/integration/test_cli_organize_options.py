@@ -110,6 +110,40 @@ class TestResolveParallelSettings:
         # min(4, 16//2) = 4 — Ollama cap not applied for remote providers
         assert workers == 4
 
+    def test_max_workers_auto_llama_cpp_ignores_ollama_env(self) -> None:
+        """llama_cpp uses its own model instances — OLLAMA_NUM_PARALLEL doesn't apply.
+
+        Codex P2 catch on PR #423: capping llama_cpp / mlx by the Ollama
+        env var silently disables the new auto-default for those
+        providers when users haven't configured Ollama at all.
+        """
+        from unittest.mock import patch
+
+        with (
+            patch("cli.organize.os.cpu_count", return_value=8),
+            patch("cli.organize._ollama_num_parallel", return_value=1),
+            patch("config.provider_env.get_current_provider", return_value="llama_cpp"),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        # min(4, 8//2) = 4 — Ollama cap NOT applied for llama_cpp
+        assert workers == 4
+
+    def test_max_workers_auto_mlx_ignores_ollama_env(self) -> None:
+        """mlx is Apple-Silicon-only in-process inference; OLLAMA_NUM_PARALLEL irrelevant."""
+        from unittest.mock import patch
+
+        with (
+            patch("cli.organize.os.cpu_count", return_value=8),
+            patch("cli.organize._ollama_num_parallel", return_value=1),
+            patch("config.provider_env.get_current_provider", return_value="mlx"),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        assert workers == 4
+
     def test_max_workers_auto_respects_low_core_count(self) -> None:
         """On a single-core machine the auto-default still produces a sane 1."""
         from unittest.mock import patch

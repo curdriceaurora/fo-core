@@ -23,12 +23,6 @@ console = Console()
 # server). The ceiling is the upper bound regardless of host.
 _AUTO_WORKERS_CEILING: int = 4
 
-# Local providers serve at most one generation per model instance unless
-# their server is configured otherwise. We honour the server-side cap so
-# extra client workers can't queue behind a single in-flight inference
-# and trigger the dispatcher's timeout-abandonment path (#396 + #408).
-_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "llama_cpp", "mlx"})
-
 
 def _ollama_num_parallel() -> int:
     """Read OLLAMA_NUM_PARALLEL from env, defaulting to 1 (Ollama's own default).
@@ -70,12 +64,16 @@ def _auto_worker_default() -> int:
 
         provider = get_current_provider()
     except Exception:
-        # If provider detection fails, treat as local/Ollama (the safer
-        # default — capping at 1 won't slow remote-provider users much
-        # and prevents the Ollama-flood case the issue called out).
+        # If provider detection fails, treat as Ollama (the safer
+        # default — capping at OLLAMA_NUM_PARALLEL=1 prevents the
+        # Ollama-flood case the issue called out).
         provider = "ollama"
 
-    if provider in _LOCAL_PROVIDERS:
+    # Only Ollama actually reads OLLAMA_NUM_PARALLEL; llama_cpp and mlx
+    # use their own in-process model instances and don't respect that
+    # env var. Capping them by it would silently disable the new auto
+    # default for those providers without justification.
+    if provider == "ollama":
         cap = min(cap, _ollama_num_parallel())
     return max(1, cap)
 
@@ -221,11 +219,11 @@ def organize(
         min=1,
         help=(
             "Number of parallel workers for file processing. When omitted, "
-            "defaults to min(4, cpu_count() // 2, OLLAMA_NUM_PARALLEL) for "
-            "local providers (ollama / llama_cpp / mlx) and "
-            "min(4, cpu_count() // 2) for remote providers (openai / claude). "
-            "If your local Ollama server is configured with `OLLAMA_NUM_PARALLEL=N` "
-            "you can safely pass `--workers N` for matching parallelism. "
+            "defaults to min(4, cpu_count() // 2, OLLAMA_NUM_PARALLEL) "
+            "for the Ollama provider, and min(4, cpu_count() // 2) for "
+            "every other provider (openai / claude / llama_cpp / mlx). "
+            "Tune your local Ollama server with `OLLAMA_NUM_PARALLEL=N` "
+            "to safely pass `--workers N` for matching parallelism. "
             "`--workers` is an alias for `--max-workers`. (#408)"
         ),
     ),
