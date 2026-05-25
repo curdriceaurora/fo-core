@@ -110,7 +110,8 @@ def test_organize_command_live(mock_organizer_cls, _mock_setup, tmp_path):
         transcribe_audio=False,
         max_transcribe_seconds=600.0,
     )
-    mock_instance.organize.assert_called_once_with(in_dir, out_dir)
+    # show_skipped kwarg is always forwarded (defaults to False) since #412.
+    mock_instance.organize.assert_called_once_with(in_dir, out_dir, show_skipped=False)
 
 
 @patch("cli.organize._check_setup_completed", return_value=True)
@@ -141,8 +142,10 @@ def test_organize_command_dry_run(mock_organizer_cls, _mock_setup, tmp_path):
         max_transcribe_seconds=600.0,
     )
     # A.cli resolves the path args before dispatching; the service sees
-    # the canonical absolute form.
-    mock_instance.organize.assert_called_once_with(in_dir.resolve(), out_dir.resolve())
+    # the canonical absolute form. show_skipped=False default since #412.
+    mock_instance.organize.assert_called_once_with(
+        in_dir.resolve(), out_dir.resolve(), show_skipped=False
+    )
 
 
 @patch("cli.organize._check_setup_completed", return_value=True)
