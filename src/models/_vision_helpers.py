@@ -34,7 +34,34 @@ _EXTENSION_MIME: dict[str, str] = {
     ".tif": "image/tiff",
     ".heic": "image/heic",
     ".heif": "image/heif",
+    ".svg": "image/svg+xml",
 }
+
+
+def rasterize_svg_to_png_bytes(svg_path: Path) -> bytes:
+    """Rasterize an SVG file to PNG bytes using PyMuPDF (fitz).
+
+    PyMuPDF is a core dependency (used for PDF extraction), so no additional
+    packages are required.
+
+    Args:
+        svg_path: Path to the .svg file.
+
+    Returns:
+        PNG image as raw bytes.
+
+    Raises:
+        OSError: If the SVG cannot be opened or rendered.
+    """
+    import fitz  # PyMuPDF — core dep
+
+    doc = fitz.open(str(svg_path))
+    try:
+        page = doc[0]
+        pix = page.get_pixmap()
+        return bytes(pix.tobytes("png"))
+    finally:
+        doc.close()
 
 
 def downscale_image_if_needed(
@@ -62,6 +89,43 @@ def downscale_image_if_needed(
         ImportError: If PIL/Pillow is not available.
         OSError: If the image cannot be opened or processed.
     """
+    # SVG cannot be opened by Pillow — rasterize via fitz first, then downscale the PNG
+    if image_path.suffix.lower() == ".svg":
+        png_bytes = rasterize_svg_to_png_bytes(image_path)
+        try:
+            from PIL import Image
+
+            with Image.open(io.BytesIO(png_bytes)) as img:
+                width, height = img.size
+                if max(width, height) <= max_long_edge:
+                    return png_bytes, True
+                if width > height:
+                    new_width = max_long_edge
+                    new_height = int(height * (max_long_edge / width))
+                else:
+                    new_height = max_long_edge
+                    new_width = int(width * (max_long_edge / height))
+                logger.debug(
+                    "Downscaling rasterized SVG {} from {}×{} → {}×{} before vision inference",
+                    image_path.name,
+                    width,
+                    height,
+                    new_width,
+                    new_height,
+                )
+                resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                buf = io.BytesIO()
+                resized.save(buf, format="PNG")
+                buf.seek(0)
+                return buf.getvalue(), True
+        except Exception as exc:
+            logger.warning(
+                "Failed to downscale rasterized SVG {}: {}; using rasterized PNG",
+                image_path.name,
+                exc,
+            )
+            return png_bytes, True
+
     try:
         from PIL import Image
     except ImportError as exc:
@@ -137,6 +201,12 @@ def image_to_data_url(image_path: Path) -> str:
             symlink (POSIX only).
     """
     ext = image_path.suffix.lower()
+
+    # SVG: rasterize to PNG via fitz — SafeDir and base64 encoding expect raster bytes
+    if ext == ".svg":
+        png_bytes = rasterize_svg_to_png_bytes(image_path)
+        return bytes_to_data_url(png_bytes, "image/png")
+
     mime_type = _EXTENSION_MIME.get(ext)
     if not mime_type:
         mime_type, _ = mimetypes.guess_type(str(image_path))

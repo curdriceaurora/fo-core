@@ -38,9 +38,11 @@ DEFAULT_SUPPORTED_EXTENSIONS: frozenset[str] = frozenset(
         ".gif",
         ".bmp",
         ".tiff",
+        ".tif",
         ".webp",
         ".heic",
         ".heif",
+        ".svg",
         # Video
         ".mp4",
         ".avi",

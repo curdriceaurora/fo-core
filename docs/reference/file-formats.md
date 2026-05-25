@@ -3,14 +3,14 @@
 | Category | Formats | Count |
 |----------|---------|-------|
 | Documents | `.txt`, `.md`, `.pdf`, `.docx`, `.doc`, `.csv`, `.xlsx`, `.xls`, `.ppt`, `.pptx`, `.epub` | 11 |
-| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif` | 10 |
+| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif`, `.svg` | 11 |
 | Video | `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv` | 5 |
 | Audio | `.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg` | 5 |
 | Archives | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.rar` | 7 |
 | Scientific | `.hdf5`, `.h5`, `.hdf`, `.nc`, `.nc4`, `.netcdf`, `.mat` | 7 |
 | CAD | `.dxf`, `.dwg`, `.step`, `.stp`, `.iges`, `.igs` | 6 |
 
-**Total**: 48+ file types supported
+**Total**: 49+ file types supported
 
 ## Optional Dependencies
 
@@ -23,7 +23,7 @@ Each format group maps to an install extra:
 | Archives | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`, `.rar` | py7zr, rarfile | Core (default) |
 | Scientific | `.hdf5`, `.h5`, `.hdf`, `.nc`, `.nc4`, `.netcdf`, `.mat` | h5py, netCDF4, scipy | `[scientific]` |
 | CAD | `.dxf`, `.dwg`, `.step`, `.stp`, `.iges`, `.igs` | ezdxf | `[cad]` |
-| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif` | None (VisionProcessor) | Core |
+| Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.tiff`, `.tif`, `.webp`, `.heic`, `.heif`, `.svg` | None (VisionProcessor); `.svg` rasterized via PyMuPDF | Core |
 | Audio | `.mp3`, `.wav`, `.flac`, `.m4a`, `.ogg` | faster-whisper, torch | `[media]` |
 | Video | `.mp4`, `.avi`, `.mkv`, `.mov`, `.wmv` | opencv-python, scenedetect | `[media]` |
 
