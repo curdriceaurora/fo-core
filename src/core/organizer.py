@@ -264,8 +264,18 @@ class FileOrganizer:
         if all_processed:
             all_processed = self._deduplicate_processed(all_processed, result)
             failed_cnt = sum(1 for p in all_processed if p.error)
+            # Vision-timeout fallbacks (#406) count as processed (they
+            # landed in a folder) but are marked low-confidence for the
+            # review section. ProcessedFile carries no `source` field, so
+            # the check is guarded by `hasattr`.
+            fallback_cnt = sum(
+                1
+                for p in all_processed
+                if hasattr(p, "source") and str(getattr(p, "source", "")).startswith("fallback_")
+            )
             result.processed_files = len(all_processed) - failed_cnt
             result.failed_files = failed_cnt
+            result.fallback_files = fallback_cnt
             self._execute_organization(
                 all_processed, input_path, output_path, skip_existing, result
             )

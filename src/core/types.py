@@ -37,6 +37,10 @@ class OrganizationResult:
             ``.nib``) to the number of skipped files with that suffix. Office
             temp lock files (``~$*``) and extensionless files use the
             ``<office-temp>`` and ``<no-extension>`` sentinel keys.
+        fallback_files: Number of images that timed out in the vision model
+            and were placed via the metadata fallback (#406). These count
+            toward ``processed_files`` (they reached a folder) but are
+            low-confidence and should be reviewed.
 
     Invariant:
         processed_files + skipped_files + failed_files + deduplicated_files == total_files
@@ -51,6 +55,7 @@ class OrganizationResult:
     organized_structure: dict[str, list[str]] = field(default_factory=dict)
     errors: list[tuple[str, str]] = field(default_factory=list)  # (file, error)
     skipped_by_extension: Counter[str] = field(default_factory=Counter)
+    fallback_files: int = 0
 
 
 # ---------------------------------------------------------------------------

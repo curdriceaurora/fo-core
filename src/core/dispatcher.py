@@ -178,6 +178,17 @@ def process_text_files(
     return processed
 
 
+def _is_timeout_error(error_msg: str) -> bool:
+    """Match the dispatcher's timeout-error sentinel.
+
+    The parallel processor emits ``"Timed out after Xs"`` (see
+    ``parallel/processor.py``) when it abandons a long-running task.
+    Other errors (read failures, corrupt files) take the regular failure
+    path. Match by prefix so the timing-suffix doesn't have to be exact.
+    """
+    return error_msg.startswith("Timed out after")
+
+
 def process_image_files(
     files: list[Path],
     vision_processor: VisionProcessor,
@@ -222,21 +233,50 @@ def process_image_files(
                     )
             else:
                 error_msg = file_result.error or "Unknown error"
-                logger.error("Failed to process {}: {}", file_result.path, error_msg)
-                processed.append(
-                    ProcessedImage(
-                        file_path=file_result.path,
-                        description="",
-                        folder_name=ERROR_FALLBACK_FOLDER,
-                        filename=file_result.path.stem,
-                        error=error_msg,
+                # #406: vision timeouts go through the metadata fallback path
+                # instead of being dropped into the error bucket. Other
+                # failures (read error, corrupt image, …) still error-out.
+                if _is_timeout_error(error_msg):
+                    from services.vision_fallback import compute_fallback
+
+                    fb = compute_fallback(file_result.path)
+                    logger.info(
+                        "Vision timed out for {}; categorized via {} → {}",
+                        file_result.path.name,
+                        fb.source,
+                        fb.folder,
                     )
-                )
-                progress.update(
-                    task,
-                    advance=1,
-                    description=f"[red]✗[/red] {file_result.path.name} (Failed)",
-                )
+                    processed.append(
+                        ProcessedImage(
+                            file_path=file_result.path,
+                            description="",
+                            folder_name=fb.folder,
+                            filename=fb.filename,
+                            source=fb.source,
+                            # NB: no `error` field — the file is not a failure
+                        )
+                    )
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[yellow]⚠[/yellow] {file_result.path.name} (fallback)",
+                    )
+                else:
+                    logger.error("Failed to process {}: {}", file_result.path, error_msg)
+                    processed.append(
+                        ProcessedImage(
+                            file_path=file_result.path,
+                            description="",
+                            folder_name=ERROR_FALLBACK_FOLDER,
+                            filename=file_result.path.stem,
+                            error=error_msg,
+                        )
+                    )
+                    progress.update(
+                        task,
+                        advance=1,
+                        description=f"[red]✗[/red] {file_result.path.name} (Failed)",
+                    )
 
     return processed
 
