@@ -184,6 +184,36 @@ class TestResolveParallelSettings:
         monkeypatch.setenv("FO_PROVIDER", "mlx")
         assert _get_current_provider_lazy() == "mlx"
 
+    def test_provider_lazy_invalid_fo_provider_falls_back_to_ollama(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A typo'd FO_PROVIDER (e.g. 'olama') matches runtime: classify as Ollama.
+
+        Codex P2 catch on PR #423: ``get_model_configs()`` treats any
+        non-empty FO_PROVIDER as the env path, which then routes
+        through ``get_current_provider()`` and falls back to "ollama"
+        for unrecognised values. The resolver must mirror that, or a
+        typo would cause it to fall through to a profile framework
+        (e.g. "llama_cpp") and skip the Ollama parallel cap while the
+        executor still runs Ollama.
+        """
+        from unittest.mock import MagicMock, patch
+
+        from cli.organize import _get_current_provider_lazy
+        from config.schema import AppConfig, ModelPreset
+
+        monkeypatch.setenv("FO_PROVIDER", "olama")  # typo
+
+        mock_manager = MagicMock()
+        mock_manager.load.return_value = AppConfig(models=ModelPreset(framework="llama_cpp"))
+        with patch("config.manager.ConfigManager", return_value=mock_manager):
+            assert _get_current_provider_lazy() == "ollama"
+        # The typo'd env var short-circuits before the profile lookup —
+        # we must not consult ConfigManager when FO_PROVIDER is set
+        # (matches runtime, where any non-empty FO_PROVIDER takes the
+        # env path instead of the profile path).
+        mock_manager.load.assert_not_called()
+
     def test_provider_lazy_creds_env_alone_does_not_switch_provider(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -77,8 +77,14 @@ def _get_current_provider_lazy() -> str:
     cost (#404 fast-path).
     """
     env_provider = os.environ.get("FO_PROVIDER", "").strip().lower()
-    if env_provider in _KNOWN_PROVIDERS:
-        return env_provider
+    if env_provider:
+        # Any non-empty FO_PROVIDER routes through get_model_configs's
+        # env path at runtime; that path calls get_current_provider(),
+        # which falls back to "ollama" for unrecognised values. Mirror
+        # that here so a typo (e.g. FO_PROVIDER=olama) classifies as
+        # Ollama instead of leaking through to the profile lookup
+        # (Codex P2 catch on PR #423).
+        return env_provider if env_provider in _KNOWN_PROVIDERS else "ollama"
     try:
         from config.manager import ConfigManager
     except ImportError:
