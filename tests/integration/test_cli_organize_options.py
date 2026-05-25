@@ -50,15 +50,19 @@ class TestResolveParallelSettings:
         assert workers <= 4
         assert depth == 2
 
-    def test_max_workers_auto_ollama_default_caps_at_one(self) -> None:
+    def test_max_workers_auto_ollama_default_caps_at_one(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """With Ollama (default provider) and OLLAMA_NUM_PARALLEL unset → 1 worker (#408)."""
         from unittest.mock import patch
 
+        # Confirm OLLAMA_NUM_PARALLEL is actually unset for this test's
+        # intent — patch.dict({}, clear=False) doesn't remove the var.
+        monkeypatch.delenv("OLLAMA_NUM_PARALLEL", raising=False)
         with (
             patch("cli.organize.os.cpu_count", return_value=32),
-            patch.dict("os.environ", {}, clear=False),
             patch("cli.organize._ollama_num_parallel", return_value=1),
-            patch("config.provider_env.get_current_provider", return_value="ollama"),
+            patch("cli.organize._get_current_provider_lazy", return_value="ollama"),
         ):
             workers, _ = _resolve_parallel_settings(
                 sequential=False, max_workers=None, prefetch_depth=2
@@ -73,7 +77,7 @@ class TestResolveParallelSettings:
         with (
             patch("cli.organize.os.cpu_count", return_value=32),
             patch("cli.organize._ollama_num_parallel", return_value=4),
-            patch("config.provider_env.get_current_provider", return_value="ollama"),
+            patch("cli.organize._get_current_provider_lazy", return_value="ollama"),
         ):
             workers, _ = _resolve_parallel_settings(
                 sequential=False, max_workers=None, prefetch_depth=2
@@ -88,7 +92,7 @@ class TestResolveParallelSettings:
         with (
             patch("cli.organize.os.cpu_count", return_value=32),
             patch("cli.organize._ollama_num_parallel", return_value=12),
-            patch("config.provider_env.get_current_provider", return_value="ollama"),
+            patch("cli.organize._get_current_provider_lazy", return_value="ollama"),
         ):
             workers, _ = _resolve_parallel_settings(
                 sequential=False, max_workers=None, prefetch_depth=2
@@ -102,7 +106,7 @@ class TestResolveParallelSettings:
         with (
             patch("cli.organize.os.cpu_count", return_value=16),
             patch("cli.organize._ollama_num_parallel", return_value=1),
-            patch("config.provider_env.get_current_provider", return_value="openai"),
+            patch("cli.organize._get_current_provider_lazy", return_value="openai"),
         ):
             workers, _ = _resolve_parallel_settings(
                 sequential=False, max_workers=None, prefetch_depth=2
@@ -122,7 +126,7 @@ class TestResolveParallelSettings:
         with (
             patch("cli.organize.os.cpu_count", return_value=8),
             patch("cli.organize._ollama_num_parallel", return_value=1),
-            patch("config.provider_env.get_current_provider", return_value="llama_cpp"),
+            patch("cli.organize._get_current_provider_lazy", return_value="llama_cpp"),
         ):
             workers, _ = _resolve_parallel_settings(
                 sequential=False, max_workers=None, prefetch_depth=2
@@ -137,7 +141,7 @@ class TestResolveParallelSettings:
         with (
             patch("cli.organize.os.cpu_count", return_value=8),
             patch("cli.organize._ollama_num_parallel", return_value=1),
-            patch("config.provider_env.get_current_provider", return_value="mlx"),
+            patch("cli.organize._get_current_provider_lazy", return_value="mlx"),
         ):
             workers, _ = _resolve_parallel_settings(
                 sequential=False, max_workers=None, prefetch_depth=2
@@ -168,32 +172,30 @@ class TestResolveParallelSettings:
             )
         assert workers == 1
 
-    def test_ollama_num_parallel_invalid_value_defaults_to_one(self) -> None:
+    def test_ollama_num_parallel_invalid_value_defaults_to_one(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Non-int OLLAMA_NUM_PARALLEL silently degrades to 1."""
-        from unittest.mock import patch
-
         from cli.organize import _ollama_num_parallel
 
-        with patch.dict("os.environ", {"OLLAMA_NUM_PARALLEL": "garbage"}):
-            assert _ollama_num_parallel() == 1
+        monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "garbage")
+        assert _ollama_num_parallel() == 1
 
-    def test_ollama_num_parallel_negative_value_clamps_to_one(self) -> None:
+    def test_ollama_num_parallel_negative_value_clamps_to_one(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Negative OLLAMA_NUM_PARALLEL also clamps to 1 (defensive)."""
-        from unittest.mock import patch
-
         from cli.organize import _ollama_num_parallel
 
-        with patch.dict("os.environ", {"OLLAMA_NUM_PARALLEL": "-5"}):
-            assert _ollama_num_parallel() == 1
+        monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "-5")
+        assert _ollama_num_parallel() == 1
 
-    def test_ollama_num_parallel_reads_from_env(self) -> None:
+    def test_ollama_num_parallel_reads_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A valid OLLAMA_NUM_PARALLEL value is returned verbatim."""
-        from unittest.mock import patch
-
         from cli.organize import _ollama_num_parallel
 
-        with patch.dict("os.environ", {"OLLAMA_NUM_PARALLEL": "8"}):
-            assert _ollama_num_parallel() == 8
+        monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "8")
+        assert _ollama_num_parallel() == 8
 
     def test_max_workers_explicit(self) -> None:
         workers, depth = _resolve_parallel_settings(

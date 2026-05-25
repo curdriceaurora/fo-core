@@ -38,42 +38,49 @@ def _ollama_num_parallel() -> int:
         return 1
 
 
+def _get_current_provider_lazy() -> str:
+    """Module-level lazy-loader for `config.provider_env.get_current_provider`.
+
+    The provider-env module pulls loguru and model-config plumbing that we
+    don't want on the CLI startup path (#404 fast-path).  This wrapper
+    imports it on first call and forwards the result; on ImportError it
+    falls back to ``"ollama"`` (the safest default — capping at
+    ``OLLAMA_NUM_PARALLEL=1`` prevents the Ollama-flood case the issue
+    called out).  ``get_current_provider()`` itself already handles
+    unknown FO_PROVIDER values by returning "ollama", so we don't need a
+    broad ``except Exception`` here.
+    """
+    try:
+        from config.provider_env import get_current_provider
+    except ImportError:
+        return "ollama"
+    return get_current_provider()
+
+
 def _auto_worker_default() -> int:
     """Resolve worker count when --workers / --max-workers is omitted (#408).
 
-    Picks the minimum of three caps:
+    Picks the minimum of these caps:
 
     1. ``_AUTO_WORKERS_CEILING`` (4) — never exceed the inference
        backend's reasonable queue depth.
-    2. ``cpu_count() // 2`` — leave headroom for the OS + Ollama process
-       on the same host.
-    3. For local providers (ollama / llama_cpp / mlx),
-       ``OLLAMA_NUM_PARALLEL`` (default 1) — match the server's
+    2. ``cpu_count() // 2`` — leave headroom for the OS + provider
+       process on the same host.
+    3. ``OLLAMA_NUM_PARALLEL`` (default 1) — **applied only when the
+       active provider is ``"ollama"``**, matching the server's
        configured parallelism so extra client threads don't pile up
-       behind a single in-flight inference. Remote providers (openai /
-       claude) skip this cap because they handle concurrency
-       server-side with rate limits.
+       behind a single in-flight inference.
+
+    Other providers fall through to caps (1) and (2):
+
+    - ``llama_cpp`` and ``mlx`` use their own in-process model instances
+      and don't read ``OLLAMA_NUM_PARALLEL``.
+    - ``openai`` and ``claude`` handle concurrency server-side via rate
+      limits.
     """
     cpu = os.cpu_count() or 1
     cap = min(_AUTO_WORKERS_CEILING, max(1, cpu // 2))
-
-    # Lazy-import to avoid pulling provider_env (and its loguru chain)
-    # at CLI startup for `fo version` etc. (#404 fast-path).
-    try:
-        from config.provider_env import get_current_provider
-
-        provider = get_current_provider()
-    except Exception:
-        # If provider detection fails, treat as Ollama (the safer
-        # default — capping at OLLAMA_NUM_PARALLEL=1 prevents the
-        # Ollama-flood case the issue called out).
-        provider = "ollama"
-
-    # Only Ollama actually reads OLLAMA_NUM_PARALLEL; llama_cpp and mlx
-    # use their own in-process model instances and don't respect that
-    # env var. Capping them by it would silently disable the new auto
-    # default for those providers without justification.
-    if provider == "ollama":
+    if _get_current_provider_lazy() == "ollama":
         cap = min(cap, _ollama_num_parallel())
     return max(1, cap)
 
@@ -368,7 +375,9 @@ def preview(
         min=1,
         help=(
             "Number of parallel workers for file processing. Auto-default "
-            "min(4, cpu_count() // 2) (#408). `--workers` is an alias."
+            "min(4, cpu_count() // 2, OLLAMA_NUM_PARALLEL) for the Ollama "
+            "provider; min(4, cpu_count() // 2) for every other provider "
+            "(openai / claude / llama_cpp / mlx). `--workers` is an alias. (#408)"
         ),
     ),
     sequential: bool = typer.Option(
