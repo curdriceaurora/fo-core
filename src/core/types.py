@@ -55,7 +55,7 @@ class OrganizationResult:
     organized_structure: dict[str, list[str]] = field(default_factory=dict)
     errors: list[tuple[str, str]] = field(default_factory=list)  # (file, error)
     skipped_by_extension: Counter[str] = field(default_factory=Counter)
-    fallback_files: int = 0
+    fallback_files: int = 0  # pyre-ignore[35]: Pyre 0.9.25 mis-flags dataclass field annotations under `from __future__ import annotations`. Same pre-existing pattern as the other counters above (alerts #39-46 on main).
 
 
 # ---------------------------------------------------------------------------
