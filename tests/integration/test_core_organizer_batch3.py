@@ -533,6 +533,63 @@ class TestDisplay:
             other_files=[Path("x.xyz")],
         )
 
+    def test_show_summary_skipped_extensions_under_top_n(self, tmp_path: Path) -> None:
+        """Few unsupported extensions render the full list with the Skipped-by-extension header."""
+        from collections import Counter
+
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(quiet=True)
+        result = OrganizationResult(
+            total_files=4,
+            skipped_files=4,
+            skipped_by_extension=Counter({".nib": 2, ".stl": 1, ".html": 1}),
+        )
+
+        show_summary(console, result, tmp_path, dry_run=True)
+
+    def test_show_summary_skipped_extensions_over_top_n_truncates(self, tmp_path: Path) -> None:
+        """More than 10 distinct extensions truncates to Top 10 and prints the tail hint."""
+        from collections import Counter
+
+        from rich.console import Console
+
+        from core.display import TOP_SKIPPED_EXTENSIONS, show_summary
+        from core.types import OrganizationResult
+
+        console = Console(quiet=True)
+        # 12 distinct extensions → 2 truncated, hint line exercised
+        counts = {f".ext{i:02d}": (TOP_SKIPPED_EXTENSIONS + 2 - i) for i in range(12)}
+        result = OrganizationResult(
+            total_files=sum(counts.values()),
+            skipped_files=sum(counts.values()),
+            skipped_by_extension=Counter(counts),
+        )
+
+        show_summary(console, result, tmp_path, dry_run=False)
+
+    def test_show_summary_show_skipped_expands_full_list(self, tmp_path: Path) -> None:
+        """show_skipped=True bypasses the Top-N cap regardless of distinct count."""
+        from collections import Counter
+
+        from rich.console import Console
+
+        from core.display import TOP_SKIPPED_EXTENSIONS, show_summary
+        from core.types import OrganizationResult
+
+        console = Console(quiet=True)
+        counts = {f".ext{i:02d}": (TOP_SKIPPED_EXTENSIONS + 2 - i) for i in range(15)}
+        result = OrganizationResult(
+            total_files=sum(counts.values()),
+            skipped_files=sum(counts.values()),
+            skipped_by_extension=Counter(counts),
+        )
+
+        show_summary(console, result, tmp_path, dry_run=True, show_skipped=True)
+
 
 # ---------------------------------------------------------------------------
 # TestDispatcher

@@ -29,6 +29,8 @@ from core.types import (
     AUDIO_EXTENSIONS,
     CAD_EXTENSIONS,
     IMAGE_EXTENSIONS,
+    NO_EXTENSION_SENTINEL,
+    OFFICE_TEMP_SENTINEL,
     TEXT_EXTENSIONS,
     TEXT_FALLBACK_MAP,
     VIDEO_EXTENSIONS,
@@ -195,6 +197,8 @@ class FileOrganizer:
         input_path: str | Path,
         output_path: str | Path,
         skip_existing: bool = True,
+        *,
+        show_skipped: bool = False,
     ) -> OrganizationResult:
         """Organize files from input directory to output directory.
 
@@ -202,6 +206,9 @@ class FileOrganizer:
             input_path: Path to directory with files to organize
             output_path: Path to output directory
             skip_existing: Skip files that already exist in output
+            show_skipped: When True, the summary renderer prints every
+                skipped-extension entry instead of capping at the top-N
+                preview. Wired to ``--show-skipped`` on ``fo organize``.
 
         Returns:
             OrganizationResult with statistics and structure
@@ -254,13 +261,21 @@ class FileOrganizer:
         # Skipped files
         if other_files:
             result.skipped_files = len(other_files)
-            self.console.print("\n[bold yellow]Skipped Files:[/bold yellow]")
+            # Tally the breakdown by extension (issue #412). Stored on the
+            # result so the summary renderer and --json output can surface
+            # actionable signal about which formats would reduce the skip
+            # rate the most.
             for f in other_files:
-                self.console.print(f"  [yellow]•[/yellow] {f.name} (unsupported type)")
-            self.console.print("\n  [dim]These file types are not yet supported[/dim]")
+                result.skipped_by_extension[self._skipped_extension_key(f)] += 1
 
         result.processing_time = time.time() - start_time
-        display.show_summary(self.console, result, output_path, dry_run=self.dry_run)
+        display.show_summary(
+            self.console,
+            result,
+            output_path,
+            dry_run=self.dry_run,
+            show_skipped=show_skipped,
+        )
 
         return result
 
@@ -303,6 +318,26 @@ class FileOrganizer:
                 other_files.append(f)
 
         return text_files, image_files, video_files, audio_files, cad_files, other_files
+
+    @staticmethod
+    def _skipped_extension_key(f: Path) -> str:
+        """Compute the skipped-extension bucket key for *f*.
+
+        Returns:
+            - ``OFFICE_TEMP_SENTINEL`` for Office lock files (``~$*``); the
+              .docx/.xlsx suffix would otherwise misleadingly suggest a
+              supported type was being skipped.
+            - ``NO_EXTENSION_SENTINEL`` for files with no suffix (``README``,
+              ``LICENSE``, …) so they don't collapse to ``""`` in the
+              breakdown.
+            - The lower-cased ``Path.suffix`` (e.g. ``.nib``) otherwise.
+        """
+        if f.name.startswith("~$"):
+            return OFFICE_TEMP_SENTINEL
+        ext = f.suffix.lower()
+        if not ext:
+            return NO_EXTENSION_SENTINEL
+        return ext
 
     def _process_image_type(self, image_files: list[Path]) -> list[ProcessedFile | ProcessedImage]:
         """Process image files, using vision model if available and enabled."""

@@ -8,7 +8,16 @@ used across core modules.
 # annotations when `from __future__ import annotations` is in use.
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
+
+# Sentinel keys for the skipped-extension tally when the file's suffix
+# either doesn't map cleanly to an extension or would be misleading.
+# Bucketing under these stable strings keeps the breakdown actionable
+# (users see "<office-temp>: 12" instead of ".docx: 12" — the latter would
+# suggest .docx is unsupported, which is the opposite of the truth).
+OFFICE_TEMP_SENTINEL: str = "<office-temp>"
+NO_EXTENSION_SENTINEL: str = "<no-extension>"
 
 
 @dataclass
@@ -24,6 +33,10 @@ class OrganizationResult:
         processing_time: Total time taken in seconds
         organized_structure: Dictionary mapping folder names to file lists
         errors: List of (file_path, error_message) tuples
+        skipped_by_extension: Counter mapping lower-cased extension (e.g.
+            ``.nib``) to the number of skipped files with that suffix. Office
+            temp lock files (``~$*``) and extensionless files use the
+            ``<office-temp>`` and ``<no-extension>`` sentinel keys.
 
     Invariant:
         processed_files + skipped_files + failed_files + deduplicated_files == total_files
@@ -37,6 +50,7 @@ class OrganizationResult:
     processing_time: float = 0.0
     organized_structure: dict[str, list[str]] = field(default_factory=dict)
     errors: list[tuple[str, str]] = field(default_factory=list)  # (file, error)
+    skipped_by_extension: Counter[str] = field(default_factory=Counter)
 
 
 # ---------------------------------------------------------------------------

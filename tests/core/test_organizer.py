@@ -478,6 +478,196 @@ class TestCategorizeFiles:
 
 
 # ---------------------------------------------------------------------------
+# skipped_by_extension reporting (#412)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestSkippedByExtensionReport:
+    """Unit tests for the skipped-extension breakdown on OrganizationResult."""
+
+    def test_organization_result_default_skipped_by_extension_is_empty(self) -> None:
+        """OrganizationResult initializes skipped_by_extension to an empty Counter."""
+        from collections import Counter
+
+        result = OrganizationResult()
+        assert isinstance(result.skipped_by_extension, Counter)
+        assert result.skipped_by_extension == Counter()
+
+    def test_skipped_extension_key_for_normal_extension(self, tmp_path: Path) -> None:
+        """A normal unsupported extension is lower-cased and returned as-is."""
+        assert FileOrganizer._skipped_extension_key(tmp_path / "a.NIB") == ".nib"
+        assert FileOrganizer._skipped_extension_key(tmp_path / "b.stl") == ".stl"
+
+    def test_skipped_extension_key_for_office_temp(self, tmp_path: Path) -> None:
+        """Office temp lock files bucket under the <office-temp> sentinel."""
+        assert FileOrganizer._skipped_extension_key(tmp_path / "~$doc.docx") == "<office-temp>"
+
+    def test_skipped_extension_key_for_extensionless(self, tmp_path: Path) -> None:
+        """Files without a suffix bucket under the <no-extension> sentinel."""
+        assert FileOrganizer._skipped_extension_key(tmp_path / "README") == "<no-extension>"
+
+    def test_organize_populates_skipped_by_extension(self, tmp_path: Path) -> None:
+        """After organize(), skipped_by_extension counts unsupported extensions."""
+        from collections import Counter
+
+        src = tmp_path / "src"
+        src.mkdir()
+        # Three unsupported extensions with varying counts.
+        for i in range(3):
+            (src / f"a{i}.nib").write_bytes(b"x")
+        for i in range(2):
+            (src / f"b{i}.stl").write_bytes(b"x")
+        (src / "c.xyz").write_bytes(b"x")
+
+        out = tmp_path / "out"
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        result = organizer.organize(src, out)
+
+        assert isinstance(result.skipped_by_extension, Counter)
+        assert result.skipped_by_extension[".nib"] == 3
+        assert result.skipped_by_extension[".stl"] == 2
+        assert result.skipped_by_extension[".xyz"] == 1
+        # Aggregate skipped_files still matches.
+        assert result.skipped_files == 6
+
+    def test_extensions_are_case_insensitive(self, tmp_path: Path) -> None:
+        """Uppercase/lowercase variants of an unsupported extension merge."""
+        from collections import Counter
+
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "a.NIB").write_bytes(b"x")
+        (src / "b.nib").write_bytes(b"x")
+        (src / "c.Nib").write_bytes(b"x")
+
+        out = tmp_path / "out"
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        result = organizer.organize(src, out)
+
+        assert isinstance(result.skipped_by_extension, Counter)
+        assert result.skipped_by_extension[".nib"] == 3
+
+    def test_office_temp_lock_files_use_sentinel_extension(self, tmp_path: Path) -> None:
+        """Office temp lock files (~$*) bucket under <office-temp>, not .docx."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "~$doc.docx").write_bytes(b"x")
+        (src / "~$sheet.xlsx").write_bytes(b"x")
+
+        out = tmp_path / "out"
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        result = organizer.organize(src, out)
+
+        # Office temp files share a sentinel category, not their suffix —
+        # using their suffix would route them to .docx/.xlsx which are
+        # *supported*, giving misleading actionable signal.
+        assert result.skipped_by_extension["<office-temp>"] == 2
+        assert result.skipped_by_extension[".docx"] == 0
+        assert result.skipped_files == 2
+
+    def test_extensionless_files_use_sentinel(self, tmp_path: Path) -> None:
+        """Files without an extension bucket under <no-extension>."""
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "README").write_bytes(b"x")
+        (src / "LICENSE").write_bytes(b"x")
+
+        out = tmp_path / "out"
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        result = organizer.organize(src, out)
+
+        assert result.skipped_by_extension["<no-extension>"] == 2
+
+
+# ---------------------------------------------------------------------------
+# show_summary skipped-extension display (#412)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.ci
+class TestSummarySkippedExtensions:
+    """Tests for top-10 / --show-skipped rendering in show_summary."""
+
+    def test_summary_shows_extensions_with_counts(self, tmp_path: Path) -> None:
+        """show_summary prints each tallied extension with its count."""
+        from collections import Counter
+
+        from core.display import show_summary
+
+        console = MagicMock()
+        res = OrganizationResult(
+            total_files=10,
+            skipped_files=10,
+            skipped_by_extension=Counter({".nib": 5, ".stl": 3, ".xyz": 2}),
+        )
+        show_summary(console, res, tmp_path, dry_run=True)
+
+        printed = " ".join(str(c) for c in console.print.call_args_list)
+        assert ".nib" in printed and "5" in printed
+        assert ".stl" in printed and "3" in printed
+        assert ".xyz" in printed and "2" in printed
+
+    def test_summary_caps_at_top_10_with_hint(self, tmp_path: Path) -> None:
+        """With >10 distinct extensions, show top 10 and a hint about the rest."""
+        from collections import Counter
+
+        from core.display import show_summary
+
+        console = MagicMock()
+        # 12 distinct extensions
+        counts = Counter({f".ext{i:02d}": (20 - i) for i in range(12)})
+        res = OrganizationResult(
+            total_files=sum(counts.values()),
+            skipped_files=sum(counts.values()),
+            skipped_by_extension=counts,
+        )
+        show_summary(console, res, tmp_path, dry_run=True)
+
+        printed = " ".join(str(c) for c in console.print.call_args_list)
+        # Top-1 .ext00 (count 20) appears; tail .ext11 (count 9) does NOT.
+        assert ".ext00" in printed
+        assert ".ext11" not in printed
+        # Hint message about more.
+        assert "--show-skipped" in printed
+
+    def test_summary_show_skipped_lists_all(self, tmp_path: Path) -> None:
+        """show_summary(show_skipped=True) prints the full grouped list."""
+        from collections import Counter
+
+        from core.display import show_summary
+
+        console = MagicMock()
+        counts = Counter({f".ext{i:02d}": (20 - i) for i in range(12)})
+        res = OrganizationResult(
+            total_files=sum(counts.values()),
+            skipped_files=sum(counts.values()),
+            skipped_by_extension=counts,
+        )
+        show_summary(console, res, tmp_path, dry_run=True, show_skipped=True)
+
+        printed = " ".join(str(c) for c in console.print.call_args_list)
+        # Every extension must appear.
+        for i in range(12):
+            assert f".ext{i:02d}" in printed
+
+    def test_summary_omits_breakdown_when_no_skipped_files(self, tmp_path: Path) -> None:
+        """No top-extensions block printed when nothing was skipped."""
+        from core.display import show_summary
+
+        console = MagicMock()
+        res = OrganizationResult(total_files=3, processed_files=3)
+        show_summary(console, res, tmp_path, dry_run=True)
+
+        printed = " ".join(str(c) for c in console.print.call_args_list)
+        # The breakdown header is only shown when there are skipped entries.
+        assert "Top 10 skipped extensions" not in printed
+        assert "Skipped by extension" not in printed
+
+
+# ---------------------------------------------------------------------------
 # _deduplicate_processed tests
 # ---------------------------------------------------------------------------
 
