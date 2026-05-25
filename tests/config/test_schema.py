@@ -7,7 +7,7 @@ import pytest
 from config.defaults import DEFAULT_MODEL
 from config.schema import AppConfig, ModelPreset, ProcessingSettings, UpdateSettings
 
-pytestmark = [pytest.mark.unit, pytest.mark.smoke]
+pytestmark = [pytest.mark.unit, pytest.mark.smoke, pytest.mark.ci]
 
 
 @pytest.mark.unit
