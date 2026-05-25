@@ -20,15 +20,64 @@ console = Console()
 # Worker auto-default cap (#408). The previous None → cpu_count() path
 # over-provisioned on multi-core machines (an M-series Mac with 16 cores
 # was launching 16 simultaneous Ollama requests, saturating the model
-# server). Clamp the floor to 1 and the ceiling to 4 so Ollama's
-# generation queue stays under a sane upper bound regardless of host.
+# server). The ceiling is the upper bound regardless of host.
 _AUTO_WORKERS_CEILING: int = 4
+
+# Local providers serve at most one generation per model instance unless
+# their server is configured otherwise. We honour the server-side cap so
+# extra client workers can't queue behind a single in-flight inference
+# and trigger the dispatcher's timeout-abandonment path (#396 + #408).
+_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "llama_cpp", "mlx"})
+
+
+def _ollama_num_parallel() -> int:
+    """Read OLLAMA_NUM_PARALLEL from env, defaulting to 1 (Ollama's own default).
+
+    Lives behind a helper so tests can patch it. A non-int / negative
+    value falls back to 1; the env var is the user's contract with the
+    Ollama server, and we mirror that here rather than override it.
+    """
+    raw = os.environ.get("OLLAMA_NUM_PARALLEL", "1")
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 1
 
 
 def _auto_worker_default() -> int:
-    """Return the auto-resolved worker count when --workers / --max-workers omitted (#408)."""
+    """Resolve worker count when --workers / --max-workers is omitted (#408).
+
+    Picks the minimum of three caps:
+
+    1. ``_AUTO_WORKERS_CEILING`` (4) — never exceed the inference
+       backend's reasonable queue depth.
+    2. ``cpu_count() // 2`` — leave headroom for the OS + Ollama process
+       on the same host.
+    3. For local providers (ollama / llama_cpp / mlx),
+       ``OLLAMA_NUM_PARALLEL`` (default 1) — match the server's
+       configured parallelism so extra client threads don't pile up
+       behind a single in-flight inference. Remote providers (openai /
+       claude) skip this cap because they handle concurrency
+       server-side with rate limits.
+    """
     cpu = os.cpu_count() or 1
-    return min(_AUTO_WORKERS_CEILING, max(1, cpu // 2))
+    cap = min(_AUTO_WORKERS_CEILING, max(1, cpu // 2))
+
+    # Lazy-import to avoid pulling provider_env (and its loguru chain)
+    # at CLI startup for `fo version` etc. (#404 fast-path).
+    try:
+        from config.provider_env import get_current_provider
+
+        provider = get_current_provider()
+    except Exception:
+        # If provider detection fails, treat as local/Ollama (the safer
+        # default — capping at 1 won't slow remote-provider users much
+        # and prevents the Ollama-flood case the issue called out).
+        provider = "ollama"
+
+    if provider in _LOCAL_PROVIDERS:
+        cap = min(cap, _ollama_num_parallel())
+    return max(1, cap)
 
 
 def _organize_result_to_json(result: OrganizationResult) -> dict[str, Any]:
@@ -172,8 +221,12 @@ def organize(
         min=1,
         help=(
             "Number of parallel workers for file processing. When omitted, "
-            "defaults to min(4, cpu_count() // 2) (#408). Use 1 to force "
-            "sequential. `--workers` is an alias for `--max-workers`."
+            "defaults to min(4, cpu_count() // 2, OLLAMA_NUM_PARALLEL) for "
+            "local providers (ollama / llama_cpp / mlx) and "
+            "min(4, cpu_count() // 2) for remote providers (openai / claude). "
+            "If your local Ollama server is configured with `OLLAMA_NUM_PARALLEL=N` "
+            "you can safely pass `--workers N` for matching parallelism. "
+            "`--workers` is an alias for `--max-workers`. (#408)"
         ),
     ),
     sequential: bool = typer.Option(
