@@ -125,6 +125,40 @@ class TestFileOrganizer:
         assert ".mp3" in FileOrganizer.AUDIO_EXTENSIONS
         assert ".dwg" in FileOrganizer.CAD_EXTENSIONS
 
+    def test_timeout_per_file_default_is_300s(self, organizer: FileOrganizer) -> None:
+        """Default per-file timeout is 300s (5 min) — see issue #396."""
+        assert organizer.timeout_per_file == 300.0
+        assert organizer.parallel_config.timeout_per_file == 300.0
+
+    def test_timeout_per_file_propagates_to_parallel_config(
+        self, text_config: ModelConfig, vision_config: ModelConfig
+    ) -> None:
+        """Explicit timeout_per_file flows through to ParallelConfig (#396)."""
+        org = FileOrganizer(
+            text_model_config=text_config,
+            vision_model_config=vision_config,
+            timeout_per_file=90.0,
+        )
+        assert org.timeout_per_file == 90.0
+        assert org.parallel_config.timeout_per_file == 90.0
+
+    def test_timeout_per_file_rejects_non_positive(
+        self, text_config: ModelConfig, vision_config: ModelConfig
+    ) -> None:
+        """Zero and negative timeout values are rejected at construction (#396)."""
+        with pytest.raises(ValueError, match="timeout_per_file must be > 0"):
+            FileOrganizer(
+                text_model_config=text_config,
+                vision_model_config=vision_config,
+                timeout_per_file=0.0,
+            )
+        with pytest.raises(ValueError, match="timeout_per_file must be > 0"):
+            FileOrganizer(
+                text_model_config=text_config,
+                vision_model_config=vision_config,
+                timeout_per_file=-5.0,
+            )
+
     def test_no_vision_uses_extension_fallback_for_images(self, tmp_path: Path) -> None:
         """When vision is disabled, image files should route through fallback."""
         src = tmp_path / "src"

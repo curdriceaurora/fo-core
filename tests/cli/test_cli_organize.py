@@ -112,7 +112,60 @@ class TestOrganize:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
+
+    @patch("core.organizer.FileOrganizer")
+    def test_organize_timeout_per_file_flag_propagates(
+        self, mock_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """--timeout-per-file forwards to FileOrganizer(timeout_per_file=N) (#396)."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        mock_org = MagicMock()
+        mock_cls.return_value = mock_org
+        mock_org.organize.return_value = _mock_result()
+
+        result = runner.invoke(
+            app,
+            [
+                "organize",
+                str(input_dir),
+                str(output_dir),
+                "--timeout-per-file",
+                "90",
+            ],
+        )
+        assert result.exit_code == 0
+        # The flag value should land verbatim in the FileOrganizer kwarg
+        assert mock_cls.call_args.kwargs["timeout_per_file"] == 90.0
+
+    @patch("core.organizer.FileOrganizer")
+    def test_organize_timeout_per_file_zero_rejected_by_typer(
+        self, mock_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """--timeout-per-file 0 is rejected at the Typer layer (min=1.0)."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        result = runner.invoke(
+            app,
+            [
+                "organize",
+                str(input_dir),
+                str(output_dir),
+                "--timeout-per-file",
+                "0",
+            ],
+        )
+        # Typer's min=1.0 validator exits 2 (POSIX usage-error convention)
+        assert result.exit_code == 2
+        mock_cls.assert_not_called()
 
     @patch("core.organizer.FileOrganizer")
     def test_organize_dry_run(self, mock_cls: MagicMock, tmp_path: Path) -> None:
@@ -136,6 +189,7 @@ class TestOrganize:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -172,6 +226,7 @@ class TestOrganize:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -201,6 +256,7 @@ class TestOrganize:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -255,6 +311,7 @@ class TestOrganize:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -284,6 +341,7 @@ class TestOrganize:
             no_prefetch=True,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -320,6 +378,7 @@ class TestOrganize:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -349,6 +408,7 @@ class TestOrganize:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch(
@@ -477,6 +537,7 @@ class TestPreview:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -495,6 +556,7 @@ class TestPreview:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -513,6 +575,7 @@ class TestPreview:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -531,6 +594,7 @@ class TestPreview:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -549,6 +613,7 @@ class TestPreview:
             no_prefetch=False,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     @patch("core.organizer.FileOrganizer")
@@ -567,6 +632,7 @@ class TestPreview:
             no_prefetch=True,
             transcribe_audio=False,
             max_transcribe_seconds=600.0,
+            timeout_per_file=300.0,
         )
 
     def test_preview_sequential_conflicts_with_max_workers(self, tmp_path: Path) -> None:

@@ -158,6 +158,17 @@ def organize(
             "Default: 600 (10 min). Set to 0 to disable the cap entirely."
         ),
     ),
+    timeout_per_file: float = typer.Option(
+        300.0,
+        "--timeout-per-file",
+        min=1.0,
+        help=(
+            "Per-file processing timeout in seconds (default: 300). Values "
+            "below ~60s tend to false-positive on vision models running large "
+            "images; values above ~600s reduce the protection against genuine "
+            "hangs. Set via config: `fo config set processing.timeout_per_file 600`."
+        ),
+    ),
     show_skipped: bool = typer.Option(
         False,
         "--show-skipped",
@@ -210,6 +221,7 @@ def organize(
             # `--max-transcribe-seconds 0` is the documented "disable the cap"
             # value; convert to None for the organizer (None means uncapped).
             max_transcribe_seconds=max_transcribe_seconds if max_transcribe_seconds > 0 else None,
+            timeout_per_file=timeout_per_file,
         )
         if json_output:
             # Silence the Rich progress + summary by swapping in a no-op
@@ -283,6 +295,16 @@ def preview(
             "Default: 600 (10 min). Set to 0 to disable the cap entirely."
         ),
     ),
+    timeout_per_file: float = typer.Option(
+        300.0,
+        "--timeout-per-file",
+        min=1.0,
+        help=(
+            "Per-file processing timeout in seconds (default: 300). Issue #396 — "
+            "tune to your hardware + model. Set via config: "
+            "`fo config set processing.timeout_per_file 600`."
+        ),
+    ),
 ) -> None:
     """Preview how files would be organized (dry-run)."""
     # Setup gate moved to `cli.main.main_callback` (Step 3).
@@ -307,6 +329,7 @@ def preview(
             no_prefetch=no_prefetch,
             transcribe_audio=transcribe_audio,
             max_transcribe_seconds=max_transcribe_seconds if max_transcribe_seconds > 0 else None,
+            timeout_per_file=timeout_per_file,
         )
         result = organizer.organize(input_dir, input_dir)
         console.print(f"[green]Preview:[/green] {result.total_files} files would be organized")

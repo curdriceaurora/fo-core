@@ -86,6 +86,32 @@ class VisionSettings:
 
 
 @dataclass
+class ProcessingSettings:
+    """Per-file processing configuration.
+
+    Args:
+        timeout_per_file: Maximum seconds spent on a single file before the
+            dispatcher abandons the in-flight task and moves on. Default:
+            300 (5 minutes). Values below ~60s tend to false-positive on
+            vision models running large images; values above ~600s reduce
+            the protection against genuine hangs (e.g. a model that's
+            stuck in a generation loop). The dispatcher cannot cancel a
+            running Ollama call — see issue #396 — so the timeout only
+            governs when we stop waiting, not when the underlying thread
+            actually terminates.
+    """
+
+    timeout_per_file: float = 300.0
+
+    def __post_init__(self) -> None:
+        """Reject non-positive timeouts at construction time."""
+        if self.timeout_per_file <= 0:
+            raise ValueError(
+                f"processing.timeout_per_file must be > 0, got {self.timeout_per_file}"
+            )
+
+
+@dataclass
 class AppConfig:
     """Top-level application configuration.
 
@@ -101,6 +127,7 @@ class AppConfig:
         models: AI model preset configuration.
         updates: Auto-update preferences.
         vision: Vision model configuration.
+        processing: Per-file processing configuration (timeout_per_file).
         watcher: Watcher module config overrides.
         daemon: Daemon module config overrides.
         parallel: Parallel processing config overrides.
@@ -118,6 +145,7 @@ class AppConfig:
     models: ModelPreset = field(default_factory=ModelPreset)
     updates: UpdateSettings = field(default_factory=UpdateSettings)
     vision: VisionSettings = field(default_factory=VisionSettings)
+    processing: ProcessingSettings = field(default_factory=ProcessingSettings)
 
     # Module-specific config overrides stored as dicts.
     # Delegated to module config constructors by ConfigManager.
