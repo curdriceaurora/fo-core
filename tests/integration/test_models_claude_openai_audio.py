@@ -205,6 +205,94 @@ class TestVisionHelpers:
         assert mime == "image/jpeg"
         assert b64 == "abc"
 
+    # ------------------------------------------------------------------
+    # SVG rasterization (requires fitz / PyMuPDF — core dep)
+    # ------------------------------------------------------------------
+
+    _MINIMAL_SVG = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
+        b'<rect width="100" height="100" fill="red"/></svg>'
+    )
+    # Wide SVG (width > height) for branch coverage of the if width > height path
+    _WIDE_SVG = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">'
+        b'<rect width="200" height="100" fill="blue"/></svg>'
+    )
+
+    def test_rasterize_svg_to_png_bytes_returns_png(self, tmp_path: Path) -> None:
+        pytest.importorskip("fitz")
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        svg_file = tmp_path / "shape.svg"
+        svg_file.write_bytes(self._MINIMAL_SVG)
+        result = rasterize_svg_to_png_bytes(svg_file)
+        assert isinstance(result, bytes)
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+        assert len(result) > 100
+
+    def test_downscale_image_if_needed_svg_returns_bytes(self, tmp_path: Path) -> None:
+        pytest.importorskip("fitz")
+        pytest.importorskip("PIL")
+        from models._vision_helpers import downscale_image_if_needed
+
+        svg_file = tmp_path / "shape.svg"
+        svg_file.write_bytes(self._MINIMAL_SVG)
+        result, was_converted = downscale_image_if_needed(svg_file)
+        assert isinstance(result, bytes)
+        assert was_converted is True
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_downscale_image_if_needed_svg_wide_triggers_width_branch(self, tmp_path: Path) -> None:
+        pytest.importorskip("fitz")
+        pytest.importorskip("PIL")
+        from models._vision_helpers import downscale_image_if_needed
+
+        svg_file = tmp_path / "wide.svg"
+        svg_file.write_bytes(self._WIDE_SVG)
+        # max_long_edge=50 forces downscale; width(~200) > height(~100) takes if branch
+        result, was_converted = downscale_image_if_needed(svg_file, max_long_edge=50)
+        assert isinstance(result, bytes)
+        assert was_converted is True
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_downscale_image_if_needed_svg_square_triggers_else_branch(
+        self, tmp_path: Path
+    ) -> None:
+        pytest.importorskip("fitz")
+        pytest.importorskip("PIL")
+        from models._vision_helpers import downscale_image_if_needed
+
+        svg_file = tmp_path / "square.svg"
+        svg_file.write_bytes(self._MINIMAL_SVG)
+        # max_long_edge=50 forces downscale; width(~100) == height(~100) takes else branch
+        result, was_converted = downscale_image_if_needed(svg_file, max_long_edge=50)
+        assert isinstance(result, bytes)
+        assert was_converted is True
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_downscale_image_if_needed_svg_pil_failure_returns_raw_png(
+        self, tmp_path: Path
+    ) -> None:
+        pytest.importorskip("fitz")
+        from models._vision_helpers import downscale_image_if_needed
+
+        svg_file = tmp_path / "shape.svg"
+        svg_file.write_bytes(self._MINIMAL_SVG)
+        with patch("PIL.Image.open", side_effect=OSError("simulated PIL failure")):
+            result, was_converted = downscale_image_if_needed(svg_file)
+        assert isinstance(result, bytes)
+        assert was_converted is True
+
+    def test_image_to_data_url_svg_returns_png_data_url(self, tmp_path: Path) -> None:
+        pytest.importorskip("fitz")
+        from models._vision_helpers import image_to_data_url
+
+        svg_file = tmp_path / "shape.svg"
+        svg_file.write_bytes(self._MINIMAL_SVG)
+        url = image_to_data_url(svg_file)
+        assert url.startswith("data:image/png;base64,")
+        assert len(url) > len("data:image/png;base64,")
+
 
 # ===========================================================================
 # _claude_client.py
