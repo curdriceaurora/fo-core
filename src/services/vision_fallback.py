@@ -112,9 +112,13 @@ def _from_exif(path: Path) -> FallbackResult | None:
     if not raw:
         return None
 
-    # EXIF date format: "YYYY:MM:DD HH:MM:SS"
+    # EXIF date format: "YYYY:MM:DD HH:MM:SS". The standard doesn't carry
+    # a timezone, so a naive datetime is the honest representation; we
+    # only ever read .year / .month off it, never use it as an absolute
+    # instant. Suppress ruff DTZ007 — the warning's tzinfo recommendation
+    # would invent a timezone we don't actually have.
     try:
-        dt = datetime.strptime(str(raw), "%Y:%m:%d %H:%M:%S")
+        dt = datetime.strptime(str(raw), "%Y:%m:%d %H:%M:%S")  # noqa: DTZ007
     except ValueError:
         return None
 

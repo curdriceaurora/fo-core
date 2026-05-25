@@ -15,7 +15,7 @@ import pytest
 
 from services.vision_fallback import FallbackResult, compute_fallback
 
-pytestmark = [pytest.mark.unit, pytest.mark.ci]
+pytestmark = [pytest.mark.unit, pytest.mark.ci, pytest.mark.integration]
 
 
 class TestComputeFallbackFilenamePatterns:
