@@ -1675,6 +1675,17 @@ class TestFileOrganizer:
 
         assert result.skipped_files == 1
 
+    def test_organize_skips_office_temp_lock_file(self, tmp_path: Path) -> None:
+        fo = self._make_organizer()
+        src = tmp_path / "src"
+        src.mkdir()
+        (src / "~$test.docx").write_text("temp lock")
+
+        result = fo.organize(src, tmp_path / "out")
+
+        assert result.skipped_files == 1
+        assert result.failed_files == 0
+
     def test_organize_categorizes_text_and_image_files(self, tmp_path: Path) -> None:
         fo = self._make_organizer()
         src = tmp_path / "src"

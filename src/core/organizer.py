@@ -284,6 +284,10 @@ class FileOrganizer:
         other_files: list[Path] = []
 
         for f in files:
+            if f.name.startswith("~$"):
+                logger.debug("skipped: office_temp_file {}", f)
+                other_files.append(f)
+                continue
             ext = f.suffix.lower()
             if ext in self.TEXT_EXTENSIONS:
                 text_files.append(f)
