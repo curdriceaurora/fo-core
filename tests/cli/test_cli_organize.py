@@ -223,9 +223,11 @@ class TestOrganize:
             ],
         )
         assert result.exit_code == 0
+        # Explicit --timeout-per-file value reaches the organizer verbatim,
+        # bypassing the config value (120.0) that ConfigManager would have
+        # supplied.  (Config IS loaded — but for the unrelated #408 worker
+        # auto-default, not for the timeout resolver.)
         assert mock_org_cls.call_args.kwargs["timeout_per_file"] == 45.0
-        # Config wasn't even consulted because the flag was explicit.
-        mock_manager.load.assert_not_called()
 
     @patch("core.organizer.FileOrganizer")
     @patch("config.manager.ConfigManager", side_effect=RuntimeError("config broken"))
