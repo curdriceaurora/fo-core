@@ -12,9 +12,47 @@ from typing import Any
 
 from loguru import logger
 
+from config.schema import ProcessingSettings
 from models import VisionModel
 from models.base import BaseModel, ModelConfig, ModelType
 from models.provider_factory import get_vision_model
+
+_BYTES_PER_MB = 1024 * 1024
+
+
+def compute_vision_timeout(
+    file_size_bytes: int,
+    settings: ProcessingSettings | None = None,
+) -> float:
+    """Compute the adaptive vision timeout for a single image (#407).
+
+    Formula:
+        ``timeout = clamp(base + size_mb * per_mb_factor, base, max)``
+
+    Where ``base``, ``per_mb_factor``, and ``max`` come from
+    ``ProcessingSettings.vision_base_timeout_s`` / ``vision_per_mb_factor_s``
+    / ``vision_max_timeout_s``.
+
+    Args:
+        file_size_bytes: Image size in bytes. Negative values are treated as 0.
+        settings: Source of the three tunable parameters. When ``None``,
+            a fresh ``ProcessingSettings()`` with defaults is used.
+
+    Returns:
+        Timeout in seconds, always within ``[base, max]``.
+
+    Examples:
+        With defaults (base=30, per_mb=15, max=300):
+        - 0-byte file → 30s (base)
+        - 100KB file (~0.1MB) → 30 + 0.1*15 = 31.5s
+        - 10MB file → 30 + 10*15 = 180s
+        - 100MB file → min(30 + 100*15, 300) = 300s (clamped to max)
+    """
+    if settings is None:
+        settings = ProcessingSettings()
+    size_mb = max(0, file_size_bytes) / _BYTES_PER_MB
+    raw = settings.vision_base_timeout_s + size_mb * settings.vision_per_mb_factor_s
+    return min(raw, settings.vision_max_timeout_s)
 
 
 @dataclass
@@ -132,6 +170,24 @@ class VisionProcessor:
 
         file_path = Path(file_path)
         start_time = time.time()
+
+        # Adaptive per-image timeout (#407) — currently informative; the
+        # dispatcher's static `timeout_per_file` still governs cancellation,
+        # but logging the computed value lets operators correlate slow
+        # inferences with image size before any enforcement wiring lands.
+        try:
+            _adaptive_timeout = compute_vision_timeout(
+                file_path.stat().st_size,
+            )
+            logger.debug(
+                "Adaptive vision timeout for {}: {:.1f}s",
+                file_path.name,
+                _adaptive_timeout,
+            )
+        except OSError:
+            # stat() can fail on permission-denied / disappeared files;
+            # don't let the informational log break the real work below.
+            pass
 
         try:
             if self._is_circuit_open():
