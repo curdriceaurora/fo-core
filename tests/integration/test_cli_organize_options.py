@@ -184,27 +184,29 @@ class TestResolveParallelSettings:
         monkeypatch.setenv("FO_PROVIDER", "mlx")
         assert _get_current_provider_lazy() == "mlx"
 
-    def test_provider_lazy_openai_creds_env_implies_openai(
+    def test_provider_lazy_creds_env_alone_does_not_switch_provider(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """FO_OPENAI_API_KEY set + FO_PROVIDER unset → openai."""
+        """FO_OPENAI_API_KEY / FO_CLAUDE_API_KEY without FO_PROVIDER must NOT change provider.
+
+        `get_model_configs()` only switches providers when FO_PROVIDER
+        is explicitly set. Treating creds-env vars as a provider hint
+        here would over-parallelize Ollama runs whenever those keys
+        were exported for unrelated tools (Codex P2 catch on PR #423).
+        """
+        from unittest.mock import MagicMock, patch
+
         from cli.organize import _get_current_provider_lazy
+        from config.schema import AppConfig
 
         monkeypatch.delenv("FO_PROVIDER", raising=False)
-        monkeypatch.delenv("FO_CLAUDE_API_KEY", raising=False)
         monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-test")
-        assert _get_current_provider_lazy() == "openai"
-
-    def test_provider_lazy_claude_creds_env_implies_claude(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """FO_CLAUDE_API_KEY set + FO_PROVIDER unset → claude."""
-        from cli.organize import _get_current_provider_lazy
-
-        monkeypatch.delenv("FO_PROVIDER", raising=False)
-        monkeypatch.delenv("FO_OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test")
-        assert _get_current_provider_lazy() == "claude"
+
+        mock_manager = MagicMock()
+        mock_manager.load.return_value = AppConfig()  # framework defaults to "ollama"
+        with patch("config.manager.ConfigManager", return_value=mock_manager):
+            assert _get_current_provider_lazy() == "ollama"
 
     def test_provider_lazy_falls_back_to_ollama_on_config_failure(
         self, monkeypatch: pytest.MonkeyPatch

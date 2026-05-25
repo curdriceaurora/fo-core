@@ -54,15 +54,23 @@ def _get_current_provider_lazy() -> str:
     llama_cpp / mlx users as Ollama and silently drops their workers
     to 1.
 
-    Priority:
+    Priority — mirrors what ``get_model_configs()`` actually does at
+    runtime, so the worker resolver can't disagree with the executor
+    about which provider is active:
 
-    1. ``FO_PROVIDER`` env var (matches ``get_current_provider()``).
-    2. Creds env vars — ``FO_OPENAI_API_KEY`` / ``FO_CLAUDE_API_KEY``.
-       Those providers only land via env in this codebase, so a creds
-       env var implies provider selection even if FO_PROVIDER is unset.
-    3. ``AppConfig.models.framework`` from the persisted profile.
-    4. ``"ollama"`` as the conservative default (prevents the
+    1. ``FO_PROVIDER`` env var (matches ``get_current_provider()`` and
+       ``get_model_configs()``'s first check).
+    2. ``AppConfig.models.framework`` from the persisted profile.
+    3. ``"ollama"`` as the conservative default (prevents the
        Ollama-flood case #408 called out).
+
+    We do NOT short-circuit on ``FO_OPENAI_API_KEY`` /
+    ``FO_CLAUDE_API_KEY``: ``get_model_configs()`` only switches
+    providers from env when ``FO_PROVIDER`` is present, so those keys
+    don't actually change the runtime provider on their own. Treating
+    them as a provider hint here could over-parallelize when the keys
+    were exported for unrelated tools and the executor still uses
+    Ollama (Codex P2 catch on PR #423).
 
     Kept at module scope per the F9 anti-pattern rule; lazy imports
     live inside this function so ``fo version`` etc. don't pay the
@@ -71,10 +79,6 @@ def _get_current_provider_lazy() -> str:
     env_provider = os.environ.get("FO_PROVIDER", "").strip().lower()
     if env_provider in _KNOWN_PROVIDERS:
         return env_provider
-    if os.environ.get("FO_OPENAI_API_KEY", "").strip():
-        return "openai"
-    if os.environ.get("FO_CLAUDE_API_KEY", "").strip():
-        return "claude"
     try:
         from config.manager import ConfigManager
     except ImportError:
