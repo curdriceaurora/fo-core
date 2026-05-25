@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -10,8 +12,37 @@ from rich.panel import Panel
 
 from cli.path_validation import resolve_cli_path, validate_pair
 from cli.state import _get_state
+from core.types import OrganizationResult
 
 console = Console()
+
+
+def _organize_result_to_json(result: OrganizationResult) -> dict[str, Any]:
+    """Serialize an ``OrganizationResult`` for ``fo organize --json`` (#412).
+
+    The ``skipped_by_extension`` Counter is rendered as a plain dict for
+    JSON consumers; key order follows ``Counter.most_common()`` so the
+    payload itself reflects the breakdown ranking.
+    """
+    return {
+        "total_files": result.total_files,
+        "processed_files": result.processed_files,
+        "skipped_files": result.skipped_files,
+        "failed_files": result.failed_files,
+        "deduplicated_files": result.deduplicated_files,
+        "processing_time": result.processing_time,
+        "skipped_by_extension": dict(result.skipped_by_extension.most_common()),
+        "errors": [{"file": file_str, "error": err} for file_str, err in result.errors],
+    }
+
+
+def _emit_organize_json(result: OrganizationResult) -> None:
+    """Emit the JSON payload for ``fo organize --json``.
+
+    Printed via the stdlib ``print`` so the output stays parseable; Rich
+    markup tags would otherwise leak escape codes into the JSON payload.
+    """
+    print(json.dumps(_organize_result_to_json(result), indent=2))
 
 
 def _check_setup_completed() -> bool:
@@ -127,6 +158,24 @@ def organize(
             "Default: 600 (10 min). Set to 0 to disable the cap entirely."
         ),
     ),
+    show_skipped: bool = typer.Option(
+        False,
+        "--show-skipped",
+        help=(
+            "Print the full breakdown of skipped extensions instead of the "
+            "default top-10 preview. Useful when triaging which formats to "
+            "support next."
+        ),
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help=(
+            "Emit the run summary as JSON on stdout (includes "
+            "`skipped_by_extension`). Suppresses the interactive Rich "
+            "summary so the payload stays machine-parseable."
+        ),
+    ),
 ) -> None:
     """Organize files in a directory using AI models."""
     # First-run setup gate now lives in `cli.main.main_callback` and runs
@@ -140,9 +189,10 @@ def organize(
     output_dir = resolve_cli_path(output_dir, must_exist=False, must_be_dir=True)
     validate_pair(input_dir, output_dir)
 
-    console.print(f"[bold]Organizing[/bold] {input_dir} -> {output_dir}")
-    if dry_run or _get_state().dry_run:
-        console.print("[yellow]Dry run mode — no files will be moved.[/yellow]")
+    if not json_output:
+        console.print(f"[bold]Organizing[/bold] {input_dir} -> {output_dir}")
+        if dry_run or _get_state().dry_run:
+            console.print("[yellow]Dry run mode — no files will be moved.[/yellow]")
     resolved_workers, resolved_prefetch_depth = _resolve_parallel_settings(
         sequential, max_workers, prefetch_depth, no_prefetch
     )
@@ -161,11 +211,18 @@ def organize(
             # value; convert to None for the organizer (None means uncapped).
             max_transcribe_seconds=max_transcribe_seconds if max_transcribe_seconds > 0 else None,
         )
-        result = organizer.organize(input_dir, output_dir)
-        console.print(
-            f"[green]Done:[/green] {result.processed_files} processed, "
-            f"{result.skipped_files} skipped, {result.failed_files} failed"
-        )
+        if json_output:
+            # Silence the Rich progress + summary by swapping in a no-op
+            # console; the JSON payload is the only thing on stdout.
+            organizer.console = Console(quiet=True)
+        result = organizer.organize(input_dir, output_dir, show_skipped=show_skipped)
+        if json_output:
+            _emit_organize_json(result)
+        else:
+            console.print(
+                f"[green]Done:[/green] {result.processed_files} processed, "
+                f"{result.skipped_files} skipped, {result.failed_files} failed"
+            )
     except Exception as exc:
         console.print(f"[red]Error: {exc}[/red]")
         # Step 3: surface the full Rich traceback when --debug is set so

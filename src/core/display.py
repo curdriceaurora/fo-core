@@ -16,6 +16,11 @@ from rich.table import Table
 
 from core.types import OrganizationResult
 
+# Top-N cap for the unsupported-extension breakdown rendered in the
+# summary. Beyond N entries the remaining tail is summarized in a hint
+# line that points users at ``--show-skipped`` for the full list.
+TOP_SKIPPED_EXTENSIONS: int = 10
+
 
 def show_file_breakdown(
     console: Console,
@@ -49,8 +54,19 @@ def show_summary(
     output_path: Path,
     *,
     dry_run: bool,
+    show_skipped: bool = False,
 ) -> None:
-    """Show final organization summary."""
+    """Show final organization summary.
+
+    Args:
+        console: Rich console to print to.
+        result: Aggregate organize result.
+        output_path: Destination directory (printed in the structure section).
+        dry_run: When True, append the dry-run reminder banner.
+        show_skipped: When True, print every entry of
+            ``result.skipped_by_extension`` instead of the top-N preview.
+            Wired to ``--show-skipped`` on the ``fo organize`` command.
+    """
     console.print("\n" + "=" * 70)
     console.print("[bold green]Organization Complete![/bold green]")
     console.print("=" * 70)
@@ -70,6 +86,11 @@ def show_summary(
             console.print(f"    ... and {len(result.errors) - 10} more")
     console.print(f"  Processing time: {result.processing_time:.2f}s")
 
+    # Skipped-extension breakdown (#412). Render whenever anything was
+    # skipped; --show-skipped expands past TOP_SKIPPED_EXTENSIONS.
+    if result.skipped_by_extension:
+        _render_skipped_extensions(console, result, show_skipped=show_skipped)
+
     if result.organized_structure:
         console.print("\n[bold]Organized Structure:[/bold]")
         console.print(f"[cyan]{output_path}/[/cyan]")
@@ -85,6 +106,39 @@ def show_summary(
         console.print("[dim]Run without --dry-run to perform actual organization[/dim]")
     else:
         console.print(f"\n[green]✓ Files organized in: {output_path}[/green]")
+
+
+def _render_skipped_extensions(
+    console: Console,
+    result: OrganizationResult,
+    *,
+    show_skipped: bool,
+) -> None:
+    """Render the top-N (or full) breakdown of skipped extensions.
+
+    Sorted by count descending, then by extension name ascending so the
+    output is stable when several extensions share a count.
+    """
+    items = sorted(
+        result.skipped_by_extension.items(),
+        key=lambda kv: (-kv[1], kv[0]),
+    )
+    total_distinct = len(items)
+
+    if show_skipped or total_distinct <= TOP_SKIPPED_EXTENSIONS:
+        header = "Skipped by extension"
+        visible = items
+        tail = 0
+    else:
+        header = f"Top {TOP_SKIPPED_EXTENSIONS} skipped extensions"
+        visible = items[:TOP_SKIPPED_EXTENSIONS]
+        tail = total_distinct - TOP_SKIPPED_EXTENSIONS
+
+    console.print(f"\n[bold yellow]{header}:[/bold yellow]")
+    for ext, count in visible:
+        console.print(f"  [yellow]{ext}[/yellow]: {count}")
+    if tail:
+        console.print(f"  [dim]({tail} more — use --show-skipped for the full list)[/dim]")
 
 
 def create_progress(console: Console) -> Progress:

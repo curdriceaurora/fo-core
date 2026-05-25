@@ -197,6 +197,8 @@ class FileOrganizer:
         input_path: str | Path,
         output_path: str | Path,
         skip_existing: bool = True,
+        *,
+        show_skipped: bool = False,
     ) -> OrganizationResult:
         """Organize files from input directory to output directory.
 
@@ -204,6 +206,9 @@ class FileOrganizer:
             input_path: Path to directory with files to organize
             output_path: Path to output directory
             skip_existing: Skip files that already exist in output
+            show_skipped: When True, the summary renderer prints every
+                skipped-extension entry instead of capping at the top-N
+                preview. Wired to ``--show-skipped`` on ``fo organize``.
 
         Returns:
             OrganizationResult with statistics and structure
@@ -264,7 +269,13 @@ class FileOrganizer:
                 result.skipped_by_extension[self._skipped_extension_key(f)] += 1
 
         result.processing_time = time.time() - start_time
-        display.show_summary(self.console, result, output_path, dry_run=self.dry_run)
+        display.show_summary(
+            self.console,
+            result,
+            output_path,
+            dry_run=self.dry_run,
+            show_skipped=show_skipped,
+        )
 
         return result
 
