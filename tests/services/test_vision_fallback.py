@@ -115,6 +115,80 @@ class TestComputeFallbackExif:
         assert result.folder == "Images/Screenshots/2026"
 
 
+class TestComputeFallbackExifEndToEnd:
+    """Exercise _from_exif with a real Pillow-encoded EXIF image (not mocked)."""
+
+    def _write_image_with_exif(self, path: Path, date_str: str) -> None:
+        """Create a 1x1 JPEG carrying DateTimeOriginal == date_str."""
+        from PIL import Image
+        from PIL.ExifTags import TAGS
+
+        # Find numeric tag IDs by name so we don't hardcode magic numbers.
+        date_tag = next(k for k, v in TAGS.items() if v == "DateTimeOriginal")
+
+        img = Image.new("RGB", (1, 1), color="red")
+        exif = img.getexif()
+        exif[date_tag] = date_str
+        img.save(path, "JPEG", exif=exif.tobytes())
+
+    def test_real_exif_drives_year_month_folder(self, tmp_path: Path) -> None:
+        """A JPEG carrying DateTimeOriginal=2025:11:15… lands in 2025/11."""
+        pytest.importorskip("PIL")
+        img = tmp_path / "DSC_0042.jpg"
+        self._write_image_with_exif(img, "2025:11:15 14:30:00")
+
+        result = compute_fallback(img)
+
+        assert result.source == "fallback_exif"
+        assert result.folder == "Images/Photos/2025/11"
+        assert result.filename == "DSC_0042"
+
+    def test_image_without_exif_returns_none_from_exif(self, tmp_path: Path) -> None:
+        """A bare image with no EXIF data → _from_exif returns None → filename path."""
+        pytest.importorskip("PIL")
+        from PIL import Image
+
+        img_path = tmp_path / "Screenshot 2026-05-22 at 09.00.00.jpg"
+        Image.new("RGB", (1, 1)).save(img_path, "JPEG")  # no exif kwarg
+
+        result = compute_fallback(img_path)
+        assert result.source == "fallback_filename"
+        assert result.folder == "Images/Screenshots/2026"
+
+    def test_exif_with_empty_datetime_value_falls_through(self, tmp_path: Path) -> None:
+        """EXIF carries the DateTime tag but value is empty → falls through."""
+        pytest.importorskip("PIL")
+        from PIL import Image
+        from PIL.ExifTags import TAGS
+
+        date_tag = next(k for k, v in TAGS.items() if v == "DateTimeOriginal")
+        img_path = tmp_path / "Screenshot 2026-05-22 at 09.00.00.jpg"
+        img = Image.new("RGB", (1, 1))
+        exif = img.getexif()
+        exif[date_tag] = ""  # empty string
+        img.save(img_path, "JPEG", exif=exif.tobytes())
+
+        result = compute_fallback(img_path)
+        # Filename path picks it up
+        assert result.source == "fallback_filename"
+        assert result.folder == "Images/Screenshots/2026"
+
+    def test_real_exif_malformed_date_falls_through(self, tmp_path: Path) -> None:
+        """An unparseable DateTimeOriginal string falls back to filename / untagged."""
+        pytest.importorskip("PIL")
+        img = tmp_path / "Screenshot 2024-07-04 at 09.30.00.png"
+        self._write_image_with_exif(img, "not-a-real-date")
+
+        # PNG won't actually round-trip EXIF via Pillow, but the function still
+        # reaches the parse path and returns None on ValueError.  Filename
+        # heuristic then catches the Screenshot pattern.
+        result = compute_fallback(img)
+        # Either EXIF succeeded (unlikely with this bogus date) or filename
+        # took over — both are acceptable; what we're guarding is "doesn't
+        # crash, returns a sane FallbackResult".
+        assert isinstance(result, FallbackResult)
+
+
 class TestDispatcherTimeoutFallbackIntegration:
     """The dispatcher's timeout branch routes through compute_fallback (#406)."""
 

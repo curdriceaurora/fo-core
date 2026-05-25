@@ -571,6 +571,42 @@ class TestDisplay:
 
         show_summary(console, result, tmp_path, dry_run=False)
 
+    def test_show_summary_renders_fallback_files_count(self, tmp_path: Path) -> None:
+        """fallback_files > 0 prints the 'review recommended' line (#406)."""
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(record=True, width=120)
+        result = OrganizationResult(
+            total_files=5,
+            processed_files=5,
+            fallback_files=3,
+        )
+
+        show_summary(console, result, tmp_path, dry_run=True)
+
+        out = console.export_text()
+        assert "Categorized via fallback" in out
+        assert "review recommended" in out
+        assert "3" in out
+
+    def test_show_summary_omits_fallback_line_when_zero(self, tmp_path: Path) -> None:
+        """fallback_files == 0 (default) does NOT print the fallback line."""
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(record=True, width=120)
+        result = OrganizationResult(total_files=2, processed_files=2)
+
+        show_summary(console, result, tmp_path, dry_run=True)
+
+        out = console.export_text()
+        assert "Categorized via fallback" not in out
+
     def test_show_summary_show_skipped_expands_full_list(self, tmp_path: Path) -> None:
         """show_skipped=True bypasses the Top-N cap regardless of distinct count."""
         from collections import Counter
@@ -750,6 +786,57 @@ class TestDispatcher:
         assert len(results) == 1
         assert results[0].folder_name == "errors"
         assert "vision model error" in results[0].error
+
+    def test_process_image_files_timeout_takes_fallback_path(self, tmp_path: Path) -> None:
+        """Vision timeout → ProcessedImage with source=fallback_*, no error (#406)."""
+        from rich.console import Console
+
+        from core import dispatcher
+
+        img = tmp_path / "Screenshot 2026-05-22 at 09.00.00.png"
+        img.write_bytes(b"")
+
+        file_result = self._make_file_result_failure(img, "Timed out after 300.0s")
+        mock_vp = MagicMock()
+        mock_pp = self._make_mock_parallel_processor([file_result])
+        console = Console(quiet=True)
+
+        results = dispatcher.process_image_files([img], mock_vp, mock_pp, console)
+
+        assert len(results) == 1
+        result = results[0]
+        # The fallback path puts the file into a Screenshots/2026 folder
+        # and clears the error field so it's counted as processed, not failed.
+        assert result.error is None or result.error == ""
+        assert result.folder_name == "Images/Screenshots/2026"
+        assert result.source == "fallback_filename"
+
+    def test_process_image_files_non_timeout_failure_is_not_fallback(self, tmp_path: Path) -> None:
+        """Read errors / corrupt-image failures still take the regular error path."""
+        from rich.console import Console
+
+        from core import dispatcher
+        from core.dispatcher import ERROR_FALLBACK_FOLDER
+
+        img = tmp_path / "broken.png"
+        img.write_bytes(b"")
+
+        file_result = self._make_file_result_failure(
+            img, "PermissionError: [Errno 13] Permission denied"
+        )
+        mock_vp = MagicMock()
+        mock_pp = self._make_mock_parallel_processor([file_result])
+        console = Console(quiet=True)
+
+        results = dispatcher.process_image_files([img], mock_vp, mock_pp, console)
+
+        assert len(results) == 1
+        result = results[0]
+        assert result.error is not None
+        assert "Permission denied" in result.error
+        assert result.folder_name == ERROR_FALLBACK_FOLDER
+        # source unchanged from default
+        assert result.source == "vision"
 
     def test_process_image_files_with_error_in_result(self, tmp_path: Path) -> None:
         from rich.console import Console

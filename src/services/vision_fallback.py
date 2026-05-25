@@ -106,7 +106,7 @@ def _from_exif(path: Path) -> FallbackResult | None:
     # Map numeric tag IDs to names so we can ask by name.
     tag_by_name: dict[str, int] = {v: k for k, v in ExifTags.TAGS.items()}
     date_tag_id = tag_by_name.get("DateTimeOriginal") or tag_by_name.get("DateTime")
-    if date_tag_id is None:
+    if date_tag_id is None:  # pragma: no cover — Pillow's TAGS always has these
         return None
     raw = exif.get(date_tag_id)
     if not raw:
