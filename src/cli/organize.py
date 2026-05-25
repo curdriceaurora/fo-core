@@ -38,39 +38,56 @@ def _ollama_num_parallel() -> int:
         return 1
 
 
+_KNOWN_PROVIDERS: frozenset[str] = frozenset({"ollama", "openai", "llama_cpp", "mlx", "claude"})
+
+
 def _get_current_provider_lazy() -> str:
     """Resolve the active provider via the full config cascade (#408).
 
-    Importantly, this does NOT just read ``FO_PROVIDER`` (which is what
-    ``get_current_provider()`` does).  Users frequently configure their
-    provider in ``config.yaml`` (e.g. ``models.framework: llama_cpp``)
-    without ever exporting ``FO_PROVIDER``; in that case the env-only
-    check would misclassify them as ``"ollama"`` and the
-    ``OLLAMA_NUM_PARALLEL`` cap below would silently drop their workers
+    Mirrors ``get_model_configs()``'s priority order — env first, then
+    profile, then default — but reads ``app_cfg.models.framework``
+    directly instead of going through ``ConfigManager.to_text_model_config``.
+    That converter leaves ``ModelConfig.provider`` at its dataclass
+    default of ``"ollama"`` even when the profile says
+    ``framework: llama_cpp`` (Codex P1 catch on PR #423), so calling
+    ``get_model_configs()[0].provider`` misclassifies profile-only
+    llama_cpp / mlx users as Ollama and silently drops their workers
     to 1.
 
-    The cascade — env → profile → defaults — already lives in
-    ``get_model_configs()``.  We use the resolved
-    ``ModelConfig.provider`` from the text-model side of that tuple
-    (text/vision always share a provider).  On ImportError, fall back
-    to ``"ollama"`` (the safe default that prevents the Ollama-flood
-    case #408 called out).
+    Priority:
+
+    1. ``FO_PROVIDER`` env var (matches ``get_current_provider()``).
+    2. Creds env vars — ``FO_OPENAI_API_KEY`` / ``FO_CLAUDE_API_KEY``.
+       Those providers only land via env in this codebase, so a creds
+       env var implies provider selection even if FO_PROVIDER is unset.
+    3. ``AppConfig.models.framework`` from the persisted profile.
+    4. ``"ollama"`` as the conservative default (prevents the
+       Ollama-flood case #408 called out).
 
     Kept at module scope per the F9 anti-pattern rule; lazy imports
     live inside this function so ``fo version`` etc. don't pay the
     cost (#404 fast-path).
     """
+    env_provider = os.environ.get("FO_PROVIDER", "").strip().lower()
+    if env_provider in _KNOWN_PROVIDERS:
+        return env_provider
+    if os.environ.get("FO_OPENAI_API_KEY", "").strip():
+        return "openai"
+    if os.environ.get("FO_CLAUDE_API_KEY", "").strip():
+        return "claude"
     try:
-        from config.provider_env import get_model_configs
+        from config.manager import ConfigManager
     except ImportError:
         return "ollama"
     try:
-        text_cfg, _ = get_model_configs()
+        manager = ConfigManager()
+        app_cfg = manager.load(os.environ.get("FO_PROFILE", "").strip() or "default")
     except Exception:
-        # If config-resolution itself fails (broken YAML, missing
-        # creds, etc.), fall through to the conservative default.
         return "ollama"
-    return text_cfg.provider
+    framework = (getattr(app_cfg.models, "framework", "") or "").strip().lower()
+    if framework in _KNOWN_PROVIDERS:
+        return framework
+    return "ollama"
 
 
 def _auto_worker_default() -> int:

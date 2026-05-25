@@ -148,52 +148,79 @@ class TestResolveParallelSettings:
             )
         assert workers == 4
 
-    def test_provider_lazy_reads_profile_when_fo_provider_unset(
+    def test_provider_lazy_reads_profile_framework_when_fo_provider_unset(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """If profile has framework=llama_cpp and FO_PROVIDER is unset, resolver returns llama_cpp.
+        """Profile-only llama_cpp users (no FO_PROVIDER) resolve to llama_cpp (#408 / Codex P1).
 
-        Regression for the second Codex P2 catch on PR #423: the
-        prior `get_current_provider()` path only read FO_PROVIDER and
-        misclassified profile-configured users as "ollama", which then
-        capped them to 1 worker via OLLAMA_NUM_PARALLEL even though
-        they're not on Ollama at all.
+        Regression catch: ``ConfigManager.to_text_model_config`` doesn't
+        set ``provider`` on the returned ``ModelConfig`` — it only sets
+        ``framework`` — so reading ``text_cfg.provider`` falls through
+        to the dataclass default of "ollama" and the worker resolver
+        silently caps profile-configured llama_cpp users by
+        OLLAMA_NUM_PARALLEL. The fix reads ``app_cfg.models.framework``
+        directly.
         """
-        from unittest.mock import patch
+        from unittest.mock import MagicMock, patch
 
         from cli.organize import _get_current_provider_lazy
-        from models.base import ModelConfig, ModelType
+        from config.schema import AppConfig, ModelPreset
 
         monkeypatch.delenv("FO_PROVIDER", raising=False)
-        fake_text_cfg = ModelConfig(
-            name="llama-3.2-3b-instruct",
-            model_type=ModelType.TEXT,
-            provider="llama_cpp",
-        )
-        fake_vision_cfg = ModelConfig(
-            name="llama-3.2-vision",
-            model_type=ModelType.VISION,
-            provider="llama_cpp",
-        )
+        monkeypatch.delenv("FO_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("FO_CLAUDE_API_KEY", raising=False)
 
-        with patch(
-            "config.provider_env.get_model_configs",
-            return_value=(fake_text_cfg, fake_vision_cfg),
-        ):
+        fake_cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))
+        mock_manager = MagicMock()
+        mock_manager.load.return_value = fake_cfg
+
+        with patch("config.manager.ConfigManager", return_value=mock_manager):
             assert _get_current_provider_lazy() == "llama_cpp"
+
+    def test_provider_lazy_fo_provider_env_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """FO_PROVIDER explicit wins over any profile setting."""
+        from cli.organize import _get_current_provider_lazy
+
+        monkeypatch.setenv("FO_PROVIDER", "mlx")
+        assert _get_current_provider_lazy() == "mlx"
+
+    def test_provider_lazy_openai_creds_env_implies_openai(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FO_OPENAI_API_KEY set + FO_PROVIDER unset → openai."""
+        from cli.organize import _get_current_provider_lazy
+
+        monkeypatch.delenv("FO_PROVIDER", raising=False)
+        monkeypatch.delenv("FO_CLAUDE_API_KEY", raising=False)
+        monkeypatch.setenv("FO_OPENAI_API_KEY", "sk-test")
+        assert _get_current_provider_lazy() == "openai"
+
+    def test_provider_lazy_claude_creds_env_implies_claude(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FO_CLAUDE_API_KEY set + FO_PROVIDER unset → claude."""
+        from cli.organize import _get_current_provider_lazy
+
+        monkeypatch.delenv("FO_PROVIDER", raising=False)
+        monkeypatch.delenv("FO_OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("FO_CLAUDE_API_KEY", "sk-ant-test")
+        assert _get_current_provider_lazy() == "claude"
 
     def test_provider_lazy_falls_back_to_ollama_on_config_failure(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A broken config cascade falls back to the safe Ollama default."""
-        from unittest.mock import patch
+        """A broken ConfigManager.load falls back to the safe Ollama default."""
+        from unittest.mock import MagicMock, patch
 
         from cli.organize import _get_current_provider_lazy
 
-        with patch(
-            "config.provider_env.get_model_configs",
-            side_effect=RuntimeError("boom"),
-        ):
+        monkeypatch.delenv("FO_PROVIDER", raising=False)
+        monkeypatch.delenv("FO_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("FO_CLAUDE_API_KEY", raising=False)
+
+        mock_manager = MagicMock()
+        mock_manager.load.side_effect = RuntimeError("boom")
+        with patch("config.manager.ConfigManager", return_value=mock_manager):
             assert _get_current_provider_lazy() == "ollama"
 
     def test_max_workers_auto_respects_low_core_count(self) -> None:
