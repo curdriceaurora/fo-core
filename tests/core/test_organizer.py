@@ -445,6 +445,19 @@ class TestCategorizeFiles:
         assert len(other) == 1
         assert other[0].name == "mystery.xyz"
 
+    def test_office_temp_lock_file_goes_to_other(self, tmp_path: Path) -> None:
+        """Office temporary lock files are skipped via the other bucket."""
+        organizer = FileOrganizer.__new__(FileOrganizer)
+        f = tmp_path / "~$test.docx"
+
+        with patch("core.organizer.logger.debug") as mock_debug:
+            text, image, video, audio, cad, other = organizer._categorize_files([f])
+
+        assert text == image == video == audio == cad == []
+        assert len(other) == 1
+        assert other[0].name == "~$test.docx"
+        mock_debug.assert_called_once_with("skipped: office_temp_file {}", f)
+
     def test_cad_extension(self, tmp_path: Path) -> None:
         """DWG files are categorized as CAD."""
         organizer = FileOrganizer.__new__(FileOrganizer)
