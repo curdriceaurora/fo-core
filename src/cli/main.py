@@ -30,6 +30,7 @@ console = Console()
 
 
 def _fo_version() -> str:
+    """Return the installed fo-core package version, or "unknown" if not installed."""
     try:
         return _pkg_version("fo-core")
     except _PackageNotFoundError:
@@ -203,6 +204,7 @@ def main_callback(
         _sink_id = _loguru_logger.add(_sys.stderr, level="DEBUG", backtrace=True, diagnose=False)
 
         def _remove_debug_sink() -> None:
+            """Remove the debug stderr sink on Typer context close."""
             try:
                 _loguru_logger.remove(_sink_id)
             except ValueError:
@@ -243,6 +245,7 @@ def main_callback(
         )
 
         def _remove_file_sink() -> None:
+            """Remove the rotating-file log sink on Typer context close."""
             try:
                 _ll.remove(_file_sink_id)
             except ValueError:
@@ -276,6 +279,7 @@ def main_callback(
         _session_log_file = _session_subdir / f"fo-{session_id}.log"
 
         def _session_filter(record: Any) -> bool:
+            """Inject the per-run session_id into every log record's extra dict."""
             record["extra"]["session_id"] = session_id
             return True
 
@@ -291,6 +295,7 @@ def main_callback(
         )
 
         def _remove_session_sink() -> None:
+            """Remove the per-run session log sink on Typer context close."""
             try:
                 _session_logger.remove(_session_sink_id)
             except ValueError:
