@@ -97,6 +97,28 @@ class TestRasterizeSvgToPngBytes:
 
         assert len(result) > 100
 
+    def test_oversized_svg_clamped_to_max_render_edge(self, tmp_path: Path) -> None:
+        """SVGs with huge intrinsic dimensions are clamped before rasterization."""
+        pytest.importorskip("fitz")
+        import struct
+
+        from models._vision_helpers import _SVG_MAX_RENDER_EDGE, rasterize_svg_to_png_bytes
+
+        oversized_svg = (
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="10000" height="5000">'
+            b'<rect width="10000" height="5000" fill="green"/></svg>'
+        )
+        svg_file = tmp_path / "oversized.svg"
+        svg_file.write_bytes(oversized_svg)
+
+        result = rasterize_svg_to_png_bytes(svg_file)
+
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+        # PNG IHDR chunk starts at byte 16: 4-byte width then 4-byte height
+        width = struct.unpack(">I", result[16:20])[0]
+        height = struct.unpack(">I", result[20:24])[0]
+        assert max(width, height) <= _SVG_MAX_RENDER_EDGE
+
 
 class TestDownscaleHandlesSvg:
     """downscale_image_if_needed must rasterize SVG and return bytes."""

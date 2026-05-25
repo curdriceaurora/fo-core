@@ -21,6 +21,10 @@ from loguru import logger
 # Fallback MIME type when extension is not recognised
 _DEFAULT_IMAGE_MIME = "image/jpeg"
 
+# Maximum pixel dimension for SVG rasterization — guards against OOM from
+# SVGs with very large intrinsic width/height before downscaling is applied.
+_SVG_MAX_RENDER_EDGE = 4096
+
 # Hardcoded map for common image extensions — more portable than mimetypes.guess_type
 # on Windows, where the registry may not have entries for modern formats (e.g. webp)
 # and mimetypes.init() calls can clobber mimetypes.add_type registrations.
@@ -40,11 +44,19 @@ _EXTENSION_MIME: dict[str, str] = {
 
 
 def _rasterize_svg_bytes_to_png(svg_data: bytes) -> bytes:
-    """Rasterize SVG bytes to PNG bytes via PyMuPDF, without touching the filesystem."""
+    """Rasterize SVG bytes to PNG bytes via PyMuPDF, without touching the filesystem.
+
+    Render size is capped at _SVG_MAX_RENDER_EDGE on the longest side so that
+    an SVG with an enormous intrinsic width/height cannot exhaust memory before
+    the caller's downscale step runs.
+    """
     doc = fitz.open(stream=svg_data, filetype="svg")
     try:
         page = doc[0]
-        pix = page.get_pixmap()
+        w, h = page.rect.width, page.rect.height
+        scale = min(1.0, _SVG_MAX_RENDER_EDGE / max(w, h, 1))
+        mat = fitz.Matrix(scale, scale) if scale < 1.0 else fitz.Identity
+        pix = page.get_pixmap(matrix=mat)
         return bytes(pix.tobytes("png"))
     finally:
         doc.close()
