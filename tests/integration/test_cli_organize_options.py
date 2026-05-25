@@ -40,11 +40,47 @@ class TestResolveParallelSettings:
         assert depth == 0
 
     def test_max_workers_auto_when_not_sequential(self) -> None:
+        """Auto-resolve picks min(4, cpu_count()//2) — never None (#408)."""
         workers, depth = _resolve_parallel_settings(
             sequential=False, max_workers=None, prefetch_depth=2
         )
-        assert workers is None
+        assert isinstance(workers, int)
+        assert workers >= 1
+        # On any sane host, capped at 4 to keep the inference backend's
+        # queue from being over-provisioned.
+        assert workers <= 4
         assert depth == 2
+
+    def test_max_workers_auto_clamps_to_ceiling(self) -> None:
+        """Even a 32-core host caps at 4 workers (#408 default)."""
+        from unittest.mock import patch
+
+        with patch("cli.organize.os.cpu_count", return_value=32):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        assert workers == 4  # min(4, 32 // 2) = 4
+
+    def test_max_workers_auto_respects_low_core_count(self) -> None:
+        """On a single-core machine the auto-default still produces a sane 1."""
+        from unittest.mock import patch
+
+        with patch("cli.organize.os.cpu_count", return_value=1):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        # min(4, max(1, 1 // 2)) = min(4, 1) = 1
+        assert workers == 1
+
+    def test_max_workers_auto_handles_cpu_count_none(self) -> None:
+        """os.cpu_count() returning None (rare but possible) → fallback to 1."""
+        from unittest.mock import patch
+
+        with patch("cli.organize.os.cpu_count", return_value=None):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        assert workers == 1
 
     def test_max_workers_explicit(self) -> None:
         workers, depth = _resolve_parallel_settings(

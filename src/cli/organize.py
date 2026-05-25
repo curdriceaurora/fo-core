@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,19 @@ from cli.state import _get_state
 from core.types import OrganizationResult
 
 console = Console()
+
+# Worker auto-default cap (#408). The previous None → cpu_count() path
+# over-provisioned on multi-core machines (an M-series Mac with 16 cores
+# was launching 16 simultaneous Ollama requests, saturating the model
+# server). Clamp the floor to 1 and the ceiling to 4 so Ollama's
+# generation queue stays under a sane upper bound regardless of host.
+_AUTO_WORKERS_CEILING: int = 4
+
+
+def _auto_worker_default() -> int:
+    """Return the auto-resolved worker count when --workers / --max-workers omitted (#408)."""
+    cpu = os.cpu_count() or 1
+    return min(_AUTO_WORKERS_CEILING, max(1, cpu // 2))
 
 
 def _organize_result_to_json(result: OrganizationResult) -> dict[str, Any]:
@@ -83,17 +97,27 @@ def _resolve_parallel_settings(
     max_workers: int | None,
     prefetch_depth: int,
     no_prefetch: bool = False,
-) -> tuple[int | None, int]:
-    """Validate and resolve parallel worker/prefetch settings.
+) -> tuple[int, int]:
+    """Validate and resolve parallel worker/prefetch settings (#408).
+
+    When ``max_workers`` is ``None`` (the user didn't pass
+    ``--workers`` / ``--max-workers``), we now resolve to
+    ``min(4, max(1, cpu_count() // 2))`` instead of letting the
+    parallel processor fall through to ``os.cpu_count()``. The previous
+    default over-provisioned on multi-core hosts and saturated the
+    inference backend's queue.
 
     Args:
         sequential: Whether to force single-worker sequential processing.
-        max_workers: Requested worker count, or None for auto.
+        max_workers: Requested worker count, or ``None`` for the auto
+            default (see ``_auto_worker_default``).
         prefetch_depth: Requested prefetch queue depth.
         no_prefetch: Backward-compatible alias for prefetch_depth=0.
 
     Returns:
-        Tuple of (resolved_workers, resolved_prefetch_depth).
+        Tuple of (resolved_workers, resolved_prefetch_depth). The first
+        element is always a concrete ``int``; callers no longer have to
+        handle the ``None`` case.
 
     Raises:
         typer.Exit: With code 2 if --sequential and --max-workers > 1 conflict.
@@ -101,7 +125,13 @@ def _resolve_parallel_settings(
     if sequential and max_workers not in (None, 1):
         console.print("[red]Error: --sequential cannot be combined with --max-workers > 1[/red]")
         raise typer.Exit(code=2)
-    return (1 if sequential else max_workers, 0 if (sequential or no_prefetch) else prefetch_depth)
+    if sequential:
+        resolved = 1
+    elif max_workers is None:
+        resolved = _auto_worker_default()
+    else:
+        resolved = max_workers
+    return (resolved, 0 if (sequential or no_prefetch) else prefetch_depth)
 
 
 def _resolve_timeout_per_file(flag_value: float | None) -> float:
@@ -138,8 +168,13 @@ def organize(
     max_workers: int | None = typer.Option(
         None,
         "--max-workers",
+        "--workers",
         min=1,
-        help="Maximum number of parallel workers for file processing.",
+        help=(
+            "Number of parallel workers for file processing. When omitted, "
+            "defaults to min(4, cpu_count() // 2) (#408). Use 1 to force "
+            "sequential. `--workers` is an alias for `--max-workers`."
+        ),
     ),
     sequential: bool = typer.Option(
         False,
@@ -278,8 +313,12 @@ def preview(
     max_workers: int | None = typer.Option(
         None,
         "--max-workers",
+        "--workers",
         min=1,
-        help="Maximum number of parallel workers for file processing.",
+        help=(
+            "Number of parallel workers for file processing. Auto-default "
+            "min(4, cpu_count() // 2) (#408). `--workers` is an alias."
+        ),
     ),
     sequential: bool = typer.Option(
         False,

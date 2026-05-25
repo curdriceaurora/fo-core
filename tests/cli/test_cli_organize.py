@@ -7,7 +7,7 @@ FileOrganizer service.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 import typer
@@ -106,7 +106,7 @@ class TestOrganize:
         assert "1 skipped" in result.output
         mock_cls.assert_called_once_with(
             dry_run=False,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,
@@ -260,7 +260,7 @@ class TestOrganize:
         assert "dry run" in result.output.lower() or "Dry run" in result.output
         mock_cls.assert_called_once_with(
             dry_run=True,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,
@@ -268,6 +268,45 @@ class TestOrganize:
             max_transcribe_seconds=600.0,
             timeout_per_file=300.0,
         )
+
+    @patch("core.organizer.FileOrganizer")
+    def test_organize_workers_alias_propagates(self, mock_cls: MagicMock, tmp_path: Path) -> None:
+        """--workers N is an alias for --max-workers N (#408)."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        mock_org = MagicMock()
+        mock_cls.return_value = mock_org
+        mock_org.organize.return_value = _mock_result()
+
+        result = runner.invoke(
+            app,
+            ["organize", str(input_dir), str(output_dir), "--workers", "2"],
+        )
+        assert result.exit_code == 0
+        assert mock_cls.call_args.kwargs["parallel_workers"] == 2
+
+    @patch("core.organizer.FileOrganizer")
+    def test_organize_no_workers_flag_uses_auto_default(
+        self, mock_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """Omitting --workers / --max-workers picks min(4, cpu_count() // 2) (#408)."""
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        mock_org = MagicMock()
+        mock_cls.return_value = mock_org
+        mock_org.organize.return_value = _mock_result()
+
+        result = runner.invoke(app, ["organize", str(input_dir), str(output_dir)])
+        assert result.exit_code == 0
+        workers = mock_cls.call_args.kwargs["parallel_workers"]
+        assert isinstance(workers, int)
+        assert 1 <= workers <= 4  # auto-default ceiling
 
     @patch("core.organizer.FileOrganizer")
     def test_organize_parallel_controls(self, mock_cls: MagicMock, tmp_path: Path) -> None:
@@ -382,7 +421,7 @@ class TestOrganize:
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(
             dry_run=False,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=2,
             enable_vision=False,
             no_prefetch=False,
@@ -412,7 +451,7 @@ class TestOrganize:
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(
             dry_run=False,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=True,
@@ -479,7 +518,7 @@ class TestOrganize:
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(
             dry_run=False,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=False,
@@ -608,7 +647,7 @@ class TestPreview:
         assert "15" in result.output
         mock_cls.assert_called_once_with(
             dry_run=True,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,
@@ -665,7 +704,7 @@ class TestPreview:
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(
             dry_run=True,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=2,
             enable_vision=False,
             no_prefetch=False,
@@ -684,7 +723,7 @@ class TestPreview:
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(
             dry_run=True,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=2,
             enable_vision=False,
             no_prefetch=False,
@@ -703,7 +742,7 @@ class TestPreview:
         assert result.exit_code == 0
         mock_cls.assert_called_once_with(
             dry_run=True,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=0,
             enable_vision=True,
             no_prefetch=True,
