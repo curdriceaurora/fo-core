@@ -223,3 +223,39 @@ class TestProcessingSettingsToOrganizer:
             ProcessingSettings(timeout_per_file=0.0)
         with pytest.raises(ValueError, match="must be > 0"):
             ProcessingSettings(timeout_per_file=-1.0)
+
+    def test_adaptive_vision_fields_default_to_30_15_300(self) -> None:
+        """ProcessingSettings exposes the #407 fields with the documented defaults."""
+        app_cfg = AppConfig()
+        assert app_cfg.processing.vision_base_timeout_s == 30.0
+        assert app_cfg.processing.vision_per_mb_factor_s == 15.0
+        assert app_cfg.processing.vision_max_timeout_s == 300.0
+
+    def test_adaptive_vision_validation_rejects_bad_inputs(self) -> None:
+        """__post_init__ rejects each malformed adaptive-vision field (#407)."""
+        with pytest.raises(ValueError, match="vision_base_timeout_s must be > 0"):
+            ProcessingSettings(vision_base_timeout_s=0.0)
+        with pytest.raises(ValueError, match="vision_per_mb_factor_s must be >= 0"):
+            ProcessingSettings(vision_per_mb_factor_s=-1.0)
+        with pytest.raises(ValueError, match="vision_max_timeout_s must be > 0"):
+            ProcessingSettings(vision_max_timeout_s=0.0)
+        with pytest.raises(ValueError, match="must be <= vision_max_timeout_s"):
+            ProcessingSettings(vision_base_timeout_s=400.0, vision_max_timeout_s=300.0)
+
+    def test_compute_vision_timeout_uses_processing_settings(self) -> None:
+        """The helper round-trips with AppConfig.processing (#407)."""
+        from services.vision_processor import compute_vision_timeout
+
+        app_cfg = AppConfig(
+            processing=ProcessingSettings(
+                vision_base_timeout_s=60.0,
+                vision_per_mb_factor_s=5.0,
+                vision_max_timeout_s=120.0,
+            )
+        )
+
+        assert compute_vision_timeout(0, app_cfg.processing) == 60.0
+        # 10MB → 60 + 50 = 110s (within max)
+        assert compute_vision_timeout(10 * 1024 * 1024, app_cfg.processing) == 110.0
+        # 30MB → raw=210, clamped to 120
+        assert compute_vision_timeout(30 * 1024 * 1024, app_cfg.processing) == 120.0
