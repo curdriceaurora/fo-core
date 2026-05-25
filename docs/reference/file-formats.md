@@ -10,7 +10,7 @@
 | Scientific | `.hdf5`, `.h5`, `.hdf`, `.nc`, `.nc4`, `.netcdf`, `.mat` | 7 |
 | CAD | `.dxf`, `.dwg`, `.step`, `.stp`, `.iges`, `.igs` | 6 |
 
-**Total**: 49+ file types supported
+**Total**: 52 file types supported
 
 ## Optional Dependencies
 

@@ -160,6 +160,7 @@ class TestDownscaleHandlesSvg:
     def test_svg_fallback_on_pil_failure(self, tmp_path: Path) -> None:
         """If Pillow downscale step fails, raw rasterized PNG is still returned."""
         pytest.importorskip("fitz")
+        pytest.importorskip("PIL")
         from models._vision_helpers import downscale_image_if_needed
 
         svg_file = tmp_path / "shape.svg"
@@ -200,16 +201,14 @@ class TestImageToDataUrlHandlesSvg:
 
         assert len(result) > len("data:image/png;base64,")
 
-    def test_svg_bypasses_safedir(self, tmp_path: Path) -> None:
-        """SVG path takes the fitz rasterization branch, not the SafeDir read path."""
+    def test_svg_uses_safedir_for_file_read(self, tmp_path: Path) -> None:
+        """SVG file read routes through SafeDir before rasterization (issue #402 S3 fix)."""
         pytest.importorskip("fitz")
         from models._vision_helpers import image_to_data_url
 
         svg_file = tmp_path / "shape.svg"
         svg_file.write_bytes(_MINIMAL_SVG)
 
-        with patch("utils.safedir.SafeDir.open_root") as mock_safedir:
-            result = image_to_data_url(svg_file)
+        result = image_to_data_url(svg_file)
 
-        mock_safedir.assert_not_called()
         assert result.startswith("data:image/png;base64,")

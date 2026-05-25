@@ -274,6 +274,7 @@ class TestVisionHelpers:
         self, tmp_path: Path
     ) -> None:
         pytest.importorskip("fitz")
+        pytest.importorskip("PIL")
         from models._vision_helpers import downscale_image_if_needed
 
         svg_file = tmp_path / "shape.svg"
