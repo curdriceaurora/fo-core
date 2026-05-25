@@ -365,6 +365,80 @@ class TestOrganize:
         assert result.exit_code == 1
         assert "Ollama not running" in result.output
 
+    @patch("core.organizer.FileOrganizer")
+    def test_organize_show_skipped_flag_forwarded(
+        self, mock_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """--show-skipped is forwarded to organizer.organize via kwarg (#412)."""
+        from collections import Counter
+
+        from core.types import OrganizationResult
+
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        mock_org = MagicMock()
+        mock_cls.return_value = mock_org
+        # Real OrganizationResult so the JSON helper / CLI summary can read fields.
+        mock_org.organize.return_value = OrganizationResult(
+            total_files=15,
+            processed_files=12,
+            skipped_files=3,
+            skipped_by_extension=Counter({".nib": 2, ".stl": 1}),
+        )
+
+        result = runner.invoke(
+            app,
+            ["organize", str(input_dir), str(output_dir), "--show-skipped"],
+        )
+        assert result.exit_code == 0
+        # The kwarg was forwarded so the underlying summary renderer would
+        # print the full breakdown.
+        mock_org.organize.assert_called_once()
+        kwargs = mock_org.organize.call_args.kwargs
+        assert kwargs.get("show_skipped") is True
+
+    @patch("core.organizer.FileOrganizer")
+    def test_organize_json_output_includes_skipped_by_extension(
+        self, mock_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        """--json output includes skipped_by_extension as a dict (#412)."""
+        import json
+        from collections import Counter
+
+        from core.types import OrganizationResult
+
+        input_dir = tmp_path / "input"
+        output_dir = tmp_path / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+
+        mock_org = MagicMock()
+        mock_cls.return_value = mock_org
+        mock_org.organize.return_value = OrganizationResult(
+            total_files=10,
+            processed_files=7,
+            skipped_files=3,
+            skipped_by_extension=Counter({".nib": 2, ".stl": 1}),
+        )
+
+        result = runner.invoke(
+            app,
+            ["organize", str(input_dir), str(output_dir), "--json"],
+        )
+        assert result.exit_code == 0
+        # Locate the JSON object in the output (skip any Rich-styled lines).
+        json_start = result.output.find("{")
+        json_end = result.output.rfind("}") + 1
+        assert json_start != -1 and json_end > json_start
+        payload = json.loads(result.output[json_start:json_end])
+        assert payload["skipped_by_extension"] == {".nib": 2, ".stl": 1}
+        assert payload["skipped_files"] == 3
+        assert payload["processed_files"] == 7
+        assert payload["total_files"] == 10
+
 
 # ---------------------------------------------------------------------------
 # preview
