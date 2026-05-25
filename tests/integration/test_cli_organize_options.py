@@ -148,6 +148,54 @@ class TestResolveParallelSettings:
             )
         assert workers == 4
 
+    def test_provider_lazy_reads_profile_when_fo_provider_unset(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If profile has framework=llama_cpp and FO_PROVIDER is unset, resolver returns llama_cpp.
+
+        Regression for the second Codex P2 catch on PR #423: the
+        prior `get_current_provider()` path only read FO_PROVIDER and
+        misclassified profile-configured users as "ollama", which then
+        capped them to 1 worker via OLLAMA_NUM_PARALLEL even though
+        they're not on Ollama at all.
+        """
+        from unittest.mock import patch
+
+        from cli.organize import _get_current_provider_lazy
+        from models.base import ModelConfig, ModelType
+
+        monkeypatch.delenv("FO_PROVIDER", raising=False)
+        fake_text_cfg = ModelConfig(
+            name="llama-3.2-3b-instruct",
+            model_type=ModelType.TEXT,
+            provider="llama_cpp",
+        )
+        fake_vision_cfg = ModelConfig(
+            name="llama-3.2-vision",
+            model_type=ModelType.VISION,
+            provider="llama_cpp",
+        )
+
+        with patch(
+            "config.provider_env.get_model_configs",
+            return_value=(fake_text_cfg, fake_vision_cfg),
+        ):
+            assert _get_current_provider_lazy() == "llama_cpp"
+
+    def test_provider_lazy_falls_back_to_ollama_on_config_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A broken config cascade falls back to the safe Ollama default."""
+        from unittest.mock import patch
+
+        from cli.organize import _get_current_provider_lazy
+
+        with patch(
+            "config.provider_env.get_model_configs",
+            side_effect=RuntimeError("boom"),
+        ):
+            assert _get_current_provider_lazy() == "ollama"
+
     def test_max_workers_auto_respects_low_core_count(self) -> None:
         """On a single-core machine the auto-default still produces a sane 1."""
         from unittest.mock import patch

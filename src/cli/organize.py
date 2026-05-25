@@ -39,22 +39,38 @@ def _ollama_num_parallel() -> int:
 
 
 def _get_current_provider_lazy() -> str:
-    """Module-level lazy-loader for `config.provider_env.get_current_provider`.
+    """Resolve the active provider via the full config cascade (#408).
 
-    The provider-env module pulls loguru and model-config plumbing that we
-    don't want on the CLI startup path (#404 fast-path).  This wrapper
-    imports it on first call and forwards the result; on ImportError it
-    falls back to ``"ollama"`` (the safest default — capping at
-    ``OLLAMA_NUM_PARALLEL=1`` prevents the Ollama-flood case the issue
-    called out).  ``get_current_provider()`` itself already handles
-    unknown FO_PROVIDER values by returning "ollama", so we don't need a
-    broad ``except Exception`` here.
+    Importantly, this does NOT just read ``FO_PROVIDER`` (which is what
+    ``get_current_provider()`` does).  Users frequently configure their
+    provider in ``config.yaml`` (e.g. ``models.framework: llama_cpp``)
+    without ever exporting ``FO_PROVIDER``; in that case the env-only
+    check would misclassify them as ``"ollama"`` and the
+    ``OLLAMA_NUM_PARALLEL`` cap below would silently drop their workers
+    to 1.
+
+    The cascade — env → profile → defaults — already lives in
+    ``get_model_configs()``.  We use the resolved
+    ``ModelConfig.provider`` from the text-model side of that tuple
+    (text/vision always share a provider).  On ImportError, fall back
+    to ``"ollama"`` (the safe default that prevents the Ollama-flood
+    case #408 called out).
+
+    Kept at module scope per the F9 anti-pattern rule; lazy imports
+    live inside this function so ``fo version`` etc. don't pay the
+    cost (#404 fast-path).
     """
     try:
-        from config.provider_env import get_current_provider
+        from config.provider_env import get_model_configs
     except ImportError:
         return "ollama"
-    return get_current_provider()
+    try:
+        text_cfg, _ = get_model_configs()
+    except Exception:
+        # If config-resolution itself fails (broken YAML, missing
+        # creds, etc.), fall through to the conservative default.
+        return "ollama"
+    return text_cfg.provider
 
 
 def _auto_worker_default() -> int:
