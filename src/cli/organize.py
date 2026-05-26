@@ -65,10 +65,17 @@ def _get_current_provider_lazy() -> str:
     except ImportError:
         return "ollama"
     try:
-        text_cfg, _ = get_model_configs()
+        configs = get_model_configs()
     except Exception:
         return "ollama"
-    return text_cfg.provider
+    # Defensive shape check (CodeRabbit hardening on PR #423). A future
+    # refactor of get_model_configs that breaks the 2-tuple contract
+    # would otherwise let an unsafe value land in the worker resolver.
+    if not isinstance(configs, tuple) or len(configs) != 2:
+        return "ollama"
+    text_cfg = configs[0]
+    provider = getattr(text_cfg, "provider", None)
+    return provider if isinstance(provider, str) and provider else "ollama"
 
 
 def _auto_worker_default() -> int:

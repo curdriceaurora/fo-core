@@ -184,6 +184,27 @@ class TestResolveParallelSettings:
         with patch("config.provider_env.get_model_configs", side_effect=RuntimeError("boom")):
             assert _get_current_provider_lazy() == "ollama"
 
+    def test_provider_lazy_falls_back_on_malformed_return_shape(self) -> None:
+        """Non-2-tuple / missing-provider returns from get_model_configs fall back safely.
+
+        CodeRabbit hardening on PR #423: a future refactor of
+        get_model_configs that breaks the 2-tuple contract must not
+        send a garbage value into the worker resolver.
+        """
+        from unittest.mock import patch
+
+        from cli.organize import _get_current_provider_lazy
+
+        # Wrong-length tuple
+        with patch("config.provider_env.get_model_configs", return_value=(None,)):
+            assert _get_current_provider_lazy() == "ollama"
+        # Non-tuple return
+        with patch("config.provider_env.get_model_configs", return_value="ollama"):
+            assert _get_current_provider_lazy() == "ollama"
+        # First element missing .provider attribute
+        with patch("config.provider_env.get_model_configs", return_value=(object(), object())):
+            assert _get_current_provider_lazy() == "ollama"
+
     def test_max_workers_auto_respects_low_core_count(self) -> None:
         """On a single-core machine the auto-default still produces a sane 1."""
         from unittest.mock import patch

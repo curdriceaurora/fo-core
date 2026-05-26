@@ -20,7 +20,7 @@ import logging
 import os
 from dataclasses import asdict, fields
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, TypeAlias
 
 import yaml
 
@@ -42,20 +42,24 @@ DEFAULT_CONFIG_DIR = get_config_dir()
 CONFIG_FILENAME = "config.yaml"
 CONFIG_PATH_ENV = "FO_CONFIG"
 
+# ``ModelConfig.provider``'s Literal so mypy stays happy and the
+# converter and the dataclass agree on the universe of valid values.
+ProviderName: TypeAlias = Literal["ollama", "openai", "llama_cpp", "mlx", "claude"]
+
 # ModelPreset.framework accepts only the three local-inference frameworks
 # (ollama / llama_cpp / mlx); openai and claude only land via env vars in
 # this codebase. The converter maps framework → provider so that downstream
 # routing (provider_factory etc.) sees a coherent single source of truth.
 # Anything outside this map falls back to the safe Ollama default, matching
 # ModelConfig.provider's dataclass default.
-_FRAMEWORK_TO_PROVIDER: dict[str, str] = {
+_FRAMEWORK_TO_PROVIDER: dict[str, ProviderName] = {
     "ollama": "ollama",
     "llama_cpp": "llama_cpp",
     "mlx": "mlx",
 }
 
 
-def _provider_from_framework(framework: str) -> str:
+def _provider_from_framework(framework: str) -> ProviderName:
     """Map ModelPreset.framework → ModelConfig.provider (#408 / #423).
 
     Without this mapping ``to_text_model_config`` set ``framework`` but
