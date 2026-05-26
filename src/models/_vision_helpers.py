@@ -159,6 +159,27 @@ def _read_image_bytes_safedir(image_path: Path) -> bytes:
             return fh_win.read()
 
 
+def _resolve_svg_max_input_bytes() -> int:
+    """Return the ``vision.svg_max_input_bytes`` for the active profile.
+
+    "Active" profile follows the runtime precedence: ``FO_PROFILE`` env
+    var wins, else ``"default"`` — matching ``config.provider_env``
+    (Codex P2 catch on PR #428, second round — the previous resolver
+    hard-coded ``"default"`` and silently ignored per-profile overrides).
+
+    Any failure (file missing, parse error, schema drift) degrades to
+    ``_SVG_MAX_INPUT_BYTES_DEFAULT`` so the precheck stays armed even
+    when called outside a normal CLI run.
+    """
+    try:
+        from config.manager import ConfigManager
+
+        profile = os.environ.get("FO_PROFILE", "").strip() or "default"
+        return int(ConfigManager().load(profile).vision.svg_max_input_bytes)
+    except Exception:  # pragma: no cover — defensive degrade path
+        return _SVG_MAX_INPUT_BYTES_DEFAULT
+
+
 def rasterize_svg_to_png_bytes(svg_path: Path, *, max_input_bytes: int | None = None) -> bytes:
     """Rasterize an SVG file to PNG bytes using PyMuPDF (fitz).
 
@@ -199,7 +220,12 @@ def rasterize_svg_to_png_bytes(svg_path: Path, *, max_input_bytes: int | None = 
             pre-parse, cannot be opened or rendered, or if *svg_path* is a
             symlink (POSIX only).
     """
-    max_bytes = max_input_bytes if max_input_bytes is not None else _SVG_MAX_INPUT_BYTES_DEFAULT
+    # Explicit kwarg from a caller with an AppConfig in hand takes
+    # precedence; otherwise resolve from the active config profile so
+    # the user's ``vision.svg_max_input_bytes`` is honoured even for
+    # callers that don't thread config through (e.g.
+    # ``downscale_image_if_needed`` / ``image_to_data_url``).
+    max_bytes = max_input_bytes if max_input_bytes is not None else _resolve_svg_max_input_bytes()
     try:
         size = svg_path.stat().st_size
     except FileNotFoundError:
