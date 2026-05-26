@@ -303,14 +303,17 @@ class FileOrganizer:
                     p.file_path.name,
                     getattr(p, "source", "text"),
                 )
-                if _confidence <= _confidence_threshold:
-                    # Inclusive on the upper bound so threshold-equal
-                    # placements (e.g. EXIF fallback at 0.5 with the
-                    # default 0.5 threshold) DO appear in "Review
-                    # recommended". Codex P1 catch on PR #426: a
-                    # strict `<` excluded those entries from the
-                    # review even though they're the canonical
-                    # borderline case the feature targets.
+                # Two conditions:
+                # 1. confidence < 1.0  — happy-path inferences (score
+                #    1.0) are NEVER flagged regardless of threshold,
+                #    so setting `low_confidence_threshold=1.0` doesn't
+                #    flood the review list with every file (Codex P2
+                #    catch on PR #426).
+                # 2. confidence <= threshold — inclusive on the
+                #    threshold so the canonical borderline case (EXIF
+                #    fallback at 0.5 against the 0.5 default) lands
+                #    in the review (Codex P1 catch on PR #426).
+                if _confidence < 1.0 and _confidence <= _confidence_threshold:
                     result.low_confidence_files.append(p.file_path.name)
 
             all_processed = self._deduplicate_processed(all_processed, result)

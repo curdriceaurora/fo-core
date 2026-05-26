@@ -184,6 +184,114 @@ class TestFileOrganizer:
         mock_fallback.assert_called_once()
         assert mock_fallback.call_args.args[0] == [image]
 
+    def test_organizer_collects_low_confidence_results(self, tmp_path: Path) -> None:
+        """#409 end-to-end: organizer aggregation routes low-confidence
+        results into ``OrganizationResult.low_confidence_files``.
+
+        Drives ``organize`` with a synthetic four-file batch (one
+        happy-path, one EXIF fallback @ 0.5, one filename fallback @
+        0.3, one error @ 0.0) and asserts the three non-happy-path
+        files land in the review list. Pinned to the default 0.5
+        threshold so the comparator's inclusive-but-not-1.0 semantics
+        are exercised. ci-marked so PR diff-coverage counts the
+        organizer aggregation lines.
+        """
+        from services.vision_processor import ProcessedImage
+
+        results: list[ProcessedImage] = [
+            ProcessedImage(
+                file_path=tmp_path / "ok.png",
+                description="d",
+                folder_name="images",
+                filename="ok",
+                confidence=1.0,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "exif.jpg",
+                description="",
+                folder_name="Images/Photos/2025/11",
+                filename="exif",
+                source="fallback_exif",
+                confidence=0.5,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "name.png",
+                description="",
+                folder_name="Images/Screenshots/2026",
+                filename="name",
+                source="fallback_filename",
+                confidence=0.3,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "bad.png",
+                description="",
+                folder_name="errors",
+                filename="bad",
+                error="boom",
+                confidence=0.0,
+            ),
+        ]
+        for r in results:
+            r.file_path.write_bytes(b"")
+
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        with (
+            patch.object(
+                organizer,
+                "_categorize_files",
+                return_value=([], [r.file_path for r in results], [], [], [], []),
+            ),
+            patch.object(organizer, "_process_all_file_types", return_value=results),
+            patch.object(organizer, "_execute_organization"),
+        ):
+            result = organizer.organize(tmp_path, tmp_path / "out")
+
+        # Default threshold (0.5), inclusive-but-not-1.0 → EXIF + name + bad.
+        assert set(result.low_confidence_files) == {"exif.jpg", "name.png", "bad.png"}
+        # Happy-path file is never flagged.
+        assert "ok.png" not in result.low_confidence_files
+
+    def test_threshold_one_does_not_flag_happy_path(self, tmp_path: Path) -> None:
+        """#409 / Codex P2: threshold=1.0 must not flood the review list.
+
+        Confidence==1.0 is the happy path and should never be flagged,
+        regardless of threshold. Verifies the
+        ``confidence < 1.0`` cap in the comparator.
+        """
+        from unittest.mock import MagicMock
+
+        from services.vision_processor import ProcessedImage
+
+        happy = ProcessedImage(
+            file_path=tmp_path / "ok.png",
+            description="d",
+            folder_name="images",
+            filename="ok",
+            confidence=1.0,
+        )
+        happy.file_path.write_bytes(b"")
+
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+
+        # Patch the threshold loader to return 1.0 (the inclusive max).
+        mock_manager = MagicMock()
+        mock_app_cfg = MagicMock()
+        mock_app_cfg.processing.low_confidence_threshold = 1.0
+        mock_manager.load.return_value = mock_app_cfg
+        with (
+            patch.object(
+                organizer,
+                "_categorize_files",
+                return_value=([], [happy.file_path], [], [], [], []),
+            ),
+            patch.object(organizer, "_process_all_file_types", return_value=[happy]),
+            patch.object(organizer, "_execute_organization"),
+            patch("config.manager.ConfigManager", return_value=mock_manager),
+        ):
+            result = organizer.organize(tmp_path, tmp_path / "out")
+
+        assert result.low_confidence_files == []
+
 
 # ---------------------------------------------------------------------------
 # file_ops module tests
