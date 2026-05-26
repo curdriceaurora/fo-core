@@ -26,7 +26,12 @@ def test_records_elapsed_on_success(tmp_path: Path) -> None:
     with time_inference("text", f) as t:
         pass
 
-    assert t.elapsed_ms >= 0.0
+    # A no-op body must measure as a finite, small duration. Use a
+    # generous upper bound (1 second) so the bound is meaningful but
+    # not so tight it flakes on slow CI runners. Lower bound is
+    # already implicit via _InferenceTimer's `max(0.0, ...)`.
+    assert isinstance(t.elapsed_ms, float)
+    assert t.elapsed_ms < 1000.0
 
 
 def test_records_elapsed_on_exception(tmp_path: Path) -> None:
@@ -37,8 +42,11 @@ def test_records_elapsed_on_exception(tmp_path: Path) -> None:
         with time_inference("vision", f) as t:
             raise RuntimeError("boom")
 
-    # __exit__ still updated elapsed_ms despite the exception.
-    assert t.elapsed_ms >= 0.0
+    # __exit__ still updated elapsed_ms despite the exception. The
+    # synchronous raise body is essentially instantaneous, so the
+    # measurement should be a small finite float.
+    assert isinstance(t.elapsed_ms, float)
+    assert t.elapsed_ms < 1000.0
 
 
 def test_logs_kind_and_filename_on_success(tmp_path: Path) -> None:
@@ -83,8 +91,11 @@ def test_accepts_string_path(tmp_path: Path) -> None:
     assert file_name == "report.md"
 
 
-def test_zero_duration_is_not_negative() -> None:
-    """A no-op body still produces a non-negative reading."""
-    with time_inference("text", "/tmp/x") as t:
+def test_zero_duration_is_not_negative(tmp_path: Path) -> None:
+    """A no-op body still produces a finite, small reading."""
+    with time_inference("text", tmp_path / "x") as t:
         pass
-    assert t.elapsed_ms >= 0.0
+    # _InferenceTimer clamps to max(0.0, …) so a no-op body must be
+    # a sane small positive float (well under 1s on any platform).
+    assert isinstance(t.elapsed_ms, float)
+    assert t.elapsed_ms < 1000.0

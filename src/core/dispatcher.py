@@ -253,6 +253,14 @@ def process_image_files(
                             folder_name=fb.folder,
                             filename=fb.filename,
                             source=fb.source,
+                            # Carry the timeout's wall-clock through so the
+                            # #410 summary's p95/p99 reflect this image's
+                            # real worst-case latency. Without this, the
+                            # slowest attempts in a run are silently
+                            # excluded from the percentile sample set and
+                            # the observability output understates tail
+                            # latency (CodeRabbit P2 on PR #424).
+                            inference_ms=file_result.duration_ms,
                             # NB: no `error` field — the file is not a failure
                         )
                     )

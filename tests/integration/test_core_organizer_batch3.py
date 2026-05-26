@@ -886,6 +886,36 @@ class TestDispatcher:
         assert result.error is None or result.error == ""
         assert result.folder_name == "Images/Screenshots/2026"
         assert result.source == "fallback_filename"
+        # #410: timeout's wall-clock duration is preserved on the
+        # fallback result so it lands in the p95/p99 inference sample.
+        # `_make_file_result_failure` defaults duration_ms to 1.0.
+        assert result.inference_ms == 1.0
+
+    def test_process_image_files_timeout_fallback_carries_long_duration(
+        self, tmp_path: Path
+    ) -> None:
+        """Long timeout durations land on the fallback's inference_ms (#410)."""
+        from rich.console import Console
+
+        from core import dispatcher
+        from parallel.result import FileResult
+
+        img = tmp_path / "IMG_20260522_140307.jpg"
+        img.write_bytes(b"")
+
+        # Simulate a 5-minute timeout (the dispatcher default).
+        file_result = FileResult(
+            path=img,
+            success=False,
+            error="Timed out after 300.0s",
+            duration_ms=300_000.0,
+        )
+        mock_pp = self._make_mock_parallel_processor([file_result])
+        results = dispatcher.process_image_files([img], MagicMock(), mock_pp, Console(quiet=True))
+
+        assert results[0].inference_ms == 300_000.0
+        # The timeout sample is now part of the p95/p99 inputs, where
+        # before this fix it was silently dropped.
 
     def test_process_image_files_non_timeout_failure_is_not_fallback(self, tmp_path: Path) -> None:
         """Read errors / corrupt-image failures still take the regular error path."""

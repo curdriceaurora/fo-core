@@ -181,8 +181,6 @@ class VisionProcessor:
         Returns:
             ProcessedImage with metadata
         """
-        import time
-
         file_path = Path(file_path)
         start_time = time.time()
 
@@ -234,8 +232,6 @@ class VisionProcessor:
         """Original process_file body, extracted so the timing wrapper above
         can run uniformly regardless of which early-return branch fires.
         """
-        import time
-
         try:
             if self._is_circuit_open():
                 logger.warning(
