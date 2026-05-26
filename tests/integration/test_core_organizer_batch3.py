@@ -459,6 +459,51 @@ class TestDisplay:
 
         show_summary(console, result, tmp_path, dry_run=True)
 
+    @pytest.mark.integration
+    def test_error_taxonomy_buckets_all_categories_integration(self) -> None:
+        # #411 integration coverage: exercise every classify_error
+        # branch through the public helper. Pinned at integration tier
+        # so error_taxonomy.py clears the per-module floor (90%+).
+        from dataclasses import dataclass
+
+        from core.error_taxonomy import RECOMMENDATIONS, classify_error
+
+        @dataclass
+        class _R:
+            error: str | None = None
+            source: str | None = None
+            confidence: float = 1.0
+
+        # Each bucket plus the happy-path None
+        cases = [
+            (_R(error=None, source="vision"), None),
+            (_R(error=None, source="fallback_exif"), "vision_timeout"),
+            (_R(error="Timed out after 30s", confidence=0.0), "vision_timeout"),
+            (_R(error="Permission denied", confidence=0.0), "read_error"),
+            (
+                _R(error="Failed to read DOCX file foo.docx: x", confidence=0.0),
+                "read_error",
+            ),
+            (
+                _R(error="Unsupported file type: .xyz", confidence=0.0),
+                "unsupported_type",
+            ),
+            (_R(error="provider HTTP 500", confidence=0.0), "inference_error"),
+            (_R(error="ghost", confidence=0.5), "other"),
+        ]
+        for stub, expected in cases:
+            assert classify_error(stub) == expected, stub
+
+        # Every emitted bucket carries a recommendation string.
+        for category in (
+            "vision_timeout",
+            "read_error",
+            "unsupported_type",
+            "inference_error",
+            "other",
+        ):
+            assert RECOMMENDATIONS[category]
+
     def test_show_summary_renders_error_breakdown(self, tmp_path: Path) -> None:
         # #411: breakdown lines appear when error_breakdown is populated;
         # the recommendation line fires only above the 10%-of-total trigger.

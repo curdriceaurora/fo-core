@@ -316,17 +316,19 @@ class FileOrganizer:
                 #    in the review (Codex P1 catch on PR #426).
                 if _confidence < 1.0 and _confidence <= _confidence_threshold:
                     result.low_confidence_files.append(p.file_path.name)
-                # Structured error breakdown (#411). Bucket via the
-                # shared taxonomy so the summary renderer and any JSON
-                # consumer see the same category labels. Only the
-                # first encountered file per bucket gets stored as an
-                # example to keep the breakdown dict small.
+
+            all_processed = self._deduplicate_processed(all_processed, result)
+            # Structured error breakdown (#411). Aggregated POST-dedup so
+            # content-duplicates that the dedup pass removed from
+            # ``processed_files`` / ``failed_files`` don't inflate the
+            # bucket counters (CodeRabbit P2 catch on PR #427). Only the
+            # first encountered file per bucket gets stored as an example
+            # to keep the breakdown dict small.
+            for p in all_processed:
                 _category = classify_error(p)
                 if _category is not None:
                     result.error_breakdown[_category] += 1
                     result.error_examples.setdefault(_category, p.file_path.name)
-
-            all_processed = self._deduplicate_processed(all_processed, result)
             failed_cnt = sum(1 for p in all_processed if p.error)
             # Vision-timeout fallbacks (#406) count as processed (they
             # landed in a folder) but are marked low-confidence for the

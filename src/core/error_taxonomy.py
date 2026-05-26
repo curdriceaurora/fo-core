@@ -32,7 +32,7 @@ ErrorCategory = Literal[
 # when it exceeds the 10%-of-scanned-files trigger.  Phrased as
 # actionable next steps so an operator can fix the issue without
 # re-reading the dispatcher source.
-RECOMMENDATIONS: dict[ErrorCategory, str] = {
+RECOMMENDATIONS: dict[str, str] = {
     "vision_timeout": (
         "consider `--timeout-per-file` to raise the cap or `--workers` to parallelise (#396 / #408)"
     ),
@@ -56,6 +56,13 @@ _READ_ERROR_TOKENS: tuple[str, ...] = (
     "exceeds max_file_size",  # FileTooLargeError shape
     "filereaderror",
     "fileexists",
+    # Every reader in utils/readers/ wraps parse / decode failures as
+    # ``FileReadError(f"Failed to read <FORMAT> ...")`` — those propagate
+    # through services.text_processor.process_file → ProcessedFile.error
+    # as "Failed to read DOCX file ...", "Failed to read PDF file ...",
+    # etc.  Without this token they bucket into ``inference_error`` and
+    # mislead the operator-facing recommendation.
+    "failed to read",
 )
 
 # Tokens that signal the file's extension / content type isn't supported.

@@ -247,8 +247,11 @@ class TestFileOrganizer:
                 inference_ms=80.0,
             ),
         ]
-        for r in results:
-            r.file_path.write_bytes(b"")
+        # Distinct bytes per file so the SHA-256 dedup pass (#411 moved
+        # the error-bucket aggregation post-dedup) doesn't collapse them
+        # into a single survivor.
+        for i, r in enumerate(results):
+            r.file_path.write_bytes(f"unique-{i}".encode())
 
         organizer = FileOrganizer(dry_run=True, enable_vision=False)
         with (

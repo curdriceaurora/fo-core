@@ -257,9 +257,9 @@ def _render_error_breakdown(console: Console, result: OrganizationResult) -> Non
         return
 
     # ``error_breakdown`` is typed ``Counter[str]`` so dataclass init
-    # stays simple, but every key the organizer writes is one of the
-    # ``ErrorCategory`` literals — RECOMMENDATIONS is keyed on that
-    # narrower type, so do a plain ``in`` check here.
+    # stays simple. The organizer only ever writes keys produced by
+    # ``classify_error()``, every one of which is also a key of
+    # ``RECOMMENDATIONS`` — direct subscript is safe.
     from core.error_taxonomy import RECOMMENDATIONS
 
     console.print("\n[bold]Failure breakdown:[/bold]")
@@ -276,9 +276,4 @@ def _render_error_breakdown(console: Console, result: OrganizationResult) -> Non
         # counted as failures) still trigger the bolded hint when they
         # represent >10% of the workload.
         if result.total_files and count / result.total_files > _RECOMMENDATION_THRESHOLD:
-            tip = next(
-                (v for k, v in RECOMMENDATIONS.items() if k == category),
-                None,
-            )
-            if tip:
-                console.print(f"    [bold yellow]→ {tip}[/bold yellow]")
+            console.print(f"    [bold yellow]→ {RECOMMENDATIONS[category]}[/bold yellow]")

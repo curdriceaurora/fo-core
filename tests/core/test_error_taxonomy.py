@@ -52,6 +52,20 @@ class TestClassifyError:
             == "read_error"
         )
 
+    def test_read_error_reader_failed_to_read(self) -> None:
+        # FileReadError messages emitted by every reader in
+        # utils/readers/ follow the "Failed to read <FORMAT>..."
+        # template (DOCX, PDF, RTF, ebook, ...). Previously these
+        # bucketed into inference_error because the token list
+        # didn't catch them — CodeRabbit P2 catch on PR #427.
+        for msg in (
+            "Failed to read DOCX file foo.docx: parser error",
+            "Failed to read PDF file bar.pdf: encrypted",
+            "Failed to read RTF baz.rtf: invalid header",
+            "Failed to read ebook file qux.epub: missing manifest",
+        ):
+            assert classify_error(_Stub(error=msg, confidence=0.0)) == "read_error", msg
+
     def test_read_error_size_cap(self) -> None:
         assert (
             classify_error(_Stub(error="exceeds max_file_size of 100MB", confidence=0.0))
