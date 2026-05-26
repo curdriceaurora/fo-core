@@ -32,6 +32,7 @@ from config.schema import (
     AppConfig,
     ModelPreset,
     UpdateSettings,
+    VisionSettings,
 )
 from models.base import DeviceType, ModelConfig, ModelType
 from utils.atomic_write import atomic_write_text
@@ -496,10 +497,10 @@ class ConfigManager:
             "setup_completed": config.setup_completed,
             "models": asdict(config.models),
             "updates": asdict(config.updates),
-            # #407 / #409: serialize nested settings sections so user-set
-            # values (e.g. `processing.low_confidence_threshold`,
-            # `vision.max_long_edge`) round-trip through YAML. Missing
-            # these was a pre-existing bug — Codex P1 catch on PR #426.
+            # #407 / #409 / #415: serialize nested settings sections so
+            # user-set values (e.g. `processing.low_confidence_threshold`,
+            # `vision.max_long_edge`, `vision.svg_max_input_bytes`)
+            # round-trip through YAML.
             "vision": asdict(config.vision),
             "processing": asdict(config.processing),
         }
@@ -524,7 +525,7 @@ class ConfigManager:
     @staticmethod
     def _dict_to_config(data: dict[str, Any], profile: str) -> AppConfig:
         """Deserialize a dict (from YAML) into an AppConfig."""
-        from config.schema import ProcessingSettings, VisionSettings
+        from config.schema import ProcessingSettings
 
         models_data = data.get("models", {})
         if isinstance(models_data, dict):
@@ -543,10 +544,11 @@ class ConfigManager:
         else:
             updates = UpdateSettings()
 
-        # #407 / #409: round-trip the nested settings sections. Missing
-        # these was a pre-existing bug — without it, `fo config set
-        # processing.low_confidence_threshold 0.7` would save but
-        # silently fail to load on the next run.
+        # #407 / #409 / #415: round-trip the nested settings sections.
+        # Without this `fo config set vision.svg_max_input_bytes 10485760`
+        # would save but silently fail to load on the next run.
+        # Tolerate missing or non-dict input by falling back to defaults
+        # so old configs keep loading.
         vision_data = data.get("vision", {})
         if isinstance(vision_data, dict):
             valid_vision_keys = {f.name for f in fields(VisionSettings)}

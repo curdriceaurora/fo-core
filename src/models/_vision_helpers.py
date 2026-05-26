@@ -16,6 +16,19 @@ import sys
 from pathlib import Path
 
 import fitz  # PyMuPDF — core dep; also handles SVG rasterization
+
+# defusedxml is the project-wide standard for parsing untrusted XML
+# (.claude/rules/pr-comment-derived-rails.md Rail 2 — fail-closed, no
+# silent stdlib fallback). For SVG we lean on:
+#   - DTDForbidden              : blocks any DOCTYPE declaration
+#   - EntitiesForbidden         : blocks <!ENTITY xxe SYSTEM "...">
+#   - ExternalReferenceForbidden: blocks file:/http: external references
+# raised during the pre-parse, before MuPDF sees the bytes. Modern SVG
+# exporters do not emit a DOCTYPE, so forbidding DTDs outright trades a
+# small legacy-tooling compatibility risk for a closed XXE surface.
+from defusedxml import DTDForbidden, EntitiesForbidden, ExternalReferenceForbidden
+from defusedxml.ElementTree import ParseError as _DefusedParseError
+from defusedxml.ElementTree import fromstring as _defused_fromstring
 from loguru import logger
 
 # Fallback MIME type when extension is not recognised
@@ -24,6 +37,12 @@ _DEFAULT_IMAGE_MIME = "image/jpeg"
 # Maximum pixel dimension for SVG rasterization — guards against OOM from
 # SVGs with very large intrinsic width/height before downscaling is applied.
 _SVG_MAX_RENDER_EDGE = 4096
+
+# Hard cap on .svg file size, applied at read time (#415). Default of
+# 5 MiB matches ``AppConfig.vision.svg_max_input_bytes`` and is enforced
+# even when the config is unavailable so the helper stays safe in
+# library-style call paths.
+_SVG_MAX_INPUT_BYTES_DEFAULT = 5 * 1024 * 1024
 
 # Hardcoded map for common image extensions — more portable than mimetypes.guess_type
 # on Windows, where the registry may not have entries for modern formats (e.g. webp)
@@ -43,14 +62,60 @@ _EXTENSION_MIME: dict[str, str] = {
 }
 
 
+def _validate_svg_xml(svg_data: bytes) -> None:
+    """Reject SVGs that would trigger XML-layer attacks before MuPDF sees them (#415).
+
+    Layered defence:
+
+    - ``defusedxml`` raises :class:`EntitiesForbidden` on
+      ``<!ENTITY xxe SYSTEM "file:///etc/passwd">`` style declarations and
+      :class:`ExternalReferenceForbidden` on external DTDs (billion-laughs,
+      XXE, external-DTD).
+    - Malformed XML surfaces as :class:`_DefusedParseError`.
+
+    Either case is converted to :class:`OSError` so the organize pipeline
+    skips the file via the standard read-error path (#411 ``read_error``
+    bucket) instead of crashing.
+    """
+    try:
+        # ``forbid_dtd=True`` makes a DOCTYPE declaration itself an error
+        # (raises ``DTDForbidden``), which is what we want — modern SVG
+        # exporters do not emit a DOCTYPE. Without this flag a payload
+        # like ``<!DOCTYPE svg SYSTEM "http://...">`` parses silently as
+        # long as no entity is expanded, because the default parser only
+        # forbids entity / external-reference activation.
+        _defused_fromstring(svg_data, forbid_dtd=True)
+    except (DTDForbidden, EntitiesForbidden, ExternalReferenceForbidden) as exc:
+        raise OSError(f"SVG rejected by defusedxml: {exc}") from exc
+    except _DefusedParseError as exc:
+        # Malformed XML — let the caller skip the file with a stable
+        # error message instead of letting a fitz.FileDataError escape.
+        raise OSError(f"SVG XML parse error: {exc}") from exc
+
+
 def _rasterize_svg_bytes_to_png(svg_data: bytes) -> bytes:
     """Rasterize SVG bytes to PNG bytes via PyMuPDF, without touching the filesystem.
 
-    Render size is capped at _SVG_MAX_RENDER_EDGE on the longest side so that
-    an SVG with an enormous intrinsic width/height cannot exhaust memory before
-    the caller's downscale step runs.
+    Layered defences (#415):
+
+    1. ``_validate_svg_xml`` runs first — billion-laughs / XXE / external-DTD
+       SVGs are rejected before MuPDF allocates anything.
+    2. Render size is capped at ``_SVG_MAX_RENDER_EDGE`` on the longest side
+       so an SVG with an enormous intrinsic width/height cannot exhaust
+       memory before the caller's downscale step runs.
+
+    Raises:
+        OSError: For XML-layer attacks (XXE, billion-laughs, malformed XML)
+            and any :class:`fitz.FileDataError` that survives the pre-parse.
     """
-    doc = fitz.open(stream=svg_data, filetype="svg")
+    _validate_svg_xml(svg_data)
+    try:
+        doc = fitz.open(stream=svg_data, filetype="svg")
+    except fitz.FileDataError as exc:
+        # Truncated / structurally broken SVG that passed the XML check
+        # but tripped MuPDF's parser. Normalise to OSError so the organize
+        # loop skips the file via the standard read-error path.
+        raise OSError(f"SVG could not be opened by fitz: {exc}") from exc
     try:
         page = doc[0]
         w, h = page.rect.width, page.rect.height
@@ -94,24 +159,99 @@ def _read_image_bytes_safedir(image_path: Path) -> bytes:
             return fh_win.read()
 
 
-def rasterize_svg_to_png_bytes(svg_path: Path) -> bytes:
+def _resolve_svg_max_input_bytes() -> int:
+    """Return the ``vision.svg_max_input_bytes`` for the active profile.
+
+    "Active" profile follows the runtime precedence: ``FO_PROFILE`` env
+    var wins, else ``"default"`` — matching ``config.provider_env``
+    (Codex P2 catch on PR #428, second round — the previous resolver
+    hard-coded ``"default"`` and silently ignored per-profile overrides).
+
+    Any failure (file missing, parse error, schema drift) degrades to
+    ``_SVG_MAX_INPUT_BYTES_DEFAULT`` so the precheck stays armed even
+    when called outside a normal CLI run.
+    """
+    try:
+        from config.manager import ConfigManager
+
+        profile = os.environ.get("FO_PROFILE", "").strip() or "default"
+        return int(ConfigManager().load(profile).vision.svg_max_input_bytes)
+    except Exception:  # pragma: no cover — defensive degrade path
+        return _SVG_MAX_INPUT_BYTES_DEFAULT
+
+
+def rasterize_svg_to_png_bytes(svg_path: Path, *, max_input_bytes: int | None = None) -> bytes:
     """Rasterize an SVG file to PNG bytes using PyMuPDF (fitz).
 
     PyMuPDF is a core dependency (used for PDF extraction), so no additional
-    packages are required.  The file is read via SafeDir on POSIX to prevent
+    packages are required. The file is read via SafeDir on POSIX to prevent
     symlink attacks (issue #352 S3).
+
+    Security layering (#415):
+
+    1. **File-size precheck.** Files larger than ``max_input_bytes``
+       (default ``_SVG_MAX_INPUT_BYTES_DEFAULT`` = 5 MiB) are rejected
+       before any bytes are read into memory. Callers with an
+       :class:`AppConfig` in hand should pass
+       ``config.vision.svg_max_input_bytes`` so the active profile's
+       knob is honoured; the default is purely a config-less fallback.
+    2. **defusedxml pre-parse.** ``_validate_svg_xml`` runs before fitz
+       sees the bytes; it rejects external entities (XXE), external DTDs,
+       billion-laughs expansions, and malformed XML.
+    3. **Render-edge cap.** Output canvas is clamped to
+       ``_SVG_MAX_RENDER_EDGE`` so a huge intrinsic width/height cannot
+       OOM the process.
 
     Args:
         svg_path: Path to the .svg file.
+        max_input_bytes: Optional override for the SVG size cap.
+            ``None`` (default) falls back to
+            ``_SVG_MAX_INPUT_BYTES_DEFAULT``. The previous
+            ``ConfigManager().load()`` lookup was removed because it
+            always resolved the ``"default"`` profile regardless of
+            which profile the run was actually using (Codex P2 +
+            CodeRabbit Major on PR #428).
 
     Returns:
         PNG image as raw bytes.
 
     Raises:
-        OSError: If the SVG cannot be opened or rendered, or if *svg_path*
-            is a symlink (POSIX only).
+        OSError: If the SVG exceeds the size cap, is rejected by the XML
+            pre-parse, cannot be opened or rendered, or if *svg_path* is a
+            symlink (POSIX only).
     """
+    # Explicit kwarg from a caller with an AppConfig in hand takes
+    # precedence; otherwise resolve from the active config profile so
+    # the user's ``vision.svg_max_input_bytes`` is honoured even for
+    # callers that don't thread config through (e.g.
+    # ``downscale_image_if_needed`` / ``image_to_data_url``).
+    max_bytes = max_input_bytes if max_input_bytes is not None else _resolve_svg_max_input_bytes()
+    try:
+        size = svg_path.stat().st_size
+    except FileNotFoundError:
+        # Preserve the FileNotFoundError subtype — callers and vision
+        # model APIs distinguish missing-path errors from other I/O
+        # failures (Codex P2 on PR #428).
+        raise
+    except OSError as exc:
+        # Other stat() failures (e.g. permission errors) surface as a
+        # generic OSError so the organize loop skips the file consistently.
+        raise OSError(f"Could not stat SVG {svg_path}: {exc}") from exc
+    # Fast-path reject before reading bytes — keeps a 500 MB file from
+    # ever entering memory in the common single-writer case.
+    if size > max_bytes:
+        raise OSError(f"SVG exceeds maximum input size ({size} > {max_bytes} bytes): {svg_path}")
     svg_data = _read_image_bytes_safedir(svg_path)
+    # Re-check post-read against the bytes we actually loaded — a
+    # concurrent writer could have swapped a larger file into ``svg_path``
+    # between stat() and read() (TOCTOU). The fast-path check above is
+    # an optimisation; this second check is the security boundary
+    # (Codex P2 on PR #428).
+    if len(svg_data) > max_bytes:
+        raise OSError(
+            f"SVG bytes exceed maximum input size after read "
+            f"({len(svg_data)} > {max_bytes} bytes): {svg_path}"
+        )
     return _rasterize_svg_bytes_to_png(svg_data)
 
 

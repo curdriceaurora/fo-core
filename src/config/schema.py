@@ -91,9 +91,29 @@ class VisionSettings:
             Large images are resized to this dimension (preserving aspect ratio)
             before being sent to the vision model. Default: 1024 px.
             Min: 256, Max: 4096.
+        svg_max_input_bytes: Hard cap on the size of an .svg file before
+            rasterization (issue #415). Files exceeding this are rejected
+            with an ``OSError`` so a 500 MB SVG cannot exhaust memory at
+            the read step. Default: 5 MiB (5_242_880).
     """
 
     max_long_edge: int = 1024
+    svg_max_input_bytes: int = 5 * 1024 * 1024
+
+    def __post_init__(self) -> None:
+        """Reject non-positive ``svg_max_input_bytes`` at construction.
+
+        CodeRabbit Minor on PR #428: a zero or negative cap silently
+        rejects every SVG (the precheck compares
+        ``stat().st_size > max_bytes``). Surface the malformed YAML
+        loudly instead of producing a hard-to-diagnose "always rejected"
+        symptom at runtime.
+        """
+        if not isinstance(self.svg_max_input_bytes, int) or self.svg_max_input_bytes <= 0:
+            raise ValueError(
+                f"vision.svg_max_input_bytes must be a positive int "
+                f"(got {self.svg_max_input_bytes!r})"
+            )
 
 
 @dataclass

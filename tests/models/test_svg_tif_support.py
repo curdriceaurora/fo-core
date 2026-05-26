@@ -120,6 +120,239 @@ class TestRasterizeSvgToPngBytes:
         assert max(width, height) <= _SVG_MAX_RENDER_EDGE
 
 
+@pytest.mark.integration
+class TestSvgSecurityHardeningIntegration:
+    """Integration-tier coverage of #415 security paths.
+
+    The unit-marked ``TestSvgSecurityHardening`` class below exercises the
+    same surface, but the integration coverage gate only counts tests
+    marked ``integration``. This class drives every defusedxml exception
+    branch + the size-cap path + the stat-error path so the per-module
+    integration floor for ``models/_vision_helpers.py`` stays at 99.5%.
+    """
+
+    def test_integration_xxe_rejected(self, tmp_path: Path) -> None:
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        xxe_svg = (
+            b'<?xml version="1.0"?>'
+            b'<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'
+            b"<text>&xxe;</text></svg>"
+        )
+        svg_file = tmp_path / "xxe.svg"
+        svg_file.write_bytes(xxe_svg)
+        with pytest.raises(OSError, match="defusedxml"):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_integration_external_dtd_rejected(self, tmp_path: Path) -> None:
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        dtd_svg = (
+            b'<?xml version="1.0"?>'
+            b'<!DOCTYPE svg SYSTEM "http://attacker.example/evil.dtd">'
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'
+        )
+        svg_file = tmp_path / "dtd.svg"
+        svg_file.write_bytes(dtd_svg)
+        with pytest.raises(OSError, match="defusedxml"):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_integration_malformed_xml_rejected(self, tmp_path: Path) -> None:
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        svg_file = tmp_path / "bad.svg"
+        svg_file.write_bytes(b'<svg xmlns="http://www.w3.org/2000/svg" width="10"')
+        with pytest.raises(OSError):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_integration_size_cap_rejects_oversized(self, tmp_path: Path) -> None:
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        oversized = tmp_path / "huge.svg"
+        oversized.write_bytes(b"a" * (2 * 1024 * 1024))
+        with pytest.raises(OSError, match="exceeds maximum input size"):
+            rasterize_svg_to_png_bytes(oversized, max_input_bytes=1024 * 1024)
+
+    def test_integration_toctou_post_read_check(self, tmp_path: Path) -> None:
+        # Codex P2 on PR #428: a concurrent writer could rename a larger
+        # file into ``svg_path`` between ``stat()`` and ``read()``. The
+        # post-read length check is the actual security boundary —
+        # simulate that race by patching the read step to return more
+        # bytes than the on-disk file (which stat() reports as small).
+        from models import _vision_helpers
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        small = tmp_path / "small.svg"
+        small.write_bytes(b"<svg/>")  # stat() returns 6 bytes
+        attacker_payload = b"a" * (2 * 1024 * 1024)
+        with patch.object(
+            _vision_helpers,
+            "_read_image_bytes_safedir",
+            return_value=attacker_payload,
+        ):
+            with pytest.raises(OSError, match="exceed maximum input size after read"):
+                rasterize_svg_to_png_bytes(small, max_input_bytes=1024 * 1024)
+
+    def test_integration_other_oserror_from_stat_is_wrapped(self, tmp_path: Path) -> None:
+        # Codex P2 on PR #428: non-FileNotFoundError OSErrors from
+        # ``stat()`` (e.g. permission denied, EIO) must surface as a
+        # generic OSError with a stable message prefix so the organize
+        # loop's read-error bucket catches them consistently.
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        svg_file = tmp_path / "boom.svg"
+        svg_file.write_bytes(_MINIMAL_SVG)
+        with patch.object(Path, "stat", side_effect=PermissionError("simulated permission denied")):
+            with pytest.raises(OSError, match="Could not stat SVG") as exc_info:
+                rasterize_svg_to_png_bytes(svg_file)
+            # FileNotFoundError must NOT be the type — that path has its
+            # own pass-through branch.
+            assert not isinstance(exc_info.value, FileNotFoundError)
+
+    def test_integration_missing_file_preserves_filenotfounderror(self, tmp_path: Path) -> None:
+        # Codex P2 on PR #428: stat() failures for missing files must
+        # surface as ``FileNotFoundError`` (subclass of OSError) rather
+        # than a generic OSError, so callers that branch on
+        # ``FileNotFoundError`` keep working for SVG paths.
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        with pytest.raises(FileNotFoundError):
+            rasterize_svg_to_png_bytes(tmp_path / "missing.svg")
+
+    def test_integration_fitz_filedataerror_normalized(self) -> None:
+        # Bytes pass defusedxml (valid XML) but fitz raises FileDataError.
+        # Patch fitz.open so the branch is reached even if MuPDF normally
+        # rasterizes the fixture.
+        import fitz
+
+        from models import _vision_helpers
+
+        valid_svg = (
+            b'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'
+        )
+        with patch.object(
+            _vision_helpers.fitz,
+            "open",
+            side_effect=fitz.FileDataError("simulated parser failure"),
+        ):
+            with pytest.raises(OSError, match="could not be opened by fitz"):
+                _vision_helpers._rasterize_svg_bytes_to_png(valid_svg)
+
+    def test_integration_happy_path_still_rasterizes(self, tmp_path: Path) -> None:
+        pytest.importorskip("fitz")
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        svg_file = tmp_path / "ok.svg"
+        svg_file.write_bytes(_MINIMAL_SVG)
+        result = rasterize_svg_to_png_bytes(svg_file)
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+class TestSvgSecurityHardening:
+    """Adversarial inputs for the layered defences added in issue #415."""
+
+    def test_xxe_external_entity_is_rejected(self, tmp_path: Path) -> None:
+        """SVG with a file:// external entity must be rejected before fitz sees it.
+
+        Without defusedxml the entity is either expanded into the rasterized
+        PNG (data exfiltration) or silently dropped — both undesirable. The
+        helper raises OSError so the organize loop skips the file.
+        """
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        xxe_svg = (
+            b'<?xml version="1.0"?>'
+            b'<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
+            b'<text x="10" y="50">&xxe;</text></svg>'
+        )
+        svg_file = tmp_path / "xxe.svg"
+        svg_file.write_bytes(xxe_svg)
+
+        with pytest.raises(OSError, match="defusedxml"):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_external_dtd_is_rejected(self, tmp_path: Path) -> None:
+        """SVG referencing an external DTD must be rejected by defusedxml."""
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        dtd_svg = (
+            b'<?xml version="1.0"?>'
+            b'<!DOCTYPE svg SYSTEM "http://attacker.example/evil.dtd">'
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'
+        )
+        svg_file = tmp_path / "dtd.svg"
+        svg_file.write_bytes(dtd_svg)
+
+        with pytest.raises(OSError, match="defusedxml"):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_billion_laughs_is_rejected(self, tmp_path: Path) -> None:
+        """Quadratic / billion-laughs entity expansions must bounce.
+
+        defusedxml refuses the payload at parse time before any
+        expansion happens, so the assertion is on rejection — not on
+        wall-clock duration. A timing assertion would be CI-flaky on
+        shared runners (CodeRabbit Major on PR #428).
+        """
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        # Classic billion-laughs payload: each level multiplies expansion.
+        bomb = (
+            b'<?xml version="1.0"?>'
+            b"<!DOCTYPE svg ["
+            b'<!ENTITY a "aaaaaaaaaa">'
+            b'<!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">'
+            b'<!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">'
+            b'<!ENTITY d "&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;">'
+            b'<!ENTITY e "&d;&d;&d;&d;&d;&d;&d;&d;&d;&d;">'
+            b"]>"
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'
+            b"<text>&e;</text></svg>"
+        )
+        svg_file = tmp_path / "bomb.svg"
+        svg_file.write_bytes(bomb)
+
+        with pytest.raises(OSError, match="defusedxml"):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_malformed_xml_raises_oserror_not_fitz_exception(self, tmp_path: Path) -> None:
+        """Truncated SVG must surface as OSError, not an uncaught fitz error."""
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        # Unclosed root tag — defusedxml rejects with ParseError, helper
+        # converts to OSError per the security-layer contract.
+        bad_svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"'
+        svg_file = tmp_path / "bad.svg"
+        svg_file.write_bytes(bad_svg)
+
+        with pytest.raises(OSError):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_oversized_svg_file_rejected_before_read(self, tmp_path: Path) -> None:
+        """Files larger than ``svg_max_input_bytes`` must be rejected at stat()."""
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        oversized = tmp_path / "huge.svg"
+        # 2 MB of garbage — well above the 1 MB override we pass in.
+        oversized.write_bytes(b"a" * (2 * 1024 * 1024))
+
+        with pytest.raises(OSError, match="exceeds maximum input size"):
+            rasterize_svg_to_png_bytes(oversized, max_input_bytes=1024 * 1024)
+
+    def test_under_size_cap_still_rasterizes(self, tmp_path: Path) -> None:
+        """Sanity: well-formed SVGs under the cap still produce PNG bytes."""
+        pytest.importorskip("fitz")
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        svg_file = tmp_path / "small.svg"
+        svg_file.write_bytes(_MINIMAL_SVG)
+
+        result = rasterize_svg_to_png_bytes(svg_file)
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 class TestDownscaleHandlesSvg:
     """downscale_image_if_needed must rasterize SVG and return bytes."""
 
