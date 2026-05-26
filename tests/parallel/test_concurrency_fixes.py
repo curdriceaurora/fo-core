@@ -276,6 +276,50 @@ class TestConcurrencyFixes(unittest.TestCase):
             f"queued_2 must report pool saturation, got: {by_path.get(Path('queued_2'))}",
         )
 
+    def test_saturated_pool_warning_includes_tuning_hint(self) -> None:
+        """#435: the saturation warning surfaces the tuning hint inline.
+
+        Operators don't discover ``--timeout-per-file`` / ``--workers``
+        until something breaks badly; the warning that fires when the
+        pool aborts must point at those knobs so the next run can be
+        tuned without a maintainer round-trip.
+        """
+        stop_event = threading.Event()
+        config = ParallelConfig(max_workers=1, timeout_per_file=0.1, retry_count=0)
+        processor = ParallelProcessor(config=config)
+
+        def hung_task(_path: Path) -> str:
+            stop_event.wait()
+            return "done"
+
+        captured: list[str] = []
+
+        def fake_warning(msg: str, *args: object, **_kw: object) -> None:
+            # Loguru-style: msg is a format string with %d / %s substitutions
+            try:
+                captured.append(msg % args)
+            except TypeError:
+                captured.append(msg)
+
+        from parallel import processor as processor_mod
+
+        with patch.object(processor_mod.logger, "warning", side_effect=fake_warning):
+            try:
+                processor.process_batch([Path("hung_1"), Path("queued_2")], hung_task)
+            finally:
+                stop_event.set()
+
+        saturated = [line for line in captured if "saturated" in line.lower()]
+        self.assertTrue(saturated, f"expected a saturation warning, got: {captured}")
+        self.assertTrue(
+            any("--timeout-per-file" in line for line in saturated),
+            f"saturation warning should mention --timeout-per-file: {saturated}",
+        )
+        self.assertTrue(
+            any("--workers" in line for line in saturated),
+            f"saturation warning should mention --workers: {saturated}",
+        )
+
     def test_error_message_does_not_control_retry_policy(self) -> None:
         """Regular failures containing the abort phrase should still be retried."""
         config = ParallelConfig(
