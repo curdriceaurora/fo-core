@@ -178,12 +178,37 @@ class TestSvgSecurityHardeningIntegration:
             with pytest.raises(OSError, match="exceeds maximum input size"):
                 rasterize_svg_to_png_bytes(oversized)
 
-    def test_integration_missing_file_raises_oserror(self, tmp_path: Path) -> None:
-        # stat() fails for a non-existent file — should surface as OSError
-        # with the "Could not stat SVG" prefix, not the generic FileNotFoundError.
+    def test_integration_toctou_post_read_check(self, tmp_path: Path) -> None:
+        # Codex P2 on PR #428: a concurrent writer could rename a larger
+        # file into ``svg_path`` between ``stat()`` and ``read()``. The
+        # post-read length check is the actual security boundary —
+        # simulate that race by patching the read step to return more
+        # bytes than the on-disk file (which stat() reports as small).
+        from models import _vision_helpers
         from models._vision_helpers import rasterize_svg_to_png_bytes
 
-        with pytest.raises(OSError, match="Could not stat SVG"):
+        small = tmp_path / "small.svg"
+        small.write_bytes(b"<svg/>")  # stat() returns 6 bytes
+        attacker_payload = b"a" * (2 * 1024 * 1024)
+        with patch.object(
+            _vision_helpers, "_resolve_svg_max_input_bytes", return_value=1024 * 1024
+        ):
+            with patch.object(
+                _vision_helpers,
+                "_read_image_bytes_safedir",
+                return_value=attacker_payload,
+            ):
+                with pytest.raises(OSError, match="exceed maximum input size after read"):
+                    rasterize_svg_to_png_bytes(small)
+
+    def test_integration_missing_file_preserves_filenotfounderror(self, tmp_path: Path) -> None:
+        # Codex P2 on PR #428: stat() failures for missing files must
+        # surface as ``FileNotFoundError`` (subclass of OSError) rather
+        # than a generic OSError, so callers that branch on
+        # ``FileNotFoundError`` keep working for SVG paths.
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        with pytest.raises(FileNotFoundError):
             rasterize_svg_to_png_bytes(tmp_path / "missing.svg")
 
     def test_integration_fitz_filedataerror_normalized(self) -> None:

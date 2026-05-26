@@ -205,16 +205,33 @@ def rasterize_svg_to_png_bytes(svg_path: Path) -> bytes:
             pre-parse, cannot be opened or rendered, or if *svg_path* is a
             symlink (POSIX only).
     """
+    max_bytes = _resolve_svg_max_input_bytes()
     try:
         size = svg_path.stat().st_size
+    except FileNotFoundError:
+        # Preserve the FileNotFoundError subtype — callers and vision
+        # model APIs distinguish missing-path errors from other I/O
+        # failures (Codex P2 on PR #428).
+        raise
     except OSError as exc:
-        # Surface as OSError so the caller skips the file consistently
-        # (e.g. broken symlinks reach here before SafeDir does).
+        # Other stat() failures (e.g. permission errors) surface as a
+        # generic OSError so the organize loop skips the file consistently.
         raise OSError(f"Could not stat SVG {svg_path}: {exc}") from exc
-    max_bytes = _resolve_svg_max_input_bytes()
+    # Fast-path reject before reading bytes — keeps a 500 MB file from
+    # ever entering memory in the common single-writer case.
     if size > max_bytes:
         raise OSError(f"SVG exceeds maximum input size ({size} > {max_bytes} bytes): {svg_path}")
     svg_data = _read_image_bytes_safedir(svg_path)
+    # Re-check post-read against the bytes we actually loaded — a
+    # concurrent writer could have swapped a larger file into ``svg_path``
+    # between stat() and read() (TOCTOU). The fast-path check above is
+    # an optimisation; this second check is the security boundary
+    # (Codex P2 on PR #428).
+    if len(svg_data) > max_bytes:
+        raise OSError(
+            f"SVG bytes exceed maximum input size after read "
+            f"({len(svg_data)} > {max_bytes} bytes): {svg_path}"
+        )
     return _rasterize_svg_bytes_to_png(svg_data)
 
 

@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from config.manager import ConfigManager
-from config.schema import AppConfig, ModelPreset, UpdateSettings
+from config.schema import CURRENT_SCHEMA_VERSION, AppConfig, ModelPreset, UpdateSettings
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
@@ -416,3 +416,27 @@ class TestConfigManagerModuleDelegation:
         cfg = AppConfig()
         d = mgr.config_to_dict(cfg)
         assert "watcher" not in d
+
+    def test_vision_section_round_trips(self):
+        # #415 + Codex P2 on PR #428: VisionSettings (including the new
+        # svg_max_input_bytes field) must survive serialise → deserialise
+        # so operator-tunable knobs aren't silently dropped to defaults.
+        from config.schema import VisionSettings
+
+        mgr = ConfigManager()
+        cfg = AppConfig(vision=VisionSettings(max_long_edge=2048, svg_max_input_bytes=1234567))
+        d = mgr.config_to_dict(cfg)
+        assert d["vision"]["max_long_edge"] == 2048
+        assert d["vision"]["svg_max_input_bytes"] == 1234567
+
+        round_tripped = mgr._dict_to_config(d, "default")
+        assert round_tripped.vision.max_long_edge == 2048
+        assert round_tripped.vision.svg_max_input_bytes == 1234567
+
+    def test_vision_section_tolerates_missing_yaml(self):
+        # Older configs without a vision section must still load without
+        # raising; the section degrades to defaults.
+        mgr = ConfigManager()
+        cfg = mgr._dict_to_config({"version": CURRENT_SCHEMA_VERSION}, "default")
+        assert cfg.vision.max_long_edge == 1024
+        assert cfg.vision.svg_max_input_bytes == 5 * 1024 * 1024
