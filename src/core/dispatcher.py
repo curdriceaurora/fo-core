@@ -210,6 +210,10 @@ def process_image_files(
         List of processed image results.
     """
     processed: list[ProcessedImage] = []
+    # #432: track paths whose pool-saturation abort is retryable
+    # (never-started; collateral damage) so we can run them sequentially
+    # after the parallel pass finishes.
+    retry_paths: list[Path] = []
 
     with create_progress(console) as progress:
         task = progress.add_task("Processing images...", total=len(files))
@@ -282,6 +286,22 @@ def process_image_files(
                         description=f"[yellow]⚠[/yellow] {file_result.path.name} (fallback)",
                     )
                 else:
+                    # #432: pool-saturation aborts on never-started tasks
+                    # carry ``non_retryable=False``. Queue them for a
+                    # post-pass sequential retry instead of recording
+                    # them as failures — they never actually ran, so
+                    # marking them failed is collateral damage.
+                    if (
+                        error_msg.startswith("Aborted: worker pool saturated")
+                        and not file_result.non_retryable
+                    ):
+                        retry_paths.append(file_result.path)
+                        progress.update(
+                            task,
+                            advance=1,
+                            description=f"[yellow]⟳[/yellow] {file_result.path.name} (will retry)",
+                        )
+                        continue
                     logger.error("Failed to process {}: {}", file_result.path, error_msg)
                     processed.append(
                         ProcessedImage(
@@ -302,6 +322,30 @@ def process_image_files(
                         advance=1,
                         description=f"[red]✗[/red] {file_result.path.name} (Failed)",
                     )
+
+    # #432: Sequential retry for pool-saturation collateral. The
+    # parallel processor marked these as never-started (non_retryable
+    # =False), so rerun them one-at-a-time before reporting failure.
+    if retry_paths:
+        logger.warning(
+            "Pool aborted on hung tasks; retrying {} untried image(s) sequentially.",
+            len(retry_paths),
+        )
+        for path in retry_paths:
+            try:
+                processed.append(vision_processor.process_file(path))
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.error("Sequential retry failed for {}: {}", path, exc)
+                processed.append(
+                    ProcessedImage(
+                        file_path=path,
+                        description="",
+                        folder_name=ERROR_FALLBACK_FOLDER,
+                        filename=path.stem,
+                        error=str(exc),
+                        confidence=0.0,
+                    )
+                )
 
     return processed
 

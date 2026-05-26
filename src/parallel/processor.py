@@ -429,6 +429,13 @@ class ParallelProcessor:
         )
         results: list[FileResult] = []
         for f in list(pending):
+            # #432: distinguish never-started tasks (collateral, should be
+            # retryable in a degraded mode) from in-flight tasks (truly
+            # hung — don't retry). The dispatcher's image path scans for
+            # ``non_retryable=False`` saturation aborts and reruns them
+            # sequentially so a 2-3 hung-image case doesn't collateral-
+            # fail every untried file in the batch.
+            never_started = future_started.get(f) is None and not f.running()
             f.cancel()
             abort_path = future_paths.pop(f)
             future_started.pop(f, None)
@@ -440,7 +447,7 @@ class ParallelProcessor:
                         path=abort_path,
                         success=False,
                         error="Aborted: worker pool saturated by hung tasks",
-                        non_retryable=True,
+                        non_retryable=not never_started,
                     )
                 )
             )

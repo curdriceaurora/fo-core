@@ -50,13 +50,23 @@ def _make_file_result(
     path: Path,
     result: object | None = None,
     error: str | None = None,
+    non_retryable: bool = True,
+    duration_ms: float = 0.0,
 ) -> MagicMock:
-    """Return a MagicMock parallel processor file result."""
+    """Return a MagicMock parallel processor file result.
+
+    ``non_retryable=True`` is the historical default (existing tests
+    assume aborted tasks aren't retried). The #432 retry path requires
+    callers to pass ``non_retryable=False`` to opt into the dispatcher's
+    sequential retry pass.
+    """
     fr = MagicMock()
     fr.success = success
     fr.path = path
     fr.result = result
     fr.error = error
+    fr.non_retryable = non_retryable
+    fr.duration_ms = duration_ms
     return fr
 
 
@@ -319,6 +329,80 @@ class TestProcessImageFiles:
         assert results[0].error == "vision timeout"
         assert results[0].file_path == file_path
         assert results[0].filename == "missing"
+
+    def test_pool_saturation_retryable_aborts_run_sequentially(self) -> None:
+        # #432: when the parallel processor returns saturation aborts
+        # tagged ``non_retryable=False`` (never-started tasks), the
+        # dispatcher reruns them sequentially via ``vision_processor``
+        # rather than mass-failing them as collateral damage.
+        from core.dispatcher import process_image_files
+        from services import ProcessedImage
+
+        hung_path = Path("/mock/photos/hung.jpg")
+        retry1 = Path("/mock/photos/never_started_1.jpg")
+        retry2 = Path("/mock/photos/never_started_2.jpg")
+
+        # Parallel processor yields one truly-hung abort (non_retryable)
+        # + two never-started aborts (retryable).
+        hung_fr = _make_file_result(
+            success=False,
+            path=hung_path,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=True,
+        )
+        retry1_fr = _make_file_result(
+            success=False,
+            path=retry1,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=False,
+        )
+        retry2_fr = _make_file_result(
+            success=False,
+            path=retry2,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=False,
+        )
+        mock_pp = MagicMock()
+        mock_pp.process_batch_iter.return_value = iter([hung_fr, retry1_fr, retry2_fr])
+
+        # Sequential retry succeeds for both untried paths.
+        vp = MagicMock()
+        vp.process_file.side_effect = [
+            ProcessedImage(
+                file_path=retry1,
+                description="d1",
+                folder_name="ok",
+                filename="never_started_1",
+            ),
+            ProcessedImage(
+                file_path=retry2,
+                description="d2",
+                folder_name="ok",
+                filename="never_started_2",
+            ),
+        ]
+
+        progress_ctx = _make_progress_ctx()
+        with patch(_PROGRESS_TARGET, return_value=progress_ctx):
+            results = process_image_files(
+                [hung_path, retry1, retry2],
+                vision_processor=vp,
+                parallel_processor=mock_pp,
+                console=MagicMock(),
+            )
+
+        # 1 genuinely-hung failure + 2 sequential successes.
+        by_path = {r.file_path: r for r in results}
+        assert by_path[hung_path].error == "Aborted: worker pool saturated by hung tasks"
+        assert by_path[retry1].error is None
+        assert by_path[retry1].folder_name == "ok"
+        assert by_path[retry2].error is None
+        assert by_path[retry2].folder_name == "ok"
+        # vision_processor.process_file was called exactly twice — once
+        # per never-started path. The hung one was NOT retried.
+        assert vp.process_file.call_count == 2
+        retried = {call.args[0] for call in vp.process_file.call_args_list}
+        assert retried == {retry1, retry2}
 
     def test_failure_result_unknown_error(self) -> None:
         from core.dispatcher import process_image_files
