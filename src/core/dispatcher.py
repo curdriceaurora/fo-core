@@ -19,8 +19,10 @@ from core.types import (
     ERROR_FALLBACK_FOLDER,
     VIDEO_FALLBACK_FOLDER,
 )
+from parallel.config import ParallelConfig
 from parallel.processor import ParallelProcessor
 from services import ProcessedFile, ProcessedImage, TextProcessor, VisionProcessor
+from services.vision_fallback import compute_fallback
 
 if TYPE_CHECKING:
     from services.audio.metadata_extractor import AudioMetadata, AudioMetadataExtractor
@@ -244,8 +246,6 @@ def process_image_files(
                 # instead of being dropped into the error bucket. Other
                 # failures (read error, corrupt image, …) still error-out.
                 if _is_timeout_error(error_msg):
-                    from services.vision_fallback import compute_fallback
-
                     fb = compute_fallback(file_result.path)
                     logger.info(
                         "Vision timed out for {}; categorized via {} → {}",
@@ -327,26 +327,34 @@ def process_image_files(
     # parallel processor marked these as never-started (non_retryable
     # =False), so rerun them one-at-a-time before reporting failure.
     #
-    # We deliberately reuse ``parallel_processor.process_batch_iter``
-    # here rather than calling ``vision_processor.process_file`` in a
-    # naive Python loop (Codex P1 on PR #438): the retry path must
-    # keep the per-file timeout / cancellation enforcement, otherwise
-    # the same backend hang that triggered the original saturation
-    # blocks the organize run indefinitely on the retry. Passing the
-    # already-instantiated processor preserves the operator-tunable
-    # ``--timeout-per-file`` (#396) and worker-pool guard rails; we
-    # rely on its internal queue semantics rather than instantiating a
-    # second pool with workers=1 to avoid double-counting resources.
+    # The retry must run with ``max_workers=1`` and ``prefetch_depth=0``
+    # — reusing the caller's parallel_processor with its original
+    # multi-worker config can re-saturate if a retried file hangs
+    # again (Codex P1 on PR #438, round 2). The single-worker config
+    # gives deterministic degraded-mode recovery: each retry runs
+    # alone, and a still-hung backend produces a clean per-file
+    # timeout instead of cascade-failing other retry candidates.
+    #
+    # We inherit the operator-tunable ``timeout_per_file`` from the
+    # caller's config so ``--timeout-per-file`` (#396) still applies.
     if retry_paths:
         logger.warning(
             "Pool aborted on hung tasks; retrying {} untried image(s) sequentially.",
             len(retry_paths),
         )
 
+        retry_config = ParallelConfig(
+            max_workers=1,
+            prefetch_depth=0,
+            timeout_per_file=parallel_processor.config.timeout_per_file,
+            retry_count=0,  # no second-level retry
+        )
+        retry_processor = ParallelProcessor(config=retry_config)
+
         def _retry_one_image(path: Path) -> ProcessedImage:
             return vision_processor.process_file(path)
 
-        for retry_result in parallel_processor.process_batch_iter(retry_paths, _retry_one_image):
+        for retry_result in retry_processor.process_batch_iter(retry_paths, _retry_one_image):
             if retry_result.success:
                 processed.append(retry_result.result)
                 continue
@@ -354,8 +362,6 @@ def process_image_files(
             # genuine failure now — there's no second-level retry.
             retry_err = retry_result.error or "Unknown error"
             if _is_timeout_error(retry_err):
-                from services.vision_fallback import compute_fallback
-
                 fb = compute_fallback(retry_result.path)
                 _fallback_confidence = 0.5 if fb.source == "fallback_exif" else 0.3
                 processed.append(

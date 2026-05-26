@@ -385,15 +385,25 @@ class TestProcessImageFiles:
                 filename="never_started_2",
             ),
         )
+        # Initial processor (multi-worker) yields the saturation batch.
         mock_pp = MagicMock()
-        mock_pp.process_batch_iter.side_effect = [
-            iter([hung_fr, retry1_fr, retry2_fr]),  # initial pass
-            iter([retry1_success, retry2_success]),  # retry pass
-        ]
-        vp = MagicMock()
+        mock_pp.config.timeout_per_file = 60.0  # real float for ParallelConfig() validation
+        mock_pp.process_batch_iter.return_value = iter([hung_fr, retry1_fr, retry2_fr])
 
+        # Retry processor is a fresh single-worker ParallelProcessor —
+        # Codex P1 on PR #438 (round 2): reusing the original
+        # multi-worker config can re-saturate. Patch the class at the
+        # dispatcher's import site so we can assert it was built with
+        # ``max_workers=1, prefetch_depth=0``.
+        retry_pp = MagicMock()
+        retry_pp.process_batch_iter.return_value = iter([retry1_success, retry2_success])
+
+        vp = MagicMock()
         progress_ctx = _make_progress_ctx()
-        with patch(_PROGRESS_TARGET, return_value=progress_ctx):
+        with (
+            patch(_PROGRESS_TARGET, return_value=progress_ctx),
+            patch("core.dispatcher.ParallelProcessor", return_value=retry_pp) as mock_pp_cls,
+        ):
             results = process_image_files(
                 [hung_path, retry1, retry2],
                 vision_processor=vp,
@@ -408,13 +418,19 @@ class TestProcessImageFiles:
         assert by_path[retry1].folder_name == "ok"
         assert by_path[retry2].error is None
         assert by_path[retry2].folder_name == "ok"
-        # The retry pass runs through ``parallel_processor.process_batch_iter``
-        # (preserves timeout guards). Called twice total: once for the
-        # initial batch, once for the retry tail with just the never-
-        # started paths.
-        assert mock_pp.process_batch_iter.call_count == 2
-        retry_call = mock_pp.process_batch_iter.call_args_list[1]
-        retry_paths_arg = retry_call.args[0]
+        # Initial multi-worker processor was used once; retry processor
+        # was constructed with single-worker + no-prefetch.
+        assert mock_pp.process_batch_iter.call_count == 1
+        assert mock_pp_cls.call_count == 1
+        retry_config = mock_pp_cls.call_args.kwargs["config"]
+        assert retry_config.max_workers == 1
+        assert retry_config.prefetch_depth == 0
+        # Operator-tunable timeout is inherited from the caller's config.
+        assert retry_config.timeout_per_file == 60.0
+        # Retry processor.process_batch_iter was called with just the
+        # never-started paths.
+        assert retry_pp.process_batch_iter.call_count == 1
+        retry_paths_arg = retry_pp.process_batch_iter.call_args.args[0]
         assert set(retry_paths_arg) == {retry1, retry2}
 
     def test_retry_timeout_routes_through_vision_fallback(self) -> None:
@@ -441,18 +457,21 @@ class TestProcessImageFiles:
             duration_ms=60000.0,
         )
         mock_pp = MagicMock()
-        mock_pp.process_batch_iter.side_effect = [
-            iter([initial_abort]),
-            iter([retry_timeout]),
-        ]
-        with patch("services.vision_fallback.compute_fallback") as mock_fb:
+        mock_pp.config.timeout_per_file = 60.0
+        mock_pp.process_batch_iter.return_value = iter([initial_abort])
+        retry_pp = MagicMock()
+        retry_pp.process_batch_iter.return_value = iter([retry_timeout])
+        with patch("core.dispatcher.compute_fallback") as mock_fb:
             fb = MagicMock()
             fb.source = "fallback_exif"
             fb.folder = "Images/Photos/2024/01"
             fb.filename = "retry_timeout"
             mock_fb.return_value = fb
             progress_ctx = _make_progress_ctx()
-            with patch(_PROGRESS_TARGET, return_value=progress_ctx):
+            with (
+                patch(_PROGRESS_TARGET, return_value=progress_ctx),
+                patch("core.dispatcher.ParallelProcessor", return_value=retry_pp),
+            ):
                 results = process_image_files(
                     [path],
                     vision_processor=MagicMock(),
@@ -485,12 +504,15 @@ class TestProcessImageFiles:
             error="Corrupt JPEG data: 12 extraneous bytes",
         )
         mock_pp = MagicMock()
-        mock_pp.process_batch_iter.side_effect = [
-            iter([initial_abort]),
-            iter([retry_err]),
-        ]
+        mock_pp.config.timeout_per_file = 60.0
+        mock_pp.process_batch_iter.return_value = iter([initial_abort])
+        retry_pp = MagicMock()
+        retry_pp.process_batch_iter.return_value = iter([retry_err])
         progress_ctx = _make_progress_ctx()
-        with patch(_PROGRESS_TARGET, return_value=progress_ctx):
+        with (
+            patch(_PROGRESS_TARGET, return_value=progress_ctx),
+            patch("core.dispatcher.ParallelProcessor", return_value=retry_pp),
+        ):
             results = process_image_files(
                 [path],
                 vision_processor=MagicMock(),
