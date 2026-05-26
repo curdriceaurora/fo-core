@@ -42,6 +42,28 @@ DEFAULT_CONFIG_DIR = get_config_dir()
 CONFIG_FILENAME = "config.yaml"
 CONFIG_PATH_ENV = "FO_CONFIG"
 
+# ModelPreset.framework accepts only the three local-inference frameworks
+# (ollama / llama_cpp / mlx); openai and claude only land via env vars in
+# this codebase. The converter maps framework → provider so that downstream
+# routing (provider_factory etc.) sees a coherent single source of truth.
+# Anything outside this map falls back to the safe Ollama default, matching
+# ModelConfig.provider's dataclass default.
+_FRAMEWORK_TO_PROVIDER: dict[str, str] = {
+    "ollama": "ollama",
+    "llama_cpp": "llama_cpp",
+    "mlx": "mlx",
+}
+
+
+def _provider_from_framework(framework: str) -> str:
+    """Map ModelPreset.framework → ModelConfig.provider (#408 / #423).
+
+    Without this mapping ``to_text_model_config`` set ``framework`` but
+    left ``provider`` at its dataclass default of ``"ollama"``, silently
+    routing profile-only llama_cpp / mlx users to the Ollama executor.
+    """
+    return _FRAMEWORK_TO_PROVIDER.get(str(framework).strip().lower(), "ollama")
+
 
 class ConfigManager:
     """Manages application configuration profiles.
@@ -285,6 +307,7 @@ class ConfigManager:
             max_tokens=config.models.max_tokens,
             device=DeviceType(config.models.device),
             framework=config.models.framework,
+            provider=_provider_from_framework(config.models.framework),
         )
 
     def to_vision_model_config(self, config: AppConfig) -> ModelConfig:
@@ -303,6 +326,7 @@ class ConfigManager:
             max_tokens=config.models.max_tokens,
             device=DeviceType(config.models.device),
             framework=config.models.framework,
+            provider=_provider_from_framework(config.models.framework),
         )
 
     def to_watcher_config(self, config: AppConfig) -> Any:

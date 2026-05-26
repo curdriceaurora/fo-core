@@ -11,7 +11,7 @@ import yaml
 from config.manager import ConfigManager
 from config.schema import AppConfig, ModelPreset, UpdateSettings
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
 
 class TestConfigManagerInit:
@@ -186,6 +186,48 @@ class TestConfigManagerModuleDelegation:
         cfg = AppConfig()
         model_cfg = mgr.to_vision_model_config(cfg)
         assert model_cfg.name == cfg.models.vision_model
+
+    def test_to_text_model_config_default_framework_yields_ollama_provider(self) -> None:
+        """Default profile (framework=ollama) → ModelConfig.provider=ollama (#408 / #423)."""
+        mgr = ConfigManager()
+        cfg = AppConfig()
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.framework == "ollama"
+        assert model_cfg.provider == "ollama"
+
+    def test_to_text_model_config_llama_cpp_framework_drives_provider(self) -> None:
+        """framework=llama_cpp → provider=llama_cpp (this was the #423 P1 catch)."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.framework == "llama_cpp"
+        assert model_cfg.provider == "llama_cpp"
+
+    def test_to_text_model_config_mlx_framework_drives_provider(self) -> None:
+        """framework=mlx → provider=mlx."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="mlx"))
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.framework == "mlx"
+        assert model_cfg.provider == "mlx"
+
+    def test_to_vision_model_config_llama_cpp_framework_drives_provider(self) -> None:
+        """Vision converter mirrors text converter for the framework→provider mapping."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))
+        model_cfg = mgr.to_vision_model_config(cfg)
+        assert model_cfg.framework == "llama_cpp"
+        assert model_cfg.provider == "llama_cpp"
+
+    def test_to_text_model_config_unknown_framework_falls_back_to_ollama_provider(self) -> None:
+        """Unknown framework string → provider=ollama (safe fallback)."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="ghosthypewriter"))
+        model_cfg = mgr.to_text_model_config(cfg)
+        # framework keeps the user's literal string (downstream may warn)
+        assert model_cfg.framework == "ghosthypewriter"
+        # provider falls back to ollama so executor routing stays sane
+        assert model_cfg.provider == "ollama"
 
     @patch("config.manager.WatcherConfig", create=True)
     def test_to_watcher_config(self, mock_watcher_cls):

@@ -38,66 +38,37 @@ def _ollama_num_parallel() -> int:
         return 1
 
 
-_KNOWN_PROVIDERS: frozenset[str] = frozenset({"ollama", "openai", "llama_cpp", "mlx", "claude"})
-
-
 def _get_current_provider_lazy() -> str:
-    """Resolve the active provider via the full config cascade (#408).
+    """Resolve the active provider as the executor will see it (#408).
 
-    Mirrors ``get_model_configs()``'s priority order — env first, then
-    profile, then default — but reads ``app_cfg.models.framework``
-    directly instead of going through ``ConfigManager.to_text_model_config``.
-    That converter leaves ``ModelConfig.provider`` at its dataclass
-    default of ``"ollama"`` even when the profile says
-    ``framework: llama_cpp`` (Codex P1 catch on PR #423), so calling
-    ``get_model_configs()[0].provider`` misclassifies profile-only
-    llama_cpp / mlx users as Ollama and silently drops their workers
-    to 1.
+    Single source of truth: call ``get_model_configs()`` and read
+    ``text_cfg.provider``. The text and vision sides of the tuple
+    always share a provider, and ``ModelConfig.provider`` is what the
+    downstream ``provider_factory`` actually routes on — so the worker
+    resolver and the executor can never disagree.
 
-    Priority — mirrors what ``get_model_configs()`` actually does at
-    runtime, so the worker resolver can't disagree with the executor
-    about which provider is active:
+    PR #423's companion fix to ``ConfigManager.to_text_model_config``
+    /``to_vision_model_config`` derives ``provider`` from
+    ``ModelPreset.framework`` so profile-only llama_cpp / mlx users
+    finally land on the right provider (previously the converter set
+    only ``framework`` and left ``provider`` at the dataclass default
+    of "ollama").
 
-    1. ``FO_PROVIDER`` env var (matches ``get_current_provider()`` and
-       ``get_model_configs()``'s first check).
-    2. ``AppConfig.models.framework`` from the persisted profile.
-    3. ``"ollama"`` as the conservative default (prevents the
-       Ollama-flood case #408 called out).
-
-    We do NOT short-circuit on ``FO_OPENAI_API_KEY`` /
-    ``FO_CLAUDE_API_KEY``: ``get_model_configs()`` only switches
-    providers from env when ``FO_PROVIDER`` is present, so those keys
-    don't actually change the runtime provider on their own. Treating
-    them as a provider hint here could over-parallelize when the keys
-    were exported for unrelated tools and the executor still uses
-    Ollama (Codex P2 catch on PR #423).
-
-    Kept at module scope per the F9 anti-pattern rule; lazy imports
-    live inside this function so ``fo version`` etc. don't pay the
-    cost (#404 fast-path).
+    Kept at module scope per the F9 anti-pattern rule; the lazy import
+    lives inside this function so ``fo version`` etc. don't pay the
+    cost (#404 fast-path). On any failure (import, broken YAML,
+    missing creds) we fall through to ``"ollama"``, the safe default
+    that prevents the Ollama-flood case #408 was originally about.
     """
-    env_provider = os.environ.get("FO_PROVIDER", "").strip().lower()
-    if env_provider:
-        # Any non-empty FO_PROVIDER routes through get_model_configs's
-        # env path at runtime; that path calls get_current_provider(),
-        # which falls back to "ollama" for unrecognised values. Mirror
-        # that here so a typo (e.g. FO_PROVIDER=olama) classifies as
-        # Ollama instead of leaking through to the profile lookup
-        # (Codex P2 catch on PR #423).
-        return env_provider if env_provider in _KNOWN_PROVIDERS else "ollama"
     try:
-        from config.manager import ConfigManager
+        from config.provider_env import get_model_configs
     except ImportError:
         return "ollama"
     try:
-        manager = ConfigManager()
-        app_cfg = manager.load(os.environ.get("FO_PROFILE", "").strip() or "default")
+        text_cfg, _ = get_model_configs()
     except Exception:
         return "ollama"
-    framework = (getattr(app_cfg.models, "framework", "") or "").strip().lower()
-    if framework in _KNOWN_PROVIDERS:
-        return framework
-    return "ollama"
+    return text_cfg.provider
 
 
 def _auto_worker_default() -> int:
