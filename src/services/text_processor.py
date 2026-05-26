@@ -194,6 +194,12 @@ class TextProcessor:
 
         scan_root_path = Path(scan_root) if scan_root is not None else None
         start_time = time.time()
+        # Flips to True once we cross the read/setup phase and are about
+        # to issue a model call. Used by the exception handlers below so
+        # pre-inference OSError subclasses (e.g. FileTooLargeError from
+        # read_file) aren't misclassified as inference attempts
+        # (CodeRabbit P2 catch on PR #424).
+        model_invoked = False
 
         try:
             # Read file content via SafeDir for the migrated extensions
@@ -263,7 +269,6 @@ class TextProcessor:
 
             # Generate description (summary)
             description = ""
-            model_invoked = False
             if generate_description:
                 model_invoked = True  # _generate_description issues the model call
                 description = self._generate_description(content)
@@ -338,9 +343,11 @@ class TextProcessor:
                 type(e).__name__,
                 e,
             )
-            # These exception types fire only after the read succeeded,
-            # i.e. during _generate_description / folder / filename —
-            # all of which are model calls. Count as an inference attempt.
+            # Only count as an inference attempt when we'd already
+            # flipped `model_invoked` above. OSError subclasses raised
+            # from read_file / SafeDir (e.g. FileTooLargeError) hit this
+            # handler too, and those are pre-inference — including them
+            # in samples would understate real text-model latency.
             return (
                 ProcessedFile(
                     file_path=file_path,
@@ -349,7 +356,7 @@ class TextProcessor:
                     filename=file_path.stem,
                     error=str(e),
                 ),
-                True,  # the failing call counts as an inference attempt
+                model_invoked,
             )
 
     def _clean_ai_generated_name(self, name: str, max_words: int = 3) -> str:

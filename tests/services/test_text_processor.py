@@ -272,6 +272,30 @@ class TestTextProcessorFileProcessing:
         assert result.folder_name == "errors"
 
     @patch("services.text_processor.read_file_via_safedir")
+    def test_process_file_read_oserror_does_not_record_inference_ms(
+        self, mock_read: MagicMock, text_processor: TextProcessor
+    ) -> None:
+        """OSError raised pre-inference (e.g. FileTooLargeError) must NOT
+        be counted as an inference attempt (#410 / CodeRabbit P2).
+
+        Before this fix the broad `except (..., OSError, ...)` handler
+        treated every OSError as a model-call failure, so oversized
+        files (FileTooLargeError) were emitted as text_inference_ms
+        samples and biased mean/p95/p99 downward.
+        """
+        # Simulate FileTooLargeError (an OSError subclass) raised
+        # during the read phase, before any model call would happen.
+        mock_read.side_effect = OSError("File exceeds MAX_FILE_SIZE_BYTES")
+
+        result = text_processor.process_file("oversize.txt")
+
+        assert result.error is not None
+        assert "exceeds" in result.error.lower()
+        # The key assertion: pre-inference OSError leaves inference_ms
+        # at None so the run summary doesn't see a fake sample.
+        assert result.inference_ms is None
+
+    @patch("services.text_processor.read_file_via_safedir")
     def test_process_file_toggle_flags(
         self, mock_read: MagicMock, text_processor: TextProcessor, mock_text_model: MagicMock
     ) -> None:

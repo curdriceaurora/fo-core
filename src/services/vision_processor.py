@@ -248,6 +248,10 @@ class VisionProcessor:
         during degraded-backend periods; pre-inference early returns
         (circuit-open before any call, file-not-found) must not.
         """
+        # Tracked across the try block so the broad except below can
+        # tell apart pre-inference exceptions (filesystem / decode)
+        # from in-flight inference failures.
+        model_invoked = False
         try:
             if self._is_circuit_open():
                 logger.warning(
@@ -286,7 +290,6 @@ class VisionProcessor:
 
             # Generate description
             description = ""
-            model_invoked = False
             if generate_description:
                 logger.debug(f"Analyzing image: {file_path.name}")
                 model_invoked = True  # _generate_description issues the model call
@@ -361,11 +364,10 @@ class VisionProcessor:
                 type(e).__name__,
                 e,
             )
-            # Conservative: assume the exception came from a model call
-            # unless we know otherwise. The pre-inference branches all
-            # return cleanly above (they don't raise), so anything that
-            # raises has already passed the model-call point or is a
-            # filesystem error caught further down the inner body.
+            # Forward `model_invoked` so a pre-inference exception
+            # (filesystem error, image-decode failure) is reported as
+            # NOT an inference attempt, while an in-flight inference
+            # failure (after we'd flipped the flag above) still counts.
             return (
                 ProcessedImage(
                     file_path=file_path,
@@ -377,7 +379,7 @@ class VisionProcessor:
                     # ``ProcessedImage.error`` field.
                     error=str(e),
                 ),
-                True,  # the failing call counts as an inference attempt
+                model_invoked,
             )
 
     def _clean_ai_generated_name(self, name: str, max_words: int = 3) -> str:
