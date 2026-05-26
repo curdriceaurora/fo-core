@@ -607,6 +607,82 @@ class TestDisplay:
         out = console.export_text()
         assert "Categorized via fallback" not in out
 
+    def test_show_summary_renders_vision_inference_stats(self, tmp_path: Path) -> None:
+        """Per-file vision inference samples produce a mean/p50/p95/p99 line (#410)."""
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(record=True, width=160)
+        result = OrganizationResult(
+            total_files=5,
+            processed_files=5,
+            vision_inference_ms_samples=[100.0, 200.0, 300.0, 400.0, 500.0],
+        )
+        show_summary(console, result, tmp_path, dry_run=True)
+        out = console.export_text()
+        assert "Vision inference" in out
+        assert "mean:" in out
+        assert "p50:" in out
+        assert "p95:" in out
+        assert "p99:" in out
+        assert "(n=5)" in out
+
+    def test_show_summary_renders_text_inference_stats_independently(self, tmp_path: Path) -> None:
+        """Text and vision stats render independently (#410)."""
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(record=True, width=160)
+        result = OrganizationResult(
+            total_files=3,
+            processed_files=3,
+            text_inference_ms_samples=[50.0, 75.0, 100.0],
+        )
+        show_summary(console, result, tmp_path, dry_run=True)
+        out = console.export_text()
+        assert "Text inference" in out
+        assert "(n=3)" in out
+        assert "Vision inference" not in out
+
+    def test_show_summary_omits_inference_stats_when_no_samples(self, tmp_path: Path) -> None:
+        """Empty sample lists short-circuit — no inference line rendered (#410)."""
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(record=True, width=160)
+        result = OrganizationResult(total_files=2, processed_files=2)
+        show_summary(console, result, tmp_path, dry_run=True)
+        out = console.export_text()
+        assert "Vision inference" not in out
+        assert "Text inference" not in out
+
+    def test_percentile_helper_matches_simple_cases(self) -> None:
+        """_percentile reproduces standard linear-interp results (#410)."""
+        from core.display import _percentile
+
+        # Empty → 0 (no special-casing in callers)
+        assert _percentile([], 50) == 0.0
+        # Single sample → returns it for any percentile
+        assert _percentile([42.0], 50) == 42.0
+        assert _percentile([42.0], 99) == 42.0
+        # Ten evenly-spaced samples; linear interp matches NumPy default
+        samples = [float(x) for x in range(1, 11)]  # 1..10
+        # p50: rank = 0.5 * 9 = 4.5 → 5.5
+        assert _percentile(samples, 50) == pytest.approx(5.5)
+        # p95: rank = 0.95 * 9 = 8.55 → 9.55
+        assert _percentile(samples, 95) == pytest.approx(9.55)
+        # Clamping
+        assert _percentile([1.0, 2.0, 3.0], 0) == 1.0
+        assert _percentile([1.0, 2.0, 3.0], 100) == 3.0
+        assert _percentile([1.0, 2.0, 3.0], 200) == 3.0
+        assert _percentile([1.0, 2.0, 3.0], -50) == 1.0
+
     def test_show_summary_show_skipped_expands_full_list(self, tmp_path: Path) -> None:
         """show_skipped=True bypasses the Top-N cap regardless of distinct count."""
         from collections import Counter
@@ -810,6 +886,36 @@ class TestDispatcher:
         assert result.error is None or result.error == ""
         assert result.folder_name == "Images/Screenshots/2026"
         assert result.source == "fallback_filename"
+        # #410: timeout's wall-clock duration is preserved on the
+        # fallback result so it lands in the p95/p99 inference sample.
+        # `_make_file_result_failure` defaults duration_ms to 1.0.
+        assert result.inference_ms == 1.0
+
+    def test_process_image_files_timeout_fallback_carries_long_duration(
+        self, tmp_path: Path
+    ) -> None:
+        """Long timeout durations land on the fallback's inference_ms (#410)."""
+        from rich.console import Console
+
+        from core import dispatcher
+        from parallel.result import FileResult
+
+        img = tmp_path / "IMG_20260522_140307.jpg"
+        img.write_bytes(b"")
+
+        # Simulate a 5-minute timeout (the dispatcher default).
+        file_result = FileResult(
+            path=img,
+            success=False,
+            error="Timed out after 300.0s",
+            duration_ms=300_000.0,
+        )
+        mock_pp = self._make_mock_parallel_processor([file_result])
+        results = dispatcher.process_image_files([img], MagicMock(), mock_pp, Console(quiet=True))
+
+        assert results[0].inference_ms == 300_000.0
+        # The timeout sample is now part of the p95/p99 inputs, where
+        # before this fix it was silently dropped.
 
     def test_process_image_files_non_timeout_failure_is_not_fallback(self, tmp_path: Path) -> None:
         """Read errors / corrupt-image failures still take the regular error path."""

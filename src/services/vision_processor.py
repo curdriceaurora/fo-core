@@ -16,6 +16,7 @@ from config.schema import ProcessingSettings
 from models import VisionModel
 from models.base import BaseModel, ModelConfig, ModelType
 from models.provider_factory import get_vision_model
+from services.inference_timer import time_inference
 
 _BYTES_PER_MB = 1024 * 1024
 
@@ -74,6 +75,13 @@ class ProcessedImage:
     processing_time: float = 0.0
     error: str | None = None
     source: str = "vision"
+    # Wall-clock duration of the inference path measured in milliseconds
+    # (#410). Populated even on the error / fallback paths so summary
+    # aggregation (p50/p95/p99) reflects every per-file attempt, not just
+    # the happy path. None on results assembled without going through
+    # process_file (e.g. metadata-only fallback constructed by the
+    # dispatcher).
+    inference_ms: float | None = None
 
 
 class VisionProcessor:
@@ -173,8 +181,6 @@ class VisionProcessor:
         Returns:
             ProcessedImage with metadata
         """
-        import time
-
         file_path = Path(file_path)
         start_time = time.time()
 
@@ -196,6 +202,56 @@ class VisionProcessor:
             # don't let the informational log break the real work below.
             pass
 
+        # Per-file inference timer (#410). The context manager logs
+        # `vision_inference_ms=<N>` on exit — success and exception
+        # paths both fire — and exposes the duration on `_timer.elapsed_ms`.
+        # The inner method returns a (result, model_invoked) tuple so we
+        # can attribute the timer correctly even on mid-flight failures:
+        # an attempted-but-failed inference DOES contribute to p95/p99
+        # (operators need accurate tail latency during degraded backend
+        # periods), while pre-inference early returns (circuit-open,
+        # file-not-found) DO NOT (CodeRabbit P2 round-trip on PR #424).
+        with time_inference("vision", file_path) as _timer:
+            result, model_invoked = self._process_file_inner(
+                file_path,
+                start_time=start_time,
+                generate_description=generate_description,
+                generate_folder=generate_folder,
+                generate_filename=generate_filename,
+                perform_ocr=perform_ocr,
+            )
+            if model_invoked:
+                # Both gates the log line emission AND signals "include
+                # in samples" for the in-process aggregator below.
+                _timer.mark_invoked()
+        if model_invoked:
+            result.inference_ms = _timer.elapsed_ms
+        return result
+
+    def _process_file_inner(
+        self,
+        file_path: Path,
+        *,
+        start_time: float,
+        generate_description: bool,
+        generate_folder: bool,
+        generate_filename: bool,
+        perform_ocr: bool,
+    ) -> tuple[ProcessedImage, bool]:
+        """Inner body of :meth:`process_file`.
+
+        Returns ``(result, model_invoked)``. ``model_invoked`` is True
+        iff at least one model call (description / OCR / folder /
+        filename) was attempted — regardless of whether it succeeded
+        or raised. Failed-but-attempted inferences must contribute to
+        the #410 p95/p99 summary so operators see real tail latency
+        during degraded-backend periods; pre-inference early returns
+        (circuit-open before any call, file-not-found) must not.
+        """
+        # Tracked across the try block so the broad except below can
+        # tell apart pre-inference exceptions (filesystem / decode)
+        # from in-flight inference failures.
+        model_invoked = False
         try:
             if self._is_circuit_open():
                 logger.warning(
@@ -208,44 +264,55 @@ class VisionProcessor:
                     file_path.name,
                     error_message,
                 )
-                return ProcessedImage(
-                    file_path=file_path,
-                    description=f"Image from {file_path.name}",
-                    folder_name="images",
-                    filename=file_path.stem,
-                    error=error_message,
+                return (
+                    ProcessedImage(
+                        file_path=file_path,
+                        description=f"Image from {file_path.name}",
+                        folder_name="images",
+                        filename=file_path.stem,
+                        error=error_message,
+                    ),
+                    False,  # no model call attempted
                 )
 
             # Validate file exists
             if not file_path.exists():
-                return ProcessedImage(
-                    file_path=file_path,
-                    description="",
-                    folder_name="errors",
-                    filename=file_path.stem,
-                    error="File not found",
+                return (
+                    ProcessedImage(
+                        file_path=file_path,
+                        description="",
+                        folder_name="errors",
+                        filename=file_path.stem,
+                        error="File not found",
+                    ),
+                    False,  # no model call attempted
                 )
 
             # Generate description
             description = ""
             if generate_description:
                 logger.debug(f"Analyzing image: {file_path.name}")
+                model_invoked = True  # _generate_description issues the model call
                 description = self._generate_description(file_path)
                 logger.debug(f"Generated description ({len(description)} chars)")
                 if self._is_circuit_open():
                     error_message = self._circuit_open_error()
-                    return ProcessedImage(
-                        file_path=file_path,
-                        description=description or f"Image from {file_path.name}",
-                        folder_name="images",
-                        filename=file_path.stem,
-                        error=error_message,
+                    return (
+                        ProcessedImage(
+                            file_path=file_path,
+                            description=description or f"Image from {file_path.name}",
+                            folder_name="images",
+                            filename=file_path.stem,
+                            error=error_message,
+                        ),
+                        True,  # the call that tripped the circuit DID happen
                     )
 
             # Extract text if needed
             extracted_text = None
             has_text = False
             if perform_ocr:
+                model_invoked = True  # _extract_text issues the model call
                 extracted_text = self._extract_text(file_path)
                 has_text = bool(extracted_text and len(extracted_text.strip()) > 10)
                 if has_text and extracted_text is not None:
@@ -254,6 +321,7 @@ class VisionProcessor:
             # Generate folder name
             folder_name = ""
             if generate_folder:
+                model_invoked = True  # _generate_folder_name issues the model call
                 # Use extracted text if available, otherwise use description
                 context: str = (extracted_text or description) if has_text else description
                 folder_name = self._generate_folder_name(file_path, context)
@@ -262,6 +330,7 @@ class VisionProcessor:
             # Generate filename
             filename = ""
             if generate_filename:
+                model_invoked = True  # _generate_filename issues the model call
                 # Use extracted text if available, otherwise use description
                 context = (extracted_text or description) if has_text else description
                 filename = self._generate_filename(file_path, context)
@@ -269,14 +338,17 @@ class VisionProcessor:
 
             processing_time = time.time() - start_time
 
-            return ProcessedImage(
-                file_path=file_path,
-                description=description,
-                folder_name=folder_name,
-                filename=filename,
-                has_text=has_text,
-                extracted_text=extracted_text[:500] if extracted_text else None,
-                processing_time=processing_time,
+            return (
+                ProcessedImage(
+                    file_path=file_path,
+                    description=description,
+                    folder_name=folder_name,
+                    filename=filename,
+                    has_text=has_text,
+                    extracted_text=extracted_text[:500] if extracted_text else None,
+                    processing_time=processing_time,
+                ),
+                model_invoked,
             )
 
         except Exception as e:
@@ -292,15 +364,22 @@ class VisionProcessor:
                 type(e).__name__,
                 e,
             )
-            return ProcessedImage(
-                file_path=file_path,
-                description="",
-                folder_name="errors",
-                filename=file_path.stem,
-                # Preserve the existing ``error=str(e)`` contract — B2
-                # scope is log-message categorisation, not the public
-                # ``ProcessedImage.error`` field.
-                error=str(e),
+            # Forward `model_invoked` so a pre-inference exception
+            # (filesystem error, image-decode failure) is reported as
+            # NOT an inference attempt, while an in-flight inference
+            # failure (after we'd flipped the flag above) still counts.
+            return (
+                ProcessedImage(
+                    file_path=file_path,
+                    description="",
+                    folder_name="errors",
+                    filename=file_path.stem,
+                    # Preserve the existing ``error=str(e)`` contract — B2
+                    # scope is log-message categorisation, not the public
+                    # ``ProcessedImage.error`` field.
+                    error=str(e),
+                ),
+                model_invoked,
             )
 
     def _clean_ai_generated_name(self, name: str, max_words: int = 3) -> str:

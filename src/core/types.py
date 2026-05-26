@@ -56,6 +56,14 @@ class OrganizationResult:
     errors: list[tuple[str, str]] = field(default_factory=list)  # (file, error)
     skipped_by_extension: Counter[str] = field(default_factory=Counter)
     fallback_files: int = 0  # pyre-ignore[35]: Pyre 0.9.25 mis-flags dataclass field annotations under `from __future__ import annotations`. Same pre-existing pattern as the other counters above (alerts #39-46 on main).
+    # Per-file inference durations in milliseconds (#410). Populated by
+    # the organizer from ProcessedFile.inference_ms / ProcessedImage.inference_ms.
+    # The summary renderer derives mean / p50 / p95 / p99 from these samples;
+    # storing the raw list keeps stats decoupled from the dataclass and
+    # lets future code compute additional percentiles without a schema
+    # change.
+    vision_inference_ms_samples: list[float] = field(default_factory=list)  # pyre-ignore[35]
+    text_inference_ms_samples: list[float] = field(default_factory=list)  # pyre-ignore[35]
 
 
 # ---------------------------------------------------------------------------
