@@ -91,9 +91,14 @@ class VisionSettings:
             Large images are resized to this dimension (preserving aspect ratio)
             before being sent to the vision model. Default: 1024 px.
             Min: 256, Max: 4096.
+        svg_max_input_bytes: Hard cap on the size of an .svg file before
+            rasterization (issue #415). Files exceeding this are rejected
+            with an ``OSError`` so a 500 MB SVG cannot exhaust memory at
+            the read step. Default: 5 MiB (5_242_880).
     """
 
     max_long_edge: int = 1024
+    svg_max_input_bytes: int = 5 * 1024 * 1024
 
 
 @dataclass

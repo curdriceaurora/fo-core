@@ -120,6 +120,116 @@ class TestRasterizeSvgToPngBytes:
         assert max(width, height) <= _SVG_MAX_RENDER_EDGE
 
 
+class TestSvgSecurityHardening:
+    """Adversarial inputs for the layered defences added in issue #415."""
+
+    def test_xxe_external_entity_is_rejected(self, tmp_path: Path) -> None:
+        """SVG with a file:// external entity must be rejected before fitz sees it.
+
+        Without defusedxml the entity is either expanded into the rasterized
+        PNG (data exfiltration) or silently dropped — both undesirable. The
+        helper raises OSError so the organize loop skips the file.
+        """
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        xxe_svg = (
+            b'<?xml version="1.0"?>'
+            b'<!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
+            b'<text x="10" y="50">&xxe;</text></svg>'
+        )
+        svg_file = tmp_path / "xxe.svg"
+        svg_file.write_bytes(xxe_svg)
+
+        with pytest.raises(OSError, match="defusedxml"):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_external_dtd_is_rejected(self, tmp_path: Path) -> None:
+        """SVG referencing an external DTD must be rejected by defusedxml."""
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        dtd_svg = (
+            b'<?xml version="1.0"?>'
+            b'<!DOCTYPE svg SYSTEM "http://attacker.example/evil.dtd">'
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'
+        )
+        svg_file = tmp_path / "dtd.svg"
+        svg_file.write_bytes(dtd_svg)
+
+        with pytest.raises(OSError, match="defusedxml"):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_billion_laughs_is_rejected_in_under_one_second(self, tmp_path: Path) -> None:
+        """Quadratic / billion-laughs entity expansions must bounce in < 1s."""
+        import time
+
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        # Classic billion-laughs payload: each level multiplies expansion.
+        bomb = (
+            b'<?xml version="1.0"?>'
+            b"<!DOCTYPE svg ["
+            b'<!ENTITY a "aaaaaaaaaa">'
+            b'<!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">'
+            b'<!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">'
+            b'<!ENTITY d "&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;">'
+            b'<!ENTITY e "&d;&d;&d;&d;&d;&d;&d;&d;&d;&d;">'
+            b"]>"
+            b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'
+            b"<text>&e;</text></svg>"
+        )
+        svg_file = tmp_path / "bomb.svg"
+        svg_file.write_bytes(bomb)
+
+        start = time.monotonic()
+        with pytest.raises(OSError, match="defusedxml"):
+            rasterize_svg_to_png_bytes(svg_file)
+        # defusedxml refuses up-front — no expansion happens. Generous
+        # ceiling tolerates slow CI runners but still catches a regression
+        # that would expand the bomb.
+        elapsed = time.monotonic() - start
+        assert elapsed < 1.0, f"defusedxml rejection took {elapsed:.2f}s"
+
+    def test_malformed_xml_raises_oserror_not_fitz_exception(self, tmp_path: Path) -> None:
+        """Truncated SVG must surface as OSError, not an uncaught fitz error."""
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        # Unclosed root tag — defusedxml rejects with ParseError, helper
+        # converts to OSError per the security-layer contract.
+        bad_svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"'
+        svg_file = tmp_path / "bad.svg"
+        svg_file.write_bytes(bad_svg)
+
+        with pytest.raises(OSError):
+            rasterize_svg_to_png_bytes(svg_file)
+
+    def test_oversized_svg_file_rejected_before_read(self, tmp_path: Path) -> None:
+        """Files larger than ``svg_max_input_bytes`` must be rejected at stat()."""
+        from models import _vision_helpers
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        oversized = tmp_path / "huge.svg"
+        # 2 MB of garbage — well above the 1 MB cap we'll patch in.
+        oversized.write_bytes(b"a" * (2 * 1024 * 1024))
+
+        with patch.object(
+            _vision_helpers, "_resolve_svg_max_input_bytes", return_value=1024 * 1024
+        ):
+            with pytest.raises(OSError, match="exceeds maximum input size"):
+                rasterize_svg_to_png_bytes(oversized)
+
+    def test_under_size_cap_still_rasterizes(self, tmp_path: Path) -> None:
+        """Sanity: well-formed SVGs under the cap still produce PNG bytes."""
+        pytest.importorskip("fitz")
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        svg_file = tmp_path / "small.svg"
+        svg_file.write_bytes(_MINIMAL_SVG)
+
+        result = rasterize_svg_to_png_bytes(svg_file)
+        assert result[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 class TestDownscaleHandlesSvg:
     """downscale_image_if_needed must rasterize SVG and return bytes."""
 
