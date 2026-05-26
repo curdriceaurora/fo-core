@@ -229,8 +229,10 @@ class VisionProcessor:
         generate_filename: bool,
         perform_ocr: bool,
     ) -> ProcessedImage:
-        """Original process_file body, extracted so the timing wrapper above
-        can run uniformly regardless of which early-return branch fires.
+        """Inner body of :meth:`process_file`.
+
+        Extracted so the outer timing wrapper (#410) can run uniformly
+        regardless of which early-return branch fires.
         """
         try:
             if self._is_circuit_open():

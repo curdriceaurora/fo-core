@@ -177,9 +177,11 @@ class TextProcessor:
         generate_filename: bool,
         scan_root: str | Path | None,
     ) -> ProcessedFile:
-        """Inner body of process_file — extracted so :meth:`process_file`
-        can wrap it uniformly with the per-call timer regardless of
-        which return / exception branch fires.
+        """Inner body of :meth:`process_file`.
+
+        Extracted so the outer ``process_file`` can wrap this with the
+        per-call timer (#410) regardless of which return / exception
+        branch fires.
         """
         import time
 
