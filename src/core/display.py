@@ -109,6 +109,12 @@ def show_summary(
             console.print(f"    ... and {len(result.errors) - 10} more")
     console.print(f"  Processing time: {result.processing_time:.2f}s")
 
+    # Structured error breakdown (#411). Renders only when any bucket
+    # has > 0 entries — clean runs stay quiet. The recommendation
+    # line fires per-bucket when that bucket exceeds 10% of the
+    # total scanned files (issue #411 acceptance criterion).
+    _render_error_breakdown(console, result)
+
     # Inference duration stats (#410). Vision and text are aggregated
     # separately so operators can spot a slow modality even when the
     # other is fine. Lines only render when the corresponding sample
@@ -229,3 +235,50 @@ def _render_inference_stats(console: Console, label: str, samples: list[float]) 
         f"p50: {p50 / 1000:.2f}s, p95: {p95 / 1000:.2f}s, "
         f"p99: {p99 / 1000:.2f}s (n={len(samples)})[/dim]"
     )
+
+
+# Fraction of `total_files` above which a single error bucket gets a
+# bolded recommendation line in the summary (#411 acceptance criterion).
+_RECOMMENDATION_THRESHOLD: float = 0.10
+
+
+def _render_error_breakdown(console: Console, result: OrganizationResult) -> None:
+    """Render the per-category failure breakdown (#411).
+
+    Walks ``result.error_breakdown`` in descending count order, prints
+    one line per bucket with the count + one example basename, and
+    fires a recommendation line for any bucket whose share of
+    ``total_files`` exceeds ``_RECOMMENDATION_THRESHOLD``.
+
+    Short-circuits when the breakdown is empty so clean runs stay
+    quiet.
+    """
+    if not result.error_breakdown:
+        return
+
+    # ``error_breakdown`` is typed ``Counter[str]`` so dataclass init
+    # stays simple, but every key the organizer writes is one of the
+    # ``ErrorCategory`` literals — RECOMMENDATIONS is keyed on that
+    # narrower type, so do a plain ``in`` check here.
+    from core.error_taxonomy import RECOMMENDATIONS
+
+    console.print("\n[bold]Failure breakdown:[/bold]")
+    items = sorted(
+        result.error_breakdown.items(),
+        key=lambda kv: (-kv[1], kv[0]),
+    )
+    for category, count in items:
+        example = result.error_examples.get(category, "<no example captured>")
+        console.print(f"  [red]{category}[/red]: {count} [dim](e.g. {example})[/dim]")
+        # Recommendation only fires when the bucket dominates the run.
+        # Compare against total_files rather than failed_files so
+        # categories that include vision-timeout fallbacks (which aren't
+        # counted as failures) still trigger the bolded hint when they
+        # represent >10% of the workload.
+        if result.total_files and count / result.total_files > _RECOMMENDATION_THRESHOLD:
+            tip = next(
+                (v for k, v in RECOMMENDATIONS.items() if k == category),
+                None,
+            )
+            if tip:
+                console.print(f"    [bold yellow]→ {tip}[/bold yellow]")

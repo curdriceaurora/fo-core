@@ -270,6 +270,17 @@ class TestFileOrganizer:
         # Inference samples partition by modality (#410).
         assert result.vision_inference_ms_samples == [100.0]
         assert result.text_inference_ms_samples == [80.0]
+        # Structured error breakdown (#411): the same batch yields
+        # vision_timeout (two fallback_* sources) and inference_error
+        # (confidence==0.0 with an error string). Happy-path entries
+        # don't bucket. Examples are basenames of the first hit per
+        # bucket.
+        assert dict(result.error_breakdown) == {
+            "vision_timeout": 2,
+            "inference_error": 1,
+        }
+        assert result.error_examples["vision_timeout"] == "exif.jpg"
+        assert result.error_examples["inference_error"] == "bad.png"
 
     def test_organizer_falls_back_to_default_threshold_on_config_error(
         self, tmp_path: Path

@@ -25,6 +25,7 @@ from loguru import logger
 from rich.console import Console
 
 from core import dispatcher, display, file_ops, initializer
+from core.error_taxonomy import classify_error
 from core.types import (
     AUDIO_EXTENSIONS,
     CAD_EXTENSIONS,
@@ -315,6 +316,15 @@ class FileOrganizer:
                 #    in the review (Codex P1 catch on PR #426).
                 if _confidence < 1.0 and _confidence <= _confidence_threshold:
                     result.low_confidence_files.append(p.file_path.name)
+                # Structured error breakdown (#411). Bucket via the
+                # shared taxonomy so the summary renderer and any JSON
+                # consumer see the same category labels. Only the
+                # first encountered file per bucket gets stored as an
+                # example to keep the breakdown dict small.
+                _category = classify_error(p)
+                if _category is not None:
+                    result.error_breakdown[_category] += 1
+                    result.error_examples.setdefault(_category, p.file_path.name)
 
             all_processed = self._deduplicate_processed(all_processed, result)
             failed_cnt = sum(1 for p in all_processed if p.error)

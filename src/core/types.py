@@ -72,6 +72,14 @@ class OrganizationResult:
     # Entries are basenames so the summary stays readable even on deep
     # input hierarchies.
     low_confidence_files: list[str] = field(default_factory=list)  # pyre-ignore[35]
+    # Structured error breakdown (#411). Maps each
+    # ``core.error_taxonomy.ErrorCategory`` to the number of files that
+    # bucketed there, plus one representative basename per bucket so
+    # the summary line can show "203 vision_timeout (e.g. logo.png)".
+    # Recommendation lines fire when a single bucket exceeds 10% of
+    # ``total_files`` — see ``error_taxonomy.RECOMMENDATIONS``.
+    error_breakdown: Counter[str] = field(default_factory=Counter)
+    error_examples: dict[str, str] = field(default_factory=dict)  # pyre-ignore[35]
 
 
 # ---------------------------------------------------------------------------
