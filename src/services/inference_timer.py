@@ -2,24 +2,27 @@
 
 A small context-manager wrapping ``time.perf_counter`` so the two
 processors don't redefine timing logic, and so operators get a
-consistent ``{kind}_inference_ms=<N>`` log line for every call —
-including the failure branches that previously silently swallowed
-timing data.
+consistent ``{kind}_inference_ms=<N>`` log line for every call that
+actually invoked the model — including the failure branches that
+previously silently swallowed timing data.
 
 Usage:
 
     from services.inference_timer import time_inference
 
     with time_inference("vision", file_path) as t:
-        ...  # model.generate / process_file body
-    # t.elapsed_ms now carries the duration; the helper has already
-    # emitted the structured log.
+        ...  # body that MAY or MAY NOT invoke the model
+        if about_to_call_model:
+            t.mark_invoked()
+        ...  # the model call itself
+    # t.elapsed_ms carries the duration regardless. The structured log
+    # line fires on __exit__ only when mark_invoked() was called or
+    # the body raised (failures during a started inference count).
 
-The context manager fires the log in ``__exit__`` regardless of
-whether the body raised, so timeout / OSError / model-backend failure
-paths still produce a measurement that downstream summary code
-(``core/display.py``) can aggregate into p50 / p95 / p99 (#410
-acceptance criteria).
+Pre-inference early returns that never call ``mark_invoked()`` are
+silently excluded — both from the log stream AND from the in-process
+samples — so log-based dashboards don't get biased downward by
+near-zero non-events (CodeRabbit P2 round-trip on PR #424).
 """
 
 from __future__ import annotations
@@ -39,15 +42,30 @@ class _InferenceTimer:
 
     Exposes ``elapsed_ms`` (a float, always >= 0) so callers can attach
     the timing to a result object as well as relying on the log line.
+    Callers must call :meth:`mark_invoked` before exit to opt into the
+    structured log; an exception during the body counts as an invoked-
+    but-failed inference and also triggers the log automatically.
     """
 
-    __slots__ = ("_kind", "_path", "_t0", "elapsed_ms")
+    __slots__ = ("_kind", "_path", "_t0", "_invoked", "elapsed_ms")
 
     def __init__(self, kind: InferenceKind, file_path: Path | str) -> None:
         self._kind = kind
         self._path = Path(file_path) if not isinstance(file_path, Path) else file_path
         self._t0: float = 0.0
+        self._invoked: bool = False
         self.elapsed_ms: float = 0.0
+
+    def mark_invoked(self) -> None:
+        """Signal that the body actually invoked the model.
+
+        Without this call, a clean exit from the context manager
+        produces no log line — ``elapsed_ms`` is still measured so
+        callers can read it directly. With it, the log fires on
+        ``__exit__`` and observability pipelines see a sample for
+        this file.
+        """
+        self._invoked = True
 
     def __enter__(self) -> _InferenceTimer:
         self._t0 = time.perf_counter()
@@ -59,8 +77,14 @@ class _InferenceTimer:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        # Always record + log, even on the exception path.
+        # Always record the elapsed time, even on the exception path.
         self.elapsed_ms = max(0.0, (time.perf_counter() - self._t0) * 1000.0)
+        # Log only when the model was actually invoked. An exception
+        # mid-body is treated as an invoked-but-failed inference: those
+        # samples are exactly what operators need during degraded-
+        # backend periods, so they fire the log.
+        if not self._invoked and exc is None:
+            return
         # Structured single-line log so log-grep / NDJSON consumers can
         # extract `{kind}_inference_ms=` deterministically.
         if exc is None:
@@ -92,6 +116,9 @@ def time_inference(kind: InferenceKind, file_path: Path | str) -> _InferenceTime
 
     Returns:
         A context-manager whose ``.elapsed_ms`` attribute holds the
-        measured duration in milliseconds after ``__exit__``.
+        measured duration in milliseconds after ``__exit__``. The
+        structured log line is emitted only when
+        :meth:`_InferenceTimer.mark_invoked` was called or the body
+        raised an exception.
     """
     return _InferenceTimer(kind, file_path)

@@ -167,6 +167,10 @@ class TextProcessor:
                 generate_filename=generate_filename,
                 scan_root=scan_root,
             )
+            if model_invoked:
+                # Both gates the log line emission AND signals "include
+                # in samples" for the in-process aggregator below.
+                _timer.mark_invoked()
         if model_invoked:
             result.inference_ms = _timer.elapsed_ms
         return result
