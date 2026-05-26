@@ -44,6 +44,16 @@ class ModelPreset:
         max_tokens: Maximum tokens for generation.
         device: Device for inference (auto, cpu, cuda, mps, metal).
         framework: Inference framework (ollama, llama_cpp, mlx).
+        model_path: Filesystem path to the GGUF/MLX model file, used by
+            the local frameworks (``llama_cpp`` / ``mlx``). Ignored by
+            ``ollama`` (which loads by name from its own model registry).
+            Defaults to ``None``; required at runtime when
+            ``framework`` is ``llama_cpp`` or ``mlx`` and
+            ``FO_LLAMA_CPP_MODEL_PATH`` / ``FO_MLX_MODEL_PATH`` are
+            unset. Persisting it here lets profile-only users opt into
+            those backends without exporting env vars on every run
+            (#423 unblocks #408's framework→provider mapping for
+            profile-based configs).
     """
 
     text_model: str = DEFAULT_MODEL
@@ -52,6 +62,7 @@ class ModelPreset:
     max_tokens: int = 3000
     device: str = "auto"
     framework: str = "ollama"
+    model_path: str | None = None
 
 
 @dataclass

@@ -229,6 +229,48 @@ class TestConfigManagerModuleDelegation:
         # provider falls back to ollama so executor routing stays sane
         assert model_cfg.provider == "ollama"
 
+    def test_to_text_model_config_propagates_model_path(self) -> None:
+        """Profile-set model_path lands on ModelConfig.model_path (#408 / #423).
+
+        Companion to the framework→provider mapping: without this,
+        profile-based ``framework: llama_cpp`` users had no way to
+        persist their .gguf path and the executor failed at init.
+        """
+        mgr = ConfigManager()
+        cfg = AppConfig(
+            models=ModelPreset(
+                framework="llama_cpp",
+                model_path="/models/qwen3.gguf",
+            )
+        )
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.provider == "llama_cpp"
+        assert model_cfg.model_path == "/models/qwen3.gguf"
+
+    def test_to_vision_model_config_propagates_model_path(self) -> None:
+        """Same plumbing for the vision converter."""
+        mgr = ConfigManager()
+        cfg = AppConfig(
+            models=ModelPreset(
+                framework="mlx",
+                model_path="mlx-community/Qwen2.5-3B-Instruct-4bit",
+            )
+        )
+        model_cfg = mgr.to_vision_model_config(cfg)
+        assert model_cfg.provider == "mlx"
+        assert model_cfg.model_path == "mlx-community/Qwen2.5-3B-Instruct-4bit"
+
+    def test_to_text_model_config_default_model_path_is_none(self) -> None:
+        """Profiles without model_path produce a ModelConfig.model_path=None.
+
+        Ollama (the default) doesn't need it; downstream executors for
+        llama_cpp / mlx will raise loudly if invoked without one.
+        """
+        mgr = ConfigManager()
+        cfg = AppConfig()
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.model_path is None
+
     @patch("config.manager.WatcherConfig", create=True)
     def test_to_watcher_config(self, mock_watcher_cls):
         with patch("watcher.config.WatcherConfig", mock_watcher_cls, create=True):

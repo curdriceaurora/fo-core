@@ -312,6 +312,7 @@ class ConfigManager:
             device=DeviceType(config.models.device),
             framework=config.models.framework,
             provider=_provider_from_framework(config.models.framework),
+            model_path=config.models.model_path,
         )
 
     def to_vision_model_config(self, config: AppConfig) -> ModelConfig:
@@ -331,6 +332,7 @@ class ConfigManager:
             device=DeviceType(config.models.device),
             framework=config.models.framework,
             provider=_provider_from_framework(config.models.framework),
+            model_path=config.models.model_path,
         )
 
     def to_watcher_config(self, config: AppConfig) -> Any:
