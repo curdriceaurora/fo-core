@@ -259,3 +259,90 @@ class TestProcessingSettingsToOrganizer:
         assert compute_vision_timeout(10 * 1024 * 1024, app_cfg.processing) == 110.0
         # 30MB → raw=210, clamped to 120
         assert compute_vision_timeout(30 * 1024 * 1024, app_cfg.processing) == 120.0
+
+    def test_low_confidence_threshold_default_and_validation(self) -> None:
+        """#409: default + (0,1] validation surface in integration coverage."""
+        assert AppConfig().processing.low_confidence_threshold == 0.5
+
+        # Inclusive upper bound is accepted.
+        assert ProcessingSettings(low_confidence_threshold=1.0).low_confidence_threshold == 1.0
+
+        # All three out-of-range cases fire the same validator.
+        with pytest.raises(ValueError, match="low_confidence_threshold"):
+            ProcessingSettings(low_confidence_threshold=0.0)
+        with pytest.raises(ValueError, match="low_confidence_threshold"):
+            ProcessingSettings(low_confidence_threshold=-0.1)
+        with pytest.raises(ValueError, match="low_confidence_threshold"):
+            ProcessingSettings(low_confidence_threshold=1.5)
+
+    def test_organizer_populates_low_confidence_files(self, tmp_path: Path) -> None:
+        """#409: organizer aggregation routes low-confidence results into the review list."""
+        from unittest.mock import patch
+
+        from core.organizer import FileOrganizer
+        from core.types import OrganizationResult
+        from services.vision_processor import ProcessedImage
+
+        # Build a mixed batch: one happy-path, one EXIF fallback (= 0.5),
+        # one filename fallback (= 0.3), one error (= 0.0). At the
+        # default threshold 0.5, the inclusive `<=` puts the EXIF
+        # entry into the review list alongside the two clearly-low
+        # ones.
+        results: list[ProcessedImage] = [
+            ProcessedImage(
+                file_path=tmp_path / "ok.png",
+                description="d",
+                folder_name="images",
+                filename="ok",
+                confidence=1.0,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "exif.jpg",
+                description="",
+                folder_name="Images/Photos/2025/11",
+                filename="exif",
+                source="fallback_exif",
+                confidence=0.5,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "name.png",
+                description="",
+                folder_name="Images/Screenshots/2026",
+                filename="name",
+                source="fallback_filename",
+                confidence=0.3,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "bad.png",
+                description="",
+                folder_name="errors",
+                filename="bad",
+                error="something broke",
+                confidence=0.0,
+            ),
+        ]
+        for r in results:
+            r.file_path.write_bytes(b"")
+
+        org = FileOrganizer(
+            text_model_config=make_text_config(),
+            vision_model_config=make_vision_config(),
+            dry_run=True,
+        )
+
+        with (
+            patch.object(
+                org,
+                "_categorize_files",
+                return_value=([], [r.file_path for r in results], [], [], [], []),
+            ),
+            patch.object(org, "_process_all_file_types", return_value=results),
+            patch.object(org, "_execute_organization"),
+        ):
+            out: OrganizationResult = org.organize(tmp_path, tmp_path / "out")
+
+        assert set(out.low_confidence_files) == {
+            "exif.jpg",
+            "name.png",
+            "bad.png",
+        }

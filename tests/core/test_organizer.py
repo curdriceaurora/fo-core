@@ -184,6 +184,173 @@ class TestFileOrganizer:
         mock_fallback.assert_called_once()
         assert mock_fallback.call_args.args[0] == [image]
 
+    def test_organizer_collects_low_confidence_results(self, tmp_path: Path) -> None:
+        """#409 end-to-end: organizer aggregation routes low-confidence
+        results into ``OrganizationResult.low_confidence_files`` and
+        partitions inference_ms samples by modality (#410).
+
+        Drives ``organize`` with a synthetic five-file batch:
+        - happy-path vision (confidence=1.0, vision sample)
+        - EXIF fallback @ 0.5 (low-conf, no inference_ms — fallback
+          built by dispatcher)
+        - filename fallback @ 0.3 (low-conf)
+        - error @ 0.0 (low-conf)
+        - happy-path text (confidence=1.0, TEXT sample so the else
+          branch in the aggregator runs)
+
+        Asserts: three non-happy entries land in low_confidence_files;
+        vision/text inference_ms partition correctly. ci-marked so PR
+        diff-coverage counts the organizer aggregation lines.
+        """
+        from services.text_processor import ProcessedFile
+        from services.vision_processor import ProcessedImage
+
+        results: list[ProcessedImage | ProcessedFile] = [
+            ProcessedImage(
+                file_path=tmp_path / "ok.png",
+                description="d",
+                folder_name="images",
+                filename="ok",
+                confidence=1.0,
+                inference_ms=100.0,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "exif.jpg",
+                description="",
+                folder_name="Images/Photos/2025/11",
+                filename="exif",
+                source="fallback_exif",
+                confidence=0.5,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "name.png",
+                description="",
+                folder_name="Images/Screenshots/2026",
+                filename="name",
+                source="fallback_filename",
+                confidence=0.3,
+            ),
+            ProcessedImage(
+                file_path=tmp_path / "bad.png",
+                description="",
+                folder_name="errors",
+                filename="bad",
+                error="boom",
+                confidence=0.0,
+            ),
+            ProcessedFile(
+                file_path=tmp_path / "doc.txt",
+                description="d",
+                folder_name="docs",
+                filename="doc",
+                confidence=1.0,
+                inference_ms=80.0,
+            ),
+        ]
+        for r in results:
+            r.file_path.write_bytes(b"")
+
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        with (
+            patch.object(
+                organizer,
+                "_categorize_files",
+                return_value=([], [r.file_path for r in results], [], [], [], []),
+            ),
+            patch.object(organizer, "_process_all_file_types", return_value=results),
+            patch.object(organizer, "_execute_organization"),
+        ):
+            result = organizer.organize(tmp_path, tmp_path / "out")
+
+        # Default threshold (0.5), inclusive-but-not-1.0 → EXIF + name + bad.
+        assert set(result.low_confidence_files) == {"exif.jpg", "name.png", "bad.png"}
+        # Happy-path file is never flagged.
+        assert "ok.png" not in result.low_confidence_files
+        assert "doc.txt" not in result.low_confidence_files
+        # Inference samples partition by modality (#410).
+        assert result.vision_inference_ms_samples == [100.0]
+        assert result.text_inference_ms_samples == [80.0]
+
+    def test_organizer_falls_back_to_default_threshold_on_config_error(
+        self, tmp_path: Path
+    ) -> None:
+        """#409: ConfigManager.load failure degrades to ProcessingSettings()
+        default rather than crashing the aggregation loop."""
+        from services.vision_processor import ProcessedImage
+
+        img = ProcessedImage(
+            file_path=tmp_path / "exif.jpg",
+            description="",
+            folder_name="Images/Photos/2025/11",
+            filename="exif",
+            source="fallback_exif",
+            confidence=0.5,
+        )
+        img.file_path.write_bytes(b"")
+
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        # Make ConfigManager raise to exercise the except branch.
+        with (
+            patch.object(
+                organizer,
+                "_categorize_files",
+                return_value=([], [img.file_path], [], [], [], []),
+            ),
+            patch.object(organizer, "_process_all_file_types", return_value=[img]),
+            patch.object(organizer, "_execute_organization"),
+            patch(
+                "config.manager.ConfigManager",
+                side_effect=RuntimeError("config broken"),
+            ),
+        ):
+            result = organizer.organize(tmp_path, tmp_path / "out")
+
+        # Fallback to ProcessingSettings() default (0.5); the 0.5
+        # confidence still lands in review under the inclusive
+        # comparator.
+        assert "exif.jpg" in result.low_confidence_files
+
+    def test_threshold_one_does_not_flag_happy_path(self, tmp_path: Path) -> None:
+        """#409 / Codex P2: threshold=1.0 must not flood the review list.
+
+        Confidence==1.0 is the happy path and should never be flagged,
+        regardless of threshold. Verifies the
+        ``confidence < 1.0`` cap in the comparator.
+        """
+        from unittest.mock import MagicMock
+
+        from services.vision_processor import ProcessedImage
+
+        happy = ProcessedImage(
+            file_path=tmp_path / "ok.png",
+            description="d",
+            folder_name="images",
+            filename="ok",
+            confidence=1.0,
+        )
+        happy.file_path.write_bytes(b"")
+
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+
+        # Patch the threshold loader to return 1.0 (the inclusive max).
+        mock_manager = MagicMock()
+        mock_app_cfg = MagicMock()
+        mock_app_cfg.processing.low_confidence_threshold = 1.0
+        mock_manager.load.return_value = mock_app_cfg
+        with (
+            patch.object(
+                organizer,
+                "_categorize_files",
+                return_value=([], [happy.file_path], [], [], [], []),
+            ),
+            patch.object(organizer, "_process_all_file_types", return_value=[happy]),
+            patch.object(organizer, "_execute_organization"),
+            patch("config.manager.ConfigManager", return_value=mock_manager),
+        ):
+            result = organizer.organize(tmp_path, tmp_path / "out")
+
+        assert result.low_confidence_files == []
+
 
 # ---------------------------------------------------------------------------
 # file_ops module tests

@@ -496,6 +496,12 @@ class ConfigManager:
             "setup_completed": config.setup_completed,
             "models": asdict(config.models),
             "updates": asdict(config.updates),
+            # #407 / #409: serialize nested settings sections so user-set
+            # values (e.g. `processing.low_confidence_threshold`,
+            # `vision.max_long_edge`) round-trip through YAML. Missing
+            # these was a pre-existing bug — Codex P1 catch on PR #426.
+            "vision": asdict(config.vision),
+            "processing": asdict(config.processing),
         }
 
         # Only include module overrides that are set
@@ -518,6 +524,8 @@ class ConfigManager:
     @staticmethod
     def _dict_to_config(data: dict[str, Any], profile: str) -> AppConfig:
         """Deserialize a dict (from YAML) into an AppConfig."""
+        from config.schema import ProcessingSettings, VisionSettings
+
         models_data = data.get("models", {})
         if isinstance(models_data, dict):
             # Only pass keys that ModelPreset accepts
@@ -535,6 +543,28 @@ class ConfigManager:
         else:
             updates = UpdateSettings()
 
+        # #407 / #409: round-trip the nested settings sections. Missing
+        # these was a pre-existing bug — without it, `fo config set
+        # processing.low_confidence_threshold 0.7` would save but
+        # silently fail to load on the next run.
+        vision_data = data.get("vision", {})
+        if isinstance(vision_data, dict):
+            valid_vision_keys = {f.name for f in fields(VisionSettings)}
+            vision_data = {k: v for k, v in vision_data.items() if k in valid_vision_keys}
+            vision = VisionSettings(**vision_data)
+        else:
+            vision = VisionSettings()
+
+        processing_data = data.get("processing", {})
+        if isinstance(processing_data, dict):
+            valid_processing_keys = {f.name for f in fields(ProcessingSettings)}
+            processing_data = {
+                k: v for k, v in processing_data.items() if k in valid_processing_keys
+            }
+            processing = ProcessingSettings(**processing_data)
+        else:
+            processing = ProcessingSettings()
+
         return AppConfig(
             profile_name=profile,
             version=data.get("version", CURRENT_SCHEMA_VERSION),
@@ -542,6 +572,8 @@ class ConfigManager:
             setup_completed=data.get("setup_completed", False),
             models=models,
             updates=updates,
+            vision=vision,
+            processing=processing,
             watcher=data.get("watcher"),
             daemon=data.get("daemon"),
             parallel=data.get("parallel"),

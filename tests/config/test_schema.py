@@ -226,3 +226,32 @@ class TestProcessingSettings:
         """Base above max is nonsensical (clamp would always trigger)."""
         with pytest.raises(ValueError, match="must be <= vision_max_timeout_s"):
             ProcessingSettings(vision_base_timeout_s=400.0, vision_max_timeout_s=300.0)
+
+    def test_low_confidence_threshold_default(self) -> None:
+        """Default threshold matches the EXIF-fallback score (#409)."""
+        assert ProcessingSettings().low_confidence_threshold == 0.5
+
+    def test_low_confidence_threshold_custom(self) -> None:
+        """Threshold is tunable inside the (0, 1] range."""
+        s = ProcessingSettings(low_confidence_threshold=0.8)
+        assert s.low_confidence_threshold == 0.8
+
+    def test_low_confidence_threshold_accepts_one(self) -> None:
+        """Upper bound is inclusive — 1.0 means 'review everything not happy-path'."""
+        s = ProcessingSettings(low_confidence_threshold=1.0)
+        assert s.low_confidence_threshold == 1.0
+
+    def test_low_confidence_threshold_rejects_zero(self) -> None:
+        """0.0 makes the threshold useless (nothing would ever fall below it)."""
+        with pytest.raises(ValueError, match="low_confidence_threshold"):
+            ProcessingSettings(low_confidence_threshold=0.0)
+
+    def test_low_confidence_threshold_rejects_above_one(self) -> None:
+        """Values > 1.0 are nonsensical (confidences cap at 1.0)."""
+        with pytest.raises(ValueError, match="low_confidence_threshold"):
+            ProcessingSettings(low_confidence_threshold=1.5)
+
+    def test_low_confidence_threshold_rejects_negative(self) -> None:
+        """Negative threshold is rejected."""
+        with pytest.raises(ValueError, match="low_confidence_threshold"):
+            ProcessingSettings(low_confidence_threshold=-0.1)

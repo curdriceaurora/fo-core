@@ -167,6 +167,9 @@ def process_text_files(
                         folder_name=ERROR_FALLBACK_FOLDER,
                         filename=file_result.path.stem,
                         error=error_msg,
+                        # #409: dispatcher-built failures must surface
+                        # in the "Review recommended" section.
+                        confidence=0.0,
                     )
                 )
                 progress.update(
@@ -246,6 +249,14 @@ def process_image_files(
                         fb.source,
                         fb.folder,
                     )
+                    # Per-source confidence (#409). The vision model
+                    # never actually classified this file; we're going
+                    # off metadata. EXIF dates are more trustworthy
+                    # than pure filename heuristics, so they earn a
+                    # slightly higher score. Both land below the
+                    # default 0.5 threshold and so surface in the
+                    # summary's "Review recommended" section.
+                    _fallback_confidence = 0.5 if fb.source == "fallback_exif" else 0.3
                     processed.append(
                         ProcessedImage(
                             file_path=file_result.path,
@@ -261,6 +272,7 @@ def process_image_files(
                             # the observability output understates tail
                             # latency (CodeRabbit P2 on PR #424).
                             inference_ms=file_result.duration_ms,
+                            confidence=_fallback_confidence,
                             # NB: no `error` field — the file is not a failure
                         )
                     )
@@ -278,6 +290,11 @@ def process_image_files(
                             folder_name=ERROR_FALLBACK_FOLDER,
                             filename=file_result.path.stem,
                             error=error_msg,
+                            # #409: dispatcher-built failures must
+                            # surface in the "Review recommended"
+                            # section. Default confidence=1.0 would
+                            # hide them.
+                            confidence=0.0,
                         )
                     )
                     progress.update(
@@ -380,6 +397,7 @@ def process_audio_files(
                     folder_name=AUDIO_FALLBACK_FOLDER,
                     filename=audio_path.stem,
                     error=str(exc),
+                    confidence=0.0,  # #409: surface in review list
                 )
             )
 
@@ -435,6 +453,7 @@ def process_video_files(
                     folder_name=VIDEO_FALLBACK_FOLDER,
                     filename=video_path.stem,
                     error=str(exc),
+                    confidence=0.0,  # #409: surface in review list
                 )
             )
         except (OSError, ValueError, KeyError, RuntimeError) as exc:
@@ -446,6 +465,7 @@ def process_video_files(
                     folder_name=VIDEO_FALLBACK_FOLDER,
                     filename=video_path.stem,
                     error=str(exc),
+                    confidence=0.0,  # #409: surface in review list
                 )
             )
 

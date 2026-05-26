@@ -84,6 +84,21 @@ def show_summary(
             f"  [yellow]Categorized via fallback "
             f"(review recommended): {result.fallback_files}[/yellow]"
         )
+    if result.low_confidence_files:
+        # #409: every file whose confidence score fell below the
+        # configured threshold. Distinct from `fallback_files` —
+        # fallbacks are one source of low confidence; vision /text
+        # error returns (confidence=0.0) are another. Show a small
+        # preview to keep the summary scannable; users can grep the
+        # session log for `confidence=` to see the full audit trail.
+        _preview = ", ".join(result.low_confidence_files[:5])
+        if len(result.low_confidence_files) > 5:
+            _preview += f", … (+{len(result.low_confidence_files) - 5} more)"
+        console.print(
+            f"  [yellow]Review recommended: "
+            f"{len(result.low_confidence_files)} files[/yellow] "
+            f"[dim]({_preview})[/dim]"
+        )
     if result.deduplicated_files:
         console.print(f"  [dim]Duplicates removed: {result.deduplicated_files}[/dim]")
     if result.errors:

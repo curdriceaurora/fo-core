@@ -38,6 +38,10 @@ class ProcessedFile:
     # (#410). Populated even on failure paths so summary aggregation
     # (p50/p95/p99) reflects every per-file attempt.
     inference_ms: float | None = None
+    # Categorization confidence in [0.0, 1.0] (#409). 1.0 = happy-path
+    # text inference, 0.0 = error / no usable result. Audio transcripts
+    # may attach a lower value when transcription quality is unclear.
+    confidence: float = 1.0
 
 
 # Stop-words and noise words filtered from AI-generated names.
@@ -229,6 +233,7 @@ class TextProcessor:
                         folder_name="errors",
                         filename=file_path.stem,
                         error=f"Refused to read symlink: {file_path.name}",
+                        confidence=0.0,
                     ),
                     False,  # no model call attempted
                 )
@@ -260,6 +265,7 @@ class TextProcessor:
                         folder_name="unsupported",
                         filename=file_path.stem,
                         error="Unsupported file type",
+                        confidence=0.0,
                     ),
                     False,  # no model call attempted
                 )
@@ -329,6 +335,7 @@ class TextProcessor:
                     # scope is log-message categorisation, not the public
                     # ``ProcessedFile.error`` field.
                     error=str(e),
+                    confidence=0.0,
                 ),
                 False,  # read failure → no model call attempted
             )
@@ -355,6 +362,7 @@ class TextProcessor:
                     folder_name="errors",
                     filename=file_path.stem,
                     error=str(e),
+                    confidence=0.0,
                 ),
                 model_invoked,
             )
