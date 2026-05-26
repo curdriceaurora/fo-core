@@ -342,6 +342,44 @@ class TestVisionProcessorProcessFile:
         assert result.error is None
         assert processor._is_circuit_open() is False
 
+    def test_failed_mid_flight_inference_still_records_inference_ms(
+        self, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """A model call that raises mid-flight DOES record inference_ms (#410).
+
+        CodeRabbit P2 round-trip on PR #424: failed-but-attempted
+        inferences must contribute to p95/p99 so operators see real
+        tail latency during degraded-backend periods. Only purely
+        pre-inference paths (circuit-open at the very start,
+        file-not-found) should be excluded.
+        """
+        img1 = tmp_path / "trip.jpg"
+        img2 = tmp_path / "after.jpg"
+        img1.write_bytes(b"\xff\xd8")
+        img2.write_bytes(b"\xff\xd8")
+
+        # Fatal error trips the circuit on the first call; the second
+        # invocation then short-circuits BEFORE any model call.
+        mock_vision_model.generate.side_effect = RuntimeError(
+            "model runner has unexpectedly stopped"
+        )
+        processor = VisionProcessor(
+            vision_model=mock_vision_model,
+            backend_cooldown_seconds=120.0,
+        )
+
+        first = processor.process_file(img1)
+        # First call: model WAS invoked (and failed) → inference_ms set
+        assert first.error is not None
+        assert isinstance(first.inference_ms, float)
+        assert first.inference_ms < 5000.0
+
+        # Second call: circuit-open short-circuit → inference_ms None
+        second = processor.process_file(img2)
+        assert second.error is not None
+        assert "Vision backend unavailable" in second.error
+        assert second.inference_ms is None
+
 
 @pytest.mark.unit
 class TestVisionProcessorCleanName:

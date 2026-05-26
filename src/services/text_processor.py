@@ -154,24 +154,20 @@ class TextProcessor:
         """
         file_path = Path(file_path)
         # Per-file inference timer (#410). Emits `text_inference_ms=<N>`
-        # on exit for both success and exception branches; the duration
-        # is attached to the returned ProcessedFile so the summary
-        # renderer can aggregate p50/p95/p99 across the run.
+        # on exit for both success and exception branches; the inner
+        # method returns (result, model_invoked) so we can record the
+        # sample for failed-but-attempted inferences (which DO need to
+        # show up in p95/p99 during degraded-backend periods) while
+        # excluding non-inference paths (CodeRabbit P2 round-trip).
         with time_inference("text", file_path) as _timer:
-            result = self._process_file_inner(
+            result, model_invoked = self._process_file_inner(
                 file_path,
                 generate_description=generate_description,
                 generate_folder=generate_folder,
                 generate_filename=generate_filename,
                 scan_root=scan_root,
             )
-        # Only attach the timer to results where the model was actually
-        # invoked. Non-inference branches (symlink rejection, unsupported
-        # content, read-path failures) set `result.error` before any
-        # text_model.generate() call; folding those near-zero samples
-        # into mean/p95/p99 would understate real text latency
-        # (CodeRabbit P2 catch on PR #424).
-        if not result.error:
+        if model_invoked:
             result.inference_ms = _timer.elapsed_ms
         return result
 
@@ -183,7 +179,7 @@ class TextProcessor:
         generate_folder: bool,
         generate_filename: bool,
         scan_root: str | Path | None,
-    ) -> ProcessedFile:
+    ) -> tuple[ProcessedFile, bool]:
         """Inner body of :meth:`process_file`.
 
         Extracted so the outer ``process_file`` can wrap this with the
@@ -216,12 +212,15 @@ class TextProcessor:
                         content = read_file_via_safedir(safe_dir, file_path.name)
             except SymlinkRejected as exc:
                 logger.warning("Refused to read symlinked file {}: {}", file_path, exc)
-                return ProcessedFile(
-                    file_path=file_path,
-                    description="",
-                    folder_name="errors",
-                    filename=file_path.stem,
-                    error=f"Refused to read symlink: {file_path.name}",
+                return (
+                    ProcessedFile(
+                        file_path=file_path,
+                        description="",
+                        folder_name="errors",
+                        filename=file_path.stem,
+                        error=f"Refused to read symlink: {file_path.name}",
+                    ),
+                    False,  # no model call attempted
                 )
             except NotImplementedError:
                 # SafeDir requires POSIX dir_fd / O_NOFOLLOW; on Windows
@@ -244,12 +243,15 @@ class TextProcessor:
                 content = read_file(file_path)
 
             if content is None:
-                return ProcessedFile(
-                    file_path=file_path,
-                    description="",
-                    folder_name="unsupported",
-                    filename=file_path.stem,
-                    error="Unsupported file type",
+                return (
+                    ProcessedFile(
+                        file_path=file_path,
+                        description="",
+                        folder_name="unsupported",
+                        filename=file_path.stem,
+                        error="Unsupported file type",
+                    ),
+                    False,  # no model call attempted
                 )
 
             # Truncate if too long
@@ -257,13 +259,16 @@ class TextProcessor:
 
             # Generate description (summary)
             description = ""
+            model_invoked = False
             if generate_description:
+                model_invoked = True  # _generate_description issues the model call
                 description = self._generate_description(content)
                 logger.debug("Generated description ({} chars)", len(description))
 
             # Generate folder name
             folder_name = ""
             if generate_folder:
+                model_invoked = True  # _generate_folder_name issues the model call
                 folder_name = self._generate_folder_name(
                     description or content, original_stem=file_path.stem
                 )
@@ -272,6 +277,7 @@ class TextProcessor:
             # Generate filename
             filename = ""
             if generate_filename:
+                model_invoked = True  # _generate_filename issues the model call
                 filename = self._generate_filename(
                     description or content, original_stem=file_path.stem
                 )
@@ -279,13 +285,16 @@ class TextProcessor:
 
             processing_time = time.time() - start_time
 
-            return ProcessedFile(
-                file_path=file_path,
-                description=description,
-                folder_name=folder_name,
-                filename=filename,
-                original_content=content[:500],  # Keep first 500 chars for reference
-                processing_time=processing_time,
+            return (
+                ProcessedFile(
+                    file_path=file_path,
+                    description=description,
+                    folder_name=folder_name,
+                    filename=filename,
+                    original_content=content[:500],  # Keep first 500 chars for reference
+                    processing_time=processing_time,
+                ),
+                model_invoked,
             )
 
         except FileReadError as e:
@@ -299,15 +308,20 @@ class TextProcessor:
                 type(e).__name__,
                 e,
             )
-            return ProcessedFile(
-                file_path=file_path,
-                description="",
-                folder_name="errors",
-                filename=file_path.stem,
-                # Preserve the existing ``error=str(e)`` contract — B2
-                # scope is log-message categorisation, not the public
-                # ``ProcessedFile.error`` field.
-                error=str(e),
+            # FileReadError fires from the SafeDir / read_file path
+            # BEFORE any model call — pre-inference.
+            return (
+                ProcessedFile(
+                    file_path=file_path,
+                    description="",
+                    folder_name="errors",
+                    filename=file_path.stem,
+                    # Preserve the existing ``error=str(e)`` contract — B2
+                    # scope is log-message categorisation, not the public
+                    # ``ProcessedFile.error`` field.
+                    error=str(e),
+                ),
+                False,  # read failure → no model call attempted
             )
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
             # B2: typed tuple already narrows to "model / inference"
@@ -320,12 +334,18 @@ class TextProcessor:
                 type(e).__name__,
                 e,
             )
-            return ProcessedFile(
-                file_path=file_path,
-                description="",
-                folder_name="errors",
-                filename=file_path.stem,
-                error=str(e),
+            # These exception types fire only after the read succeeded,
+            # i.e. during _generate_description / folder / filename —
+            # all of which are model calls. Count as an inference attempt.
+            return (
+                ProcessedFile(
+                    file_path=file_path,
+                    description="",
+                    folder_name="errors",
+                    filename=file_path.stem,
+                    error=str(e),
+                ),
+                True,  # the failing call counts as an inference attempt
             )
 
     def _clean_ai_generated_name(self, name: str, max_words: int = 3) -> str:
