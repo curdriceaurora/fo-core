@@ -236,6 +236,11 @@ class TestProcessingSettings:
         s = ProcessingSettings(low_confidence_threshold=0.8)
         assert s.low_confidence_threshold == 0.8
 
+    def test_low_confidence_threshold_accepts_one(self) -> None:
+        """Upper bound is inclusive — 1.0 means 'review everything not happy-path'."""
+        s = ProcessingSettings(low_confidence_threshold=1.0)
+        assert s.low_confidence_threshold == 1.0
+
     def test_low_confidence_threshold_rejects_zero(self) -> None:
         """0.0 makes the threshold useless (nothing would ever fall below it)."""
         with pytest.raises(ValueError, match="low_confidence_threshold"):

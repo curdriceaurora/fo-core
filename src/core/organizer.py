@@ -303,7 +303,14 @@ class FileOrganizer:
                     p.file_path.name,
                     getattr(p, "source", "text"),
                 )
-                if _confidence < _confidence_threshold:
+                if _confidence <= _confidence_threshold:
+                    # Inclusive on the upper bound so threshold-equal
+                    # placements (e.g. EXIF fallback at 0.5 with the
+                    # default 0.5 threshold) DO appear in "Review
+                    # recommended". Codex P1 catch on PR #426: a
+                    # strict `<` excluded those entries from the
+                    # review even though they're the canonical
+                    # borderline case the feature targets.
                     result.low_confidence_files.append(p.file_path.name)
 
             all_processed = self._deduplicate_processed(all_processed, result)
