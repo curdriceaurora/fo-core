@@ -317,6 +317,27 @@ class TestConfigManagerModuleDelegation:
         model_cfg = mgr.to_vision_model_config(cfg)
         assert model_cfg.provider == "ollama"
 
+    def test_provider_from_framework_handles_non_string_model_path(self) -> None:
+        """Non-string model_path (e.g. int from manually edited YAML) doesn't crash.
+
+        Codex P2 catch on PR #423: YAML can deserialize ``models.model_path``
+        as a non-str (a stray ``models.model_path: 123`` integer, a
+        ``Path`` from a programmatic caller, …). A naive ``.strip()``
+        call would AttributeError; we coerce defensively via
+        ``isinstance(model_path, str)``.
+        """
+        from config.manager import _provider_from_framework
+
+        # int → guard treats as "no path", falls back to ollama
+        assert _provider_from_framework("llama_cpp", model_path=123) == "ollama"
+        # bytes → same fallback (str() coercion would have produced
+        # b"…" garbage, so the defensive guard is correct)
+        assert _provider_from_framework("llama_cpp", model_path=b"/m/x.gguf") == "ollama"
+        # None → fallback (default arg path)
+        assert _provider_from_framework("mlx", model_path=None) == "ollama"
+        # Valid str path → still resolves to the local provider
+        assert _provider_from_framework("llama_cpp", model_path="/m/x.gguf") == "llama_cpp"
+
     @patch("config.manager.WatcherConfig", create=True)
     def test_to_watcher_config(self, mock_watcher_cls):
         with patch("watcher.config.WatcherConfig", mock_watcher_cls, create=True):

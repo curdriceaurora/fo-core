@@ -63,14 +63,15 @@ _FRAMEWORK_TO_PROVIDER: dict[str, ProviderName] = {
 # guard a profile that selected llama_cpp/mlx via `fo setup` but never
 # collected a model path (cli/setup.py and setup_wizard.validate_config
 # allow that today) would crash the run instead of silently falling back
-# to Ollama as it did before the converter fix.
-_PATH_DEPENDENT_PROVIDERS: frozenset[ProviderName] = frozenset({"llama_cpp", "mlx"})
+# to Ollama as it did before the converter fix. Tuple literal so Pyre /
+# mypy infer the element type as ProviderName, not str.
+_PATH_DEPENDENT_PROVIDERS: tuple[ProviderName, ...] = ("llama_cpp", "mlx")
 
 
 def _provider_from_framework(
     framework: str,
     *,
-    model_path: str | None = None,
+    model_path: object = None,
 ) -> ProviderName:
     """Map ModelPreset.framework → ModelConfig.provider (#408 / #423).
 
@@ -84,10 +85,18 @@ def _provider_from_framework(
     executor will reject. This preserves the legacy silent-Ollama
     behavior for existing setup-wizard profiles that selected a
     framework without collecting a path (Codex P1 catch on PR #423).
+
+    ``model_path`` is typed as ``object`` because YAML can deserialize
+    that field as any type (int from a manually edited config, a
+    ``Path`` instance from a programmatic caller, …). We coerce defensively
+    rather than calling ``.strip()`` and risking ``AttributeError``
+    (Codex P2 catch on PR #423).
     """
     provider = _FRAMEWORK_TO_PROVIDER.get(str(framework).strip().lower(), "ollama")
-    if provider in _PATH_DEPENDENT_PROVIDERS and not (model_path or "").strip():
-        return "ollama"
+    if provider in _PATH_DEPENDENT_PROVIDERS:
+        has_path = isinstance(model_path, str) and bool(model_path.strip())
+        if not has_path:
+            return "ollama"
     return provider
 
 
