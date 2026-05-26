@@ -91,6 +91,12 @@ _INFERENCE_ERROR_TOKENS: tuple[str, ...] = (
     "jsondecode",
     "completion failed",
     "inference failed",
+    # VisionProcessor._circuit_open_error() emits this exact prefix when
+    # the backend's failure circuit is open; otherwise it would fall
+    # through to `other` and weaken operator guidance during degraded
+    # availability (Codex P2 on PR #427).
+    "vision backend unavailable",
+    "backend unavailable",
 )
 
 
@@ -121,11 +127,15 @@ def classify_error(result: Any) -> ErrorCategory | None:
         return None
     err_lc = str(error).lower()
 
-    # Dispatcher's timeout-as-string sentinel — only reached when the
-    # fallback path didn't fire (e.g. text files, or a vision file
-    # whose error string survived without the dispatcher's source patch).
+    # Parallel processor's timeout sentinel is emitted for BOTH text
+    # and vision batches (Codex P2 catch on PR #427). Map to
+    # ``vision_timeout`` only when the result is image-shaped — i.e.
+    # exposes a ``source`` attribute (set on ProcessedImage; absent on
+    # ProcessedFile). Generic text timeouts fall through to ``other``.
     if err_lc.startswith("timed out after"):
-        return "vision_timeout"
+        if hasattr(result, "source"):
+            return "vision_timeout"
+        return "other"
 
     if any(tok in err_lc for tok in _UNSUPPORTED_TYPE_TOKENS):
         return "unsupported_type"

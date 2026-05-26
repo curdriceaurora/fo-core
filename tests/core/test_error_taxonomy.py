@@ -33,11 +33,32 @@ class TestClassifyError:
         assert classify_error(_Stub(error=None, source="fallback_exif")) == "vision_timeout"
         assert classify_error(_Stub(error=None, source="fallback_filename")) == "vision_timeout"
 
-    def test_vision_timeout_via_error_string(self) -> None:
-        # Dispatcher's "timed out after Ns" sentinel — vision file
-        # whose error survived without the fallback patching `source`.
+    def test_vision_timeout_via_error_string_only_for_image_results(self) -> None:
+        # The parallel processor emits "Timed out after Xs" for both
+        # text and vision batches. Only the image-shaped result (has
+        # ``source`` attribute) buckets as vision_timeout; the text
+        # case falls through to ``other`` so the recommendation
+        # doesn't mis-direct an operator (Codex P2 on PR #427).
         assert (
-            classify_error(_Stub(error="Timed out after 30s", confidence=0.0)) == "vision_timeout"
+            classify_error(_Stub(error="Timed out after 30s", source="vision", confidence=0.0))
+            == "vision_timeout"
+        )
+
+        class _TextResult:
+            # No `source` attribute — text processor / ProcessedFile shape.
+            error = "Timed out after 30s"
+            confidence = 0.0
+
+        assert classify_error(_TextResult()) == "other"
+
+    def test_vision_circuit_open_buckets_as_inference_error(self) -> None:
+        # VisionProcessor._circuit_open_error() emits this exact prefix
+        # when the backend failure circuit is open — Codex P2 on PR #427.
+        assert (
+            classify_error(
+                _Stub(error="Vision backend unavailable: 5 consecutive failures", confidence=0.0)
+            )
+            == "inference_error"
         )
 
     def test_read_error_permission_denied(self) -> None:
