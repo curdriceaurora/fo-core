@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 
 from config.defaults import DEFAULT_MODEL
-from config.schema import AppConfig, ModelPreset, ProcessingSettings, UpdateSettings
+from config.schema import (
+    AppConfig,
+    ModelPreset,
+    ProcessingSettings,
+    UpdateSettings,
+    VisionSettings,
+)
 
 pytestmark = [pytest.mark.unit, pytest.mark.smoke, pytest.mark.ci]
 
@@ -255,3 +261,21 @@ class TestProcessingSettings:
         """Negative threshold is rejected."""
         with pytest.raises(ValueError, match="low_confidence_threshold"):
             ProcessingSettings(low_confidence_threshold=-0.1)
+
+
+class TestVisionSettingsValidation:
+    """#415 / CodeRabbit Minor on PR #428."""
+
+    def test_default_svg_max_input_bytes(self) -> None:
+        assert VisionSettings().svg_max_input_bytes == 5 * 1024 * 1024
+
+    def test_custom_svg_max_input_bytes_accepted(self) -> None:
+        assert VisionSettings(svg_max_input_bytes=10_485_760).svg_max_input_bytes == 10_485_760
+
+    def test_zero_svg_max_input_bytes_rejected(self) -> None:
+        with pytest.raises(ValueError, match="svg_max_input_bytes"):
+            VisionSettings(svg_max_input_bytes=0)
+
+    def test_negative_svg_max_input_bytes_rejected(self) -> None:
+        with pytest.raises(ValueError, match="svg_max_input_bytes"):
+            VisionSettings(svg_max_input_bytes=-1)

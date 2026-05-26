@@ -159,23 +159,7 @@ def _read_image_bytes_safedir(image_path: Path) -> bytes:
             return fh_win.read()
 
 
-def _resolve_svg_max_input_bytes() -> int:
-    """Return the configured ``svg_max_input_bytes`` or the safe default.
-
-    ``ConfigManager().load()`` is best-effort: any failure (file missing,
-    parse error, schema drift) degrades silently to
-    ``_SVG_MAX_INPUT_BYTES_DEFAULT`` so the size precheck is always armed,
-    even when called outside the organize pipeline.
-    """
-    try:
-        from config.manager import ConfigManager
-
-        return int(ConfigManager().load().vision.svg_max_input_bytes)
-    except Exception:  # pragma: no cover — defensive degrade path
-        return _SVG_MAX_INPUT_BYTES_DEFAULT
-
-
-def rasterize_svg_to_png_bytes(svg_path: Path) -> bytes:
+def rasterize_svg_to_png_bytes(svg_path: Path, *, max_input_bytes: int | None = None) -> bytes:
     """Rasterize an SVG file to PNG bytes using PyMuPDF (fitz).
 
     PyMuPDF is a core dependency (used for PDF extraction), so no additional
@@ -184,9 +168,12 @@ def rasterize_svg_to_png_bytes(svg_path: Path) -> bytes:
 
     Security layering (#415):
 
-    1. **File-size precheck.** Files larger than
-       ``AppConfig.vision.svg_max_input_bytes`` (default 5 MiB) are
-       rejected before any bytes are read into memory.
+    1. **File-size precheck.** Files larger than ``max_input_bytes``
+       (default ``_SVG_MAX_INPUT_BYTES_DEFAULT`` = 5 MiB) are rejected
+       before any bytes are read into memory. Callers with an
+       :class:`AppConfig` in hand should pass
+       ``config.vision.svg_max_input_bytes`` so the active profile's
+       knob is honoured; the default is purely a config-less fallback.
     2. **defusedxml pre-parse.** ``_validate_svg_xml`` runs before fitz
        sees the bytes; it rejects external entities (XXE), external DTDs,
        billion-laughs expansions, and malformed XML.
@@ -196,6 +183,13 @@ def rasterize_svg_to_png_bytes(svg_path: Path) -> bytes:
 
     Args:
         svg_path: Path to the .svg file.
+        max_input_bytes: Optional override for the SVG size cap.
+            ``None`` (default) falls back to
+            ``_SVG_MAX_INPUT_BYTES_DEFAULT``. The previous
+            ``ConfigManager().load()`` lookup was removed because it
+            always resolved the ``"default"`` profile regardless of
+            which profile the run was actually using (Codex P2 +
+            CodeRabbit Major on PR #428).
 
     Returns:
         PNG image as raw bytes.
@@ -205,7 +199,7 @@ def rasterize_svg_to_png_bytes(svg_path: Path) -> bytes:
             pre-parse, cannot be opened or rendered, or if *svg_path* is a
             symlink (POSIX only).
     """
-    max_bytes = _resolve_svg_max_input_bytes()
+    max_bytes = max_input_bytes if max_input_bytes is not None else _SVG_MAX_INPUT_BYTES_DEFAULT
     try:
         size = svg_path.stat().st_size
     except FileNotFoundError:

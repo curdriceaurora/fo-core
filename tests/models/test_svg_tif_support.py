@@ -167,16 +167,12 @@ class TestSvgSecurityHardeningIntegration:
             rasterize_svg_to_png_bytes(svg_file)
 
     def test_integration_size_cap_rejects_oversized(self, tmp_path: Path) -> None:
-        from models import _vision_helpers
         from models._vision_helpers import rasterize_svg_to_png_bytes
 
         oversized = tmp_path / "huge.svg"
         oversized.write_bytes(b"a" * (2 * 1024 * 1024))
-        with patch.object(
-            _vision_helpers, "_resolve_svg_max_input_bytes", return_value=1024 * 1024
-        ):
-            with pytest.raises(OSError, match="exceeds maximum input size"):
-                rasterize_svg_to_png_bytes(oversized)
+        with pytest.raises(OSError, match="exceeds maximum input size"):
+            rasterize_svg_to_png_bytes(oversized, max_input_bytes=1024 * 1024)
 
     def test_integration_toctou_post_read_check(self, tmp_path: Path) -> None:
         # Codex P2 on PR #428: a concurrent writer could rename a larger
@@ -191,15 +187,12 @@ class TestSvgSecurityHardeningIntegration:
         small.write_bytes(b"<svg/>")  # stat() returns 6 bytes
         attacker_payload = b"a" * (2 * 1024 * 1024)
         with patch.object(
-            _vision_helpers, "_resolve_svg_max_input_bytes", return_value=1024 * 1024
+            _vision_helpers,
+            "_read_image_bytes_safedir",
+            return_value=attacker_payload,
         ):
-            with patch.object(
-                _vision_helpers,
-                "_read_image_bytes_safedir",
-                return_value=attacker_payload,
-            ):
-                with pytest.raises(OSError, match="exceed maximum input size after read"):
-                    rasterize_svg_to_png_bytes(small)
+            with pytest.raises(OSError, match="exceed maximum input size after read"):
+                rasterize_svg_to_png_bytes(small, max_input_bytes=1024 * 1024)
 
     def test_integration_other_oserror_from_stat_is_wrapped(self, tmp_path: Path) -> None:
         # Codex P2 on PR #428: non-FileNotFoundError OSErrors from
@@ -295,10 +288,14 @@ class TestSvgSecurityHardening:
         with pytest.raises(OSError, match="defusedxml"):
             rasterize_svg_to_png_bytes(svg_file)
 
-    def test_billion_laughs_is_rejected_in_under_one_second(self, tmp_path: Path) -> None:
-        """Quadratic / billion-laughs entity expansions must bounce in < 1s."""
-        import time
+    def test_billion_laughs_is_rejected(self, tmp_path: Path) -> None:
+        """Quadratic / billion-laughs entity expansions must bounce.
 
+        defusedxml refuses the payload at parse time before any
+        expansion happens, so the assertion is on rejection — not on
+        wall-clock duration. A timing assertion would be CI-flaky on
+        shared runners (CodeRabbit Major on PR #428).
+        """
         from models._vision_helpers import rasterize_svg_to_png_bytes
 
         # Classic billion-laughs payload: each level multiplies expansion.
@@ -317,14 +314,8 @@ class TestSvgSecurityHardening:
         svg_file = tmp_path / "bomb.svg"
         svg_file.write_bytes(bomb)
 
-        start = time.monotonic()
         with pytest.raises(OSError, match="defusedxml"):
             rasterize_svg_to_png_bytes(svg_file)
-        # defusedxml refuses up-front — no expansion happens. Generous
-        # ceiling tolerates slow CI runners but still catches a regression
-        # that would expand the bomb.
-        elapsed = time.monotonic() - start
-        assert elapsed < 1.0, f"defusedxml rejection took {elapsed:.2f}s"
 
     def test_malformed_xml_raises_oserror_not_fitz_exception(self, tmp_path: Path) -> None:
         """Truncated SVG must surface as OSError, not an uncaught fitz error."""
@@ -341,18 +332,14 @@ class TestSvgSecurityHardening:
 
     def test_oversized_svg_file_rejected_before_read(self, tmp_path: Path) -> None:
         """Files larger than ``svg_max_input_bytes`` must be rejected at stat()."""
-        from models import _vision_helpers
         from models._vision_helpers import rasterize_svg_to_png_bytes
 
         oversized = tmp_path / "huge.svg"
-        # 2 MB of garbage — well above the 1 MB cap we'll patch in.
+        # 2 MB of garbage — well above the 1 MB override we pass in.
         oversized.write_bytes(b"a" * (2 * 1024 * 1024))
 
-        with patch.object(
-            _vision_helpers, "_resolve_svg_max_input_bytes", return_value=1024 * 1024
-        ):
-            with pytest.raises(OSError, match="exceeds maximum input size"):
-                rasterize_svg_to_png_bytes(oversized)
+        with pytest.raises(OSError, match="exceeds maximum input size"):
+            rasterize_svg_to_png_bytes(oversized, max_input_bytes=1024 * 1024)
 
     def test_under_size_cap_still_rasterizes(self, tmp_path: Path) -> None:
         """Sanity: well-formed SVGs under the cap still produce PNG bytes."""

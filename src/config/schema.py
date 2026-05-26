@@ -100,6 +100,21 @@ class VisionSettings:
     max_long_edge: int = 1024
     svg_max_input_bytes: int = 5 * 1024 * 1024
 
+    def __post_init__(self) -> None:
+        """Reject non-positive ``svg_max_input_bytes`` at construction.
+
+        CodeRabbit Minor on PR #428: a zero or negative cap silently
+        rejects every SVG (the precheck compares
+        ``stat().st_size > max_bytes``). Surface the malformed YAML
+        loudly instead of producing a hard-to-diagnose "always rejected"
+        symptom at runtime.
+        """
+        if not isinstance(self.svg_max_input_bytes, int) or self.svg_max_input_bytes <= 0:
+            raise ValueError(
+                f"vision.svg_max_input_bytes must be a positive int "
+                f"(got {self.svg_max_input_bytes!r})"
+            )
+
 
 @dataclass
 class ProcessingSettings:
