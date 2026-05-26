@@ -459,6 +459,112 @@ class TestDisplay:
 
         show_summary(console, result, tmp_path, dry_run=True)
 
+    @pytest.mark.integration
+    def test_error_taxonomy_buckets_all_categories_integration(self) -> None:
+        # #411 integration coverage: exercise every classify_error
+        # branch through the public helper. Pinned at integration tier
+        # so error_taxonomy.py clears the per-module floor (90%+).
+        from dataclasses import dataclass
+
+        from core.error_taxonomy import RECOMMENDATIONS, classify_error
+
+        @dataclass
+        class _R:
+            error: str | None = None
+            source: str | None = None
+            confidence: float = 1.0
+
+        # Each bucket plus the happy-path None
+        cases = [
+            (_R(error=None, source="vision"), None),
+            (_R(error=None, source="fallback_exif"), "vision_timeout"),
+            (_R(error="Timed out after 30s", confidence=0.0), "vision_timeout"),
+            (_R(error="Permission denied", confidence=0.0), "read_error"),
+            (
+                _R(error="Failed to read DOCX file foo.docx: x", confidence=0.0),
+                "read_error",
+            ),
+            (
+                _R(error="Unsupported file type: .xyz", confidence=0.0),
+                "unsupported_type",
+            ),
+            (_R(error="provider HTTP 500", confidence=0.0), "inference_error"),
+            (_R(error="ghost", confidence=0.5), "other"),
+        ]
+        for stub, expected in cases:
+            assert classify_error(stub) == expected, stub
+
+        # Every emitted bucket carries a recommendation string.
+        for category in (
+            "vision_timeout",
+            "read_error",
+            "unsupported_type",
+            "inference_error",
+            "other",
+        ):
+            assert RECOMMENDATIONS[category]
+
+    def test_show_summary_renders_error_breakdown(self, tmp_path: Path) -> None:
+        # #411: breakdown lines appear when error_breakdown is populated;
+        # the recommendation line fires only above the 10%-of-total trigger.
+        import io
+        from collections import Counter
+
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        buf = io.StringIO()
+        console = Console(file=buf, force_terminal=False, width=200)
+        result = OrganizationResult(
+            total_files=100,
+            processed_files=70,
+            failed_files=30,
+            error_breakdown=Counter(
+                {
+                    "vision_timeout": 25,  # 25% — triggers recommendation
+                    "read_error": 4,  # 4% — below threshold, no recommendation
+                    "other": 1,
+                }
+            ),
+            error_examples={
+                "vision_timeout": "logo.png",
+                "read_error": "locked.pdf",
+                "other": "weird.bin",
+            },
+        )
+
+        show_summary(console, result, tmp_path, dry_run=True)
+        output = buf.getvalue()
+
+        assert "Failure breakdown:" in output
+        # Per-category lines with example basenames
+        assert "vision_timeout" in output
+        assert "logo.png" in output
+        assert "read_error" in output
+        assert "locked.pdf" in output
+        # Recommendation only on the dominant bucket (>10%)
+        assert "--timeout-per-file" in output  # vision_timeout tip
+        # read_error has only 4% share — its tip must NOT render
+        assert "exclude unreadable files" not in output
+
+    def test_show_summary_omits_breakdown_when_empty(self, tmp_path: Path) -> None:
+        # Clean runs must stay quiet — no "Failure breakdown:" header.
+        import io
+
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        buf = io.StringIO()
+        console = Console(file=buf, force_terminal=False, width=200)
+        result = OrganizationResult(total_files=5, processed_files=5)
+
+        show_summary(console, result, tmp_path, dry_run=True)
+        assert "Failure breakdown:" not in buf.getvalue()
+
     def test_show_summary_with_many_errors(self, tmp_path: Path) -> None:
         from rich.console import Console
 
