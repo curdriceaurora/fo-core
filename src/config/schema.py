@@ -121,12 +121,21 @@ class ProcessingSettings:
             Should not exceed ``timeout_per_file`` (the dispatcher's hard
             kill-switch). Default 300s — same as ``timeout_per_file`` so
             the adaptive value never silently outlives the dispatcher.
+        low_confidence_threshold: Files whose categorization confidence
+            falls below this score appear in the summary's "Review
+            recommended" section and in the per-file ``confidence=``
+            log line as low-confidence placements (#409). Range
+            ``(0.0, 1.0]``; default 0.5 — half the maximum so EXIF
+            fallbacks (0.5) and filename-only fallbacks (0.3, from
+            #406) are surfaced for review while happy-path vision /
+            text inferences (1.0) are not.
     """
 
     timeout_per_file: float = 300.0
     vision_base_timeout_s: float = 30.0
     vision_per_mb_factor_s: float = 15.0
     vision_max_timeout_s: float = 300.0
+    low_confidence_threshold: float = 0.5
 
     def __post_init__(self) -> None:
         """Reject invalid timeout values at construction time (#396, #407)."""
@@ -150,6 +159,11 @@ class ProcessingSettings:
             raise ValueError(
                 f"processing.vision_base_timeout_s ({self.vision_base_timeout_s}) "
                 f"must be <= vision_max_timeout_s ({self.vision_max_timeout_s})"
+            )
+        if not (0.0 < self.low_confidence_threshold <= 1.0):
+            raise ValueError(
+                "processing.low_confidence_threshold must be in (0.0, 1.0], "
+                f"got {self.low_confidence_threshold}"
             )
 
 

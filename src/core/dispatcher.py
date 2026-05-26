@@ -246,6 +246,14 @@ def process_image_files(
                         fb.source,
                         fb.folder,
                     )
+                    # Per-source confidence (#409). The vision model
+                    # never actually classified this file; we're going
+                    # off metadata. EXIF dates are more trustworthy
+                    # than pure filename heuristics, so they earn a
+                    # slightly higher score. Both land below the
+                    # default 0.5 threshold and so surface in the
+                    # summary's "Review recommended" section.
+                    _fallback_confidence = 0.5 if fb.source == "fallback_exif" else 0.3
                     processed.append(
                         ProcessedImage(
                             file_path=file_result.path,
@@ -261,6 +269,7 @@ def process_image_files(
                             # the observability output understates tail
                             # latency (CodeRabbit P2 on PR #424).
                             inference_ms=file_result.duration_ms,
+                            confidence=_fallback_confidence,
                             # NB: no `error` field — the file is not a failure
                         )
                     )

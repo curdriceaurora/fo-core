@@ -64,6 +64,14 @@ class OrganizationResult:
     # change.
     vision_inference_ms_samples: list[float] = field(default_factory=list)  # pyre-ignore[35]
     text_inference_ms_samples: list[float] = field(default_factory=list)  # pyre-ignore[35]
+    # Files placed at confidence below
+    # ``AppConfig.processing.low_confidence_threshold`` (#409). Surfaced
+    # in the summary's "Review recommended" section so operators can
+    # audit borderline categorizations (EXIF fallbacks, filename-only
+    # placements, error-bucket landings) before any destructive moves.
+    # Entries are basenames so the summary stays readable even on deep
+    # input hierarchies.
+    low_confidence_files: list[str] = field(default_factory=list)  # pyre-ignore[35]
 
 
 # ---------------------------------------------------------------------------

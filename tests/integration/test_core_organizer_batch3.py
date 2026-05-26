@@ -662,6 +662,59 @@ class TestDisplay:
         assert "Vision inference" not in out
         assert "Text inference" not in out
 
+    def test_show_summary_renders_low_confidence_files(self, tmp_path: Path) -> None:
+        """low_confidence_files produces the 'Review recommended' line (#409)."""
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(record=True, width=160)
+        result = OrganizationResult(
+            total_files=4,
+            processed_files=4,
+            low_confidence_files=["doc1.txt", "img2.png", "img3.png"],
+        )
+        show_summary(console, result, tmp_path, dry_run=True)
+        out = console.export_text()
+        assert "Review recommended" in out
+        assert "3 files" in out
+        # Preview lists the first entries verbatim
+        assert "doc1.txt" in out
+        assert "img2.png" in out
+
+    def test_show_summary_low_confidence_truncates_preview(self, tmp_path: Path) -> None:
+        """A long list is truncated to 5 entries with a +N more hint (#409)."""
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(record=True, width=200)
+        files = [f"f{i:02d}.png" for i in range(8)]
+        result = OrganizationResult(total_files=8, processed_files=8, low_confidence_files=files)
+        show_summary(console, result, tmp_path, dry_run=True)
+        out = console.export_text()
+        assert "8 files" in out
+        # First 5 shown
+        for f in files[:5]:
+            assert f in out
+        # Tail summary
+        assert "+3 more" in out
+
+    def test_show_summary_omits_low_confidence_line_when_empty(self, tmp_path: Path) -> None:
+        """Empty low_confidence_files list short-circuits the section (#409)."""
+        from rich.console import Console
+
+        from core.display import show_summary
+        from core.types import OrganizationResult
+
+        console = Console(record=True, width=160)
+        result = OrganizationResult(total_files=2, processed_files=2)
+        show_summary(console, result, tmp_path, dry_run=True)
+        out = console.export_text()
+        assert "Review recommended" not in out
+
     def test_percentile_helper_matches_simple_cases(self) -> None:
         """_percentile reproduces standard linear-interp results (#410)."""
         from core.display import _percentile
@@ -890,6 +943,49 @@ class TestDispatcher:
         # fallback result so it lands in the p95/p99 inference sample.
         # `_make_file_result_failure` defaults duration_ms to 1.0.
         assert result.inference_ms == 1.0
+        # #409: filename-only fallback yields the lowest fallback
+        # confidence (0.3) so it surfaces in "Review recommended".
+        assert result.confidence == 0.3
+
+    def test_process_image_files_timeout_exif_fallback_higher_confidence(
+        self, tmp_path: Path
+    ) -> None:
+        """EXIF-driven fallback earns a higher confidence than filename-only (#409)."""
+        from unittest.mock import patch
+
+        from rich.console import Console
+
+        from core import dispatcher
+        from parallel.result import FileResult
+        from services.vision_fallback import FallbackResult
+
+        img = tmp_path / "DSC_0042.jpg"
+        img.write_bytes(b"")
+
+        file_result = FileResult(
+            path=img,
+            success=False,
+            error="Timed out after 300.0s",
+            duration_ms=42_000.0,
+        )
+        mock_pp = self._make_mock_parallel_processor([file_result])
+
+        # Force the EXIF path so we can assert the per-source confidence
+        # mapping without depending on a real Pillow read.
+        with patch(
+            "services.vision_fallback.compute_fallback",
+            return_value=FallbackResult(
+                folder="Images/Photos/2025/11",
+                filename="DSC_0042",
+                source="fallback_exif",
+            ),
+        ):
+            results = dispatcher.process_image_files(
+                [img], MagicMock(), mock_pp, Console(quiet=True)
+            )
+
+        assert results[0].source == "fallback_exif"
+        assert results[0].confidence == 0.5
 
     def test_process_image_files_timeout_fallback_carries_long_duration(
         self, tmp_path: Path

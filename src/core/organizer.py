@@ -270,16 +270,41 @@ class FileOrganizer:
             # contribute to mean/p50/p95/p99 (CodeRabbit P2 catch on PR #424).
             # Skip entries that never went through process_file (e.g.
             # dispatcher-built fallbacks) which carry inference_ms == None.
+            #
+            # Per-file confidence (#409) is emitted in the same pass so
+            # the audit log and the "Review recommended" summary list
+            # stay synchronised. Threshold comes from ProcessingSettings,
+            # loaded once outside the loop.
+            try:
+                from config.manager import ConfigManager
+
+                _confidence_threshold = ConfigManager().load().processing.low_confidence_threshold
+            except Exception:
+                from config.schema import ProcessingSettings
+
+                _confidence_threshold = ProcessingSettings().low_confidence_threshold
+
             for p in all_processed:
                 ms = getattr(p, "inference_ms", None)
-                if not isinstance(ms, (int, float)):
-                    continue
-                # ProcessedImage carries the `source` field (#406) so we
-                # treat the image side; ProcessedFile is the text side.
-                if hasattr(p, "source"):
-                    result.vision_inference_ms_samples.append(float(ms))
-                else:
-                    result.text_inference_ms_samples.append(float(ms))
+                if isinstance(ms, (int, float)):
+                    # ProcessedImage carries the `source` field (#406) so we
+                    # treat the image side; ProcessedFile is the text side.
+                    if hasattr(p, "source"):
+                        result.vision_inference_ms_samples.append(float(ms))
+                    else:
+                        result.text_inference_ms_samples.append(float(ms))
+                # Confidence sample for the audit trail + summary list
+                # (#409). Confidence is always populated (defaults to
+                # 1.0 on the result dataclasses), so no None guard.
+                _confidence = float(getattr(p, "confidence", 1.0))
+                logger.debug(
+                    "confidence={:.2f} file={} source={}",
+                    _confidence,
+                    p.file_path.name,
+                    getattr(p, "source", "text"),
+                )
+                if _confidence < _confidence_threshold:
+                    result.low_confidence_files.append(p.file_path.name)
 
             all_processed = self._deduplicate_processed(all_processed, result)
             failed_cnt = sum(1 for p in all_processed if p.error)

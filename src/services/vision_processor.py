@@ -82,6 +82,12 @@ class ProcessedImage:
     # process_file (e.g. metadata-only fallback constructed by the
     # dispatcher).
     inference_ms: float | None = None
+    # Categorization confidence in [0.0, 1.0] (#409). 1.0 = happy-path
+    # vision inference, 0.5 = EXIF-based fallback, 0.3 = filename-only
+    # fallback (#406 metadata path), 0.0 = error / no usable result.
+    # Files below `AppConfig.processing.low_confidence_threshold` are
+    # surfaced in the summary's "Review recommended" section.
+    confidence: float = 1.0
 
 
 class VisionProcessor:
@@ -271,6 +277,7 @@ class VisionProcessor:
                         folder_name="images",
                         filename=file_path.stem,
                         error=error_message,
+                        confidence=0.0,
                     ),
                     False,  # no model call attempted
                 )
@@ -284,6 +291,7 @@ class VisionProcessor:
                         folder_name="errors",
                         filename=file_path.stem,
                         error="File not found",
+                        confidence=0.0,
                     ),
                     False,  # no model call attempted
                 )
@@ -304,6 +312,7 @@ class VisionProcessor:
                             folder_name="images",
                             filename=file_path.stem,
                             error=error_message,
+                            confidence=0.0,
                         ),
                         True,  # the call that tripped the circuit DID happen
                     )
@@ -378,6 +387,7 @@ class VisionProcessor:
                     # scope is log-message categorisation, not the public
                     # ``ProcessedImage.error`` field.
                     error=str(e),
+                    confidence=0.0,
                 ),
                 model_invoked,
             )
