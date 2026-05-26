@@ -23,6 +23,9 @@ class TestModelPreset:
         assert preset.max_tokens == 3000
         assert preset.device == "auto"
         assert preset.framework == "ollama"
+        # #408 / #423: profile-persistable model_path defaults to None
+        # (Ollama doesn't need it; llama_cpp / mlx do).
+        assert preset.model_path is None
 
     def test_custom_values(self) -> None:
         """Custom values should override defaults."""
@@ -33,6 +36,7 @@ class TestModelPreset:
             max_tokens=4096,
             device="cuda",
             framework="llama_cpp",
+            model_path="/models/qwen3.gguf",
         )
         assert preset.text_model == "llama3:8b"
         assert preset.vision_model == "llava:13b"
@@ -40,6 +44,7 @@ class TestModelPreset:
         assert preset.max_tokens == 4096
         assert preset.device == "cuda"
         assert preset.framework == "llama_cpp"
+        assert preset.model_path == "/models/qwen3.gguf"
 
     def test_partial_override(self) -> None:
         """Partially overriding fields keeps other defaults intact."""
@@ -47,6 +52,7 @@ class TestModelPreset:
         assert preset.temperature == 0.9
         assert preset.text_model == DEFAULT_MODEL
         assert preset.device == "auto"
+        assert preset.model_path is None
 
 
 @pytest.mark.unit

@@ -51,7 +51,7 @@ class TestOrganizeSmoke:
         assert result.exit_code == 0, result.output
         mock_cls.assert_called_once_with(
             dry_run=True,
-            parallel_workers=None,
+            parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
             prefetch_depth=2,
             enable_vision=True,
             no_prefetch=False,

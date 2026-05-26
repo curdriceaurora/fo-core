@@ -20,7 +20,7 @@ import logging
 import os
 from dataclasses import asdict, fields
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, TypeAlias
 
 import yaml
 
@@ -41,6 +41,63 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONFIG_DIR = get_config_dir()
 CONFIG_FILENAME = "config.yaml"
 CONFIG_PATH_ENV = "FO_CONFIG"
+
+# ``ModelConfig.provider``'s Literal so mypy stays happy and the
+# converter and the dataclass agree on the universe of valid values.
+ProviderName: TypeAlias = Literal["ollama", "openai", "llama_cpp", "mlx", "claude"]
+
+# ModelPreset.framework accepts only the three local-inference frameworks
+# (ollama / llama_cpp / mlx); openai and claude only land via env vars in
+# this codebase. The converter maps framework → provider so that downstream
+# routing (provider_factory etc.) sees a coherent single source of truth.
+# Anything outside this map falls back to the safe Ollama default, matching
+# ModelConfig.provider's dataclass default.
+_FRAMEWORK_TO_PROVIDER: dict[str, ProviderName] = {
+    "ollama": "ollama",
+    "llama_cpp": "llama_cpp",
+    "mlx": "mlx",
+}
+
+# Providers that REQUIRE ModelConfig.model_path at runtime. The matching
+# executors raise at init when model_path is empty/None, so without this
+# guard a profile that selected llama_cpp/mlx via `fo setup` but never
+# collected a model path (cli/setup.py and setup_wizard.validate_config
+# allow that today) would crash the run instead of silently falling back
+# to Ollama as it did before the converter fix. Tuple literal so Pyre /
+# mypy infer the element type as ProviderName, not str.
+_PATH_DEPENDENT_PROVIDERS: tuple[ProviderName, ...] = ("llama_cpp", "mlx")
+
+
+def _provider_from_framework(
+    framework: str,
+    *,
+    model_path: object = None,
+) -> ProviderName:
+    """Map ModelPreset.framework → ModelConfig.provider (#408 / #423).
+
+    Without this mapping ``to_text_model_config`` set ``framework`` but
+    left ``provider`` at its dataclass default of ``"ollama"``, silently
+    routing profile-only llama_cpp / mlx users to the Ollama executor.
+
+    Defensive guard: when ``framework`` selects a provider that needs a
+    model_path (``llama_cpp`` / ``mlx``) but ``model_path`` is missing,
+    fall back to ``"ollama"`` rather than producing a config the
+    executor will reject. This preserves the legacy silent-Ollama
+    behavior for existing setup-wizard profiles that selected a
+    framework without collecting a path (Codex P1 catch on PR #423).
+
+    ``model_path`` is typed as ``object`` because YAML can deserialize
+    that field as any type (int from a manually edited config, a
+    ``Path`` instance from a programmatic caller, …). We coerce defensively
+    rather than calling ``.strip()`` and risking ``AttributeError``
+    (Codex P2 catch on PR #423).
+    """
+    provider = _FRAMEWORK_TO_PROVIDER.get(str(framework).strip().lower(), "ollama")
+    if provider in _PATH_DEPENDENT_PROVIDERS:
+        has_path = isinstance(model_path, str) and bool(model_path.strip())
+        if not has_path:
+            return "ollama"
+    return provider
 
 
 class ConfigManager:
@@ -285,6 +342,10 @@ class ConfigManager:
             max_tokens=config.models.max_tokens,
             device=DeviceType(config.models.device),
             framework=config.models.framework,
+            provider=_provider_from_framework(
+                config.models.framework, model_path=config.models.model_path
+            ),
+            model_path=config.models.model_path,
         )
 
     def to_vision_model_config(self, config: AppConfig) -> ModelConfig:
@@ -303,6 +364,10 @@ class ConfigManager:
             max_tokens=config.models.max_tokens,
             device=DeviceType(config.models.device),
             framework=config.models.framework,
+            provider=_provider_from_framework(
+                config.models.framework, model_path=config.models.model_path
+            ),
+            model_path=config.models.model_path,
         )
 
     def to_watcher_config(self, config: AppConfig) -> Any:

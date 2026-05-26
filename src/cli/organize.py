@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,94 @@ from cli.state import _get_state
 from core.types import OrganizationResult
 
 console = Console()
+
+# Worker auto-default cap (#408). The previous None → cpu_count() path
+# over-provisioned on multi-core machines (an M-series Mac with 16 cores
+# was launching 16 simultaneous Ollama requests, saturating the model
+# server). The ceiling is the upper bound regardless of host.
+_AUTO_WORKERS_CEILING: int = 4
+
+
+def _ollama_num_parallel() -> int:
+    """Read OLLAMA_NUM_PARALLEL from env, defaulting to 1 (Ollama's own default).
+
+    Lives behind a helper so tests can patch it. A non-int / negative
+    value falls back to 1; the env var is the user's contract with the
+    Ollama server, and we mirror that here rather than override it.
+    """
+    raw = os.environ.get("OLLAMA_NUM_PARALLEL", "1")
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 1
+
+
+def _get_current_provider_lazy() -> str:
+    """Resolve the active provider as the executor will see it (#408).
+
+    Single source of truth: call ``get_model_configs()`` and read
+    ``text_cfg.provider``. The text and vision sides of the tuple
+    always share a provider, and ``ModelConfig.provider`` is what the
+    downstream ``provider_factory`` actually routes on — so the worker
+    resolver and the executor can never disagree.
+
+    PR #423's companion fix to ``ConfigManager.to_text_model_config``
+    /``to_vision_model_config`` derives ``provider`` from
+    ``ModelPreset.framework`` so profile-only llama_cpp / mlx users
+    finally land on the right provider (previously the converter set
+    only ``framework`` and left ``provider`` at the dataclass default
+    of "ollama").
+
+    Kept at module scope per the F9 anti-pattern rule; the lazy import
+    lives inside this function so ``fo version`` etc. don't pay the
+    cost (#404 fast-path). On any failure (import, broken YAML,
+    missing creds) we fall through to ``"ollama"``, the safe default
+    that prevents the Ollama-flood case #408 was originally about.
+    """
+    try:
+        from config.provider_env import get_model_configs
+    except ImportError:
+        return "ollama"
+    try:
+        configs = get_model_configs()
+    except Exception:
+        return "ollama"
+    # Defensive shape check (CodeRabbit hardening on PR #423). A future
+    # refactor of get_model_configs that breaks the 2-tuple contract
+    # would otherwise let an unsafe value land in the worker resolver.
+    if not isinstance(configs, tuple) or len(configs) != 2:
+        return "ollama"
+    text_cfg = configs[0]
+    provider = getattr(text_cfg, "provider", None)
+    return provider if isinstance(provider, str) and provider else "ollama"
+
+
+def _auto_worker_default() -> int:
+    """Resolve worker count when --workers / --max-workers is omitted (#408).
+
+    Picks the minimum of these caps:
+
+    1. ``_AUTO_WORKERS_CEILING`` (4) — never exceed the inference
+       backend's reasonable queue depth.
+    2. ``cpu_count() // 2`` — leave headroom for the OS + provider
+       process on the same host.
+    3. ``OLLAMA_NUM_PARALLEL`` (default 1) — **applied only when the
+       active provider is ``"ollama"``**, matching the server's
+       configured parallelism so extra client threads don't pile up
+       behind a single in-flight inference.
+
+    Other providers fall through to caps (1) and (2):
+
+    - ``llama_cpp`` and ``mlx`` use their own in-process model instances
+      and don't read ``OLLAMA_NUM_PARALLEL``.
+    - ``openai`` and ``claude`` handle concurrency server-side via rate
+      limits.
+    """
+    cpu = os.cpu_count() or 1
+    cap = min(_AUTO_WORKERS_CEILING, max(1, cpu // 2))
+    if _get_current_provider_lazy() == "ollama":
+        cap = min(cap, _ollama_num_parallel())
+    return max(1, cap)
 
 
 def _organize_result_to_json(result: OrganizationResult) -> dict[str, Any]:
@@ -83,17 +172,27 @@ def _resolve_parallel_settings(
     max_workers: int | None,
     prefetch_depth: int,
     no_prefetch: bool = False,
-) -> tuple[int | None, int]:
-    """Validate and resolve parallel worker/prefetch settings.
+) -> tuple[int, int]:
+    """Validate and resolve parallel worker/prefetch settings (#408).
+
+    When ``max_workers`` is ``None`` (the user didn't pass
+    ``--workers`` / ``--max-workers``), we now resolve to
+    ``min(4, max(1, cpu_count() // 2))`` instead of letting the
+    parallel processor fall through to ``os.cpu_count()``. The previous
+    default over-provisioned on multi-core hosts and saturated the
+    inference backend's queue.
 
     Args:
         sequential: Whether to force single-worker sequential processing.
-        max_workers: Requested worker count, or None for auto.
+        max_workers: Requested worker count, or ``None`` for the auto
+            default (see ``_auto_worker_default``).
         prefetch_depth: Requested prefetch queue depth.
         no_prefetch: Backward-compatible alias for prefetch_depth=0.
 
     Returns:
-        Tuple of (resolved_workers, resolved_prefetch_depth).
+        Tuple of (resolved_workers, resolved_prefetch_depth). The first
+        element is always a concrete ``int``; callers no longer have to
+        handle the ``None`` case.
 
     Raises:
         typer.Exit: With code 2 if --sequential and --max-workers > 1 conflict.
@@ -101,7 +200,13 @@ def _resolve_parallel_settings(
     if sequential and max_workers not in (None, 1):
         console.print("[red]Error: --sequential cannot be combined with --max-workers > 1[/red]")
         raise typer.Exit(code=2)
-    return (1 if sequential else max_workers, 0 if (sequential or no_prefetch) else prefetch_depth)
+    if sequential:
+        resolved = 1
+    elif max_workers is None:
+        resolved = _auto_worker_default()
+    else:
+        resolved = max_workers
+    return (resolved, 0 if (sequential or no_prefetch) else prefetch_depth)
 
 
 def _resolve_timeout_per_file(flag_value: float | None) -> float:
@@ -138,8 +243,17 @@ def organize(
     max_workers: int | None = typer.Option(
         None,
         "--max-workers",
+        "--workers",
         min=1,
-        help="Maximum number of parallel workers for file processing.",
+        help=(
+            "Number of parallel workers for file processing. When omitted, "
+            "defaults to min(4, cpu_count() // 2, OLLAMA_NUM_PARALLEL) "
+            "for the Ollama provider, and min(4, cpu_count() // 2) for "
+            "every other provider (openai / claude / llama_cpp / mlx). "
+            "Tune your local Ollama server with `OLLAMA_NUM_PARALLEL=N` "
+            "to safely pass `--workers N` for matching parallelism. "
+            "`--workers` is an alias for `--max-workers`. (#408)"
+        ),
     ),
     sequential: bool = typer.Option(
         False,
@@ -278,8 +392,14 @@ def preview(
     max_workers: int | None = typer.Option(
         None,
         "--max-workers",
+        "--workers",
         min=1,
-        help="Maximum number of parallel workers for file processing.",
+        help=(
+            "Number of parallel workers for file processing. Auto-default "
+            "min(4, cpu_count() // 2, OLLAMA_NUM_PARALLEL) for the Ollama "
+            "provider; min(4, cpu_count() // 2) for every other provider "
+            "(openai / claude / llama_cpp / mlx). `--workers` is an alias. (#408)"
+        ),
     ),
     sequential: bool = typer.Option(
         False,

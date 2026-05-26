@@ -445,3 +445,70 @@ class TestGetModelConfigsFromProfile:
             result = _get_model_configs_from_profile("broken-profile")
 
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Profile-path → converter integration (#408 / #423)
+# ---------------------------------------------------------------------------
+
+
+class TestProfileFrameworkToProvider:
+    """Profile-driven framework gets mapped through the converter to provider.
+
+    These are integration-marked so the new converter branches
+    (`_provider_from_framework`, `_PATH_DEPENDENT_PROVIDERS` guard,
+    `model_path` propagation) land in PR-coverage measurements; the
+    unit equivalents live in `tests/config/test_config_manager_coverage.py`.
+    """
+
+    def test_profile_llama_cpp_with_model_path_routes_to_llama_cpp(self) -> None:
+        from config.manager import ConfigManager
+        from config.schema import AppConfig, ModelPreset
+
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp", model_path="/m/qwen3.gguf"))
+        mgr = ConfigManager()
+        text_cfg = mgr.to_text_model_config(cfg)
+        vision_cfg = mgr.to_vision_model_config(cfg)
+
+        assert text_cfg.provider == "llama_cpp"
+        assert text_cfg.model_path == "/m/qwen3.gguf"
+        assert vision_cfg.provider == "llama_cpp"
+        assert vision_cfg.model_path == "/m/qwen3.gguf"
+
+    def test_profile_llama_cpp_without_model_path_falls_back_to_ollama(self) -> None:
+        from config.manager import ConfigManager
+        from config.schema import AppConfig, ModelPreset
+
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))  # no path
+        text_cfg = ConfigManager().to_text_model_config(cfg)
+        assert text_cfg.framework == "llama_cpp"  # keeps user's literal
+        assert text_cfg.provider == "ollama"  # guard fires
+        assert text_cfg.model_path is None
+
+    def test_profile_mlx_with_hf_repo_routes_to_mlx(self) -> None:
+        from config.manager import ConfigManager
+        from config.schema import AppConfig, ModelPreset
+
+        cfg = AppConfig(
+            models=ModelPreset(framework="mlx", model_path="mlx-community/Qwen2.5-3B-Instruct-4bit")
+        )
+        text_cfg = ConfigManager().to_text_model_config(cfg)
+        assert text_cfg.provider == "mlx"
+        assert text_cfg.model_path == "mlx-community/Qwen2.5-3B-Instruct-4bit"
+
+    def test_profile_default_remains_ollama(self) -> None:
+        from config.manager import ConfigManager
+        from config.schema import AppConfig
+
+        cfg = AppConfig()
+        text_cfg = ConfigManager().to_text_model_config(cfg)
+        assert text_cfg.provider == "ollama"
+        assert text_cfg.model_path is None
+
+    def test_provider_from_framework_handles_non_string_model_path(self) -> None:
+        """Codex P2 catch on #423: non-string YAML model_path doesn't crash."""
+        from config.manager import _provider_from_framework
+
+        assert _provider_from_framework("llama_cpp", model_path=42) == "ollama"
+        assert _provider_from_framework("mlx", model_path=None) == "ollama"
+        assert _provider_from_framework("llama_cpp", model_path="/m/q.gguf") == "llama_cpp"

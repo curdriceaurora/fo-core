@@ -11,7 +11,7 @@ import yaml
 from config.manager import ConfigManager
 from config.schema import AppConfig, ModelPreset, UpdateSettings
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
 
 class TestConfigManagerInit:
@@ -186,6 +186,157 @@ class TestConfigManagerModuleDelegation:
         cfg = AppConfig()
         model_cfg = mgr.to_vision_model_config(cfg)
         assert model_cfg.name == cfg.models.vision_model
+
+    def test_to_text_model_config_default_framework_yields_ollama_provider(self) -> None:
+        """Default profile (framework=ollama) → ModelConfig.provider=ollama (#408 / #423)."""
+        mgr = ConfigManager()
+        cfg = AppConfig()
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.framework == "ollama"
+        assert model_cfg.provider == "ollama"
+
+    def test_to_text_model_config_llama_cpp_framework_drives_provider(self) -> None:
+        """framework=llama_cpp + model_path → provider=llama_cpp (this was the #423 P1 catch)."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp", model_path="/m/qwen3.gguf"))
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.framework == "llama_cpp"
+        assert model_cfg.provider == "llama_cpp"
+
+    def test_to_text_model_config_mlx_framework_drives_provider(self) -> None:
+        """framework=mlx + model_path → provider=mlx."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="mlx", model_path="mlx-community/Qwen2.5-3B"))
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.framework == "mlx"
+        assert model_cfg.provider == "mlx"
+
+    def test_to_vision_model_config_llama_cpp_framework_drives_provider(self) -> None:
+        """Vision converter mirrors text converter for the framework→provider mapping."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp", model_path="/m/qwen3.gguf"))
+        model_cfg = mgr.to_vision_model_config(cfg)
+        assert model_cfg.framework == "llama_cpp"
+        assert model_cfg.provider == "llama_cpp"
+
+    def test_to_text_model_config_unknown_framework_falls_back_to_ollama_provider(self) -> None:
+        """Unknown framework string → provider=ollama (safe fallback)."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="ghosthypewriter"))
+        model_cfg = mgr.to_text_model_config(cfg)
+        # framework keeps the user's literal string (downstream may warn)
+        assert model_cfg.framework == "ghosthypewriter"
+        # provider falls back to ollama so executor routing stays sane
+        assert model_cfg.provider == "ollama"
+
+    def test_to_text_model_config_propagates_model_path(self) -> None:
+        """Profile-set model_path lands on ModelConfig.model_path (#408 / #423).
+
+        Companion to the framework→provider mapping: without this,
+        profile-based ``framework: llama_cpp`` users had no way to
+        persist their .gguf path and the executor failed at init.
+        """
+        mgr = ConfigManager()
+        cfg = AppConfig(
+            models=ModelPreset(
+                framework="llama_cpp",
+                model_path="/models/qwen3.gguf",
+            )
+        )
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.provider == "llama_cpp"
+        assert model_cfg.model_path == "/models/qwen3.gguf"
+
+    def test_to_vision_model_config_propagates_model_path(self) -> None:
+        """Same plumbing for the vision converter."""
+        mgr = ConfigManager()
+        cfg = AppConfig(
+            models=ModelPreset(
+                framework="mlx",
+                model_path="mlx-community/Qwen2.5-3B-Instruct-4bit",
+            )
+        )
+        model_cfg = mgr.to_vision_model_config(cfg)
+        assert model_cfg.provider == "mlx"
+        assert model_cfg.model_path == "mlx-community/Qwen2.5-3B-Instruct-4bit"
+
+    def test_to_text_model_config_default_model_path_is_none(self) -> None:
+        """Profiles without model_path produce a ModelConfig.model_path=None.
+
+        Ollama (the default) doesn't need it; downstream executors for
+        llama_cpp / mlx will raise loudly if invoked without one.
+        """
+        mgr = ConfigManager()
+        cfg = AppConfig()
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.model_path is None
+
+    def test_to_text_model_config_llama_cpp_without_path_falls_back_to_ollama(
+        self,
+    ) -> None:
+        """framework=llama_cpp + missing model_path → provider=ollama (defensive).
+
+        Codex P1 catch on PR #423: setup-wizard profiles can land here
+        with framework=llama_cpp but no model_path (setup.py never
+        collected one, validate_config doesn't reject the combination).
+        Routing those to the llama_cpp executor would crash at init;
+        falling back to Ollama preserves the pre-fix silent behavior.
+        """
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))  # no model_path
+        model_cfg = mgr.to_text_model_config(cfg)
+        # framework keeps the user's literal choice — they see the
+        # mismatch if they read the log; we just don't crash on it.
+        assert model_cfg.framework == "llama_cpp"
+        assert model_cfg.provider == "ollama"
+        assert model_cfg.model_path is None
+
+    def test_to_text_model_config_mlx_without_path_falls_back_to_ollama(self) -> None:
+        """Same defensive guard for mlx (Codex P1 catch on PR #423)."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="mlx"))  # no model_path
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.framework == "mlx"
+        assert model_cfg.provider == "ollama"
+
+    def test_to_text_model_config_llama_cpp_blank_path_falls_back_to_ollama(
+        self,
+    ) -> None:
+        """Whitespace-only model_path also triggers the guard."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp", model_path="   "))
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.provider == "ollama"
+
+    def test_to_vision_model_config_llama_cpp_without_path_falls_back_to_ollama(
+        self,
+    ) -> None:
+        """Vision converter shares the same guard."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))
+        model_cfg = mgr.to_vision_model_config(cfg)
+        assert model_cfg.provider == "ollama"
+
+    def test_provider_from_framework_handles_non_string_model_path(self) -> None:
+        """Non-string model_path (e.g. int from manually edited YAML) doesn't crash.
+
+        Codex P2 catch on PR #423: YAML can deserialize ``models.model_path``
+        as a non-str (a stray ``models.model_path: 123`` integer, a
+        ``Path`` from a programmatic caller, …). A naive ``.strip()``
+        call would AttributeError; we coerce defensively via
+        ``isinstance(model_path, str)``.
+        """
+        from config.manager import _provider_from_framework
+
+        # int → guard treats as "no path", falls back to ollama
+        assert _provider_from_framework("llama_cpp", model_path=123) == "ollama"
+        # bytes → same fallback (str() coercion would have produced
+        # b"…" garbage, so the defensive guard is correct)
+        assert _provider_from_framework("llama_cpp", model_path=b"/m/x.gguf") == "ollama"
+        # None → fallback (default arg path)
+        assert _provider_from_framework("mlx", model_path=None) == "ollama"
+        # Valid str path → still resolves to the local provider
+        assert _provider_from_framework("llama_cpp", model_path="/m/x.gguf") == "llama_cpp"
 
     @patch("config.manager.WatcherConfig", create=True)
     def test_to_watcher_config(self, mock_watcher_cls):

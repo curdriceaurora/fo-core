@@ -40,11 +40,219 @@ class TestResolveParallelSettings:
         assert depth == 0
 
     def test_max_workers_auto_when_not_sequential(self) -> None:
+        """Auto-resolve always returns an int — never None (#408)."""
         workers, depth = _resolve_parallel_settings(
             sequential=False, max_workers=None, prefetch_depth=2
         )
-        assert workers is None
+        assert isinstance(workers, int)
+        assert workers >= 1
+        # Hard ceiling regardless of provider / OLLAMA_NUM_PARALLEL
+        assert workers <= 4
         assert depth == 2
+
+    def test_max_workers_auto_ollama_default_caps_at_one(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """With Ollama (default provider) and OLLAMA_NUM_PARALLEL unset → 1 worker (#408)."""
+        from unittest.mock import patch
+
+        # Confirm OLLAMA_NUM_PARALLEL is actually unset for this test's
+        # intent — patch.dict({}, clear=False) doesn't remove the var.
+        monkeypatch.delenv("OLLAMA_NUM_PARALLEL", raising=False)
+        with (
+            patch("cli.organize.os.cpu_count", return_value=32),
+            patch("cli.organize._ollama_num_parallel", return_value=1),
+            patch("cli.organize._get_current_provider_lazy", return_value="ollama"),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        # min(4, 32//2, OLLAMA_NUM_PARALLEL=1) = 1
+        assert workers == 1
+
+    def test_max_workers_auto_respects_ollama_num_parallel(self) -> None:
+        """If user has OLLAMA_NUM_PARALLEL=4, auto-default scales to it (#408)."""
+        from unittest.mock import patch
+
+        with (
+            patch("cli.organize.os.cpu_count", return_value=32),
+            patch("cli.organize._ollama_num_parallel", return_value=4),
+            patch("cli.organize._get_current_provider_lazy", return_value="ollama"),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        # min(4 ceiling, 32//2=16, OLLAMA_NUM_PARALLEL=4) = 4
+        assert workers == 4
+
+    def test_max_workers_auto_ollama_num_parallel_above_ceiling(self) -> None:
+        """OLLAMA_NUM_PARALLEL=12 still capped at the worker ceiling (4)."""
+        from unittest.mock import patch
+
+        with (
+            patch("cli.organize.os.cpu_count", return_value=32),
+            patch("cli.organize._ollama_num_parallel", return_value=12),
+            patch("cli.organize._get_current_provider_lazy", return_value="ollama"),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        assert workers == 4
+
+    def test_max_workers_auto_remote_provider_ignores_ollama_env(self) -> None:
+        """openai / claude don't honour OLLAMA_NUM_PARALLEL (server-side concurrency)."""
+        from unittest.mock import patch
+
+        with (
+            patch("cli.organize.os.cpu_count", return_value=16),
+            patch("cli.organize._ollama_num_parallel", return_value=1),
+            patch("cli.organize._get_current_provider_lazy", return_value="openai"),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        # min(4, 16//2) = 4 — Ollama cap not applied for remote providers
+        assert workers == 4
+
+    def test_max_workers_auto_llama_cpp_ignores_ollama_env(self) -> None:
+        """llama_cpp uses its own model instances — OLLAMA_NUM_PARALLEL doesn't apply.
+
+        Codex P2 catch on PR #423: capping llama_cpp / mlx by the Ollama
+        env var silently disables the new auto-default for those
+        providers when users haven't configured Ollama at all.
+        """
+        from unittest.mock import patch
+
+        with (
+            patch("cli.organize.os.cpu_count", return_value=8),
+            patch("cli.organize._ollama_num_parallel", return_value=1),
+            patch("cli.organize._get_current_provider_lazy", return_value="llama_cpp"),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        # min(4, 8//2) = 4 — Ollama cap NOT applied for llama_cpp
+        assert workers == 4
+
+    def test_max_workers_auto_mlx_ignores_ollama_env(self) -> None:
+        """mlx is Apple-Silicon-only in-process inference; OLLAMA_NUM_PARALLEL irrelevant."""
+        from unittest.mock import patch
+
+        with (
+            patch("cli.organize.os.cpu_count", return_value=8),
+            patch("cli.organize._ollama_num_parallel", return_value=1),
+            patch("cli.organize._get_current_provider_lazy", return_value="mlx"),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        assert workers == 4
+
+    def test_provider_lazy_returns_resolved_text_cfg_provider(self) -> None:
+        """Resolver returns whatever ``get_model_configs()[0].provider`` says (#408).
+
+        The companion converter fix in ConfigManager.to_text_model_config
+        now sets ``provider`` from ``ModelPreset.framework``, so
+        ``text_cfg.provider`` is the single source of truth that both
+        the worker resolver and the executor consult.
+        """
+        from unittest.mock import patch
+
+        from cli.organize import _get_current_provider_lazy
+        from models.base import ModelConfig, ModelType
+
+        text_cfg = ModelConfig(
+            name="llama-3.2-3b-instruct",
+            model_type=ModelType.TEXT,
+            provider="llama_cpp",
+        )
+        vision_cfg = ModelConfig(
+            name="llama-3.2-vision",
+            model_type=ModelType.VISION,
+            provider="llama_cpp",
+        )
+
+        with patch("config.provider_env.get_model_configs", return_value=(text_cfg, vision_cfg)):
+            assert _get_current_provider_lazy() == "llama_cpp"
+
+    def test_provider_lazy_falls_back_on_get_model_configs_failure(self) -> None:
+        """Any exception from get_model_configs degrades to the safe ollama default."""
+        from unittest.mock import patch
+
+        from cli.organize import _get_current_provider_lazy
+
+        with patch("config.provider_env.get_model_configs", side_effect=RuntimeError("boom")):
+            assert _get_current_provider_lazy() == "ollama"
+
+    def test_provider_lazy_falls_back_on_malformed_return_shape(self) -> None:
+        """Non-2-tuple / missing-provider returns from get_model_configs fall back safely.
+
+        CodeRabbit hardening on PR #423: a future refactor of
+        get_model_configs that breaks the 2-tuple contract must not
+        send a garbage value into the worker resolver.
+        """
+        from unittest.mock import patch
+
+        from cli.organize import _get_current_provider_lazy
+
+        # Wrong-length tuple
+        with patch("config.provider_env.get_model_configs", return_value=(None,)):
+            assert _get_current_provider_lazy() == "ollama"
+        # Non-tuple return
+        with patch("config.provider_env.get_model_configs", return_value="ollama"):
+            assert _get_current_provider_lazy() == "ollama"
+        # First element missing .provider attribute
+        with patch("config.provider_env.get_model_configs", return_value=(object(), object())):
+            assert _get_current_provider_lazy() == "ollama"
+
+    def test_max_workers_auto_respects_low_core_count(self) -> None:
+        """On a single-core machine the auto-default still produces a sane 1."""
+        from unittest.mock import patch
+
+        with (
+            patch("cli.organize.os.cpu_count", return_value=1),
+            patch("cli.organize._ollama_num_parallel", return_value=8),
+        ):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        # min(4, max(1, 1 // 2), 8) → cpu cap wins at 1
+        assert workers == 1
+
+    def test_max_workers_auto_handles_cpu_count_none(self) -> None:
+        """os.cpu_count() returning None (rare but possible) → fallback to 1."""
+        from unittest.mock import patch
+
+        with patch("cli.organize.os.cpu_count", return_value=None):
+            workers, _ = _resolve_parallel_settings(
+                sequential=False, max_workers=None, prefetch_depth=2
+            )
+        assert workers == 1
+
+    def test_ollama_num_parallel_invalid_value_defaults_to_one(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-int OLLAMA_NUM_PARALLEL silently degrades to 1."""
+        from cli.organize import _ollama_num_parallel
+
+        monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "garbage")
+        assert _ollama_num_parallel() == 1
+
+    def test_ollama_num_parallel_negative_value_clamps_to_one(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative OLLAMA_NUM_PARALLEL also clamps to 1 (defensive)."""
+        from cli.organize import _ollama_num_parallel
+
+        monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "-5")
+        assert _ollama_num_parallel() == 1
+
+    def test_ollama_num_parallel_reads_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A valid OLLAMA_NUM_PARALLEL value is returned verbatim."""
+        from cli.organize import _ollama_num_parallel
+
+        monkeypatch.setenv("OLLAMA_NUM_PARALLEL", "8")
+        assert _ollama_num_parallel() == 8
 
     def test_max_workers_explicit(self) -> None:
         workers, depth = _resolve_parallel_settings(
