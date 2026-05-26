@@ -326,26 +326,61 @@ def process_image_files(
     # #432: Sequential retry for pool-saturation collateral. The
     # parallel processor marked these as never-started (non_retryable
     # =False), so rerun them one-at-a-time before reporting failure.
+    #
+    # We deliberately reuse ``parallel_processor.process_batch_iter``
+    # here rather than calling ``vision_processor.process_file`` in a
+    # naive Python loop (Codex P1 on PR #438): the retry path must
+    # keep the per-file timeout / cancellation enforcement, otherwise
+    # the same backend hang that triggered the original saturation
+    # blocks the organize run indefinitely on the retry. Passing the
+    # already-instantiated processor preserves the operator-tunable
+    # ``--timeout-per-file`` (#396) and worker-pool guard rails; we
+    # rely on its internal queue semantics rather than instantiating a
+    # second pool with workers=1 to avoid double-counting resources.
     if retry_paths:
         logger.warning(
             "Pool aborted on hung tasks; retrying {} untried image(s) sequentially.",
             len(retry_paths),
         )
-        for path in retry_paths:
-            try:
-                processed.append(vision_processor.process_file(path))
-            except Exception as exc:  # pragma: no cover — defensive
-                logger.error("Sequential retry failed for {}: {}", path, exc)
+
+        def _retry_one_image(path: Path) -> ProcessedImage:
+            return vision_processor.process_file(path)
+
+        for retry_result in parallel_processor.process_batch_iter(retry_paths, _retry_one_image):
+            if retry_result.success:
+                processed.append(retry_result.result)
+                continue
+            # Retry also failed (timeout, vision error, …). Record as a
+            # genuine failure now — there's no second-level retry.
+            retry_err = retry_result.error or "Unknown error"
+            if _is_timeout_error(retry_err):
+                from services.vision_fallback import compute_fallback
+
+                fb = compute_fallback(retry_result.path)
+                _fallback_confidence = 0.5 if fb.source == "fallback_exif" else 0.3
                 processed.append(
                     ProcessedImage(
-                        file_path=path,
+                        file_path=retry_result.path,
                         description="",
-                        folder_name=ERROR_FALLBACK_FOLDER,
-                        filename=path.stem,
-                        error=str(exc),
-                        confidence=0.0,
+                        folder_name=fb.folder,
+                        filename=fb.filename,
+                        source=fb.source,
+                        inference_ms=retry_result.duration_ms,
+                        confidence=_fallback_confidence,
                     )
                 )
+                continue
+            logger.error("Sequential retry failed for {}: {}", retry_result.path, retry_err)
+            processed.append(
+                ProcessedImage(
+                    file_path=retry_result.path,
+                    description="",
+                    folder_name=ERROR_FALLBACK_FOLDER,
+                    filename=retry_result.path.stem,
+                    error=retry_err,
+                    confidence=0.0,
+                )
+            )
 
     return processed
 

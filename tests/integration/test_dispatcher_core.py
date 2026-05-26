@@ -362,25 +362,35 @@ class TestProcessImageFiles:
             error="Aborted: worker pool saturated by hung tasks",
             non_retryable=False,
         )
-        mock_pp = MagicMock()
-        mock_pp.process_batch_iter.return_value = iter([hung_fr, retry1_fr, retry2_fr])
-
-        # Sequential retry succeeds for both untried paths.
-        vp = MagicMock()
-        vp.process_file.side_effect = [
-            ProcessedImage(
+        # Retry pass also runs through the parallel processor (Codex P1
+        # on PR #438: preserves timeout / cancellation enforcement).
+        # Yield successful retries on the second call.
+        retry1_success = _make_file_result(
+            success=True,
+            path=retry1,
+            result=ProcessedImage(
                 file_path=retry1,
                 description="d1",
                 folder_name="ok",
                 filename="never_started_1",
             ),
-            ProcessedImage(
+        )
+        retry2_success = _make_file_result(
+            success=True,
+            path=retry2,
+            result=ProcessedImage(
                 file_path=retry2,
                 description="d2",
                 folder_name="ok",
                 filename="never_started_2",
             ),
+        )
+        mock_pp = MagicMock()
+        mock_pp.process_batch_iter.side_effect = [
+            iter([hung_fr, retry1_fr, retry2_fr]),  # initial pass
+            iter([retry1_success, retry2_success]),  # retry pass
         ]
+        vp = MagicMock()
 
         progress_ctx = _make_progress_ctx()
         with patch(_PROGRESS_TARGET, return_value=progress_ctx):
@@ -398,11 +408,14 @@ class TestProcessImageFiles:
         assert by_path[retry1].folder_name == "ok"
         assert by_path[retry2].error is None
         assert by_path[retry2].folder_name == "ok"
-        # vision_processor.process_file was called exactly twice — once
-        # per never-started path. The hung one was NOT retried.
-        assert vp.process_file.call_count == 2
-        retried = {call.args[0] for call in vp.process_file.call_args_list}
-        assert retried == {retry1, retry2}
+        # The retry pass runs through ``parallel_processor.process_batch_iter``
+        # (preserves timeout guards). Called twice total: once for the
+        # initial batch, once for the retry tail with just the never-
+        # started paths.
+        assert mock_pp.process_batch_iter.call_count == 2
+        retry_call = mock_pp.process_batch_iter.call_args_list[1]
+        retry_paths_arg = retry_call.args[0]
+        assert set(retry_paths_arg) == {retry1, retry2}
 
     def test_failure_result_unknown_error(self) -> None:
         from core.dispatcher import process_image_files

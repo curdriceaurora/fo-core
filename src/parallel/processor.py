@@ -343,13 +343,20 @@ class ParallelProcessor:
             if saturation is not None:
                 cleanup_state["force_nonblocking_shutdown"] = owns_executor
                 yield from saturation
+                # #432 follow-up (Codex P1): unsubmitted files at the
+                # iterator tail are never-started by definition; flag
+                # them retryable so the dispatcher's sequential pass
+                # picks them up. Without this, a saturation with N
+                # in-flight + M unsubmitted still mass-fails the M tail
+                # for the same reason the in-flight retry was meant to
+                # fix.
                 for remaining_path in iterator:
                     yield finalize_result(
                         FileResult(
                             path=remaining_path,
                             success=False,
                             error="Aborted: worker pool saturated by hung tasks",
-                            non_retryable=True,
+                            non_retryable=False,
                         )
                     )
                 return
