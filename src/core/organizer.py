@@ -262,6 +262,25 @@ class FileOrganizer:
         )
 
         if all_processed:
+            # Per-file inference duration samples (#410). Collect BEFORE
+            # dedup so the summary's `n` matches the per-file
+            # text/vision_inference_ms log stream — `_deduplicate_processed`
+            # drops content-duplicate entries from `all_processed`, but
+            # those inferences already ran and were logged, so they must
+            # contribute to mean/p50/p95/p99 (CodeRabbit P2 catch on PR #424).
+            # Skip entries that never went through process_file (e.g.
+            # dispatcher-built fallbacks) which carry inference_ms == None.
+            for p in all_processed:
+                ms = getattr(p, "inference_ms", None)
+                if not isinstance(ms, (int, float)):
+                    continue
+                # ProcessedImage carries the `source` field (#406) so we
+                # treat the image side; ProcessedFile is the text side.
+                if hasattr(p, "source"):
+                    result.vision_inference_ms_samples.append(float(ms))
+                else:
+                    result.text_inference_ms_samples.append(float(ms))
+
             all_processed = self._deduplicate_processed(all_processed, result)
             failed_cnt = sum(1 for p in all_processed if p.error)
             # Vision-timeout fallbacks (#406) count as processed (they
@@ -276,21 +295,6 @@ class FileOrganizer:
             result.processed_files = len(all_processed) - failed_cnt
             result.failed_files = failed_cnt
             result.fallback_files = fallback_cnt
-            # Per-file inference duration samples (#410). Partitioned by
-            # the result-class so the summary renderer can produce
-            # separate p50/p95/p99 for vision vs text. Skip entries that
-            # never went through process_file (e.g. dispatcher-built
-            # fallbacks) which carry inference_ms == None.
-            for p in all_processed:
-                ms = getattr(p, "inference_ms", None)
-                if not isinstance(ms, (int, float)):
-                    continue
-                # ProcessedImage carries the `source` field (#406) so we
-                # treat the image side; ProcessedFile is the text side.
-                if hasattr(p, "source"):
-                    result.vision_inference_ms_samples.append(float(ms))
-                else:
-                    result.text_inference_ms_samples.append(float(ms))
             self._execute_organization(
                 all_processed, input_path, output_path, skip_existing, result
             )
