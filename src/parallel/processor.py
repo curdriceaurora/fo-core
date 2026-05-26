@@ -423,7 +423,11 @@ class ParallelProcessor:
             return None
         logger.warning(
             "Worker pool saturated: %d queued tasks waited > %.0fs without "
-            "starting. Aborting remaining work.",
+            "starting. Aborting remaining work. "
+            "Hint: raise `--timeout-per-file` (#396) or lower `--workers` "
+            "(#408) — on low-memory hardware running large vision models, "
+            "concurrent slots often exhaust unified memory and trigger this "
+            "saturation path.",
             len(stalled),
             timeout * 2,
         )
