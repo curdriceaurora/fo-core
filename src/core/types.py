@@ -78,7 +78,7 @@ class OrganizationResult:
     # the summary line can show "203 vision_timeout (e.g. logo.png)".
     # Recommendation lines fire when a single bucket exceeds 10% of
     # ``total_files`` — see ``error_taxonomy.RECOMMENDATIONS``.
-    error_breakdown: Counter[str] = field(default_factory=Counter)
+    error_breakdown: Counter[str] = field(default_factory=Counter)  # pyre-ignore[35]
     error_examples: dict[str, str] = field(default_factory=dict)  # pyre-ignore[35]
 
 
