@@ -19,8 +19,10 @@ from core.types import (
     ERROR_FALLBACK_FOLDER,
     VIDEO_FALLBACK_FOLDER,
 )
+from parallel.config import ParallelConfig
 from parallel.processor import ParallelProcessor
 from services import ProcessedFile, ProcessedImage, TextProcessor, VisionProcessor
+from services.vision_fallback import compute_fallback
 
 if TYPE_CHECKING:
     from services.audio.metadata_extractor import AudioMetadata, AudioMetadataExtractor
@@ -210,6 +212,10 @@ def process_image_files(
         List of processed image results.
     """
     processed: list[ProcessedImage] = []
+    # #432: track paths whose pool-saturation abort is retryable
+    # (never-started; collateral damage) so we can run them sequentially
+    # after the parallel pass finishes.
+    retry_paths: list[Path] = []
 
     with create_progress(console) as progress:
         task = progress.add_task("Processing images...", total=len(files))
@@ -240,8 +246,6 @@ def process_image_files(
                 # instead of being dropped into the error bucket. Other
                 # failures (read error, corrupt image, …) still error-out.
                 if _is_timeout_error(error_msg):
-                    from services.vision_fallback import compute_fallback
-
                     fb = compute_fallback(file_result.path)
                     logger.info(
                         "Vision timed out for {}; categorized via {} → {}",
@@ -282,6 +286,22 @@ def process_image_files(
                         description=f"[yellow]⚠[/yellow] {file_result.path.name} (fallback)",
                     )
                 else:
+                    # #432: pool-saturation aborts on never-started tasks
+                    # carry ``non_retryable=False``. Queue them for a
+                    # post-pass sequential retry instead of recording
+                    # them as failures — they never actually ran, so
+                    # marking them failed is collateral damage.
+                    if (
+                        error_msg.startswith("Aborted: worker pool saturated")
+                        and not file_result.non_retryable
+                    ):
+                        retry_paths.append(file_result.path)
+                        progress.update(
+                            task,
+                            advance=1,
+                            description=f"[yellow]⟳[/yellow] {file_result.path.name} (will retry)",
+                        )
+                        continue
                     logger.error("Failed to process {}: {}", file_result.path, error_msg)
                     processed.append(
                         ProcessedImage(
@@ -302,6 +322,71 @@ def process_image_files(
                         advance=1,
                         description=f"[red]✗[/red] {file_result.path.name} (Failed)",
                     )
+
+    # #432: Sequential retry for pool-saturation collateral. The
+    # parallel processor marked these as never-started (non_retryable
+    # =False), so rerun them one-at-a-time before reporting failure.
+    #
+    # The retry must run with ``max_workers=1`` and ``prefetch_depth=0``
+    # — reusing the caller's parallel_processor with its original
+    # multi-worker config can re-saturate if a retried file hangs
+    # again (Codex P1 on PR #438, round 2). The single-worker config
+    # gives deterministic degraded-mode recovery: each retry runs
+    # alone, and a still-hung backend produces a clean per-file
+    # timeout instead of cascade-failing other retry candidates.
+    #
+    # We inherit the operator-tunable ``timeout_per_file`` from the
+    # caller's config so ``--timeout-per-file`` (#396) still applies.
+    if retry_paths:
+        logger.warning(
+            "Pool aborted on hung tasks; retrying {} untried image(s) sequentially.",
+            len(retry_paths),
+        )
+
+        retry_config = ParallelConfig(
+            max_workers=1,
+            prefetch_depth=0,
+            timeout_per_file=parallel_processor.config.timeout_per_file,
+            retry_count=0,  # no second-level retry
+        )
+        retry_processor = ParallelProcessor(config=retry_config)
+
+        def _retry_one_image(path: Path) -> ProcessedImage:
+            return vision_processor.process_file(path)
+
+        for retry_result in retry_processor.process_batch_iter(retry_paths, _retry_one_image):
+            if retry_result.success:
+                processed.append(retry_result.result)
+                continue
+            # Retry also failed (timeout, vision error, …). Record as a
+            # genuine failure now — there's no second-level retry.
+            retry_err = retry_result.error or "Unknown error"
+            if _is_timeout_error(retry_err):
+                fb = compute_fallback(retry_result.path)
+                _fallback_confidence = 0.5 if fb.source == "fallback_exif" else 0.3
+                processed.append(
+                    ProcessedImage(
+                        file_path=retry_result.path,
+                        description="",
+                        folder_name=fb.folder,
+                        filename=fb.filename,
+                        source=fb.source,
+                        inference_ms=retry_result.duration_ms,
+                        confidence=_fallback_confidence,
+                    )
+                )
+                continue
+            logger.error("Sequential retry failed for {}: {}", retry_result.path, retry_err)
+            processed.append(
+                ProcessedImage(
+                    file_path=retry_result.path,
+                    description="",
+                    folder_name=ERROR_FALLBACK_FOLDER,
+                    filename=retry_result.path.stem,
+                    error=retry_err,
+                    confidence=0.0,
+                )
+            )
 
     return processed
 

@@ -50,13 +50,23 @@ def _make_file_result(
     path: Path,
     result: object | None = None,
     error: str | None = None,
+    non_retryable: bool = True,
+    duration_ms: float = 0.0,
 ) -> MagicMock:
-    """Return a MagicMock parallel processor file result."""
+    """Return a MagicMock parallel processor file result.
+
+    ``non_retryable=True`` is the historical default (existing tests
+    assume aborted tasks aren't retried). The #432 retry path requires
+    callers to pass ``non_retryable=False`` to opt into the dispatcher's
+    sequential retry pass.
+    """
     fr = MagicMock()
     fr.success = success
     fr.path = path
     fr.result = result
     fr.error = error
+    fr.non_retryable = non_retryable
+    fr.duration_ms = duration_ms
     return fr
 
 
@@ -319,6 +329,200 @@ class TestProcessImageFiles:
         assert results[0].error == "vision timeout"
         assert results[0].file_path == file_path
         assert results[0].filename == "missing"
+
+    def test_pool_saturation_retryable_aborts_run_sequentially(self) -> None:
+        # #432: when the parallel processor returns saturation aborts
+        # tagged ``non_retryable=False`` (never-started tasks), the
+        # dispatcher reruns them sequentially via ``vision_processor``
+        # rather than mass-failing them as collateral damage.
+        from core.dispatcher import process_image_files
+        from services import ProcessedImage
+
+        hung_path = Path("/mock/photos/hung.jpg")
+        retry1 = Path("/mock/photos/never_started_1.jpg")
+        retry2 = Path("/mock/photos/never_started_2.jpg")
+
+        # Parallel processor yields one truly-hung abort (non_retryable)
+        # + two never-started aborts (retryable).
+        hung_fr = _make_file_result(
+            success=False,
+            path=hung_path,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=True,
+        )
+        retry1_fr = _make_file_result(
+            success=False,
+            path=retry1,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=False,
+        )
+        retry2_fr = _make_file_result(
+            success=False,
+            path=retry2,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=False,
+        )
+        # Retry pass also runs through the parallel processor (Codex P1
+        # on PR #438: preserves timeout / cancellation enforcement).
+        # Yield successful retries on the second call.
+        retry1_success = _make_file_result(
+            success=True,
+            path=retry1,
+            result=ProcessedImage(
+                file_path=retry1,
+                description="d1",
+                folder_name="ok",
+                filename="never_started_1",
+            ),
+        )
+        retry2_success = _make_file_result(
+            success=True,
+            path=retry2,
+            result=ProcessedImage(
+                file_path=retry2,
+                description="d2",
+                folder_name="ok",
+                filename="never_started_2",
+            ),
+        )
+        # Initial processor (multi-worker) yields the saturation batch.
+        mock_pp = MagicMock()
+        mock_pp.config.timeout_per_file = 60.0  # real float for ParallelConfig() validation
+        mock_pp.process_batch_iter.return_value = iter([hung_fr, retry1_fr, retry2_fr])
+
+        # Retry processor is a fresh single-worker ParallelProcessor —
+        # Codex P1 on PR #438 (round 2): reusing the original
+        # multi-worker config can re-saturate. Patch the class at the
+        # dispatcher's import site so we can assert it was built with
+        # ``max_workers=1, prefetch_depth=0``.
+        retry_pp = MagicMock()
+        retry_pp.process_batch_iter.return_value = iter([retry1_success, retry2_success])
+
+        vp = MagicMock()
+        progress_ctx = _make_progress_ctx()
+        with (
+            patch(_PROGRESS_TARGET, return_value=progress_ctx),
+            patch("core.dispatcher.ParallelProcessor", return_value=retry_pp) as mock_pp_cls,
+        ):
+            results = process_image_files(
+                [hung_path, retry1, retry2],
+                vision_processor=vp,
+                parallel_processor=mock_pp,
+                console=MagicMock(),
+            )
+
+        # 1 genuinely-hung failure + 2 sequential successes.
+        by_path = {r.file_path: r for r in results}
+        assert by_path[hung_path].error == "Aborted: worker pool saturated by hung tasks"
+        assert by_path[retry1].error is None
+        assert by_path[retry1].folder_name == "ok"
+        assert by_path[retry2].error is None
+        assert by_path[retry2].folder_name == "ok"
+        # Initial multi-worker processor was used once; retry processor
+        # was constructed with single-worker + no-prefetch.
+        assert mock_pp.process_batch_iter.call_count == 1
+        assert mock_pp_cls.call_count == 1
+        retry_config = mock_pp_cls.call_args.kwargs["config"]
+        assert retry_config.max_workers == 1
+        assert retry_config.prefetch_depth == 0
+        # Operator-tunable timeout is inherited from the caller's config.
+        assert retry_config.timeout_per_file == 60.0
+        # Retry processor.process_batch_iter was called with just the
+        # never-started paths.
+        assert retry_pp.process_batch_iter.call_count == 1
+        retry_paths_arg = retry_pp.process_batch_iter.call_args.args[0]
+        assert set(retry_paths_arg) == {retry1, retry2}
+
+    def test_retry_timeout_routes_through_vision_fallback(self) -> None:
+        # #432 follow-up (Codex P1): the sequential retry pass runs
+        # through ``parallel_processor.process_batch_iter`` so the
+        # per-file timeout is enforced. When a retry hits that timeout,
+        # the dispatcher must route the file through the same #406
+        # EXIF fallback path the initial pass uses — preserving the
+        # operator-facing classification rather than letting the
+        # timeout escape as a generic error.
+        from core.dispatcher import process_image_files
+
+        path = Path("/mock/photos/retry_timeout.jpg")
+        initial_abort = _make_file_result(
+            success=False,
+            path=path,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=False,
+        )
+        retry_timeout = _make_file_result(
+            success=False,
+            path=path,
+            error="Timed out after 60s",
+            duration_ms=60000.0,
+        )
+        mock_pp = MagicMock()
+        mock_pp.config.timeout_per_file = 60.0
+        mock_pp.process_batch_iter.return_value = iter([initial_abort])
+        retry_pp = MagicMock()
+        retry_pp.process_batch_iter.return_value = iter([retry_timeout])
+        with patch("core.dispatcher.compute_fallback") as mock_fb:
+            fb = MagicMock()
+            fb.source = "fallback_exif"
+            fb.folder = "Images/Photos/2024/01"
+            fb.filename = "retry_timeout"
+            mock_fb.return_value = fb
+            progress_ctx = _make_progress_ctx()
+            with (
+                patch(_PROGRESS_TARGET, return_value=progress_ctx),
+                patch("core.dispatcher.ParallelProcessor", return_value=retry_pp),
+            ):
+                results = process_image_files(
+                    [path],
+                    vision_processor=MagicMock(),
+                    parallel_processor=mock_pp,
+                    console=MagicMock(),
+                )
+        assert len(results) == 1
+        assert results[0].source == "fallback_exif"
+        assert results[0].folder_name == "Images/Photos/2024/01"
+        # Carries timer duration through for #410 p95/p99 accounting.
+        assert results[0].inference_ms == 60000.0
+
+    def test_retry_generic_error_falls_to_error_folder(self) -> None:
+        # #432 follow-up: non-timeout retry failures (e.g. corrupt
+        # image data, vision-model error) record as genuine failures
+        # in the ``errors`` folder — there's no second-level retry.
+        from core.dispatcher import process_image_files
+        from core.types import ERROR_FALLBACK_FOLDER
+
+        path = Path("/mock/photos/retry_bad.jpg")
+        initial_abort = _make_file_result(
+            success=False,
+            path=path,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=False,
+        )
+        retry_err = _make_file_result(
+            success=False,
+            path=path,
+            error="Corrupt JPEG data: 12 extraneous bytes",
+        )
+        mock_pp = MagicMock()
+        mock_pp.config.timeout_per_file = 60.0
+        mock_pp.process_batch_iter.return_value = iter([initial_abort])
+        retry_pp = MagicMock()
+        retry_pp.process_batch_iter.return_value = iter([retry_err])
+        progress_ctx = _make_progress_ctx()
+        with (
+            patch(_PROGRESS_TARGET, return_value=progress_ctx),
+            patch("core.dispatcher.ParallelProcessor", return_value=retry_pp),
+        ):
+            results = process_image_files(
+                [path],
+                vision_processor=MagicMock(),
+                parallel_processor=mock_pp,
+                console=MagicMock(),
+            )
+        assert len(results) == 1
+        assert results[0].folder_name == ERROR_FALLBACK_FOLDER
+        assert results[0].error == "Corrupt JPEG data: 12 extraneous bytes"
+        assert results[0].confidence == 0.0
 
     def test_failure_result_unknown_error(self) -> None:
         from core.dispatcher import process_image_files
