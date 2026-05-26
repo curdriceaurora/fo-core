@@ -287,7 +287,14 @@ class FileOrganizer:
 
             for p in all_processed:
                 ms = getattr(p, "inference_ms", None)
-                if isinstance(ms, (int, float)):
+                # Skip non-positive samples (#430). The dispatcher's
+                # vision-fallback path copies ``file_result.duration_ms``
+                # into ``inference_ms``; when the parallel pool aborts
+                # BEFORE a task starts running, ``duration_ms`` is 0.0.
+                # Those zero "attempts" must not pull the mean / p95 /
+                # p99 to 0 — they represent files that never ran, not
+                # files that ran in ~0 ms.
+                if isinstance(ms, (int, float)) and ms > 0:
                     # ProcessedImage carries the `source` field (#406) so we
                     # treat the image side; ProcessedFile is the text side.
                     if hasattr(p, "source"):
