@@ -201,6 +201,22 @@ class TestSvgSecurityHardeningIntegration:
                 with pytest.raises(OSError, match="exceed maximum input size after read"):
                     rasterize_svg_to_png_bytes(small)
 
+    def test_integration_other_oserror_from_stat_is_wrapped(self, tmp_path: Path) -> None:
+        # Codex P2 on PR #428: non-FileNotFoundError OSErrors from
+        # ``stat()`` (e.g. permission denied, EIO) must surface as a
+        # generic OSError with a stable message prefix so the organize
+        # loop's read-error bucket catches them consistently.
+        from models._vision_helpers import rasterize_svg_to_png_bytes
+
+        svg_file = tmp_path / "boom.svg"
+        svg_file.write_bytes(_MINIMAL_SVG)
+        with patch.object(Path, "stat", side_effect=PermissionError("simulated permission denied")):
+            with pytest.raises(OSError, match="Could not stat SVG") as exc_info:
+                rasterize_svg_to_png_bytes(svg_file)
+            # FileNotFoundError must NOT be the type — that path has its
+            # own pass-through branch.
+            assert not isinstance(exc_info.value, FileNotFoundError)
+
     def test_integration_missing_file_preserves_filenotfounderror(self, tmp_path: Path) -> None:
         # Codex P2 on PR #428: stat() failures for missing files must
         # surface as ``FileNotFoundError`` (subclass of OSError) rather
