@@ -417,6 +417,91 @@ class TestProcessImageFiles:
         retry_paths_arg = retry_call.args[0]
         assert set(retry_paths_arg) == {retry1, retry2}
 
+    def test_retry_timeout_routes_through_vision_fallback(self) -> None:
+        # #432 follow-up (Codex P1): the sequential retry pass runs
+        # through ``parallel_processor.process_batch_iter`` so the
+        # per-file timeout is enforced. When a retry hits that timeout,
+        # the dispatcher must route the file through the same #406
+        # EXIF fallback path the initial pass uses — preserving the
+        # operator-facing classification rather than letting the
+        # timeout escape as a generic error.
+        from core.dispatcher import process_image_files
+
+        path = Path("/mock/photos/retry_timeout.jpg")
+        initial_abort = _make_file_result(
+            success=False,
+            path=path,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=False,
+        )
+        retry_timeout = _make_file_result(
+            success=False,
+            path=path,
+            error="Timed out after 60s",
+            duration_ms=60000.0,
+        )
+        mock_pp = MagicMock()
+        mock_pp.process_batch_iter.side_effect = [
+            iter([initial_abort]),
+            iter([retry_timeout]),
+        ]
+        with patch("services.vision_fallback.compute_fallback") as mock_fb:
+            fb = MagicMock()
+            fb.source = "fallback_exif"
+            fb.folder = "Images/Photos/2024/01"
+            fb.filename = "retry_timeout"
+            mock_fb.return_value = fb
+            progress_ctx = _make_progress_ctx()
+            with patch(_PROGRESS_TARGET, return_value=progress_ctx):
+                results = process_image_files(
+                    [path],
+                    vision_processor=MagicMock(),
+                    parallel_processor=mock_pp,
+                    console=MagicMock(),
+                )
+        assert len(results) == 1
+        assert results[0].source == "fallback_exif"
+        assert results[0].folder_name == "Images/Photos/2024/01"
+        # Carries timer duration through for #410 p95/p99 accounting.
+        assert results[0].inference_ms == 60000.0
+
+    def test_retry_generic_error_falls_to_error_folder(self) -> None:
+        # #432 follow-up: non-timeout retry failures (e.g. corrupt
+        # image data, vision-model error) record as genuine failures
+        # in the ``errors`` folder — there's no second-level retry.
+        from core.dispatcher import process_image_files
+        from core.types import ERROR_FALLBACK_FOLDER
+
+        path = Path("/mock/photos/retry_bad.jpg")
+        initial_abort = _make_file_result(
+            success=False,
+            path=path,
+            error="Aborted: worker pool saturated by hung tasks",
+            non_retryable=False,
+        )
+        retry_err = _make_file_result(
+            success=False,
+            path=path,
+            error="Corrupt JPEG data: 12 extraneous bytes",
+        )
+        mock_pp = MagicMock()
+        mock_pp.process_batch_iter.side_effect = [
+            iter([initial_abort]),
+            iter([retry_err]),
+        ]
+        progress_ctx = _make_progress_ctx()
+        with patch(_PROGRESS_TARGET, return_value=progress_ctx):
+            results = process_image_files(
+                [path],
+                vision_processor=MagicMock(),
+                parallel_processor=mock_pp,
+                console=MagicMock(),
+            )
+        assert len(results) == 1
+        assert results[0].folder_name == ERROR_FALLBACK_FOLDER
+        assert results[0].error == "Corrupt JPEG data: 12 extraneous bytes"
+        assert results[0].confidence == 0.0
+
     def test_failure_result_unknown_error(self) -> None:
         from core.dispatcher import process_image_files
 
