@@ -41,7 +41,10 @@ RECOMMENDATIONS: dict[str, str] = {
         "see the top-skipped-extensions list above; install the matching extra "
         "(e.g. `[scientific]`, `[cad]`) or skip those files explicitly"
     ),
-    "inference_error": ("check Ollama / provider health; transient backend faults bucket here"),
+    "inference_error": (
+        "check Ollama / provider health; for worker-pool aborts on low-memory "
+        "hardware try `--timeout-per-file 1800` or `--workers 1` (#396 / #408)"
+    ),
     "other": ("inspect the per-file logs — these failures didn't fit the known taxonomy"),
 }
 
@@ -97,6 +100,17 @@ _INFERENCE_ERROR_TOKENS: tuple[str, ...] = (
     # availability (Codex P2 on PR #427).
     "vision backend unavailable",
     "backend unavailable",
+    # Parallel-processor pool abort (#431). When the worker pool detects
+    # hung tasks and aborts, every untried-or-hung task surfaces with
+    # one of these prefixes. The 2026-05-26 organize run produced 478
+    # of them; without these tokens they fall through to ``other`` with
+    # the useless "inspect per-file logs" recommendation. They are
+    # genuine inference-side failures (the model hung), so
+    # ``inference_error`` is the right bucket.
+    "worker pool",
+    "hung tasks",
+    "model is shutting down",
+    "aborted:",
 )
 
 

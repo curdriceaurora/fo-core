@@ -61,6 +61,20 @@ class TestClassifyError:
             == "inference_error"
         )
 
+    def test_parallel_pool_abort_buckets_as_inference_error(self) -> None:
+        # #431: when the worker pool aborts on hung tasks, every untried
+        # task surfaces with one of these prefixes. Without explicit
+        # tokens these 400+ failures fall through to ``other`` with the
+        # useless "inspect per-file logs" recommendation.
+        for msg in (
+            "Aborted: worker pool saturated by hung tasks",
+            "Worker pool exhausted",
+            "Task aborted due to hung tasks elsewhere",
+            "Model is shutting down.",
+            "Model is shutting down. Inference aborted.",
+        ):
+            assert classify_error(_Stub(error=msg, confidence=0.0)) == "inference_error", msg
+
     def test_read_error_permission_denied(self) -> None:
         assert (
             classify_error(_Stub(error="Permission denied: /etc/shadow", confidence=0.0))
