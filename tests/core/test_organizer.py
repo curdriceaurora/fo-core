@@ -288,6 +288,56 @@ class TestFileOrganizer:
         assert result.error_examples["vision_timeout"] == "exif.jpg"
         assert result.error_examples["inference_error"] == "bad.png"
 
+    def test_zero_inference_ms_samples_excluded_from_summary(self, tmp_path: Path) -> None:
+        """#430: dispatcher copies file_result.duration_ms into
+        ProcessedImage.inference_ms even when the parallel pool aborts a
+        task BEFORE it runs (duration_ms=0). Those zero "attempts" must
+        not be added to the sample set — otherwise the summary's mean /
+        p95 / p99 are pulled to 0 and obscure real tail latency.
+        """
+        from services.vision_processor import ProcessedImage
+
+        results: list[ProcessedImage] = [
+            # Real successful inference — should be counted.
+            ProcessedImage(
+                file_path=tmp_path / "ok.png",
+                description="d",
+                folder_name="images",
+                filename="ok",
+                confidence=1.0,
+                inference_ms=1672294.5,
+            ),
+            # Zero-duration fallback (pool aborted before run) — must NOT
+            # contribute to the sample set.
+            ProcessedImage(
+                file_path=tmp_path / "aborted.jpg",
+                description="",
+                folder_name="errors",
+                filename="aborted",
+                source="fallback_filename",
+                confidence=0.3,
+                inference_ms=0.0,
+            ),
+        ]
+        for i, r in enumerate(results):
+            r.file_path.write_bytes(f"u-{i}".encode())
+
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        with (
+            patch.object(
+                organizer,
+                "_categorize_files",
+                return_value=([], [r.file_path for r in results], [], [], [], []),
+            ),
+            patch.object(organizer, "_process_all_file_types", return_value=results),
+            patch.object(organizer, "_execute_organization"),
+        ):
+            result = organizer.organize(tmp_path, tmp_path / "out")
+
+        # Only the real inference contributes — the zero-duration entry
+        # is excluded by the > 0 guard.
+        assert result.vision_inference_ms_samples == [1672294.5]
+
     def test_organizer_falls_back_to_default_threshold_on_config_error(
         self, tmp_path: Path
     ) -> None:
