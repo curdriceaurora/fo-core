@@ -490,9 +490,28 @@ class TestDisplay:
             ),
             (_R(error="provider HTTP 500", confidence=0.0), "inference_error"),
             (_R(error="ghost", confidence=0.5), "other"),
+            # Worker-pool abort tokens (#431): pool-abort surfaces with one
+            # of these prefixes when hung tasks force the parallel
+            # processor to bail. They must bucket as inference_error.
+            (
+                _R(error="Aborted: worker pool saturated by hung tasks", confidence=0.0),
+                "inference_error",
+            ),
+            (_R(error="Model is shutting down.", confidence=0.0), "inference_error"),
         ]
         for stub, expected in cases:
             assert classify_error(stub) == expected, stub
+
+        # Source-less results (ProcessedFile shape) with a "Timed out
+        # after" sentinel must bucket as ``other`` rather than
+        # ``vision_timeout`` (the latter requires a ``source`` attr).
+        # Closes the integration coverage gap on the
+        # ``error_taxonomy.py`` text-timeout branch.
+        class _TextResult:
+            error = "Timed out after 30s"
+            confidence = 0.0
+
+        assert classify_error(_TextResult()) == "other"
 
         # Every emitted bucket carries a recommendation string.
         for category in (

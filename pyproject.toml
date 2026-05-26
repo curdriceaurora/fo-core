@@ -50,7 +50,10 @@ dependencies = [
     "rarfile~=4.1",             # RAR archive support (requires unrar tool)
 
     # CLI
-    "typer[all]~=0.12",
+    # typer 0.26 vendored its own `_click` module and broke parent-class
+    # type annotations in `src/cli/lazy.py` (#430+ CI flake). Pin out of
+    # the 0.26 range until lazy.py is updated to use the new typer types.
+    "typer[all]>=0.12,<0.26",
     "rich~=13.0",
     "Pygments>=2.20.0",  # Transitive via rich; pin for CVE-2026-4539
 
