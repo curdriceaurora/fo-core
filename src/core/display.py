@@ -94,6 +94,13 @@ def show_summary(
             console.print(f"    ... and {len(result.errors) - 10} more")
     console.print(f"  Processing time: {result.processing_time:.2f}s")
 
+    # Inference duration stats (#410). Vision and text are aggregated
+    # separately so operators can spot a slow modality even when the
+    # other is fine. Lines only render when the corresponding sample
+    # list is non-empty (i.e. the run actually invoked that modality).
+    _render_inference_stats(console, "Vision", result.vision_inference_ms_samples)
+    _render_inference_stats(console, "Text", result.text_inference_ms_samples)
+
     # Skipped-extension breakdown (#412). Render whenever anything was
     # skipped; --show-skipped expands past TOP_SKIPPED_EXTENSIONS.
     if result.skipped_by_extension:
@@ -158,4 +165,52 @@ def create_progress(console: Console) -> Progress:
         TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
         TimeElapsedColumn(),
         console=console,
+    )
+
+
+def _percentile(samples: list[float], p: float) -> float:
+    """Return the *p*-th percentile (0 <= p <= 100) of *samples*.
+
+    Uses linear interpolation between the closest ranks — equivalent to
+    NumPy's default ``method="linear"`` but kept dependency-free so the
+    summary renderer never needs to import NumPy. Returns 0.0 for an
+    empty sample list so callers don't have to special-case it.
+    """
+    if not samples:
+        return 0.0
+    if len(samples) == 1:
+        return samples[0]
+    ordered = sorted(samples)
+    # Clamp p into [0, 100] then translate to a fractional index in
+    # [0, len-1]. Linear interpolation between neighbours yields the
+    # same percentile NumPy / pandas produce for the same data.
+    p_clamped = max(0.0, min(100.0, p))
+    rank = (p_clamped / 100.0) * (len(ordered) - 1)
+    lo = int(rank)
+    hi = min(lo + 1, len(ordered) - 1)
+    frac = rank - lo
+    return ordered[lo] + (ordered[hi] - ordered[lo]) * frac
+
+
+def _render_inference_stats(console: Console, label: str, samples: list[float]) -> None:
+    """Render mean/p50/p95/p99 for an inference-time sample list (#410).
+
+    Args:
+        console: Rich console to print to.
+        label: ``"Vision"`` or ``"Text"`` — used as the section header.
+        samples: List of per-file inference durations in milliseconds.
+            An empty list short-circuits — the section is omitted from
+            the summary so runs that didn't invoke that modality stay
+            uncluttered.
+    """
+    if not samples:
+        return
+    mean_ms = sum(samples) / len(samples)
+    p50 = _percentile(samples, 50)
+    p95 = _percentile(samples, 95)
+    p99 = _percentile(samples, 99)
+    console.print(
+        f"  [dim]{label} inference — mean: {mean_ms / 1000:.2f}s, "
+        f"p50: {p50 / 1000:.2f}s, p95: {p95 / 1000:.2f}s, "
+        f"p99: {p99 / 1000:.2f}s (n={len(samples)})[/dim]"
     )

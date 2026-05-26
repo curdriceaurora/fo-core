@@ -16,6 +16,7 @@ from config.schema import ProcessingSettings
 from models import VisionModel
 from models.base import BaseModel, ModelConfig, ModelType
 from models.provider_factory import get_vision_model
+from services.inference_timer import time_inference
 
 _BYTES_PER_MB = 1024 * 1024
 
@@ -74,6 +75,13 @@ class ProcessedImage:
     processing_time: float = 0.0
     error: str | None = None
     source: str = "vision"
+    # Wall-clock duration of the inference path measured in milliseconds
+    # (#410). Populated even on the error / fallback paths so summary
+    # aggregation (p50/p95/p99) reflects every per-file attempt, not just
+    # the happy path. None on results assembled without going through
+    # process_file (e.g. metadata-only fallback constructed by the
+    # dispatcher).
+    inference_ms: float | None = None
 
 
 class VisionProcessor:
@@ -195,6 +203,38 @@ class VisionProcessor:
             # stat() can fail on permission-denied / disappeared files;
             # don't let the informational log break the real work below.
             pass
+
+        # Per-file inference timer (#410). The context manager logs
+        # `vision_inference_ms=<N>` on exit — success and exception
+        # paths both fire — and exposes the duration on `_timer.elapsed_ms`
+        # so we can attach it to every returned ProcessedImage for the
+        # summary aggregator.
+        with time_inference("vision", file_path) as _timer:
+            result = self._process_file_inner(
+                file_path,
+                start_time=start_time,
+                generate_description=generate_description,
+                generate_folder=generate_folder,
+                generate_filename=generate_filename,
+                perform_ocr=perform_ocr,
+            )
+        result.inference_ms = _timer.elapsed_ms
+        return result
+
+    def _process_file_inner(
+        self,
+        file_path: Path,
+        *,
+        start_time: float,
+        generate_description: bool,
+        generate_folder: bool,
+        generate_filename: bool,
+        perform_ocr: bool,
+    ) -> ProcessedImage:
+        """Original process_file body, extracted so the timing wrapper above
+        can run uniformly regardless of which early-return branch fires.
+        """
+        import time
 
         try:
             if self._is_circuit_open():

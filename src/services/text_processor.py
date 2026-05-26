@@ -12,6 +12,7 @@ from loguru import logger
 from models import TextModel
 from models.base import BaseModel, ModelConfig, ModelType
 from models.provider_factory import get_text_model
+from services.inference_timer import time_inference
 from utils.file_readers import FileReadError, read_file
 from utils.readers import read_file_via_safedir, read_file_via_safedir_anchored
 from utils.safedir import SafeDir, SymlinkRejected
@@ -33,6 +34,10 @@ class ProcessedFile:
     processing_time: float = 0.0
     error: str | None = None
     transcript: str | None = None
+    # Wall-clock duration of the inference path measured in milliseconds
+    # (#410). Populated even on failure paths so summary aggregation
+    # (p50/p95/p99) reflects every per-file attempt.
+    inference_ms: float | None = None
 
 
 # Stop-words and noise words filtered from AI-generated names.
@@ -147,9 +152,37 @@ class TextProcessor:
         Returns:
             ProcessedFile with metadata
         """
+        file_path = Path(file_path)
+        # Per-file inference timer (#410). Emits `text_inference_ms=<N>`
+        # on exit for both success and exception branches; the duration
+        # is attached to the returned ProcessedFile so the summary
+        # renderer can aggregate p50/p95/p99 across the run.
+        with time_inference("text", file_path) as _timer:
+            result = self._process_file_inner(
+                file_path,
+                generate_description=generate_description,
+                generate_folder=generate_folder,
+                generate_filename=generate_filename,
+                scan_root=scan_root,
+            )
+        result.inference_ms = _timer.elapsed_ms
+        return result
+
+    def _process_file_inner(
+        self,
+        file_path: Path,
+        *,
+        generate_description: bool,
+        generate_folder: bool,
+        generate_filename: bool,
+        scan_root: str | Path | None,
+    ) -> ProcessedFile:
+        """Inner body of process_file — extracted so :meth:`process_file`
+        can wrap it uniformly with the per-call timer regardless of
+        which return / exception branch fires.
+        """
         import time
 
-        file_path = Path(file_path)
         scan_root_path = Path(scan_root) if scan_root is not None else None
         start_time = time.time()
 

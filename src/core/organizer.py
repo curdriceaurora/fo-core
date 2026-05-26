@@ -276,6 +276,21 @@ class FileOrganizer:
             result.processed_files = len(all_processed) - failed_cnt
             result.failed_files = failed_cnt
             result.fallback_files = fallback_cnt
+            # Per-file inference duration samples (#410). Partitioned by
+            # the result-class so the summary renderer can produce
+            # separate p50/p95/p99 for vision vs text. Skip entries that
+            # never went through process_file (e.g. dispatcher-built
+            # fallbacks) which carry inference_ms == None.
+            for p in all_processed:
+                ms = getattr(p, "inference_ms", None)
+                if not isinstance(ms, (int, float)):
+                    continue
+                # ProcessedImage carries the `source` field (#406) so we
+                # treat the image side; ProcessedFile is the text side.
+                if hasattr(p, "source"):
+                    result.vision_inference_ms_samples.append(float(ms))
+                else:
+                    result.text_inference_ms_samples.append(float(ms))
             self._execute_organization(
                 all_processed, input_path, output_path, skip_existing, result
             )
