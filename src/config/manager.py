@@ -58,15 +58,37 @@ _FRAMEWORK_TO_PROVIDER: dict[str, ProviderName] = {
     "mlx": "mlx",
 }
 
+# Providers that REQUIRE ModelConfig.model_path at runtime. The matching
+# executors raise at init when model_path is empty/None, so without this
+# guard a profile that selected llama_cpp/mlx via `fo setup` but never
+# collected a model path (cli/setup.py and setup_wizard.validate_config
+# allow that today) would crash the run instead of silently falling back
+# to Ollama as it did before the converter fix.
+_PATH_DEPENDENT_PROVIDERS: frozenset[ProviderName] = frozenset({"llama_cpp", "mlx"})
 
-def _provider_from_framework(framework: str) -> ProviderName:
+
+def _provider_from_framework(
+    framework: str,
+    *,
+    model_path: str | None = None,
+) -> ProviderName:
     """Map ModelPreset.framework → ModelConfig.provider (#408 / #423).
 
     Without this mapping ``to_text_model_config`` set ``framework`` but
     left ``provider`` at its dataclass default of ``"ollama"``, silently
     routing profile-only llama_cpp / mlx users to the Ollama executor.
+
+    Defensive guard: when ``framework`` selects a provider that needs a
+    model_path (``llama_cpp`` / ``mlx``) but ``model_path`` is missing,
+    fall back to ``"ollama"`` rather than producing a config the
+    executor will reject. This preserves the legacy silent-Ollama
+    behavior for existing setup-wizard profiles that selected a
+    framework without collecting a path (Codex P1 catch on PR #423).
     """
-    return _FRAMEWORK_TO_PROVIDER.get(str(framework).strip().lower(), "ollama")
+    provider = _FRAMEWORK_TO_PROVIDER.get(str(framework).strip().lower(), "ollama")
+    if provider in _PATH_DEPENDENT_PROVIDERS and not (model_path or "").strip():
+        return "ollama"
+    return provider
 
 
 class ConfigManager:
@@ -311,7 +333,9 @@ class ConfigManager:
             max_tokens=config.models.max_tokens,
             device=DeviceType(config.models.device),
             framework=config.models.framework,
-            provider=_provider_from_framework(config.models.framework),
+            provider=_provider_from_framework(
+                config.models.framework, model_path=config.models.model_path
+            ),
             model_path=config.models.model_path,
         )
 
@@ -331,7 +355,9 @@ class ConfigManager:
             max_tokens=config.models.max_tokens,
             device=DeviceType(config.models.device),
             framework=config.models.framework,
-            provider=_provider_from_framework(config.models.framework),
+            provider=_provider_from_framework(
+                config.models.framework, model_path=config.models.model_path
+            ),
             model_path=config.models.model_path,
         )
 

@@ -196,17 +196,17 @@ class TestConfigManagerModuleDelegation:
         assert model_cfg.provider == "ollama"
 
     def test_to_text_model_config_llama_cpp_framework_drives_provider(self) -> None:
-        """framework=llama_cpp → provider=llama_cpp (this was the #423 P1 catch)."""
+        """framework=llama_cpp + model_path → provider=llama_cpp (this was the #423 P1 catch)."""
         mgr = ConfigManager()
-        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp", model_path="/m/qwen3.gguf"))
         model_cfg = mgr.to_text_model_config(cfg)
         assert model_cfg.framework == "llama_cpp"
         assert model_cfg.provider == "llama_cpp"
 
     def test_to_text_model_config_mlx_framework_drives_provider(self) -> None:
-        """framework=mlx → provider=mlx."""
+        """framework=mlx + model_path → provider=mlx."""
         mgr = ConfigManager()
-        cfg = AppConfig(models=ModelPreset(framework="mlx"))
+        cfg = AppConfig(models=ModelPreset(framework="mlx", model_path="mlx-community/Qwen2.5-3B"))
         model_cfg = mgr.to_text_model_config(cfg)
         assert model_cfg.framework == "mlx"
         assert model_cfg.provider == "mlx"
@@ -214,7 +214,7 @@ class TestConfigManagerModuleDelegation:
     def test_to_vision_model_config_llama_cpp_framework_drives_provider(self) -> None:
         """Vision converter mirrors text converter for the framework→provider mapping."""
         mgr = ConfigManager()
-        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp", model_path="/m/qwen3.gguf"))
         model_cfg = mgr.to_vision_model_config(cfg)
         assert model_cfg.framework == "llama_cpp"
         assert model_cfg.provider == "llama_cpp"
@@ -270,6 +270,52 @@ class TestConfigManagerModuleDelegation:
         cfg = AppConfig()
         model_cfg = mgr.to_text_model_config(cfg)
         assert model_cfg.model_path is None
+
+    def test_to_text_model_config_llama_cpp_without_path_falls_back_to_ollama(
+        self,
+    ) -> None:
+        """framework=llama_cpp + missing model_path → provider=ollama (defensive).
+
+        Codex P1 catch on PR #423: setup-wizard profiles can land here
+        with framework=llama_cpp but no model_path (setup.py never
+        collected one, validate_config doesn't reject the combination).
+        Routing those to the llama_cpp executor would crash at init;
+        falling back to Ollama preserves the pre-fix silent behavior.
+        """
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))  # no model_path
+        model_cfg = mgr.to_text_model_config(cfg)
+        # framework keeps the user's literal choice — they see the
+        # mismatch if they read the log; we just don't crash on it.
+        assert model_cfg.framework == "llama_cpp"
+        assert model_cfg.provider == "ollama"
+        assert model_cfg.model_path is None
+
+    def test_to_text_model_config_mlx_without_path_falls_back_to_ollama(self) -> None:
+        """Same defensive guard for mlx (Codex P1 catch on PR #423)."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="mlx"))  # no model_path
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.framework == "mlx"
+        assert model_cfg.provider == "ollama"
+
+    def test_to_text_model_config_llama_cpp_blank_path_falls_back_to_ollama(
+        self,
+    ) -> None:
+        """Whitespace-only model_path also triggers the guard."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp", model_path="   "))
+        model_cfg = mgr.to_text_model_config(cfg)
+        assert model_cfg.provider == "ollama"
+
+    def test_to_vision_model_config_llama_cpp_without_path_falls_back_to_ollama(
+        self,
+    ) -> None:
+        """Vision converter shares the same guard."""
+        mgr = ConfigManager()
+        cfg = AppConfig(models=ModelPreset(framework="llama_cpp"))
+        model_cfg = mgr.to_vision_model_config(cfg)
+        assert model_cfg.provider == "ollama"
 
     @patch("config.manager.WatcherConfig", create=True)
     def test_to_watcher_config(self, mock_watcher_cls):
