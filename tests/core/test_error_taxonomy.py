@@ -78,13 +78,31 @@ class TestClassifyError:
             == "unsupported_type"
         )
 
-    def test_inference_error_via_zero_confidence(self) -> None:
-        # Provider 500 / AttributeError surfaced as confidence==0.0
-        # with an error that doesn't match the filesystem patterns.
-        assert (
-            classify_error(_Stub(error="ollama returned HTTP 500", confidence=0.0))
-            == "inference_error"
-        )
+    def test_inference_error_requires_provider_signature(self) -> None:
+        # Bucket only when the error string explicitly names a provider /
+        # HTTP 5xx / API failure — Codex P2 catch on PR #427.
+        for msg in (
+            "ollama returned HTTP 500",
+            "Anthropic API error: overloaded",
+            "openai rate_limit exceeded",
+            "Provider completion failed: timeout",
+            "model returned malformed JSON",
+        ):
+            assert classify_error(_Stub(error=msg, confidence=0.0)) == "inference_error", msg
+
+    def test_audio_video_metadata_failure_buckets_as_other_not_inference(self) -> None:
+        # Audio / video metadata pipelines set confidence=0.0 on ANY
+        # extractor exception (#409) even when no provider was contacted.
+        # Without the explicit provider-signature token requirement, these
+        # would mis-bucket as inference_error and emit the wrong operator
+        # hint. They now land in ``other`` — Codex P2 on PR #427.
+        for msg in (
+            "ffprobe failed with code 1",
+            "mutagen: invalid tag block",
+            "KeyError: 'duration'",
+            "ValueError: cannot parse bitrate",
+        ):
+            assert classify_error(_Stub(error=msg, confidence=0.0)) == "other", msg
 
     def test_other_bucket_catches_unknown_errors(self) -> None:
         # Non-zero confidence + unfamiliar error wording — bucket as `other`.

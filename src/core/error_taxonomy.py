@@ -68,6 +68,31 @@ _READ_ERROR_TOKENS: tuple[str, ...] = (
 # Tokens that signal the file's extension / content type isn't supported.
 _UNSUPPORTED_TYPE_TOKENS: tuple[str, ...] = ("unsupported file type",)
 
+# Tokens that positively identify a model-invocation failure. We require
+# a match here before bucketing as ``inference_error`` because audio /
+# video metadata pipelines emit ``confidence=0.0`` on ANY extractor
+# exception (#409 surfacing) even when no provider was contacted — without
+# this guard those runs would land in ``inference_error`` and produce the
+# wrong operator recommendation ("check Ollama / provider health").
+# Codex P2 catch on PR #427.
+_INFERENCE_ERROR_TOKENS: tuple[str, ...] = (
+    "ollama",
+    "anthropic",
+    "openai",
+    "rate limit",
+    "rate_limit",
+    "http 5",  # HTTP 5xx responses from a vision / text provider
+    "model returned",
+    "model error",
+    "provider",
+    "api error",
+    "api_error",
+    "json decode",
+    "jsondecode",
+    "completion failed",
+    "inference failed",
+)
+
 
 def classify_error(result: Any) -> ErrorCategory | None:
     """Return the taxonomy bucket for *result*, or ``None`` if it isn't a failure.
@@ -108,12 +133,17 @@ def classify_error(result: Any) -> ErrorCategory | None:
     if any(tok in err_lc for tok in _READ_ERROR_TOKENS):
         return "read_error"
 
-    # Inference errors are catch-all for anything that reached the
-    # model call (signalled in the dispatcher / processor by
-    # confidence==0.0 with an error message that doesn't match the
-    # filesystem patterns above). Anything else lands in `other`.
-    confidence = getattr(result, "confidence", 1.0)
-    if isinstance(confidence, (int, float)) and confidence == 0.0:
+    # Inference-error bucket requires a positive token match. Audio /
+    # video metadata pipelines set ``confidence=0.0`` on any extractor
+    # exception (#409) — without the explicit token check those runs
+    # would mis-bucket as inference_error and emit the wrong "check
+    # Ollama / provider health" hint (Codex P2 on PR #427).
+    if any(tok in err_lc for tok in _INFERENCE_ERROR_TOKENS):
         return "inference_error"
 
+    # Anything left over (including the audio/video confidence==0.0
+    # metadata-extractor failures) lands in ``other``. The operator
+    # recommendation for ``other`` points at the per-file logs, which is
+    # the correct next step when the failure didn't match a known
+    # provider / reader / extension shape.
     return "other"

@@ -235,7 +235,10 @@ class TestFileOrganizer:
                 description="",
                 folder_name="errors",
                 filename="bad",
-                error="boom",
+                # Provider-signature error so classify_error buckets as
+                # inference_error rather than `other` — Codex P2 tightening
+                # on PR #427 now requires explicit provider tokens.
+                error="ollama returned HTTP 500",
                 confidence=0.0,
             ),
             ProcessedFile(
