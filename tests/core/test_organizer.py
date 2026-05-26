@@ -186,25 +186,33 @@ class TestFileOrganizer:
 
     def test_organizer_collects_low_confidence_results(self, tmp_path: Path) -> None:
         """#409 end-to-end: organizer aggregation routes low-confidence
-        results into ``OrganizationResult.low_confidence_files``.
+        results into ``OrganizationResult.low_confidence_files`` and
+        partitions inference_ms samples by modality (#410).
 
-        Drives ``organize`` with a synthetic four-file batch (one
-        happy-path, one EXIF fallback @ 0.5, one filename fallback @
-        0.3, one error @ 0.0) and asserts the three non-happy-path
-        files land in the review list. Pinned to the default 0.5
-        threshold so the comparator's inclusive-but-not-1.0 semantics
-        are exercised. ci-marked so PR diff-coverage counts the
-        organizer aggregation lines.
+        Drives ``organize`` with a synthetic five-file batch:
+        - happy-path vision (confidence=1.0, vision sample)
+        - EXIF fallback @ 0.5 (low-conf, no inference_ms — fallback
+          built by dispatcher)
+        - filename fallback @ 0.3 (low-conf)
+        - error @ 0.0 (low-conf)
+        - happy-path text (confidence=1.0, TEXT sample so the else
+          branch in the aggregator runs)
+
+        Asserts: three non-happy entries land in low_confidence_files;
+        vision/text inference_ms partition correctly. ci-marked so PR
+        diff-coverage counts the organizer aggregation lines.
         """
+        from services.text_processor import ProcessedFile
         from services.vision_processor import ProcessedImage
 
-        results: list[ProcessedImage] = [
+        results: list[ProcessedImage | ProcessedFile] = [
             ProcessedImage(
                 file_path=tmp_path / "ok.png",
                 description="d",
                 folder_name="images",
                 filename="ok",
                 confidence=1.0,
+                inference_ms=100.0,
             ),
             ProcessedImage(
                 file_path=tmp_path / "exif.jpg",
@@ -230,6 +238,14 @@ class TestFileOrganizer:
                 error="boom",
                 confidence=0.0,
             ),
+            ProcessedFile(
+                file_path=tmp_path / "doc.txt",
+                description="d",
+                folder_name="docs",
+                filename="doc",
+                confidence=1.0,
+                inference_ms=80.0,
+            ),
         ]
         for r in results:
             r.file_path.write_bytes(b"")
@@ -250,6 +266,49 @@ class TestFileOrganizer:
         assert set(result.low_confidence_files) == {"exif.jpg", "name.png", "bad.png"}
         # Happy-path file is never flagged.
         assert "ok.png" not in result.low_confidence_files
+        assert "doc.txt" not in result.low_confidence_files
+        # Inference samples partition by modality (#410).
+        assert result.vision_inference_ms_samples == [100.0]
+        assert result.text_inference_ms_samples == [80.0]
+
+    def test_organizer_falls_back_to_default_threshold_on_config_error(
+        self, tmp_path: Path
+    ) -> None:
+        """#409: ConfigManager.load failure degrades to ProcessingSettings()
+        default rather than crashing the aggregation loop."""
+        from services.vision_processor import ProcessedImage
+
+        img = ProcessedImage(
+            file_path=tmp_path / "exif.jpg",
+            description="",
+            folder_name="Images/Photos/2025/11",
+            filename="exif",
+            source="fallback_exif",
+            confidence=0.5,
+        )
+        img.file_path.write_bytes(b"")
+
+        organizer = FileOrganizer(dry_run=True, enable_vision=False)
+        # Make ConfigManager raise to exercise the except branch.
+        with (
+            patch.object(
+                organizer,
+                "_categorize_files",
+                return_value=([], [img.file_path], [], [], [], []),
+            ),
+            patch.object(organizer, "_process_all_file_types", return_value=[img]),
+            patch.object(organizer, "_execute_organization"),
+            patch(
+                "config.manager.ConfigManager",
+                side_effect=RuntimeError("config broken"),
+            ),
+        ):
+            result = organizer.organize(tmp_path, tmp_path / "out")
+
+        # Fallback to ProcessingSettings() default (0.5); the 0.5
+        # confidence still lands in review under the inclusive
+        # comparator.
+        assert "exif.jpg" in result.low_confidence_files
 
     def test_threshold_one_does_not_flag_happy_path(self, tmp_path: Path) -> None:
         """#409 / Codex P2: threshold=1.0 must not flood the review list.

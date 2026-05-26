@@ -167,6 +167,9 @@ def process_text_files(
                         folder_name=ERROR_FALLBACK_FOLDER,
                         filename=file_result.path.stem,
                         error=error_msg,
+                        # #409: dispatcher-built failures must surface
+                        # in the "Review recommended" section.
+                        confidence=0.0,
                     )
                 )
                 progress.update(
@@ -287,6 +290,11 @@ def process_image_files(
                             folder_name=ERROR_FALLBACK_FOLDER,
                             filename=file_result.path.stem,
                             error=error_msg,
+                            # #409: dispatcher-built failures must
+                            # surface in the "Review recommended"
+                            # section. Default confidence=1.0 would
+                            # hide them.
+                            confidence=0.0,
                         )
                     )
                     progress.update(
