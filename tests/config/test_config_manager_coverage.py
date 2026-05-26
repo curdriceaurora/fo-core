@@ -124,6 +124,46 @@ class TestConfigManagerSave:
         loaded = mgr.load("test")
         assert loaded.profile_name == "test"
 
+    def test_processing_settings_round_trip(self, tmp_path: Path) -> None:
+        """ProcessingSettings persists through save/load (#409 / Codex P1 on #426).
+
+        Before this fix, `_config_to_dict` / `_dict_to_config` omitted
+        the `processing` section entirely. Users running
+        `fo config set processing.low_confidence_threshold 0.7` would
+        save the file but reload to the default 0.5 on the next run.
+        """
+        from config.schema import ProcessingSettings
+
+        mgr = ConfigManager(config_dir=tmp_path)
+        cfg = AppConfig(
+            profile_name="custom-thresh",
+            processing=ProcessingSettings(
+                timeout_per_file=600.0,
+                low_confidence_threshold=0.7,
+                vision_base_timeout_s=45.0,
+            ),
+        )
+        mgr.save(cfg)
+
+        loaded = mgr.load("custom-thresh")
+        assert loaded.processing.timeout_per_file == 600.0
+        assert loaded.processing.low_confidence_threshold == 0.7
+        assert loaded.processing.vision_base_timeout_s == 45.0
+
+    def test_vision_settings_round_trip(self, tmp_path: Path) -> None:
+        """VisionSettings persists through save/load (#407 / same Codex P1)."""
+        from config.schema import VisionSettings
+
+        mgr = ConfigManager(config_dir=tmp_path)
+        cfg = AppConfig(
+            profile_name="custom-vision",
+            vision=VisionSettings(max_long_edge=2048),
+        )
+        mgr.save(cfg)
+
+        loaded = mgr.load("custom-vision")
+        assert loaded.vision.max_long_edge == 2048
+
 
 class TestConfigManagerListProfiles:
     def test_empty_when_no_file(self, tmp_path):

@@ -397,6 +397,7 @@ def process_audio_files(
                     folder_name=AUDIO_FALLBACK_FOLDER,
                     filename=audio_path.stem,
                     error=str(exc),
+                    confidence=0.0,  # #409: surface in review list
                 )
             )
 
@@ -452,6 +453,7 @@ def process_video_files(
                     folder_name=VIDEO_FALLBACK_FOLDER,
                     filename=video_path.stem,
                     error=str(exc),
+                    confidence=0.0,  # #409: surface in review list
                 )
             )
         except (OSError, ValueError, KeyError, RuntimeError) as exc:
@@ -463,6 +465,7 @@ def process_video_files(
                     folder_name=VIDEO_FALLBACK_FOLDER,
                     filename=video_path.stem,
                     error=str(exc),
+                    confidence=0.0,  # #409: surface in review list
                 )
             )
 
