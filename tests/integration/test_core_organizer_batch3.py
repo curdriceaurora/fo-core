@@ -1098,7 +1098,7 @@ class TestDispatcher:
         # Force the EXIF path so we can assert the per-source confidence
         # mapping without depending on a real Pillow read.
         with patch(
-            "services.vision_fallback.compute_fallback",
+            "core.dispatcher.compute_fallback",
             return_value=FallbackResult(
                 folder="Images/Photos/2025/11",
                 filename="DSC_0042",
