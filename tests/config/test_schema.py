@@ -263,8 +263,15 @@ class TestProcessingSettings:
             ProcessingSettings(low_confidence_threshold=-0.1)
 
 
+@pytest.mark.integration
 class TestVisionSettingsValidation:
-    """#415 / CodeRabbit Minor on PR #428."""
+    """#415 / CodeRabbit Minor on PR #428.
+
+    Marked ``integration`` so the per-module integration coverage gate
+    sees the new ``__post_init__`` validation branch — without that
+    marker the rejection paths are unit-only and the integration tier
+    reports schema.py at 98% (below the 99.5% floor).
+    """
 
     def test_default_svg_max_input_bytes(self) -> None:
         assert VisionSettings().svg_max_input_bytes == 5 * 1024 * 1024
