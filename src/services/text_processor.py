@@ -165,7 +165,14 @@ class TextProcessor:
                 generate_filename=generate_filename,
                 scan_root=scan_root,
             )
-        result.inference_ms = _timer.elapsed_ms
+        # Only attach the timer to results where the model was actually
+        # invoked. Non-inference branches (symlink rejection, unsupported
+        # content, read-path failures) set `result.error` before any
+        # text_model.generate() call; folding those near-zero samples
+        # into mean/p95/p99 would understate real text latency
+        # (CodeRabbit P2 catch on PR #424).
+        if not result.error:
+            result.inference_ms = _timer.elapsed_ms
         return result
 
     def _process_file_inner(

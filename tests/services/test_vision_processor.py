@@ -144,6 +144,33 @@ class TestVisionProcessorProcessFile:
         assert result.error == "File not found"
         assert result.folder_name == "errors"
 
+    def test_process_file_not_found_does_not_record_inference_ms(
+        self, vision_processor: VisionProcessor
+    ) -> None:
+        """Early-return paths skip the inference-ms sample (#410 / CodeRabbit P2)."""
+        result = vision_processor.process_file("/nonexistent/img.jpg")
+        # Non-inference path → inference_ms stays None so the run summary
+        # doesn't get a 0ms sample that would skew p95/p99 low.
+        assert result.error == "File not found"
+        assert result.inference_ms is None
+
+    def test_process_file_success_records_inference_ms(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """Happy-path inferences populate inference_ms (#410)."""
+        img = tmp_path / "ok.jpg"
+        img.write_bytes(b"\xff\xd8\xff\xe0")
+        mock_vision_model.generate.side_effect = [
+            "A sunset",
+            "",  # OCR empty
+            "nature",
+            "sunset",
+        ]
+        result = vision_processor.process_file(img)
+        assert result.error is None
+        assert isinstance(result.inference_ms, float)
+        assert result.inference_ms < 5000.0
+
     def test_process_file_model_errors_graceful(
         self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
     ) -> None:

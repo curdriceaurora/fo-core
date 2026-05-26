@@ -216,7 +216,13 @@ class VisionProcessor:
                 generate_filename=generate_filename,
                 perform_ocr=perform_ocr,
             )
-        result.inference_ms = _timer.elapsed_ms
+        # Only attach the timer to results where the model was actually
+        # invoked. Early-return paths (circuit-open, file-not-found,
+        # ...) set `result.error` before any inference happens; folding
+        # those near-zero samples into mean/p95/p99 would understate
+        # real vision latency (CodeRabbit P2 catch on PR #424).
+        if not result.error:
+            result.inference_ms = _timer.elapsed_ms
         return result
 
     def _process_file_inner(
