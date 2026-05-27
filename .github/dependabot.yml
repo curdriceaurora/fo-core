@@ -23,6 +23,17 @@ updates:
       - dependency-name: "rich"
       - dependency-name: "tinytag"
       - dependency-name: "watchdog"
+      # mypy 2.x: pre-commit `mypy-changed` hook fails on subclasses of
+      # Any-typed bases (FileSystemEventHandler, click.Group, TyperGroup),
+      # producing 8 new errors not present in 1.x. See pyproject.toml
+      # comment on the `mypy` constraint; matched lint failure on PR #425.
+      - dependency-name: "mypy"
+        versions: [">=2.0.0"]
+      # pytest-timeout 2.4.0: timer thread not cancelled on Windows, crashes
+      # during teardown (AssertionError in read_global_capture). See
+      # pyproject.toml comment on the `pytest-timeout` constraint.
+      - dependency-name: "pytest-timeout"
+        versions: [">=2.4.0"]
     groups:
       dev-dependencies:
         patterns:
