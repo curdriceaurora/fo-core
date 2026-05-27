@@ -535,24 +535,30 @@ class ParallelProcessor:
                 if future.done():
                     # Task completed in the narrow window between cancel() and
                     # done() — a race that only occurs on some OS schedulers
-                    # (commonly macOS).  The processor had already decided this
-                    # task exceeded the timeout; discard the result and report a
-                    # consistent timeout so callers see uniform behaviour across
-                    # platforms.  Mark non_retryable: the task was too slow once
-                    # and will be too slow again.
+                    # (commonly macOS).  Preserve the actual result rather
+                    # than reporting a phantom timeout: the backdated
+                    # ``future_started[future] = now - poll_interval``
+                    # (above) can trip the elapsed-time check up to
+                    # ``poll_interval`` seconds early, so a task that
+                    # genuinely finished within the configured timeout was
+                    # otherwise being reported as ``non_retryable=True``
+                    # and discarding its actual return value — Codex P1 on
+                    # PR #400.
                     pending.remove(future)
                     del future_paths[future]
                     del future_started[future]
                     future_queued_at.pop(future, None)
-                    race_timeout_result = finalize_result(
-                        FileResult(
-                            path=path,
-                            success=False,
-                            error=f"Timed out after {timeout}s",
-                            non_retryable=True,
+                    try:
+                        race_result = future.result()
+                    except Exception as exc:
+                        # The task completed but raised — surface the
+                        # real exception text rather than a timeout.
+                        race_result = finalize_result(
+                            FileResult(path=path, success=False, error=str(exc))
                         )
-                    )
-                    return (False, False, [race_timeout_result])
+                    else:
+                        race_result = finalize_result(race_result)
+                    return (False, False, [race_result])
 
                 # Task is running and cannot be cancelled.  Abandon it —
                 # remove from tracking so other files continue normally.

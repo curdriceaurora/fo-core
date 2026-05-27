@@ -26,10 +26,11 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           ref: ${{ inputs.ref || github.ref }}
-      - uses: actions/setup-python@v6
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -57,10 +58,11 @@ jobs:
     env:
       PYTHONUTF8: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           ref: ${{ inputs.ref || github.ref }}
-      - uses: actions/setup-python@v6
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
           cache: pip
@@ -88,10 +90,11 @@ jobs:
     env:
       PYTHONUTF8: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           ref: ${{ inputs.ref || github.ref }}
-      - uses: actions/setup-python@v6
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.12"
           cache: pip
@@ -106,8 +109,13 @@ jobs:
         # -n auto omitted: xdist on Windows propagates CTRL_C_EVENT as
         # KeyboardInterrupt causing exit code 1 when all tests pass.
         # --timeout omitted: pytest-timeout thread-mode fires during teardown on Windows.
+        # ``shell: bash`` (Git Bash on windows-latest) so the standard `\`
+        # line continuation works — the prior `^` form was CMD syntax and
+        # silently broke under the default PowerShell shell (CodeRabbit
+        # P1 on PR #400).
+        shell: bash
         run: |
-          pytest tests/parallel/ ^
-            --strict-markers ^
-            --override-ini="addopts=" ^
+          pytest tests/parallel/ \
+            --strict-markers \
+            --override-ini="addopts=" \
             -v
