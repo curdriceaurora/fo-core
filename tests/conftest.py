@@ -8,12 +8,27 @@ Requires Python 3.11+.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+# Eagerly import the lazily-loaded `fo logs` command module at collection time.
+#
+# `cli/logs.py` binds ``get_canonical_paths`` via ``from config.path_manager
+# import get_canonical_paths`` at module scope, and `cli.main` imports
+# `cli.logs` lazily (only on the first ``fo logs`` invocation). If that first
+# import happens *inside* a test that has monkeypatched
+# ``config.path_manager.get_canonical_paths`` to a temp path, `cli.logs` binds
+# its module-level name to the test's lambda — and ``monkeypatch`` restores the
+# `config.path_manager` attribute but not `cli.logs`'s separate binding. The
+# stale lambda then makes every later ``fo logs`` resolve a deleted temp dir,
+# corrupting unrelated tests under xdist (issue #455). Importing here, before
+# any test runs, pins the binding to the real function.
+import cli.logs  # noqa: F401  (intentional import-for-side-effect)
 
 collect_ignore_glob = [
     # Playwright browser tests require `playwright install chromium` and
@@ -23,6 +38,73 @@ collect_ignore_glob = [
     # Run explicitly: pytest tests/playwright/ --browser chromium --override-ini='addopts='
     "playwright/**",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Global test isolation
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _restore_loguru_handlers() -> Iterator[None]:
+    """Drop loguru handlers leaked by a test so they cannot pollute later tests.
+
+    ``cli.main.main_callback`` installs per-run rotating-file and session-log
+    sinks on loguru's *global* logger and relies on Typer ``call_on_close``
+    callbacks to remove them. Several tests exercise that callback while
+    monkeypatching ``loguru.logger.remove`` to a no-op (to keep loguru's global
+    state out of their own assertions); the no-op suppresses the cleanup, so the
+    sinks leak into the global logger. Because those sinks use ``serialize=True``
+    and ``enqueue=True``, a leaked handler keeps writing NDJSON log records to
+    whatever stream is active — and under Typer's ``CliRunner`` (which mixes
+    stderr into the captured stdout) that corrupts the output of a *different*
+    test sharing the same xdist worker, intermittently breaking JSON-output and
+    log-content assertions (issue #455).
+
+    Snapshot the handler ids before the test and restore loguru to its pre-test
+    handler set. ``logger._core.handlers`` is loguru's internal handler registry;
+    loguru exposes no public list-handlers API, but this attribute has been
+    stable across releases.
+
+    ``logger.remove`` is captured at setup and called directly at teardown:
+    the very tests that leak handlers do so by monkeypatching
+    ``loguru.logger.remove`` to a no-op, and fixture-teardown order relative to
+    ``monkeypatch`` is not guaranteed — binding the real callable up front makes
+    the cleanup work regardless.
+
+    Two teardown cases:
+
+    * **Baseline intact** (common): every pre-test handler id is still present,
+      so only the handlers the test added are dropped.
+    * **Baseline disturbed**: the test called bare ``logger.remove()`` — e.g.
+      ``cli.analytics.analytics_command`` does this before installing its own
+      stderr sink — which removes pre-existing handlers. ``logger.remove()``
+      *stops* sinks irreversibly (enqueue workers terminated) and leaves loguru's
+      cached ``min_level`` stale, so re-inserting the original handler objects
+      would revive dead sinks. Reset to loguru's default stderr sink via the
+      public ``add`` API instead (which rebuilds ``min_level`` correctly), so
+      later tests start from a functional baseline rather than with logging
+      silently disabled.
+    """
+    from loguru import logger
+
+    real_remove = logger.remove  # bind before a test can monkeypatch it to a no-op
+    before = set(logger._core.handlers)
+    try:
+        yield
+    finally:
+        after = set(logger._core.handlers)
+        if before <= after:
+            # Baseline survived — only drop what the test added (stops their workers).
+            for handler_id in after - before:
+                with contextlib.suppress(ValueError):
+                    real_remove(handler_id)  # ValueError: already removed via call_on_close
+        elif after != before:
+            # A pre-test handler was removed; the originals are unrecoverable, so
+            # restore a functional default instead of leaving logging disabled.
+            real_remove()
+            logger.add(sys.stderr)
+
 
 # ---------------------------------------------------------------------------
 # Version-aware fixtures
