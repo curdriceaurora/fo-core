@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -162,12 +162,13 @@ def test_organize_command_live(mock_organizer_cls, _mock_setup, tmp_path):
     assert "Organizing" in result.stdout
     mock_organizer_cls.assert_called_once_with(
         dry_run=False,
-        parallel_workers=None,
+        parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
         prefetch_depth=2,
         enable_vision=True,
         no_prefetch=False,
         transcribe_audio=False,
         max_transcribe_seconds=600.0,
+        timeout_per_file=300.0,  # AppConfig/ProcessingSettings default per #396
     )
     # show_skipped kwarg is always forwarded (defaults to False) since #412.
     mock_instance.organize.assert_called_once_with(in_dir, out_dir, show_skipped=False)
@@ -193,12 +194,13 @@ def test_organize_command_dry_run(mock_organizer_cls, _mock_setup, tmp_path):
     assert "Dry run mode" in result.stdout
     mock_organizer_cls.assert_called_once_with(
         dry_run=True,
-        parallel_workers=None,
+        parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
         prefetch_depth=2,
         enable_vision=True,
         no_prefetch=False,
         transcribe_audio=False,
         max_transcribe_seconds=600.0,
+        timeout_per_file=300.0,  # AppConfig/ProcessingSettings default per #396
     )
     # A.cli resolves the path args before dispatching; the service sees
     # the canonical absolute form. show_skipped=False default since #412.
@@ -243,12 +245,13 @@ def test_preview_command(mock_organizer_cls, _mock_setup, tmp_path):
     assert "Previewing" in result.stdout
     mock_organizer_cls.assert_called_once_with(
         dry_run=True,
-        parallel_workers=None,
+        parallel_workers=ANY,  # auto-default min(4, cpu_count()//2) per #408
         prefetch_depth=2,
         enable_vision=True,
         no_prefetch=False,
         transcribe_audio=False,
         max_transcribe_seconds=600.0,
+        timeout_per_file=300.0,  # AppConfig/ProcessingSettings default per #396
     )
     resolved = in_dir.resolve()
     mock_instance.organize.assert_called_once_with(resolved, resolved)
