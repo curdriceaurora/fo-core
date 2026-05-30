@@ -8,6 +8,7 @@ Requires Python 3.11+.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -60,16 +61,30 @@ def _restore_loguru_handlers() -> Iterator[None]:
     test sharing the same xdist worker, intermittently breaking JSON-output and
     log-content assertions (issue #455).
 
-    Snapshot the handler ids before the test and remove any added during it,
-    restoring loguru to its pre-test handler set. ``logger._core.handlers`` is
-    loguru's internal handler registry; loguru exposes no public list-handlers
-    API, but this attribute has been stable across releases.
+    Snapshot the handler ids before the test and restore loguru to its pre-test
+    handler set. ``logger._core.handlers`` is loguru's internal handler registry;
+    loguru exposes no public list-handlers API, but this attribute has been
+    stable across releases.
 
     ``logger.remove`` is captured at setup and called directly at teardown:
     the very tests that leak handlers do so by monkeypatching
     ``loguru.logger.remove`` to a no-op, and fixture-teardown order relative to
     ``monkeypatch`` is not guaranteed — binding the real callable up front makes
     the cleanup work regardless.
+
+    Two teardown cases:
+
+    * **Baseline intact** (common): every pre-test handler id is still present,
+      so only the handlers the test added are dropped.
+    * **Baseline disturbed**: the test called bare ``logger.remove()`` — e.g.
+      ``cli.analytics.analytics_command`` does this before installing its own
+      stderr sink — which removes pre-existing handlers. ``logger.remove()``
+      *stops* sinks irreversibly (enqueue workers terminated) and leaves loguru's
+      cached ``min_level`` stale, so re-inserting the original handler objects
+      would revive dead sinks. Reset to loguru's default stderr sink via the
+      public ``add`` API instead (which rebuilds ``min_level`` correctly), so
+      later tests start from a functional baseline rather than with logging
+      silently disabled.
     """
     from loguru import logger
 
@@ -78,11 +93,17 @@ def _restore_loguru_handlers() -> Iterator[None]:
     try:
         yield
     finally:
-        for handler_id in set(logger._core.handlers) - before:
-            try:
-                real_remove(handler_id)
-            except ValueError:
-                pass  # already removed (e.g. by the command's own call_on_close)
+        after = set(logger._core.handlers)
+        if before <= after:
+            # Baseline survived — only drop what the test added (stops their workers).
+            for handler_id in after - before:
+                with contextlib.suppress(ValueError):
+                    real_remove(handler_id)  # ValueError: already removed via call_on_close
+        elif after != before:
+            # A pre-test handler was removed; the originals are unrecoverable, so
+            # restore a functional default instead of leaving logging disabled.
+            real_remove()
+            logger.add(sys.stderr)
 
 
 # ---------------------------------------------------------------------------
