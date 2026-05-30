@@ -190,7 +190,9 @@ def test_rotating_log_file_created(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["hardware-info"])
+    # `logs --list` runs full startup bookkeeping; `hardware-info` is now a
+    # zero-startup command (#451) that skips sink setup, so it can't carry this.
+    result = runner.invoke(app, ["logs", "--list"])
     assert result.exit_code == 0
     assert log_dir.exists(), "log directory should be created"
     log_files = list(log_dir.glob("fo.log*"))
@@ -234,8 +236,11 @@ def test_unwritable_log_dir_degrades_gracefully(
         raise OSError("permission denied")
 
     monkeypatch.setattr("config.path_manager.get_canonical_paths", _raise_oserror)
+    monkeypatch.setattr("loguru.logger.add", lambda *_a, **_k: None)
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["hardware-info"])
+    # `--debug` forces the full startup path; `hardware-info` alone is now a
+    # zero-startup command (#451) and would skip the log-sink block under test.
+    result = runner.invoke(app, ["--debug", "hardware-info"])
     assert result.exit_code == 0
