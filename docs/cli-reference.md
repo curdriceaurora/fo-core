@@ -403,6 +403,47 @@ fo analytics ~/Documents
 
 ---
 
+### `logs`
+
+View or tail fo log files.
+
+By default, shows the last 50 lines of the main `fo.log` file. Use `--session`
+to view the most recent session log instead, or `--list` to see all available
+session logs.
+
+**Usage:**
+
+```bash
+fo logs [OPTIONS]
+```
+
+**Options:**
+- `--follow, -f` — Follow log output (like `tail -f`)
+- `--lines, -n INTEGER` — Number of lines to show (default: 50)
+- `--session` — Show the latest session log instead of the main `fo.log`
+- `--list, -l` — List all available session logs
+
+**Examples:**
+
+```bash
+# Show the last 50 lines of fo.log
+fo logs
+
+# Tail fo.log (like tail -f)
+fo logs --follow
+
+# Show the latest session log
+fo logs --session
+
+# List all session logs
+fo logs --list
+
+# Show the last 100 lines of the latest session log
+fo logs --session --lines 100
+```
+
+---
+
 ## Sub-Commands
 
 ### `benchmark` — Performance Benchmarking
