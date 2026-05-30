@@ -142,9 +142,10 @@ def test_preview_requires_setup_completed(mock_cm):
     assert "setup" in result.stdout.lower()
 
 
+@patch("cli.organize._resolve_timeout_per_file", return_value=300.0)
 @patch("cli.organize._check_setup_completed", return_value=True)
 @patch("core.organizer.FileOrganizer")
-def test_organize_command_live(mock_organizer_cls, _mock_setup, tmp_path):
+def test_organize_command_live(mock_organizer_cls, _mock_setup, _mock_timeout, tmp_path):
     """Test organize command executes FileOrganizer correctly."""
     mock_instance = MagicMock()
     mock_result = MagicMock(processed_files=5, skipped_files=1, failed_files=0)
@@ -174,9 +175,10 @@ def test_organize_command_live(mock_organizer_cls, _mock_setup, tmp_path):
     mock_instance.organize.assert_called_once_with(in_dir, out_dir, show_skipped=False)
 
 
+@patch("cli.organize._resolve_timeout_per_file", return_value=300.0)
 @patch("cli.organize._check_setup_completed", return_value=True)
 @patch("core.organizer.FileOrganizer")
-def test_organize_command_dry_run(mock_organizer_cls, _mock_setup, tmp_path):
+def test_organize_command_dry_run(mock_organizer_cls, _mock_setup, _mock_timeout, tmp_path):
     """Test organize command processes dry-run flag."""
     mock_instance = MagicMock()
     mock_result = MagicMock(processed_files=3, skipped_files=0, failed_files=0)
@@ -228,9 +230,10 @@ def test_organize_command_error(mock_organizer_cls, _mock_setup, tmp_path):
     assert "Error: Something broke" in result.stdout
 
 
+@patch("cli.organize._resolve_timeout_per_file", return_value=300.0)
 @patch("cli.organize._check_setup_completed", return_value=True)
 @patch("core.organizer.FileOrganizer")
-def test_preview_command(mock_organizer_cls, _mock_setup, tmp_path):
+def test_preview_command(mock_organizer_cls, _mock_setup, _mock_timeout, tmp_path):
     """Test preview command runs organizer in dry_run mode."""
     mock_instance = MagicMock()
     mock_result = MagicMock(total_files=10)
