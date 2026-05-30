@@ -7,6 +7,7 @@ External dependencies (ffmpeg, pydub) are mocked.
 
 from __future__ import annotations
 
+import builtins
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,6 +17,12 @@ from services.audio.preprocessor import (
     AudioFormat,
     AudioPreprocessor,
 )
+
+# Real ``__import__`` captured before any test patches ``builtins.__import__``.
+# ``fake_import`` helpers delegate non-target imports here so legitimate stdlib
+# imports (e.g. ``ntpath`` lazily imported by ``Path(...)`` on Python 3.12)
+# still succeed instead of being rejected by an over-broad stub.
+_ORIG_IMPORT = builtins.__import__
 
 pytestmark = [pytest.mark.unit]
 
@@ -230,7 +237,7 @@ class TestConvertWithPydub:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError("no pydub")
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             with pytest.raises(ImportError, match="Neither ffmpeg nor pydub"):
@@ -269,7 +276,7 @@ class TestNormalizeAudio:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError
-            raise ImportError
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             result = preprocessor.normalize_audio(audio_file)
@@ -321,7 +328,7 @@ class TestRemoveSilence:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError
-            raise ImportError
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             result = preprocessor.remove_silence(audio_file)
@@ -420,7 +427,7 @@ class TestGetAudioInfo:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError
-            raise ImportError
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             info = AudioPreprocessor.get_audio_info(audio_file)

@@ -7,6 +7,7 @@ All external dependencies (pydub, tinytag) are mocked.
 
 from __future__ import annotations
 
+import builtins
 import hashlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -28,6 +29,13 @@ from services.audio.utils import (
 )
 
 pytestmark = [pytest.mark.unit]
+
+# Real ``__import__`` captured at module-import time (before any test patches
+# ``builtins.__import__``). The ``fake_import`` helpers below delegate every
+# non-target import to it so that legitimate stdlib imports triggered by
+# production code still succeed — e.g. ``Path(...)`` lazily imports ``ntpath``
+# on Python 3.12, which an over-broad "raise for everything" stub would break.
+_ORIG_IMPORT = builtins.__import__
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +96,7 @@ class TestGetAudioDuration:
                 raise ImportError("no pydub")
             if name == "tinytag":
                 return mock_tinytag
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             duration = get_audio_duration(audio_file)
@@ -101,7 +109,7 @@ class TestGetAudioDuration:
         def fake_import(name, *args, **kwargs):
             if name in ("pydub", "tinytag"):
                 raise ImportError(f"no {name}")
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             duration = get_audio_duration(audio_file)
@@ -151,7 +159,7 @@ class TestNormalizeAudio:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError("no pydub")
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             result = normalize_audio(audio_file)
@@ -186,7 +194,7 @@ class TestSplitAudio:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError("no pydub")
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             result = split_audio(audio_file)
@@ -235,7 +243,7 @@ class TestConvertAudioFormat:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError("no pydub")
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             result = convert_audio_format(audio_file, "wav")
@@ -316,7 +324,7 @@ class TestDetectSilenceSegments:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError("no pydub")
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             result = detect_silence_segments(audio_file)
@@ -359,7 +367,7 @@ class TestTrimAudio:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError
-            raise ImportError
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             result = trim_audio(audio_file)
@@ -400,7 +408,7 @@ class TestMergeAudioFiles:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError
-            raise ImportError
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             with pytest.raises(ImportError):
@@ -456,7 +464,7 @@ class TestGetAudioPeakAmplitude:
         def fake_import(name, *args, **kwargs):
             if "pydub" in name:
                 raise ImportError
-            raise ImportError
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             result = get_audio_peak_amplitude(audio_file)

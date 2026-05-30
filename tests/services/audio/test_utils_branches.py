@@ -7,6 +7,7 @@ src/services/audio/utils.py.  Every test class carries
 
 from __future__ import annotations
 
+import builtins
 import hashlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -26,6 +27,12 @@ from services.audio.utils import (
     trim_audio,
     validate_audio_file,
 )
+
+# Real ``__import__`` captured before any test patches ``builtins.__import__``.
+# ``fake_import`` helpers delegate non-target imports here so legitimate stdlib
+# imports (e.g. ``ntpath`` lazily imported by ``Path(...)`` on Python 3.12)
+# still succeed instead of being rejected by an over-broad stub.
+_ORIG_IMPORT = builtins.__import__
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -58,7 +65,7 @@ class TestGetAudioDurationBranches:
                 raise ImportError("no pydub")
             if name == "tinytag":
                 return mock_tinytag
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=fake_import):
             duration = get_audio_duration(audio)
@@ -571,7 +578,7 @@ class TestDetectSilenceSegmentsBranches:
             """Substitute __import__ that raises ImportError for any pydub import."""
             if "pydub" in name:
                 raise ImportError("no pydub")
-            raise ImportError(f"no {name}")
+            return _ORIG_IMPORT(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=_no_pydub):
             result = detect_silence_segments(audio_file)
