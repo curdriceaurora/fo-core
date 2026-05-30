@@ -81,7 +81,7 @@ _SETUP_GATE_ALLOWLIST: frozenset[str] = frozenset(
 relaxes the first-run gate for it — verify the command doesn't write
 or organize files first."""
 
-_ZERO_STARTUP_COMMANDS: frozenset[str] = frozenset({"version"})
+_ZERO_STARTUP_COMMANDS: frozenset[str] = frozenset({"version", "hardware-info"})
 """Commands whose contract is pure metadata output.
 
 These commands should not pay for log sinks, setup checks, durable-move
@@ -159,7 +159,7 @@ def main_callback(
 ) -> None:
     """Initialize global CLI state and perform startup bookkeeping.
 
-    Sets ctx.obj to a CLIState containing the provided flags (with CLIState.no_interactive set to the inverse of `interactive`), generates a unique session ID for this invocation, installs the credential-redacting log filter on the root logger, sets up per-run session logging, and runs a durable-move recovery sweep on the default journal to clean up interrupted operations. The startup sweep is skipped when the invoked subcommand is "recover"; if the sweep raises an exception it is logged at WARNING and execution continues.
+    Sets ctx.obj to a CLIState containing the provided flags (with CLIState.no_interactive set to the inverse of `interactive`), generates a unique session ID for this invocation, installs the credential-redacting log filter on the root logger, sets up per-run session logging, and runs a durable-move recovery sweep on the default journal to clean up interrupted operations. The startup sweep is skipped when the invoked subcommand is "recover"; if the sweep raises an exception it is logged at WARNING and execution continues. Zero-startup commands (those in _ZERO_STARTUP_COMMANDS, e.g. "version" and "hardware-info") skip all I/O bookkeeping — log sinks and the recovery sweep — unless --debug is passed, which forces the full startup path.
 
     Parameters:
         ctx (typer.Context): Typer invocation context used to store CLIState.
@@ -167,9 +167,6 @@ def main_callback(
         version_flag (bool): Eager version callback value (accepted and ignored here).
     """
     _ = version_flag
-
-    if ctx.invoked_subcommand in _ZERO_STARTUP_COMMANDS:
-        return
 
     # Generate unique session ID for this CLI invocation
     # Format: YYYY-MM-DDTHH-MM-SS-{short_uuid}
@@ -186,6 +183,14 @@ def main_callback(
         debug=debug,
         session_id=session_id,
     )
+
+    # Zero-startup commands (pure metadata / read-only diagnostics) skip the I/O
+    # bookkeeping below — log sinks, session-log cleanup, durable-move recovery
+    # sweep. CLIState is built first (above) so global flags like --json still
+    # flow through to these commands. --debug opts back into the full path so
+    # loguru DEBUG output and recovery still run when explicitly requested.
+    if not debug and ctx.invoked_subcommand in _ZERO_STARTUP_COMMANDS:
+        return
 
     if debug:
         # Install a loguru DEBUG-level stderr handler so every

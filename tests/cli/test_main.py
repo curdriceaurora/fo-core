@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from importlib.metadata import PackageNotFoundError
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,6 +54,63 @@ def test_version_command_skips_startup_bookkeeping(monkeypatch: pytest.MonkeyPat
     assert "fo 1.2.3" in result.stdout
     assert log_sink_calls == []
     assert sweep_calls == []
+
+
+@pytest.mark.ci
+def test_hardware_info_command_skips_startup_bookkeeping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`fo hardware-info` should print its profile without log sinks or recovery sweeps."""
+    log_sink_calls: list[object] = []
+    sweep_calls: list[object] = []
+
+    monkeypatch.setattr("loguru.logger.add", lambda sink, **_kwargs: log_sink_calls.append(sink))
+    monkeypatch.setattr("cli.main._durable_move_sweep", lambda journal: sweep_calls.append(journal))
+    monkeypatch.setattr("core.hardware_profile.detect_hardware", lambda: MagicMock())
+
+    result = runner.invoke(app, ["hardware-info"])
+
+    assert result.exit_code == 0
+    assert log_sink_calls == []
+    assert sweep_calls == []
+    assert "Hardware Profile" in result.stdout
+
+
+@pytest.mark.ci
+def test_hardware_info_honors_global_json_flag() -> None:
+    """`fo --json hardware-info` must emit JSON (global flag flows through after reorder)."""
+    fake_profile = MagicMock()
+    fake_profile.to_dict.return_value = {"gpu_type": "none", "ram_gb": 16}
+
+    with patch("core.hardware_profile.detect_hardware", return_value=fake_profile):
+        result = runner.invoke(app, ["--json", "hardware-info"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload == {"gpu_type": "none", "ram_gb": 16}
+
+
+@pytest.mark.ci
+def test_hardware_info_debug_forces_full_startup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`fo --debug hardware-info` opts back into the full startup path (sinks + sweep)."""
+    log_sink_calls: list[object] = []
+    sweep_calls: list[object] = []
+
+    monkeypatch.setattr("loguru.logger.add", lambda sink, **_kwargs: log_sink_calls.append(sink))
+    # call_on_close fires logger.remove() on the (mocked) sink ids; loguru's
+    # remove(None) wipes ALL handlers, so noop it to avoid polluting global state.
+    monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
+    monkeypatch.setattr("cli.main._durable_move_sweep", lambda journal: sweep_calls.append(journal))
+    monkeypatch.setattr("config.path_manager.get_canonical_paths", lambda: {"logs": tmp_path})
+    monkeypatch.setattr("core.hardware_profile.detect_hardware", lambda: MagicMock())
+
+    result = runner.invoke(app, ["--debug", "hardware-info"])
+
+    assert result.exit_code == 0
+    assert len(log_sink_calls) >= 3  # debug stderr + rotating-file + session sinks installed
+    assert len(sweep_calls) == 1  # durable-move recovery sweep ran exactly once
 
 
 @pytest.mark.ci

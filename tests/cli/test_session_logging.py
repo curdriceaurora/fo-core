@@ -215,10 +215,13 @@ def test_unwritable_session_log_dir_degrades_gracefully(
         original_mkdir(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "mkdir", _patched_mkdir)
+    monkeypatch.setattr("loguru.logger.add", lambda *_a, **_k: None)
     monkeypatch.setattr("loguru.logger.remove", lambda _id: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["hardware-info"])
+    # `--debug` forces the full startup path; `hardware-info` alone is now a
+    # zero-startup command (#451) and would skip the session-log block under test.
+    result = runner.invoke(app, ["--debug", "hardware-info"])
     # Should degrade gracefully and still exit 0
     assert result.exit_code == 0
 
