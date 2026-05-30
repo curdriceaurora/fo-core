@@ -92,6 +92,17 @@ Based on checklist results, decide on action:
 
 **Action**: Continue monitoring, check again in 5-10 minutes
 
+### Scenario A2: Draft PR with Green CI ✅ → Un-draft
+
+- PR is in **draft** state
+- All required CI checks have completed green (skipped main-only jobs don't count against this)
+
+**Action**: Automatically switch the PR from draft to ready-for-review (un-draft).
+Do **not** wait to be asked, and do **not** auto-merge — un-drafting only. Marking
+ready triggers reviewers (e.g. CodeRabbit) and surfaces the PR for approval. If a
+later commit sends the PR back through draft and its CI is green again, re-apply
+this rule.
+
 ### Scenario B: Issue Detected ⚠️
 - CI failing (related to your changes)
 - OR new comments requiring fixes

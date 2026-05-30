@@ -86,6 +86,7 @@
 
 **What Triggers State Changes**:
 - Issue detected (CI fail, new comments, merge conflict) → PAUSED
+- Draft PR + all required CI green → auto un-draft (mark ready; never auto-merge). See Scenario A2 in `pr-monitoring-protocol.md`.
 - Merge conditions met → READY TO MERGE
 - Unresolvable issue (waiting for clarification, unresponsive reviewer) → BLOCKED
 
