@@ -488,6 +488,24 @@ class TestVisionProcessorStructuredPath:
         assert result.folder_name == "animals"
         assert result.filename == "black_cat"
 
+    def test_structured_non_mapping_result_falls_back_to_legacy(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """Malformed structured adapters degrade like parse failures."""
+        img = tmp_path / "cat.jpg"
+        img.write_bytes(b"x")
+        mock_vision_model.generate_structured.side_effect = None
+        mock_vision_model.generate_structured.return_value = MagicMock()
+        mock_vision_model.generate.side_effect = ["a cat", "", "animals", "black_cat"]
+
+        result, _ = _run_inner(vision_processor, img)
+
+        assert mock_vision_model.generate_structured.call_count == 2
+        assert mock_vision_model.generate.call_count == 4
+        assert result.description == "a cat"
+        assert result.folder_name == "animals"
+        assert result.filename == "black_cat"
+
     def test_structured_requests_only_enabled_fields(
         self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
     ) -> None:
@@ -563,15 +581,15 @@ class TestVisionProcessorStructuredPath:
         assert result.extracted_text is None  # sentinel filtered, not stored verbatim
         assert result.has_text is False
 
-    def test_structured_empty_description_falls_back(
+    def test_structured_blank_description_falls_back(
         self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
     ) -> None:
-        """An empty description is backfilled with the legacy placeholder."""
+        """A blank description is backfilled with the legacy placeholder."""
         img = tmp_path / "s.jpg"
         img.write_bytes(b"x")
         mock_vision_model.generate_structured.side_effect = None
         mock_vision_model.generate_structured.return_value = _structured(
-            desc="", text="", folder="x", name="y"
+            desc="   ", text="", folder="x", name="y"
         )
 
         result, _ = _run_inner(vision_processor, img)

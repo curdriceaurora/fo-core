@@ -6,6 +6,7 @@ import re
 import threading
 import time
 import types as _t
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -382,7 +383,7 @@ class VisionProcessor:
             # Mirror the legacy "description is never empty for a model call"
             # invariant (only when description was requested).
             description = (
-                (parsed.get("description") or f"Image from {file_path.name}")
+                (parsed.get("description", "").strip() or f"Image from {file_path.name}")
                 if generate_description
                 else ""
             )
@@ -541,7 +542,7 @@ class VisionProcessor:
             reason = self._circuit_reason or "backend unavailable"
             raise RuntimeError(f"Vision backend circuit open: {reason}")
         try:
-            return self.vision_model.generate_structured(
+            result = self.vision_model.generate_structured(
                 fields,
                 image_path=image_path,
                 strict_json_only=strict,
@@ -551,6 +552,17 @@ class VisionProcessor:
             if self._is_fatal_backend_error(exc):
                 self._trip_backend_circuit(exc)
             raise
+        if not isinstance(result, Mapping):
+            raise StructuredParseError(
+                f"generate_structured returned {type(result).__name__}, expected mapping"
+            )
+
+        parsed = dict(result)
+        if not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in parsed.items()
+        ):
+            raise StructuredParseError("generate_structured returned non-string keys or values")
+        return parsed
 
     def _clean_ai_generated_name(self, name: str, max_words: int = 3) -> str:
         """Clean AI-generated folder/file names with lighter filtering.
