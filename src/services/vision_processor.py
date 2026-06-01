@@ -334,6 +334,7 @@ class VisionProcessor:
                 # retained legacy 4-call path.
                 return self._legacy_process(
                     file_path,
+                    start_time,
                     generate_description,
                     perform_ocr,
                     generate_folder,
@@ -356,15 +357,40 @@ class VisionProcessor:
                         ),
                         True,  # the call that tripped the circuit DID happen
                     )
-                raise
+                # Non-fatal backend error (empty-response ValueError, transient
+                # 5xx, etc.). Fall back to the per-field path so its typed
+                # handlers absorb it gracefully (matches pre-#433 behavior)
+                # instead of dumping the file into "errors/".
+                return self._legacy_process(
+                    file_path,
+                    start_time,
+                    generate_description,
+                    perform_ocr,
+                    generate_folder,
+                    generate_filename,
+                )
 
-            extracted = parsed.get("extracted_text") or None
-            has_text = bool(extracted and len(extracted.strip()) > 10)
+            # Mirror legacy _extract_text safeguards: sentinel/too-short OCR
+            # responses become None instead of persisting verbatim.
+            _ocr_text = (parsed.get("extracted_text") or "").strip()
+            extracted: str | None = (
+                None
+                if _ocr_text.upper() in ["NO_TEXT", "NO TEXT", "NONE", "N/A"] or len(_ocr_text) < 10
+                else _ocr_text
+            )
+            has_text = bool(extracted and len(extracted) > 10)
+            # Mirror the legacy "description is never empty for a model call"
+            # invariant (only when description was requested).
+            description = (
+                (parsed.get("description") or f"Image from {file_path.name}")
+                if generate_description
+                else ""
+            )
             processing_time = time.time() - start_time
             return (
                 ProcessedImage(
                     file_path=file_path,
-                    description=parsed.get("description", ""),
+                    description=description,
                     folder_name=(
                         self._finalize_folder_name(parsed.get("folder_name", ""))
                         if generate_folder
@@ -417,6 +443,7 @@ class VisionProcessor:
     def _legacy_process(
         self,
         file_path: Path,
+        start_time: float,
         generate_description: bool,
         perform_ocr: bool,
         generate_folder: bool,
@@ -429,8 +456,11 @@ class VisionProcessor:
         ``(result, model_invoked)`` where ``model_invoked`` is True iff at
         least one field call was attempted. The post-description circuit
         check short-circuits the remaining calls when the backend trips.
+
+        ``start_time`` is the caller's processing-start anchor, threaded in
+        so ``processing_time`` covers the whole request (not just the
+        fallback) when the structured path defers here.
         """
-        start_time = time.time()
         model_invoked = False
 
         # Generate description

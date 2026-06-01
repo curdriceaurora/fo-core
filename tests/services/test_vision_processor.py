@@ -547,6 +547,56 @@ class TestVisionProcessorStructuredPath:
         assert result.confidence == 0.0
         assert result.error is not None
 
+    def test_structured_filters_sentinel_extracted_text(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """A sentinel OCR response is filtered to None, not stored verbatim."""
+        img = tmp_path / "s.jpg"
+        img.write_bytes(b"x")
+        mock_vision_model.generate_structured.side_effect = None
+        mock_vision_model.generate_structured.return_value = _structured(
+            desc="a sticker", text="NO_TEXT", folder="stickers", name="red_dot"
+        )
+
+        result, _ = _run_inner(vision_processor, img)
+
+        assert result.extracted_text is None  # sentinel filtered, not stored verbatim
+        assert result.has_text is False
+
+    def test_structured_empty_description_falls_back(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """An empty description is backfilled with the legacy placeholder."""
+        img = tmp_path / "s.jpg"
+        img.write_bytes(b"x")
+        mock_vision_model.generate_structured.side_effect = None
+        mock_vision_model.generate_structured.return_value = _structured(
+            desc="", text="", folder="x", name="y"
+        )
+
+        result, _ = _run_inner(vision_processor, img)
+
+        assert result.description == f"Image from {img.name}"
+
+    def test_structured_nonfatal_backend_error_degrades_via_legacy(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """A non-fatal backend error defers to legacy per-field, not "errors/"."""
+        img = tmp_path / "s.jpg"
+        img.write_bytes(b"x")
+        # Non-fatal error (not in _FATAL_BACKEND_MARKERS) — circuit must NOT trip.
+        vision_processor._is_fatal_backend_error = lambda exc: False  # type: ignore[method-assign]
+        mock_vision_model.generate_structured.side_effect = ValueError(
+            "Ollama returned empty response for model x"
+        )
+        # Legacy per-field sequence: description, OCR, folder, filename.
+        mock_vision_model.generate.side_effect = ["a cat", "", "animals", "black_cat"]
+
+        result, _ = _run_inner(vision_processor, img)
+
+        assert result.folder_name != "errors"  # graceful, not the error shape
+        assert mock_vision_model.generate.call_count == 4  # legacy path absorbed it
+
 
 @pytest.mark.unit
 class TestVisionProcessorCleanName:

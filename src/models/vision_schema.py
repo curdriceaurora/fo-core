@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 
 
 class StructuredParseError(Exception):
@@ -19,16 +18,6 @@ class StructuredParseError(Exception):
     timeouts) are never wrapped in this — they propagate so the caller's
     circuit breaker handles them.
     """
-
-
-@dataclass
-class VisionStructuredResult:
-    """Combined per-image vision result produced in a single model call."""
-
-    description: str = ""
-    extracted_text: str = ""
-    folder_name: str = ""
-    filename: str = ""
 
 
 # Field name -> human-readable guidance injected into the prompt.
@@ -93,7 +82,7 @@ def parse_structured_json(raw: str, fields: list[str]) -> dict[str, str]:
     missing = [f for f in fields if f not in obj]
     if missing:
         raise StructuredParseError(f"Missing required keys {missing} in {obj!r}")
-    return {f: str(obj[f]) for f in fields}
+    return {f: "" if obj[f] is None else str(obj[f]) for f in fields}
 
 
 def _first_json_object(text: str) -> dict[str, object] | None:

@@ -78,3 +78,10 @@ def test_parse_handles_braces_inside_string_values() -> None:
 def test_parse_no_json_raises() -> None:
     with pytest.raises(StructuredParseError):
         parse_structured_json("the model refused to answer", ["description"])
+
+
+@pytest.mark.ci
+def test_parse_coerces_json_null_to_empty_string() -> None:
+    raw = '{"description": "a cat", "folder_name": null}'
+    out = parse_structured_json(raw, ["description", "folder_name"])
+    assert out == {"description": "a cat", "folder_name": ""}
