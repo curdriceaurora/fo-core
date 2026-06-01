@@ -426,6 +426,30 @@ class TestVisionProcessorCleanName:
         assert result == "nature_landscape_view"
 
 
+@pytest.mark.ci
+def test_finalize_folder_name_cleans_and_truncates(
+    vision_processor: VisionProcessor,
+) -> None:
+    """Folder-name finalizer strips prefixes, cleans, and falls back when empty."""
+    assert (
+        vision_processor._finalize_folder_name("Category: Nature Photography!!")
+        == "nature_photography"
+    )
+    assert vision_processor._finalize_folder_name("") == "images"
+
+
+@pytest.mark.ci
+def test_finalize_filename_cleans_and_falls_back_to_stem(
+    vision_processor: VisionProcessor, tmp_path: Path
+) -> None:
+    """Filename finalizer strips prefixes/extension and falls back to the stem."""
+    img = tmp_path / "DSC_0001.jpg"
+    assert vision_processor._finalize_filename("filename: Sunset Over Mountains.png", img) == (
+        "sunset_over_mountains"
+    )
+    assert vision_processor._finalize_filename("", img) == "DSC_0001"
+
+
 @pytest.mark.unit
 class TestVisionProcessorDescriptionAndOCR:
     """Tests for _generate_description and _extract_text methods."""

@@ -564,39 +564,52 @@ CATEGORY:"""
             )
 
             logger.debug(f"AI folder response (raw): '{response}'")
-
-            # Clean the response
-            folder_name = response.strip().lower()
-
-            # Remove common prefixes and quotes
-            for prefix in ["category:", "folder:", "the category is", "the folder is"]:
-                folder_name = folder_name.replace(prefix, "").strip()
-            folder_name = folder_name.strip("\"'")
-
-            # Remove newlines and extra spaces
-            folder_name = " ".join(folder_name.split())
-
-            logger.debug(f"AI folder response (cleaned): '{folder_name}'")
-
-            # Use lighter cleaning for AI-generated names
-            folder_name = self._clean_ai_generated_name(folder_name, max_words=2)
-
-            logger.debug(f"AI folder response (after filter): '{folder_name}'")
-
-            if not folder_name or len(folder_name) < 3:
-                logger.warning(f"Folder name empty or too short ('{folder_name}'), using fallback")
-                folder_name = "images"
-
-            # Final safety check
-            folder_name = re.sub(r"[^\w_]", "_", folder_name)
-            folder_name = re.sub(r"_+", "_", folder_name).strip("_")
-            result = folder_name[:50] if folder_name else "images"
-            logger.info(f"Final folder name: '{result}'")
-            return result
+            return self._finalize_folder_name(response)
 
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
             logger.error(f"Failed to generate folder name: {e}")
             return "images"
+
+    def _finalize_folder_name(self, raw: str) -> str:
+        """Clean a raw folder-name string into a filesystem-safe category.
+
+        Shared by the legacy ``_generate_folder_name`` and the structured path
+        (#433) so model output is never trusted for filesystem safety.
+
+        Args:
+            raw: Unprocessed model output for the folder/category name.
+
+        Returns:
+            Filesystem-safe folder name (max 2 words, ``"images"`` fallback).
+        """
+        # Clean the response
+        folder_name = raw.strip().lower()
+
+        # Remove common prefixes and quotes
+        for prefix in ["category:", "folder:", "the category is", "the folder is"]:
+            folder_name = folder_name.replace(prefix, "").strip()
+        folder_name = folder_name.strip("\"'")
+
+        # Remove newlines and extra spaces
+        folder_name = " ".join(folder_name.split())
+
+        logger.debug(f"AI folder response (cleaned): '{folder_name}'")
+
+        # Use lighter cleaning for AI-generated names
+        folder_name = self._clean_ai_generated_name(folder_name, max_words=2)
+
+        logger.debug(f"AI folder response (after filter): '{folder_name}'")
+
+        if not folder_name or len(folder_name) < 3:
+            logger.warning(f"Folder name empty or too short ('{folder_name}'), using fallback")
+            folder_name = "images"
+
+        # Final safety check
+        folder_name = re.sub(r"[^\w_]", "_", folder_name)
+        folder_name = re.sub(r"_+", "_", folder_name).strip("_")
+        result = folder_name[:50] if folder_name else "images"
+        logger.info(f"Final folder name: '{result}'")
+        return result
 
     def _generate_filename(self, image_path: Path, context: str) -> str:
         """Generate a filename from image context.
@@ -638,42 +651,57 @@ FILENAME:"""
             )
 
             logger.debug(f"AI filename response (raw): '{response}'")
-
-            # Clean the response
-            filename = response.strip().lower()
-
-            # Remove common prefixes and quotes
-            for prefix in ["filename:", "file:", "name:", "the filename is", "the name is"]:
-                filename = filename.replace(prefix, "").strip()
-            filename = filename.strip("\"'")
-
-            # Remove file extensions if AI added them
-            filename = re.sub(r"\.(txt|pdf|jpg|jpeg|png|gif|bmp)$", "", filename)
-
-            # Remove newlines and extra spaces
-            filename = " ".join(filename.split())
-
-            logger.debug(f"AI filename response (cleaned): '{filename}'")
-
-            # Use lighter cleaning for AI-generated names
-            filename = self._clean_ai_generated_name(filename, max_words=3)
-
-            logger.debug(f"AI filename response (after filter): '{filename}'")
-
-            if not filename or len(filename) < 3:
-                logger.warning(f"Filename empty or too short ('{filename}'), using fallback")
-                filename = image_path.stem
-
-            # Final safety check
-            filename = re.sub(r"[^\w_]", "_", filename)
-            filename = re.sub(r"_+", "_", filename).strip("_")
-            result = filename[:50] if filename else "image"
-            logger.info(f"Final filename: '{result}'")
-            return result
+            return self._finalize_filename(response, image_path)
 
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
             logger.error(f"Failed to generate filename: {e}")
             return image_path.stem
+
+    def _finalize_filename(self, raw: str, image_path: Path) -> str:
+        """Clean a raw filename string into a filesystem-safe stem.
+
+        Shared by the legacy ``_generate_filename`` and the structured path
+        (#433). Falls back to ``image_path.stem`` when empty/too short, and to
+        the literal ``"image"`` if the safety pass strips it to nothing.
+
+        Args:
+            raw: Unprocessed model output for the filename.
+            image_path: Source image path, used for the stem fallback.
+
+        Returns:
+            Filesystem-safe filename stem (max 3 words, no extension).
+        """
+        # Clean the response
+        filename = raw.strip().lower()
+
+        # Remove common prefixes and quotes
+        for prefix in ["filename:", "file:", "name:", "the filename is", "the name is"]:
+            filename = filename.replace(prefix, "").strip()
+        filename = filename.strip("\"'")
+
+        # Remove file extensions if AI added them
+        filename = re.sub(r"\.(txt|pdf|jpg|jpeg|png|gif|bmp)$", "", filename)
+
+        # Remove newlines and extra spaces
+        filename = " ".join(filename.split())
+
+        logger.debug(f"AI filename response (cleaned): '{filename}'")
+
+        # Use lighter cleaning for AI-generated names
+        filename = self._clean_ai_generated_name(filename, max_words=3)
+
+        logger.debug(f"AI filename response (after filter): '{filename}'")
+
+        if not filename or len(filename) < 3:
+            logger.warning(f"Filename empty or too short ('{filename}'), using fallback")
+            filename = image_path.stem
+
+        # Final safety check
+        filename = re.sub(r"[^\w_]", "_", filename)
+        filename = re.sub(r"_+", "_", filename).strip("_")
+        result = filename[:50] if filename else "image"
+        logger.info(f"Final filename: '{result}'")
+        return result
 
     def _guarded_generate(self, **kwargs: Any) -> str:
         """Run model.generate behind a fatal-error circuit-breaker.
