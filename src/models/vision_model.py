@@ -27,6 +27,11 @@ from models.base import (
     ModelType,
     TokenExhaustionError,
 )
+from models.vision_schema import (
+    build_vision_json_prompt,
+    build_vision_json_schema,
+    parse_structured_json,
+)
 
 OLLAMA_MODEL_INIT_EXCEPTIONS: tuple[type[BaseException], ...] = (
     RuntimeError,
@@ -153,6 +158,10 @@ class VisionModel(BaseModel):
         # Extract max_image_long_edge from kwargs (passed by VisionProcessor)
         max_image_long_edge = kwargs.pop("max_image_long_edge", 1024)
 
+        # Optional JSON schema for Ollama structured output (#433). Threaded
+        # through BOTH the initial call and the token-exhaustion retry.
+        response_format = kwargs.pop("format", None)
+
         # Prepare image input
         images: list[str | bytes]
         if image_path is not None:
@@ -197,6 +206,7 @@ class VisionModel(BaseModel):
                 images=images,
                 options=options,
                 stream=False,
+                format=response_format,
             )
 
             # Detect token exhaustion and retry once with doubled budget
@@ -213,6 +223,7 @@ class VisionModel(BaseModel):
                     images=images,
                     options=retry_options,
                     stream=False,
+                    format=response_format,
                 )
 
                 if is_token_exhausted(response):
@@ -238,6 +249,32 @@ class VisionModel(BaseModel):
         except (RuntimeError, ConnectionError, OSError) as e:
             logger.error("Failed to analyze image: {}", e)
             raise
+
+    def generate_structured(
+        self,
+        fields: list[str],
+        *,
+        image_path: str | Path | None = None,
+        image_data: bytes | None = None,
+        strict_json_only: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, str]:
+        """Ollama structured output: pass the JSON schema via ``format=``.
+
+        Reuses ``generate()`` (and thus downscaling, options, lifecycle guards,
+        and token-exhaustion retry) so reliability comes for free. The same
+        schema is sent on the initial call and the strict retry.
+        """
+        prompt = build_vision_json_prompt(fields, strict=strict_json_only)
+        schema = build_vision_json_schema(fields)
+        raw = self.generate(
+            prompt,
+            image_path=image_path,
+            image_data=image_data,
+            format=schema,
+            **kwargs,
+        )
+        return parse_structured_json(raw, fields)
 
     def analyze_image(
         self,
