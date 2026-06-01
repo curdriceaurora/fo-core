@@ -2331,3 +2331,38 @@ class TestFileOrganizer:
 
         mock_fallback.assert_called_once()
         assert result.total_files == 1
+
+
+# ---------------------------------------------------------------------------
+# TestVisionSingleStructuredCall (#433)
+# ---------------------------------------------------------------------------
+
+
+class TestVisionSingleStructuredCall:
+    """#433 acceptance: VisionProcessor makes exactly one structured call per image."""
+
+    @pytest.mark.integration
+    def test_vision_makes_single_structured_call_per_image(self, tmp_path: Path) -> None:
+        """#433: one structured model call per image, no legacy per-field calls."""
+        from models.base import ModelType
+        from services.vision_processor import VisionProcessor
+
+        mock_model = MagicMock()
+        mock_model.is_initialized = True
+        mock_model.config.model_type = ModelType.VISION
+        mock_model.generate_structured.return_value = {
+            "description": "a cat",
+            "extracted_text": "",
+            "folder_name": "animals",
+            "filename": "black_cat",
+        }
+
+        processor = VisionProcessor(vision_model=mock_model)
+
+        img = tmp_path / "cat.jpg"
+        img.write_bytes(b"fake-image-bytes")
+
+        processor.process_file(img)
+
+        assert mock_model.generate_structured.call_count == 1
+        assert mock_model.generate.call_count == 0
