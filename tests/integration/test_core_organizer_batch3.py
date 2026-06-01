@@ -2366,3 +2366,123 @@ class TestVisionSingleStructuredCall:
 
         assert mock_model.generate_structured.call_count == 1
         assert mock_model.generate.call_count == 0
+
+    @pytest.mark.integration
+    def test_structured_contract_retry_and_schema_helpers(self, tmp_path: Path) -> None:
+        """Structured helpers tolerate model noise and retry malformed typed payloads."""
+        from models.base import ModelType
+        from models.vision_schema import (
+            StructuredParseError,
+            build_vision_json_prompt,
+            build_vision_json_schema,
+            parse_structured_json,
+        )
+        from services.vision_processor import VisionProcessor
+
+        schema = build_vision_json_schema(["description", "filename"])
+        assert schema["required"] == ["description", "filename"]
+        assert schema["additionalProperties"] is False
+
+        prompt = build_vision_json_prompt(["folder_name"], strict=True)
+        assert prompt.lower().startswith("return only one valid json object")
+        assert "prioritize that text" in prompt
+
+        parsed = parse_structured_json(
+            'Here is JSON:\n```json\n{"description": "a sign", "folder_name": null, '
+            '"ignored": 1}\n```',
+            ["description", "folder_name"],
+        )
+        assert parsed == {"description": "a sign", "folder_name": ""}
+        with pytest.raises(StructuredParseError):
+            parse_structured_json("no object here", ["description"])
+        with pytest.raises(StructuredParseError):
+            parse_structured_json('{"description": "x"}', ["description", "filename"])
+
+        mock_model = MagicMock()
+        mock_model.is_initialized = True
+        mock_model.config.model_type = ModelType.VISION
+        mock_model.generate_structured.side_effect = [
+            {"description": 7},
+            {
+                "description": "strict success",
+                "folder_name": "signage",
+                "filename": "store_sign",
+            },
+        ]
+
+        processor = VisionProcessor(vision_model=mock_model)
+        img = tmp_path / "sign.jpg"
+        img.write_bytes(b"fake-image-bytes")
+
+        result = processor.process_file(img, perform_ocr=False)
+
+        assert result.description == "strict success"
+        assert result.folder_name == "signage"
+        assert result.filename == "store_sign"
+        assert mock_model.generate_structured.call_count == 2
+        assert mock_model.generate_structured.call_args_list[1].kwargs["strict_json_only"] is True
+
+    @pytest.mark.integration
+    def test_malformed_structured_output_falls_back_to_legacy(self, tmp_path: Path) -> None:
+        """Non-mapping structured adapters fall back to the legacy per-field path."""
+        from models.base import ModelType
+        from services.vision_processor import VisionProcessor
+
+        mock_model = MagicMock()
+        mock_model.is_initialized = True
+        mock_model.config.model_type = ModelType.VISION
+        mock_model.generate_structured.return_value = MagicMock()
+        mock_model.generate.side_effect = [
+            "legacy description",
+            "NO_TEXT",
+            "legacy_folder",
+            "legacy_file",
+        ]
+
+        processor = VisionProcessor(vision_model=mock_model)
+        img = tmp_path / "legacy.jpg"
+        img.write_bytes(b"fake-image-bytes")
+
+        result = processor.process_file(img)
+
+        assert result.description == "legacy description"
+        assert result.extracted_text is None
+        assert result.folder_name == "legacy_folder"
+        assert result.filename == "legacy_file"
+        assert mock_model.generate_structured.call_count == 2
+        assert mock_model.generate.call_count == 4
+
+    @pytest.mark.integration
+    def test_base_model_generate_structured_uses_prompt_and_parser(self) -> None:
+        """BaseModel's default structured path builds a prompt, calls generate, and parses."""
+        from models.base import BaseModel, ModelConfig, ModelType
+
+        class FakeVisionModel(BaseModel):
+            def __init__(self) -> None:
+                super().__init__(ModelConfig(name="fake", model_type=ModelType.VISION))
+                self.last_prompt = ""
+                self.last_kwargs: dict[str, Any] = {}
+
+            def initialize(self) -> None:
+                self._initialized = True
+
+            def generate(self, prompt: str, **kwargs: Any) -> str:
+                self.last_prompt = prompt
+                self.last_kwargs = kwargs
+                return 'prefix {"description": "parsed", "folder_name": "docs"} suffix'
+
+            def cleanup(self) -> None:
+                pass
+
+        model = FakeVisionModel()
+        result = model.generate_structured(
+            ["description", "folder_name"],
+            image_path="image.jpg",
+            strict_json_only=True,
+            temperature=0.1,
+        )
+
+        assert result == {"description": "parsed", "folder_name": "docs"}
+        assert model.last_prompt.lower().startswith("return only one valid json object")
+        assert model.last_kwargs["image_path"] == "image.jpg"
+        assert model.last_kwargs["temperature"] == 0.1
