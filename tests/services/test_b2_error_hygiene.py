@@ -218,9 +218,14 @@ class TestVisionProcessorErrorLogsIncludeType:
         # stub ``_generate_description`` to raise so the exception
         # reaches the outer try/except in ``process_file`` (the B2
         # site at src/services/vision_processor.py:208).
+        from models.vision_schema import StructuredParseError
+
         mock_model = MagicMock()
         mock_model.config.model_type = ModelType.VISION
         mock_model.is_initialized = True
+        # Force the legacy per-field path (#433) so ``_generate_description``
+        # is reached and its RuntimeError propagates to the broad B2 except.
+        mock_model.generate_structured.side_effect = StructuredParseError("force legacy")
 
         processor = VisionProcessor(vision_model=mock_model)
         # Defensively close the circuit under its real lock (the

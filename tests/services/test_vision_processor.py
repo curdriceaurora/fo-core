@@ -9,6 +9,7 @@ import pytest
 
 from config.schema import ProcessingSettings
 from models.base import ModelType
+from models.vision_schema import StructuredParseError
 from services.vision_processor import ProcessedImage, VisionProcessor, compute_vision_timeout
 
 pytestmark = [pytest.mark.unit, pytest.mark.ci]
@@ -16,11 +17,18 @@ pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
 @pytest.fixture
 def mock_vision_model() -> MagicMock:
-    """Mocked VisionModel instance."""
+    """Mocked VisionModel instance.
+
+    ``generate_structured`` defaults to raising ``StructuredParseError`` so
+    legacy-path tests (which drive the per-field ``generate`` sequence) fall
+    back to ``_legacy_process`` after the structured attempt fails. Tests that
+    want the structured path explicitly override this side effect.
+    """
     model = MagicMock()
     model.is_initialized = True
     model.config.model_type = ModelType.VISION
     model.generate.return_value = "Mocked AI Response"
+    model.generate_structured.side_effect = StructuredParseError("forced legacy")
     return model
 
 
@@ -379,6 +387,165 @@ class TestVisionProcessorProcessFile:
         assert second.error is not None
         assert "Vision backend unavailable" in second.error
         assert second.inference_ms is None
+
+
+def _structured(
+    desc: str = "a cat",
+    text: str = "",
+    folder: str = "animals",
+    name: str = "black_cat",
+) -> dict[str, str]:
+    """Build a complete structured-result payload for the mock."""
+    return {
+        "description": desc,
+        "extracted_text": text,
+        "folder_name": folder,
+        "filename": name,
+    }
+
+
+def _run_inner(
+    vp: VisionProcessor,
+    img: Path,
+    *,
+    generate_description: bool = True,
+    generate_folder: bool = True,
+    generate_filename: bool = True,
+    perform_ocr: bool = True,
+) -> tuple[ProcessedImage, bool]:
+    """Invoke ``_process_file_inner`` with the real keyword-only signature."""
+    import time as _time
+
+    return vp._process_file_inner(
+        img,
+        start_time=_time.time(),
+        generate_description=generate_description,
+        generate_folder=generate_folder,
+        generate_filename=generate_filename,
+        perform_ocr=perform_ocr,
+    )
+
+
+@pytest.mark.unit
+class TestVisionProcessorStructuredPath:
+    """Tests for the single structured-call path in _process_file_inner (#433)."""
+
+    def test_structured_happy_path_single_call(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """One structured call satisfies all fields; legacy generate untouched."""
+        img = tmp_path / "cat.jpg"
+        img.write_bytes(b"x")
+        mock_vision_model.generate_structured.side_effect = None
+        mock_vision_model.generate_structured.return_value = _structured()
+
+        result, invoked = _run_inner(vision_processor, img)
+
+        assert invoked is True
+        assert mock_vision_model.generate_structured.call_count == 1
+        assert mock_vision_model.generate.call_count == 0
+        assert result.description == "a cat"
+        assert result.folder_name == "animals"
+        assert result.filename == "black_cat"
+
+    def test_structured_retry_then_success(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """A first bad-JSON attempt retries once with strict=True and succeeds."""
+        img = tmp_path / "cat.jpg"
+        img.write_bytes(b"x")
+        mock_vision_model.generate_structured.side_effect = [
+            StructuredParseError("bad"),
+            _structured(),
+        ]
+
+        result, _ = _run_inner(vision_processor, img)
+
+        assert mock_vision_model.generate_structured.call_count == 2
+        # The wrapper's ``strict=True`` maps to the model's ``strict_json_only``
+        # kwarg (the real ``generate_structured`` signature).
+        assert (
+            mock_vision_model.generate_structured.call_args_list[1].kwargs["strict_json_only"]
+            is True
+        )
+        assert result.folder_name == "animals"
+
+    def test_structured_double_failure_falls_back_to_legacy(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """Two bad-JSON attempts fall back to the legacy 4-call path."""
+        img = tmp_path / "cat.jpg"
+        img.write_bytes(b"x")
+        mock_vision_model.generate_structured.side_effect = [
+            StructuredParseError("a"),
+            StructuredParseError("b"),
+        ]
+        mock_vision_model.generate.side_effect = ["a cat", "", "animals", "black_cat"]
+
+        result, _ = _run_inner(vision_processor, img)
+
+        assert mock_vision_model.generate.call_count == 4
+        assert result.folder_name == "animals"
+        assert result.filename == "black_cat"
+
+    def test_structured_requests_only_enabled_fields(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """Only enabled flags appear in the requested fields list."""
+        img = tmp_path / "cat.jpg"
+        img.write_bytes(b"x")
+        mock_vision_model.generate_structured.side_effect = None
+        mock_vision_model.generate_structured.return_value = {
+            "folder_name": "animals",
+            "filename": "black_cat",
+        }
+
+        _run_inner(
+            vision_processor,
+            img,
+            generate_description=False,
+            perform_ocr=False,
+        )
+
+        fields = mock_vision_model.generate_structured.call_args.args[0]
+        assert set(fields) == {"folder_name", "filename"}
+
+    def test_empty_fields_makes_zero_calls(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """All flags off → no model call of either kind, model_invoked False."""
+        img = tmp_path / "cat.jpg"
+        img.write_bytes(b"x")
+
+        result, invoked = _run_inner(
+            vision_processor,
+            img,
+            generate_description=False,
+            generate_folder=False,
+            generate_filename=False,
+            perform_ocr=False,
+        )
+
+        assert invoked is False
+        assert mock_vision_model.generate_structured.call_count == 0
+        assert mock_vision_model.generate.call_count == 0
+
+    def test_backend_fatal_returns_circuit_degradation_shape(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """A fatal backend error trips the circuit and yields the degradation shape."""
+        img = tmp_path / "cat.jpg"
+        img.write_bytes(b"x")
+        vision_processor._is_fatal_backend_error = lambda exc: True  # type: ignore[method-assign]
+        mock_vision_model.generate_structured.side_effect = RuntimeError("model is shutting down")
+
+        result, invoked = _run_inner(vision_processor, img)
+
+        assert invoked is True
+        assert result.folder_name == "images"  # NOT "errors"
+        assert result.filename == img.stem
+        assert result.confidence == 0.0
+        assert result.error is not None
 
 
 @pytest.mark.unit

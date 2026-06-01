@@ -16,6 +16,7 @@ from config.schema import ProcessingSettings
 from models import VisionModel
 from models.base import BaseModel, ModelConfig, ModelType
 from models.provider_factory import get_vision_model
+from models.vision_schema import StructuredParseError
 from services.inference_timer import time_inference
 
 _BYTES_PER_MB = 1024 * 1024
@@ -296,65 +297,86 @@ class VisionProcessor:
                     False,  # no model call attempted
                 )
 
-            # Generate description
-            description = ""
+            # Single structured call (#433): request exactly the enabled
+            # fields in one shot, with a strict-mode retry and a fallback to
+            # the legacy per-field path when the JSON is unparsable twice.
+            fields: list[str] = []
             if generate_description:
-                logger.debug(f"Analyzing image: {file_path.name}")
-                model_invoked = True  # _generate_description issues the model call
-                description = self._generate_description(file_path)
-                logger.debug(f"Generated description ({len(description)} chars)")
+                fields.append("description")
+            if perform_ocr:
+                fields.append("extracted_text")
+            if generate_folder:
+                fields.append("folder_name")
+            if generate_filename:
+                fields.append("filename")
+
+            if not fields:
+                return (
+                    ProcessedImage(
+                        file_path=file_path,
+                        description="",
+                        folder_name="",
+                        filename="",
+                    ),
+                    False,  # no model call attempted
+                )
+
+            model_invoked = True
+            try:
+                try:
+                    parsed = self._guarded_generate_structured(file_path, fields, strict=False)
+                except StructuredParseError:
+                    # First attempt produced bad/incomplete JSON — retry once
+                    # with the strict JSON-only prompt before falling back.
+                    parsed = self._guarded_generate_structured(file_path, fields, strict=True)
+            except StructuredParseError:
+                # Both structured attempts failed to parse — fall back to the
+                # retained legacy 4-call path.
+                return self._legacy_process(
+                    file_path,
+                    generate_description,
+                    perform_ocr,
+                    generate_folder,
+                    generate_filename,
+                )
+            except Exception:
+                # Backend error (possibly fatal). If the guarded wrapper tripped
+                # the circuit, emit the same degradation shape as the legacy
+                # post-description circuit check; otherwise re-raise into the
+                # broad handler below.
                 if self._is_circuit_open():
-                    error_message = self._circuit_open_error()
                     return (
                         ProcessedImage(
                             file_path=file_path,
-                            description=description or f"Image from {file_path.name}",
+                            description=f"Image from {file_path.name}",
                             folder_name="images",
                             filename=file_path.stem,
-                            error=error_message,
+                            error=self._circuit_open_error(),
                             confidence=0.0,
                         ),
                         True,  # the call that tripped the circuit DID happen
                     )
+                raise
 
-            # Extract text if needed
-            extracted_text = None
-            has_text = False
-            if perform_ocr:
-                model_invoked = True  # _extract_text issues the model call
-                extracted_text = self._extract_text(file_path)
-                has_text = bool(extracted_text and len(extracted_text.strip()) > 10)
-                if has_text and extracted_text is not None:
-                    logger.debug(f"Extracted {len(extracted_text)} chars of text")
-
-            # Generate folder name
-            folder_name = ""
-            if generate_folder:
-                model_invoked = True  # _generate_folder_name issues the model call
-                # Use extracted text if available, otherwise use description
-                context: str = (extracted_text or description) if has_text else description
-                folder_name = self._generate_folder_name(file_path, context)
-                logger.debug(f"Generated folder name: {folder_name}")
-
-            # Generate filename
-            filename = ""
-            if generate_filename:
-                model_invoked = True  # _generate_filename issues the model call
-                # Use extracted text if available, otherwise use description
-                context = (extracted_text or description) if has_text else description
-                filename = self._generate_filename(file_path, context)
-                logger.debug(f"Generated filename: {filename}")
-
+            extracted = parsed.get("extracted_text") or None
+            has_text = bool(extracted and len(extracted.strip()) > 10)
             processing_time = time.time() - start_time
-
             return (
                 ProcessedImage(
                     file_path=file_path,
-                    description=description,
-                    folder_name=folder_name,
-                    filename=filename,
+                    description=parsed.get("description", ""),
+                    folder_name=(
+                        self._finalize_folder_name(parsed.get("folder_name", ""))
+                        if generate_folder
+                        else ""
+                    ),
+                    filename=(
+                        self._finalize_filename(parsed.get("filename", ""), file_path)
+                        if generate_filename
+                        else ""
+                    ),
                     has_text=has_text,
-                    extracted_text=extracted_text[:500] if extracted_text else None,
+                    extracted_text=extracted[:500] if extracted else None,
                     processing_time=processing_time,
                 ),
                 model_invoked,
@@ -391,6 +413,114 @@ class VisionProcessor:
                 ),
                 model_invoked,
             )
+
+    def _legacy_process(
+        self,
+        file_path: Path,
+        generate_description: bool,
+        perform_ocr: bool,
+        generate_folder: bool,
+        generate_filename: bool,
+    ) -> tuple[ProcessedImage, bool]:
+        """Retained per-field 4-call path used as a structured-output fallback.
+
+        Issues one model call per enabled field (description, OCR, folder,
+        filename) via the legacy ``_generate_*`` helpers. Returns
+        ``(result, model_invoked)`` where ``model_invoked`` is True iff at
+        least one field call was attempted. The post-description circuit
+        check short-circuits the remaining calls when the backend trips.
+        """
+        start_time = time.time()
+        model_invoked = False
+
+        # Generate description
+        description = ""
+        if generate_description:
+            logger.debug(f"Analyzing image: {file_path.name}")
+            model_invoked = True  # _generate_description issues the model call
+            description = self._generate_description(file_path)
+            logger.debug(f"Generated description ({len(description)} chars)")
+            if self._is_circuit_open():
+                error_message = self._circuit_open_error()
+                return (
+                    ProcessedImage(
+                        file_path=file_path,
+                        description=description or f"Image from {file_path.name}",
+                        folder_name="images",
+                        filename=file_path.stem,
+                        error=error_message,
+                        confidence=0.0,
+                    ),
+                    True,  # the call that tripped the circuit DID happen
+                )
+
+        # Extract text if needed
+        extracted_text = None
+        has_text = False
+        if perform_ocr:
+            model_invoked = True  # _extract_text issues the model call
+            extracted_text = self._extract_text(file_path)
+            has_text = bool(extracted_text and len(extracted_text.strip()) > 10)
+            if has_text and extracted_text is not None:
+                logger.debug(f"Extracted {len(extracted_text)} chars of text")
+
+        # Generate folder name
+        folder_name = ""
+        if generate_folder:
+            model_invoked = True  # _generate_folder_name issues the model call
+            # Use extracted text if available, otherwise use description
+            context: str = (extracted_text or description) if has_text else description
+            folder_name = self._generate_folder_name(file_path, context)
+            logger.debug(f"Generated folder name: {folder_name}")
+
+        # Generate filename
+        filename = ""
+        if generate_filename:
+            model_invoked = True  # _generate_filename issues the model call
+            # Use extracted text if available, otherwise use description
+            context = (extracted_text or description) if has_text else description
+            filename = self._generate_filename(file_path, context)
+            logger.debug(f"Generated filename: {filename}")
+
+        processing_time = time.time() - start_time
+
+        return (
+            ProcessedImage(
+                file_path=file_path,
+                description=description,
+                folder_name=folder_name,
+                filename=filename,
+                has_text=has_text,
+                extracted_text=extracted_text[:500] if extracted_text else None,
+                processing_time=processing_time,
+            ),
+            model_invoked,
+        )
+
+    def _guarded_generate_structured(
+        self, image_path: Path, fields: list[str], *, strict: bool
+    ) -> dict[str, str]:
+        """Run model.generate_structured behind the fatal-error circuit-breaker.
+
+        Mirrors ``_guarded_generate``: short-circuits when the circuit is open,
+        and on a fatal backend error trips the circuit and re-raises.
+        ``StructuredParseError`` is NOT a backend error — it propagates so the
+        caller can retry / fall back.
+        """
+        if self._is_circuit_open():
+            reason = self._circuit_reason or "backend unavailable"
+            raise RuntimeError(f"Vision backend circuit open: {reason}")
+        try:
+            return self.vision_model.generate_structured(
+                fields,
+                image_path=image_path,
+                strict_json_only=strict,
+                max_image_long_edge=self._max_image_long_edge,
+            )
+        except Exception as exc:  # circuit-breaker for any backend error
+            if self._is_fatal_backend_error(exc):
+                self._trip_backend_circuit(exc)
+            raise
 
     def _clean_ai_generated_name(self, name: str, max_words: int = 3) -> str:
         """Clean AI-generated folder/file names with lighter filtering.
