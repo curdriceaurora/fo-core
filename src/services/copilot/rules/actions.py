@@ -266,7 +266,7 @@ def apply_symlink(
 
     try:
         os.symlink(src.resolve(), final_dest)
-    except OSError as exc:
+    except (RuntimeError, OSError) as exc:
         msg = f"Failed to create symlink {final_dest} → {src}: {exc}"
         logger.error(msg)
         return LinkResult(
