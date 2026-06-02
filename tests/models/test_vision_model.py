@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -445,3 +446,99 @@ class TestVisionModelTokenExhaustion:
 
         assert "perfectly adequate" in result
         assert mock_client.generate.call_count == 1
+
+
+@pytest.mark.unit
+class TestVisionModelStructuredFormat:
+    """Tests for Ollama ``format=`` passthrough and generate_structured override."""
+
+    def test_do_generate_omits_format_key_when_not_provided(self) -> None:
+        """Legacy calls must not include ``format`` in the client kwargs (older Ollama rejects null)."""
+        from models.vision_model import VisionModel
+
+        calls: list[dict[str, Any]] = []
+
+        class _Client:
+            def generate(self, **kwargs: Any) -> dict[str, str]:
+                calls.append(kwargs)
+                return {"response": "plain text"}
+
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
+            model = VisionModel(VisionModel.get_default_config())
+        model.client = _Client()
+        model._initialized = True
+        model.generate("p", image_data=b"img", max_image_long_edge=1024)
+        assert "format" not in calls[0], "format key must be absent when no schema is passed"
+
+    def test_do_generate_forwards_format_on_first_call(
+        self, vision_model_config: ModelConfig
+    ) -> None:
+        """The JSON schema passed as ``format=`` reaches the initial client call."""
+        from models.vision_model import VisionModel
+
+        calls: list[dict[str, Any]] = []
+
+        class _Client:
+            def generate(self, **kwargs: Any) -> dict[str, str]:
+                calls.append(kwargs)
+                return {"response": '{"description": "x"}'}
+
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
+            model = VisionModel(VisionModel.get_default_config())
+        model.client = _Client()
+        model._initialized = True
+        schema = {"type": "object"}
+        out = model.generate("p", image_data=b"img", format=schema, max_image_long_edge=1024)
+        assert out == '{"description": "x"}'
+        assert calls[0]["format"] == schema
+
+    def test_do_generate_forwards_format_on_token_exhaustion_retry(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The schema is re-sent on the token-exhaustion retry call."""
+        from models import vision_model as vm
+
+        calls: list[dict[str, Any]] = []
+        responses = [
+            {"response": "", "done_reason": "length"},
+            {"response": '{"description": "x"}'},
+        ]
+
+        class _Client:
+            def generate(self, **kwargs: Any) -> dict[str, str]:
+                calls.append(kwargs)
+                return responses[len(calls) - 1]
+
+        monkeypatch.setattr(vm, "is_token_exhausted", lambda r: r.get("done_reason") == "length")
+        monkeypatch.setattr(vm, "format_exhaustion_diagnostics", lambda r, n: "diag")
+        monkeypatch.setattr(vm, "compute_retry_num_predict", lambda n: (n or 0) * 2)
+
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
+            model = vm.VisionModel(vm.VisionModel.get_default_config())
+        model.client = _Client()
+        model._initialized = True
+        schema = {"type": "object"}
+        model.generate("p", image_data=b"img", format=schema, max_image_long_edge=1024)
+        assert len(calls) == 2
+        assert calls[0]["format"] == schema and calls[1]["format"] == schema
+
+    def test_generate_structured_override_passes_schema_and_parses(
+        self,
+    ) -> None:
+        """The override builds a schema, sends it via ``format=``, and parses the result."""
+        from models.vision_model import VisionModel
+
+        seen: dict[str, Any] = {}
+
+        class _Client:
+            def generate(self, **kwargs: Any) -> dict[str, str]:
+                seen.update(kwargs)
+                return {"response": '{"description": "d", "folder_name": "f"}'}
+
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
+            model = VisionModel(VisionModel.get_default_config())
+        model.client = _Client()
+        model._initialized = True
+        out = model.generate_structured(["description", "folder_name"], image_data=b"img")
+        assert out == {"description": "d", "folder_name": "f"}
+        assert seen["format"]["required"] == ["description", "folder_name"]

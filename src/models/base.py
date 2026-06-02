@@ -7,7 +7,14 @@ import types
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, Literal
+
+from models.vision_schema import (
+    StructuredParseError,  # noqa: F401  (re-exported for callers)
+    build_vision_json_prompt,
+    parse_structured_json,
+)
 
 # ---------------------------------------------------------------------------
 # Token-exhaustion constants
@@ -230,6 +237,27 @@ class BaseModel(ABC):
                 timeout=self.CLEANUP_TIMEOUT,
             )
         self.cleanup()
+
+    def generate_structured(
+        self,
+        fields: list[str],
+        *,
+        image_path: str | Path | None = None,
+        image_data: bytes | None = None,
+        strict_json_only: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, str]:
+        """Generate one structured JSON result for ``fields`` in a single call.
+
+        Backend-agnostic default: build a JSON-instructed prompt, call
+        ``generate()``, and parse. Backends with native structured output
+        (e.g. Ollama ``format=``) override this. Raises ``StructuredParseError``
+        on a bad/incomplete payload; backend errors from ``generate()``
+        propagate unchanged so the caller's circuit breaker handles them.
+        """
+        prompt = build_vision_json_prompt(fields, strict=strict_json_only)
+        raw = self.generate(prompt, image_path=image_path, image_data=image_data, **kwargs)
+        return parse_structured_json(raw, fields)
 
     def __enter__(self) -> BaseModel:
         """Context manager entry."""

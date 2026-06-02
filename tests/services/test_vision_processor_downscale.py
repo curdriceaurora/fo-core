@@ -29,13 +29,18 @@ def large_test_image(tmp_path: Path) -> Path:
 def test_vision_processor_downscales_large_image(large_test_image: Path) -> None:
     """Test that VisionProcessor downscales large images before sending to model."""
     from models.base import ModelType
+
+    # Create a mock vision model. Force the legacy per-field path (#433) so
+    # this test exercises the ``generate`` call that carries the downscale
+    # parameter — the structured path is covered separately.
+    from models.vision_schema import StructuredParseError
     from services.vision_processor import VisionProcessor
 
-    # Create a mock vision model
     mock_model = MagicMock()
     mock_model.is_initialized = True
     mock_model.config.model_type = ModelType.VISION
     mock_model.generate.return_value = "Test description"
+    mock_model.generate_structured.side_effect = StructuredParseError("force legacy")
 
     # Create processor with default max_image_long_edge (1024)
     processor = VisionProcessor(vision_model=mock_model, max_image_long_edge=1024)

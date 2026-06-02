@@ -6,6 +6,7 @@ import re
 import threading
 import time
 import types as _t
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from config.schema import ProcessingSettings
 from models import VisionModel
 from models.base import BaseModel, ModelConfig, ModelType
 from models.provider_factory import get_vision_model
+from models.vision_schema import StructuredParseError
 from services.inference_timer import time_inference
 
 _BYTES_PER_MB = 1024 * 1024
@@ -296,65 +298,112 @@ class VisionProcessor:
                     False,  # no model call attempted
                 )
 
-            # Generate description
-            description = ""
+            # Single structured call (#433): request exactly the enabled
+            # fields in one shot, with a strict-mode retry and a fallback to
+            # the legacy per-field path when the JSON is unparsable twice.
+            fields: list[str] = []
             if generate_description:
-                logger.debug(f"Analyzing image: {file_path.name}")
-                model_invoked = True  # _generate_description issues the model call
-                description = self._generate_description(file_path)
-                logger.debug(f"Generated description ({len(description)} chars)")
+                fields.append("description")
+            if perform_ocr:
+                fields.append("extracted_text")
+            if generate_folder:
+                fields.append("folder_name")
+            if generate_filename:
+                fields.append("filename")
+
+            if not fields:
+                return (
+                    ProcessedImage(
+                        file_path=file_path,
+                        description="",
+                        folder_name="",
+                        filename="",
+                    ),
+                    False,  # no model call attempted
+                )
+
+            model_invoked = True
+            try:
+                try:
+                    parsed = self._guarded_generate_structured(file_path, fields, strict=False)
+                except StructuredParseError:
+                    # First attempt produced bad/incomplete JSON — retry once
+                    # with the strict JSON-only prompt before falling back.
+                    parsed = self._guarded_generate_structured(file_path, fields, strict=True)
+            except StructuredParseError:
+                # Both structured attempts failed to parse — fall back to the
+                # retained legacy 4-call path.
+                return self._legacy_process(
+                    file_path,
+                    start_time,
+                    generate_description,
+                    perform_ocr,
+                    generate_folder,
+                    generate_filename,
+                )
+            except Exception:
+                # Backend error (possibly fatal). If the guarded wrapper tripped
+                # the circuit, emit the same degradation shape as the legacy
+                # post-description circuit check; otherwise re-raise into the
+                # broad handler below.
                 if self._is_circuit_open():
-                    error_message = self._circuit_open_error()
                     return (
                         ProcessedImage(
                             file_path=file_path,
-                            description=description or f"Image from {file_path.name}",
+                            description=f"Image from {file_path.name}",
                             folder_name="images",
                             filename=file_path.stem,
-                            error=error_message,
+                            error=self._circuit_open_error(),
                             confidence=0.0,
                         ),
                         True,  # the call that tripped the circuit DID happen
                     )
+                # Non-fatal backend error (empty-response ValueError, transient
+                # 5xx, etc.). Fall back to the per-field path so its typed
+                # handlers absorb it gracefully (matches pre-#433 behavior)
+                # instead of dumping the file into "errors/".
+                return self._legacy_process(
+                    file_path,
+                    start_time,
+                    generate_description,
+                    perform_ocr,
+                    generate_folder,
+                    generate_filename,
+                )
 
-            # Extract text if needed
-            extracted_text = None
-            has_text = False
-            if perform_ocr:
-                model_invoked = True  # _extract_text issues the model call
-                extracted_text = self._extract_text(file_path)
-                has_text = bool(extracted_text and len(extracted_text.strip()) > 10)
-                if has_text and extracted_text is not None:
-                    logger.debug(f"Extracted {len(extracted_text)} chars of text")
-
-            # Generate folder name
-            folder_name = ""
-            if generate_folder:
-                model_invoked = True  # _generate_folder_name issues the model call
-                # Use extracted text if available, otherwise use description
-                context: str = (extracted_text or description) if has_text else description
-                folder_name = self._generate_folder_name(file_path, context)
-                logger.debug(f"Generated folder name: {folder_name}")
-
-            # Generate filename
-            filename = ""
-            if generate_filename:
-                model_invoked = True  # _generate_filename issues the model call
-                # Use extracted text if available, otherwise use description
-                context = (extracted_text or description) if has_text else description
-                filename = self._generate_filename(file_path, context)
-                logger.debug(f"Generated filename: {filename}")
-
+            # Mirror legacy _extract_text safeguards: sentinel/too-short OCR
+            # responses become None instead of persisting verbatim.
+            _ocr_text = (parsed.get("extracted_text") or "").strip()
+            extracted: str | None = (
+                None
+                if _ocr_text.upper() in ["NO_TEXT", "NO TEXT", "NONE", "N/A"] or len(_ocr_text) < 10
+                else _ocr_text
+            )
+            has_text = bool(extracted and len(extracted) > 10)
+            # Mirror the legacy "description is never empty for a model call"
+            # invariant (only when description was requested).
+            description = (
+                (parsed.get("description", "").strip() or f"Image from {file_path.name}")
+                if generate_description
+                else ""
+            )
             processing_time = time.time() - start_time
-
             return (
                 ProcessedImage(
                     file_path=file_path,
                     description=description,
-                    folder_name=folder_name,
-                    filename=filename,
+                    folder_name=(
+                        self._finalize_folder_name(parsed.get("folder_name", ""))
+                        if generate_folder
+                        else ""
+                    ),
+                    filename=(
+                        self._finalize_filename(parsed.get("filename", ""), file_path)
+                        if generate_filename
+                        else ""
+                    ),
                     has_text=has_text,
-                    extracted_text=extracted_text[:500] if extracted_text else None,
+                    extracted_text=extracted[:500] if extracted else None,
                     processing_time=processing_time,
                 ),
                 model_invoked,
@@ -391,6 +440,131 @@ class VisionProcessor:
                 ),
                 model_invoked,
             )
+
+    def _legacy_process(
+        self,
+        file_path: Path,
+        start_time: float,
+        generate_description: bool,
+        perform_ocr: bool,
+        generate_folder: bool,
+        generate_filename: bool,
+    ) -> tuple[ProcessedImage, bool]:
+        """Retained per-field 4-call path used as a structured-output fallback.
+
+        Issues one model call per enabled field (description, OCR, folder,
+        filename) via the legacy ``_generate_*`` helpers. Returns
+        ``(result, model_invoked)`` where ``model_invoked`` is True iff at
+        least one field call was attempted. The post-description circuit
+        check short-circuits the remaining calls when the backend trips.
+
+        ``start_time`` is the caller's processing-start anchor, threaded in
+        so ``processing_time`` covers the whole request (not just the
+        fallback) when the structured path defers here.
+        """
+        model_invoked = False
+
+        # Generate description
+        description = ""
+        if generate_description:
+            logger.debug(f"Analyzing image: {file_path.name}")
+            model_invoked = True  # _generate_description issues the model call
+            description = self._generate_description(file_path)
+            logger.debug(f"Generated description ({len(description)} chars)")
+            if self._is_circuit_open():
+                error_message = self._circuit_open_error()
+                return (
+                    ProcessedImage(
+                        file_path=file_path,
+                        description=description or f"Image from {file_path.name}",
+                        folder_name="images",
+                        filename=file_path.stem,
+                        error=error_message,
+                        confidence=0.0,
+                    ),
+                    True,  # the call that tripped the circuit DID happen
+                )
+
+        # Extract text if needed
+        extracted_text = None
+        has_text = False
+        if perform_ocr:
+            model_invoked = True  # _extract_text issues the model call
+            extracted_text = self._extract_text(file_path)
+            has_text = bool(extracted_text and len(extracted_text.strip()) > 10)
+            if has_text and extracted_text is not None:
+                logger.debug(f"Extracted {len(extracted_text)} chars of text")
+
+        # Generate folder name
+        folder_name = ""
+        if generate_folder:
+            model_invoked = True  # _generate_folder_name issues the model call
+            # Use extracted text if available, otherwise use description
+            context: str = (extracted_text or description) if has_text else description
+            folder_name = self._generate_folder_name(file_path, context)
+            logger.debug(f"Generated folder name: {folder_name}")
+
+        # Generate filename
+        filename = ""
+        if generate_filename:
+            model_invoked = True  # _generate_filename issues the model call
+            # Use extracted text if available, otherwise use description
+            context = (extracted_text or description) if has_text else description
+            filename = self._generate_filename(file_path, context)
+            logger.debug(f"Generated filename: {filename}")
+
+        processing_time = time.time() - start_time
+
+        return (
+            ProcessedImage(
+                file_path=file_path,
+                description=description,
+                folder_name=folder_name,
+                filename=filename,
+                has_text=has_text,
+                extracted_text=extracted_text[:500] if extracted_text else None,
+                processing_time=processing_time,
+            ),
+            model_invoked,
+        )
+
+    def _guarded_generate_structured(
+        self, image_path: Path, fields: list[str], *, strict: bool
+    ) -> dict[str, str]:
+        """Run model.generate_structured behind the fatal-error circuit-breaker.
+
+        Mirrors ``_guarded_generate``: short-circuits when the circuit is open,
+        and on a fatal backend error trips the circuit and re-raises.
+        ``StructuredParseError`` is NOT a backend error — it propagates so the
+        caller can retry / fall back.
+        """
+        if self._is_circuit_open():
+            reason = self._circuit_reason or "backend unavailable"
+            raise RuntimeError(f"Vision backend circuit open: {reason}")
+        try:
+            result = self.vision_model.generate_structured(
+                fields,
+                image_path=image_path,
+                strict_json_only=strict,
+                max_image_long_edge=self._max_image_long_edge,
+            )
+        except StructuredParseError:
+            raise
+        except Exception as exc:  # circuit-breaker for any backend error
+            if self._is_fatal_backend_error(exc):
+                self._trip_backend_circuit(exc)
+            raise
+        if not isinstance(result, Mapping):
+            raise StructuredParseError(
+                f"generate_structured returned {type(result).__name__}, expected mapping"
+            )
+
+        parsed = dict(result)
+        if not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in parsed.items()
+        ):
+            raise StructuredParseError("generate_structured returned non-string keys or values")
+        return parsed
 
     def _clean_ai_generated_name(self, name: str, max_words: int = 3) -> str:
         """Clean AI-generated folder/file names with lighter filtering.
@@ -564,39 +738,52 @@ CATEGORY:"""
             )
 
             logger.debug(f"AI folder response (raw): '{response}'")
-
-            # Clean the response
-            folder_name = response.strip().lower()
-
-            # Remove common prefixes and quotes
-            for prefix in ["category:", "folder:", "the category is", "the folder is"]:
-                folder_name = folder_name.replace(prefix, "").strip()
-            folder_name = folder_name.strip("\"'")
-
-            # Remove newlines and extra spaces
-            folder_name = " ".join(folder_name.split())
-
-            logger.debug(f"AI folder response (cleaned): '{folder_name}'")
-
-            # Use lighter cleaning for AI-generated names
-            folder_name = self._clean_ai_generated_name(folder_name, max_words=2)
-
-            logger.debug(f"AI folder response (after filter): '{folder_name}'")
-
-            if not folder_name or len(folder_name) < 3:
-                logger.warning(f"Folder name empty or too short ('{folder_name}'), using fallback")
-                folder_name = "images"
-
-            # Final safety check
-            folder_name = re.sub(r"[^\w_]", "_", folder_name)
-            folder_name = re.sub(r"_+", "_", folder_name).strip("_")
-            result = folder_name[:50] if folder_name else "images"
-            logger.info(f"Final folder name: '{result}'")
-            return result
+            return self._finalize_folder_name(response)
 
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
             logger.error(f"Failed to generate folder name: {e}")
             return "images"
+
+    def _finalize_folder_name(self, raw: str) -> str:
+        """Clean a raw folder-name string into a filesystem-safe category.
+
+        Shared by the legacy ``_generate_folder_name`` and the structured path
+        (#433) so model output is never trusted for filesystem safety.
+
+        Args:
+            raw: Unprocessed model output for the folder/category name.
+
+        Returns:
+            Filesystem-safe folder name (max 2 words, ``"images"`` fallback).
+        """
+        # Clean the response
+        folder_name = raw.strip().lower()
+
+        # Remove common prefixes and quotes
+        for prefix in ["category:", "folder:", "the category is", "the folder is"]:
+            folder_name = folder_name.replace(prefix, "").strip()
+        folder_name = folder_name.strip("\"'")
+
+        # Remove newlines and extra spaces
+        folder_name = " ".join(folder_name.split())
+
+        logger.debug(f"AI folder response (cleaned): '{folder_name}'")
+
+        # Use lighter cleaning for AI-generated names
+        folder_name = self._clean_ai_generated_name(folder_name, max_words=2)
+
+        logger.debug(f"AI folder response (after filter): '{folder_name}'")
+
+        if not folder_name or len(folder_name) < 3:
+            logger.warning(f"Folder name empty or too short ('{folder_name}'), using fallback")
+            folder_name = "images"
+
+        # Final safety check
+        folder_name = re.sub(r"[^\w_]", "_", folder_name)
+        folder_name = re.sub(r"_+", "_", folder_name).strip("_")
+        result = folder_name[:50] if folder_name else "images"
+        logger.info(f"Final folder name: '{result}'")
+        return result
 
     def _generate_filename(self, image_path: Path, context: str) -> str:
         """Generate a filename from image context.
@@ -638,42 +825,57 @@ FILENAME:"""
             )
 
             logger.debug(f"AI filename response (raw): '{response}'")
-
-            # Clean the response
-            filename = response.strip().lower()
-
-            # Remove common prefixes and quotes
-            for prefix in ["filename:", "file:", "name:", "the filename is", "the name is"]:
-                filename = filename.replace(prefix, "").strip()
-            filename = filename.strip("\"'")
-
-            # Remove file extensions if AI added them
-            filename = re.sub(r"\.(txt|pdf|jpg|jpeg|png|gif|bmp)$", "", filename)
-
-            # Remove newlines and extra spaces
-            filename = " ".join(filename.split())
-
-            logger.debug(f"AI filename response (cleaned): '{filename}'")
-
-            # Use lighter cleaning for AI-generated names
-            filename = self._clean_ai_generated_name(filename, max_words=3)
-
-            logger.debug(f"AI filename response (after filter): '{filename}'")
-
-            if not filename or len(filename) < 3:
-                logger.warning(f"Filename empty or too short ('{filename}'), using fallback")
-                filename = image_path.stem
-
-            # Final safety check
-            filename = re.sub(r"[^\w_]", "_", filename)
-            filename = re.sub(r"_+", "_", filename).strip("_")
-            result = filename[:50] if filename else "image"
-            logger.info(f"Final filename: '{result}'")
-            return result
+            return self._finalize_filename(response, image_path)
 
         except (RuntimeError, ValueError, OSError, AttributeError) as e:
             logger.error(f"Failed to generate filename: {e}")
             return image_path.stem
+
+    def _finalize_filename(self, raw: str, image_path: Path) -> str:
+        """Clean a raw filename string into a filesystem-safe stem.
+
+        Shared by the legacy ``_generate_filename`` and the structured path
+        (#433). Falls back to ``image_path.stem`` when empty/too short, and to
+        the literal ``"image"`` if the safety pass strips it to nothing.
+
+        Args:
+            raw: Unprocessed model output for the filename.
+            image_path: Source image path, used for the stem fallback.
+
+        Returns:
+            Filesystem-safe filename stem (max 3 words, no extension).
+        """
+        # Clean the response
+        filename = raw.strip().lower()
+
+        # Remove common prefixes and quotes
+        for prefix in ["filename:", "file:", "name:", "the filename is", "the name is"]:
+            filename = filename.replace(prefix, "").strip()
+        filename = filename.strip("\"'")
+
+        # Remove file extensions if AI added them
+        filename = re.sub(r"\.(txt|pdf|jpg|jpeg|png|gif|bmp)$", "", filename)
+
+        # Remove newlines and extra spaces
+        filename = " ".join(filename.split())
+
+        logger.debug(f"AI filename response (cleaned): '{filename}'")
+
+        # Use lighter cleaning for AI-generated names
+        filename = self._clean_ai_generated_name(filename, max_words=3)
+
+        logger.debug(f"AI filename response (after filter): '{filename}'")
+
+        if not filename or len(filename) < 3:
+            logger.warning(f"Filename empty or too short ('{filename}'), using fallback")
+            filename = image_path.stem
+
+        # Final safety check
+        filename = re.sub(r"[^\w_]", "_", filename)
+        filename = re.sub(r"_+", "_", filename).strip("_")
+        result = filename[:50] if filename else "image"
+        logger.info(f"Final filename: '{result}'")
+        return result
 
     def _guarded_generate(self, **kwargs: Any) -> str:
         """Run model.generate behind a fatal-error circuit-breaker.
