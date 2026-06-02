@@ -29,7 +29,7 @@ from services.copilot.rules.actions import (
     apply_symlink,
 )
 
-pytestmark = [pytest.mark.unit]
+pytestmark = [pytest.mark.unit, pytest.mark.ci]
 
 
 # ---------------------------------------------------------------------------
