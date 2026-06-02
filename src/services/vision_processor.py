@@ -548,6 +548,8 @@ class VisionProcessor:
                 strict_json_only=strict,
                 max_image_long_edge=self._max_image_long_edge,
             )
+        except StructuredParseError:
+            raise
         except Exception as exc:  # circuit-breaker for any backend error
             if self._is_fatal_backend_error(exc):
                 self._trip_backend_circuit(exc)

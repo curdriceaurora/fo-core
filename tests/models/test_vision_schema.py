@@ -85,3 +85,9 @@ def test_parse_coerces_json_null_to_empty_string() -> None:
     raw = '{"description": "a cat", "folder_name": null}'
     out = parse_structured_json(raw, ["description", "folder_name"])
     assert out == {"description": "a cat", "folder_name": ""}
+
+
+@pytest.mark.ci
+def test_prompt_unknown_field_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="Unknown vision fields"):
+        build_vision_json_prompt(["description", "nonexistent_field"])

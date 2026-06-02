@@ -615,6 +615,30 @@ class TestVisionProcessorStructuredPath:
         assert result.folder_name != "errors"  # graceful, not the error shape
         assert mock_vision_model.generate.call_count == 4  # legacy path absorbed it
 
+    def test_structured_parse_error_does_not_trip_circuit(
+        self, vision_processor: VisionProcessor, mock_vision_model: MagicMock, tmp_path: Path
+    ) -> None:
+        """StructuredParseError must never open the backend circuit.
+
+        If model output contains text that happens to match a fatal-backend
+        marker (e.g. "connection refused" in an OCR screenshot), the circuit
+        must remain closed because the parse failure is a content issue, not
+        a backend failure.
+        """
+        img = tmp_path / "s.jpg"
+        img.write_bytes(b"x")
+        # Inject a fatal-looking backend marker into the parse-error message.
+        mock_vision_model.generate_structured.side_effect = [
+            StructuredParseError("connection refused — raw model output"),
+            StructuredParseError("connection refused — raw model output"),
+        ]
+        mock_vision_model.generate.side_effect = ["a cat", "", "animals", "black_cat"]
+
+        result, _ = _run_inner(vision_processor, img)
+
+        assert not vision_processor._is_circuit_open(), "circuit must stay closed on parse errors"
+        assert mock_vision_model.generate.call_count == 4  # fell back to legacy
+
 
 @pytest.mark.unit
 class TestVisionProcessorCleanName:

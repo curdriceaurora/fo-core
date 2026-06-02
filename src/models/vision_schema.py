@@ -46,6 +46,10 @@ def build_vision_json_prompt(fields: list[str], *, strict: bool = False) -> str:
     prepended. The text-priority instruction is included only when a naming
     field (folder_name/filename) is requested.
     """
+    unknown = [f for f in fields if f not in VISION_FIELD_SPECS]
+    if unknown:
+        allowed = sorted(VISION_FIELD_SPECS)
+        raise ValueError(f"Unknown vision fields {unknown!r}; allowed: {allowed}")
     lines = [
         "Analyze this image and respond with a single JSON object containing exactly these keys:"
     ]
