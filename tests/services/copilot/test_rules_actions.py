@@ -112,10 +112,8 @@ class TestFindFreeName:
     def test_raises_when_exhausted(self, tmp_path: Path) -> None:
         base = tmp_path / "a.txt"
         base.write_text("original")
-        with patch("services.copilot.rules.actions._counter_path") as mock_cp:
-            mock_existing = tmp_path / "a_exists.txt"
-            mock_existing.write_text("x")
-            mock_cp.return_value = mock_existing
+        # All candidate paths appear occupied; exhaustion triggers OSError
+        with patch("pathlib.Path.exists", return_value=True):
             with pytest.raises(OSError, match="Could not find a free name"):
                 _find_free_name(base, max_attempts=1)
 
@@ -225,7 +223,7 @@ class TestApplyHardlinkDryRun:
         src = tmp_path / "x.bin"
         src.write_bytes(b"x")
         result = apply_hardlink(src, str(tmp_path / "out" / "x.bin"), dry_run=True)
-        assert "→" in result.message or "->" in result.message or "dry-run" in result.message.lower()
+        assert "[dry-run]" in result.message
 
 
 # ---------------------------------------------------------------------------
@@ -409,11 +407,8 @@ class TestApplySymlinkChainWarning:
         os.symlink(real, link_src)
         dest_str = str(tmp_path / "out" / "link_src.txt")
 
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
+        with pytest.warns(UserWarning, match="symlink chain"):
             apply_symlink(link_src, dest_str)
-
-        assert any("symlink" in str(w.message).lower() for w in caught)
 
     def test_no_warning_on_regular_source(self, tmp_path: Path) -> None:
         src = tmp_path / "regular.txt"
@@ -424,8 +419,8 @@ class TestApplySymlinkChainWarning:
             warnings.simplefilter("always")
             apply_symlink(src, dest_str)
 
-        chain_warnings = [w for w in caught if "symlink" in str(w.message).lower() and "chain" in str(w.message).lower()]
-        assert len(chain_warnings) == 0
+        user_warnings = [w for w in caught if issubclass(w.category, UserWarning)]
+        assert len(user_warnings) == 0
 
 
 # ---------------------------------------------------------------------------
