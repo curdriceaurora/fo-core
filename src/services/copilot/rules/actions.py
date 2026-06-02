@@ -18,7 +18,7 @@ from __future__ import annotations
 import errno
 import os
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
@@ -65,7 +65,7 @@ def _find_free_name(path: Path, *, max_attempts: int = 9999) -> Path:
     """Return the first non-existing path derived from *path* by appending a counter."""
     for i in range(1, max_attempts + 1):
         candidate = _counter_path(path, i)
-        if not candidate.exists():
+        if not candidate.exists() and not candidate.is_symlink():
             return candidate
     raise OSError(
         errno.EEXIST,
@@ -75,8 +75,9 @@ def _find_free_name(path: Path, *, max_attempts: int = 9999) -> Path:
 
 
 def _resolve_dest(src: Path, dest: str) -> Path:
-    """Expand *dest* to a concrete ``Path``, appending the source filename when
-    *dest* is (or resolves to) an existing directory.
+    """Expand *dest* to a concrete ``Path``.
+
+    Appends the source filename when *dest* is (or resolves to) an existing directory.
 
     Args:
         src: The source file path.
@@ -264,7 +265,7 @@ def apply_symlink(
         )
 
     try:
-        os.symlink(src, final_dest)
+        os.symlink(src.resolve(), final_dest)
     except OSError as exc:
         msg = f"Failed to create symlink {final_dest} → {src}: {exc}"
         logger.error(msg)
@@ -327,9 +328,7 @@ def _apply_conflict_strategy(
 
     if strategy == ConflictStrategy.RENAME_EXISTING:
         renamed = _find_free_name(dest)
-        logger.debug(
-            "{}: {} exists — renaming existing file to {}", link_type, dest, renamed
-        )
+        logger.debug("{}: {} exists — renaming existing file to {}", link_type, dest, renamed)
         dest.rename(renamed)
         return dest, False
 

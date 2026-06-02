@@ -533,7 +533,13 @@ class TestActionTypeIntegration:
         assert ActionType("symlink") is ActionType.SYMLINK
 
     def test_rule_with_hardlink_action_roundtrip(self) -> None:
-        from services.copilot.rules.models import ActionType, Rule, RuleAction, RuleCondition, ConditionType
+        from services.copilot.rules.models import (
+            ActionType,
+            ConditionType,
+            Rule,
+            RuleAction,
+            RuleCondition,
+        )
 
         rule = Rule(
             name="photo-view",
@@ -553,7 +559,13 @@ class TestActionTypeIntegration:
         assert restored.action.parameters["conflict"] == "rename_new"
 
     def test_rule_with_symlink_action_roundtrip(self) -> None:
-        from services.copilot.rules.models import ActionType, Rule, RuleAction, RuleCondition, ConditionType
+        from services.copilot.rules.models import (
+            ActionType,
+            ConditionType,
+            Rule,
+            RuleAction,
+            RuleCondition,
+        )
 
         rule = Rule(
             name="cross-volume-view",
