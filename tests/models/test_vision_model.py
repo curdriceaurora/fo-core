@@ -452,6 +452,24 @@ class TestVisionModelTokenExhaustion:
 class TestVisionModelStructuredFormat:
     """Tests for Ollama ``format=`` passthrough and generate_structured override."""
 
+    def test_do_generate_omits_format_key_when_not_provided(self) -> None:
+        """Legacy calls must not include ``format`` in the client kwargs (older Ollama rejects null)."""
+        from models.vision_model import VisionModel
+
+        calls: list[dict[str, Any]] = []
+
+        class _Client:
+            def generate(self, **kwargs: Any) -> dict[str, str]:
+                calls.append(kwargs)
+                return {"response": "plain text"}
+
+        with patch("models.vision_model.OLLAMA_AVAILABLE", True):
+            model = VisionModel(VisionModel.get_default_config())
+        model.client = _Client()
+        model._initialized = True
+        model.generate("p", image_data=b"img", max_image_long_edge=1024)
+        assert "format" not in calls[0], "format key must be absent when no schema is passed"
+
     def test_do_generate_forwards_format_on_first_call(
         self, vision_model_config: ModelConfig
     ) -> None:

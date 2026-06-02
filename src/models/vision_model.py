@@ -200,13 +200,14 @@ class VisionModel(BaseModel):
 
         try:
             logger.debug("Analyzing image with model {}", self.config.name)
+            _fmt = {} if response_format is None else {"format": response_format}
             response = client.generate(
                 model=self.config.name,
                 prompt=prompt,
                 images=images,
                 options=options,
                 stream=False,
-                format=response_format,
+                **_fmt,
             )
 
             # Detect token exhaustion and retry once with doubled budget
@@ -216,14 +217,13 @@ class VisionModel(BaseModel):
 
                 retry_num_predict = compute_retry_num_predict(options["num_predict"])
                 retry_options = {**options, "num_predict": retry_num_predict}
-
                 response = client.generate(
                     model=self.config.name,
                     prompt=prompt,
                     images=images,
                     options=retry_options,
                     stream=False,
-                    format=response_format,
+                    **_fmt,
                 )
 
                 if is_token_exhausted(response):
