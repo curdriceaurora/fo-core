@@ -34,6 +34,12 @@ updates:
       # pyproject.toml comment on the `pytest-timeout` constraint.
       - dependency-name: "pytest-timeout"
         versions: [">=2.4.0"]
+      # typer 0.26+: vendored its own `_click` module and broke parent-class
+      # type annotations in `src/cli/lazy.py` (`LazyCommandProxy(click.Group)`).
+      # See pyproject.toml comment on the `typer[all]` constraint; matched
+      # type-check / lint / Test PR suite / Integration tests failure on PR #443.
+      - dependency-name: "typer"
+        versions: [">=0.26"]
     groups:
       dev-dependencies:
         patterns:
