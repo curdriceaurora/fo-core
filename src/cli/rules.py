@@ -88,7 +88,7 @@ def rules_add(
         "move",
         "--action",
         "-a",
-        help="Action type (move, rename, tag, categorize, archive, copy, delete).",
+        help="Action type (move, rename, tag, categorize, archive, copy, delete, hardlink, symlink).",
     ),
     destination: str = typer.Option("", "--dest", "-d", help="Destination path or pattern."),
     priority: int = typer.Option(0, "--priority", "-p", help="Rule priority (higher = first)."),

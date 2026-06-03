@@ -6,6 +6,12 @@ dry-run evaluation, and YAML-based persistence.
 
 from __future__ import annotations
 
+from services.copilot.rules.actions import (
+    ConflictStrategy,
+    LinkResult,
+    apply_hardlink,
+    apply_symlink,
+)
 from services.copilot.rules.models import (
     Rule,
     RuleAction,
@@ -16,6 +22,8 @@ from services.copilot.rules.preview import PreviewEngine, PreviewResult
 from services.copilot.rules.rule_manager import RuleManager
 
 __all__ = [
+    "ConflictStrategy",
+    "LinkResult",
     "PreviewEngine",
     "PreviewResult",
     "Rule",
@@ -23,4 +31,6 @@ __all__ = [
     "RuleCondition",
     "RuleManager",
     "RuleSet",
+    "apply_hardlink",
+    "apply_symlink",
 ]
