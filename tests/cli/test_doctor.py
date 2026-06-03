@@ -253,9 +253,13 @@ class TestInstallMethodDetection:
 
     def test_detect_pipx_via_pipx_home_env(self):
         """Should detect pipx when executable is under PIPX_HOME/venvs/."""
+        import os
 
-        custom_home = "/custom/pipx"
-        fake_exe = "/custom/pipx/venvs/fo-core/bin/python"
+        # Build paths with the platform's native separator so the test matches
+        # the implementation's `os.path.join(pipx_home, "venvs") + os.sep` check
+        # on both POSIX and Windows.
+        custom_home = os.sep + os.path.join("custom", "pipx")
+        fake_exe = os.path.join(custom_home, "venvs", "fo-core", "bin", "python")
         with patch("cli.doctor.sys.executable", fake_exe):
             with patch.dict("os.environ", {"PIPX_HOME": custom_home}):
                 result = _detect_install_method()
