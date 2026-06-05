@@ -33,6 +33,7 @@ _SCRIPT = _FO_ROOT / "scripts" / "check_test_separator_paths.py"
 sys.path.insert(0, str(_FO_ROOT / "scripts"))
 from check_test_separator_paths import (  # noqa: E402
     _ADVERSARIAL_INPUTS,
+    _scan_all,
     find_violations,
     is_pathish_name,
     is_separator_sensitive,
@@ -43,6 +44,10 @@ from check_test_separator_paths import (  # noqa: E402
 # assignment the rail would flag in this file.
 _SEP = "/custom" + "/pipx/venvs/fo-core/bin/python"
 _SEP2 = "/custom" + "/pipx"
+
+# Pinned baseline for the advisory rail. PR #464 fixed the only occurrence, so
+# the count is 0; any regression must drive this test red.
+_BASELINE_VIOLATIONS = 0
 
 
 # ---------------------------------------------------------------------------
@@ -200,27 +205,34 @@ class TestFindViolations:
 
 
 class TestBaselineEnforcement:
-    """The detector must report zero violations on the current tests/ tree.
+    """The detector must report no more than the pinned baseline on tests/.
 
-    The rail ships advisory (the pre-commit hook exits 0 even on violation),
-    so this baseline test is what actually fails CI on a regression. Promote
-    the hook to enforcing once this baseline has held at zero.
+    The rail ships advisory: the pre-commit hook (and ``main`` while
+    ``_ENFORCING`` is False) exits 0 even on violation, so the script's return
+    code is NOT the gate. This test queries the scanned violation list directly
+    so a regression fails CI regardless of advisory exit semantics. Promote the
+    hook to enforcing once this baseline has held at zero.
     """
 
-    def test_full_suite_has_zero_violations(self) -> None:
+    def test_no_regression_beyond_baseline(self) -> None:
+        actual = len(_scan_all())
+        assert actual <= _BASELINE_VIOLATIONS, (
+            f"G2-sep count rose: baseline={_BASELINE_VIOLATIONS}, actual={actual}. "
+            "A separator-sensitive absolute POSIX literal was assigned to a "
+            "path-like variable in tests/. Build it with os.path.join / os.sep "
+            "(or use tmp_path), or add `# g2sep: ok — <reason>`."
+        )
+
+    def test_script_runs_and_exits_zero_in_advisory(self) -> None:
+        # Smoke test: the script is invokable as a hook and stays advisory.
         result = subprocess.run(
-            [sys.executable, str(_SCRIPT)],
+            [sys.executable, str(_SCRIPT), "--advisory"],
             capture_output=True,
             text=True,
             cwd=_FO_ROOT,
             check=False,
         )
-        assert result.returncode == 0, (
-            "G2-sep baseline regressed: a separator-sensitive absolute POSIX "
-            "literal was assigned to a path-like variable in tests/. Build it "
-            "with os.path.join / os.sep (or use tmp_path), or add "
-            f"`# g2sep: ok — <reason>`.\n\nstderr:\n{result.stderr}"
-        )
+        assert result.returncode == 0, result.stderr
 
 
 # ---------------------------------------------------------------------------
