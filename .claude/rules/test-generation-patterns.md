@@ -622,6 +622,17 @@ hardcoded paths in tests are:
   (e.g. `"/etc/passwd"` as an _input_ to a validator, never as an output target)
 - Path-validation test constants clearly marked as adversarial inputs
 
+**Related sub-rail — separator-sensitive literals (G2-sep)**: Even a path that
+is *not* `/tmp`/`/home`/`/Users` is a Windows hazard when it hardcodes `/`
+separators and is then compared against a value the code-under-test builds with
+`os.path.join(...) + os.sep` (backslashes on Windows). This was the root cause of
+the PR #464 nightly Windows failure (`fake_exe = "/custom/pipx/venvs/.../python"`).
+The `g2sep` rail (`scripts/check_test_separator_paths.py`, advisory; baseline
+pinned by `tests/ci/test_g2_separator_paths_rail.py`) flags a multi-segment
+absolute POSIX literal assigned to a path-like variable. Build such values with
+`os.path.join` / `os.sep` (or `tmp_path`); opt out with `# g2sep: ok — <reason>`
+for a genuinely Linux-only path.
+
 ---
 
 ## Pattern T14: GENERATOR_THROW_FALSE_RAISE
