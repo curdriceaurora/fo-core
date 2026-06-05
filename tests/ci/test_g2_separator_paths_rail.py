@@ -191,6 +191,27 @@ class TestFindViolations:
         f.write_text(f'def test_x():\n    fake_exe = "{_SEP}"  # g2sep: ok — linux-only fixture\n')
         assert find_violations(f) == []
 
+    def test_flags_fstring_with_hardcoded_absolute_prefix(self, tmp_path: Path) -> None:
+        # f-strings build the same hazard as plain literals: the hardcoded "/"
+        # prefix never matches os.path.join(...) + os.sep on Windows.
+        f = tmp_path / "test_fstring.py"
+        f.write_text('def test_x(name):\n    fake_exe = f"/custom/pipx/venvs/{name}/bin/python"\n')
+        violations = find_violations(f)
+        assert len(violations) == 1
+        assert violations[0] == (2, "fake_exe", "/custom/pipx/venvs/{...}/bin/python")
+
+    def test_fstring_leading_interpolation_is_not_flagged(self, tmp_path: Path) -> None:
+        # Rooted at a variable, not a hardcoded "/" — the skeleton does not start
+        # with "/", so it is correctly skipped.
+        f = tmp_path / "test_fstring_var.py"
+        f.write_text('def test_x(base):\n    home_dir = f"{base}/sub/path"\n')
+        assert find_violations(f) == []
+
+    def test_fstring_url_is_not_flagged(self, tmp_path: Path) -> None:
+        f = tmp_path / "test_fstring_url.py"
+        f.write_text('def test_x(host):\n    base_path = f"https://{host}/a/b"\n')
+        assert find_violations(f) == []
+
     def test_annotated_assignment_is_flagged(self, tmp_path: Path) -> None:
         f = tmp_path / "test_ann.py"
         f.write_text(f'def test_x():\n    home_dir: str = "{_SEP2}"\n')

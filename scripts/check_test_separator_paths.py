@@ -28,7 +28,9 @@ assignment where BOTH hold:
 1. ``<literal>`` is a separator-sensitive absolute POSIX path — it starts with
    ``/``, has at least two non-empty ``/``-separated segments, is not a URL
    (contains ``://``), and is not a documented adversarial input
-   (``/etc/passwd`` etc., mirrored from G2); AND
+   (``/etc/passwd`` etc., mirrored from G2). f-strings are handled via their
+   static skeleton (``f"/custom/pipx/venvs/{name}/bin"`` counts), since the
+   hardcoded ``/`` prefix carries the same hazard; AND
 2. ``<name>`` is path-like — one of its ``_``-split components is in
    ``_PATHISH_WORDS`` (``exe``, ``path``, ``dir``, ``home`` …). These are the
    variables that get fed into path comparisons.
@@ -150,6 +152,34 @@ def _collect_opt_out_lines(source: str) -> set[int]:
     return marker_lines
 
 
+# Placeholder substituted for an f-string ``{...}`` interpolation when building
+# the static path skeleton — a non-slash, non-space sentinel so the interpolation
+# reads as a single path segment for separator-sensitivity matching.
+_FSTRING_PLACEHOLDER = "\x00"
+
+
+def _literal_skeleton(value: ast.expr) -> str | None:
+    """Return the static string skeleton of *value*, or None if not a str literal.
+
+    For a plain ``ast.Constant`` str this is the value itself. For an f-string
+    (``ast.JoinedStr``) the literal parts are kept verbatim and each ``{...}``
+    interpolation is replaced by a single-segment placeholder, so a hardcoded
+    absolute prefix like ``f"/custom/pipx/venvs/{name}/bin/python"`` is still
+    caught — it has the same Windows separator hazard as the plain literal.
+    """
+    if isinstance(value, ast.Constant):
+        return value.value if isinstance(value.value, str) else None
+    if isinstance(value, ast.JoinedStr):
+        parts: list[str] = []
+        for part in value.values:
+            if isinstance(part, ast.Constant) and isinstance(part.value, str):
+                parts.append(part.value)
+            else:  # FormattedValue (a `{...}` interpolation) or nested JoinedStr
+                parts.append(_FSTRING_PLACEHOLDER)
+        return "".join(parts)
+    return None
+
+
 def _assign_targets(node: ast.AST) -> list[tuple[str, ast.expr]]:
     """Return [(target_name, value)] for a simple Assign / AnnAssign node."""
     out: list[tuple[str, ast.expr]] = []
@@ -181,18 +211,20 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
 
     for node in ast.walk(tree):
         for name, value in _assign_targets(node):
-            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+            skeleton = _literal_skeleton(value)
+            if skeleton is None:
                 continue
             if not is_pathish_name(name):
                 continue
-            if not is_separator_sensitive(value.value):
+            if not is_separator_sensitive(skeleton):
                 continue
             lineno = getattr(node, "lineno", value.lineno)
             # Honour an opt-out marker anywhere across the assignment's span.
             end = getattr(node, "end_lineno", lineno) or lineno
             if any(ln in opt_out_lines for ln in range(lineno, end + 1)):
                 continue
-            violations.append((lineno, name, value.value))
+            # Render f-string interpolations readably in the reported literal.
+            violations.append((lineno, name, skeleton.replace(_FSTRING_PLACEHOLDER, "{...}")))
     return sorted(set(violations))
 
 
