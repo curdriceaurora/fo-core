@@ -251,7 +251,7 @@ class TestInstallMethodDetection:
             result = _detect_install_method()
             assert result == "pipx"
 
-    def test_detect_pipx_via_pipx_home_env(self):
+    def test_detect_pipx_via_pipx_home_env(self, monkeypatch: pytest.MonkeyPatch):
         """Should detect pipx when executable is under PIPX_HOME/venvs/."""
         import os
 
@@ -261,9 +261,9 @@ class TestInstallMethodDetection:
         custom_home = os.path.join(os.sep, "custom", "pipx")
         fake_exe = os.path.join(custom_home, "venvs", "fo-core", "bin", "python")
         with patch("cli.doctor.sys.executable", fake_exe):
-            with patch.dict("os.environ", {"PIPX_HOME": custom_home}):
-                result = _detect_install_method()
-                assert result == "pipx"
+            monkeypatch.setenv("PIPX_HOME", custom_home)
+            result = _detect_install_method()
+            assert result == "pipx"
 
 
 @pytest.mark.unit
