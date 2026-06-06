@@ -29,8 +29,9 @@ assignment where BOTH hold:
    ``/``, has at least two non-empty ``/``-separated segments, is not a URL
    (contains ``://``), and is not a documented adversarial input
    (``/etc/passwd`` etc., mirrored from G2). f-strings are handled via their
-   static skeleton (``f"/custom/pipx/venvs/{name}/bin"`` counts), since the
-   hardcoded ``/`` prefix carries the same hazard; AND
+   static skeleton (``f"/custom/pipx/venvs/{name}/bin"`` counts) and constant
+   string concatenation is folded (``"/custom" + "/pipx/bin"`` counts), since
+   the hardcoded ``/`` prefix carries the same hazard; AND
 2. ``<name>`` is path-like — one of its ``_``-split components is in
    ``_PATHISH_WORDS`` (``exe``, ``path``, ``dir``, ``home`` …). These are the
    variables that get fed into path comparisons.
@@ -137,6 +138,7 @@ def is_pathish_name(name: str) -> bool:
 
 
 def _has_opt_out(line: str) -> bool:
+    """True if *line* carries the ``# g2sep: ok`` opt-out token."""
     return bool(_OPT_OUT_RE.search(line))
 
 
@@ -166,6 +168,16 @@ def _literal_skeleton(value: ast.expr) -> str | None:
     interpolation is replaced by a single-segment placeholder, so a hardcoded
     absolute prefix like ``f"/custom/pipx/venvs/{name}/bin/python"`` is still
     caught — it has the same Windows separator hazard as the plain literal.
+
+    String concatenation (``"/custom" + "/pipx/bin"``) is folded recursively. A
+    *dynamic* operand (a ``Name``, call, etc.) contributes a single-segment
+    placeholder — the same treatment as an f-string ``{...}`` interpolation — so
+    a hardcoded absolute prefix survives a dynamic suffix:
+    ``"/custom/pipx/venvs/" + name + "/bin/python"`` reduces to
+    ``"/custom/pipx/venvs/<x>/bin/python"`` and is still caught. A concatenation
+    with no static part at all (``a + b``) returns None. Because the leading
+    placeholder fails the ``^/`` anchor, ``var + "/bin"`` (dynamic prefix) is
+    still not flagged.
     """
     if isinstance(value, ast.Constant):
         return value.value if isinstance(value.value, str) else None
@@ -177,6 +189,14 @@ def _literal_skeleton(value: ast.expr) -> str | None:
             else:  # FormattedValue (a `{...}` interpolation) or nested JoinedStr
                 parts.append(_FSTRING_PLACEHOLDER)
         return "".join(parts)
+    if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+        left = _literal_skeleton(value.left)
+        right = _literal_skeleton(value.right)
+        if left is None and right is None:
+            return None  # no static content — not a hardcoded path
+        left_s = left if left is not None else _FSTRING_PLACEHOLDER
+        right_s = right if right is not None else _FSTRING_PLACEHOLDER
+        return left_s + right_s
     return None
 
 
@@ -229,10 +249,12 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
 
 
 def _iter_test_files() -> list[Path]:
+    """Return every ``.py`` file under ``tests/``, sorted for stable output."""
     return sorted(_TESTS_DIR.rglob("*.py"))
 
 
 def _scan_all() -> list[tuple[Path, int, str, str]]:
+    """Scan all test files and return ``(rel_path, lineno, var, literal)`` hits."""
     out: list[tuple[Path, int, str, str]] = []
     for path in _iter_test_files():
         for lineno, name, literal in find_violations(path):
@@ -241,6 +263,7 @@ def _scan_all() -> list[tuple[Path, int, str, str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Exit 0 when clean or advisory; 1 on violation if enforcing."""
     args = argv if argv is not None else sys.argv[1:]
     force_advisory = "--advisory" in args
 

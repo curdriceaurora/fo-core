@@ -212,6 +212,41 @@ class TestFindViolations:
         f.write_text('def test_x(host):\n    base_path = f"https://{host}/a/b"\n')
         assert find_violations(f) == []
 
+    def test_flags_constant_string_concatenation(self, tmp_path: Path) -> None:
+        # Splitting a hardcoded path across "+" is a common rail-evasion shape;
+        # constant operands are folded before the separator-sensitivity check.
+        f = tmp_path / "test_concat.py"
+        f.write_text('def test_x():\n    fake_exe = "/custom" + "/pipx/bin/python"\n')
+        violations = find_violations(f)
+        assert len(violations) == 1
+        assert violations[0] == (2, "fake_exe", "/custom/pipx/bin/python")
+
+    def test_concatenation_with_dynamic_prefix_is_not_flagged(self, tmp_path: Path) -> None:
+        # `base + "/sub"` carries no hardcoded absolute prefix of its own (base is
+        # built elsewhere, e.g. via os.path.expanduser). The dynamic operand
+        # becomes a leading placeholder, so the skeleton fails the `^/` anchor.
+        f = tmp_path / "test_concat_var.py"
+        f.write_text('def test_x(base):\n    exe_path = base + "/fo-core/bin/python"\n')
+        assert find_violations(f) == []
+
+    def test_concatenation_with_dynamic_suffix_keeps_hardcoded_prefix(self, tmp_path: Path) -> None:
+        # A hardcoded absolute prefix survives a dynamic middle/suffix operand —
+        # same hazard (and same skeleton) as the f-string form. The dynamic
+        # operand is rendered as the {...} placeholder.
+        f = tmp_path / "test_concat_mid.py"
+        f.write_text(
+            'def test_x(name):\n    fake_exe = "/custom/pipx/venvs/" + name + "/bin/python"\n'
+        )
+        violations = find_violations(f)
+        assert len(violations) == 1
+        assert violations[0] == (2, "fake_exe", "/custom/pipx/venvs/{...}/bin/python")
+
+    def test_fully_dynamic_concatenation_is_not_flagged(self, tmp_path: Path) -> None:
+        # No static content at all → not a hardcoded path.
+        f = tmp_path / "test_concat_dyn.py"
+        f.write_text("def test_x(a, b):\n    file_path = a + b\n")
+        assert find_violations(f) == []
+
     def test_annotated_assignment_is_flagged(self, tmp_path: Path) -> None:
         f = tmp_path / "test_ann.py"
         f.write_text(f'def test_x():\n    home_dir: str = "{_SEP2}"\n')
