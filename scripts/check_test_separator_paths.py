@@ -168,10 +168,15 @@ def _literal_skeleton(value: ast.expr) -> str | None:
     absolute prefix like ``f"/custom/pipx/venvs/{name}/bin/python"`` is still
     caught — it has the same Windows separator hazard as the plain literal.
 
-    Constant string concatenation (``"/custom" + "/pipx/bin"``) is folded
-    recursively: both operands must themselves reduce to a static skeleton,
-    otherwise the result is None (so ``var + "/bin"`` with a non-constant ``var``
-    is not flagged — it carries no hardcoded absolute prefix of its own).
+    String concatenation (``"/custom" + "/pipx/bin"``) is folded recursively. A
+    *dynamic* operand (a ``Name``, call, etc.) contributes a single-segment
+    placeholder — the same treatment as an f-string ``{...}`` interpolation — so
+    a hardcoded absolute prefix survives a dynamic suffix:
+    ``"/custom/pipx/venvs/" + name + "/bin/python"`` reduces to
+    ``"/custom/pipx/venvs/<x>/bin/python"`` and is still caught. A concatenation
+    with no static part at all (``a + b``) returns None. Because the leading
+    placeholder fails the ``^/`` anchor, ``var + "/bin"`` (dynamic prefix) is
+    still not flagged.
     """
     if isinstance(value, ast.Constant):
         return value.value if isinstance(value.value, str) else None
@@ -186,9 +191,11 @@ def _literal_skeleton(value: ast.expr) -> str | None:
     if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
         left = _literal_skeleton(value.left)
         right = _literal_skeleton(value.right)
-        if left is None or right is None:
-            return None
-        return left + right
+        if left is None and right is None:
+            return None  # no static content — not a hardcoded path
+        left_s = left if left is not None else _FSTRING_PLACEHOLDER
+        right_s = right if right is not None else _FSTRING_PLACEHOLDER
+        return left_s + right_s
     return None
 
 
