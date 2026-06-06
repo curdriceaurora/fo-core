@@ -68,6 +68,23 @@ repos:
         files: ^tests/.*\.py$
 
       # ----------------------------------------------------------------
+      # G2-sep: separator-sensitive POSIX path literals in test data.
+      # A multi-segment absolute "/a/b/c" literal assigned to a path-like
+      # variable hardcodes "/" separators and never matches
+      # os.path.join(...) + os.sep on Windows — the root cause fixed in
+      # PR #464 (test_doctor.py). The nightly-only Windows runner means
+      # this isn't caught at PR time, hence the rail. ADVISORY for now;
+      # baseline pinned at 0 via tests/ci/test_g2_separator_paths_rail.py.
+      # Honors `# g2sep: ok — <reason>` for genuine Linux-only paths.
+      # ----------------------------------------------------------------
+      - id: g2sep-separator-sensitive-test-paths
+        name: no separator-sensitive POSIX path literals in tests (G2-sep, advisory)
+        entry: python3 scripts/check_test_separator_paths.py --advisory
+        language: system
+        pass_filenames: false
+        files: ^tests/.*\.py$
+
+      # ----------------------------------------------------------------
       # G3: AST check — every CLI command that accepts a Path argument
       # must route it through resolve_cli_path() / validate_pair() /
       # validate_within_roots() (or a _validate_* helper that delegates
