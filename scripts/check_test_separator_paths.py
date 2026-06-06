@@ -138,6 +138,7 @@ def is_pathish_name(name: str) -> bool:
 
 
 def _has_opt_out(line: str) -> bool:
+    """True if *line* carries the ``# g2sep: ok`` opt-out token."""
     return bool(_OPT_OUT_RE.search(line))
 
 
@@ -248,10 +249,12 @@ def find_violations(path: Path) -> list[tuple[int, str, str]]:
 
 
 def _iter_test_files() -> list[Path]:
+    """Return every ``.py`` file under ``tests/``, sorted for stable output."""
     return sorted(_TESTS_DIR.rglob("*.py"))
 
 
 def _scan_all() -> list[tuple[Path, int, str, str]]:
+    """Scan all test files and return ``(rel_path, lineno, var, literal)`` hits."""
     out: list[tuple[Path, int, str, str]] = []
     for path in _iter_test_files():
         for lineno, name, literal in find_violations(path):
@@ -260,6 +263,7 @@ def _scan_all() -> list[tuple[Path, int, str, str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. Exit 0 when clean or advisory; 1 on violation if enforcing."""
     args = argv if argv is not None else sys.argv[1:]
     force_advisory = "--advisory" in args
 
