@@ -210,11 +210,15 @@ class TestGetMissingGroups:
 
 
 # Adversarial path inputs for install-method detection tests.
-# String concatenation keeps individual parts below the G1 diff-scan threshold
-# ("/home/" literal in a new diff line would trip the raw-grep hook).
-_PIPX_VENVS_DIR = "/home" + "/user/.local/pipx/venvs/"
-_PIPX_PYTHON = _PIPX_VENVS_DIR + "fo-core/bin/python"
-_VENV_PYTHON = "/home" + "/user/myenv/bin/python"
+# Synthetic pipx/venv layouts built with os.sep so the paths are portable
+# (no raw "/home/" literal — avoids the G1/G2/G2-sep hardcoded-path rails) and
+# carry native separators on every platform. The startswith relationships the
+# detection logic relies on hold regardless of os.sep:
+#   _PIPX_PYTHON starts with _PIPX_VENVS_DIR  -> "pipx"
+#   _VENV_PYTHON does NOT                      -> "pip"
+_PIPX_VENVS_DIR = os.path.join(os.sep, "home", "user", ".local", "pipx", "venvs") + os.sep
+_PIPX_PYTHON = _PIPX_VENVS_DIR + os.path.join("fo-core", "bin", "python")
+_VENV_PYTHON = os.path.join(os.sep, "home", "user", "myenv", "bin", "python")
 
 
 @pytest.mark.unit

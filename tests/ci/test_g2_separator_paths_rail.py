@@ -212,6 +212,22 @@ class TestFindViolations:
         f.write_text('def test_x(host):\n    base_path = f"https://{host}/a/b"\n')
         assert find_violations(f) == []
 
+    def test_flags_constant_string_concatenation(self, tmp_path: Path) -> None:
+        # Splitting a hardcoded path across "+" is a common rail-evasion shape;
+        # constant operands are folded before the separator-sensitivity check.
+        f = tmp_path / "test_concat.py"
+        f.write_text('def test_x():\n    fake_exe = "/custom" + "/pipx/bin/python"\n')
+        violations = find_violations(f)
+        assert len(violations) == 1
+        assert violations[0] == (2, "fake_exe", "/custom/pipx/bin/python")
+
+    def test_concatenation_with_non_constant_operand_is_not_flagged(self, tmp_path: Path) -> None:
+        # `base + "/sub"` carries no hardcoded absolute prefix of its own (base is
+        # built elsewhere, e.g. via os.path.expanduser) — must not be flagged.
+        f = tmp_path / "test_concat_var.py"
+        f.write_text('def test_x(base):\n    exe_path = base + "/fo-core/bin/python"\n')
+        assert find_violations(f) == []
+
     def test_annotated_assignment_is_flagged(self, tmp_path: Path) -> None:
         f = tmp_path / "test_ann.py"
         f.write_text(f'def test_x():\n    home_dir: str = "{_SEP2}"\n')

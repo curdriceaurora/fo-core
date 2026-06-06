@@ -29,8 +29,9 @@ assignment where BOTH hold:
    ``/``, has at least two non-empty ``/``-separated segments, is not a URL
    (contains ``://``), and is not a documented adversarial input
    (``/etc/passwd`` etc., mirrored from G2). f-strings are handled via their
-   static skeleton (``f"/custom/pipx/venvs/{name}/bin"`` counts), since the
-   hardcoded ``/`` prefix carries the same hazard; AND
+   static skeleton (``f"/custom/pipx/venvs/{name}/bin"`` counts) and constant
+   string concatenation is folded (``"/custom" + "/pipx/bin"`` counts), since
+   the hardcoded ``/`` prefix carries the same hazard; AND
 2. ``<name>`` is path-like — one of its ``_``-split components is in
    ``_PATHISH_WORDS`` (``exe``, ``path``, ``dir``, ``home`` …). These are the
    variables that get fed into path comparisons.
@@ -166,6 +167,11 @@ def _literal_skeleton(value: ast.expr) -> str | None:
     interpolation is replaced by a single-segment placeholder, so a hardcoded
     absolute prefix like ``f"/custom/pipx/venvs/{name}/bin/python"`` is still
     caught — it has the same Windows separator hazard as the plain literal.
+
+    Constant string concatenation (``"/custom" + "/pipx/bin"``) is folded
+    recursively: both operands must themselves reduce to a static skeleton,
+    otherwise the result is None (so ``var + "/bin"`` with a non-constant ``var``
+    is not flagged — it carries no hardcoded absolute prefix of its own).
     """
     if isinstance(value, ast.Constant):
         return value.value if isinstance(value.value, str) else None
@@ -177,6 +183,12 @@ def _literal_skeleton(value: ast.expr) -> str | None:
             else:  # FormattedValue (a `{...}` interpolation) or nested JoinedStr
                 parts.append(_FSTRING_PLACEHOLDER)
         return "".join(parts)
+    if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+        left = _literal_skeleton(value.left)
+        right = _literal_skeleton(value.right)
+        if left is None or right is None:
+            return None
+        return left + right
     return None
 
 
