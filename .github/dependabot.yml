@@ -60,8 +60,10 @@ updates:
     labels:
       - "ci"
 
-  # The "docker" ecosystem was removed: fo-core ships no Dockerfile or
-  # Kubernetes YAML, so the weekly Dependabot run reliably exited with
-  # "No Dockerfiles nor Kubernetes YAML found in /" (e.g. job 1410440561,
-  # run 27441929109 on 2026-06-12). Re-add this entry if a Dockerfile is
-  # ever introduced.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
