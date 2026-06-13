@@ -30,15 +30,28 @@ allowlist:
       patched release as of 2026-04-23; re-evaluate when diskcache ships
       a 5.6.x+ that addresses the advisory.
     expires_on: 2026-10-23
-  - advisory_id: PYSEC-2022-42969
-    package: py
-    version_spec: "<=1.11.0"
+  # PYSEC-2022-42969 (py <=1.11.0) was previously listed here. As of
+  # 2026-06-12 pip-audit's vulnerability database no longer reports the
+  # advisory for the installed ``py`` version, so the gate's
+  # "advisory not reported" rule flags the entry as unused (#475/#474
+  # Security workflow runs). Removed; re-add only if the advisory
+  # resurfaces.
+  - advisory_id: CVE-2025-3000
+    package: torch
+    version_spec: ">=0"
     reason: >-
-      Transitive via pytest (``[dev]`` / ``[all]`` test extras). The
-      advisory is a ReDoS in ``py.path.svnwc`` — SVN working-copy handling
-      that fo-core never invokes. Our pytest usage is limited to the core
-      test runner; no SVN-adjacent helpers are imported. The ``py``
-      package is effectively unmaintained (last release 2022-11) so no
-      upstream fix is expected. Re-evaluate when pytest drops the ``py``
-      dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
-    expires_on: 2026-10-23
+      Direct via ``[media]`` (faster-whisper) and ``[dedup-image]``
+      (imagededup) extras. The advisory (alias PYSEC-2025-194) is a
+      memory corruption in ``torch.jit.script`` — TorchScript JIT
+      compilation that fo-core never invokes. Our torch usage is limited
+      to faster-whisper's inference call path and imagededup's CNN
+      feature extraction; neither exercises ``torch.jit.script``
+      (verified by grep across ``src/`` — no ``jit.script`` /
+      ``torch.jit`` references in the codebase). OSV publishes the
+      affected range as ``introduced=0`` / ``last_affected=2.6.0-NA``
+      with no fixed version, so pip-audit conservatively flags every
+      torch >=0 installed in the extras environment (currently 2.12.0).
+      No upstream patched version is available as of 2026-06-13;
+      re-evaluate when a torch release ships a fix for CVE-2025-3000
+      and the OSV record gets a ``fixed`` event.
+    expires_on: 2026-12-13
