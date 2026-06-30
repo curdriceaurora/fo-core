@@ -61,6 +61,7 @@ jobs:
             --dist=loadgroup \
             --timeout=60 \
             --cov=src \
+            --cov-branch \
             --cov-report= \
             --override-ini="addopts="
           mv .coverage .coverage.py${{ matrix.python-version }}
