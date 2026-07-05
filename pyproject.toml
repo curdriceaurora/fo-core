@@ -483,6 +483,10 @@ DEP002 = [
     "sqlalchemy",
     # pydantic: used transitively by pydantic-settings; no direct src/ import after refactor
     "pydantic",
+    # transformers: pinned <5.13 in the [mlx] extra to work around an mlx-lm 0.31.x
+    # + transformers 5.13 upstream regression (import-time AttributeError); not
+    # imported directly by fo-core source. Same rationale as Pygments / Mako above.
+    "transformers",
 ]
 # redis: optional import via try/except in events/stream.py (transitive dependency)
 DEP003 = ["redis"]
