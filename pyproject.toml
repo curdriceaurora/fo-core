@@ -121,6 +121,16 @@ llama = [
 
 mlx = [
     "mlx-lm>=0.0.19,<1; platform_system == 'Darwin'",  # MLX runtime is only supported on Darwin
+    # transformers 5.13 introduced an isinstance check on
+    # AutoTokenizer.register(config_class, ...) via `key.__module__.startswith(...)`
+    # in transformers/models/auto/auto_factory.py:680, which breaks the string
+    # sentinel that mlx-lm 0.31.x passes at import time
+    # (mlx_lm/tokenizer_utils.py:505: `AutoTokenizer.register("NewlineTokenizer", ...)`).
+    # Result: `import mlx_lm` raises AttributeError on Darwin CI. Pin transformers
+    # below 5.13 until mlx-lm ships a compatible release (upstream tracking:
+    # ml-explore/mlx-examples). Constraint is Darwin-scoped so the base install
+    # (which does not pull mlx-lm at all) is unaffected.
+    "transformers<5.13; platform_system == 'Darwin'",
 ]
 
 claude = [
