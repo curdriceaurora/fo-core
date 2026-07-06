@@ -30,15 +30,3 @@ allowlist:
       patched release as of 2026-04-23; re-evaluate when diskcache ships
       a 5.6.x+ that addresses the advisory.
     expires_on: 2026-10-23
-  - advisory_id: PYSEC-2022-42969
-    package: py
-    version_spec: "<=1.11.0"
-    reason: >-
-      Transitive via pytest (``[dev]`` / ``[all]`` test extras). The
-      advisory is a ReDoS in ``py.path.svnwc`` — SVN working-copy handling
-      that fo-core never invokes. Our pytest usage is limited to the core
-      test runner; no SVN-adjacent helpers are imported. The ``py``
-      package is effectively unmaintained (last release 2022-11) so no
-      upstream fix is expected. Re-evaluate when pytest drops the ``py``
-      dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
-    expires_on: 2026-10-23
