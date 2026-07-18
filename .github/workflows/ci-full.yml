@@ -41,6 +41,14 @@ jobs:
             set -euo pipefail
             pip install -e ".[dev,search]"
             pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
+      - name: Erase stale coverage data
+        # coverage erase clears .coverage; find removes ALL .coverage.* files
+        # (any depth) that xdist workers write.  Stale branch-vs-statement
+        # mismatches cause DataError on combine (#302, #309); mirrors the
+        # mitigation already present in ci.yml's per-commit `test` job.
+        run: |
+          coverage erase
+          find . -name ".coverage.*" -delete
       - name: Run full test suite
         # tests/extras/ contains canary suites for ci-extras.yml.  Most hard-import
         # optional deps (cv2, torch, imagededup, ezdxf, h5py) that aren't installed
