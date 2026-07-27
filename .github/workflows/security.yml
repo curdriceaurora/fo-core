@@ -182,4 +182,10 @@ jobs:
           languages: python
           config-file: ./.github/codeql/codeql-config.yml
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a  # v4.37.1
+        # Pin to the same SHA/version as the init step above (v4.37.3). init
+        # writes a config file stamped with its own action version; analyze
+        # then reads that file and refuses to run when the versions diverge
+        # ("Loaded a configuration file for version 'X', but running version
+        # 'Y'"). Dependabot bumps init and analyze in independent PRs, so
+        # this pair must be re-aligned by hand whenever they drift.
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81  # v4.37.3
