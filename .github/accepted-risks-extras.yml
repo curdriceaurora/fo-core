@@ -19,26 +19,18 @@
 #                   platforms — use for macOS-only transitive deps
 
 allowlist:
-  - advisory_id: CVE-2025-69872
+  - advisory_id: PYSEC-2026-2447
     package: diskcache
     version_spec: "<=5.6.3"
     reason: >-
       Transitive via llama-cpp-python (``[llama]`` extra). The vulnerable
       cache-path code path is never invoked by fo-core — the ``[llama]``
       surface only uses llama-cpp-python for local inference, and the disk
-      cache is pinned to a per-model temp dir we control. Upstream has no
-      patched release as of 2026-04-23; re-evaluate when diskcache ships
-      a 5.6.x+ that addresses the advisory.
-    expires_on: 2026-10-23
-  - advisory_id: PYSEC-2022-42969
-    package: py
-    version_spec: "<=1.11.0"
-    reason: >-
-      Transitive via pytest (``[dev]`` / ``[all]`` test extras). The
-      advisory is a ReDoS in ``py.path.svnwc`` — SVN working-copy handling
-      that fo-core never invokes. Our pytest usage is limited to the core
-      test runner; no SVN-adjacent helpers are imported. The ``py``
-      package is effectively unmaintained (last release 2022-11) so no
-      upstream fix is expected. Re-evaluate when pytest drops the ``py``
-      dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
-    expires_on: 2026-10-23
+      cache is pinned to a per-model temp dir we control. Supersedes the
+      earlier CVE-2025-69872 identifier for the same underlying diskcache
+      cache-path issue; the CVE ID was retired from the OSV feed after
+      PyPI Advisory Database re-issued it as PYSEC-2026-2447 (the gate
+      flagged CVE-2025-69872 as ``advisory not reported`` once the feed
+      switched over). Upstream has no patched release as of 2026-07-27;
+      re-evaluate when diskcache ships a 5.6.x+ that addresses the advisory.
+    expires_on: 2027-01-27
