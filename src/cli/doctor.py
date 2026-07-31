@@ -112,15 +112,21 @@ def _detect_install_method() -> str:
     Returns:
         "pipx" if running in a pipx venv, "pip" otherwise
     """
-    exe_path = sys.executable
+    # Normalize paths so prefix comparison works regardless of slash style.
+    # On Windows, PIPX_HOME or sys.executable can carry forward slashes
+    # (env files copied from POSIX, WSL setups), while os.path.join uses os.sep,
+    # producing a mixed-separator pattern that never matches.
+    exe_path = os.path.normpath(sys.executable)
     # Check PIPX_HOME env var first (user-configured or set by pipx itself)
     pipx_home = os.environ.get("PIPX_HOME")
     if pipx_home:
-        if exe_path.startswith(os.path.join(pipx_home, "venvs") + os.sep):
+        pattern = os.path.normpath(os.path.join(pipx_home, "venvs")) + os.sep
+        if exe_path.startswith(pattern):
             return "pipx"
     # Check both the old (~/.local/pipx) and new (~/.local/share/pipx) default locations
     for base in ("~/.local/pipx/venvs/", "~/.local/share/pipx/venvs/"):
-        if exe_path.startswith(os.path.expanduser(base)):
+        pattern = os.path.normpath(os.path.expanduser(base)) + os.sep
+        if exe_path.startswith(pattern):
             return "pipx"
     return "pip"
 
