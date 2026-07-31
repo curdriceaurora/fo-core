@@ -41,12 +41,26 @@ jobs:
             set -euo pipefail
             pip install -e ".[dev,search]"
             pip install "pytest-asyncio>=0.23.0" faker --no-cache-dir
+      - name: Erase stale coverage data
+        # coverage erase clears .coverage; find removes ALL .coverage.* files
+        # (any depth) that xdist workers write.  Stale branch-vs-statement
+        # mismatches cause DataError on combine (#302, #309).  Mirrors the
+        # equivalent step in ci.yml's test-ci job.
+        run: |
+          coverage erase
+          find . -name ".coverage.*" -delete
       - name: Run full test suite
         # tests/extras/ contains canary suites for ci-extras.yml.  Most hard-import
         # optional deps (cv2, torch, imagededup, ezdxf, h5py) that aren't installed
         # by [dev,search] and would fail at collection.  The exception is
         # test_extras_dedup_text.py: its deps (numpy, scikit-learn) ARE provided by
         # [dev,search], so we run it here for broader matrix coverage.
+        #
+        # --cov-branch is passed explicitly (rather than relying on
+        # [tool.coverage.run] branch=true in pyproject.toml) so that any
+        # coverage subprocesses spawned by tests inherit the same setting.
+        # Mixed branch/statement data across xdist workers causes DataError
+        # at combine time — see ci.yml's test-full job for the same pattern.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -61,6 +75,7 @@ jobs:
             --dist=loadgroup \
             --timeout=60 \
             --cov=src \
+            --cov-branch \
             --cov-report= \
             --override-ini="addopts="
           mv .coverage .coverage.py${{ matrix.python-version }}
