@@ -30,15 +30,19 @@ allowlist:
       patched release as of 2026-04-23; re-evaluate when diskcache ships
       a 5.6.x+ that addresses the advisory.
     expires_on: 2026-10-23
-  - advisory_id: PYSEC-2022-42969
-    package: py
-    version_spec: "<=1.11.0"
+  - advisory_id: CVE-2025-3000
+    package: torch
+    version_spec: ">=2.6.0"
     reason: >-
-      Transitive via pytest (``[dev]`` / ``[all]`` test extras). The
-      advisory is a ReDoS in ``py.path.svnwc`` — SVN working-copy handling
-      that fo-core never invokes. Our pytest usage is limited to the core
-      test runner; no SVN-adjacent helpers are imported. The ``py``
-      package is effectively unmaintained (last release 2022-11) so no
-      upstream fix is expected. Re-evaluate when pytest drops the ``py``
-      dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
-    expires_on: 2026-10-23
+      Memory corruption in ``torch.jit.script`` (CVSS 5.3, local attack
+      vector). Transitive via ``faster-whisper`` (``[media]`` extra) and
+      ``imagededup`` (``[dedup-image]`` extra). fo-core's torch usage is
+      limited to two device-detection probes — ``torch.cuda.is_available()``
+      in ``src/services/audio/transcriber.py`` and ``src/models/audio_transcriber.py``,
+      plus ``torch.backends.mps.is_available()`` in ``audio_transcriber.py``.
+      The vulnerable ``torch.jit.script`` code path is never invoked by
+      fo-core, and the transitive callers (faster-whisper, imagededup) JIT
+      only their own internal model code — no fo-core input flows into
+      ``torch.jit.script``. No upstream fix is published as of 2026-06-16;
+      re-evaluate when pytorch ships a patched release.
+    expires_on: 2026-12-16
