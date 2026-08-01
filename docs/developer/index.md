@@ -97,6 +97,7 @@ fo-core v0.1
 ```python
 from methodologies import BaseMethodology
 
+
 class CustomMethod(BaseMethodology):
     name = "custom"
 
@@ -127,6 +128,7 @@ pytest tests/ --cov         # With coverage
 
 ```python
 import pytest
+
 
 def test_my_feature():
     # Arrange
