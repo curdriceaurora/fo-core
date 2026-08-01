@@ -115,6 +115,7 @@ Test services with real dependencies, mocking only external boundaries:
 from pathlib import Path
 from services.text_processor import TextProcessor
 
+
 def test_text_processor(tmp_path):
     processor = TextProcessor()
     # Create test file
@@ -135,6 +136,7 @@ from typer.testing import CliRunner
 from cli.main import app
 
 runner = CliRunner()
+
 
 def test_organize_command():
     result = runner.invoke(app, ["organize", "/tmp/files"])
@@ -194,9 +196,7 @@ class TestModelErrors:
         processor.initialize()
 
         with patch_text_generate_error(RuntimeError("GPU out of memory")):
-            result = processor.process_file(
-                integration_source_dir / "report.txt"
-            )
+            result = processor.process_file(integration_source_dir / "report.txt")
 
         # Graceful degradation — fallback values, not failure
         assert result.error is None
