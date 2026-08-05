@@ -279,9 +279,7 @@ Johnny Decimal can work alongside PARA methodology. See [PARA Compatibility Guid
 Define your own area and category mappings:
 
 ```python
-from methodologies.johnny_decimal import (
-    ConfigBuilder, AreaDefinition, CategoryDefinition
-)
+from methodologies.johnny_decimal import ConfigBuilder, AreaDefinition, CategoryDefinition
 
 config = (
     ConfigBuilder("my-scheme")
