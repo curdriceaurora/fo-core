@@ -75,6 +75,7 @@ If you want to test with real video files:
 4. Update tests to use real files
 
 Example:
+
 ```python
 VIDEO_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "video_samples"
 
