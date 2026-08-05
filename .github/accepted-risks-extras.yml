@@ -41,7 +41,7 @@ allowlist:
       patched release as of 2026-08-05 (diskcache 5.6.3 is still the latest
       release on PyPI); re-evaluate when diskcache ships a 5.6.x+ that
       addresses the advisory.
-    expires_on: 2027-02-05
+    expires_on: "2027-02-05"
   # Previously carried an entry for PYSEC-2022-42969 (py) — pruned on
   # 2026-08-05 because pip-audit no longer reports that advisory against
   # the installed graph ("advisory not reported" under scripts/pip_audit_gate.py
