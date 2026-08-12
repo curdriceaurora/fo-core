@@ -47,9 +47,22 @@ jobs:
         # by [dev,search] and would fail at collection.  The exception is
         # test_extras_dedup_text.py: its deps (numpy, scikit-learn) ARE provided by
         # [dev,search], so we run it here for broader matrix coverage.
+        #
+        # `coverage erase` and the explicit `--cov-branch` / `--cov-config` flags
+        # defend against an intermittent xdist+pytest-cov race where a worker
+        # would write a statement-only `.coverage.*` file (no branch arcs),
+        # then the master's `cov.combine()` would fail with:
+        #   "Can't combine statement coverage data with branch data"
+        # Observed on the 06-14 daily run (Linux/py3.12): the rerun on 06-15
+        # passed on the same SHA, confirming a transient race. Passing
+        # `--cov-branch` explicitly propagates branch-mode to every worker
+        # regardless of config-load timing; `--cov-config=pyproject.toml`
+        # pins the config path; `coverage erase` clears any stray data files
+        # before the run.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          coverage erase
           pytest tests/ \
             --ignore=tests/extras/test_extras_cad.py \
             --ignore=tests/extras/test_extras_dedup_image.py \
@@ -61,6 +74,8 @@ jobs:
             --dist=loadgroup \
             --timeout=60 \
             --cov=src \
+            --cov-branch \
+            --cov-config=pyproject.toml \
             --cov-report= \
             --override-ini="addopts="
           mv .coverage .coverage.py${{ matrix.python-version }}
