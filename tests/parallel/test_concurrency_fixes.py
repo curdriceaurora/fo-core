@@ -175,21 +175,24 @@ class TestConcurrencyFixes(unittest.TestCase):
 
     def test_timeout_does_not_deadlock_with_queued_files(self) -> None:
         """Timed-out tasks are abandoned; remaining files continue and terminate."""
-        # timeout=0.5s → saturation threshold = 2×0.5s = 1.0s.
-        # Task duration 0.8s keeps slow_3's max queue time (≈0.3s) well below 1.0s,
-        # so the saturation guard must NOT trigger — each task times out individually.
-        # Margins are deliberately wide (0.3s stuck-time vs 1.0s threshold) to
-        # absorb the thread-scheduling variance seen on macOS GitHub Actions runners.
+        # timeout=1.0s → saturation threshold fires when queued_at is older than
+        # 2×timeout = 2.0s. queued_at is reset once when each task is abandoned,
+        # so the effective ceiling on the abandoned thread's stuck-time is 2.0s.
+        # Task nominal duration 1.2s leaves a 0.8s stuck-time (task - timeout),
+        # a 1.2s margin below the 2.0s ceiling. The previous (0.5s / 0.8s) config
+        # only had 0.7s margin, which was consumed by macOS GitHub Actions runner
+        # jitter in CI Full Matrix #110 — the retry (#111) on the identical SHA
+        # succeeded, confirming timing-only flake. See PR that landed this fix.
         config = ParallelConfig(
             max_workers=1,
-            timeout_per_file=0.5,
+            timeout_per_file=1.0,
             retry_count=0,
         )
         processor = ParallelProcessor(config=config)
         paths = [Path("slow_1"), Path("slow_2"), Path("slow_3")]
 
         def very_slow_task(_path: Path) -> str:
-            threading.Event().wait(timeout=0.8)
+            threading.Event().wait(timeout=1.2)
             return "done"
 
         results = processor.process_batch(paths, very_slow_task)
@@ -198,10 +201,11 @@ class TestConcurrencyFixes(unittest.TestCase):
         self.assertEqual(results.failed, 3)
         self.assertEqual(len(results.results), 3)
         # Each file runs and times out individually — no cascade abort.
-        # With max_workers=1 and 3×0.5s timeouts, total is ~1.5s.
+        # With max_workers=1 and 3×1.0s timeouts, nominal total is ~3.6s;
+        # the ceiling is padded for scheduling jitter on shared CI runners.
         self.assertLess(
             results.total_duration_ms,
-            4000,
+            8000,
             "Should terminate within reasonable time even with repeated timeouts",
         )
         errors = [str(item.error) for item in results.results]
@@ -210,11 +214,14 @@ class TestConcurrencyFixes(unittest.TestCase):
 
     def test_uncancellable_timeout_is_not_retried(self) -> None:
         """Timed-out tasks are non-retryable: each file runs exactly once."""
-        # timeout=0.5s keeps saturation threshold (1.0s) well above task duration (0.8s).
-        # Margins deliberately wide to absorb macOS GitHub Actions thread-scheduling variance.
+        # Same 1.0s / 1.2s ratio as test_timeout_does_not_deadlock_with_queued_files
+        # — the 0.5s / 0.8s pair was too tight for macOS runner jitter and would
+        # trip the pool-saturation guard instead of individual per-file timeouts,
+        # aborting later files before their tasks were ever invoked and dropping
+        # call_count below len(paths).
         config = ParallelConfig(
             max_workers=1,
-            timeout_per_file=0.5,
+            timeout_per_file=1.0,
             retry_count=2,
         )
         processor = ParallelProcessor(config=config)
@@ -223,7 +230,7 @@ class TestConcurrencyFixes(unittest.TestCase):
         def very_slow_task(_path: Path) -> str:
             nonlocal call_count
             call_count += 1
-            threading.Event().wait(timeout=0.8)
+            threading.Event().wait(timeout=1.2)
             return "done"
 
         paths = [Path("slow_1"), Path("slow_2")]
