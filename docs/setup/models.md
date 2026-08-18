@@ -11,11 +11,11 @@
 ```python
 from models.base import DeviceType
 
-DeviceType.AUTO    # Automatic detection (recommended)
-DeviceType.CPU     # CPU inference (universal)
-DeviceType.CUDA    # NVIDIA GPU (fastest)
-DeviceType.MPS     # Apple Silicon (fast)
-DeviceType.METAL   # Apple Silicon (MLX)
+DeviceType.AUTO  # Automatic detection (recommended)
+DeviceType.CPU  # CPU inference (universal)
+DeviceType.CUDA  # NVIDIA GPU (fastest)
+DeviceType.MPS  # Apple Silicon (fast)
+DeviceType.METAL  # Apple Silicon (MLX)
 ```
 
 ---
