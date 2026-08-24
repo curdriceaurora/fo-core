@@ -43,18 +43,20 @@ from enum import StrEnum
 from dataclasses import dataclass
 from pathlib import Path
 
+
 class TrashDeleteResult(StrEnum):
-    DELETED = "deleted"                          # path removed cleanly
+    DELETED = "deleted"  # path removed cleanly
     DELETED_WITH_STAGING_FAILURE = "deleted_with_staging_failure"
     # ^ directory case only: the user's path is gone (atomic rename succeeded
     # under lock), but the unlocked rmtree of the staging dir failed. Orphan
     # remains under <trash_dir>/.pending-delete-* for next-init recovery to
     # pick up. From the user's perspective the entry is no longer in trash;
     # surfaced as a distinct outcome so operators see the partial state.
-    SKIPPED_IN_FLIGHT = "skipped"                # journal shows active move
-    MISSING = "missing"                          # path didn't exist (no-op)
-    PERMISSION_ERROR = "permission_error"        # OSError on rename/unlink
-    OUTSIDE_TRASH = "outside_trash"              # escapes trash root
+    SKIPPED_IN_FLIGHT = "skipped"  # journal shows active move
+    MISSING = "missing"  # path didn't exist (no-op)
+    PERMISSION_ERROR = "permission_error"  # OSError on rename/unlink
+    OUTSIDE_TRASH = "outside_trash"  # escapes trash root
+
 
 @dataclass(frozen=True)
 class TrashDeleteOutcome:
@@ -65,6 +67,7 @@ class TrashDeleteOutcome:
     # ^ populated for PERMISSION_ERROR (the rename/unlink raise) and for
     # DELETED_WITH_STAGING_FAILURE (the unlocked rmtree raise — surfaced so
     # operators can correlate with the orphan staging dir).
+
 
 class TrashGC:
     def __init__(

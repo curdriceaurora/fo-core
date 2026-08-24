@@ -570,14 +570,17 @@ Check:
 ```python
 # Create system
 from methodologies.johnny_decimal import JohnnyDecimalSystem
+
 system = JohnnyDecimalSystem()
 
 # Migrate existing
 from methodologies.johnny_decimal import JohnnyDecimalMigrator
+
 migrator = JohnnyDecimalMigrator()
 
 # PARA integration
 from methodologies.johnny_decimal import create_para_compatible_config
+
 config = create_para_compatible_config()
 ```
 
