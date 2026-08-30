@@ -416,6 +416,22 @@ class ParallelProcessor:
         if not pending:
             return None
         now = time.monotonic()
+        # If any task in ``pending`` is currently running, the pool is NOT
+        # saturated — a worker is actively making progress and will either
+        # complete or hit its per-file timeout, freeing a slot. Under load
+        # (macOS GitHub Actions runners in particular) the poll iteration
+        # that should detect a running task's timeout can slip past the
+        # 2 × timeout saturation deadline for a queued peer; running the
+        # saturation check first would then abort the queued peer even
+        # though the pool is progressing normally. Refresh the queued
+        # tasks' saturation clocks and defer — the next poll will pick up
+        # the running task's timeout, and its abandonment already resets
+        # queued_at for remaining pending tasks.
+        if any(f.running() for f in pending):
+            for f in pending:
+                if future_started.get(f) is None and not f.running():
+                    future_queued_at[f] = now
+            return None
         # Only futures that have never started (future_started[f] is None) AND
         # have been queued for longer than 2×timeout count as stalled. Futures
         # already picked up by a worker have a float start time and are excluded.
