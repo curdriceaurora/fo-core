@@ -339,7 +339,7 @@ Integration tests live in `tests/integration/` and exercise real service wiring 
 ```python
 @pytest.mark.integration
 def test_organizer_creates_output(
-    stub_all_models,       # Stubs both text + vision model init and generate
+    stub_all_models,  # Stubs both text + vision model init and generate
     integration_source_dir,  # Temp dir with .txt, .csv, .md files
     integration_output_dir,  # Clean temp output dir
 ):
