@@ -53,9 +53,7 @@ try:
     import numpy as np
     from numpy.typing import NDArray
 except ImportError as exc:  # pragma: no cover
-    raise ImportError(
-        "Install with: pip install 'fo-core[dedup-text]'"
-    ) from exc
+    raise ImportError("Install with: pip install 'fo-core[dedup-text]'") from exc
 ```
 
 ### A2 — `src/services/deduplication/semantic.py:12-13`
