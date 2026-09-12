@@ -24,12 +24,12 @@ def temp_audio_file(tmp_path):
 Audio transcription and metadata extraction are mocked to avoid dependencies on actual audio processing libraries:
 
 ```python
-@patch('models.audio_transcriber.WhisperModel')
+@patch("models.audio_transcriber.WhisperModel")
 def test_transcribe(mock_whisper):
     """Test with mocked Whisper model."""
     mock_whisper.return_value.transcribe.return_value = (
         [Mock(text="Hello", start=0.0, end=1.0)],
-        {"language": "en"}
+        {"language": "en"},
     )
 ```
 
@@ -55,6 +55,7 @@ Example:
 
 ```python
 AUDIO_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "audio_samples"
+
 
 def test_with_real_audio():
     real_audio = AUDIO_FIXTURE_DIR / "sample.mp3"
