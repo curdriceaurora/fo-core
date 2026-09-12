@@ -121,7 +121,7 @@ from services.audio.transcriber import AudioTranscriber, ModelSize, ComputeType
 transcriber = AudioTranscriber(
     model_size=ModelSize.SMALL,
     compute_type=ComputeType.FLOAT16,  # Use INT8 for CPU
-    device="cuda"  # or "cpu"
+    device="cuda",  # or "cpu"
 )
 
 # Transcribe audio file
@@ -145,7 +145,7 @@ from services.audio.transcriber import (
     AudioTranscriber,
     TranscriptionOptions,
     ModelSize,
-    ComputeType
+    ComputeType,
 )
 
 # Configure advanced options
@@ -156,13 +156,10 @@ options = TranscriptionOptions(
     best_of=5,  # Number of candidates (higher = slower, more accurate)
     temperature=0.0,  # Sampling temperature (0 = deterministic)
     vad_filter=True,  # Voice Activity Detection (removes silence)
-    initial_prompt="This is a technical podcast about AI and machine learning."
+    initial_prompt="This is a technical podcast about AI and machine learning.",
 )
 
-transcriber = AudioTranscriber(
-    model_size=ModelSize.MEDIUM,
-    compute_type=ComputeType.INT8_FLOAT16
-)
+transcriber = AudioTranscriber(model_size=ModelSize.MEDIUM, compute_type=ComputeType.INT8_FLOAT16)
 
 result = transcriber.transcribe("interview.wav", options=options)
 
@@ -245,7 +242,7 @@ transcriber = AudioTranscriber(
     model_size=ModelSize.SMALL,
     compute_type=ComputeType.FLOAT16,  # GPU-optimized
     device="cuda",
-    num_workers=4  # Parallel processing
+    num_workers=4,  # Parallel processing
 )
 ```
 
@@ -258,7 +255,7 @@ transcriber = AudioTranscriber(
     model_size=ModelSize.TINY,  # Smaller model
     compute_type=ComputeType.INT8,  # Quantized precision
     device="cpu",
-    num_workers=1  # Limit workers to avoid thrashing
+    num_workers=1,  # Limit workers to avoid thrashing
 )
 ```
 
@@ -303,10 +300,7 @@ transcription = transcriber.transcribe("podcast.mp3")
 
 # Classify audio type
 classifier = AudioClassifier()
-classification = classifier.classify(
-    metadata=metadata,
-    transcription=transcription
-)
+classification = classifier.classify(metadata=metadata, transcription=transcription)
 
 print(f"Type: {classification.audio_type}")
 print(f"Confidence: {classification.confidence:.2%}")
@@ -538,7 +532,7 @@ from services.video.scene_detector import SceneDetector, DetectionMethod
 detector = SceneDetector(
     method=DetectionMethod.CONTENT,
     threshold=27.0,
-    min_scene_length=1.0  # seconds
+    min_scene_length=1.0,  # seconds
 )
 
 # Detect scenes in video
@@ -553,8 +547,10 @@ print(f"Detected {len(result.scenes)} scenes")
 
 # Access individual scenes
 for scene in result.scenes:
-    print(f"Scene {scene.scene_number}: {scene.start_time:.2f}s - {scene.end_time:.2f}s "
-          f"({scene.duration:.2f}s, {scene.frame_count} frames)")
+    print(
+        f"Scene {scene.scene_number}: {scene.start_time:.2f}s - {scene.end_time:.2f}s "
+        f"({scene.duration:.2f}s, {scene.frame_count} frames)"
+    )
 ```
 
 #### Advanced Options
@@ -566,7 +562,7 @@ from services.video.scene_detector import SceneDetector, DetectionMethod
 detector = SceneDetector(
     method=DetectionMethod.ADAPTIVE,
     threshold=15.0,  # Lower = more sensitive
-    min_scene_length=0.5  # Allow shorter scenes
+    min_scene_length=0.5,  # Allow shorter scenes
 )
 
 result = detector.detect_scenes("interview.mp4")
@@ -575,7 +571,7 @@ result = detector.detect_scenes("interview.mp4")
 result = detector.detect_scenes(
     "action-movie.mp4",
     method=DetectionMethod.CONTENT,
-    threshold=40.0  # Less sensitive for fast-paced content
+    threshold=40.0,  # Less sensitive for fast-paced content
 )
 ```
 
@@ -594,7 +590,7 @@ SceneDetector.extract_scene_thumbnails(
     video_path="video.mp4",
     result=result,
     output_dir=output_dir,
-    frame_offset=0.5  # Extract frame 0.5s into each scene
+    frame_offset=0.5,  # Extract frame 0.5s into each scene
 )
 
 print(f"Saved {len(result.scenes)} thumbnails to {output_dir}")
@@ -849,6 +845,7 @@ ValueError: Failed to open video: video.mp4
 
 ```python
 import cv2
+
 cap = cv2.VideoCapture("video.mp4")
 print(f"Opened: {cap.isOpened()}")
 cap.release()
@@ -909,13 +906,11 @@ detector = SceneDetector(method=DetectionMethod.ADAPTIVE)
 
 ```python
 # Use threshold method for speed
-detector = SceneDetector(
-    method=DetectionMethod.THRESHOLD,
-    threshold=30.0
-)
+detector = SceneDetector(method=DetectionMethod.THRESHOLD, threshold=30.0)
 
 # Skip scene extraction, metadata only
 from services.video.metadata_extractor import VideoMetadataExtractor
+
 extractor = VideoMetadataExtractor()
 metadata = extractor.extract("video.mp4")  # Much faster than scene detection
 ```
@@ -926,7 +921,7 @@ metadata = extractor.extract("video.mp4")  # Much faster than scene detection
 # Use adaptive method for accuracy
 detector = SceneDetector(
     method=DetectionMethod.ADAPTIVE,
-    min_scene_length=0.5  # Detect shorter scenes
+    min_scene_length=0.5,  # Detect shorter scenes
 )
 
 # Extract high-resolution thumbnails
@@ -934,7 +929,7 @@ SceneDetector.extract_scene_thumbnails(
     video_path="video.mp4",
     result=result,
     output_dir="thumbnails",
-    frame_offset=1.0  # Use frame 1s into scene
+    frame_offset=1.0,  # Use frame 1s into scene
 )
 ```
 
