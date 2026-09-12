@@ -91,7 +91,8 @@ in `docs/developer/safedir-readers.md`.
 
 ```python
 some_safedir_call(...)  # safedir-valueerror: ok — <reason>
-import defusedxml.ET    # defusedxml-fallback: ok — <reason>
+import defusedxml.ET  # defusedxml-fallback: ok — <reason>
+
 wrapper = io.TextIOWrapper(fileobj, ...)  # textiowrapper-detach: ok — <reason>
 ```
 
