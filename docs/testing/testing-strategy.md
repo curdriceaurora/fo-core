@@ -40,19 +40,18 @@ pytest -k "backup or dedup"                        # Filter by name
 ## Test Markers
 
 ```python
-@pytest.mark.unit          # Unit tests
-@pytest.mark.smoke         # Fast critical-path tests (pre-commit validation)
-@pytest.mark.integration   # Integration tests — real file I/O, DB, service interactions
-@pytest.mark.e2e           # End-to-end tests against real file trees
-@pytest.mark.asyncio       # Async tests (services)
-@pytest.mark.benchmark     # Performance benchmarks
-@pytest.mark.ci            # Per-commit fast gate (kept small — no I/O, no external deps)
-@pytest.mark.slow          # Slow tests
-@pytest.mark.regression    # Regression tests (full suite only)
-@pytest.mark.no_ollama     # Tests that verify fallback behavior when Ollama is unavailable
-@pytest.mark.playwright    # Browser-based E2E tests (requires: playwright install chromium; run with --override-ini='addopts=')
+@pytest.mark.unit  # Unit tests
+@pytest.mark.smoke  # Fast critical-path tests (pre-commit validation)
+@pytest.mark.integration  # Integration tests — real file I/O, DB, service interactions
+@pytest.mark.e2e  # End-to-end tests against real file trees
+@pytest.mark.asyncio  # Async tests (services)
+@pytest.mark.benchmark  # Performance benchmarks
+@pytest.mark.ci  # Per-commit fast gate (kept small — no I/O, no external deps)
+@pytest.mark.slow  # Slow tests
+@pytest.mark.regression  # Regression tests (full suite only)
+@pytest.mark.no_ollama  # Tests that verify fallback behavior when Ollama is unavailable
+@pytest.mark.playwright  # Browser-based E2E tests (requires: playwright install chromium; run with --override-ini='addopts=')
 @pytest.mark.uses_setup_gate  # Opt-out of the autouse setup-gate bypass (for tests that exercise the gate directly)
-
 def test_example():
     pass
 ```

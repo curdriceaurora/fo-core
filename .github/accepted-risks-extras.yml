@@ -19,7 +19,18 @@
 #                   platforms — use for macOS-only transitive deps
 
 allowlist:
-  - advisory_id: CVE-2025-69872
+  # pip-audit surfaces this advisory under its PyPA advisory-database ID
+  # (PYSEC-2026-2447, published 2026-07-13) rather than the CVE alias. The
+  # gate script (scripts/pip_audit_gate.py) matches strictly on advisory_id,
+  # so this entry must be keyed on the ID pip-audit actually emits — see
+  # the OSV record for the full alias list.
+  # Aliases (same underlying advisory, per PyPA advisory-database):
+  #   - PYSEC-2026-2447 (pip-audit reports this)
+  #   - CVE-2025-69872
+  #   - GHSA-w8v5-vhqr-4h9v
+  # If pip-audit re-keys again, rotate this ID to the new one and refresh
+  # the alias list below.
+  - advisory_id: PYSEC-2026-2447
     package: diskcache
     version_spec: "<=5.6.3"
     reason: >-
@@ -27,18 +38,11 @@ allowlist:
       cache-path code path is never invoked by fo-core — the ``[llama]``
       surface only uses llama-cpp-python for local inference, and the disk
       cache is pinned to a per-model temp dir we control. Upstream has no
-      patched release as of 2026-04-23; re-evaluate when diskcache ships
-      a 5.6.x+ that addresses the advisory.
-    expires_on: 2026-10-23
-  - advisory_id: PYSEC-2022-42969
-    package: py
-    version_spec: "<=1.11.0"
-    reason: >-
-      Transitive via pytest (``[dev]`` / ``[all]`` test extras). The
-      advisory is a ReDoS in ``py.path.svnwc`` — SVN working-copy handling
-      that fo-core never invokes. Our pytest usage is limited to the core
-      test runner; no SVN-adjacent helpers are imported. The ``py``
-      package is effectively unmaintained (last release 2022-11) so no
-      upstream fix is expected. Re-evaluate when pytest drops the ``py``
-      dependency entirely (upstream tracking issue pytest-dev/pytest#10462).
-    expires_on: 2026-10-23
+      patched release as of 2026-08-05 (diskcache 5.6.3 is still the latest
+      release on PyPI); re-evaluate when diskcache ships a 5.6.x+ that
+      addresses the advisory.
+    expires_on: "2027-02-05"
+  # Previously carried an entry for PYSEC-2022-42969 (py) — pruned on
+  # 2026-08-05 because pip-audit no longer reports that advisory against
+  # the installed graph ("advisory not reported" under scripts/pip_audit_gate.py
+  # rule 4). Re-add if the advisory reappears.

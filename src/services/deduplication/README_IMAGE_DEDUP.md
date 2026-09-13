@@ -145,11 +145,8 @@ Find duplicate images in a directory.
 def progress(current, total):
     print(f"Processing: {current}/{total}")
 
-duplicates = deduper.find_duplicates(
-    Path("./photos"),
-    recursive=True,
-    progress_callback=progress
-)
+
+duplicates = deduper.find_duplicates(Path("./photos"), recursive=True, progress_callback=progress)
 ```
 
 ---
@@ -167,10 +164,7 @@ Calculate similarity score between two images.
 **Example:**
 
 ```python
-similarity = deduper.compute_similarity(
-    Path("photo1.jpg"),
-    Path("photo2.jpg")
-)
+similarity = deduper.compute_similarity(Path("photo1.jpg"), Path("photo2.jpg"))
 if similarity > 0.9:
     print("Images are very similar!")
 ```
@@ -313,19 +307,14 @@ def show_progress(current, total):
     percent = (current / total) * 100
     print(f"\rProgress: {current}/{total} ({percent:.1f}%)", end="")
 
-duplicates = deduper.find_duplicates(
-    Path("./photos"),
-    progress_callback=show_progress
-)
+
+duplicates = deduper.find_duplicates(Path("./photos"), progress_callback=show_progress)
 ```
 
 ### Pattern 3: Quality-Based Cleanup
 
 ```python
-from services.deduplication import (
-    ImageDeduplicator,
-    get_best_quality_image
-)
+from services.deduplication import ImageDeduplicator, get_best_quality_image
 
 deduper = ImageDeduplicator()
 duplicates = deduper.find_duplicates(Path("./photos"))
@@ -421,7 +410,7 @@ all_images = list(Path("./photos").rglob("*.jpg"))
 batch_size = 1000
 
 for i in range(0, len(all_images), batch_size):
-    batch = all_images[i:i + batch_size]
+    batch = all_images[i : i + batch_size]
     hashes = deduper.batch_compute_hashes(batch)
     # Process this batch
 ```
