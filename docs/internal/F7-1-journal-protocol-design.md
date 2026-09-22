@@ -460,18 +460,20 @@ Signature:
 from dataclasses import dataclass
 from typing import Literal
 
+
 @dataclass(frozen=True)
 class _PlannedAction:
-    identity: tuple              # §3.1 collapse key
-    entry: _JournalEntry         # the reconciled entry
-    verb: Literal[               # sweep decision from §5.1
+    identity: tuple  # §3.1 collapse key
+    entry: _JournalEntry  # the reconciled entry
+    verb: Literal[  # sweep decision from §5.1
         "drop",
         "retain",
-        "drop_tmp_then_drop",    # row 1: unlink tmp, drop entry
+        "drop_tmp_then_drop",  # row 1: unlink tmp, drop entry
         "unlink_src_then_drop",  # rows 2, 7: unlink src + fsync, drop entry
     ]
-    reason: str                  # human-readable for logs / CLI rendering
-    needs_warning: bool          # log a WARNING on retain/drop-warn rows
+    reason: str  # human-readable for logs / CLI rendering
+    needs_warning: bool  # log a WARNING on retain/drop-warn rows
+
 
 def plan_recovery_actions(
     entries: list[_JournalEntry],

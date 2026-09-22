@@ -44,11 +44,7 @@ from services.deduplication.viewer import ComparisonViewer
 viewer = ComparisonViewer()
 
 # Compare a group of duplicate images
-images = [
-    Path("photo.jpg"),
-    Path("photo_copy.jpg"),
-    Path("photo_resized.jpg")
-]
+images = [Path("photo.jpg"), Path("photo_copy.jpg"), Path("photo_resized.jpg")]
 
 review = viewer.show_comparison(images, similarity_score=95.5)
 
@@ -65,7 +61,7 @@ print(f"Skipped: {review.skipped}")
 duplicate_groups = {
     "hash1": [Path("img1.jpg"), Path("img1_copy.jpg")],
     "hash2": [Path("img2.png"), Path("img2_resized.png")],
-    "hash3": [Path("img3.gif"), Path("img3_converted.gif")]
+    "hash3": [Path("img3.gif"), Path("img3_converted.gif")],
 }
 
 # Manual review
@@ -104,8 +100,8 @@ print(f"User selected: {selected}")
 
 ```python
 viewer = ComparisonViewer(
-    preview_width=60,   # Width in characters
-    preview_height=30   # Height in characters
+    preview_width=60,  # Width in characters
+    preview_height=30,  # Height in characters
 )
 ```
 
@@ -224,7 +220,7 @@ duplicate_groups = detector.get_duplicate_groups()
 viewer = ComparisonViewer()
 decisions = viewer.batch_review(
     {group.hash: [f.path for f in group.files] for group in duplicate_groups.values()},
-    auto_select_best=False
+    auto_select_best=False,
 )
 
 # 4. Execute decisions
