@@ -24,7 +24,7 @@ def temp_video_file(tmp_path):
 Video processing is mocked to avoid dependencies on actual video processing libraries (OpenCV, ffmpeg):
 
 ```python
-@patch('cv2.VideoCapture')
+@patch("cv2.VideoCapture")
 def test_extract_frames(mock_video_capture):
     """Test with mocked OpenCV."""
     mock_cap = Mock()
@@ -75,8 +75,10 @@ If you want to test with real video files:
 4. Update tests to use real files
 
 Example:
+
 ```python
 VIDEO_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "video_samples"
+
 
 def test_with_real_video():
     real_video = VIDEO_FIXTURE_DIR / "sample.mp4"
