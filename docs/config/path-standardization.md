@@ -16,16 +16,16 @@ from config.path_manager import PathManager
 path_manager = PathManager()
 
 # Access standard directories
-config_dir = path_manager.config_dir          # ~/.config/fo (XDG_CONFIG_HOME)
-data_dir = path_manager.data_dir              # ~/.local/share/fo (XDG_DATA_HOME)
-state_dir = path_manager.state_dir            # ~/.local/state/fo (XDG_STATE_HOME)
-cache_dir = path_manager.cache_dir            # data_dir/cache
+config_dir = path_manager.config_dir  # ~/.config/fo (XDG_CONFIG_HOME)
+data_dir = path_manager.data_dir  # ~/.local/share/fo (XDG_DATA_HOME)
+state_dir = path_manager.state_dir  # ~/.local/state/fo (XDG_STATE_HOME)
+cache_dir = path_manager.cache_dir  # data_dir/cache
 
 # Access specific files
-config_file = path_manager.config_file        # config_dir/config.yaml
+config_file = path_manager.config_file  # config_dir/config.yaml
 preferences_file = path_manager.preferences_file  # config_dir/preferences.json
-history_db = path_manager.history_db          # data_dir/history/operations.db
-undo_redo_db = path_manager.undo_redo_db      # state_dir/undo-redo.db
+history_db = path_manager.history_db  # data_dir/history/operations.db
+undo_redo_db = path_manager.undo_redo_db  # state_dir/undo-redo.db
 ```
 
 ### XDG Base Directory Specification
@@ -113,6 +113,7 @@ Modules that manage their own paths should accept a PathManager parameter:
 
 ```python
 from config.path_manager import PathManager
+
 
 class MyService:
     def __init__(self, path_manager: PathManager | None = None):
