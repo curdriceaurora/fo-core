@@ -137,20 +137,17 @@ store.add_preference(
     preference_data={
         "folder_mappings": {"*.pdf": "PDFs"},
         "naming_patterns": {"invoice_*": "Invoices"},
-        "confidence": 0.8
-    }
+        "confidence": 0.8,
+    },
 )
 
 # Get preference (with parent directory fallback)
-pref = store.get_preference(
-    path=Path("/home/user/Documents/Work"),
-    fallback_to_parent=True
-)
+pref = store.get_preference(path=Path("/home/user/Documents/Work"), fallback_to_parent=True)
 
 # Update confidence based on success/failure
 store.update_confidence(
     path=Path("/home/user/Documents"),
-    success=True  # or False
+    success=True,  # or False
 )
 
 # Save to disk

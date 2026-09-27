@@ -151,6 +151,7 @@ def organize(input_dir: Path, output_dir: Path) -> None:
     result = service.organize(input_dir, output_dir)
     display_results(result)
 
+
 # Service (business logic)
 class OrganizationService:
     def __init__(self):
@@ -159,6 +160,7 @@ class OrganizationService:
     def organize(self, input_dir, output_dir):
         # Business logic
         return result
+
 
 # Core (file organizer logic)
 class FileOrganizer:
@@ -175,6 +177,7 @@ Implement custom AI models:
 
 ```python
 from models.base import BaseModel
+
 
 class CustomModel(BaseModel):
     def generate(self, prompt: str) -> str:
