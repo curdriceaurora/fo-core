@@ -36,15 +36,10 @@ Represents a Johnny Decimal number.
 from methodologies.johnny_decimal import JohnnyDecimalNumber, NumberLevel
 
 # Create a category number (10.01)
-number = JohnnyDecimalNumber(
-    area=10,
-    category=1,
-    id_number=None,
-    level=NumberLevel.CATEGORY
-)
+number = JohnnyDecimalNumber(area=10, category=1, id_number=None, level=NumberLevel.CATEGORY)
 
 print(number.formatted_number)  # "10.01"
-print(number.level)             # NumberLevel.CATEGORY
+print(number.level)  # NumberLevel.CATEGORY
 ```
 
 **Attributes:**
@@ -68,9 +63,9 @@ Enum defining hierarchy levels.
 ```python
 from methodologies.johnny_decimal import NumberLevel
 
-NumberLevel.AREA       # Area level (10)
-NumberLevel.CATEGORY   # Category level (10.01)
-NumberLevel.ID         # ID level (10.01.001)
+NumberLevel.AREA  # Area level (10)
+NumberLevel.CATEGORY  # Category level (10.01)
+NumberLevel.ID  # ID level (10.01.001)
 ```
 
 ### JohnnyDecimalSystem
@@ -195,9 +190,9 @@ from pathlib import Path
 from methodologies.johnny_decimal import FolderScanner
 
 scanner = FolderScanner(
-    scheme=None,        # Optional numbering scheme
-    max_depth=10,       # Maximum scan depth
-    skip_hidden=True    # Skip hidden files/folders
+    scheme=None,  # Optional numbering scheme
+    max_depth=10,  # Maximum scan depth
+    skip_hidden=True,  # Skip hidden files/folders
 )
 
 # Scan directory
@@ -237,13 +232,12 @@ generator = JohnnyDecimalGenerator(scheme)
 transformer = FolderTransformer(
     scheme=scheme,
     generator=generator,
-    preserve_original_names=True  # Keep folder names after numbers
+    preserve_original_names=True,  # Keep folder names after numbers
 )
 
 # Create transformation plan
 plan = transformer.create_transformation_plan(
-    folder_tree=scan_result.folder_tree,
-    root_path=Path("/path")
+    folder_tree=scan_result.folder_tree, root_path=Path("/path")
 )
 
 # Generate preview
@@ -304,8 +298,8 @@ from pathlib import Path
 from methodologies.johnny_decimal import JohnnyDecimalMigrator
 
 migrator = JohnnyDecimalMigrator(
-    scheme=None,                      # Optional scheme (default if None)
-    preserve_original_names=True      # Keep folder names
+    scheme=None,  # Optional scheme (default if None)
+    preserve_original_names=True,  # Keep folder names
 )
 
 # Create migration plan
@@ -321,8 +315,8 @@ print(preview)
 # Execute migration
 result = migrator.execute_migration(
     plan,
-    dry_run=True,          # Preview mode
-    create_backup=True     # Create backup
+    dry_run=True,  # Preview mode
+    create_backup=True,  # Create backup
 )
 
 # Check results
@@ -409,17 +403,9 @@ config = (
     .add_area(10, "Finance", "Financial documents")
     .add_category(10, 1, "Budgets", "Annual budgets")
     .add_category(10, 2, "Invoices", "Client invoices")
-    .with_migration_config(
-        preserve_names=True,
-        create_backups=True,
-        max_depth=10
-    )
+    .with_migration_config(preserve_names=True, create_backups=True, max_depth=10)
     .with_para_integration(
-        enabled=True,
-        projects_area=10,
-        areas_area=20,
-        resources_area=30,
-        archive_area=40
+        enabled=True, projects_area=10, areas_area=20, resources_area=30, archive_area=40
     )
     .add_custom_mapping("finance", 10)
     .add_custom_mapping("personal", 20)
@@ -462,10 +448,10 @@ Enum for PARA methodology categories.
 ```python
 from methodologies.johnny_decimal import PARACategory
 
-PARACategory.PROJECTS    # Active projects
-PARACategory.AREAS       # Ongoing responsibilities
-PARACategory.RESOURCES   # Reference materials
-PARACategory.ARCHIVE     # Completed items
+PARACategory.PROJECTS  # Active projects
+PARACategory.AREAS  # Ongoing responsibilities
+PARACategory.RESOURCES  # Reference materials
+PARACategory.ARCHIVE  # Completed items
 ```
 
 ### PARAJohnnyDecimalBridge
@@ -480,11 +466,7 @@ from methodologies.johnny_decimal import (
 )
 
 config = PARAIntegrationConfig(
-    enabled=True,
-    projects_area=10,
-    areas_area=20,
-    resources_area=30,
-    archive_area=40
+    enabled=True, projects_area=10, areas_area=20, resources_area=30, archive_area=40
 )
 
 bridge = PARAJohnnyDecimalBridge(config)
@@ -502,10 +484,7 @@ is_para = bridge.is_para_area(15)
 # Returns: True
 
 # Get path suggestion
-path = bridge.get_para_path_suggestion(
-    PARACategory.PROJECTS,
-    "Website Redesign"
-)
+path = bridge.get_para_path_suggestion(PARACategory.PROJECTS, "Website Redesign")
 # Returns: "10 Projects / 10.01 Website Redesign"
 
 # Create PARA structure
@@ -548,18 +527,10 @@ organizer = HybridOrganizer(config)
 paths = organizer.create_hybrid_structure(Path("/root"))
 
 # Categorize item
-jd_number = organizer.categorize_item(
-    "Website Project",
-    PARACategory.PROJECTS
-)
+jd_number = organizer.categorize_item("Website Project", PARACategory.PROJECTS)
 
 # Get item path
-path = organizer.get_item_path(
-    Path("/root"),
-    PARACategory.PROJECTS,
-    jd_number,
-    "Website Project"
-)
+path = organizer.get_item_path(Path("/root"), PARACategory.PROJECTS, jd_number, "Website Project")
 ```
 
 ## Adapter Classes
@@ -576,7 +547,7 @@ item = OrganizationItem(
     name="Budget 2024",
     path=Path("Finance/Budgets/2024"),
     category="finance",
-    metadata={"year": 2024}
+    metadata={"year": 2024},
 )
 ```
 
@@ -594,10 +565,7 @@ adapter = PARAAdapter(config)
 
 # Adapt PARA item to JD
 para_item = OrganizationItem(
-    name="Website Project",
-    path=Path("Projects/Website"),
-    category="projects",
-    metadata={}
+    name="Website Project", path=Path("Projects/Website"), category="projects", metadata={}
 )
 
 jd_number = adapter.adapt_to_jd(para_item)
@@ -620,10 +588,7 @@ adapter = FileSystemAdapter(config)
 
 # Adapt filesystem item to JD
 fs_item = OrganizationItem(
-    name="Documents",
-    path=Path("Documents"),
-    category="filesystem",
-    metadata={}
+    name="Documents", path=Path("Documents"), category="filesystem", metadata={}
 )
 
 jd_number = adapter.adapt_to_jd(fs_item)
@@ -691,9 +656,7 @@ Defines a JD area.
 from methodologies.johnny_decimal import AreaDefinition
 
 area = AreaDefinition(
-    area_number=10,
-    title="Finance",
-    description="Financial documents and records"
+    area_number=10, title="Finance", description="Financial documents and records"
 )
 ```
 
@@ -705,10 +668,7 @@ Defines a JD category.
 from methodologies.johnny_decimal import CategoryDefinition
 
 category = CategoryDefinition(
-    area_number=10,
-    category_number=1,
-    title="Budgets",
-    description="Annual and quarterly budgets"
+    area_number=10, category_number=1, title="Budgets", description="Annual and quarterly budgets"
 )
 ```
 
@@ -726,11 +686,7 @@ from methodologies.johnny_decimal import (
 scheme = get_default_scheme()
 
 # Create custom scheme
-scheme = NumberingScheme(
-    name="my-scheme",
-    areas=[area1, area2],
-    categories=[cat1, cat2]
-)
+scheme = NumberingScheme(name="my-scheme", areas=[area1, area2], categories=[cat1, cat2])
 ```
 
 ## Utility Functions

@@ -88,6 +88,7 @@ import os
 import sys
 from utils.safedir import SafeDir, SymlinkRejected
 
+
 def extract_text(file_path: Path) -> str:
     if sys.platform != "win32":
         try:
@@ -133,7 +134,7 @@ def read_my_file(
 
     if fileobj is not None:
         label = Path(file_path).name if file_path is not None else "<fileobj>"
-        _check_fd_size(fileobj)             # enforce the 500 MB cap
+        _check_fd_size(fileobj)  # enforce the 500 MB cap
         try:
             return _parse(fileobj, label)
         except (OSError, ValueError) as e:
@@ -143,7 +144,9 @@ def read_my_file(
     assert file_path is not None
     path = Path(file_path)
     _check_file_size(path)
-    with path.open("rb") as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
+    with path.open(
+        "rb"
+    ) as f:  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
         return _parse(f, path.name)
 ```
 
@@ -162,7 +165,7 @@ text_stream = io.TextIOWrapper(fileobj, encoding="utf-8", errors="surrogateescap
 try:
     doc = library.read(text_stream)
 finally:
-    text_stream.detach()   # must happen on every exit path, including exceptions
+    text_stream.detach()  # must happen on every exit path, including exceptions
 ```
 
 Without `detach()`, `TextIOWrapper.__del__` closes the underlying binary stream,
@@ -190,7 +193,7 @@ except (OSError, AttributeError, ValueError):
     size_kb = -1.0
 
 # Bad — re-traverses the path, introduces a race
-size_kb = file_path.stat().st_size / 1024   # never do this before SafeDir open
+size_kb = file_path.stat().st_size / 1024  # never do this before SafeDir open
 ```
 
 The only acceptable exception: `path.stat()` used **solely for logging / display**,
@@ -207,7 +210,9 @@ When a path-based reader call is intentionally retained (legacy fallback, Window
 path, user-specified output), suppress the lint rail with:
 
 ```python
-result = some_library.open(path)  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
+result = some_library.open(
+    path
+)  # safedir: ok — legacy path-branch; SafeDir-aware callers pass fileobj=
 ```
 
 **Grammar:**
@@ -246,12 +251,12 @@ try:
             raise
         with fileobj:
             return _read(fileobj)
-except SymlinkRejected as exc:          # 1. symlink rejection — security event
+except SymlinkRejected as exc:  # 1. symlink rejection — security event
     logger.warning("Refused ...: %s", exc)
     return sentinel
-except NotImplementedError:             # 2. Windows / POSIX-unavailable — fall through
+except NotImplementedError:  # 2. Windows / POSIX-unavailable — fall through
     pass
-except (OSError, ValueError) as e:      # 3. ordinary I/O errors
+except (OSError, ValueError) as e:  # 3. ordinary I/O errors
     logger.error("Error ...: %s", e)
     return sentinel
 ```
