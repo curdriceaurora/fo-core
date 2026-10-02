@@ -179,8 +179,8 @@ root = Path("~/Documents")
 created_paths = organizer.create_hybrid_structure(root)
 
 # Access created paths
-projects_path = created_paths['para_projects']
-areas_path = created_paths['para_areas']
+projects_path = created_paths["para_projects"]
+areas_path = created_paths["para_areas"]
 ```
 
 ### Migrating PARA to Hybrid
@@ -197,7 +197,7 @@ para_detected = analyzer.detect_para_structure(root)
 
 # Get migration recommendations
 strategy = analyzer.suggest_migration_strategy(root)
-print(strategy['recommendations'])
+print(strategy["recommendations"])
 
 # Execute migration
 migrator = JohnnyDecimalMigrator(scheme=config.scheme)
@@ -224,12 +224,7 @@ project_name = "Website Redesign"
 jd_number = organizer.categorize_item(project_name, PARACategory.PROJECTS)
 
 # Get full path in hybrid structure
-project_path = organizer.get_item_path(
-    root,
-    PARACategory.PROJECTS,
-    jd_number,
-    project_name
-)
+project_path = organizer.get_item_path(root, PARACategory.PROJECTS, jd_number, project_name)
 
 # Create the project folder
 project_path.mkdir(parents=True, exist_ok=True)
@@ -241,35 +236,20 @@ project_path.mkdir(parents=True, exist_ok=True)
 
 ```python
 # Original location
-project_jd = JohnnyDecimalNumber(
-    area=10,
-    category=1,
-    id_number=None,
-    level=NumberLevel.CATEGORY
-)
+project_jd = JohnnyDecimalNumber(area=10, category=1, id_number=None, level=NumberLevel.CATEGORY)
 
 # Get current path
-current_path = organizer.get_item_path(
-    root,
-    PARACategory.PROJECTS,
-    project_jd,
-    "Website Redesign"
-)
+current_path = organizer.get_item_path(root, PARACategory.PROJECTS, project_jd, "Website Redesign")
 
 # New location in Archive
 archive_jd = JohnnyDecimalNumber(
     area=40,  # Archive area
     category=1,
     id_number=None,
-    level=NumberLevel.CATEGORY
+    level=NumberLevel.CATEGORY,
 )
 
-archive_path = organizer.get_item_path(
-    root,
-    PARACategory.ARCHIVE,
-    archive_jd,
-    "Website Redesign"
-)
+archive_path = organizer.get_item_path(root, PARACategory.ARCHIVE, archive_jd, "Website Redesign")
 
 # Move the folder
 current_path.rename(archive_path)
@@ -292,15 +272,10 @@ for resource_name, category_num in resources:
         area=30,  # Resources area
         category=category_num,
         id_number=None,
-        level=NumberLevel.CATEGORY
+        level=NumberLevel.CATEGORY,
     )
 
-    path = organizer.get_item_path(
-        root,
-        PARACategory.RESOURCES,
-        jd_number,
-        resource_name
-    )
+    path = organizer.get_item_path(root, PARACategory.RESOURCES, jd_number, resource_name)
 
     path.mkdir(parents=True, exist_ok=True)
 
@@ -330,7 +305,7 @@ para_item = OrganizationItem(
     name="Website Redesign",
     path=Path("Projects/Website Redesign"),
     category="projects",
-    metadata={"subcategory": 1}
+    metadata={"subcategory": 1},
 )
 
 # Convert to JD
@@ -355,10 +330,7 @@ registry = create_default_registry(config)
 
 # Adapt items automatically
 item = OrganizationItem(
-    name="Q1 Budget",
-    path=Path("Areas/Finance/Q1 Budget"),
-    category="areas",
-    metadata={}
+    name="Q1 Budget", path=Path("Areas/Finance/Q1 Budget"), category="areas", metadata={}
 )
 
 # Registry picks the right adapter
@@ -444,27 +416,29 @@ When moving items between PARA categories:
 ```python
 from methodologies.johnny_decimal import PARAAdapter
 
+
 def auto_categorize(item_name, keywords):
     """Automatically determine PARA category from keywords."""
     item_lower = item_name.lower()
 
     # Check for project indicators
-    project_keywords = ['project', 'campaign', 'launch', 'deadline']
+    project_keywords = ["project", "campaign", "launch", "deadline"]
     if any(kw in item_lower for kw in project_keywords):
         return "projects"
 
     # Check for area indicators
-    area_keywords = ['health', 'finance', 'career', 'personal']
+    area_keywords = ["health", "finance", "career", "personal"]
     if any(kw in item_lower for kw in area_keywords):
         return "areas"
 
     # Check for resource indicators
-    resource_keywords = ['template', 'reference', 'guide', 'tutorial']
+    resource_keywords = ["template", "reference", "guide", "tutorial"]
     if any(kw in item_lower for kw in resource_keywords):
         return "resources"
 
     # Default to resources
     return "resources"
+
 
 # Usage
 category = auto_categorize("Website Redesign Project", None)
@@ -483,7 +457,7 @@ if is_mixed:
     print("Mixed structure detected!")
     strategy = analyzer.suggest_migration_strategy(root)
     print("Recommendations:")
-    for rec in strategy['recommendations']:
+    for rec in strategy["recommendations"]:
         print(f"  - {rec}")
 ```
 
@@ -506,9 +480,9 @@ config = (
     .with_para_integration(
         enabled=True,
         projects_area=10,
-        areas_area=25,      # Custom mapping
+        areas_area=25,  # Custom mapping
         resources_area=65,  # Custom mapping
-        archive_area=85,    # Custom mapping
+        archive_area=85,  # Custom mapping
     )
     .build()
 )
@@ -534,7 +508,7 @@ detected = analyzer.detect_para_structure(root)
 
 ```python
 config.compatibility.para_integration.projects_area = 10  # 10-19
-config.compatibility.para_integration.areas_area = 20     # 20-39 (expanded)
+config.compatibility.para_integration.areas_area = 20  # 20-39 (expanded)
 ```
 
 ### Issue: Confusion Between PARA and JD Numbering

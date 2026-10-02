@@ -222,7 +222,7 @@ print(f"Total numbers: {report['statistics']['total_numbers']}")
 print(f"Areas used: {report['statistics']['areas_used']}")
 
 # View area summaries
-for area_summary in report['areas']:
+for area_summary in report["areas"]:
     print(f"  Area {area_summary['area']}: {area_summary['name']}")
     print(f"    Used numbers: {area_summary['used_numbers']}")
 ```
