@@ -79,13 +79,14 @@ config = (
     .with_migration_config(
         preserve_names=True,  # Keep original folder names
         create_backups=True,  # Create backups before migration
-        max_depth=10          # Maximum depth to scan
+        max_depth=10,  # Maximum depth to scan
     )
     .build()
 )
 
 # Option C: PARA-compatible configuration
 from methodologies.johnny_decimal import create_para_compatible_config
+
 config = create_para_compatible_config()
 ```
 
@@ -97,10 +98,7 @@ Generate a detailed migration plan:
 from methodologies.johnny_decimal import JohnnyDecimalMigrator
 
 # Initialize migrator with configuration
-migrator = JohnnyDecimalMigrator(
-    scheme=config.scheme,
-    preserve_original_names=True
-)
+migrator = JohnnyDecimalMigrator(scheme=config.scheme, preserve_original_names=True)
 
 # Create migration plan
 plan, scan_result = migrator.create_migration_plan(root_path)
@@ -191,11 +189,7 @@ Always do a dry run first:
 
 ```python
 # Execute in dry-run mode (no actual changes)
-result = migrator.execute_migration(
-    plan,
-    dry_run=True,
-    create_backup=True
-)
+result = migrator.execute_migration(plan, dry_run=True, create_backup=True)
 
 # Review dry-run results
 print(f"Would transform: {result.transformed_count} folders")
@@ -212,7 +206,7 @@ If dry run looks good, execute the migration:
 result = migrator.execute_migration(
     plan,
     dry_run=False,
-    create_backup=True  # Always create backups!
+    create_backup=True,  # Always create backups!
 )
 
 # Check results
@@ -267,10 +261,7 @@ from methodologies.johnny_decimal import (
 config = create_para_compatible_config()
 
 # Initialize migrator
-migrator = JohnnyDecimalMigrator(
-    scheme=config.scheme,
-    preserve_original_names=True
-)
+migrator = JohnnyDecimalMigrator(scheme=config.scheme, preserve_original_names=True)
 
 # Create and execute plan
 plan, scan_result = migrator.create_migration_plan(root_path)
@@ -287,9 +278,9 @@ config = (
     .add_area(10, "Finance")
     .add_area(20, "Health")
     .add_area(30, "Work")
-    .add_custom_mapping("money", 10)        # "money" → Area 10
-    .add_custom_mapping("medical", 20)       # "medical" → Area 20
-    .add_custom_mapping("career", 30)        # "career" → Area 30
+    .add_custom_mapping("money", 10)  # "money" → Area 10
+    .add_custom_mapping("medical", 20)  # "medical" → Area 20
+    .add_custom_mapping("career", 30)  # "career" → Area 30
     .build()
 )
 
@@ -325,7 +316,7 @@ scanner = FolderScanner(max_depth=5)
 # Process in batches
 batch_size = 50
 for i in range(0, len(plan.rules), batch_size):
-    batch_rules = plan.rules[i:i+batch_size]
+    batch_rules = plan.rules[i : i + batch_size]
     # Process batch...
 ```
 
@@ -413,6 +404,7 @@ for info in migrator._rollback_history:
 ```python
 # Check folder permissions
 import os
+
 os.access(root_path, os.W_OK)  # Should return True
 
 # Run with elevated permissions if needed (macOS/Linux)
@@ -451,7 +443,7 @@ for issue in validation.errors:
 result = migrator.execute_migration(
     plan,
     dry_run=False,
-    create_backup=False  # Use with caution!
+    create_backup=False,  # Use with caution!
 )
 ```
 
