@@ -46,7 +46,7 @@ dependencies = [
     "striprtf>=0.0.26,<1",      # RTF file text extraction
     "tinytag~=2.2",             # Lightweight audio metadata fallback
     "py7zr>=0.20.0,<2",         # 7Z archive support
-    "pypdf~=6.10",              # PDF text extraction fallback
+    "pypdf~=7.0",              # PDF text extraction fallback
     "rarfile~=4.1",             # RAR archive support (requires unrar tool)
 
     # CLI
