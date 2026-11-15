@@ -659,8 +659,13 @@ class EnhancedEPUBReader:
                 logger.debug("No cover image found in EPUB")
                 return None
 
-            # Get cover data
-            cover_data = cover_item.get_content()
+            # Get cover data. ebooklib 0.21 types get_content() as
+            # str | bytes on the base EpubItem class; cover items are
+            # always raw image bytes at runtime, so narrow for mypy.
+            raw_cover = cover_item.get_content()
+            cover_data: bytes = (
+                raw_cover if isinstance(raw_cover, bytes) else raw_cover.encode("utf-8")
+            )
 
             # Determine output path
             if output_dir is None:
