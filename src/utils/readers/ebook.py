@@ -42,7 +42,10 @@ def _parse_epub(source: object, max_chars: int, label: str) -> str:
 
     for item in book.get_items():
         if item.get_type() == ebooklib.ITEM_DOCUMENT:
-            content = item.get_content().decode("utf-8", errors="ignore")
+            # ebooklib 0.21 types get_content() as str | bytes even though
+            # ITEM_DOCUMENT bodies are always bytes at runtime. Narrow for mypy.
+            raw = item.get_content()
+            content = raw if isinstance(raw, str) else raw.decode("utf-8", errors="ignore")
             # Basic HTML stripping (simple approach)
             content = re.sub(r"<[^>]+>", " ", content)
             content = re.sub(r"\s+", " ", content).strip()
