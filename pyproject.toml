@@ -30,7 +30,7 @@ dependencies = [
     "ollama>=0.1.0",  # 0.x — unstable API, keep >=
 
     # File processing
-    "Pillow~=12.2",
+    "Pillow>=13.0,<14",  # 12.x affected by 40+ PYSEC-2026-* / CVE-2026-* advisories (pillow 12.2.0: 67 vulns, 12.3.0: 44 vulns). 13.0.0 clears them all; bumped 2026-11-16.
     "PyMuPDF~=1.23",           # PDF text/image extraction
     "python-docx~=1.0",        # DOCX parsing
     "openpyxl~=3.1",           # XLSX parsing
