@@ -16,7 +16,7 @@ import re
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 try:
     import ebooklib
@@ -659,8 +659,12 @@ class EnhancedEPUBReader:
                 logger.debug("No cover image found in EPUB")
                 return None
 
-            # Get cover data
-            cover_data = cover_item.get_content()
+            # Get cover data. ebooklib 0.21 widened base EpubItem's
+            # get_content() return type to str | bytes, but cover items
+            # (EpubCover / EpubImage) are always raw image bytes at
+            # runtime — cast rather than branch to avoid an untestable
+            # str path.
+            cover_data = cast(bytes, cover_item.get_content())
 
             # Determine output path
             if output_dir is None:
