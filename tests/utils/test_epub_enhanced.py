@@ -348,6 +348,7 @@ class TestEnhancedEPUBReader:
         mock_book.get_items = Mock(return_value=[])
         assert reader._has_cover(mock_book) is False
 
+    @pytest.mark.ci
     @pytest.mark.skipif(not PILLOW_AVAILABLE, reason="Pillow not installed")
     @patch("utils.epub_enhanced.epub.read_epub")
     def test_extract_cover(self, mock_read, tmp_path):
